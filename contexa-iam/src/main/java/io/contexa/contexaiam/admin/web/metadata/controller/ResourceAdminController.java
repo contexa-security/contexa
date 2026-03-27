@@ -90,7 +90,15 @@ public class ResourceAdminController {
     public ResponseEntity<List<Map<String, Object>>> defineResourcesBatch(@RequestBody List<Map<String, Object>> requests) {
         List<Map<String, Object>> results = new ArrayList<>();
         for (Map<String, Object> req : requests) {
-            Long resourceId = ((Number) req.get("resourceId")).longValue();
+            Object resourceIdObj = req.get("resourceId");
+            if (resourceIdObj == null) {
+                Map<String, Object> errorResult = new HashMap<>();
+                errorResult.put("error", "resourceId is required");
+                errorResult.put("skipped", true);
+                results.add(errorResult);
+                continue;
+            }
+            Long resourceId = ((Number) resourceIdObj).longValue();
             String friendlyName = (String) req.get("friendlyName");
             String description = (String) req.get("description");
             try {

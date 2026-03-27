@@ -1998,6 +1998,7 @@
     padding: 0.625rem;
     font-size: 0.875rem;
     color: #e2e8f0;
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace !important;
 }
 
 #resourcePickerModal table tr {

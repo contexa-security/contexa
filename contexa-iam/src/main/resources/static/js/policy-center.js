@@ -4,6 +4,13 @@
  */
 const PolicyCenter = {
 
+    // Read i18n message from hidden div
+    _i18n: function(key, fallback) {
+        var el = document.getElementById('i18nPolicyCenter');
+        if (el && el.dataset[key]) return el.dataset[key];
+        return fallback || key;
+    },
+
     getCsrfToken() {
         return document.querySelector('meta[name="_csrf"]')?.content;
     },
@@ -21,7 +28,7 @@ const PolicyCenter = {
         if (isLoading) {
             if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
             button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 처리 중...';
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + PolicyCenter._i18n('loading', 'Processing...');
         } else {
             if (button.dataset.originalHtml) {
                 button.innerHTML = button.dataset.originalHtml;
@@ -33,14 +40,14 @@ const PolicyCenter = {
 
     defineAndSetupPolicy(button) {
         const tableRow = button.closest('tr');
-        if (!tableRow) { showToast('테이블 행을 찾을 수 없습니다.', 'error'); return; }
+        if (!tableRow) { showToast(PolicyCenter._i18n('tableRowNotFound', 'Table row not found.'), 'error'); return; }
         const inputCell = tableRow.querySelector('.resource-inputs-cell');
-        if (!inputCell) { showToast('입력 필드를 찾을 수 없습니다.', 'error'); return; }
+        if (!inputCell) { showToast(PolicyCenter._i18n('inputFieldNotFound', 'Input field not found.'), 'error'); return; }
         const resourceId = button.dataset.resourceId;
         const friendlyNameInput = inputCell.querySelector('input[name="friendlyName"]');
         const descriptionTextarea = inputCell.querySelector('textarea[name="description"]');
         if (!friendlyNameInput.value.trim()) {
-            showToast('친화적 이름은 필수 항목입니다.', 'error');
+            showToast(PolicyCenter._i18n('nameRequired', 'Friendly name is required.'), 'error');
             friendlyNameInput.focus();
             return;
         }
@@ -87,7 +94,7 @@ const PolicyCenter = {
             if (!response.ok) throw new Error(result.message);
             return result;
         } catch (error) {
-            showToast('권한 생성 실패: ' + error.message, 'error');
+            showToast(PolicyCenter._i18n('defineError', 'Permission creation failed: ') + error.message, 'error');
             return null;
         }
     },
@@ -120,37 +127,37 @@ const PolicyCenter = {
         // Show loading state in modal
         var modalTitle = modal.querySelector('h2');
         var originalTitle = modalTitle ? modalTitle.textContent : '';
-        if (modalTitle) modalTitle.textContent = 'Processing...';
+        var rpI18n = document.getElementById('rp-i18n');
+        var rpDs = rpI18n ? rpI18n.dataset : {};
+        if (modalTitle) modalTitle.textContent = rpDs.processing || 'Processing...';
         modal.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
 
         try {
             var ctxArr = await this._batchDefineAndBuildContext();
+            if (modalTitle) modalTitle.textContent = originalTitle;
+            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
             modal.classList.add('hidden');
             modal.style.display = 'none';
 
-            // Restore modal title
-            if (modalTitle) modalTitle.textContent = originalTitle;
-            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
-
-            // Activate Create tab with multi-resource context
             PolicyCenter.CreateFlow.activateWithResources(ctxArr);
-
-            // Switch tab
-            document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            // Switch tab directly without calling switchToCreateTab (which calls activateWithResource for single)
             document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            var createTab = document.getElementById('tab-create');
+            if (createTab) createTab.classList.add('active');
             var createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
             if (createBtn) createBtn.classList.add('active');
-            document.getElementById('tab-create').classList.add('active');
-
             var modeBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
             PolicyCenter.switchCreateMode('quick', modeBtn);
+            history.pushState(null, '', '/admin/policy-center?tab=create');
 
         } catch (e) {
-            modal.classList.add('hidden');
-            modal.style.display = 'none';
             if (modalTitle) modalTitle.textContent = originalTitle;
             modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
-            showToast('Batch permission creation failed: ' + e.message, 'error');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            var errTpl = rpDs.batchError || 'Batch permission creation failed: {0}';
+            showToast(errTpl.replace('{0}', e.message), 'error');
         }
     },
 
@@ -182,44 +189,45 @@ const PolicyCenter = {
         // Show loading state in modal
         var modalTitle = modal.querySelector('h2');
         var originalTitle = modalTitle ? modalTitle.textContent : '';
-        if (modalTitle) modalTitle.textContent = 'Processing...';
+        var rpI18n = document.getElementById('rp-i18n');
+        var rpDs = rpI18n ? rpI18n.dataset : {};
+        if (modalTitle) modalTitle.textContent = rpDs.processing || 'Processing...';
         modal.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
 
         try {
             var ctxArr = await this._batchDefineAndBuildContext();
+            if (modalTitle) modalTitle.textContent = originalTitle;
+            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
             modal.classList.add('hidden');
             modal.style.display = 'none';
 
-            // Restore modal title
-            if (modalTitle) modalTitle.textContent = originalTitle;
-            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
-
             PolicyCenter.CreateFlow.activateWithResources(ctxArr);
-
-            document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
             document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            var createTab = document.getElementById('tab-create');
+            if (createTab) createTab.classList.add('active');
             var createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
             if (createBtn) createBtn.classList.add('active');
-            document.getElementById('tab-create').classList.add('active');
-
             var modeBtn = document.querySelector('.pc-mode-card[onclick*="ai"]');
             PolicyCenter.switchCreateMode('ai', modeBtn);
+            history.pushState(null, '', '/admin/policy-center?tab=create');
 
             // Pre-fill AI query with resource summary
             var queryInput = document.getElementById('ai-query-input');
             if (queryInput) {
-                var summary = '[Target Resources: ' + ctxArr.length + ' selected]\n';
+                var summary = '[Target Resources: ' + ctxArr.length + ']\n';
                 ctxArr.forEach(function(c) {
                     summary += '- ' + c.resourceType + ' ' + c.httpMethod + ' ' + c.resourceIdentifier + '\n';
                 });
                 queryInput.value = summary;
             }
         } catch (e) {
-            modal.classList.add('hidden');
-            modal.style.display = 'none';
             if (modalTitle) modalTitle.textContent = originalTitle;
             modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
-            showToast('Batch permission creation failed: ' + e.message, 'error');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            var errTpl = rpDs.batchError || 'Batch permission creation failed: {0}';
+            showToast(errTpl.replace('{0}', e.message), 'error');
         }
     },
 
@@ -250,7 +258,8 @@ const PolicyCenter = {
         // Only include results that have a permissionId
         var permResults = results.filter(function(r) { return r.permissionId; });
         if (permResults.length === 0) {
-            throw new Error('No permissions could be created');
+            var rpI18n = document.getElementById('rp-i18n');
+            throw new Error((rpI18n && rpI18n.dataset.noPermissions) || 'No permissions could be created');
         }
 
         return permResults.map(function(r) {
@@ -291,7 +300,7 @@ const PolicyCenter = {
                     }
                     parts.push('"' + (ctx.friendlyName || '') + '"');
                     if (ctx.description) parts.push('(' + ctx.description + ')');
-                    textarea.value = parts.join(' ') + ' 리소스에 대한 최적의 접근 정책을 생성해줘';
+                    textarea.value = parts.join(' ') + PolicyCenter._i18n('generatePromptSuffix', ' Generate optimal access policy for this resource');
                 }
             }, 100);
         }
@@ -320,9 +329,9 @@ const PolicyCenter = {
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
             this.updateRowAfterExclude(button, resourceId);
-            showToast('리소스가 제외 처리되었습니다.', 'success');
+            showToast(PolicyCenter._i18n('excludeSuccess', 'Resource has been excluded.'), 'success');
         } catch (error) {
-            showToast('제외 실패: ' + error.message, 'error');
+            showToast(PolicyCenter._i18n('excludeError', 'Exclude failed: ') + error.message, 'error');
             this.setLoading(button, false);
         }
     },
@@ -337,9 +346,9 @@ const PolicyCenter = {
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
             this.updateRowAfterRestore(button, resourceId);
-            showToast('리소스가 관리 대상으로 복원되었습니다.', 'success');
+            showToast(PolicyCenter._i18n('restoreSuccess', 'Resource has been restored to managed.'), 'success');
         } catch (error) {
-            showToast('복원 실패: ' + error.message, 'error');
+            showToast(PolicyCenter._i18n('restoreError', 'Restore failed: ') + error.message, 'error');
             this.setLoading(button, false);
         }
     },
@@ -350,12 +359,12 @@ const PolicyCenter = {
         const badge = row.querySelector('.status-badge');
         if (badge) {
             badge.className = 'status-badge bg-slate-500/20 text-slate-400 border-slate-500/30';
-            badge.innerHTML = '<i class="fas fa-ban"></i> <span>제외</span>';
+            badge.innerHTML = '<i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('statusExcluded', 'Excluded') + '</span>';
         }
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
         if (defineBtn) defineBtn.closest('div').style.display = 'none';
         const actionDiv = button.closest('div');
-        actionDiv.innerHTML = '<button type="button" class="action-badge-restore w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.restoreResource(this)"><i class="fas fa-undo"></i> <span>복원</span></button>';
+        actionDiv.innerHTML = '<button type="button" class="action-badge-restore w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.restoreResource(this)"><i class="fas fa-undo"></i> <span>' + PolicyCenter._i18n('btnRestore', 'Restore') + '</span></button>';
     },
 
     updateRowAfterRestore(button, resourceId) {
@@ -364,12 +373,12 @@ const PolicyCenter = {
         const badge = row.querySelector('.status-badge');
         if (badge) {
             badge.className = 'status-badge bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>정책 미 설정</span>';
+            badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>' + PolicyCenter._i18n('statusUnset', 'Unset') + '</span>';
         }
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
         if (defineBtn) defineBtn.closest('div').style.display = '';
         const actionDiv = button.closest('div');
-        actionDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>제외</span></button>';
+        actionDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
     },
 
     // ================================================================
@@ -410,7 +419,7 @@ const PolicyCenter = {
                             }
                             parts.push('"' + (ctx.friendlyName || '') + '"');
                             if (ctx.description) parts.push('(' + ctx.description + ')');
-                            textarea.value = parts.join(' ') + ' 리소스에 대한 최적의 접근 정책을 생성해줘';
+                            textarea.value = parts.join(' ') + PolicyCenter._i18n('generatePromptSuffix', ' Generate optimal access policy for this resource');
                         }
                     }, 100);
                 } catch (e) { console.error('Failed to parse AI context', e); }
@@ -432,6 +441,7 @@ const PolicyCenter = {
         },
 
         activateWithResource(ctx) {
+            this.selectedResources = null;
             this.selectedResource = ctx;
             const guide = document.getElementById('create-no-resource-guide');
             const banner = document.getElementById('create-resource-banner');
@@ -482,7 +492,9 @@ const PolicyCenter = {
             if (multiBanner) {
                 multiBanner.classList.remove('hidden');
                 multiBanner.style.display = 'flex';
-                document.getElementById('create-multi-count').textContent = ctxArr.length + ' resources selected';
+                var i18nEl = document.getElementById('rp-i18n');
+                var countTpl = (i18nEl && i18nEl.dataset.selectedCount) || '{0} selected';
+                document.getElementById('create-multi-count').textContent = countTpl.replace('{0}', ctxArr.length);
             }
 
             // Show mode navigation
@@ -550,8 +562,8 @@ const PolicyCenter = {
 
             const roleCount = document.getElementById('qp-role-count');
             const permCount = document.getElementById('qp-perm-count');
-            if (roleCount) roleCount.textContent = '0개 선택';
-            if (permCount) permCount.textContent = this.selectedPerms.size + '개 선택';
+            if (roleCount) roleCount.textContent = '0' + PolicyCenter._i18n('selectedSuffix', ' selected');
+            if (permCount) permCount.textContent = this.selectedPerms.size + PolicyCenter._i18n('selectedSuffix', ' selected');
 
             this.loadRoles('');
             this.loadPermissions('');
@@ -622,7 +634,7 @@ const PolicyCenter = {
         },
 
         renderRoleChips() {
-            document.getElementById('qp-role-count').textContent = this.selectedRoles.size + '개 선택';
+            document.getElementById('qp-role-count').textContent = this.selectedRoles.size + PolicyCenter._i18n('selectedSuffix', ' selected');
         },
 
         searchRoles(keyword) {
@@ -734,7 +746,7 @@ const PolicyCenter = {
         },
 
         renderPermChips() {
-            document.getElementById('qp-perm-count').textContent = this.selectedPerms.size + '개 선택';
+            document.getElementById('qp-perm-count').textContent = this.selectedPerms.size + PolicyCenter._i18n('selectedSuffix', ' selected');
         },
 
         searchPermissions(keyword) {
@@ -758,9 +770,9 @@ const PolicyCenter = {
 
         async createPolicy() {
             const name = document.getElementById('qp-policy-name').value.trim();
-            if (!name) { showToast('정책명을 입력하세요.', 'error'); return; }
+            if (!name) { showToast(PolicyCenter._i18n('policyNameRequired', 'Please enter a policy name.'), 'error'); return; }
             if (this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
-                showToast('역할 또는 권한을 하나 이상 선택하세요.', 'error'); return;
+                showToast(PolicyCenter._i18n('selectRoleOrPerm', 'Please select at least one role or permission.'), 'error'); return;
             }
             const btn = document.getElementById('qp-create-btn');
             PolicyCenter.setLoading(btn, true);
@@ -781,15 +793,15 @@ const PolicyCenter = {
                 if (result.warning) {
                     showToast(result.warning, 'warning');
                     setTimeout(() => {
-                        showToast('정책이 성공적으로 생성되었습니다.', 'success');
+                        showToast(PolicyCenter._i18n('policyCreated', 'Policy created successfully.'), 'success');
                         setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
                     }, 2000);
                 } else {
-                    showToast('정책이 성공적으로 생성되었습니다.', 'success');
+                    showToast(PolicyCenter._i18n('policyCreated', 'Policy created successfully.'), 'success');
                     setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
                 }
             } catch (e) {
-                showToast('정책 생성 실패: ' + e.message, 'error');
+                showToast(PolicyCenter._i18n('policyCreateFailed', 'Policy creation failed: ') + e.message, 'error');
                 PolicyCenter.setLoading(btn, false);
             }
         },
@@ -861,10 +873,10 @@ const PolicyCenter = {
             block.style = 'background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);';
             block.innerHTML =
                 '<button type="button" onclick="PolicyCenter.Manual.removeRule(this)" class="remove-btn">&times;</button>' +
-                '<h3 class="font-semibold" style="color: #e2e8f0;">규칙(Rule) #' + (idx + 1) + '</h3>' +
-                '<div><label class="manual-form-label">규칙 설명</label><input type="text" name="rules[' + idx + '].description" class="modern-input" /></div>' +
-                '<div><label class="manual-form-label">조건 (AND 결합)</label><div class="conditions-list space-y-2 mt-2"></div>' +
-                '<button type="button" onclick="PolicyCenter.Manual.addCondition(this)" class="add-btn mt-2"><i class="fas fa-plus"></i> 조건 추가</button></div>';
+                '<h3 class="font-semibold" style="color: #e2e8f0;">' + PolicyCenter._i18n('ruleLabel', 'Rule #') + (idx + 1) + '</h3>' +
+                '<div><label class="manual-form-label">' + PolicyCenter._i18n('ruleDescLabel', 'Rule Description') + '</label><input type="text" name="rules[' + idx + '].description" class="modern-input" /></div>' +
+                '<div><label class="manual-form-label">' + PolicyCenter._i18n('conditionsLabel', 'Conditions (AND)') + '</label><div class="conditions-list space-y-2 mt-2"></div>' +
+                '<button type="button" onclick="PolicyCenter.Manual.addCondition(this)" class="add-btn mt-2"><i class="fas fa-plus"></i> ' + PolicyCenter._i18n('addCondition', 'Add Condition') + '</button></div>';
             container.appendChild(block);
         },
 
@@ -876,7 +888,7 @@ const PolicyCenter = {
             const block = document.createElement('div');
             block.className = 'condition-block grid grid-cols-12 gap-2 items-center';
             block.innerHTML =
-                '<div class="col-span-3"><select name="rules[' + ruleIdx + '].conditions[' + condIdx + '].authorizationPhase" class="modern-select text-sm"><option value="PRE_AUTHORIZE">사전 인가 (Pre)</option><option value="POST_AUTHORIZE">사후 인가 (Post)</option></select></div>' +
+                '<div class="col-span-3"><select name="rules[' + ruleIdx + '].conditions[' + condIdx + '].authorizationPhase" class="modern-select text-sm"><option value="PRE_AUTHORIZE">' + PolicyCenter._i18n('preAuthorize', 'Pre-Authorize') + '</option><option value="POST_AUTHORIZE">' + PolicyCenter._i18n('postAuthorize', 'Post-Authorize') + '</option></select></div>' +
                 '<div class="col-span-8"><input type="text" name="rules[' + ruleIdx + '].conditions[' + condIdx + '].expression" class="modern-input font-mono text-sm" placeholder="SpEL expression" /></div>' +
                 '<div class="col-span-1 text-center"><button type="button" onclick="PolicyCenter.Manual.removeElement(this, \'.condition-block\')" class="remove-btn">&times;</button></div>';
             condList.appendChild(block);
@@ -919,7 +931,7 @@ const PolicyCenter = {
             const blocks = document.getElementById('rules-container').getElementsByClassName('rule-block');
             for (let i = 0; i < blocks.length; i++) {
                 const b = blocks[i];
-                b.querySelector('h3').textContent = '규칙(Rule) #' + (i + 1);
+                b.querySelector('h3').textContent = PolicyCenter._i18n('ruleLabel', 'Rule #') + (i + 1);
                 const descInput = b.querySelector('input[name*=".description"]'); if (descInput) descInput.name = 'rules[' + i + '].description';
                 this.updateConditionIndicesForRule(b, i);
             }
@@ -1009,7 +1021,7 @@ const PolicyCenter = {
         async generate() {
             const queryInput = document.getElementById('ai-query-input');
             let query = queryInput.value.trim();
-            if (!query) { showToast('정책 요구사항을 입력하세요.', 'error'); queryInput.focus(); return; }
+            if (!query) { showToast(PolicyCenter._i18n('policyQueryRequired', 'Please enter policy requirements.'), 'error'); queryInput.focus(); return; }
 
             // Inject selected resource context into query
             const res = PolicyCenter.CreateFlow.selectedResource;
@@ -1062,7 +1074,7 @@ const PolicyCenter = {
                         '/api/ai/policies/generate/stream',
                         requestPayload,
                         {
-                            modalTitle: 'AI 정책 분석 진행 중',
+                            modalTitle: PolicyCenter._i18n('aiAnalyzing', 'AI policy analysis in progress'),
                             initialLoadingText: 'Analyzing policy requirements...',
                             analysisCompleteText: 'Analysis complete',
                             generatingResultText: 'Generating policy...',
@@ -1074,7 +1086,7 @@ const PolicyCenter = {
                                 this.handleAIComplete(response, query);
                             },
                             onError: (error) => {
-                                showToast('AI 정책 생성 실패: ' + (error.message || error), 'error');
+                                showToast(PolicyCenter._i18n('aiGenerateError', 'AI policy generation failed: ') + (error.message || error), 'error');
                             }
                         }
                     );
@@ -1097,14 +1109,14 @@ const PolicyCenter = {
                             this.handleAIComplete(parsed, query);
                         } catch (parseErr) {
                             console.error('AI response parse failed', parseErr);
-                            showToast('AI 응답 파싱 실패. 다시 시도하세요.', 'error');
+                            showToast(PolicyCenter._i18n('aiParseError', 'Failed to parse AI response. Please try again.'), 'error');
                         }
                     } else {
-                        showToast('AI 응답을 파싱할 수 없습니다.', 'error');
+                        showToast(PolicyCenter._i18n('aiParseError', 'Failed to parse AI response. Please try again.'), 'error');
                     }
                 }
             } catch (e) {
-                showToast('AI 정책 생성 실패: ' + e.message, 'error');
+                showToast(PolicyCenter._i18n('aiGenerateError', 'AI policy generation failed: ') + e.message, 'error');
             } finally {
                 btn.disabled = false;
                 cancelBtn.classList.add('hidden');
@@ -1136,7 +1148,7 @@ const PolicyCenter = {
         // ---- AI Response Handler ----
 
         async handleAIComplete(response, query) {
-            if (!response) { showToast('AI 응답이 비어 있습니다.', 'warning'); return; }
+            if (!response) { showToast(PolicyCenter._i18n('aiEmptyResponse', 'AI response is empty.'), 'warning'); return; }
 
             const processed = this.preprocessPolicyResponse(response);
             if (!processed || !processed.policyData) {
@@ -1148,7 +1160,7 @@ const PolicyCenter = {
 
             const validatedData = await this.validateAndFilterAIResponse(processed.policyData);
             if (!validatedData) {
-                showToast('AI 응답 검증에 실패했습니다.', 'error');
+                showToast(PolicyCenter._i18n('aiValidationFailed', 'AI response validation failed.'), 'error');
                 return;
             }
 
@@ -1245,7 +1257,7 @@ const PolicyCenter = {
             }
             if (!validatedData.policyName) validatedData.policyName = 'AI Generated Policy - ' + new Date().toISOString().slice(0, 16);
             if (!validatedData.effect) validatedData.effect = 'ALLOW';
-            if (this._filteredCount > 0) showToast('AI 응답에서 ' + this._filteredCount + '개 존재하지 않는 항목이 제거되었습니다.', 'warning');
+            if (this._filteredCount > 0) showToast(PolicyCenter._i18n('aiFiltered', '{0} non-existent items removed from AI response.').replace('{0}', this._filteredCount), 'warning');
             return validatedData;
         },
 
@@ -1278,7 +1290,7 @@ const PolicyCenter = {
             this.renderPolicyCard(fallback, this._cachedMaps);
             this.renderConfidence(fallback);
             document.getElementById('ai-result-section').classList.remove('hidden');
-            showToast('기본 정책이 생성되었습니다. 필요에 따라 수정해주세요.', 'warning');
+            showToast(PolicyCenter._i18n('aiFallback', 'A default policy has been created. Please modify as needed.'), 'warning');
         },
 
         // ---- Interactive Policy Card ----
@@ -1315,7 +1327,7 @@ const PolicyCenter = {
         renderChips(containerId, items, type) {
             const container = document.getElementById(containerId);
             if (!items.length) {
-                container.innerHTML = '<span class="ai-card-chips-empty">없음 (None)</span>';
+                container.innerHTML = '<span class="ai-card-chips-empty">' + PolicyCenter._i18n('none', 'None') + '</span>';
                 return;
             }
             container.innerHTML = items.map(item =>
@@ -1356,7 +1368,7 @@ const PolicyCenter = {
         async openItemPicker(type) {
             this._pickerType = type;
             this._pickerSelection = new Map();
-            const titleMap = { role: '역할 추가 (Add Roles)', permission: '권한 추가 (Add Permissions)', condition: '조건 추가 (Add Conditions)' };
+            const titleMap = { role: PolicyCenter._i18n('pickerTitleRole', 'Add Roles'), permission: PolicyCenter._i18n('pickerTitlePermission', 'Add Permissions'), condition: PolicyCenter._i18n('pickerTitleCondition', 'Add Conditions') };
             document.getElementById('ai-item-picker-title').textContent = titleMap[type] || 'Select Items';
             const searchInput = document.getElementById('ai-item-picker-search');
             searchInput.value = '';
@@ -1374,7 +1386,7 @@ const PolicyCenter = {
 
         async loadPickerItems(type, keyword) {
             const list = document.getElementById('ai-item-picker-list');
-            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>로딩 중...</p></div>';
+            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>' + PolicyCenter._i18n('loading', 'Loading...') + '</p></div>';
 
             try {
                 let items = [];
@@ -1402,7 +1414,7 @@ const PolicyCenter = {
 
                 const available = items.filter(i => !existingIds.has(i.id));
                 if (!available.length) {
-                    list.innerHTML = '<div class="pc-empty"><p>추가 가능한 항목이 없습니다.</p></div>';
+                    list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('noItemsAvailable', 'No items available to add.') + '</p></div>';
                     return;
                 }
 
@@ -1416,7 +1428,7 @@ const PolicyCenter = {
                 }).join('');
             } catch (e) {
                 console.error('Failed to load picker items', e);
-                list.innerHTML = '<div class="pc-empty"><p>로딩 실패</p></div>';
+                list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('loadFailed', 'Loading failed') + '</p></div>';
             }
         },
 
@@ -1489,14 +1501,14 @@ const PolicyCenter = {
 
                 // Check name duplicates
                 summaries.filter(p => p.name === policyData.policyName).forEach(p => {
-                    conflicts.push({ severity: 'high', message: '"' + p.name + '" 정책명이 이미 존재합니다 (Policy #' + p.id + ')' });
+                    conflicts.push({ severity: 'high', message: '"' + p.name + '" ' + PolicyCenter._i18n('conflictDuplicate', 'policy name already exists') + ' (Policy #' + p.id + ')' });
                 });
 
                 // Check similar names (partial match)
                 if (policyData.policyName) {
                     const lower = policyData.policyName.toLowerCase();
                     summaries.filter(p => p.name && p.name.toLowerCase().includes(lower) && p.name !== policyData.policyName).forEach(p => {
-                        conflicts.push({ severity: 'low', message: '유사한 정책명 발견: "' + p.name + '" (Policy #' + p.id + ')' });
+                        conflicts.push({ severity: 'low', message: PolicyCenter._i18n('conflictSimilar', 'Similar policy name found:') + ' "' + p.name + '" (Policy #' + p.id + ')' });
                     });
                 }
             } catch (e) {
@@ -1544,13 +1556,13 @@ const PolicyCenter = {
             }
 
             const riskLevel = riskScore >= 4 ? 'high' : riskScore >= 2 ? 'medium' : 'low';
-            const riskLabel = { high: '고위험 (High Risk)', medium: '중위험 (Medium Risk)', low: '저위험 (Low Risk)' };
+            const riskLabel = { high: PolicyCenter._i18n('riskHigh', 'High Risk'), medium: PolicyCenter._i18n('riskMedium', 'Medium Risk'), low: PolicyCenter._i18n('riskLow', 'Low Risk') };
 
             content.innerHTML =
                 '<div class="ai-sim-grid">' +
-                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + roleCount + '</div><div class="ai-sim-stat-label">영향받는 역할 (Roles)</div></div>' +
-                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + permCount + '</div><div class="ai-sim-stat-label">부여 권한 (Permissions)</div></div>' +
-                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + condCount + '</div><div class="ai-sim-stat-label">적용 조건 (Conditions)</div></div>' +
+                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + roleCount + '</div><div class="ai-sim-stat-label">' + PolicyCenter._i18n('simRoles', 'Roles') + '</div></div>' +
+                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + permCount + '</div><div class="ai-sim-stat-label">' + PolicyCenter._i18n('simPermissions', 'Permissions') + '</div></div>' +
+                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + condCount + '</div><div class="ai-sim-stat-label">' + PolicyCenter._i18n('simConditions', 'Conditions') + '</div></div>' +
                 '</div>' +
                 '<div class="ai-sim-risk risk-' + riskLevel + '">' +
                 '<strong>' + riskLabel[riskLevel] + '</strong>' +
@@ -1596,25 +1608,25 @@ const PolicyCenter = {
         confirmSave() {
             this.syncCardToData();
             const data = this.generatedPolicyData;
-            if (!data) { showToast('저장할 정책 데이터가 없습니다.', 'error'); return; }
-            if (!(data.roleIds || []).length) { showToast('역할이 지정되지 않았습니다.', 'error'); return; }
-            if (!(data.permissionIds || []).length) { showToast('권한이 지정되지 않았습니다.', 'error'); return; }
+            if (!data) { showToast(PolicyCenter._i18n('aiNoData', 'No policy data. Please generate first.'), 'error'); return; }
+            if (!(data.roleIds || []).length) { showToast(PolicyCenter._i18n('aiNeedRole', 'Please add at least one role.'), 'error'); return; }
+            if (!(data.permissionIds || []).length) { showToast(PolicyCenter._i18n('aiNeedPerm', 'Please add at least one permission.'), 'error'); return; }
 
             const maps = this._cachedMaps || { roles: {}, permissions: {}, conditions: {} };
             const roleNames = (data.roleIds || []).map(id => maps.roles[id] || maps.roles[String(id)] || 'ID:' + id).join(', ');
             const permNames = (data.permissionIds || []).map(id => maps.permissions[id] || maps.permissions[String(id)] || 'ID:' + id).join(', ');
 
             document.getElementById('ai-confirm-summary').innerHTML =
-                '<div class="ai-confirm-row"><div class="ai-confirm-label">정책명</div><div class="ai-confirm-value">' + this.escapeHtml(data.policyName) + '</div></div>' +
-                '<div class="ai-confirm-row"><div class="ai-confirm-label">효과</div><div class="ai-confirm-value">' + data.effect + '</div></div>' +
-                '<div class="ai-confirm-row"><div class="ai-confirm-label">역할 (' + (data.roleIds || []).length + ')</div><div class="ai-confirm-value">' + this.escapeHtml(roleNames) + '</div></div>' +
-                '<div class="ai-confirm-row"><div class="ai-confirm-label">권한 (' + (data.permissionIds || []).length + ')</div><div class="ai-confirm-value">' + this.escapeHtml(permNames) + '</div></div>';
+                '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmPolicyName', 'Policy Name') + '</div><div class="ai-confirm-value">' + this.escapeHtml(data.policyName) + '</div></div>' +
+                '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmEffect', 'Effect') + '</div><div class="ai-confirm-value">' + data.effect + '</div></div>' +
+                '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmRoles', 'Roles') + ' (' + (data.roleIds || []).length + ')</div><div class="ai-confirm-value">' + this.escapeHtml(roleNames) + '</div></div>' +
+                '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmPermissions', 'Permissions') + ' (' + (data.permissionIds || []).length + ')</div><div class="ai-confirm-value">' + this.escapeHtml(permNames) + '</div></div>';
 
             // Show warnings if any
             const warningEl = document.getElementById('ai-confirm-warnings');
             const conflictPanel = document.getElementById('ai-conflict-panel');
             if (!conflictPanel.classList.contains('hidden')) {
-                warningEl.innerHTML = '<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:0.5rem;padding:0.75rem;margin-top:0.75rem;"><strong style="color:#fbbf24;">Warning:</strong> <span style="color:#e2e8f0;">충돌/중복이 감지되었습니다. 저장 전 확인하세요.</span></div>';
+                warningEl.innerHTML = '<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:0.5rem;padding:0.75rem;margin-top:0.75rem;"><strong style="color:#fbbf24;">Warning:</strong> <span style="color:#e2e8f0;">' + PolicyCenter._i18n('confirmConflictWarning', 'Conflicts/duplicates detected. Please review before saving.') + '</span></div>';
             } else {
                 warningEl.innerHTML = '';
             }
@@ -1644,10 +1656,10 @@ const PolicyCenter = {
                 }
 
                 this.closeConfirmModal();
-                showToast('정책이 성공적으로 저장되었습니다.', 'success');
+                showToast(PolicyCenter._i18n('aiSaveSuccess', 'Policy saved successfully.'), 'success');
                 setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
             } catch (e) {
-                showToast('정책 저장 실패: ' + e.message, 'error');
+                showToast(PolicyCenter._i18n('aiSaveError', 'Policy save failed: ') + e.message, 'error');
                 if (btn) btn.disabled = false;
             }
         },
@@ -1732,13 +1744,27 @@ PolicyCenter.MultiSelect = {
     renderTable: function(resources) {
         var self = this;
         var tbody = document.getElementById('rp-table-body');
+        var i18n = document.getElementById('rp-i18n') || {};
+        var ds = i18n.dataset || {};
         if (!resources || resources.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#64748b;">No resources found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#64748b;"><i class="fas fa-inbox"></i> ' + self.escapeHtml(ds.noResults || 'No resources found') + '</td></tr>';
+            document.getElementById('rp-select-all').disabled = true;
             return;
         }
+        document.getElementById('rp-select-all').disabled = false;
         var html = '';
         resources.forEach(function(r) {
             var checked = self.selectedResources.has(r.id) ? ' checked' : '';
+            // Status badge
+            var statusText = r.status === 'NEEDS_DEFINITION' ? (ds.statusUnset || 'Unset') :
+                             r.status === 'PERMISSION_CREATED' ? (ds.statusAwaiting || 'Awaiting') :
+                             r.status === 'POLICY_CONNECTED' ? (ds.statusProtected || 'Protected') :
+                             r.status === 'EXCLUDED' ? (ds.statusExcluded || 'Excluded') : (ds.statusUnknown || '-');
+            var statusIcon = r.status === 'NEEDS_DEFINITION' ? 'fa-exclamation-circle' :
+                             r.status === 'PERMISSION_CREATED' ? 'fa-clock' :
+                             r.status === 'POLICY_CONNECTED' ? 'fa-shield-alt' : 'fa-ban';
+            var typeBadge = r.resourceType === 'URL' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400';
+
             html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.2);cursor:pointer;"'
                 + ' data-id="' + r.id + '"'
                 + ' data-identifier="' + self.escapeHtml(r.resourceIdentifier) + '"'
@@ -1747,11 +1773,20 @@ PolicyCenter.MultiSelect = {
                 + ' data-status="' + (r.status || '') + '"'
                 + ' data-friendly="' + self.escapeHtml(r.friendlyName || '') + '"'
                 + ' onclick="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this)">';
-            html += '<td><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
-            html += '<td style="font-family:monospace;word-break:break-all;">' + self.escapeHtml(r.resourceIdentifier) + '</td>';
-            html += '<td><span class="badge neutral">' + (r.resourceType || '-') + '</span></td>';
-            html += '<td style="color:#94a3b8;">' + (r.httpMethod || 'ANY') + '</td>';
-            html += '<td><span class="badge ' + self.statusClass(r.status) + '">' + (r.status || '-') + '</span></td>';
+            // Checkbox
+            html += '<td style="text-align:center;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
+            // Status
+            html += '<td style="text-align:center;"><span class="status-badge ' + self.statusClass(r.status) + '" style="font-size:0.75rem;padding:0.25rem 0.5rem;border-radius:0.375rem;"><i class="fas ' + statusIcon + '"></i> ' + self.escapeHtml(statusText) + '</span></td>';
+            // Name / Description
+            html += '<td><div style="font-weight:600;color:#a78bfa;margin-bottom:0.25rem;">' + self.escapeHtml(r.friendlyName || '-') + '</div></td>';
+            // Technical Identifier
+            html += '<td><span class="resource-type-badge ' + typeBadge + '" style="font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:0.25rem;margin-right:0.25rem;">' + self.escapeHtml(r.resourceType || '-') + '</span>'
+                + ' <span style="color:#94a3b8;font-size:0.75rem;">' + self.escapeHtml(r.httpMethod || '') + '</span>'
+                + '<div style="font-family:monospace;word-break:break-all;margin-top:0.25rem;">' + self.escapeHtml(r.resourceIdentifier) + '</div></td>';
+            // Tools & History
+            html += '<td style="font-size:0.8rem;color:#94a3b8;">';
+            if (r.sourceCodeLocation) html += '<span title="' + self.escapeHtml(r.sourceCodeLocation) + '"><i class="fas fa-code"></i> ' + (ds.code || 'Code') + '</span> ';
+            html += '</td>';
             html += '</tr>';
         });
         tbody.innerHTML = html;
@@ -1813,7 +1848,9 @@ PolicyCenter.MultiSelect = {
 
     updateCount: function() {
         var count = this.selectedResources.size;
-        document.getElementById('rp-selected-count').textContent = count + ' selected';
+        var i18n = document.getElementById('rp-i18n');
+        var template = (i18n && i18n.dataset.selectedCount) || '{0} selected';
+        document.getElementById('rp-selected-count').textContent = template.replace('{0}', count);
         document.getElementById('rp-confirm-btn').disabled = count === 0;
     },
 
@@ -1826,7 +1863,9 @@ PolicyCenter.MultiSelect = {
     showPolicySetupModalMulti: function() {
         var modal = document.getElementById('policySetupModal');
         var nameEl = document.getElementById('modal-permission-name');
-        if (nameEl) nameEl.textContent = this.selectedResources.size + ' resources selected';
+        var rpI18n = document.getElementById('rp-i18n');
+        var countTpl = (rpI18n && rpI18n.dataset.selectedCount) || '{0} selected';
+        if (nameEl) nameEl.textContent = countTpl.replace('{0}', this.selectedResources.size);
         modal.dataset.multiMode = 'true';
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
@@ -1834,11 +1873,16 @@ PolicyCenter.MultiSelect = {
 
     showSelectedPopover: function() {
         var list = document.getElementById('selected-resources-list');
+        var rpI18n = document.getElementById('rp-i18n');
+        var ds = rpI18n ? rpI18n.dataset : {};
+        var thIdentifier = ds.thIdentifier || 'Identifier';
+        var thType = ds.thType || 'Type';
+        var thHttp = ds.thHttp || 'HTTP';
         var html = '<table style="width:100%;border-collapse:collapse;">';
         html += '<thead><tr style="border-bottom:1px solid rgba(71,85,105,0.4);">';
-        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">Identifier</th>';
-        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">Type</th>';
-        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">HTTP</th>';
+        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">' + thIdentifier + '</th>';
+        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">' + thType + '</th>';
+        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">' + thHttp + '</th>';
         html += '</tr></thead><tbody>';
         var self = this;
         this.selectedResources.forEach(function(r) {

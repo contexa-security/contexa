@@ -590,7 +590,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>MFA - Passkey Authentication</title>
+                <title>{{i18nPasskeyPageTitle}}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -669,28 +669,34 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <body>
                 <div class="container">
                     <div class="icon">🔐</div>
-                    <h1>Passkey Authentication</h1>
-                    <p class="description">Authenticate using biometrics or a security key.</p>
+                    <h1>{{i18nPasskeyTitle}}</h1>
+                    <p class="description">{{i18nPasskeyDescription}}</p>
 
                     <div class="user-info">
-                        <div class="label">Account being authenticated</div>
+                        <div class="label">{{i18nPasskeyAccountLabel}}</div>
                         <div class="username">{{username}}</div>
                     </div>
 
                     <button id="auth-button" class="primary-button">
-                        Start Passkey Authentication
+                        {{i18nPasskeyStartButton}}
                     </button>
 
                     <!-- Passkey registration link -->
                     <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0;">
                         <p style="color: #666; font-size: 14px; margin-bottom: 8px;">
-                            Don't have a registered Passkey?
+                            {{i18nPasskeyNoPasskey}}
                         </p>
                         <a href="{{contextPath}}{{passkeyRegistrationUrl}}"
                            style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
-                            Register Passkey
+                            {{i18nPasskeyRegisterLink}}
                         </a>
                     </div>
+
+                    <!-- i18n data for JavaScript -->
+                    <div id="i18n-passkey" style="display:none"
+                         data-initializing="{{i18nPasskeyJsInitializing}}"
+                         data-authenticate="{{i18nPasskeyJsAuthenticate}}"
+                         data-authenticating="{{i18nPasskeyJsAuthenticating}}"></div>
 
                     {{selectFactorLink}}
 
@@ -699,11 +705,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <script>
                         if (typeof ContexaMFA !== 'undefined') {
                             const authButton = document.getElementById('auth-button');
+                            const i18nEl = document.getElementById('i18n-passkey');
+                            const msgInitializing = i18nEl.dataset.initializing;
+                            const msgAuthenticate = i18nEl.dataset.authenticate;
+                            const msgAuthenticating = i18nEl.dataset.authenticating;
                             const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
-            
+
                             // Disable button initially (until challenge is ready)
                             authButton.disabled = true;
-                            authButton.textContent = 'Initializing...';
+                            authButton.textContent = msgInitializing;
 
                             // SDK initialization (challenge already started by backend)
                             (async () => {
@@ -713,19 +723,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     // Phase 2.3: Challenge started by backend with INITIATE_CHALLENGE_AUTO
                                     // JavaScript no longer needs to send INITIATE_CHALLENGE
                                     authButton.disabled = false;
-                                    authButton.textContent = 'Authenticate with Passkey';
+                                    authButton.textContent = msgAuthenticate;
                                     console.log('Passkey challenge ready (auto-initiated by backend)');
                                 } catch (error) {
                                     console.error('Failed to initialize SDK:', error);
                                     authButton.disabled = false;
-                                    authButton.textContent = 'Authenticate with Passkey';
+                                    authButton.textContent = msgAuthenticate;
                                 }
                             })();
 
                             // Passkey authentication
                             authButton.addEventListener('click', async () => {
                                 authButton.disabled = true;
-                                authButton.textContent = 'Authenticating...';
+                                authButton.textContent = msgAuthenticating;
 
                                 try {
                                     const result = await mfa.verifyPasskey();
@@ -761,7 +771,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>MFA - Select Authentication Method</title>
+                <title>{{i18nSelectPageTitle}}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -900,20 +910,28 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>
                         </svg>
                     </div>
-                    <h1>Select Authentication Method</h1>
-                    <p class="description">Choose a second-factor to verify your identity.</p>
+                    <h1>{{i18nSelectTitle}}</h1>
+                    <p class="description">{{i18nSelectDescription}}</p>
 
                     <div class="user-info">
-                        <div class="label">Account being authenticated</div>
+                        <div class="label">{{i18nSelectAccountLabel}}</div>
                         <div class="username">{{username}}</div>
                     </div>
 
                     {{factorButtons}}
 
+                    <!-- i18n data for JavaScript -->
+                    <div id="i18n-select" style="display:none"
+                         data-processing="{{i18nSelectJsProcessing}}"
+                         data-error="{{i18nSelectJsError}}"></div>
+
                     <!-- Progressive Enhancement: JavaScript SDK support -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
                         if (typeof ContexaMFA !== 'undefined') {
+                            const i18nEl = document.getElementById('i18n-select');
+                            const msgProcessing = i18nEl.dataset.processing;
+                            const msgError = i18nEl.dataset.error;
                             const forms = document.querySelectorAll('.factor-form');
                             const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
                             mfa.init().catch(console.error);
@@ -925,14 +943,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     const nameEl = button.querySelector('.factor-name');
                                     const originalText = nameEl ? nameEl.textContent : button.textContent;
                                     button.disabled = true;
-                                    if (nameEl) { nameEl.textContent = 'Processing...'; } else { button.textContent = 'Processing...'; }
+                                    if (nameEl) { nameEl.textContent = msgProcessing; } else { button.textContent = msgProcessing; }
                                     try {
                                         const result = await mfa.selectFactor(factorType);
                                         if (result.nextStepUrl) { window.location.href = result.nextStepUrl; }
                                         else if (result.redirectUrl) { window.location.href = result.redirectUrl; }
                                     } catch (error) {
                                         console.error('Factor selection failed:', error);
-                                        alert('Authentication method selection failed: ' + (error.message || 'Unknown error'));
+                                        alert(msgError + (error.message || 'Unknown error'));
                                         button.disabled = false;
                                         if (nameEl) { nameEl.textContent = originalText; } else { button.textContent = originalText; }
                                     }
@@ -968,7 +986,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>MFA - Authentication Failed</title>
+                <title>{{i18nFailurePageTitle}}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -1028,12 +1046,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <body>
                 <div class="container">
                     <div class="icon">❌</div>
-                    <h1>Authentication Failed</h1>
+                    <h1>{{i18nFailureTitle}}</h1>
                     <p class="error-message">{{errorMessage}}</p>
 
                     <form method="get" action="{{retryUrl}}">
                         <button type="submit" class="primary-button">
-                            Try Again
+                            {{i18nFailureRetry}}
                         </button>
                     </form>
                 </div>
@@ -1357,8 +1375,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         for (AuthType factorType : availableFactors) {
             String hiddenInputs = resolveHiddenInputs(request);
-            String factorDisplayName = getFactorDisplayName(factorType);
-            String factorDescription = getFactorDescription(factorType);
+            String factorDisplayName = getFactorDisplayName(request, factorType);
+            String factorDescription = getFactorDescription(request, factorType);
             String factorIconClass = getFactorIconClass(factorType);
             String factorIconSvg = getFactorIconSvg(factorType);
 
@@ -1384,6 +1402,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfHeaderName", getCsrfHeaderName(request))
                 .withValue("csrfParameterName", getCsrfParameterName(request))
                 .withValue("tokenPersistence", tokenPersistence)
+                .withValue("i18nSelectPageTitle", msg(request, "mfa.select.page.title", "MFA - Select Authentication Method"))
+                .withValue("i18nSelectTitle", msg(request, "mfa.select.title", "Select Authentication Method"))
+                .withValue("i18nSelectDescription", msg(request, "mfa.select.description", "Choose a second-factor to verify your identity."))
+                .withValue("i18nSelectAccountLabel", msg(request, "mfa.select.account.label", "Account being authenticated"))
+                .withValue("i18nSelectJsProcessing", msg(request, "mfa.select.js.processing", "Processing..."))
+                .withValue("i18nSelectJsError", msg(request, "mfa.select.js.error", "Authentication method selection failed: "))
                 .withRawHtml("factorButtons", factorButtonsHtml.toString())
                 .render();
 
@@ -1407,6 +1431,22 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
 
+        // i18n messages
+        String pageTitle = msg(request, "mfa.login.page.title", "Login - MFA Authentication");
+        String loginTitle = msg(request, "mfa.login.title", "Login");
+        String loginDesc = msg(request, "mfa.login.description", "Enter your credentials to continue.");
+        String usernamePh = msg(request, "mfa.login.username.placeholder", "Username or Email");
+        String passwordPh = msg(request, "mfa.login.password.placeholder", "Password");
+        String submitText = msg(request, "mfa.login.submit", "Login");
+        String authenticatingText = msg(request, "mfa.login.authenticating", "Authenticating...");
+        String footerText = msg(request, "mfa.login.footer", "Multi-factor authentication (MFA) will proceed after login.");
+        String errorInputText = msg(request, "mfa.login.error.input", "Please enter username and password.");
+        String errorFailedText = msg(request, "mfa.login.error.failed", "Login failed: Please check your username or password.");
+        String successText = msg(request, "mfa.login.success", "Login successful!");
+        String successRedirectText = msg(request, "mfa.login.success.redirect", "Login successful! Redirecting to home...");
+        String successMfaText = msg(request, "mfa.login.success.mfa", "Login successful! Proceeding with multi-factor authentication...");
+        String logoutMsgText = msg(request, "mfa.login.logout.message", "You have been logged out.");
+
         String html = """
                 <!DOCTYPE html>
                 <html lang="en">
@@ -1416,7 +1456,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf" content="%s">
                     <meta name="_csrf_header" content="%s">
                     <meta name="_csrf_parameter" content="%s">
-                    <title>Login - MFA Authentication</title>
+                    <title>%s</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         body {
@@ -1467,33 +1507,42 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     </style>
                 </head>
                 <body>
-                    <div class="container">
-                        <div class="icon">🔑</div>
-                        <h1>Login</h1>
-                        <p class="description">Enter your credentials to continue.</p>
+                    <div class="container"
+                         data-msg-error-input="%s"
+                         data-msg-success-redirect="%s"
+                         data-msg-success-mfa="%s"
+                         data-msg-success="%s">
+                        <div class="icon"></div>
+                        <h1>%s</h1>
+                        <p class="description">%s</p>
                         <div id="message-area">
                             %s
                             %s
                         </div>
                         <div id="loginContainer" class="form">
-                            <input type="text" id="username" placeholder="Username or Email" required autofocus>
-                            <input type="password" id="password" placeholder="Password" required>
-                            <button type="button" id="loginButton" class="primary-button">Login</button>
-                            <div class="spinner" id="spinner">Authenticating...</div>
+                            <input type="text" id="username" placeholder="%s" required autofocus>
+                            <input type="password" id="password" placeholder="%s" required>
+                            <button type="button" id="loginButton" class="primary-button">%s</button>
+                            <div class="spinner" id="spinner">%s</div>
                         </div>
                         <div class="form-footer" id="form-footer">
-                            Multi-factor authentication (MFA) will proceed after login.
+                            %s
                         </div>
                     </div>
-                
+
                     <script src="/js/contexa-mfa-sdk.js"></script>
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
+                            const container = document.querySelector('.container');
                             const messageArea = document.getElementById('message-area');
                             const loginButton = document.getElementById('loginButton');
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
-                
+                            const msgErrorInput = container.dataset.msgErrorInput;
+                            const msgSuccessRedirect = container.dataset.msgSuccessRedirect;
+                            const msgSuccessMfa = container.dataset.msgSuccessMfa;
+                            const msgSuccess = container.dataset.msgSuccess;
+
                             // SDK initialization (autoRedirect: true - auto redirect)
                             const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
@@ -1502,7 +1551,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 const password = document.getElementById('password').value;
 
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">Please enter username and password.</div>';
+                                    messageArea.innerHTML = '<div class="message error">' + msgErrorInput + '</div>';
                                     return;
                                 }
 
@@ -1523,7 +1572,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     // Branch processing based on MFA requirement
                                     if (result.status === 'MFA_COMPLETED') {
                                         // MFA not required - redirect to home immediately (server issued tokens)
-                                        messageArea.innerHTML = '<div class="message success">Login successful! Redirecting to home...</div>';
+                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessRedirect + '</div>';
                                         const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
@@ -1531,14 +1580,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
                                         // MFA required - redirect to factor selection page
-                                        messageArea.innerHTML = '<div class="message success">Login successful! Proceeding with multi-factor authentication...</div>';
+                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessMfa + '</div>';
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
                                         // Other response - show message only
-                                        const message = result.message || 'Login successful!';
+                                        const message = result.message || msgSuccess;
                                         messageArea.innerHTML = '<div class="message success">' + message + '</div>';
                                     }
                                 } catch (error) {
@@ -1573,8 +1622,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : "",
+                pageTitle,
+                errorInputText,
+                successRedirectText,
+                successMfaText,
+                successText,
+                loginTitle,
+                loginDesc,
+                errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                usernamePh,
+                passwordPh,
+                submitText,
+                authenticatingText,
+                footerText,
                 tokenPersistence
         );
 
@@ -1598,6 +1659,22 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
 
+        // i18n messages
+        String pageTitle = msg(request, "mfa.login.rest.page.title", "Login - MFA Authentication (REST)");
+        String loginTitle = msg(request, "mfa.login.title", "Login");
+        String loginDesc = msg(request, "mfa.login.description", "Enter your credentials to continue.");
+        String usernamePh = msg(request, "mfa.login.username.placeholder", "Username or Email");
+        String passwordPh = msg(request, "mfa.login.password.placeholder", "Password");
+        String submitText = msg(request, "mfa.login.submit", "Login");
+        String authenticatingText = msg(request, "mfa.login.authenticating", "Authenticating...");
+        String footerText = msg(request, "mfa.login.footer", "Multi-factor authentication (MFA) will proceed after login.");
+        String errorInputText = msg(request, "mfa.login.error.input", "Please enter username and password.");
+        String errorFailedText = msg(request, "mfa.login.error.failed", "Login failed: Please check your username or password.");
+        String successText = msg(request, "mfa.login.success", "Login successful!");
+        String successRedirectText = msg(request, "mfa.login.success.redirect", "Login successful! Redirecting to home...");
+        String successMfaText = msg(request, "mfa.login.success.mfa", "Login successful! Proceeding with multi-factor authentication...");
+        String logoutMsgText = msg(request, "mfa.login.logout.message", "You have been logged out.");
+
         String html = """
                 <!DOCTYPE html>
                 <html lang="en">
@@ -1607,7 +1684,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf" content="%s">
                     <meta name="_csrf_header" content="%s">
                     <meta name="_csrf_parameter" content="%s">
-                    <title>Login - MFA Authentication (REST)</title>
+                    <title>%s</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         body {
@@ -1658,32 +1735,41 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     </style>
                 </head>
                 <body>
-                    <div class="container">
-                        <div class="icon">🔑</div>
-                        <h1>Login</h1>
-                        <p class="description">Enter your credentials to continue.</p>
+                    <div class="container"
+                         data-msg-error-input="%s"
+                         data-msg-success-redirect="%s"
+                         data-msg-success-mfa="%s"
+                         data-msg-success="%s">
+                        <div class="icon"></div>
+                        <h1>%s</h1>
+                        <p class="description">%s</p>
                         <div id="message-area">
                             %s
                             %s
                         </div>
                         <div id="loginContainer" class="form">
-                            <input type="text" id="username" placeholder="Username or Email" required autofocus>
-                            <input type="password" id="password" placeholder="Password" required>
-                            <button type="button" id="loginButton" class="primary-button">Login</button>
-                            <div class="spinner" id="spinner">Authenticating...</div>
+                            <input type="text" id="username" placeholder="%s" required autofocus>
+                            <input type="password" id="password" placeholder="%s" required>
+                            <button type="button" id="loginButton" class="primary-button">%s</button>
+                            <div class="spinner" id="spinner">%s</div>
                         </div>
                         <div class="form-footer" id="form-footer">
-                            Multi-factor authentication (MFA) will proceed after login.
+                            %s
                         </div>
                     </div>
-                
+
                     <script src="/js/contexa-mfa-sdk.js"></script>
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
+                            const container = document.querySelector('.container');
                             const messageArea = document.getElementById('message-area');
                             const loginButton = document.getElementById('loginButton');
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
+                            const msgErrorInput = container.dataset.msgErrorInput;
+                            const msgSuccessRedirect = container.dataset.msgSuccessRedirect;
+                            const msgSuccessMfa = container.dataset.msgSuccessMfa;
+                            const msgSuccess = container.dataset.msgSuccess;
 
                             // SDK initialization (autoRedirect: true - auto redirect)
                             const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
@@ -1693,7 +1779,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 const password = document.getElementById('password').value;
 
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">Please enter username and password.</div>';
+                                    messageArea.innerHTML = '<div class="message error">' + msgErrorInput + '</div>';
                                     return;
                                 }
 
@@ -1714,7 +1800,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     // Branch processing based on MFA requirement
                                     if (result.status === 'MFA_COMPLETED') {
                                         // MFA not required - redirect to home immediately (server issued tokens)
-                                        messageArea.innerHTML = '<div class="message success">Login successful! Redirecting to home...</div>';
+                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessRedirect + '</div>';
                                         const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
@@ -1722,14 +1808,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
                                         // MFA required - redirect to factor selection page
-                                        messageArea.innerHTML = '<div class="message success">Login successful! Proceeding with multi-factor authentication...</div>';
+                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessMfa + '</div>';
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
                                         // Other response - show message only
-                                        const message = result.message || 'Login successful!';
+                                        const message = result.message || msgSuccess;
                                         messageArea.innerHTML = '<div class="message success">' + message + '</div>';
                                     }
                                 } catch (error) {
@@ -1764,8 +1850,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : "",
+                pageTitle,
+                errorInputText,
+                successRedirectText,
+                successMfaText,
+                successText,
+                loginTitle,
+                loginDesc,
+                errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                usernamePh,
+                passwordPh,
+                submitText,
+                authenticatingText,
+                footerText,
                 tokenPersistence
         );
 
@@ -1805,7 +1903,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorParam = request.getParameter("error");
         String errorMessage = "";
         if ("user_not_found".equals(errorParam)) {
-            errorMessage = "<div class=\"error-message\">User not found. Please enter a valid username.</div>";
+            errorMessage = "<div class=\"error-message\">"
+                    + msg(request, "mfa.ott.error.user.not.found", "User not found. Please enter a valid username.")
+                    + "</div>";
         }
 
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
@@ -1820,7 +1920,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("errorMessage", errorMessage)
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1880,7 +1980,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("i18nOttVerifyVerifying", msg(request, "mfa.ott.verify.verifying", "Verifying..."))
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1919,7 +2019,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("failureUrl", failureUrl)
                 .withValue("passkeyRegistrationUrl", authUrlProvider.getPasskeyRegistrationPage())
                 .withValue("tokenPersistence", tokenPersistence)
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
+                .withValue("i18nPasskeyPageTitle", msg(request, "mfa.passkey.page.title", "MFA - Passkey Authentication"))
+                .withValue("i18nPasskeyTitle", msg(request, "mfa.passkey.title", "Passkey Authentication"))
+                .withValue("i18nPasskeyDescription", msg(request, "mfa.passkey.description", "Authenticate using biometrics or a security key."))
+                .withValue("i18nPasskeyAccountLabel", msg(request, "mfa.passkey.account.label", "Account being authenticated"))
+                .withValue("i18nPasskeyStartButton", msg(request, "mfa.passkey.start.button", "Start Passkey Authentication"))
+                .withValue("i18nPasskeyNoPasskey", msg(request, "mfa.passkey.no.passkey", "Don't have a registered Passkey?"))
+                .withValue("i18nPasskeyRegisterLink", msg(request, "mfa.passkey.register.link", "Register Passkey"))
+                .withValue("i18nPasskeyJsInitializing", msg(request, "mfa.passkey.js.initializing", "Initializing..."))
+                .withValue("i18nPasskeyJsAuthenticate", msg(request, "mfa.passkey.js.authenticate", "Authenticate with Passkey"))
+                .withValue("i18nPasskeyJsAuthenticating", msg(request, "mfa.passkey.js.authenticating", "Authenticating..."))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1934,7 +2044,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String contextPath = request.getContextPath();
 
         String errorMessage = request.getParameter("error");
-        String displayMessage = StringUtils.hasText(errorMessage) ? errorMessage : "Authentication failed.";
+        String displayMessage = StringUtils.hasText(errorMessage)
+                ? errorMessage : msg(request, "mfa.failure.default.message", "Authentication failed.");
 
         String selectFactorUrl = extractSelectFactorUrl();
         String fullRetryUrl = contextPath + selectFactorUrl;
@@ -1942,6 +2053,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String html = MfaHtmlTemplates.fromTemplate(FAILURE_PAGE_TEMPLATE)
                 .withValue("errorMessage", displayMessage)
                 .withValue("retryUrl", fullRetryUrl)
+                .withValue("i18nFailurePageTitle", msg(request, "mfa.failure.page.title", "MFA - Authentication Failed"))
+                .withValue("i18nFailureTitle", msg(request, "mfa.failure.title", "Authentication Failed"))
+                .withValue("i18nFailureRetry", msg(request, "mfa.failure.retry", "Try Again"))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -2067,19 +2181,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .replace("/", "&#x2F;");
     }
 
-    private String getFactorDisplayName(AuthType factorType) {
+    private String getFactorDisplayName(HttpServletRequest request, AuthType factorType) {
         return switch (factorType) {
-            case MFA_OTT -> "Email Verification Code";
-            case MFA_PASSKEY -> "Passkey Authentication";
+            case MFA_OTT -> msg(request, "mfa.factor.ott.name", "Email Verification Code");
+            case MFA_PASSKEY -> msg(request, "mfa.factor.passkey.name", "Passkey Authentication");
             default -> factorType.name();
         };
     }
 
-    private String getFactorDescription(AuthType factorType) {
+    private String getFactorDescription(HttpServletRequest request, AuthType factorType) {
         return switch (factorType) {
-            case MFA_OTT -> "Receive a one-time code via email";
-            case MFA_PASSKEY -> "Use biometrics or a security key";
-            default -> "Verify with " + factorType.name();
+            case MFA_OTT -> msg(request, "mfa.factor.ott.description", "Receive a one-time code via email");
+            case MFA_PASSKEY -> msg(request, "mfa.factor.passkey.description", "Use biometrics or a security key");
+            default -> msg(request, "mfa.factor.default.description", "Verify with ") + factorType.name();
         };
     }
 
@@ -2099,7 +2213,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         };
     }
 
-    private String buildSelectFactorLink(String contextPath, @Nullable FactorContext ctx) {
+    private String buildSelectFactorLink(HttpServletRequest request, String contextPath, @Nullable FactorContext ctx) {
         // Show link when multiple factor types are registered
         int factorTypeCount = mfaFlowConfig.getRegisteredFactorOptions() != null
                 ? mfaFlowConfig.getRegisteredFactorOptions().size() : 0;
@@ -2108,8 +2222,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         }
 
         String selectFactorUrl = contextPath + authUrlProvider.getMfaSelectFactor();
+        String linkText = msg(request, "mfa.select.try.another", "Try another method");
         return "<div style=\"text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;\">"
                 + "<a href=\"" + selectFactorUrl + "\" style=\"color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;\">"
-                + "Try another method</a></div>";
+                + linkText + "</a></div>";
     }
 }

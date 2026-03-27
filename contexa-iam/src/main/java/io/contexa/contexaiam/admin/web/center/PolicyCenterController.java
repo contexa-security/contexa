@@ -271,6 +271,10 @@ public class PolicyCenterController {
             m.put("friendlyName", r.getFriendlyName());
             m.put("status", r.getStatus() != null ? r.getStatus().name() : null);
             m.put("serviceOwner", r.getServiceOwner());
+            m.put("sourceCodeLocation", r.getSourceCodeLocation());
+            m.put("apiDocsUrl", r.getApiDocsUrl());
+            m.put("description", r.getDescription());
+            m.put("createdAt", r.getCreatedAt() != null ? r.getCreatedAt().toString() : null);
             return m;
         }).toList();
         return ResponseEntity.ok(Map.of(
