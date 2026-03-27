@@ -7,12 +7,14 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
+import io.contexa.contexaiam.domain.entity.SecuritySpel;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
@@ -41,6 +43,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final PolicyEnrichmentService policyEnrichmentService;
     private final CustomDynamicAuthorizationManager authorizationManager;
+    private final SecuritySpelRepository securitySpelRepository;
     private final CentralAuditFacade centralAuditFacade;
 
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
@@ -50,6 +53,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                                      ConditionTemplateRepository conditionTemplateRepository,
                                      PolicyEnrichmentService policyEnrichmentService,
                                      CustomDynamicAuthorizationManager authorizationManager,
+                                     SecuritySpelRepository securitySpelRepository,
                                      CentralAuditFacade centralAuditFacade) {
         this.policyRepository = policyRepository;
         this.roleService = roleService;
@@ -58,13 +62,14 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         this.conditionTemplateRepository = conditionTemplateRepository;
         this.policyEnrichmentService = policyEnrichmentService;
         this.authorizationManager = authorizationManager;
+        this.securitySpelRepository = securitySpelRepository;
         this.centralAuditFacade = centralAuditFacade;
     }
 
     @Override
     public Policy createPolicyFromBusinessRule(BusinessPolicyDto dto) {
-        if (CollectionUtils.isEmpty(dto.getRoleIds()) && CollectionUtils.isEmpty(dto.getPermissionIds())) {
-            throw new IllegalArgumentException("At least one role or one permission must be selected to create a policy.");
+        if (dto.getSpelId() == null && CollectionUtils.isEmpty(dto.getRoleIds()) && CollectionUtils.isEmpty(dto.getPermissionIds())) {
+            throw new IllegalArgumentException("At least one role, permission, or expression must be selected to create a policy.");
         }
 
         Policy policy = new Policy();
@@ -130,6 +135,35 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policy.getTargets().clear();
         policy.getRules().clear();
 
+        // SpEL expression mode: use SecuritySpel directly, skip role/permission logic
+        if (dto.getSpelId() != null) {
+            SecuritySpel spel = securitySpelRepository.findById(dto.getSpelId())
+                    .orElseThrow(() -> new IllegalArgumentException("SecuritySpel not found: " + dto.getSpelId()));
+
+            // Add manual target if provided
+            if ("MANUAL".equals(dto.getSourceType()) && dto.getManualTargetIdentifier() != null) {
+                PolicyTarget manualTarget = PolicyTarget.builder()
+                        .targetType(dto.getManualTargetType() != null ? dto.getManualTargetType() : "URL")
+                        .targetIdentifier(dto.getManualTargetIdentifier())
+                        .httpMethod(dto.getManualHttpMethod() != null ? dto.getManualHttpMethod() : "ANY")
+                        .targetOrder(dto.getManualTargetOrder())
+                        .sourceType("MANUAL")
+                        .build();
+                policy.addTarget(manualTarget);
+            }
+
+            PolicyRule rule = PolicyRule.builder()
+                    .description("SpEL expression: " + spel.getName())
+                    .build();
+            PolicyCondition condition = PolicyCondition.builder()
+                    .expression(spel.getExpression())
+                    .authorizationPhase(PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)
+                    .build();
+            rule.addCondition(condition);
+            policy.addRule(rule);
+            return;
+        }
+
         Set<Long> permIds = dto.getPermissionIds() != null ? dto.getPermissionIds() : Collections.emptySet();
         Set<Permission> permissions = new HashSet<>(permissionRepository.findAllById(permIds));
         Set<PolicyTarget> targets = permissions.stream()
@@ -143,7 +177,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                         .sourceType("RESOURCE")
                         .build())
                 .collect(Collectors.toSet());
-        
+
         targets.forEach(policy::addTarget);
 
         // Add manual target if sourceType is MANUAL

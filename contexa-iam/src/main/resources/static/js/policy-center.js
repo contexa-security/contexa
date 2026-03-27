@@ -534,6 +534,8 @@ const PolicyCenter = {
         roleSearchTimeout: null,
         permSearchTimeout: null,
         initialMappingDone: false,
+        selectedSpel: null,
+        spelSearchTimeout: null,
 
         init() {
             this.selectedRoles.clear();
@@ -542,6 +544,8 @@ const PolicyCenter = {
             this.userManualPerms.clear();
             this.allPermissions = [];
             this.initialMappingDone = false;
+            this.selectedSpel = null;
+            this._cachedSpels = [];
 
             if (this._preSelectedPerm) {
                 this.selectedPerms.set(this._preSelectedPerm.id, this._preSelectedPerm.name);
@@ -562,11 +566,15 @@ const PolicyCenter = {
 
             const roleCount = document.getElementById('qp-role-count');
             const permCount = document.getElementById('qp-perm-count');
+            const spelCount = document.getElementById('qp-spel-count');
             if (roleCount) roleCount.textContent = '0' + PolicyCenter._i18n('selectedSuffix', ' selected');
             if (permCount) permCount.textContent = this.selectedPerms.size + PolicyCenter._i18n('selectedSuffix', ' selected');
+            if (spelCount) spelCount.textContent = '-';
 
             this.loadRoles('');
             this.loadPermissions('');
+            this.loadSpelPermissions('');
+            this.updateDisabledState();
             this.updateSummary();
             this.updateCreateButtonState();
         },
@@ -581,6 +589,7 @@ const PolicyCenter = {
 
         async loadRoles(keyword) {
             const list = document.getElementById('qp-role-list');
+            if (!list) return;
             list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
             try {
                 const resp = await fetch('/admin/policy-center/api/roles?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
@@ -645,6 +654,7 @@ const PolicyCenter = {
         onRoleSelectionChanged() {
             this.initialMappingDone = false;
             this.loadPermissions(document.getElementById('qp-perm-search')?.value || '');
+            this.updateDisabledState();
             this.updateSummary();
             this.updateCreateButtonState();
         },
@@ -741,6 +751,7 @@ const PolicyCenter = {
             }
             this.renderPermChips();
             this.renderPermList(this.allPermissions);
+            this.updateDisabledState();
             this.updateSummary();
             this.updateCreateButtonState();
         },
@@ -754,25 +765,91 @@ const PolicyCenter = {
             this.permSearchTimeout = setTimeout(() => this.loadPermissions(keyword), 400);
         },
 
+        // === SpEL Expression Permissions ===
+
+        async loadSpelPermissions(keyword) {
+            const list = document.getElementById('qp-spel-list');
+            if (!list) return;
+            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
+            try {
+                const resp = await fetch('/admin/policy-center/api/spel-permissions?keyword=' + encodeURIComponent(keyword || ''));
+                const data = await resp.json();
+                this._cachedSpels = data || [];
+                this.renderSpelList(this._cachedSpels);
+            } catch (e) {
+                list.innerHTML = '<div class="pc-empty"><p>Loading failed</p></div>';
+            }
+        },
+
+        renderSpelList(spels) {
+            const list = document.getElementById('qp-spel-list');
+            if (!spels.length) { list.innerHTML = '<div class="pc-empty"><p>No expressions found.</p></div>'; return; }
+            list.innerHTML = spels.map(s => {
+                const sid = Number(s.id);
+                const sel = this.selectedSpel && this.selectedSpel.id === sid;
+                const safeName = this.escapeHtml(s.name).replace(/'/g, "\\'");
+                return '<div class="qp-item' + (sel ? ' selected' : '') + '" onclick="PolicyCenter.QuickPanel.toggleSpel(' + sid + ',\'' + safeName + '\')">' +
+                    '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onclick="PolicyCenter.QuickPanel.toggleSpel(' + sid + ',\'' + safeName + '\');event.stopPropagation();">' +
+                    '<div class="qp-item-info"><div class="qp-item-name">' + this.escapeHtml(s.name) + '</div>' +
+                    '<div class="qp-item-desc" style="font-family:monospace;color:#a78bfa;">' + this.escapeHtml(s.expression) + '</div>' +
+                    (s.description ? '<div class="qp-item-desc">' + this.escapeHtml(s.description) + '</div>' : '') +
+                    '</div></div>';
+            }).join('');
+        },
+
+        toggleSpel(id, name) {
+            id = Number(id);
+            if (this.selectedSpel && this.selectedSpel.id === id) {
+                this.selectedSpel = null;
+            } else {
+                this.selectedSpel = { id: id, name: name };
+            }
+            var countEl = document.getElementById('qp-spel-count');
+            if (countEl) countEl.textContent = this.selectedSpel ? this.selectedSpel.name : '-';
+            this.renderSpelList(this._cachedSpels || []);
+            this.updateDisabledState();
+            this.updateSummary();
+            this.updateCreateButtonState();
+        },
+
+        searchSpel(keyword) {
+            clearTimeout(this.spelSearchTimeout);
+            this.spelSearchTimeout = setTimeout(() => this.loadSpelPermissions(keyword), 400);
+        },
+
+        // === Mutual Exclusion ===
+
+        updateDisabledState() {
+            var spelOverlay = document.getElementById('qp-spel-disabled-overlay');
+            var roleOverlay = document.getElementById('qp-role-disabled-overlay');
+            var permOverlay = document.getElementById('qp-perm-disabled-overlay');
+            var hasSpel = this.selectedSpel !== null;
+            var hasRolePerm = this.selectedRoles.size > 0 || this.selectedPerms.size > 0;
+
+            if (spelOverlay) spelOverlay.style.display = hasRolePerm ? '' : 'none';
+            if (roleOverlay) roleOverlay.style.display = hasSpel ? '' : 'none';
+            if (permOverlay) permOverlay.style.display = hasSpel ? '' : 'none';
+        },
+
         // === Summary & Create ===
 
         updateSummary() {
             const nameInput = document.getElementById('qp-policy-name');
-            if (nameInput && !nameInput.value && (this.selectedRoles.size > 0 || this.selectedPerms.size > 0)) {
+            if (nameInput && !nameInput.value && (this.selectedRoles.size > 0 || this.selectedPerms.size > 0 || this.selectedSpel)) {
                 nameInput.value = 'Policy - ' + new Date().toISOString().slice(0, 16);
             }
         },
 
         updateCreateButtonState() {
             const btn = document.getElementById('qp-create-btn');
-            if (btn) btn.disabled = !(this.selectedRoles.size > 0 || this.selectedPerms.size > 0);
+            if (btn) btn.disabled = !(this.selectedRoles.size > 0 || this.selectedPerms.size > 0 || this.selectedSpel);
         },
 
         async createPolicy() {
             const name = document.getElementById('qp-policy-name').value.trim();
             if (!name) { showToast(PolicyCenter._i18n('policyNameRequired', 'Please enter a policy name.'), 'error'); return; }
-            if (this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
-                showToast(PolicyCenter._i18n('selectRoleOrPerm', 'Please select at least one role or permission.'), 'error'); return;
+            if (!this.selectedSpel && this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
+                showToast(PolicyCenter._i18n('selectRoleOrPerm', 'Please select at least one role, permission, or expression.'), 'error'); return;
             }
             const btn = document.getElementById('qp-create-btn');
             PolicyCenter.setLoading(btn, true);
@@ -783,9 +860,10 @@ const PolicyCenter = {
                     body: JSON.stringify(Object.assign({
                         policyName: name,
                         description: document.getElementById('qp-policy-desc').value,
-                        roleIds: Array.from(this.selectedRoles.keys()),
-                        permissionIds: Array.from(this.selectedPerms.keys()),
-                        effect: document.getElementById('qp-policy-effect').value
+                        roleIds: this.selectedSpel ? [] : Array.from(this.selectedRoles.keys()),
+                        permissionIds: this.selectedSpel ? [] : Array.from(this.selectedPerms.keys()),
+                        effect: document.getElementById('qp-policy-effect').value,
+                        spelId: this.selectedSpel ? this.selectedSpel.id : null
                     }, PolicyCenter.ManualTarget._context || {}))
                 });
                 const result = await resp.json();
@@ -1759,26 +1837,14 @@ PolicyCenter.ManualTarget = {
 
         this.close();
 
-        // Activate Create tab with manual target context
-        var ctx = {
+        // Reuse existing switchToCreateTab flow
+        PolicyCenter.switchToCreateTab({
             friendlyName: identifier,
             resourceType: targetType,
             resourceIdentifier: identifier,
             httpMethod: httpMethod,
             isManual: true
-        };
-
-        document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
-        document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
-        var createTab = document.getElementById('tab-create');
-        if (createTab) createTab.classList.add('active');
-        var createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
-        if (createBtn) createBtn.classList.add('active');
-
-        PolicyCenter.CreateFlow.activateWithResource(ctx);
-        var modeBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
-        PolicyCenter.switchCreateMode('quick', modeBtn);
-        history.pushState(null, '', '/admin/policy-center?tab=create');
+        }, 'quick');
     }
 };
 

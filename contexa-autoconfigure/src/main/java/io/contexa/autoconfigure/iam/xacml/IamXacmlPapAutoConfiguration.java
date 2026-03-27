@@ -91,11 +91,12 @@ public class IamXacmlPapAutoConfiguration {
             ConditionTemplateRepository conditionTemplateRepository,
             PolicyEnrichmentService policyEnrichmentService,
             CustomDynamicAuthorizationManager authorizationManager,
+            io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
             io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
         return new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository, permissionRepository,
                 conditionTemplateRepository, policyEnrichmentService, authorizationManager,
-                centralAuditFacade);
+                securitySpelRepository, centralAuditFacade);
     }
 
     @Bean

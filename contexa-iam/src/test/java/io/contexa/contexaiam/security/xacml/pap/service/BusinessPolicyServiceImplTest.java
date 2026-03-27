@@ -62,6 +62,9 @@ class BusinessPolicyServiceImplTest {
     @Mock
     private io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade;
 
+    @Mock
+    private io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository;
+
     private BusinessPolicyServiceImpl service;
 
     @BeforeEach
@@ -69,7 +72,7 @@ class BusinessPolicyServiceImplTest {
         service = new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository,
                 permissionRepository, conditionTemplateRepository,
-                policyEnrichmentService, authorizationManager, centralAuditFacade);
+                policyEnrichmentService, authorizationManager, securitySpelRepository, centralAuditFacade);
     }
 
     @Nested

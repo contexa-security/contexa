@@ -13,10 +13,12 @@ import io.contexa.contexaiam.domain.dto.RoleDto;
 import io.contexa.contexaiam.domain.dto.RuleDto;
 import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
+import io.contexa.contexaiam.domain.entity.SecuritySpel;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
@@ -58,6 +60,7 @@ public class PolicyCenterController {
     private final BusinessPolicyService businessPolicyService;
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final ManagedResourceRepository managedResourceRepository;
+    private final SecuritySpelRepository securitySpelRepository;
     private final MessageSource messageSource;
 
     private String msg(String key, Object... args) {
@@ -219,6 +222,7 @@ public class PolicyCenterController {
             dto.setPermissionIds(request.getPermissionIds());
             dto.setConditions(Collections.emptyMap());
             dto.setSource(Policy.PolicySource.MANUAL);
+            dto.setSpelId(request.getSpelId());
 
             // Manual target support
             if ("MANUAL".equals(request.getSourceType())) {
@@ -366,6 +370,30 @@ public class PolicyCenterController {
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("Failed to load conditions", e);
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+    }
+
+    // ==================== SpEL Permissions API ====================
+
+    @GetMapping("/api/spel-permissions")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getSpelPermissions(
+            @RequestParam(required = false) String keyword) {
+        try {
+            List<SecuritySpel> spels = securitySpelRepository.search(keyword);
+            List<Map<String, Object>> result = spels.stream().map(s -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", s.getId());
+                m.put("name", s.getName());
+                m.put("expression", s.getExpression());
+                m.put("description", s.getDescription());
+                m.put("category", s.getCategory());
+                return m;
+            }).toList();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to load SpEL permissions", e);
             return ResponseEntity.ok(Collections.emptyList());
         }
     }

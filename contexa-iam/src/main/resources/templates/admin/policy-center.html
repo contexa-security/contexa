@@ -50,22 +50,22 @@
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
                     </div>
                     <!-- Filters -->
-                    <div class="flex gap-4 items-center flex-wrap">
-                        <label for="serviceOwner" class="text-sm font-medium" style="color:#cbd5e1;white-space:nowrap;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner</label>
-                        <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select" style="width:150px;">
+                    <div style="display:grid;grid-template-columns:auto 0.7fr auto 0.7fr auto 1.5fr auto auto;gap:10px;align-items:center;">
+                        <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner</span>
+                        <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select">
                             <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
                             <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
                         </select>
-                        <label for="status" class="text-sm font-medium" style="color:#cbd5e1;white-space:nowrap;" th:text="#{admin.policy.center.resource.status}">Status</label>
-                        <select id="status" th:field="*{status}" class="modern-select" style="width:150px;">
+                        <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.status}">Status</span>
+                        <select id="status" th:field="*{status}" class="modern-select">
                             <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
                             <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}" th:text="#{admin.policy.center.resource.status.unset}">Unset</option>
                             <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}" th:text="#{admin.policy.center.resource.status.awaiting}">Awaiting Policy</option>
                             <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}" th:text="#{admin.policy.center.resource.status.protected}">Protected</option>
                             <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}" th:text="#{admin.policy.center.resource.status.excluded}">Excluded</option>
                         </select>
-                        <label for="keyword" class="text-sm font-medium" style="color:#cbd5e1;white-space:nowrap;" th:text="#{admin.policy.center.resource.keyword}">Keyword</label>
-                        <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" style="width:180px;" th:placeholder="#{admin.policy.center.resource.keyword.placeholder}">
+                        <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.keyword}">Keyword</span>
+                        <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" th:placeholder="#{admin.policy.center.resource.keyword.placeholder}">
                         <button type="submit" class="modern-btn-primary" style="white-space:nowrap;"><i class="fas fa-search"></i> <span th:text="#{admin.policy.center.resource.search}">Search</span></button>
                         <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center" style="white-space:nowrap;"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.resource.clear.filter}">Clear Filter</span></a>
                     </div>
@@ -238,10 +238,28 @@
                         </button>
                     </div>
 
-                    <!-- 2-Panel Layout -->
-                    <div class="qp-dual-panel" id="qp-dual-panel">
-                        <!-- Left: Role Selection -->
-                        <div class="qp-panel">
+                    <!-- 3-Panel Layout -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;" id="qp-triple-panel">
+                        <!-- Left: SpEL Expression Permissions -->
+                        <div class="qp-panel" id="qp-spel-panel">
+                            <div class="qp-panel-header">
+                                <h4 class="qp-panel-title"><i class="fas fa-code"></i> <span th:text="#{admin.policy.center.create.quick.spel}">Expression Permissions</span></h4>
+                                <span class="qp-panel-count" id="qp-spel-count" style="color:#a78bfa;">-</span>
+                            </div>
+                            <div class="qp-search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" class="modern-input" id="qp-spel-search" th:placeholder="#{admin.policy.center.create.quick.search.spel}" oninput="PolicyCenter.QuickPanel.searchSpel(this.value)">
+                            </div>
+                            <div class="qp-item-list" id="qp-spel-list">
+                                <div class="pc-empty"><i class="fas fa-code"></i><p th:text="#{admin.policy.center.create.quick.spel.hint}">Select an expression permission.</p></div>
+                            </div>
+                            <div id="qp-spel-disabled-overlay" class="qp-disabled-overlay" style="display:none;">
+                                <span th:text="#{admin.policy.center.create.quick.spel.disabled}">Disabled</span>
+                            </div>
+                        </div>
+
+                        <!-- Center: Role Selection -->
+                        <div class="qp-panel" id="qp-role-panel">
                             <div class="qp-panel-header">
                                 <h4 class="qp-panel-title"><i class="fas fa-user-shield"></i> <span th:text="#{admin.policy.center.create.quick.roles}">Roles</span></h4>
                                 <span class="qp-panel-count" id="qp-role-count">0 selected</span>
@@ -253,10 +271,13 @@
                             <div class="qp-item-list" id="qp-role-list">
                                 <div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p th:text="#{admin.policy.center.create.quick.loading.roles}">Loading roles...</p></div>
                             </div>
+                            <div id="qp-role-disabled-overlay" class="qp-disabled-overlay" style="display:none;">
+                                <span th:text="#{admin.policy.center.create.quick.spel.selected}">Expression selected</span>
+                            </div>
                         </div>
 
                         <!-- Right: Permission Selection -->
-                        <div class="qp-panel">
+                        <div class="qp-panel" id="qp-perm-panel">
                             <div class="qp-panel-header">
                                 <h4 class="qp-panel-title"><i class="fas fa-key"></i> <span th:text="#{admin.policy.center.create.quick.permissions}">Permissions</span></h4>
                                 <span class="qp-panel-count" id="qp-perm-count">0 selected</span>
@@ -267,6 +288,9 @@
                             </div>
                             <div class="qp-item-list" id="qp-perm-list">
                                 <div class="pc-empty"><i class="fas fa-info-circle"></i><p th:text="#{admin.policy.center.create.quick.select.role.hint}">Select a role to see mapped permissions.</p></div>
+                            </div>
+                            <div id="qp-perm-disabled-overlay" class="qp-disabled-overlay" style="display:none;">
+                                <span th:text="#{admin.policy.center.create.quick.spel.selected}">Expression selected</span>
                             </div>
                         </div>
                     </div>

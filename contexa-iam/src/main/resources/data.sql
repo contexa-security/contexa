@@ -165,3 +165,15 @@ SELECT setval('policy_condition_id_seq', (SELECT MAX(id) FROM POLICY_CONDITION),
 SELECT setval('condition_template_id_seq', (SELECT MAX(id) FROM CONDITION_TEMPLATE), true);
 SELECT setval('document_document_id_seq', (SELECT MAX(document_id) FROM DOCUMENT), true);
 
+-- SpEL expression permissions
+INSERT INTO SECURITY_SPEL (name, expression, description, category) VALUES
+    ('AUTHENTICATED', 'isAuthenticated()', 'Authenticated user only', 'AUTH'),
+    ('FULLY_AUTHENTICATED', 'isFullyAuthenticated()', 'Fully authenticated (not remember-me)', 'AUTH'),
+    ('REMEMBER_ME', 'isRememberMe()', 'Remember-me authentication', 'AUTH'),
+    ('ANONYMOUS', 'isAnonymous()', 'Anonymous user only', 'AUTH'),
+    ('PERMIT_ALL', 'permitAll', 'Allow all access', 'AUTH'),
+    ('DENY_ALL', 'denyAll', 'Deny all access', 'AUTH')
+ON CONFLICT (name) DO NOTHING;
+
+SELECT setval('security_spel_id_seq', (SELECT MAX(id) FROM SECURITY_SPEL), true);
+

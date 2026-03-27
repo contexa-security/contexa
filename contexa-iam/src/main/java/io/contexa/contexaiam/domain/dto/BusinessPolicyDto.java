@@ -30,4 +30,7 @@ public class BusinessPolicyDto {
     private Double confidenceScore;
     private String aiModel;
     private Policy.PolicySource source;
+
+    // SpEL expression permission (mutually exclusive with roleIds/permissionIds)
+    private Long spelId;
 }

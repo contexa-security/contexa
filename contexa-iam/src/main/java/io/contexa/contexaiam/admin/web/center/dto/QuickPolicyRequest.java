@@ -19,4 +19,7 @@ public class QuickPolicyRequest {
     private String manualHttpMethod;
     private int manualTargetOrder = 1;
     private String sourceType = "RESOURCE";  // RESOURCE or MANUAL
+
+    // SpEL expression permission (mutually exclusive with roleIds/permissionIds)
+    private Long spelId;
 }

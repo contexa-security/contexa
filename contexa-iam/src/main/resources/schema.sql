@@ -218,6 +218,16 @@ CREATE TABLE WIZARD_SESSION (
                                 expires_at TIMESTAMP NOT NULL
 );
 
+-- SpEL 표현식 테이블
+CREATE TABLE SECURITY_SPEL (
+                               id BIGSERIAL PRIMARY KEY,
+                               name VARCHAR(255) NOT NULL UNIQUE,
+                               expression VARCHAR(2048) NOT NULL,
+                               description VARCHAR(1024),
+                               category VARCHAR(100),
+                               created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- 테스트용 문서 테이블
 CREATE TABLE DOCUMENT (
                           document_id BIGSERIAL PRIMARY KEY,

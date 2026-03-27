@@ -537,3 +537,20 @@ CREATE TABLE one_time_tokens (
     username    VARCHAR(50) NOT NULL,
     expires_at  TIMESTAMP NOT NULL
 );
+
+CREATE TABLE security_spel (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL UNIQUE,
+    expression  VARCHAR(2048) NOT NULL,
+    description VARCHAR(1024),
+    category    VARCHAR(100),
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO security_spel (name, expression, description, category) VALUES
+('AUTHENTICATED', 'isAuthenticated()', 'Authenticated user only', 'AUTH'),
+('FULLY_AUTHENTICATED', 'isFullyAuthenticated()', 'Fully authenticated (not remember-me)', 'AUTH'),
+('REMEMBER_ME', 'isRememberMe()', 'Remember-me authentication', 'AUTH'),
+('ANONYMOUS', 'isAnonymous()', 'Anonymous user only', 'AUTH'),
+('PERMIT_ALL', 'permitAll', 'Allow all access', 'AUTH'),
+('DENY_ALL', 'denyAll', 'Deny all access', 'AUTH');
