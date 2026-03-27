@@ -98,7 +98,7 @@
                         </tr>
                         <th:block th:if="${resourcePage != null}">
                             <tr th:each="res : ${resourcePage.content}">
-                                <td class="table-cell-top text-center">
+                                <td class="table-cell-top text-center" style="vertical-align:middle;">
                                     <span class="status-badge"
                                           th:classappend="${res.status?.name() == 'NEEDS_DEFINITION' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
                                                            res.status?.name() == 'PERMISSION_CREATED' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
