@@ -90,11 +90,12 @@ public class DashboardServiceImpl implements DashboardService {
         // Policy counts: computed once, shared between buildStatistics and buildPolicyStatus
         long policyTotal = policyRepository.count();
         long policyActive = policyRepository.countByIsActiveTrue();
+        long denyCount24h = auditLogRepository.countDeniedAttemptsSince(since24h);
 
         return new DashboardDto(
                 buildStatistics(policyTotal, policyActive),
                 userContextService.getRecentActivities(currentUsername),
-                analyzeRiskIndicators(),
+                analyzeRiskIndicators(denyCount24h),
                 securityScoreCalculator.calculate(),
                 permissionMatrixService.getPermissionMatrix(null),
                 buildPolicyStatus(policyTotal, policyActive),
@@ -109,7 +110,7 @@ public class DashboardServiceImpl implements DashboardService {
                 blockedCounts.getOrDefault(BlockedUserStatus.RESOLVED, 0L),
                 blockedUserJpaRepository.findTop5ByStatusInOrderByBlockedAtDesc(List.of(BlockedUserStatus.BLOCKED, BlockedUserStatus.UNBLOCK_REQUESTED)),
                 auditLogRepository.countAllowedSince(since24h),
-                auditLogRepository.countDeniedAttemptsSince(since24h),
+                denyCount24h,
                 eventCatCounts.getOrDefault("AUTHENTICATION_SUCCESS", 0L),
                 eventCatCounts.getOrDefault("AUTHENTICATION_FAILURE", 0L),
                 eventCatCounts.getOrDefault("SECURITY_DECISION", 0L),
@@ -219,7 +220,7 @@ public class DashboardServiceImpl implements DashboardService {
         return trends;
     }
 
-    private List<RiskIndicatorDto> analyzeRiskIndicators() {
+    private List<RiskIndicatorDto> analyzeRiskIndicators(long denyCount24h) {
         List<RiskIndicatorDto> risks = new ArrayList<>();
 
         long mfaDisabledAdmins = userRepository.findAdminsWithMfaDisabled().size();
@@ -246,13 +247,11 @@ public class DashboardServiceImpl implements DashboardService {
             ));
         }
 
-        LocalDateTime last24Hours = LocalDateTime.now().minusHours(24);
-        long deniedAttempts = auditLogRepository.countDeniedAttemptsSince(last24Hours);
-        if (deniedAttempts >= 10) {
+        if (denyCount24h >= 10) {
             risks.add(new RiskIndicatorDto(
                     "WARNING",
                     "High number of access denials in last 24 hours",
-                    deniedAttempts + " access attempts were denied in the last 24 hours. This may indicate abnormal access attempts.",
+                    denyCount24h + " access attempts were denied in the last 24 hours. This may indicate abnormal access attempts.",
                     "/admin/studio"
             ));
         }

@@ -11,6 +11,7 @@ import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.entity.AuditLog;
@@ -133,17 +134,51 @@ class DashboardServiceImplTest {
                 new PermissionMatrixDto(Collections.emptyList(), Collections.emptyList(), Collections.emptyMap()));
         when(userContextService.getRecentActivities(any())).thenReturn(Collections.emptyList());
 
+        // GROUP BY mocks for optimized queries
+        when(managedResourceRepository.countGroupByStatus()).thenReturn(List.of(
+                new Object[]{ManagedResource.Status.POLICY_CONNECTED, 150L},
+                new Object[]{ManagedResource.Status.PERMISSION_CREATED, 30L},
+                new Object[]{ManagedResource.Status.NEEDS_DEFINITION, 20L}
+        ));
+        when(blockedUserJpaRepository.countGroupByStatus()).thenReturn(List.of(
+                new Object[]{BlockedUserStatus.BLOCKED, 3L},
+                new Object[]{BlockedUserStatus.UNBLOCK_REQUESTED, 1L},
+                new Object[]{BlockedUserStatus.TIMEOUT_RESPONDED, 0L},
+                new Object[]{BlockedUserStatus.MFA_FAILED, 2L},
+                new Object[]{BlockedUserStatus.RESOLVED, 10L}
+        ));
+        when(blockedUserJpaRepository.findTop5ByStatusInOrderByBlockedAtDesc(any())).thenReturn(Collections.emptyList());
+        when(auditLogRepository.countByEventCategoriesGrouped(any(), any())).thenReturn(List.of(
+                new Object[]{"AUTHENTICATION_SUCCESS", 10L},
+                new Object[]{"AUTHENTICATION_FAILURE", 10L},
+                new Object[]{"SECURITY_DECISION", 10L}
+        ));
+        when(auditLogRepository.countZeroTrustGroupByDecision(any())).thenReturn(List.of(
+                new Object[]{"ALLOW", 20L},
+                new Object[]{"CHALLENGE", 20L},
+                new Object[]{"BLOCK", 20L},
+                new Object[]{"ESCALATE", 20L}
+        ));
+        when(policyRepository.countGroupBySource()).thenReturn(List.of(
+                new Object[]{Policy.PolicySource.MANUAL, 5L},
+                new Object[]{Policy.PolicySource.AI_GENERATED, 5L},
+                new Object[]{Policy.PolicySource.AI_EVOLVED, 5L}
+        ));
+        when(policyRepository.countAIApprovalGroupByStatus(any())).thenReturn(List.of(
+                new Object[]{Policy.ApprovalStatus.PENDING, 2L},
+                new Object[]{Policy.ApprovalStatus.APPROVED, 2L},
+                new Object[]{Policy.ApprovalStatus.REJECTED, 2L}
+        ));
+
+        // Legacy individual mocks (kept for analyzeRiskIndicators and other methods)
         when(managedResourceRepository.count()).thenReturn(200L);
         when(managedResourceRepository.countByStatus(ManagedResource.Status.POLICY_CONNECTED)).thenReturn(150L);
         when(managedResourceRepository.countByStatus(ManagedResource.Status.PERMISSION_CREATED)).thenReturn(30L);
-
         when(blockedUserJpaRepository.countByStatus(BlockedUserStatus.BLOCKED)).thenReturn(3L);
         when(blockedUserJpaRepository.countByStatus(BlockedUserStatus.UNBLOCK_REQUESTED)).thenReturn(1L);
         when(blockedUserJpaRepository.countByStatus(BlockedUserStatus.TIMEOUT_RESPONDED)).thenReturn(0L);
         when(blockedUserJpaRepository.countByStatus(BlockedUserStatus.MFA_FAILED)).thenReturn(2L);
         when(blockedUserJpaRepository.countByStatus(BlockedUserStatus.RESOLVED)).thenReturn(10L);
-        when(blockedUserJpaRepository.findTop5ByStatusInOrderByBlockedAtDesc(any())).thenReturn(Collections.emptyList());
-
         when(policyRepository.countBySource(any())).thenReturn(5L);
         when(policyRepository.countBySourceInAndApprovalStatus(any(), any())).thenReturn(2L);
         when(policyRepository.calculateAverageConfidenceScoreForAIPolicies()).thenReturn(0.75);
