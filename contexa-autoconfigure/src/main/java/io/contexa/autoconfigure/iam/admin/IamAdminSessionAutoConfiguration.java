@@ -33,9 +33,10 @@ public class IamAdminSessionAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(SessionTrackingFilter.class)
     public FilterRegistrationBean<SessionTrackingFilter> sessionTrackingFilter(
-            SessionManagementService sessionManagementService) {
+            SessionManagementService sessionManagementService,
+            ActiveSessionRepository activeSessionRepository) {
         FilterRegistrationBean<SessionTrackingFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new SessionTrackingFilter(sessionManagementService));
+        registration.setFilter(new SessionTrackingFilter(sessionManagementService, activeSessionRepository));
         registration.addUrlPatterns("/*");
         registration.setName("sessionTrackingFilter");
         registration.setOrder(200);
