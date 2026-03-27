@@ -4,10 +4,12 @@
  */
 (function() {
     function initCustomSelects() {
-        document.querySelectorAll('select:not(.cs-hidden):not(.cs-skip)').forEach(function(sel) {
-            if (sel.closest('.custom-select-wrapper')) return;
-            // Skip selects that already have custom wrappers (e.g. modern-select-wrapper)
-            if (sel.closest('.modern-select-wrapper') || sel.closest('.searchable-select-wrapper')) return;
+        console.log('[custom-select] initCustomSelects called, found selects:', document.querySelectorAll('select:not(.cs-hidden):not(.cs-skip)').length);
+        document.querySelectorAll('select:not(.cs-hidden):not(.cs-skip)').forEach(function(sel, idx) {
+            if (sel.closest('.custom-select-wrapper')) { console.log('[custom-select] skip #' + idx + ': already in wrapper'); return; }
+            if (sel.closest('.modern-select-wrapper') || sel.closest('.searchable-select-wrapper')) { console.log('[custom-select] skip #' + idx + ': modern/searchable wrapper'); return; }
+
+            console.log('[custom-select] converting #' + idx + ':', sel.name || sel.id || sel.className, 'parent:', sel.parentElement.tagName + '.' + sel.parentElement.className, 'computedDisplay:', window.getComputedStyle(sel.parentElement).display);
 
             var wrapper = document.createElement('div');
             wrapper.className = 'custom-select-wrapper';
@@ -88,6 +90,11 @@
             wrapper.appendChild(optionsPanel);
             wrapper.appendChild(sel);
             sel.classList.add('cs-hidden');
+
+            var tcs = window.getComputedStyle(trigger);
+            console.log('[custom-select] trigger #' + idx + ' styles - bg:', tcs.background.substring(0, 60), 'border:', tcs.border, 'borderRadius:', tcs.borderRadius, 'padding:', tcs.padding);
+            var wcs = window.getComputedStyle(wrapper);
+            console.log('[custom-select] wrapper #' + idx + ' styles - bg:', wcs.background.substring(0, 60), 'border:', wcs.border, 'borderRadius:', wcs.borderRadius);
 
             // Toggle
             function toggle() {

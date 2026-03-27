@@ -6,6 +6,12 @@
 .custom-select-wrapper {
     position: relative;
     width: 100%;
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0;
 }
 
 .custom-select-trigger {
