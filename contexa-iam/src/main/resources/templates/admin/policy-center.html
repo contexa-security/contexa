@@ -48,7 +48,7 @@
                 <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="resources" />
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div class="grid grid-cols-1 gap-4 items-end" style="grid-template-columns: 1fr 1fr 2fr 2fr;" />
                         <div>
                             <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner (Service Owner)</label>
                             <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select">
@@ -75,9 +75,7 @@
                             <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.resource.clear.filter}">Clear Filter</span></a>
                             <div style="flex: 1;"></div>
                             <button type="submit" class="modern-btn-refresh" formaction="/admin/policy-center/refresh-resources" formmethod="post"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
-                            <button type="button" class="button secondary" onclick="PolicyCenter.MultiSelect.openResourcePicker()">
-                                <i class="fas fa-layer-group"></i> <span th:text="#{policy.center.multi.select.btn}">Multi-Resource Policy</span>
-                            </button>
+                            <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.openResourcePicker()"><i class="fas fa-layer-group"></i> <span th:text="#{policy.center.multi.select.btn}">Multi-Resource Policy</span></button>
                         </div>
                     </div>
                 </form>

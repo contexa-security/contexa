@@ -1747,11 +1747,11 @@ PolicyCenter.MultiSelect = {
                 + ' data-status="' + (r.status || '') + '"'
                 + ' data-friendly="' + self.escapeHtml(r.friendlyName || '') + '"'
                 + ' onclick="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this)">';
-            html += '<td style="padding:0.5rem;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
-            html += '<td style="padding:0.5rem;color:#e2e8f0;font-size:0.8125rem;font-family:monospace;word-break:break-all;">' + self.escapeHtml(r.resourceIdentifier) + '</td>';
-            html += '<td style="padding:0.5rem;"><span class="badge neutral" style="font-size:0.7rem;">' + (r.resourceType || '-') + '</span></td>';
-            html += '<td style="padding:0.5rem;color:#94a3b8;font-size:0.8125rem;">' + (r.httpMethod || 'ANY') + '</td>';
-            html += '<td style="padding:0.5rem;"><span class="badge ' + self.statusClass(r.status) + '" style="font-size:0.7rem;">' + (r.status || '-') + '</span></td>';
+            html += '<td><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
+            html += '<td style="font-family:monospace;word-break:break-all;">' + self.escapeHtml(r.resourceIdentifier) + '</td>';
+            html += '<td><span class="badge neutral">' + (r.resourceType || '-') + '</span></td>';
+            html += '<td style="color:#94a3b8;">' + (r.httpMethod || 'ANY') + '</td>';
+            html += '<td><span class="badge ' + self.statusClass(r.status) + '">' + (r.status || '-') + '</span></td>';
             html += '</tr>';
         });
         tbody.innerHTML = html;
