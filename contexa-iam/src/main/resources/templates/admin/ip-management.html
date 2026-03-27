@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.ip.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
+            <div class="mb-8 text-center sm:text-left">
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.ip.title}">IP Access Management</h1>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <div class="rounded-lg p-3 text-center" style="background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3);">
+                    <div class="text-2xl font-bold" style="color: #4ade80;" th:text="${allowCount}">0</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.ip.allow.count}">Allow Rules</div>
+                </div>
+                <div class="rounded-lg p-3 text-center" style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3);">
+                    <div class="text-2xl font-bold" style="color: #f87171;" th:text="${denyCount}">0</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.ip.deny.count}">Deny Rules</div>
+                </div>
+                <div class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4);">
+                    <div class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${totalCount}">0</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.ip.total.count}">Total Rules</div>
+                </div>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <a th:href="@{/admin/ip-management}"
+                   th:classappend="${currentType == null} ? 'filter-active' : 'filter-inactive'"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.all}">All</a>
+                <a th:href="@{/admin/ip-management(type='ALLOW')}"
+                   th:classappend="${currentType == 'ALLOW'} ? 'filter-active-allow' : 'filter-inactive'"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.allow}">Allow</a>
+                <a th:href="@{/admin/ip-management(type='DENY')}"
+                   th:classappend="${currentType == 'DENY'} ? 'filter-active-deny' : 'filter-inactive'"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.deny}">Deny</a>
+            </div>
+
+            <!-- Create Form -->
+            <div class="mb-6 p-4 rounded-lg" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3);">
+                <h3 class="text-sm font-semibold mb-3" style="color: #e2e8f0;" th:text="#{admin.ip.create.title}">Create IP Rule</h3>
+                <form th:action="@{/admin/ip-management/create}" method="post" class="flex flex-wrap items-end gap-3">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                    <div class="flex-1 min-w-[180px]">
+                        <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.ip}">IP Address</label>
+                        <input type="text" name="ipAddress" required
+                               th:placeholder="#{admin.ip.create.ip.placeholder}"
+                               class="w-full px-3 py-2 rounded-md text-sm"
+                               style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;" />
+                    </div>
+                    <div class="min-w-[120px]">
+                        <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.type}">Rule Type</label>
+                        <select name="ruleType" required class="cs-skip w-full px-3 py-2 rounded-md text-sm"
+                                style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;">
+                            <option value="DENY">DENY</option>
+                            <option value="ALLOW">ALLOW</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[180px]">
+                        <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.desc}">Description</label>
+                        <input type="text" name="description"
+                               th:placeholder="#{admin.ip.create.desc.placeholder}"
+                               class="w-full px-3 py-2 rounded-md text-sm"
+                               style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;" />
+                    </div>
+                    <div class="min-w-[180px]">
+                        <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.expires}">Expires At</label>
+                        <input type="datetime-local" name="expiresAt"
+                               class="w-full px-3 py-2 rounded-md text-sm"
+                               style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;" />
+                    </div>
+                    <div>
+                        <button type="submit" class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300"
+                                style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white;"
+                                th:text="#{admin.ip.create.submit}">Create Rule</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full w-full text-sm text-left">
+                    <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.ip}">IP Address</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.type}">Type</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.desc}">Description</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.created.by}">Created By</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.created.at}">Created At</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.expires}">Expires</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.enabled}">Enabled</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.ip.table.actions}">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                    <tr th:each="rule : ${rules.content}" style="border-color: rgba(71, 85, 105, 0.3);">
+                        <td class="py-4 px-6 font-mono text-sm" th:text="${rule.ipAddress}"></td>
+                        <td class="py-4 px-6">
+                            <span th:if="${rule.ruleType.name() == 'ALLOW'}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">ALLOW</span>
+                            <span th:if="${rule.ruleType.name() == 'DENY'}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">DENY</span>
+                        </td>
+                        <td class="py-4 px-6" th:text="${rule.description != null} ? ${rule.description} : '-'" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></td>
+                        <td class="py-4 px-6" th:text="${rule.createdBy != null} ? ${rule.createdBy} : '-'"></td>
+                        <td class="py-4 px-6" th:text="${rule.createdAt != null} ? ${#temporals.format(rule.createdAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
+                        <td class="py-4 px-6">
+                            <span th:if="${rule.expiresAt != null}" th:text="${#temporals.format(rule.expiresAt, 'yyyy-MM-dd HH:mm')}"></span>
+                            <span th:if="${rule.expiresAt == null}" class="text-xs" style="color: #64748b;" th:text="#{admin.ip.permanent}">Permanent</span>
+                        </td>
+                        <td class="py-4 px-6">
+                            <form th:action="@{/admin/ip-management/{id}/toggle(id=${rule.id})}" method="post" class="inline-block">
+                                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                <button type="submit" class="px-3 py-1 rounded-full text-xs font-semibold transition-all duration-300"
+                                        th:style="${rule.enabled} ? 'background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(71,85,105,0.2); color: #64748b; border: 1px solid rgba(71,85,105,0.3);'"
+                                        th:text="${rule.enabled} ? 'ON' : 'OFF'"></button>
+                            </form>
+                        </td>
+                        <td class="py-4 px-6">
+                            <form th:action="@{/admin/ip-management/{id}/delete(id=${rule.id})}" method="post" class="inline-block"
+                                  th:data-confirm-msg="#{common.confirm.delete.record}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);"
+                                        th:text="#{admin.ip.delete}">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${rules.content.isEmpty()}">
+                        <td colspan="8" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.ip.empty}">
+                            No IP access rules configured.
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <nav th:if="${rules != null and rules.totalPages > 1}" class="flex justify-center mt-6 gap-2">
+                <a th:if="${!rules.first}" th:href="@{/admin/ip-management(type=${currentType},page=${rules.number - 1})}"
+                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
+                    &laquo;
+                </a>
+                <th:block th:each="i : ${#numbers.sequence(0, rules.totalPages - 1)}">
+                    <a th:href="@{/admin/ip-management(type=${currentType},page=${i})}"
+                       th:text="${i + 1}"
+                       class="px-3 py-2 rounded text-sm"
+                       th:style="${i == rules.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
+                    </a>
+                </th:block>
+                <a th:if="${!rules.last}" th:href="@{/admin/ip-management(type=${currentType},page=${rules.number + 1})}"
+                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
+                    &raquo;
+                </a>
+            </nav>
+
+            <!-- CSV Export -->
+            <div class="mt-4 flex justify-end">
+                <a th:href="@{/admin/ip-management/export(type=${currentType})}"
+                   class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300"
+                   style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                   th:text="#{admin.ip.export.csv}">CSV Download</a>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+
+<style>
+    .filter-active {
+        background: rgba(99, 102, 241, 0.3);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+    }
+    .filter-active-allow {
+        background: rgba(34, 197, 94, 0.3);
+        color: #4ade80;
+        border: 1px solid rgba(34, 197, 94, 0.5);
+    }
+    .filter-active-deny {
+        background: rgba(239, 68, 68, 0.3);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+    .filter-inactive {
+        background: rgba(30, 41, 59, 0.5);
+        color: #94a3b8;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .filter-inactive:hover {
+        background: rgba(51, 65, 85, 0.5);
+        color: #e2e8f0;
+    }
+</style>
+
+</body>
+</html>

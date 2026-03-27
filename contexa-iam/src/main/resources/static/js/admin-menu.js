@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
         '/admin/access-center': 'access',
         '/admin/users': 'iam', '/admin/groups': 'iam', '/admin/roles': 'iam',
         '/admin/permissions': 'iam', '/admin/role-hierarchies': 'iam', '/admin/password-policy': 'iam',
-        '/admin/security-monitor': 'security', '/admin/blacklist': 'security',
+        '/admin/security-monitor': 'security', '/admin/blacklist': 'security', '/admin/session-management': 'security', '/admin/ip-management': 'security',
         '/admin/enterprise/zerotrust': 'security', '/admin/enterprise/incidents': 'security',
         '/admin/enterprise': 'enterprise',
         '/admin/enterprise/approvals': 'enterprise', '/admin/enterprise/mcp': 'enterprise',

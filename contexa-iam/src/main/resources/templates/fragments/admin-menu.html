@@ -83,6 +83,10 @@
                             <span th:text="#{menu.zerotrust.monitor}">Real-time Monitor</span></a></li>
                         <li><a th:href="@{/admin/blacklist}" class="submenu-link" data-page="blacklist">
                             <span th:text="#{menu.zerotrust.blacklist}">Blocked Users</span></a></li>
+                        <li><a th:href="@{/admin/session-management}" class="submenu-link" data-page="session-management">
+                            <span th:text="#{menu.security.sessions}">Session Management</span></a></li>
+                        <li><a th:href="@{/admin/ip-management}" class="submenu-link" data-page="ip-management">
+                            <span th:text="#{menu.security.ip}">IP Management</span></a></li>
                         <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/enterprise/zerotrust}" class="submenu-link" data-page="enterprise-zerotrust">
                             <span th:text="#{menu.enterprise.zerotrust}">ZT Operations</span></a></li>
                         <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/enterprise/incidents}" class="submenu-link" data-page="enterprise-incidents">
