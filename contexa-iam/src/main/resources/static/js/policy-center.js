@@ -1787,11 +1787,9 @@ PolicyCenter.MultiSelect = {
             // Checkbox
             html += '<td style="text-align:center;vertical-align:middle;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
             // Status - pill badge matching resource page
-            html += '<td style="text-align:center;vertical-align:middle;"><span class="status-badge ' + statusBadgeCls + '" style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:600;border:1px solid transparent;"><i class="' + statusIcon + '"></i> ' + self.escapeHtml(statusText) + '</span></td>';
-            // Name / Description
-            html += '<td><div style="font-weight:600;color:#a78bfa;margin-bottom:0.25rem;">' + self.escapeHtml(r.friendlyName || '-') + '</div>';
-            if (r.description) html += '<div style="color:#94a3b8;font-size:0.75rem;line-height:1.4;">' + self.escapeHtml(r.description) + '</div>';
-            html += '</td>';
+            html += '<td style="text-align:center;vertical-align:middle;white-space:nowrap;"><span class="status-badge ' + statusBadgeCls + '" style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:600;border:1px solid transparent;white-space:nowrap;"><i class="' + statusIcon + '"></i> ' + self.escapeHtml(statusText) + '</span></td>';
+            // Permission Description (single line, no long description)
+            html += '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;"><span style="font-weight:600;color:#a78bfa;">' + self.escapeHtml(r.friendlyName || '-') + '</span></td>';
             // Technical Identifier
             html += '<td><span class="resource-type-badge ' + typeBadge + '" style="font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:0.25rem;margin-right:0.25rem;">' + self.escapeHtml(r.resourceType || '-') + '</span>'
                 + ' <span style="color:#94a3b8;font-size:0.75rem;">' + self.escapeHtml(r.httpMethod || '') + '</span>'
