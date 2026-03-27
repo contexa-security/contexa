@@ -43,36 +43,31 @@
                 <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="create" />
-                    <div class="grid grid-cols-1 gap-4 items-end" style="grid-template-columns: 1fr 1fr 2fr 2fr;">
-                        <div>
-                            <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner (Service Owner)</label>
-                            <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select">
-                                <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
-                                <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.resource.status}">Status (Status)</label>
-                            <select id="status" th:field="*{status}" class="modern-select">
-                                <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}" th:text="#{admin.policy.center.resource.status.unset}">Unset (Unset)</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}" th:text="#{admin.policy.center.resource.status.awaiting}">Awaiting Policy (Awaiting Policy)</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}" th:text="#{admin.policy.center.resource.status.protected}">Protected (Protected)</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}" th:text="#{admin.policy.center.resource.status.excluded}">Excluded (Excluded)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.resource.keyword}">Keyword (Keyword)</label>
-                            <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" th:placeholder="#{admin.policy.center.resource.keyword.placeholder}">
-                        </div>
-                        <div class="flex gap-2 items-end">
-                            <button type="submit" class="modern-btn-primary"><i class="fas fa-search"></i> <span th:text="#{admin.policy.center.resource.search}">Search</span></button>
-                            <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.resource.clear.filter}">Clear Filter</span></a>
-                            <div style="flex: 1;"></div>
-                            <button type="submit" class="modern-btn-refresh" formaction="/admin/policy-center/refresh-resources" formmethod="post"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
-                            <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.openResourcePicker()"><i class="fas fa-layer-group"></i> <span th:text="#{policy.center.multi.select.btn}">Multi-Resource Policy</span></button>
-                            <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
-                        </div>
+                    <!-- Action buttons -->
+                    <div class="flex gap-2 justify-end mb-4">
+                        <button type="submit" class="modern-btn-refresh" formaction="/admin/policy-center/refresh-resources" formmethod="post"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
+                        <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.openResourcePicker()"><i class="fas fa-layer-group"></i> <span th:text="#{policy.center.multi.select.btn}">Multi-Resource Policy</span></button>
+                        <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
+                    </div>
+                    <!-- Filters -->
+                    <div class="flex gap-4 items-center flex-wrap">
+                        <label for="serviceOwner" class="text-sm font-medium" style="color:#cbd5e1;white-space:nowrap;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner</label>
+                        <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select" style="width:150px;">
+                            <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
+                            <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
+                        </select>
+                        <label for="status" class="text-sm font-medium" style="color:#cbd5e1;white-space:nowrap;" th:text="#{admin.policy.center.resource.status}">Status</label>
+                        <select id="status" th:field="*{status}" class="modern-select" style="width:150px;">
+                            <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}" th:text="#{admin.policy.center.resource.status.unset}">Unset</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}" th:text="#{admin.policy.center.resource.status.awaiting}">Awaiting Policy</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}" th:text="#{admin.policy.center.resource.status.protected}">Protected</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}" th:text="#{admin.policy.center.resource.status.excluded}">Excluded</option>
+                        </select>
+                        <label for="keyword" class="text-sm font-medium" style="color:#cbd5e1;white-space:nowrap;" th:text="#{admin.policy.center.resource.keyword}">Keyword</label>
+                        <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" style="width:180px;" th:placeholder="#{admin.policy.center.resource.keyword.placeholder}">
+                        <button type="submit" class="modern-btn-primary" style="white-space:nowrap;"><i class="fas fa-search"></i> <span th:text="#{admin.policy.center.resource.search}">Search</span></button>
+                        <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center" style="white-space:nowrap;"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.resource.clear.filter}">Clear Filter</span></a>
                     </div>
                 </form>
 
