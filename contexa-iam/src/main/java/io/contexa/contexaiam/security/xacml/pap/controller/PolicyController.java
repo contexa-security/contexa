@@ -60,7 +60,7 @@ public class PolicyController {
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         policyService.createPolicy(policyDto);
         ra.addFlashAttribute("message", msg("msg.policy.created"));
-        return "redirect:/admin/policies";
+        return "redirect:/admin/policy-center?tab=list";
     }
 
     @GetMapping("/{id}")
@@ -80,7 +80,7 @@ public class PolicyController {
         policyDto.setId(id);
         policyService.updatePolicy(policyDto);
         ra.addFlashAttribute("message", msg("msg.policy.updated"));
-        return "redirect:/admin/policies";
+        return "redirect:/admin/policy-center?tab=list";
     }
 
     private PolicyDto toDto(Policy policy) {
@@ -131,7 +131,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", e.getMessage()));
             log.error("Error deleting policy", e);
         }
-        return "redirect:/admin/policies";
+        return "redirect:/admin/policy-center?tab=list";
     }
 
     @PostMapping("/{id}/approve")
@@ -144,7 +144,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.error("Error approving policy", e);
         }
-        return "redirect:/admin/policies";
+        return "redirect:/admin/policy-center?tab=list";
     }
 
     @PostMapping("/{id}/reject")
@@ -157,7 +157,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.error("Error rejecting policy", e);
         }
-        return "redirect:/admin/policies";
+        return "redirect:/admin/policy-center?tab=list";
     }
 
     private String extractCurrentUsername() {
