@@ -71,7 +71,7 @@ public class AiSecurityConfiguration {
                             http.addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
                         }
                     })
-                    .mfa(mfa -> mfa
+                    .mfa(mfa -> mfa.requiredFactors(1)
                             .primaryAuthentication(auth -> auth
                                     .formLogin(form -> form
                                             .loginProcessingUrl("/" + UUID.randomUUID())
@@ -90,7 +90,7 @@ public class AiSecurityConfiguration {
                         http.addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
                     }
                 })
-                .mfa(mfa -> mfa
+                .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth
                                 .formLogin(form -> form.defaultSuccessUrl("/")))
                         .passkey(Customizer.withDefaults())
