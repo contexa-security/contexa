@@ -1700,7 +1700,7 @@ PolicyCenter.MultiSelect = {
         this.selectedResources.clear();
         this.currentPage = 0;
         document.getElementById('rp-keyword').value = '';
-        document.getElementById('rp-status').value = 'NEEDS_DEFINITION';
+        document.getElementById('rp-status').value = '';
         document.getElementById('rp-select-all').checked = false;
         var rpModal = document.getElementById('resourcePickerModal');
         rpModal.classList.remove('hidden');
@@ -1747,7 +1747,7 @@ PolicyCenter.MultiSelect = {
         var i18n = document.getElementById('rp-i18n') || {};
         var ds = i18n.dataset || {};
         if (!resources || resources.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#64748b;"><i class="fas fa-inbox"></i> ' + self.escapeHtml(ds.noResults || 'No resources found') + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem;text-align:center;color:#64748b;"><i class="fas fa-inbox"></i> ' + self.escapeHtml(ds.noResults || 'No resources found') + '</td></tr>';
             document.getElementById('rp-select-all').disabled = true;
             return;
         }
@@ -1755,14 +1755,25 @@ PolicyCenter.MultiSelect = {
         var html = '';
         resources.forEach(function(r) {
             var checked = self.selectedResources.has(r.id) ? ' checked' : '';
-            // Status badge
-            var statusText = r.status === 'NEEDS_DEFINITION' ? (ds.statusUnset || 'Unset') :
-                             r.status === 'PERMISSION_CREATED' ? (ds.statusAwaiting || 'Awaiting') :
-                             r.status === 'POLICY_CONNECTED' ? (ds.statusProtected || 'Protected') :
-                             r.status === 'EXCLUDED' ? (ds.statusExcluded || 'Excluded') : (ds.statusUnknown || '-');
-            var statusIcon = r.status === 'NEEDS_DEFINITION' ? 'fa-exclamation-circle' :
-                             r.status === 'PERMISSION_CREATED' ? 'fa-clock' :
-                             r.status === 'POLICY_CONNECTED' ? 'fa-shield-alt' : 'fa-ban';
+            // Status badge - same Tailwind classes as resource page
+            var statusText, statusIcon, statusBadgeCls;
+            if (r.status === 'NEEDS_DEFINITION') {
+                statusText = ds.statusUnset || 'Unset';
+                statusIcon = 'fas fa-exclamation-circle';
+                statusBadgeCls = 'bg-red-500/20 text-red-400 border-red-500/30';
+            } else if (r.status === 'PERMISSION_CREATED') {
+                statusText = ds.statusAwaiting || 'Awaiting';
+                statusIcon = 'fas fa-clock';
+                statusBadgeCls = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+            } else if (r.status === 'POLICY_CONNECTED') {
+                statusText = ds.statusProtected || 'Protected';
+                statusIcon = 'fas fa-shield-alt';
+                statusBadgeCls = 'bg-green-500/20 text-green-400 border-green-500/30';
+            } else {
+                statusText = ds.statusExcluded || 'Excluded';
+                statusIcon = 'fas fa-ban';
+                statusBadgeCls = 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+            }
             var typeBadge = r.resourceType === 'URL' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400';
 
             html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.2);cursor:pointer;"'
@@ -1774,19 +1785,17 @@ PolicyCenter.MultiSelect = {
                 + ' data-friendly="' + self.escapeHtml(r.friendlyName || '') + '"'
                 + ' onclick="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this)">';
             // Checkbox
-            html += '<td style="text-align:center;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
-            // Status
-            html += '<td style="text-align:center;"><span class="status-badge ' + self.statusClass(r.status) + '" style="font-size:0.75rem;padding:0.25rem 0.5rem;border-radius:0.375rem;"><i class="fas ' + statusIcon + '"></i> ' + self.escapeHtml(statusText) + '</span></td>';
+            html += '<td style="text-align:center;vertical-align:middle;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
+            // Status - pill badge matching resource page
+            html += '<td style="text-align:center;vertical-align:middle;"><span class="status-badge ' + statusBadgeCls + '" style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:600;border:1px solid transparent;"><i class="' + statusIcon + '"></i> ' + self.escapeHtml(statusText) + '</span></td>';
             // Name / Description
-            html += '<td><div style="font-weight:600;color:#a78bfa;margin-bottom:0.25rem;">' + self.escapeHtml(r.friendlyName || '-') + '</div></td>';
+            html += '<td><div style="font-weight:600;color:#a78bfa;margin-bottom:0.25rem;">' + self.escapeHtml(r.friendlyName || '-') + '</div>';
+            if (r.description) html += '<div style="color:#94a3b8;font-size:0.75rem;line-height:1.4;">' + self.escapeHtml(r.description) + '</div>';
+            html += '</td>';
             // Technical Identifier
             html += '<td><span class="resource-type-badge ' + typeBadge + '" style="font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:0.25rem;margin-right:0.25rem;">' + self.escapeHtml(r.resourceType || '-') + '</span>'
                 + ' <span style="color:#94a3b8;font-size:0.75rem;">' + self.escapeHtml(r.httpMethod || '') + '</span>'
                 + '<div style="font-family:monospace;word-break:break-all;margin-top:0.25rem;">' + self.escapeHtml(r.resourceIdentifier) + '</div></td>';
-            // Tools & History
-            html += '<td style="font-size:0.8rem;color:#94a3b8;">';
-            if (r.sourceCodeLocation) html += '<span title="' + self.escapeHtml(r.sourceCodeLocation) + '"><i class="fas fa-code"></i> ' + (ds.code || 'Code') + '</span> ';
-            html += '</td>';
             html += '</tr>';
         });
         tbody.innerHTML = html;
