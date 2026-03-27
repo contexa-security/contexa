@@ -96,6 +96,7 @@
                 if (!isOpen) {
                     optionsPanel.classList.add('open');
                     trigger.classList.add('open');
+                    wrapper.style.zIndex = '99998';
                 }
             }
 
@@ -123,6 +124,7 @@
     function closeAll() {
         document.querySelectorAll('.custom-select-options.open').forEach(function(p) {
             p.classList.remove('open');
+            p.closest('.custom-select-wrapper').style.zIndex = '';
         });
         document.querySelectorAll('.custom-select-trigger.open').forEach(function(t) {
             t.classList.remove('open');
