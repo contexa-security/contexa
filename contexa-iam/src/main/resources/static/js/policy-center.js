@@ -1875,9 +1875,9 @@ PolicyCenter.MultiSelect = {
         var list = document.getElementById('selected-resources-list');
         var rpI18n = document.getElementById('rp-i18n');
         var ds = rpI18n ? rpI18n.dataset : {};
-        var thIdentifier = ds.thIdentifier || 'Identifier';
-        var thType = ds.thType || 'Type';
-        var thHttp = ds.thHttp || 'HTTP';
+        var thIdentifier = ds.colIdentifier || 'Identifier';
+        var thType = ds.colType || 'Type';
+        var thHttp = ds.colHttp || 'HTTP';
         var html = '<table style="width:100%;border-collapse:collapse;">';
         html += '<thead><tr style="border-bottom:1px solid rgba(71,85,105,0.4);">';
         html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">' + thIdentifier + '</th>';
