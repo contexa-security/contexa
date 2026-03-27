@@ -54,6 +54,7 @@ const PolicyCenter = {
     showPolicySetupModal(resourceId, friendlyName, description, resourceMeta) {
         const modal = document.getElementById('policySetupModal');
         if (!modal) return;
+        modal.dataset.multiMode = 'false';
         document.getElementById('modal-permission-name').textContent = friendlyName;
         modal.dataset.resourceId = resourceId;
         modal.dataset.friendlyName = friendlyName;
@@ -62,10 +63,13 @@ const PolicyCenter = {
         modal.dataset.resourceIdentifier = (resourceMeta && resourceMeta.resourceIdentifier) || '';
         modal.dataset.httpMethod = (resourceMeta && resourceMeta.httpMethod) || '';
         modal.classList.remove('hidden');
+        modal.style.display = 'flex';
     },
 
     closePolicySetupModal() {
-        document.getElementById('policySetupModal').classList.add('hidden');
+        var modal = document.getElementById('policySetupModal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
     },
 
     async definePermission(modal) {
@@ -90,6 +94,9 @@ const PolicyCenter = {
 
     async selectQuickMode() {
         const modal = document.getElementById('policySetupModal');
+        if (modal.dataset.multiMode === 'true') {
+            return this.selectQuickModeMulti();
+        }
         const result = await this.definePermission(modal);
         if (!result) return;
 
@@ -108,8 +115,50 @@ const PolicyCenter = {
         this.switchToCreateTab(ctx, 'quick');
     },
 
+    async selectQuickModeMulti() {
+        var modal = document.getElementById('policySetupModal');
+        // Show loading state in modal
+        var modalTitle = modal.querySelector('h2');
+        var originalTitle = modalTitle ? modalTitle.textContent : '';
+        if (modalTitle) modalTitle.textContent = 'Processing...';
+        modal.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+
+        try {
+            var ctxArr = await this._batchDefineAndBuildContext();
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+
+            // Restore modal title
+            if (modalTitle) modalTitle.textContent = originalTitle;
+            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+
+            // Activate Create tab with multi-resource context
+            PolicyCenter.CreateFlow.activateWithResources(ctxArr);
+
+            // Switch tab
+            document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            var createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
+            if (createBtn) createBtn.classList.add('active');
+            document.getElementById('tab-create').classList.add('active');
+
+            var modeBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
+            PolicyCenter.switchCreateMode('quick', modeBtn);
+
+        } catch (e) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            if (modalTitle) modalTitle.textContent = originalTitle;
+            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+            showToast('Batch permission creation failed: ' + e.message, 'error');
+        }
+    },
+
     async selectAIWizard() {
         const modal = document.getElementById('policySetupModal');
+        if (modal.dataset.multiMode === 'true') {
+            return this.selectAIWizardMulti();
+        }
         const result = await this.definePermission(modal);
         if (!result) return;
 
@@ -126,6 +175,95 @@ const PolicyCenter = {
         };
 
         this.switchToCreateTab(ctx, 'ai');
+    },
+
+    async selectAIWizardMulti() {
+        var modal = document.getElementById('policySetupModal');
+        // Show loading state in modal
+        var modalTitle = modal.querySelector('h2');
+        var originalTitle = modalTitle ? modalTitle.textContent : '';
+        if (modalTitle) modalTitle.textContent = 'Processing...';
+        modal.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+
+        try {
+            var ctxArr = await this._batchDefineAndBuildContext();
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+
+            // Restore modal title
+            if (modalTitle) modalTitle.textContent = originalTitle;
+            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+
+            PolicyCenter.CreateFlow.activateWithResources(ctxArr);
+
+            document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            var createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
+            if (createBtn) createBtn.classList.add('active');
+            document.getElementById('tab-create').classList.add('active');
+
+            var modeBtn = document.querySelector('.pc-mode-card[onclick*="ai"]');
+            PolicyCenter.switchCreateMode('ai', modeBtn);
+
+            // Pre-fill AI query with resource summary
+            var queryInput = document.getElementById('ai-query-input');
+            if (queryInput) {
+                var summary = '[Target Resources: ' + ctxArr.length + ' selected]\n';
+                ctxArr.forEach(function(c) {
+                    summary += '- ' + c.resourceType + ' ' + c.httpMethod + ' ' + c.resourceIdentifier + '\n';
+                });
+                queryInput.value = summary;
+            }
+        } catch (e) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            if (modalTitle) modalTitle.textContent = originalTitle;
+            modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+            showToast('Batch permission creation failed: ' + e.message, 'error');
+        }
+    },
+
+    // Shared batch define logic for multi-resource mode (BUG 5,6,7,13,18 fix)
+    async _batchDefineAndBuildContext() {
+        var requests = [];
+        PolicyCenter.MultiSelect.selectedResources.forEach(function(r) {
+            requests.push({
+                resourceId: r.id,
+                friendlyName: r.friendlyName || r.resourceIdentifier,
+                description: ''
+            });
+        });
+
+        var token = PolicyCenter.getCsrfToken();
+        var header = PolicyCenter.getCsrfHeader();
+        var headers = { 'Content-Type': 'application/json' };
+        headers[header] = token;
+
+        var resp = await fetch('/admin/workbench/resources/define-batch', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(requests)
+        });
+        if (!resp.ok) throw new Error('Server error: ' + resp.status);
+        var results = await resp.json();
+
+        // Only include results that have a permissionId
+        var permResults = results.filter(function(r) { return r.permissionId; });
+        if (permResults.length === 0) {
+            throw new Error('No permissions could be created');
+        }
+
+        return permResults.map(function(r) {
+            var resource = PolicyCenter.MultiSelect.selectedResources.get(r.resourceId);
+            return {
+                resourceId: r.resourceId,
+                permissionId: r.permissionId,
+                permissionName: r.permissionName,
+                resourceType: resource ? resource.resourceType : '',
+                resourceIdentifier: resource ? resource.resourceIdentifier : '',
+                httpMethod: resource ? resource.httpMethod : ''
+            };
+        });
     },
 
     switchToCreateTab(ctx, mode) {
@@ -288,7 +426,7 @@ const PolicyCenter = {
                 // No resource context - show guide
                 if (guide) guide.style.display = '';
                 if (banner) banner.classList.add('hidden');
-                if (modeNav) modeNav.classList.add('hidden');
+                if (modeNav) { modeNav.classList.add('hidden'); modeNav.style.display = 'none'; }
                 document.querySelectorAll('.pc-subtab-content').forEach(c => c.classList.remove('active'));
             }
         },
@@ -299,9 +437,17 @@ const PolicyCenter = {
             const banner = document.getElementById('create-resource-banner');
             const modeNav = document.getElementById('create-mode-nav');
 
+            // Reset multi-mode display
+            var singleName = document.getElementById('create-selected-name');
+            var singleId = document.getElementById('create-selected-identifier');
+            if (singleName) singleName.style.display = '';
+            if (singleId) singleId.style.display = '';
+            var multiBanner = document.getElementById('create-multi-banner');
+            if (multiBanner) { multiBanner.classList.add('hidden'); multiBanner.style.display = 'none'; }
+
             if (guide) guide.style.display = 'none';
             if (banner) banner.classList.remove('hidden');
-            if (modeNav) modeNav.classList.remove('hidden');
+            if (modeNav) { modeNav.classList.remove('hidden'); modeNav.style.display = 'flex'; }
 
             document.getElementById('create-selected-name').textContent = ctx.friendlyName || 'Resource';
             document.getElementById('create-selected-identifier').textContent =
@@ -314,6 +460,41 @@ const PolicyCenter = {
                     name: ctx.friendlyName || 'Permission'
                 };
             }
+        },
+
+        activateWithResources: function(ctxArr) {
+            this.selectedResources = ctxArr;
+            this.selectedResource = ctxArr[0]; // Keep first for compatibility
+
+            // Hide guide, show banner
+            var guide = document.getElementById('create-no-resource-guide');
+            var banner = document.getElementById('create-resource-banner');
+            if (guide) guide.style.display = 'none';
+            if (banner) banner.classList.remove('hidden');
+
+            // Hide single display, show multi display
+            var singleName = document.getElementById('create-selected-name');
+            var singleId = document.getElementById('create-selected-identifier');
+            var multiBanner = document.getElementById('create-multi-banner');
+
+            if (singleName) singleName.style.display = 'none';
+            if (singleId) singleId.style.display = 'none';
+            if (multiBanner) {
+                multiBanner.classList.remove('hidden');
+                multiBanner.style.display = 'flex';
+                document.getElementById('create-multi-count').textContent = ctxArr.length + ' resources selected';
+            }
+
+            // Show mode navigation
+            var modeNav = document.getElementById('create-mode-nav');
+            if (modeNav) { modeNav.classList.remove('hidden'); modeNav.style.display = 'flex'; }
+            var modeCards = document.querySelectorAll('.pc-mode-card');
+            modeCards.forEach(function(c) { c.classList.remove('hidden'); });
+
+            // Pre-select all permissions for QuickPanel
+            PolicyCenter.QuickPanel._preSelectedPerms = ctxArr.map(function(c) {
+                return { id: c.permissionId, name: c.permissionName };
+            });
         }
     },
 
@@ -354,6 +535,17 @@ const PolicyCenter = {
                 this.selectedPerms.set(this._preSelectedPerm.id, this._preSelectedPerm.name);
                 this.userManualPerms.add(this._preSelectedPerm.id);
                 this._preSelectedPerm = null;
+            }
+
+            if (this._preSelectedPerms && this._preSelectedPerms.length > 0) {
+                var self = this;
+                this._preSelectedPerms.forEach(function(p) {
+                    if (p.id) {
+                        self.selectedPerms.set(p.id, p.name);
+                        self.userManualPerms.add(p.id);
+                    }
+                });
+                this._preSelectedPerms = null;
             }
 
             const roleCount = document.getElementById('qp-role-count');
@@ -1483,6 +1675,197 @@ const PolicyCenter = {
             if (!str) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
+    }
+};
+
+// Multi-Resource Selection module
+PolicyCenter.MultiSelect = {
+    selectedResources: new Map(),
+    currentPage: 0,
+    searchTimeout: null,
+
+    openResourcePicker: function() {
+        this.selectedResources.clear();
+        this.currentPage = 0;
+        document.getElementById('rp-keyword').value = '';
+        document.getElementById('rp-status').value = 'NEEDS_DEFINITION';
+        document.getElementById('rp-select-all').checked = false;
+        var rpModal = document.getElementById('resourcePickerModal');
+        rpModal.classList.remove('hidden');
+        rpModal.style.display = 'flex';
+        this.loadPage(0);
+        this.updateCount();
+    },
+
+    close: function() {
+        var rpModal = document.getElementById('resourcePickerModal');
+        rpModal.classList.add('hidden');
+        rpModal.style.display = 'none';
+    },
+
+    search: function() {
+        var self = this;
+        if (this.searchTimeout) clearTimeout(this.searchTimeout);
+        this.searchTimeout = setTimeout(function() {
+            self.currentPage = 0;
+            self.loadPage(0);
+        }, 400);
+    },
+
+    loadPage: function(page) {
+        var self = this;
+        this.currentPage = page;
+        var keyword = document.getElementById('rp-keyword').value;
+        var status = document.getElementById('rp-status').value;
+        var serviceOwner = document.getElementById('rp-service-owner').value;
+        var url = '/admin/policy-center/api/resources?page=' + page + '&size=15';
+        if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
+        if (status) url += '&status=' + encodeURIComponent(status);
+        if (serviceOwner) url += '&serviceOwner=' + encodeURIComponent(serviceOwner);
+
+        fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+            self.renderTable(data.content);
+            self.renderPagination(data.number, data.totalPages);
+        });
+    },
+
+    renderTable: function(resources) {
+        var self = this;
+        var tbody = document.getElementById('rp-table-body');
+        if (!resources || resources.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#64748b;">No resources found</td></tr>';
+            return;
+        }
+        var html = '';
+        resources.forEach(function(r) {
+            var checked = self.selectedResources.has(r.id) ? ' checked' : '';
+            html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.2);cursor:pointer;"'
+                + ' data-id="' + r.id + '"'
+                + ' data-identifier="' + self.escapeHtml(r.resourceIdentifier) + '"'
+                + ' data-type="' + (r.resourceType || '') + '"'
+                + ' data-http="' + (r.httpMethod || 'ANY') + '"'
+                + ' data-status="' + (r.status || '') + '"'
+                + ' data-friendly="' + self.escapeHtml(r.friendlyName || '') + '"'
+                + ' onclick="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this)">';
+            html += '<td style="padding:0.5rem;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
+            html += '<td style="padding:0.5rem;color:#e2e8f0;font-size:0.8125rem;font-family:monospace;word-break:break-all;">' + self.escapeHtml(r.resourceIdentifier) + '</td>';
+            html += '<td style="padding:0.5rem;"><span class="badge neutral" style="font-size:0.7rem;">' + (r.resourceType || '-') + '</span></td>';
+            html += '<td style="padding:0.5rem;color:#94a3b8;font-size:0.8125rem;">' + (r.httpMethod || 'ANY') + '</td>';
+            html += '<td style="padding:0.5rem;"><span class="badge ' + self.statusClass(r.status) + '" style="font-size:0.7rem;">' + (r.status || '-') + '</span></td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+        document.getElementById('rp-select-all').checked = false;
+    },
+
+    renderPagination: function(current, total) {
+        var div = document.getElementById('rp-pagination');
+        if (total <= 1) { div.innerHTML = ''; return; }
+        var html = '';
+        var start = Math.max(0, current - 2);
+        var end = Math.min(total, start + 5);
+        if (current > 0) html += '<button class="button secondary small" onclick="PolicyCenter.MultiSelect.loadPage(' + (current - 1) + ')">&laquo;</button>';
+        for (var i = start; i < end; i++) {
+            var cls = i === current ? 'button primary small' : 'button secondary small';
+            html += '<button class="' + cls + '" onclick="PolicyCenter.MultiSelect.loadPage(' + i + ')">' + (i + 1) + '</button>';
+        }
+        if (current < total - 1) html += '<button class="button secondary small" onclick="PolicyCenter.MultiSelect.loadPage(' + (current + 1) + ')">&raquo;</button>';
+        div.innerHTML = html;
+    },
+
+    toggleResource: function(id, trEl) {
+        if (this.selectedResources.has(id)) {
+            this.selectedResources.delete(id);
+            if (trEl) trEl.querySelector('input[type=checkbox]').checked = false;
+        } else {
+            // Read from data attributes instead of fragile cell indices
+            this.selectedResources.set(id, {
+                id: id,
+                resourceIdentifier: trEl.dataset.identifier || '',
+                resourceType: trEl.dataset.type || '',
+                httpMethod: trEl.dataset.http || 'ANY',
+                status: trEl.dataset.status || '',
+                friendlyName: trEl.dataset.friendly || ''
+            });
+            if (trEl) trEl.querySelector('input[type=checkbox]').checked = true;
+        }
+        this.updateCount();
+    },
+
+    toggleAll: function(checked) {
+        var self = this;
+        var rows = document.querySelectorAll('#rp-table-body tr');
+        rows.forEach(function(tr) {
+            var cb = tr.querySelector('input[type=checkbox]');
+            if (!cb) return;
+            var onclick = tr.getAttribute('onclick');
+            if (!onclick) return;
+            var match = onclick.match(/toggleResource\((\d+)/);
+            if (!match) return;
+            var id = parseInt(match[1]);
+            if (checked && !self.selectedResources.has(id)) {
+                self.toggleResource(id, tr);
+            } else if (!checked && self.selectedResources.has(id)) {
+                self.toggleResource(id, tr);
+            }
+        });
+    },
+
+    updateCount: function() {
+        var count = this.selectedResources.size;
+        document.getElementById('rp-selected-count').textContent = count + ' selected';
+        document.getElementById('rp-confirm-btn').disabled = count === 0;
+    },
+
+    confirm: function() {
+        if (this.selectedResources.size === 0) return;
+        this.close();
+        this.showPolicySetupModalMulti();
+    },
+
+    showPolicySetupModalMulti: function() {
+        var modal = document.getElementById('policySetupModal');
+        var nameEl = document.getElementById('modal-permission-name');
+        if (nameEl) nameEl.textContent = this.selectedResources.size + ' resources selected';
+        modal.dataset.multiMode = 'true';
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    },
+
+    showSelectedPopover: function() {
+        var list = document.getElementById('selected-resources-list');
+        var html = '<table style="width:100%;border-collapse:collapse;">';
+        html += '<thead><tr style="border-bottom:1px solid rgba(71,85,105,0.4);">';
+        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">Identifier</th>';
+        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">Type</th>';
+        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">HTTP</th>';
+        html += '</tr></thead><tbody>';
+        var self = this;
+        this.selectedResources.forEach(function(r) {
+            html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.15);">';
+            html += '<td style="padding:0.4rem 0.5rem;color:#e2e8f0;font-size:0.8rem;font-family:monospace;word-break:break-all;">' + self.escapeHtml(r.resourceIdentifier) + '</td>';
+            html += '<td style="padding:0.4rem 0.5rem;"><span class="badge neutral" style="font-size:0.7rem;">' + self.escapeHtml(r.resourceType) + '</span></td>';
+            html += '<td style="padding:0.4rem 0.5rem;color:#94a3b8;font-size:0.8rem;">' + self.escapeHtml(r.httpMethod) + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        list.innerHTML = html;
+        var popover = document.getElementById('selectedResourcesPopover');
+        popover.classList.remove('hidden');
+        popover.style.display = 'flex';
+    },
+
+    statusClass: function(status) {
+        if (status === 'NEEDS_DEFINITION') return 'warning';
+        if (status === 'PERMISSION_CREATED') return 'info';
+        if (status === 'POLICY_CONNECTED') return 'success';
+        return 'neutral';
+    },
+
+    escapeHtml: function(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 };
 

@@ -254,6 +254,34 @@ public class PolicyCenterController {
         }
     }
 
+    // ==================== Resource Search API ====================
+
+    @GetMapping("/api/resources")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> searchResourcesApi(
+            @ModelAttribute ResourceSearchCriteria criteria,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<ManagedResource> page = resourceRegistryService.findResources(criteria, pageable);
+        List<Map<String, Object>> content = page.getContent().stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", r.getId());
+            m.put("resourceIdentifier", r.getResourceIdentifier());
+            m.put("resourceType", r.getResourceType() != null ? r.getResourceType().name() : null);
+            m.put("httpMethod", r.getHttpMethod() != null ? r.getHttpMethod().name() : null);
+            m.put("friendlyName", r.getFriendlyName());
+            m.put("status", r.getStatus() != null ? r.getStatus().name() : null);
+            m.put("serviceOwner", r.getServiceOwner());
+            return m;
+        }).toList();
+        return ResponseEntity.ok(Map.of(
+                "content", content,
+                "totalElements", page.getTotalElements(),
+                "totalPages", page.getTotalPages(),
+                "number", page.getNumber(),
+                "size", page.getSize()
+        ));
+    }
+
     // ==================== AI Wizard API ====================
 
     @GetMapping("/api/stats")

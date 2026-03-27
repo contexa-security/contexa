@@ -13,6 +13,7 @@ import io.contexa.contexaiam.repository.BusinessResourceRepository;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
 import io.contexa.contexaiam.repository.FunctionGroupRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexacommon.repository.GroupRepository;
@@ -31,8 +32,9 @@ public class IamAdminMetadataAutoConfiguration {
     @ConditionalOnMissingBean
     public ResourceAdminController resourceAdminController(
             ResourceRegistryService resourceRegistryService,
+            ManagedResourceRepository managedResourceRepository,
             MessageSource messageSource) {
-        return new ResourceAdminController(resourceRegistryService, messageSource);
+        return new ResourceAdminController(resourceRegistryService, managedResourceRepository, messageSource);
     }
 
     @Bean

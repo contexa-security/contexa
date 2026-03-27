@@ -6,6 +6,7 @@ import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -19,8 +20,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.springframework.stereotype.Controller;
 
@@ -31,6 +31,7 @@ import org.springframework.stereotype.Controller;
 public class ResourceAdminController {
 
     private final ResourceRegistryService resourceRegistryService;
+    private final ManagedResourceRepository managedResourceRepository;
     private final MessageSource messageSource;
 
     private String msg(String key, Object... args) {
@@ -82,6 +83,49 @@ public class ResourceAdminController {
             log.error("Permission definition API failed for resource ID: {}", id, e);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    @PostMapping("/define-batch")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> defineResourcesBatch(@RequestBody List<Map<String, Object>> requests) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (Map<String, Object> req : requests) {
+            Long resourceId = ((Number) req.get("resourceId")).longValue();
+            String friendlyName = (String) req.get("friendlyName");
+            String description = (String) req.get("description");
+            try {
+                // If resource already has permission, return existing without overwriting friendlyName
+                ManagedResource resource = managedResourceRepository.findById(resourceId).orElse(null);
+                if (resource != null && resource.getPermission() != null) {
+                    Permission existing = resource.getPermission();
+                    results.add(Map.of(
+                            "resourceId", resourceId,
+                            "permissionId", existing.getId(),
+                            "permissionName", existing.getFriendlyName() != null ? existing.getFriendlyName() : "",
+                            "skipped", true
+                    ));
+                    continue;
+                }
+                ResourceMetadataDto dto = new ResourceMetadataDto();
+                dto.setFriendlyName(friendlyName);
+                dto.setDescription(description);
+                Permission perm = resourceRegistryService.defineResourceAsPermission(resourceId, dto);
+                results.add(Map.of(
+                        "resourceId", resourceId,
+                        "permissionId", perm.getId(),
+                        "permissionName", perm.getFriendlyName(),
+                        "skipped", false
+                ));
+            } catch (Exception e) {
+                log.error("Batch define failed for resource ID: {}", resourceId, e);
+                Map<String, Object> errorResult = new HashMap<>();
+                errorResult.put("resourceId", resourceId);
+                errorResult.put("error", e.getMessage());
+                errorResult.put("skipped", true);
+                results.add(errorResult);
+            }
+        }
+        return ResponseEntity.ok(results);
     }
 
     @PostMapping("/{id}/restore")
