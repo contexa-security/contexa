@@ -54,7 +54,8 @@ public abstract class AbstractAsyncSecurityContextProvider implements AsyncSecur
             if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
                 return resolveByUserId(auth.getName());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.error("Failed to get current authentication", e);
         }
 
         if (fallbackUserId != null) {

@@ -18,15 +18,13 @@ public class SecurityContextAdvisor extends BaseAdvisor {
 
     private static final String DOMAIN_NAME = "SECURITY";
     private static final String ADVISOR_NAME = "security-context";
-
-    @Autowired(required = false)
-    private AsyncSecurityContextProvider asyncSecurityContextProvider;
-
     private final ContexaAdvisorProperties contexaAdvisorProperties;
+    private final AsyncSecurityContextProvider asyncSecurityContextProvider;
 
-    public SecurityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties) {
+    public SecurityContextAdvisor(AsyncSecurityContextProvider asyncSecurityContextProvider, ContexaAdvisorProperties contexaAdvisorProperties) {
         super(DOMAIN_NAME, ADVISOR_NAME, 50);
         this.contexaAdvisorProperties = contexaAdvisorProperties;
+        this.asyncSecurityContextProvider = asyncSecurityContextProvider;
     }
 
     @Override

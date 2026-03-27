@@ -8,6 +8,7 @@ import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
+import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
@@ -58,8 +59,8 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityContextAdvisor securityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties) {
-        return new SecurityContextAdvisor(contexaAdvisorProperties);
+    public SecurityContextAdvisor securityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties, AsyncSecurityContextProvider asyncSecurityContextProvider) {
+        return new SecurityContextAdvisor(asyncSecurityContextProvider, contexaAdvisorProperties);
     }
 
     @Bean
@@ -133,7 +134,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = {"llmExecutionStep", "streamingLLMExecutionStep", "contextRetrievalStep"})
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -151,7 +151,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = {"llmExecutionStep", "contextRetrievalStep"})
     public UniversalPipelineExecutor universalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,

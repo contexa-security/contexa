@@ -63,13 +63,13 @@ public class PlatformSecurityConfig {
                 .mfa(mfa -> mfa.urlPrefix("/admin").requiredFactors(1)
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
                                         .defaultSuccessUrl("/admin")
-                                        .rawHttp(http -> http.securityMatcher("/admin/**"))))
+                                ))
                                 .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
                                 .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
                         .order(90)
-                ).oauth2(Customizer.withDefaults())
+                ).session(Customizer.withDefaults())
                /* .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
                                 .defaultSuccessUrl("/test/zero-trust-index")))
