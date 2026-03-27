@@ -96,6 +96,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 || requestUri.startsWith("/zero-trust")
                 || requestUri.startsWith("/api/aiam/sse/zero-trust")
                 || requestUri.startsWith("/api/aiam/zero-trust")
+                || requestUri.startsWith("/admin/api/aiam/sse/zero-trust")
+                || requestUri.startsWith("/admin/api/aiam/zero-trust")
                 || requestUri.startsWith("/.well-known/");
     }
 
@@ -168,6 +170,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private boolean isMfaRelatedPath(String requestUri) {
         if (requestUri.startsWith("/mfa/")
                 || requestUri.startsWith("/api/mfa/")
+                || requestUri.startsWith("/admin/api/mfa/")
                 || requestUri.startsWith("/webauthn/")
                 || requestUri.startsWith("/login/mfa-")) {
             return true;

@@ -1071,7 +1071,7 @@ const PolicyCenter = {
                 if (typeof ContexaLLM !== 'undefined' && ContexaLLM.analyzeStreaming) {
                     this.updateProgress('analyze', 40, 'AI analyzing policy requirements...');
                     await ContexaLLM.analyzeStreaming(
-                        '/api/ai/policies/generate/stream',
+                        '/admin/api/ai/policies/generate/stream',
                         requestPayload,
                         {
                             modalTitle: PolicyCenter._i18n('aiAnalyzing', 'AI policy analysis in progress'),
@@ -1092,7 +1092,7 @@ const PolicyCenter = {
                     );
                 } else {
                     this.updateProgress('analyze', 40, 'Sending request to AI...');
-                    const response = await fetch('/api/ai/policies/generate/stream', {
+                    const response = await fetch('/admin/api/ai/policies/generate/stream', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1641,7 +1641,7 @@ const PolicyCenter = {
             if (btn) btn.disabled = true;
 
             try {
-                const resp = await fetch('/api/policies/build-from-business-rule', {
+                const resp = await fetch('/admin/api/policies/build-from-business-rule', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

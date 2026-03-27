@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/conditions")
+@RequestMapping("/admin/api/conditions")
 @RequiredArgsConstructor
 @Slf4j
 public class ConditionClassificationController {

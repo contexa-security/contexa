@@ -16,7 +16,7 @@ import java.util.Map;
  * SSE subscription endpoint for Zero Trust analysis notifications.
  */
 @RestController
-@RequestMapping("/api/aiam/sse/zero-trust")
+@RequestMapping("/admin/api/aiam/sse/zero-trust")
 @RequiredArgsConstructor
 public class ZeroTrustSseController {
 

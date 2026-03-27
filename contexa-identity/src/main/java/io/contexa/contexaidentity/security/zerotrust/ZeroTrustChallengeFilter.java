@@ -97,7 +97,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
-        if (requestUri.startsWith("/api/mfa/")) {
+        if (requestUri.startsWith("/api/mfa/") || requestUri.startsWith("/admin/api/mfa/")) {
             return true;
         }
 

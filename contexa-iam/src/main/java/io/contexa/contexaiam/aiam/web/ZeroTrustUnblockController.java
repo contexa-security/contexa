@@ -17,7 +17,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/aiam/zero-trust")
+@RequestMapping("/admin/api/aiam/zero-trust")
 @RequiredArgsConstructor
 public class ZeroTrustUnblockController {
 

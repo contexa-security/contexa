@@ -22,7 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/api/ai/policies")
+@RequestMapping("/admin/api/ai/policies")
 @RequiredArgsConstructor
 @Slf4j
 public class AiApiController {

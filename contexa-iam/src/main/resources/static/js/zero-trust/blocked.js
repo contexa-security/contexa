@@ -39,7 +39,7 @@ function initiateBlockMfa() {
     btn.textContent = 'MFA 초기화 중...';
     btn.style.opacity = '0.5';
 
-    fetch('/api/aiam/zero-trust/initiate-block-mfa', {
+    fetch('/admin/api/aiam/zero-trust/initiate-block-mfa', {
         method: 'POST',
         headers: getHeaders()
     })
@@ -75,7 +75,7 @@ function requestUnblock() {
     btn.textContent = '요청 중...';
     btn.style.opacity = '0.5';
 
-    fetch('/api/aiam/zero-trust/unblock-request', {
+    fetch('/admin/api/aiam/zero-trust/unblock-request', {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({reason: reason})

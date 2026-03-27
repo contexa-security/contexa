@@ -16,7 +16,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/admin/blacklist")
+@RequestMapping("/admin/api/blacklist")
 @RequiredArgsConstructor
 public class BlacklistApiController {
 

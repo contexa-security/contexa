@@ -64,7 +64,7 @@
             eventSource.close();
         }
 
-        eventSource = new EventSource('/api/aiam/sse/zero-trust/subscribe');
+        eventSource = new EventSource('/admin/api/aiam/sse/zero-trust/subscribe');
 
         eventSource.addEventListener('connected', function () {
             updateSseStatus(true);
