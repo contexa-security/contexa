@@ -13,6 +13,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +29,11 @@ public class PolicyController {
 
     private final PolicyService policyService;
     private final ModelMapper modelMapper;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String listPolicies(Model model) {
@@ -50,7 +58,7 @@ public class PolicyController {
     @PostMapping
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         policyService.createPolicy(policyDto);
-        ra.addFlashAttribute("message", "Policy has been successfully created.");
+        ra.addFlashAttribute("message", msg("msg.policy.created"));
         return "redirect:/admin/policies";
     }
 
@@ -70,7 +78,7 @@ public class PolicyController {
     public String updatePolicy(@PathVariable Long id, @ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         policyDto.setId(id);
         policyService.updatePolicy(policyDto);
-        ra.addFlashAttribute("message", "Policy has been successfully updated.");
+        ra.addFlashAttribute("message", msg("msg.policy.updated"));
         return "redirect:/admin/policies";
     }
 
@@ -85,6 +93,14 @@ public class PolicyController {
         dto.setSource(policy.getSource());
         dto.setApprovalStatus(policy.getApprovalStatus());
         dto.setIsActive(policy.getIsActive());
+        dto.setFriendlyDescription(policy.getFriendlyDescription());
+        dto.setApprovedBy(policy.getApprovedBy());
+        dto.setApprovedAt(policy.getApprovedAt());
+        dto.setConfidenceScore(policy.getConfidenceScore());
+        dto.setAiModel(policy.getAiModel());
+        dto.setReasoning(policy.getReasoning());
+        dto.setCreatedAt(policy.getCreatedAt());
+        dto.setUpdatedAt(policy.getUpdatedAt());
 
         dto.setTargets(policy.getTargets().stream().map(t ->
                 new TargetDto(t.getTargetType(), t.getTargetIdentifier(), t.getHttpMethod() == null ? "ALL" : t.getHttpMethod())
@@ -109,9 +125,9 @@ public class PolicyController {
     public String deletePolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             policyService.deletePolicy(id);
-            ra.addFlashAttribute("message", "Policy has been successfully deleted.");
+            ra.addFlashAttribute("message", msg("msg.policy.deleted"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Failed to delete policy: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", e.getMessage()));
             log.error("Error deleting policy", e);
         }
         return "redirect:/admin/policies";
@@ -122,7 +138,7 @@ public class PolicyController {
         try {
             String approver = extractCurrentUsername();
             policyService.approvePolicy(id, approver);
-            ra.addFlashAttribute("message", "Policy (ID: " + id + ") has been approved.");
+            ra.addFlashAttribute("message", msg("msg.policy.approved", id));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.error("Error approving policy", e);
@@ -135,7 +151,7 @@ public class PolicyController {
         try {
             String rejector = extractCurrentUsername();
             policyService.rejectPolicy(id, rejector);
-            ra.addFlashAttribute("message", "Policy (ID: " + id + ") has been rejected and deactivated.");
+            ra.addFlashAttribute("message", msg("msg.policy.rejected", id));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.error("Error rejecting policy", e);

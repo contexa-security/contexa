@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.MessageSource;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -101,8 +102,9 @@ public class IamXacmlPapAutoConfiguration {
     @ConditionalOnMissingBean
     public PolicyController policyController(
             PolicyService policyService,
-            ModelMapper modelMapper) {
-        return new PolicyController(policyService, modelMapper);
+            ModelMapper modelMapper,
+            MessageSource messageSource) {
+        return new PolicyController(policyService, modelMapper, messageSource);
     }
 
     @Bean
