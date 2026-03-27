@@ -41,8 +41,8 @@ public class IamAdminBlacklistAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public BlacklistController blacklistController(BlockedUserService blockedUserService, MessageSource messageSource) {
-        return new BlacklistController(blockedUserService, messageSource);
+    public BlacklistController blacklistController(BlockedUserService blockedUserService, BlockedUserJpaRepository blockedUserJpaRepository, MessageSource messageSource) {
+        return new BlacklistController(blockedUserService, blockedUserJpaRepository, messageSource);
     }
 
     @Bean

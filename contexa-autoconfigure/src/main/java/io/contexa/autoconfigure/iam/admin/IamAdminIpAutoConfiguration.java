@@ -23,9 +23,10 @@ public class IamAdminIpAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public IpManagementController ipManagementController(IpAccessRuleService ipAccessRuleService,
+                                                          IpAccessRuleRepository ipAccessRuleRepository,
                                                           MessageSource messageSource,
                                                           CsvExportService csvExportService) {
-        return new IpManagementController(ipAccessRuleService, messageSource, csvExportService);
+        return new IpManagementController(ipAccessRuleService, ipAccessRuleRepository, messageSource, csvExportService);
     }
 
     @Bean

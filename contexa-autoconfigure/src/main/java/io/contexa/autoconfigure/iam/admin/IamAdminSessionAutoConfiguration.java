@@ -25,9 +25,10 @@ public class IamAdminSessionAutoConfiguration {
     @ConditionalOnMissingBean
     public SessionManagementController sessionManagementController(
             SessionManagementService sessionManagementService,
+            ActiveSessionRepository activeSessionRepository,
             MessageSource messageSource,
             CsvExportService csvExportService) {
-        return new SessionManagementController(sessionManagementService, messageSource, csvExportService);
+        return new SessionManagementController(sessionManagementService, activeSessionRepository, messageSource, csvExportService);
     }
 
     @Bean

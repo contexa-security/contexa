@@ -8,6 +8,7 @@ import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
 import io.contexa.contexaiam.domain.dto.*;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
+import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
@@ -16,6 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -32,6 +36,7 @@ import java.util.stream.Collectors;
 public class RoleHierarchyController {
 
     private final RoleHierarchyService roleHierarchyService;
+    private final RoleHierarchyRepository roleHierarchyRepository;
     private final ModelMapper modelMapper;
     private final RoleService roleService;
     private final GroupService groupService;
@@ -42,12 +47,21 @@ public class RoleHierarchyController {
     }
 
     @GetMapping
-    public String getRoleHierarchies(Model model) {
-        List<RoleHierarchyEntity> hierarchies = roleHierarchyService.getAllRoleHierarchies();
-        List<RoleHierarchyDto> roleHierarchyList = hierarchies.stream().map(roleHierarchy -> {
-            return modelMapper.map(roleHierarchy, RoleHierarchyDto.class);
-        }).toList();
-        model.addAttribute("hierarchies", roleHierarchyList);
+    public String getRoleHierarchies(@RequestParam(required = false) String keyword,
+                                     @RequestParam(defaultValue = "0") int page,
+                                     Model model) {
+        PageRequest pageable = PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "id"));
+        Page<RoleHierarchyEntity> hierarchyPage;
+        if (keyword != null && !keyword.isBlank()) {
+            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            hierarchyPage = roleHierarchyRepository.searchByKeyword(likePattern, pageable);
+        } else {
+            hierarchyPage = roleHierarchyRepository.findAll(pageable);
+        }
+        Page<RoleHierarchyDto> dtoPage = hierarchyPage.map(h -> modelMapper.map(h, RoleHierarchyDto.class));
+        model.addAttribute("hierarchies", dtoPage.getContent());
+        model.addAttribute("hierarchyPage", dtoPage);
+        model.addAttribute("keyword", keyword);
         return "admin/role-hierarchies";
     }
 

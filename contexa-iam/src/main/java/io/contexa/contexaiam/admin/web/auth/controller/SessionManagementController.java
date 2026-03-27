@@ -4,6 +4,7 @@ import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
+import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class SessionManagementController {
     private static final DateTimeFormatter TS_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final SessionManagementService sessionManagementService;
+    private final ActiveSessionRepository activeSessionRepository;
     private final MessageSource messageSource;
     private final CsvExportService csvExportService;
 
@@ -44,16 +46,25 @@ public class SessionManagementController {
     }
 
     @GetMapping
-    public String list(@RequestParam(defaultValue = "0") int page, Model model) {
+    public String list(@RequestParam(defaultValue = "0") int page,
+                       @RequestParam(required = false) String keyword,
+                       Model model) {
         model.addAttribute("activePage", "session-management");
 
-        Page<ActiveSession> sessionPage = sessionManagementService.getActiveSessions(
-                PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastAccessedAt")));
+        PageRequest pageable = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastAccessedAt"));
+        Page<ActiveSession> sessionPage;
+        if (keyword != null && !keyword.isBlank()) {
+            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            sessionPage = activeSessionRepository.searchActiveSessions(likePattern, pageable);
+        } else {
+            sessionPage = sessionManagementService.getActiveSessions(pageable);
+        }
 
         long activeCount = sessionManagementService.getActiveSessionCount();
 
         model.addAttribute("sessionPage", sessionPage);
         model.addAttribute("activeCount", activeCount);
+        model.addAttribute("keyword", keyword);
         return "admin/session-management";
     }
 

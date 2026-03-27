@@ -72,12 +72,13 @@ public class IamAdminAuthAutoConfiguration {
     @ConditionalOnMissingBean
     public RoleHierarchyController roleHierarchyController(
             RoleHierarchyService roleHierarchyService,
+            RoleHierarchyRepository roleHierarchyRepository,
             ModelMapper modelMapper,
             RoleService roleService,
             GroupService groupService,
             MessageSource messageSource) {
         return new RoleHierarchyController(
-                roleHierarchyService, modelMapper, roleService, groupService, messageSource);
+                roleHierarchyService, roleHierarchyRepository, modelMapper, roleService, groupService, messageSource);
     }
 
     @Bean

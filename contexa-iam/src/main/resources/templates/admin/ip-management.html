@@ -31,17 +31,34 @@
                 </div>
             </div>
 
-            <!-- Filter Tabs -->
-            <div class="flex flex-wrap gap-2 mb-6">
-                <a th:href="@{/admin/ip-management}"
+            <!-- Filter Tabs + Search -->
+            <div class="flex flex-wrap gap-2 mb-6 items-center">
+                <a th:href="@{/admin/ip-management(keyword=${keyword})}"
                    th:classappend="${currentType == null} ? 'filter-active' : 'filter-inactive'"
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.all}">All</a>
-                <a th:href="@{/admin/ip-management(type='ALLOW')}"
+                <a th:href="@{/admin/ip-management(type='ALLOW', keyword=${keyword})}"
                    th:classappend="${currentType == 'ALLOW'} ? 'filter-active-allow' : 'filter-inactive'"
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.allow}">Allow</a>
-                <a th:href="@{/admin/ip-management(type='DENY')}"
+                <a th:href="@{/admin/ip-management(type='DENY', keyword=${keyword})}"
                    th:classappend="${currentType == 'DENY'} ? 'filter-active-deny' : 'filter-inactive'"
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.deny}">Deny</a>
+
+                <span style="flex:1;"></span>
+                <form th:action="@{/admin/ip-management}" method="get" class="flex items-center gap-2" style="margin:0;">
+                    <input type="hidden" name="type" th:value="${currentType}" />
+                    <input type="text" name="keyword" th:value="${keyword}"
+                           class="px-3 py-2 rounded-lg text-sm"
+                           style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;max-width:220px;"
+                           th:placeholder="#{admin.ip.search.placeholder}" />
+                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white"
+                            style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <a th:href="@{/admin/ip-management(type=${currentType})}" class="px-3 py-2 rounded-lg text-sm font-medium"
+                       style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </form>
             </div>
 
             <!-- Create Form -->
@@ -149,18 +166,18 @@
 
             <!-- Pagination -->
             <nav th:if="${rules != null and rules.totalPages > 1}" class="flex justify-center mt-6 gap-2">
-                <a th:if="${!rules.first}" th:href="@{/admin/ip-management(type=${currentType},page=${rules.number - 1})}"
+                <a th:if="${!rules.first}" th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number - 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &laquo;
                 </a>
                 <th:block th:each="i : ${#numbers.sequence(0, rules.totalPages - 1)}">
-                    <a th:href="@{/admin/ip-management(type=${currentType},page=${i})}"
+                    <a th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${i})}"
                        th:text="${i + 1}"
                        class="px-3 py-2 rounded text-sm"
                        th:style="${i == rules.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
                     </a>
                 </th:block>
-                <a th:if="${!rules.last}" th:href="@{/admin/ip-management(type=${currentType},page=${rules.number + 1})}"
+                <a th:if="${!rules.last}" th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number + 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &raquo;
                 </a>

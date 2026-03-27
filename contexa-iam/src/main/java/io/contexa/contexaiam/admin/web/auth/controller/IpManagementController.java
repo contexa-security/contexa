@@ -4,6 +4,7 @@ import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.IpAccessRule;
+import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class IpManagementController {
     private static final DateTimeFormatter CSV_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final IpAccessRuleService ipAccessRuleService;
+    private final IpAccessRuleRepository ipAccessRuleRepository;
     private final MessageSource messageSource;
     private final CsvExportService csvExportService;
 
@@ -44,13 +46,24 @@ public class IpManagementController {
 
     @GetMapping
     public String list(@RequestParam(required = false) String type,
+                       @RequestParam(required = false) String keyword,
                        @RequestParam(defaultValue = "0") int page,
                        Model model) {
         model.addAttribute("activePage", "ip-management");
         PageRequest pageable = PageRequest.of(page, PAGE_SIZE);
 
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
+
         Page<IpAccessRule> rules;
-        if ("ALLOW".equalsIgnoreCase(type)) {
+        if (hasKeyword && "ALLOW".equalsIgnoreCase(type)) {
+            rules = ipAccessRuleRepository.searchByTypeAndKeyword(IpAccessRule.RuleType.ALLOW, likePattern, pageable);
+        } else if (hasKeyword && "DENY".equalsIgnoreCase(type)) {
+            rules = ipAccessRuleRepository.searchByTypeAndKeyword(IpAccessRule.RuleType.DENY, likePattern, pageable);
+        } else if (hasKeyword) {
+            rules = ipAccessRuleRepository.searchByKeyword(likePattern, pageable);
+            type = null;
+        } else if ("ALLOW".equalsIgnoreCase(type)) {
             rules = ipAccessRuleService.getRulesByType(IpAccessRule.RuleType.ALLOW, pageable);
         } else if ("DENY".equalsIgnoreCase(type)) {
             rules = ipAccessRuleService.getRulesByType(IpAccessRule.RuleType.DENY, pageable);
@@ -61,6 +74,7 @@ public class IpManagementController {
 
         model.addAttribute("rules", rules);
         model.addAttribute("currentType", type);
+        model.addAttribute("keyword", keyword);
         model.addAttribute("allowCount", ipAccessRuleService.countAllowRules());
         model.addAttribute("denyCount", ipAccessRuleService.countDenyRules());
         model.addAttribute("totalCount", ipAccessRuleService.countAllowRules() + ipAccessRuleService.countDenyRules());

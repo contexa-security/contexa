@@ -44,6 +44,7 @@ public class SecurityMonitorController {
     public String monitor(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String filter,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false, defaultValue = "24") int hours,
             @RequestParam(required = false, defaultValue = "0") int page,
             Model model) {
@@ -53,6 +54,9 @@ public class SecurityMonitorController {
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         int pageSize = 20;
         Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
+
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
 
         // DB-level paginated query based on filter type
         Page<AuditLog> logPage;
@@ -89,6 +93,10 @@ public class SecurityMonitorController {
                 model.addAttribute("ipGroups", ipGroups);
                 model.addAttribute("totalIpGroups", totalIpGroups);
             }
+        } else if (hasKeyword && category != null && !category.isBlank()) {
+            logPage = auditLogRepository.findByTimestampAfterAndCategoryAndPrincipalNameLike(since, category, likePattern, pageable);
+        } else if (hasKeyword) {
+            logPage = auditLogRepository.findByTimestampAfterAndPrincipalNameLike(since, likePattern, pageable);
         } else if (category != null && !category.isBlank()) {
             logPage = auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
         } else {
@@ -108,6 +116,7 @@ public class SecurityMonitorController {
         model.addAttribute("hours", hours);
         model.addAttribute("category", category);
         model.addAttribute("filter", filter);
+        model.addAttribute("keyword", keyword);
         model.addAttribute("totalCount", totalCount);
         model.addAttribute("authSuccess", authSuccess);
         model.addAttribute("authFailure", authFailure);

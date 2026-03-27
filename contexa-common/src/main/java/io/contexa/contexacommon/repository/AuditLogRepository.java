@@ -226,4 +226,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     // User/Role management events
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('USER_MODIFIED', 'USER_DELETED', 'ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED') AND a.timestamp >= :since")
     long countIamChangesSince(@Param("since") LocalDateTime since);
+
+    // Keyword search: principalName
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfterAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("keyword") String keyword, Pageable pageable);
+
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory = :category AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfterAndCategoryAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("category") String category, @Param("keyword") String keyword, Pageable pageable);
 }

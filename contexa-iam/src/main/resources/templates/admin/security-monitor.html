@@ -24,31 +24,31 @@
 
             <!-- Summary Cards (eventCategory 기반 분류) -->
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-                <a th:href="@{/admin/security-monitor(hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${totalCount}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.total.events}">Total Events</div>
                 </a>
-                <a th:href="@{/admin/security-monitor(category='SECURITY_DECISION', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.3); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(category='SECURITY_DECISION', hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #a78bfa;" th:text="${securityDecision}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.ai.analysis}">AI Security Analysis</div>
                 </a>
-                <a th:href="@{/admin/security-monitor(category='USER_BLOCKED', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(category='USER_BLOCKED', hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #f87171;" th:text="${userBlocked}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.user.blocked}">User Blocked</div>
                 </a>
-                <a th:href="@{/admin/security-monitor(category='MFA_VERIFICATION_SUCCESS', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.3); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(category='MFA_VERIFICATION_SUCCESS', hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #22d3ee;" th:text="${mfaVerified}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.mfa.verified}">MFA Verified</div>
                 </a>
-                <a th:href="@{/admin/security-monitor(category='AUTHENTICATION_SUCCESS', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.3); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(category='AUTHENTICATION_SUCCESS', hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #60a5fa;" th:text="${authSuccess}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.auth.success}">Auth Success</div>
                 </a>
-                <a th:href="@{/admin/security-monitor(category='AUTHENTICATION_FAILURE', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(category='AUTHENTICATION_FAILURE', hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #fbbf24;" th:text="${authFailure}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.auth.failure}">Auth Failure</div>
                 </a>
-                <a th:href="@{/admin/security-monitor(category='ADMIN_OVERRIDE', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); text-decoration: none;">
+                <a th:href="@{/admin/security-monitor(category='ADMIN_OVERRIDE', hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #818cf8;" th:text="${adminOverride}">0</div>
                     <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.admin.override}">Admin Override</div>
                 </a>
@@ -57,33 +57,53 @@
             <!-- Filter -->
             <div class="flex items-center gap-3 mb-6" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 0.75rem 1rem;">
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.period}">Period:</span>
-                <a th:href="@{/admin/security-monitor(hours=1, category=${category})}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=1, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 1 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.period.1h}">1 Hour</a>
-                <a th:href="@{/admin/security-monitor(hours=6, category=${category})}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=6, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 6 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.period.6h}">6 Hours</a>
-                <a th:href="@{/admin/security-monitor(hours=24, category=${category})}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=24, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 24 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.period.24h}">24 Hours</a>
-                <a th:href="@{/admin/security-monitor(hours=72, category=${category})}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=72, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 72 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.period.3d}">3 Days</a>
 
                 <span class="mx-2" style="color: #334155;">|</span>
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.filter}">Filter:</span>
-                <a th:href="@{/admin/security-monitor(hours=${hours})}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=${hours}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == null || category == '' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.all}">All</a>
-                <a th:href="@{/admin/security-monitor(hours=${hours}, category='SECURITY_DECISION')}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=${hours}, category='SECURITY_DECISION', keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'SECURITY_DECISION' ? 'background: rgba(139,92,246,0.3); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.ai}">AI Analysis</a>
-                <a th:href="@{/admin/security-monitor(hours=${hours}, category='AUTHENTICATION_FAILURE')}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=${hours}, category='AUTHENTICATION_FAILURE', keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'AUTHENTICATION_FAILURE' ? 'background: rgba(239,68,68,0.3); color: #fca5a5; border: 1px solid rgba(239,68,68,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.auth.failure}">Auth Failure</a>
-                <a th:href="@{/admin/security-monitor(hours=${hours}, category='ADMIN_OVERRIDE')}" class="text-xs px-3 py-1 rounded-full"
+                <a th:href="@{/admin/security-monitor(hours=${hours}, category='ADMIN_OVERRIDE', keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'ADMIN_OVERRIDE' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.admin.override}">Admin Override</a>
+                <span class="mx-2" style="color: #334155;">|</span>
+                <form th:action="@{/admin/security-monitor}" method="get" class="flex items-center gap-2" style="margin:0;">
+                    <input type="hidden" name="hours" th:value="${hours}" />
+                    <input type="hidden" name="category" th:value="${category}" />
+                    <input type="hidden" name="filter" th:value="${filter}" />
+                    <input type="text" name="keyword" th:value="${keyword}"
+                           class="px-3 py-1 rounded-md text-xs"
+                           style="background:rgba(15,23,42,0.6);border:1px solid rgba(71,85,105,0.4);color:#e2e8f0;max-width:180px;"
+                           th:placeholder="#{admin.security.monitor.search.placeholder}" />
+                    <button type="submit" class="text-xs px-2 py-1 rounded-md"
+                            style="background:rgba(99,102,241,0.3);color:#a5b4fc;border:1px solid rgba(99,102,241,0.5);">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <a th:href="@{/admin/security-monitor(hours=${hours}, category=${category}, filter=${filter})}"
+                       class="text-xs px-2 py-1 rounded-md"
+                       style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </form>
+
                 <span style="flex:1;"></span>
                 <a th:href="@{/admin/security-monitor/export(hours=${hours}, category=${category}, filter=${filter})}"
                    class="text-xs px-3 py-1 rounded-full" style="background:rgba(34,197,94,0.2);color:#4ade80;border:1px solid rgba(34,197,94,0.4);text-decoration:none;">
@@ -176,7 +196,7 @@
             <!-- Pagination -->
             <div th:if="${logPage.totalPages > 1}" class="flex justify-center gap-2 mt-6">
                 <a th:each="i : ${#numbers.sequence(0, logPage.totalPages - 1)}"
-                   th:href="@{/admin/security-monitor(page=${i}, hours=${hours}, category=${category})}"
+                   th:href="@{/admin/security-monitor(page=${i}, hours=${hours}, category=${category}, keyword=${keyword})}"
                    class="px-3 py-1 rounded text-sm"
                    th:style="${i == logPage.number ? 'background: linear-gradient(135deg, #6366f1, #4f46e5); color: white;' : 'background: rgba(30,41,59,0.6); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;"

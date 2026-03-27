@@ -34,4 +34,7 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, St
     void deleteExpiredBefore(@Param("before") LocalDateTime before);
 
     Page<ActiveSession> findByExpiredFalse(Pageable pageable);
+
+    @Query("SELECT s FROM ActiveSession s WHERE s.expired = false AND (lower(s.username) LIKE :keyword OR lower(s.clientIp) LIKE :keyword) ORDER BY s.lastAccessedAt DESC")
+    Page<ActiveSession> searchActiveSessions(@Param("keyword") String keyword, Pageable pageable);
 }
