@@ -27,7 +27,7 @@ public interface SoarIncidentRepository extends JpaRepository<SoarIncident, UUID
             from SoarIncident incident
             where (:statusesEmpty = true or incident.status in :statuses)
               and (:severity is null or upper(incident.severity) = :severity)
-              and (:type is null or lower(incident.type) like concat('%', :type, '%'))
+              and (:type is null or lower(incident.type) like :type)
             order by incident.updatedAt desc
             """)
     Page<SoarIncident> searchOperations(
