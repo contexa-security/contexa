@@ -40,7 +40,7 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
             if (tracked != null && tracked.isExpired()) {
                 session.invalidate();
                 SecurityContextHolder.clearContext();
-                response.sendRedirect("/admin");
+                response.sendRedirect(request.getContextPath() + "/admin/login");
                 return;
             }
         }

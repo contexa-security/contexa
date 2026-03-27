@@ -158,6 +158,11 @@ public class IpAccessRuleService {
         return ipAccessRuleRepository.findByEnabledTrueOrderByCreatedAtDesc();
     }
 
+    @Transactional(readOnly = true)
+    public List<IpAccessRule> findAllRules() {
+        return ipAccessRuleRepository.findAll();
+    }
+
     private boolean isValidInetAddress(String addr) {
         try {
             InetAddress inet = InetAddress.getByName(addr);

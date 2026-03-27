@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ import java.util.List;
 @Controller
 @RequestMapping("/admin/session-management")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN')")
 public class SessionManagementController {
 
     private static final int PAGE_SIZE = 20;
@@ -62,7 +64,7 @@ public class SessionManagementController {
             ra.addFlashAttribute("message", msg("admin.session.invalidated"));
         } catch (Exception e) {
             log.error("[SessionManagement] Failed to invalidate session: {}", sessionId, e);
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", e.getMessage()));
         }
         return "redirect:/admin/session-management";
     }
@@ -74,7 +76,7 @@ public class SessionManagementController {
             ra.addFlashAttribute("message", msg("admin.session.all.invalidated"));
         } catch (Exception e) {
             log.error("[SessionManagement] Failed to invalidate all sessions for user: {}", userId, e);
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", e.getMessage()));
         }
         return "redirect:/admin/session-management";
     }

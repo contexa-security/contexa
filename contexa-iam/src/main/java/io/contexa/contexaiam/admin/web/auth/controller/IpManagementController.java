@@ -11,6 +11,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
@@ -27,6 +28,7 @@ import java.util.List;
 @Controller
 @RequestMapping("/admin/ip-management")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN')")
 public class IpManagementController {
 
     private static final int PAGE_SIZE = 20;
@@ -44,6 +46,7 @@ public class IpManagementController {
     public String list(@RequestParam(required = false) String type,
                        @RequestParam(defaultValue = "0") int page,
                        Model model) {
+        model.addAttribute("activePage", "ip-management");
         PageRequest pageable = PageRequest.of(page, PAGE_SIZE);
 
         Page<IpAccessRule> rules;
@@ -110,7 +113,7 @@ public class IpManagementController {
             ra.addFlashAttribute("message", msg("admin.ip.deleted"));
         } catch (Exception e) {
             log.error("Failed to delete IP rule: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error", e.getMessage()));
         }
         return "redirect:/admin/ip-management";
     }
@@ -122,7 +125,7 @@ public class IpManagementController {
             ra.addFlashAttribute("message", msg("admin.ip.toggled"));
         } catch (Exception e) {
             log.error("Failed to toggle IP rule: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error", e.getMessage()));
         }
         return "redirect:/admin/ip-management";
     }
@@ -142,13 +145,13 @@ public class IpManagementController {
 
         csvExportService.export(response, "ip-access-rules", columns, () -> {
             if ("ALLOW".equalsIgnoreCase(type)) {
-                return ipAccessRuleService.findAllEnabledRules().stream()
+                return ipAccessRuleService.findAllRules().stream()
                         .filter(r -> r.getRuleType() == IpAccessRule.RuleType.ALLOW);
             } else if ("DENY".equalsIgnoreCase(type)) {
-                return ipAccessRuleService.findAllEnabledRules().stream()
+                return ipAccessRuleService.findAllRules().stream()
                         .filter(r -> r.getRuleType() == IpAccessRule.RuleType.DENY);
             }
-            return ipAccessRuleService.findAllEnabledRules().stream();
+            return ipAccessRuleService.findAllRules().stream();
         });
     }
 
