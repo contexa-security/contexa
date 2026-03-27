@@ -84,6 +84,11 @@
                 <a th:href="@{/admin/security-monitor(hours=${hours}, category='ADMIN_OVERRIDE')}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'ADMIN_OVERRIDE' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.admin.override}">Admin Override</a>
+                <span style="flex:1;"></span>
+                <a th:href="@{/admin/security-monitor/export(hours=${hours}, category=${category}, filter=${filter})}"
+                   class="text-xs px-3 py-1 rounded-full" style="background:rgba(34,197,94,0.2);color:#4ade80;border:1px solid rgba(34,197,94,0.4);text-decoration:none;">
+                    <i class="fas fa-download mr-1"></i><span th:text="#{admin.security.monitor.export.csv}">CSV Download</span>
+                </a>
             </div>
 
             <!-- IP Grouping View (DISTINCT_IP filter only) -->
