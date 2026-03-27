@@ -25,5 +25,13 @@ public class PolicyTarget implements Serializable {
     private String targetIdentifier; 
 
     @Column
-    private String httpMethod; 
+    private String httpMethod;
+
+    @Column(name = "target_order", nullable = false)
+    @Builder.Default
+    private int targetOrder = 0;
+
+    @Column(name = "source_type", length = 20)
+    @Builder.Default
+    private String sourceType = "RESOURCE";
 }

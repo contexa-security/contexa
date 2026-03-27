@@ -131,11 +131,11 @@ public class DefaultPolicyService implements PolicyService {
                 .description(String.format("Auto-generated policy for permission '%s'", permission.getFriendlyName()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
-                .targets(List.of(new TargetDto(
-                        resource.getResourceType().name(),
-                        resource.getResourceIdentifier(),
-                        resource.getHttpMethod() != null ? resource.getHttpMethod().name() : "ANY"
-                )))
+                .targets(List.of(TargetDto.builder()
+                        .targetType(resource.getResourceType().name())
+                        .targetIdentifier(resource.getResourceIdentifier())
+                        .httpMethod(resource.getHttpMethod() != null ? resource.getHttpMethod().name() : "ANY")
+                        .build()))
                 .rules(List.of(new RuleDto(
                         "Auto-generated rule for " + permission.getName(),
                         List.of(new ConditionDto(expression, PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE))
@@ -259,7 +259,9 @@ public class DefaultPolicyService implements PolicyService {
                             .policy(policy)
                             .targetType(targetDto.getTargetType())
                             .targetIdentifier(targetDto.getTargetIdentifier())
-                            .httpMethod("ALL".equals(targetDto.getHttpMethod()) ? null : targetDto.getHttpMethod()) 
+                            .httpMethod("ALL".equals(targetDto.getHttpMethod()) ? null : targetDto.getHttpMethod())
+                            .targetOrder(targetDto.getTargetOrder())
+                            .sourceType(targetDto.getSourceType() != null ? targetDto.getSourceType() : "RESOURCE")
                             .build()
             ).collect(Collectors.toSet());
             policy.setTargets(targets);
@@ -302,6 +304,8 @@ public class DefaultPolicyService implements PolicyService {
                         .targetType(targetDto.getTargetType())
                         .targetIdentifier(targetDto.getTargetIdentifier())
                         .httpMethod("ALL".equals(targetDto.getHttpMethod()) ? null : targetDto.getHttpMethod())
+                        .targetOrder(targetDto.getTargetOrder())
+                        .sourceType(targetDto.getSourceType() != null ? targetDto.getSourceType() : "RESOURCE")
                         .build());
             });
         }

@@ -780,16 +780,17 @@ const PolicyCenter = {
                 const resp = await fetch('/admin/policy-center/api/quick-create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
-                    body: JSON.stringify({
+                    body: JSON.stringify(Object.assign({
                         policyName: name,
                         description: document.getElementById('qp-policy-desc').value,
                         roleIds: Array.from(this.selectedRoles.keys()),
                         permissionIds: Array.from(this.selectedPerms.keys()),
                         effect: document.getElementById('qp-policy-effect').value
-                    })
+                    }, PolicyCenter.ManualTarget._context || {}))
                 });
                 const result = await resp.json();
                 if (!resp.ok) throw new Error(result.message);
+                PolicyCenter.ManualTarget._context = null;
                 if (result.warning) {
                     showToast(result.warning, 'warning');
                     setTimeout(() => {
@@ -861,6 +862,8 @@ const PolicyCenter = {
                 '<div class="col-span-3"><select name="targets[' + idx + '].targetType" onchange="PolicyCenter.Manual.toggleHttpMethod(this)" class="modern-select"><option value="URL">URL</option><option value="METHOD">METHOD</option></select></div>' +
                 '<div class="col-span-2"><select name="targets[' + idx + '].httpMethod" class="http-method-select modern-select"><option value="ALL">ALL</option><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>' +
                 '<div class="col-span-6"><input type="text" name="targets[' + idx + '].targetIdentifier" class="modern-input" placeholder="/admin/** or com.example.*" required /></div>' +
+                '<input type="hidden" name="targets[' + idx + '].targetOrder" value="0" />' +
+                '<input type="hidden" name="targets[' + idx + '].sourceType" value="RESOURCE" />' +
                 '<div class="col-span-1 text-center"><button type="button" onclick="PolicyCenter.Manual.removeElement(this, \'.target-block\')" class="remove-btn">&times;</button></div>';
             container.appendChild(block);
         },
@@ -1703,6 +1706,79 @@ const PolicyCenter = {
             if (!str) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
+    }
+};
+
+// Manual Target Entry module
+PolicyCenter.ManualTarget = {
+    _context: null,
+
+    open: function() {
+        var modal = document.getElementById('manualTargetModal');
+        if (!modal) return;
+        document.getElementById('mt-identifier').value = '';
+        document.getElementById('mt-type').value = 'URL';
+        document.getElementById('mt-http-method').value = 'ANY';
+        document.getElementById('mt-order').value = '1';
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        setTimeout(function() { document.getElementById('mt-identifier').focus(); }, 100);
+    },
+
+    close: function() {
+        var modal = document.getElementById('manualTargetModal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    },
+
+    submit: function() {
+        var identifier = document.getElementById('mt-identifier').value.trim();
+        var targetType = document.getElementById('mt-type').value;
+        var httpMethod = document.getElementById('mt-http-method').value;
+        var order = parseInt(document.getElementById('mt-order').value, 10);
+
+        if (!identifier) {
+            showToast(PolicyCenter._i18n('mtIdentifierRequired', 'Resource path is required.'), 'error');
+            document.getElementById('mt-identifier').focus();
+            return;
+        }
+        if (isNaN(order) || order < 1) {
+            showToast(PolicyCenter._i18n('mtOrderInvalid', 'Order must be a positive integer (1 or higher).'), 'error');
+            document.getElementById('mt-order').focus();
+            return;
+        }
+
+        this._context = {
+            sourceType: 'MANUAL',
+            manualTargetType: targetType,
+            manualTargetIdentifier: identifier,
+            manualHttpMethod: httpMethod,
+            manualTargetOrder: order
+        };
+
+        this.close();
+
+        // Activate Create tab with manual target context
+        var ctx = {
+            friendlyName: identifier,
+            resourceType: targetType,
+            resourceIdentifier: identifier,
+            httpMethod: httpMethod,
+            isManual: true
+        };
+
+        document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
+        document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        var createTab = document.getElementById('tab-create');
+        if (createTab) createTab.classList.add('active');
+        var createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
+        if (createBtn) createBtn.classList.add('active');
+
+        PolicyCenter.CreateFlow.activateWithResource(ctx);
+        var modeBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
+        PolicyCenter.switchCreateMode('quick', modeBtn);
+        history.pushState(null, '', '/admin/policy-center?tab=create');
     }
 };
 

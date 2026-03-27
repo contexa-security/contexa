@@ -46,11 +46,11 @@ public class PolicySynchronizationService {
         List<TargetDto> targetDtos = role.getRolePermissions().stream()
                 .map(rp -> rp.getPermission().getManagedResource())
                 .filter(Objects::nonNull)
-                .map(mr -> new TargetDto(
-                        mr.getResourceType().name(),
-                        mr.getResourceIdentifier(),
-                        mr.getHttpMethod() != null ? mr.getHttpMethod().name() : "ANY"
-                ))
+                .map(mr -> TargetDto.builder()
+                        .targetType(mr.getResourceType().name())
+                        .targetIdentifier(mr.getResourceIdentifier())
+                        .httpMethod(mr.getHttpMethod() != null ? mr.getHttpMethod().name() : "ANY")
+                        .build())
                 .distinct() 
                 .toList();
 

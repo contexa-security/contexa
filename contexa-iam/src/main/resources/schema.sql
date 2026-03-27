@@ -119,7 +119,9 @@ CREATE TABLE POLICY_TARGET (
                                policy_id BIGINT NOT NULL REFERENCES POLICY(id) ON DELETE CASCADE,
                                target_type VARCHAR(255) NOT NULL,
                                target_identifier VARCHAR(512) NOT NULL,
-                               http_method VARCHAR(50)
+                               http_method VARCHAR(50),
+                               target_order INTEGER NOT NULL DEFAULT 0,
+                               source_type VARCHAR(20) DEFAULT 'RESOURCE'
 );
 
 -- 정책 규칙 테이블

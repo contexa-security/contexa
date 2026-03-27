@@ -33,14 +33,14 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions c " +
             "WHERE t.targetType = :targetType " +
-            "ORDER BY p.priority ASC")
+            "ORDER BY t.targetOrder ASC, p.priority ASC")
     List<Policy> findByTargetTypeWithDetails(@Param("targetType") String targetType);
 
     @Query("SELECT p FROM Policy p JOIN p.targets t " +
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions c " +
             "WHERE t.targetType = 'METHOD' AND t.targetIdentifier = :methodIdentifier " +
-            "ORDER BY p.priority ASC")
+            "ORDER BY t.targetOrder ASC, p.priority ASC")
     List<Policy> findByMethodIdentifier(@Param("methodIdentifier") String methodIdentifier);
 
     @Query("SELECT p FROM Policy p " +

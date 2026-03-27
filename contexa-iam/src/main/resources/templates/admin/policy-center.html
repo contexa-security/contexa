@@ -71,6 +71,7 @@
                             <div style="flex: 1;"></div>
                             <button type="submit" class="modern-btn-refresh" formaction="/admin/policy-center/refresh-resources" formmethod="post"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
                             <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.openResourcePicker()"><i class="fas fa-layer-group"></i> <span th:text="#{policy.center.multi.select.btn}">Multi-Resource Policy</span></button>
+                            <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
                         </div>
                     </div>
                 </form>
@@ -355,6 +356,8 @@
                                     <div class="col-span-6">
                                         <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" class="modern-input" th:placeholder="#{admin.policy.center.create.manual.target.ph}" placeholder="/admin/** or com.example.*" required />
                                     </div>
+                                    <input type="hidden" th:field="*{targets[__${stat.index}__].targetOrder}" />
+                                    <input type="hidden" th:field="*{targets[__${stat.index}__].sourceType}" />
                                     <div class="col-span-1 text-center">
                                         <button type="button" onclick="PolicyCenter.Manual.removeElement(this, '.target-block')" class="remove-btn">&times;</button>
                                     </div>
@@ -883,6 +886,52 @@
     </div>
 </div>
 
+<!-- Manual Target Entry Modal -->
+<div id="manualTargetModal" class="fixed inset-0 z-50 hidden flex items-center justify-center">
+    <div class="fixed inset-0 bg-black/90 backdrop-blur-lg" onclick="PolicyCenter.ManualTarget.close()"></div>
+    <div class="relative modern-card max-w-lg w-full mx-4 shadow-2xl p-8">
+        <button type="button" class="modal-close-x" onclick="PolicyCenter.ManualTarget.close()">&times;</button>
+        <h2 class="text-xl font-bold mb-2" style="color:#e2e8f0;"><i class="fas fa-pen-fancy mr-2" style="color:#818cf8;"></i><span th:text="#{policy.center.manual.target.title}">Direct Resource Entry</span></h2>
+        <p class="text-sm mb-6" style="color:#94a3b8;" th:text="#{policy.center.manual.target.subtitle}">Enter Ant pattern paths to create policies.</p>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{policy.center.manual.target.identifier}">Resource Path</label>
+                <input type="text" id="mt-identifier" class="modern-input w-full" th:placeholder="#{policy.center.manual.target.identifier.placeholder}" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{policy.center.manual.target.type}">Resource Type</label>
+                    <select id="mt-type" class="modern-select w-full">
+                        <option value="URL" selected>URL</option>
+                        <option value="METHOD">METHOD</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{policy.center.manual.target.http.method}">HTTP Method</label>
+                    <select id="mt-http-method" class="modern-select w-full">
+                        <option value="ANY" selected>ANY</option>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{policy.center.manual.target.order}">Order</label>
+                <input type="number" id="mt-order" class="modern-input w-full" value="1" min="1" max="999" />
+                <p class="text-xs mt-1" style="color:#64748b;" th:text="#{policy.center.manual.target.order.help}">Lower order = evaluated first. Manual patterns use 1+.</p>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6">
+            <button type="button" class="dark-btn-secondary px-5 py-2.5" onclick="PolicyCenter.ManualTarget.close()"><span th:text="#{policy.center.manual.target.cancel}">Cancel</span></button>
+            <button type="button" class="modern-btn-primary px-5 py-2.5" onclick="PolicyCenter.ManualTarget.submit()"><i class="fas fa-arrow-right mr-2"></i><span th:text="#{policy.center.manual.target.submit}">Continue to Policy Setup</span></button>
+        </div>
+    </div>
+</div>
+
 <!-- i18n messages for JavaScript -->
 <div id="i18nPolicyCenter" style="display:none"
      th:data-loading="#{common.loading}"
@@ -939,7 +988,10 @@
      th:data-sim-warning-many-perms="#{policy.center.js.sim.warning.many.perms}"
      th:data-sim-warning-no-conditions="#{policy.center.js.sim.warning.no.conditions}"
      th:data-sim-warning-deny="#{policy.center.js.sim.warning.deny}"
-     th:data-sim-warning-sensitive="#{policy.center.js.sim.warning.sensitive}">
+     th:data-sim-warning-sensitive="#{policy.center.js.sim.warning.sensitive}"
+     th:data-mt-identifier-required="#{policy.center.manual.target.identifier.required}"
+     th:data-mt-order-invalid="#{policy.center.manual.target.order.invalid}"
+     th:data-mt-source="#{policy.center.js.manual.target.source}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>

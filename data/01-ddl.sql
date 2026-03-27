@@ -131,7 +131,9 @@ CREATE TABLE policy_target (
     policy_id         BIGINT NOT NULL REFERENCES policy ON DELETE CASCADE,
     target_type       VARCHAR(255) NOT NULL,
     target_identifier VARCHAR(255) NOT NULL,
-    http_method       VARCHAR(10)
+    http_method       VARCHAR(10),
+    target_order      INTEGER NOT NULL DEFAULT 0,
+    source_type       VARCHAR(20) DEFAULT 'RESOURCE'
 );
 
 CREATE TABLE policy_rule (

@@ -220,6 +220,15 @@ public class PolicyCenterController {
             dto.setConditions(Collections.emptyMap());
             dto.setSource(Policy.PolicySource.MANUAL);
 
+            // Manual target support
+            if ("MANUAL".equals(request.getSourceType())) {
+                dto.setSourceType("MANUAL");
+                dto.setManualTargetType(request.getManualTargetType());
+                dto.setManualTargetIdentifier(request.getManualTargetIdentifier());
+                dto.setManualHttpMethod(request.getManualHttpMethod());
+                dto.setManualTargetOrder(request.getManualTargetOrder());
+            }
+
             List<String> duplicateAutoRoles = new ArrayList<>();
             if (request.getRoleIds() != null) {
                 for (Long roleId : request.getRoleIds()) {

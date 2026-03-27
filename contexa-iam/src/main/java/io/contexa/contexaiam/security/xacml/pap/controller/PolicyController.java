@@ -104,7 +104,13 @@ public class PolicyController {
         dto.setUpdatedAt(policy.getUpdatedAt());
 
         dto.setTargets(policy.getTargets().stream().map(t ->
-                new TargetDto(t.getTargetType(), t.getTargetIdentifier(), t.getHttpMethod() == null ? "ALL" : t.getHttpMethod())
+                TargetDto.builder()
+                        .targetType(t.getTargetType())
+                        .targetIdentifier(t.getTargetIdentifier())
+                        .httpMethod(t.getHttpMethod() == null ? "ALL" : t.getHttpMethod())
+                        .targetOrder(t.getTargetOrder())
+                        .sourceType(t.getSourceType() != null ? t.getSourceType() : "RESOURCE")
+                        .build()
         ).collect(Collectors.toList()));
 
         dto.setRules(policy.getRules().stream().map(rule -> {

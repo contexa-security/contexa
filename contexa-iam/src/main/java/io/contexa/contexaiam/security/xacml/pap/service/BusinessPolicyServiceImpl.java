@@ -139,10 +139,24 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                         .targetType(mr.getResourceType().name())
                         .targetIdentifier(mr.getResourceIdentifier())
                         .httpMethod(mr.getHttpMethod() != null ? mr.getHttpMethod().name() : "ANY")
+                        .targetOrder(0)
+                        .sourceType("RESOURCE")
                         .build())
                 .collect(Collectors.toSet());
         
         targets.forEach(policy::addTarget);
+
+        // Add manual target if sourceType is MANUAL
+        if ("MANUAL".equals(dto.getSourceType()) && dto.getManualTargetIdentifier() != null) {
+            PolicyTarget manualTarget = PolicyTarget.builder()
+                    .targetType(dto.getManualTargetType() != null ? dto.getManualTargetType() : "URL")
+                    .targetIdentifier(dto.getManualTargetIdentifier())
+                    .httpMethod(dto.getManualHttpMethod() != null ? dto.getManualHttpMethod() : "ANY")
+                    .targetOrder(dto.getManualTargetOrder())
+                    .sourceType("MANUAL")
+                    .build();
+            policy.addTarget(manualTarget);
+        }
 
         String spelCondition = buildSpelCondition(dto);
         if (StringUtils.hasText(spelCondition)) {

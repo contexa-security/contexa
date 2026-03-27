@@ -331,8 +331,8 @@ class DefaultPolicyServiceTest {
                     .effect(Policy.Effect.ALLOW)
                     .priority(100)
                     .targets(List.of(
-                            new TargetDto("URL", "/api/users", "GET"),
-                            new TargetDto("URL", "/api/admin", "ALL")
+                            TargetDto.builder().targetType("URL").targetIdentifier("/api/users").httpMethod("GET").build(),
+                            TargetDto.builder().targetType("URL").targetIdentifier("/api/admin").httpMethod("ALL").build()
                     ))
                     .rules(new ArrayList<>())
                     .build();
@@ -462,7 +462,7 @@ class DefaultPolicyServiceTest {
                 .description("Policy with condition")
                 .effect(Policy.Effect.ALLOW)
                 .priority(100)
-                .targets(List.of(new TargetDto("URL", "/api/test", "GET")))
+                .targets(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/api/test").httpMethod("GET").build()))
                 .rules(List.of(new RuleDto(
                         "Rule with condition",
                         List.of(new ConditionDto(expression, PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE))

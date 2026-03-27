@@ -18,6 +18,13 @@ public class BusinessPolicyDto {
     private String customConditionSpel;
     private Policy.Effect effect = Policy.Effect.ALLOW;
 
+    // Manual target (when sourceType = "MANUAL")
+    private String manualTargetType;
+    private String manualTargetIdentifier;
+    private String manualHttpMethod;
+    private int manualTargetOrder = 1;
+    private String sourceType = "RESOURCE";
+
     // AI metadata
     private String reasoning;
     private Double confidenceScore;

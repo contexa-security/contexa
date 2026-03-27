@@ -12,4 +12,11 @@ public class QuickPolicyRequest {
     private Set<Long> roleIds;
     private Set<Long> permissionIds;
     private Policy.Effect effect = Policy.Effect.ALLOW;
+
+    // Manual target fields (used when sourceType = "MANUAL")
+    private String manualTargetType;
+    private String manualTargetIdentifier;
+    private String manualHttpMethod;
+    private int manualTargetOrder = 1;
+    private String sourceType = "RESOURCE";  // RESOURCE or MANUAL
 }
