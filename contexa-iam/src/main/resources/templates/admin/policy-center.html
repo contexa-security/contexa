@@ -459,85 +459,62 @@
                     <!-- ============ Result ============ -->
                     <div class="ai-result-section hidden" id="ai-result-section">
 
-                        <!-- Policy Header -->
-                        <div class="flex items-center gap-4 mb-6">
-                            <input type="text" class="ai-card-title-input" id="ai-card-name" th:placeholder="#{admin.policy.center.create.ai.name.ph}" placeholder="Policy Name" style="flex:1; font-size: 1.125rem;" />
-                            <select class="ai-card-effect-select" id="ai-card-effect">
-                                <option value="ALLOW">ALLOW</option>
-                                <option value="DENY">DENY</option>
-                            </select>
-                            <div class="flex items-center gap-2" style="min-width: 10rem;" id="ai-confidence-bar">
-                                <div class="ai-confidence-gauge" style="flex:1;">
-                                    <div class="ai-confidence-fill" id="ai-confidence-fill"></div>
+                        <!-- Area 1: Policy Basic Info -->
+                        <div class="modern-card p-6" style="margin-bottom:1rem;">
+                            <div style="margin-bottom:1rem;">
+                                <label class="ai-field-label" th:text="#{admin.policy.center.create.ai.name.ph}">Policy Name</label>
+                                <input type="text" id="ai-card-name" class="ai-card-title-input" style="font-size:1.25rem;font-weight:700;" th:placeholder="#{admin.policy.center.create.ai.name.ph}" />
+                            </div>
+                            <div style="margin-bottom:1rem;">
+                                <label class="ai-field-label" th:text="#{admin.policy.center.create.ai.desc.ph}">Description</label>
+                                <textarea id="ai-card-description" class="ai-card-desc" rows="2" th:placeholder="#{admin.policy.center.create.ai.desc.ph}"></textarea>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:1.5rem;">
+                                <div>
+                                    <label class="ai-field-label" th:text="#{admin.policy.center.create.manual.effect}">Effect</label>
+                                    <select id="ai-card-effect" class="ai-card-effect-select cs-skip" style="width:auto;">
+                                        <option value="ALLOW" th:text="#{admin.policy.center.effect.allow}">ALLOW</option>
+                                        <option value="DENY" th:text="#{admin.policy.center.effect.deny}">DENY</option>
+                                    </select>
                                 </div>
-                                <span class="ai-confidence-value" id="ai-confidence-value" style="font-size: 0.8125rem;">-</span>
+                                <div style="flex:1;">
+                                    <label class="ai-field-label" th:text="#{admin.policy.center.create.ai.completeness}">Completeness</label>
+                                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                                        <div class="ai-confidence-gauge" style="flex:1;"><div class="ai-confidence-fill" id="ai-confidence-fill"></div></div>
+                                        <span class="ai-confidence-value" id="ai-confidence-value">-</span>
+                                        <span class="ai-completeness-status" id="ai-completeness-status"></span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="ai-confidence-deductions hidden" id="ai-confidence-deductions" style="margin-bottom: 1rem;"></div>
 
-                        <!-- Description -->
-                        <textarea class="ai-card-desc" id="ai-card-description" rows="2" style="margin-bottom: 1.5rem;" th:placeholder="#{admin.policy.center.create.ai.desc.ph}" placeholder="Description"></textarea>
-
-                        <!-- ===== Policy Flow Diagram: WHO -> WHAT -> WHEN ===== -->
-                        <div style="display: flex; align-items: stretch; margin-bottom: 2rem; gap: 0;">
-
-                            <!-- WHO -->
-                            <div style="flex: 1; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.02) 100%); border: 1px solid rgba(99,102,241,0.2); border-radius: 1rem 0 0 1rem; padding: 1.5rem;">
-                                <div class="text-center mb-4">
-                                    <div style="width: 3rem; height: 3rem; margin: 0 auto 0.75rem; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(99,102,241,0.3);">
-                                        <i class="fas fa-users text-white" style="font-size: 1.25rem;"></i>
+                        <!-- Area 2: Roles & Permissions -->
+                        <div class="modern-card p-6" style="margin-bottom:1rem;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                                <!-- Roles column -->
+                                <div>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+                                        <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-users" style="color:#818cf8;margin-right:0.375rem;"></i><span th:text="#{admin.access.center.overview.role}">Roles</span> (<span id="ai-role-count">0</span>)</span>
+                                        <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('role')"><i class="fas fa-plus"></i></button>
                                     </div>
-                                    <div style="color: #818cf8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">WHO</div>
-                                    <div style="color: #64748b; font-size: 0.6875rem; margin-top: 0.125rem;" th:text="#{admin.access.center.overview.role}">Role</div>
+                                    <div class="ai-card-chips" id="ai-card-roles" style="min-height:2.5rem;"></div>
                                 </div>
-                                <div class="ai-card-chips" id="ai-card-roles" style="min-height: 2rem; justify-content: center;"></div>
-                                <div class="text-center mt-3">
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('role')"><i class="fas fa-plus mr-1"></i><span th:text="#{common.add}">Add</span></button>
-                                </div>
-                            </div>
-
-                            <!-- Arrow 1 -->
-                            <div style="display: flex; align-items: center; padding: 0; background: linear-gradient(90deg, rgba(99,102,241,0.1), rgba(16,185,129,0.1)); width: 3rem; justify-content: center;">
-                                <div style="width: 2.5rem; height: 2.5rem; background: rgba(30,41,59,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(71,85,105,0.3);">
-                                    <i class="fas fa-arrow-right" style="color: #94a3b8;"></i>
-                                </div>
-                            </div>
-
-                            <!-- WHAT -->
-                            <div style="flex: 1; background: linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.02) 100%); border: 1px solid rgba(16,185,129,0.2); padding: 1.5rem;">
-                                <div class="text-center mb-4">
-                                    <div style="width: 3rem; height: 3rem; margin: 0 auto 0.75rem; background: linear-gradient(135deg, #10b981, #059669); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">
-                                        <i class="fas fa-key text-white" style="font-size: 1.25rem;"></i>
+                                <!-- Permissions column -->
+                                <div>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+                                        <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-key" style="color:#10b981;margin-right:0.375rem;"></i><span th:text="#{admin.access.center.overview.permission}">Permissions</span> (<span id="ai-perm-count">0</span>)</span>
+                                        <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('permission')"><i class="fas fa-plus"></i></button>
                                     </div>
-                                    <div style="color: #10b981; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">WHAT</div>
-                                    <div style="color: #64748b; font-size: 0.6875rem; margin-top: 0.125rem;" th:text="#{admin.access.center.overview.permission}">Permission</div>
-                                </div>
-                                <div class="ai-card-chips" id="ai-card-permissions" style="min-height: 2rem; justify-content: center;"></div>
-                                <div class="text-center mt-3">
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('permission')"><i class="fas fa-plus mr-1"></i><span th:text="#{common.add}">Add</span></button>
+                                    <div class="ai-card-chips" id="ai-card-permissions" style="min-height:2.5rem;"></div>
                                 </div>
                             </div>
-
-                            <!-- Arrow 2 -->
-                            <div style="display: flex; align-items: center; padding: 0; background: linear-gradient(90deg, rgba(16,185,129,0.1), rgba(245,158,11,0.1)); width: 3rem; justify-content: center;">
-                                <div style="width: 2.5rem; height: 2.5rem; background: rgba(30,41,59,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(71,85,105,0.3);">
-                                    <i class="fas fa-arrow-right" style="color: #94a3b8;"></i>
+                            <!-- Conditions row below -->
+                            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(71,85,105,0.3);">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+                                    <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-clock" style="color:#f59e0b;margin-right:0.375rem;"></i><span th:text="#{admin.policy.center.create.ai.condition}">Conditions</span> (<span id="ai-cond-count">0</span>)</span>
+                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('condition')"><i class="fas fa-plus"></i></button>
                                 </div>
-                            </div>
-
-                            <!-- WHEN -->
-                            <div style="flex: 1; background: linear-gradient(180deg, rgba(245,158,11,0.08) 0%, rgba(245,158,11,0.02) 100%); border: 1px solid rgba(245,158,11,0.2); border-radius: 0 1rem 1rem 0; padding: 1.5rem;">
-                                <div class="text-center mb-4">
-                                    <div style="width: 3rem; height: 3rem; margin: 0 auto 0.75rem; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(245,158,11,0.3);">
-                                        <i class="fas fa-clock text-white" style="font-size: 1.25rem;"></i>
-                                    </div>
-                                    <div style="color: #f59e0b; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">WHEN</div>
-                                    <div style="color: #64748b; font-size: 0.6875rem; margin-top: 0.125rem;" th:text="#{admin.policy.center.create.ai.condition}">Condition</div>
-                                </div>
-                                <div class="ai-card-chips" id="ai-card-conditions" style="min-height: 2rem; justify-content: center;"></div>
-                                <div class="text-center mt-3">
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('condition')"><i class="fas fa-plus mr-1"></i><span th:text="#{common.add}">Add</span></button>
-                                </div>
+                                <div class="ai-card-chips" id="ai-card-conditions" style="min-height:2rem;"></div>
                             </div>
                         </div>
 
@@ -545,33 +522,31 @@
                         <div class="hidden" id="ai-card-spel-section"><input type="text" id="ai-card-spel" /></div>
                         <div class="hidden" id="ai-policy-card"></div>
 
-                        <!-- AI Reasoning -->
-                        <div class="hidden" id="ai-card-reasoning-section" style="margin-bottom: 1.5rem;">
-                            <div style="display: flex; align-items: flex-start; gap: 1rem; background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(99,102,241,0.03)); border: 1px solid rgba(139,92,246,0.15); border-radius: 0.75rem; padding: 1.25rem;">
-                                <div style="width: 2.5rem; height: 2.5rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 0.625rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                    <i class="fas fa-lightbulb text-white"></i>
+                        <!-- Area 3: AI Analysis (collapsible) -->
+                        <div class="modern-card p-4" id="ai-analysis-card" style="margin-bottom:1rem;">
+                            <!-- AI Reasoning (collapsible, default collapsed) -->
+                            <div id="ai-card-reasoning-section" class="hidden">
+                                <details>
+                                    <summary style="cursor:pointer;color:#a78bfa;font-weight:600;font-size:0.875rem;">
+                                        <i class="fas fa-robot" style="margin-right:0.375rem;"></i><span th:text="#{admin.policy.center.create.ai.reasoning}">AI Reasoning</span>
+                                    </summary>
+                                    <div id="ai-card-reasoning" style="color:#cbd5e1;font-size:0.8125rem;line-height:1.6;margin-top:0.5rem;padding:0.75rem;background:rgba(139,92,246,0.06);border-radius:0.5rem;"></div>
+                                </details>
+                            </div>
+                            <!-- Warnings list -->
+                            <div id="ai-warnings-list" style="margin-top:0.75rem;"></div>
+                            <!-- Conflict panel -->
+                            <div class="hidden" id="ai-conflict-panel" style="margin-top:0.75rem;padding:0.75rem;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:0.5rem;">
+                                <div style="font-weight:600;color:#fbbf24;font-size:0.8125rem;margin-bottom:0.5rem;">
+                                    <i class="fas fa-exclamation-triangle" style="margin-right:0.375rem;"></i><span th:text="#{admin.policy.center.create.ai.conflict}">Conflict Detected</span>
                                 </div>
-                                <div>
-                                    <div style="font-size: 0.75rem; font-weight: 600; color: #a78bfa; margin-bottom: 0.375rem;" th:text="#{admin.policy.center.create.ai.reasoning}">AI Reasoning</div>
-                                    <div id="ai-card-reasoning" style="font-size: 0.875rem; color: #cbd5e1; line-height: 1.7;"></div>
-                                </div>
+                                <div id="ai-conflict-list"></div>
                             </div>
                         </div>
 
-                        <!-- Conflict -->
-                        <div class="ai-conflict-panel hidden" id="ai-conflict-panel" style="margin-bottom: 1.25rem;">
-                            <h4><i class="fas fa-exclamation-triangle mr-2"></i><span th:text="#{admin.policy.center.create.ai.conflict}">Conflict Detected</span></h4>
-                            <div id="ai-conflict-list"></div>
-                        </div>
-
-                        <!-- Impact -->
-                        <div id="ai-simulation-panel" style="margin-bottom: 1.5rem;">
-                            <div id="ai-simulation-content"></div>
-                        </div>
-
-                        <!-- Actions -->
-                        <div class="flex gap-4" style="padding-top: 0.5rem;">
-                            <button type="button" class="modern-btn-primary" id="ai-save-btn" onclick="PolicyCenter.AI.confirmSave()" style="padding: 0.875rem 2rem;">
+                        <!-- Area 4: Buttons -->
+                        <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+                            <button type="button" class="modern-btn-primary" id="ai-save-btn" style="flex:1;" onclick="PolicyCenter.AI.confirmSave()">
                                 <i class="fas fa-save"></i> <span th:text="#{admin.policy.center.create.manual.save}">Save Policy</span>
                             </button>
                             <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.AI.reset()">
@@ -956,7 +931,15 @@
      th:data-ai-empty-response="#{policy.center.js.ai.empty.response}"
      th:data-ai-validation-failed="#{policy.center.js.ai.validation.failed}"
      th:data-btn-restore="#{common.restore}"
-     th:data-btn-exclude="#{common.exclude}">
+     th:data-btn-exclude="#{common.exclude}"
+     th:data-completeness-good="#{admin.policy.center.create.ai.completeness.good}"
+     th:data-completeness-fair="#{admin.policy.center.create.ai.completeness.fair}"
+     th:data-completeness-insufficient="#{admin.policy.center.create.ai.completeness.insufficient}"
+     th:data-sim-warning-many-roles="#{policy.center.js.sim.warning.many.roles}"
+     th:data-sim-warning-many-perms="#{policy.center.js.sim.warning.many.perms}"
+     th:data-sim-warning-no-conditions="#{policy.center.js.sim.warning.no.conditions}"
+     th:data-sim-warning-deny="#{policy.center.js.sim.warning.deny}"
+     th:data-sim-warning-sensitive="#{policy.center.js.sim.warning.sensitive}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>

@@ -1300,11 +1300,23 @@ const PolicyCenter = {
             document.getElementById('ai-card-effect').value = data.effect || 'ALLOW';
             document.getElementById('ai-card-description').value = data.description || '';
 
-            this.renderChips('ai-card-roles', (data.roleIds || []).map(id => ({ id, name: maps.roles[id] || maps.roles[String(id)] || 'ID:' + id })), 'role');
-            this.renderChips('ai-card-permissions', (data.permissionIds || []).map(id => ({ id, name: maps.permissions[id] || maps.permissions[String(id)] || 'ID:' + id })), 'permission');
-            this.renderChips('ai-card-conditions', Object.keys(data.conditions || {}).map(id => ({ id, name: maps.conditions[id] || maps.conditions[String(id)] || 'ID:' + id })), 'condition');
+            var roleItems = (data.roleIds || []).map(id => ({ id, name: maps.roles[id] || maps.roles[String(id)] || 'ID:' + id }));
+            var permItems = (data.permissionIds || []).map(id => ({ id, name: maps.permissions[id] || maps.permissions[String(id)] || 'ID:' + id }));
+            var condItems = Object.keys(data.conditions || {}).map(id => ({ id, name: maps.conditions[id] || maps.conditions[String(id)] || 'ID:' + id }));
 
-            const spelSection = document.getElementById('ai-card-spel-section');
+            this.renderChips('ai-card-roles', roleItems, 'role');
+            this.renderChips('ai-card-permissions', permItems, 'permission');
+            this.renderChips('ai-card-conditions', condItems, 'condition');
+
+            // Update count spans
+            var roleCountEl = document.getElementById('ai-role-count');
+            var permCountEl = document.getElementById('ai-perm-count');
+            var condCountEl = document.getElementById('ai-cond-count');
+            if (roleCountEl) roleCountEl.textContent = roleItems.length;
+            if (permCountEl) permCountEl.textContent = permItems.length;
+            if (condCountEl) condCountEl.textContent = condItems.length;
+
+            var spelSection = document.getElementById('ai-card-spel-section');
             if (data.customConditionSpel) {
                 spelSection.classList.remove('hidden');
                 document.getElementById('ai-card-spel').value = data.customConditionSpel;
@@ -1313,7 +1325,7 @@ const PolicyCenter = {
             }
 
             // AI reasoning
-            const reasoningSection = document.getElementById('ai-card-reasoning-section');
+            var reasoningSection = document.getElementById('ai-card-reasoning-section');
             if (reasoningSection) {
                 if (data.reasoning) {
                     reasoningSection.classList.remove('hidden');
@@ -1531,75 +1543,79 @@ const PolicyCenter = {
         // ---- Impact Simulation ----
 
         simulateImpact(policyData) {
-            const content = document.getElementById('ai-simulation-content');
-            const roleCount = (policyData.roleIds || []).length;
-            const permCount = (policyData.permissionIds || []).length;
-            const condCount = Object.keys(policyData.conditions || {}).length;
+            var warningsEl = document.getElementById('ai-warnings-list');
+            if (!warningsEl) return;
+            var roleCount = (policyData.roleIds || []).length;
+            var permCount = (policyData.permissionIds || []).length;
+            var condCount = Object.keys(policyData.conditions || {}).length;
 
-            // Risk calculation
-            let riskScore = 0;
-            const warnings = [];
-            if (roleCount > 3) { riskScore += 2; warnings.push('Many roles affected (' + roleCount + ')'); }
-            if (permCount > 5) { riskScore += 1; warnings.push('Many permissions granted (' + permCount + ')'); }
-            if (condCount === 0) { riskScore += 2; warnings.push('No conditions - policy applies unconditionally'); }
-            if (policyData.effect === 'DENY') { riskScore += 1; warnings.push('DENY effect - may block legitimate access'); }
+            var warnings = [];
+            if (roleCount > 3) warnings.push(PolicyCenter._i18n('simWarningManyRoles', 'Many roles affected ({0})').replace('{0}', roleCount));
+            if (permCount > 5) warnings.push(PolicyCenter._i18n('simWarningManyPerms', 'Many permissions granted ({0})').replace('{0}', permCount));
+            if (condCount === 0) warnings.push(PolicyCenter._i18n('simWarningNoConditions', 'No conditions - policy applies unconditionally'));
+            if (policyData.effect === 'DENY') warnings.push(PolicyCenter._i18n('simWarningDeny', 'DENY effect - may block legitimate access'));
 
             // Check for sensitive permissions
+            var sensitiveCount = 0;
             if (this._cachedAvailableItems) {
-                const perms = this._cachedAvailableItems.permissions || [];
-                const selectedPerms = perms.filter(p => (policyData.permissionIds || []).includes(p.id));
-                const sensitive = selectedPerms.filter(p => {
-                    const name = (p.friendlyName || p.name || '').toLowerCase();
+                var perms = this._cachedAvailableItems.permissions || [];
+                var selectedPerms = perms.filter(function(p) { return (policyData.permissionIds || []).indexOf(p.id) !== -1; });
+                var sensitive = selectedPerms.filter(function(p) {
+                    var name = (p.friendlyName || p.name || '').toLowerCase();
                     return name.includes('delete') || name.includes('admin') || name.includes('write') || name.includes('modify');
                 });
-                if (sensitive.length > 0) { riskScore += 2; warnings.push(sensitive.length + ' sensitive permission(s) detected'); }
+                sensitiveCount = sensitive.length;
             }
+            if (sensitiveCount > 0) warnings.push(PolicyCenter._i18n('simWarningSensitive', '{0} sensitive permission(s) detected').replace('{0}', sensitiveCount));
 
-            const riskLevel = riskScore >= 4 ? 'high' : riskScore >= 2 ? 'medium' : 'low';
-            const riskLabel = { high: PolicyCenter._i18n('riskHigh', 'High Risk'), medium: PolicyCenter._i18n('riskMedium', 'Medium Risk'), low: PolicyCenter._i18n('riskLow', 'Low Risk') };
-
-            content.innerHTML =
-                '<div class="ai-sim-grid">' +
-                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + roleCount + '</div><div class="ai-sim-stat-label">' + PolicyCenter._i18n('simRoles', 'Roles') + '</div></div>' +
-                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + permCount + '</div><div class="ai-sim-stat-label">' + PolicyCenter._i18n('simPermissions', 'Permissions') + '</div></div>' +
-                '<div class="ai-sim-stat"><div class="ai-sim-stat-value">' + condCount + '</div><div class="ai-sim-stat-label">' + PolicyCenter._i18n('simConditions', 'Conditions') + '</div></div>' +
-                '</div>' +
-                '<div class="ai-sim-risk risk-' + riskLevel + '">' +
-                '<strong>' + riskLabel[riskLevel] + '</strong>' +
-                (warnings.length > 0 ? '<ul style="margin:0.5rem 0 0 1rem;font-size:0.75rem;">' + warnings.map(w => '<li>' + w + '</li>').join('') + '</ul>' : '') +
-                '</div>';
+            var html = '';
+            warnings.forEach(function(w) {
+                html += '<div style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.375rem 0;color:#fbbf24;font-size:0.8125rem;"><i class="fas fa-exclamation-triangle" style="flex-shrink:0;margin-top:0.1rem;"></i><span>' + w + '</span></div>';
+            });
+            warningsEl.innerHTML = html;
         },
 
         // ---- Confidence ----
 
         renderConfidence(policyData) {
-            let score = 100;
-            const deductions = [];
+            var score = 100;
 
-            if (this._filteredCount > 0) { score -= this._filteredCount * 10; deductions.push(this._filteredCount + ' invalid ID(s) removed'); }
-            if (!(policyData.roleIds || []).length) { score -= 30; deductions.push('No roles assigned'); }
-            if (!(policyData.permissionIds || []).length) { score -= 30; deductions.push('No permissions assigned'); }
-            if (Object.keys(policyData.conditions || {}).length === 0) { score -= 10; deductions.push('No conditions - policy may be too broad'); }
-            if (this._wasFallback) { score -= 40; deductions.push('Fallback policy was generated'); }
+            if (this._filteredCount > 0) { score -= this._filteredCount * 10; }
+            if (!(policyData.roleIds || []).length) { score -= 30; }
+            if (!(policyData.permissionIds || []).length) { score -= 30; }
+            if (Object.keys(policyData.conditions || {}).length === 0) { score -= 10; }
+            if (this._wasFallback) { score -= 40; }
 
             score = Math.max(0, Math.min(100, score));
-            const level = score >= 80 ? 'high' : score >= 50 ? 'medium' : 'low';
-            const color = { high: '#22c55e', medium: '#f59e0b', low: '#ef4444' };
+            var level = score >= 80 ? 'high' : score >= 50 ? 'medium' : 'low';
+            var color = { high: '#22c55e', medium: '#f59e0b', low: '#ef4444' };
 
-            const fill = document.getElementById('ai-confidence-fill');
+            var fill = document.getElementById('ai-confidence-fill');
             fill.style.width = score + '%';
             fill.className = 'ai-confidence-fill ' + level;
 
-            const valueEl = document.getElementById('ai-confidence-value');
+            var valueEl = document.getElementById('ai-confidence-value');
             valueEl.textContent = score + '%';
             valueEl.style.color = color[level];
 
-            const dedEl = document.getElementById('ai-confidence-deductions');
-            if (deductions.length > 0) {
-                dedEl.classList.remove('hidden');
-                dedEl.innerHTML = '<ul>' + deductions.map(d => '<li>' + d + '</li>').join('') + '</ul>';
-            } else {
-                dedEl.classList.add('hidden');
+            // Completeness status text
+            var statusEl = document.getElementById('ai-completeness-status');
+            if (statusEl) {
+                var statusText, statusColor;
+                if (score >= 80) {
+                    statusText = PolicyCenter._i18n('completenessGood', 'Good');
+                    statusColor = '#22c55e';
+                } else if (score >= 50) {
+                    statusText = PolicyCenter._i18n('completenessFair', 'Fair');
+                    statusColor = '#f59e0b';
+                } else {
+                    statusText = PolicyCenter._i18n('completenessInsufficient', 'Insufficient');
+                    statusColor = '#ef4444';
+                }
+                statusEl.textContent = statusText;
+                statusEl.style.color = statusColor;
+                statusEl.style.fontWeight = '600';
+                statusEl.style.fontSize = '0.8125rem';
             }
         },
 
