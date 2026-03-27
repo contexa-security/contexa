@@ -21,11 +21,11 @@ public class BusinessAction implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
-    private String name; 
+    @Column(unique = true, nullable = false, length = 255)
+    private String name;
 
-    @Column(nullable = false)
-    private String actionType; 
+    @Column(nullable = false, length = 100)
+    private String actionType;
 
     @Column(length = 1024)
     private String description;

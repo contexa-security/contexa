@@ -25,14 +25,19 @@ public class ManagedResource {
     private ResourceType resourceType;
     @Enumerated(EnumType.STRING)
     private HttpMethod httpMethod;
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String friendlyName;
     @Column(length = 1024)
     private String description;
+    @Column(length = 255)
     private String serviceOwner;
+    @Column(length = 1024)
     private String parameterTypes;
+    @Column(length = 512)
     private String returnType;
+    @Column(length = 1024)
     private String apiDocsUrl;
+    @Column(length = 1024)
     private String sourceCodeLocation;
     @Column(length = 1024)
     private String availableContextVariables;

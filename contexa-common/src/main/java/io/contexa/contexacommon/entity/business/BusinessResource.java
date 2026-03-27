@@ -22,11 +22,11 @@ public class BusinessResource implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
-    private String name; 
+    @Column(unique = true, nullable = false, length = 255)
+    private String name;
 
-    @Column(nullable = false)
-    private String resourceType; 
+    @Column(nullable = false, length = 100)
+    private String resourceType;
 
     @Column(length = 1024)
     private String description;

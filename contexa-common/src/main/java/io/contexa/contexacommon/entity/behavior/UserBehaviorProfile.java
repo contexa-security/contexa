@@ -16,13 +16,13 @@ public class UserBehaviorProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id", nullable = false, length = 255)
     private String userId;
 
     @Column(name = "profile_type", nullable = false, length = 50)
     private String profileType;
 
-    @Column(name = "vector_cluster_id")
+    @Column(name = "vector_cluster_id", length = 100)
     private String vectorClusterId;
 
     @Column(name = "cluster_centroid_vector", columnDefinition = "TEXT")

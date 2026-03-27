@@ -55,11 +55,11 @@ public interface SoarApprovalRequestRepository extends JpaRepository<SoarApprova
             select request
             from SoarApprovalRequest request
             where (:statusesEmpty = true or upper(request.status) in :statuses)
-              and (:riskLevel is null or upper(request.riskLevel) = upper(:riskLevel))
-              and (:toolName is null or lower(request.toolName) like lower(concat('%', :toolName, '%')))
-              and (:incidentId is null or upper(request.incidentId) = upper(:incidentId))
-              and (:organizationId is null or upper(request.organizationId) = upper(:organizationId))
-              and (:requestedBy is null or lower(request.requestedBy) like lower(concat('%', :requestedBy, '%')))
+              and (:riskLevel is null or upper(request.riskLevel) = :riskLevel)
+              and (:toolName is null or lower(request.toolName) like concat('%', :toolName, '%'))
+              and (:incidentId is null or upper(request.incidentId) = :incidentId)
+              and (:organizationId is null or upper(request.organizationId) = :organizationId)
+              and (:requestedBy is null or lower(request.requestedBy) like concat('%', :requestedBy, '%'))
             order by request.createdAt desc
             """)
     Page<SoarApprovalRequest> searchOperations(

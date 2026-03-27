@@ -29,7 +29,7 @@ public class BusinessResourceAction {
     @JoinColumn(name = "business_action_id")
     private BusinessAction businessAction;
 
-    @Column(name = "mapped_permission_name", nullable = false)
+    @Column(name = "mapped_permission_name", nullable = false, length = 255)
     private String mappedPermissionName;
 
     

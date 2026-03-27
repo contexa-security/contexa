@@ -24,40 +24,40 @@ public class SoarApprovalRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false, updatable = false)
+    @Column(unique = true, nullable = false, updatable = false, length = 100)
     private String requestId;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 100)
     private String playbookInstanceId;
 
-    @Column(name = "incident_id")
+    @Column(name = "incident_id", length = 100)
     private String incidentId;
 
-    @Column(name = "session_id")
+    @Column(name = "session_id", length = 128)
     private String sessionId;
 
-    @Column(name = "risk_level")
+    @Column(name = "risk_level", length = 20)
     private String riskLevel;
 
-    @Column(name = "approval_type")
+    @Column(name = "approval_type", length = 50)
     private String approvalType;
 
-    @Column(name = "requested_by")
+    @Column(name = "requested_by", length = 255)
     private String requestedBy;
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
-    @Column(name = "action_type")
+    @Column(name = "action_type", length = 50)
     private String actionType;
 
     @Column(name = "approval_timeout")
     private Integer approvalTimeout;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 255)
     private String actionName;
 
-    @Column(name = "tool_name")
+    @Column(name = "tool_name", length = 255)
     private String toolName;
 
     @Column(columnDefinition = "TEXT", updatable = false)
@@ -67,15 +67,16 @@ public class SoarApprovalRequest {
     @Column(columnDefinition = "TEXT", updatable = false)
     private Map<String, Object> parameters;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private String status;
 
-    @Column
+    @Column(length = 255)
     private String reviewerId;
 
-    @Column(name = "approved_by")
+    @Column(name = "approved_by", length = 255)
     private String approvedBy;
 
+    @Column(name = "organization_id", length = 100)
     private String organizationId;
 
     @Column(columnDefinition = "TEXT")
@@ -117,7 +118,7 @@ public class SoarApprovalRequest {
     @Column(name = "total_steps")
     private Integer totalSteps;
 
-    @Column(name = "reopened_from_request_id")
+    @Column(name = "reopened_from_request_id", length = 100)
     private String reopenedFromRequestId;
 
     @Column(name = "break_glass_requested", nullable = false, columnDefinition = "boolean default false")

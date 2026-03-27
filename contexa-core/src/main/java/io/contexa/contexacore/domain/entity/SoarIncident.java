@@ -22,7 +22,7 @@ public class SoarIncident {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String title;
 
     @Enumerated(EnumType.STRING)
@@ -32,10 +32,10 @@ public class SoarIncident {
     @Column(length = 20)
     private String severity;
 
-    @Column
+    @Column(length = 100)
     private String incidentId;
 
-    @Column
+    @Column(length = 50)
     private String type;
 
     @Column(columnDefinition = "TEXT")

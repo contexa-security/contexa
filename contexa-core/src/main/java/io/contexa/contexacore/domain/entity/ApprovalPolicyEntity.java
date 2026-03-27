@@ -13,13 +13,13 @@ public class ApprovalPolicyEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 255)
     private String policyName;
 
-    @Column
+    @Column(length = 255)
     private String actionName;
 
-    @Column
+    @Column(length = 20)
     private String severity;
 
     @Column(nullable = false)

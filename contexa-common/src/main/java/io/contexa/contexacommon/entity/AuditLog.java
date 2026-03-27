@@ -25,26 +25,30 @@ public class AuditLog {
     @CreatedDate 
     private LocalDateTime timestamp;
 
-    @Column(nullable = false)
-    private String principalName; 
+    @Column(nullable = false, length = 255)
+    private String principalName;
 
     @Column(nullable = false, length = 512)
     private String resourceIdentifier; 
 
-    private String action; 
+    @Column(length = 100)
+    private String action;
 
-    @Column(nullable = false)
-    private String decision; 
+    @Column(nullable = false, length = 50)
+    private String decision;
 
     @Column(length = 1024)
     private String reason; 
 
+    @Column(length = 50)
     private String outcome;
 
     @Column(length = 1024)
     private String resourceUri;
 
+    @Column(length = 45)
     private String clientIp;
+    @Column(length = 128)
     private String sessionId;
 
     @Column(columnDefinition = "TEXT")

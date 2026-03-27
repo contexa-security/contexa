@@ -20,10 +20,10 @@ public class Permission implements Serializable {
     @Column(name = "permission_id")
     private Long id;
 
-    @Column(name = "permission_name", unique = true, nullable = false)
+    @Column(name = "permission_name", unique = true, nullable = false, length = 255)
     private String name;
 
-    @Column(name = "friendly_name")
+    @Column(name = "friendly_name", length = 255)
     private String friendlyName;
 
     @Column(name = "description", length = 1024)

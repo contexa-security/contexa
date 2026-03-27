@@ -22,14 +22,14 @@ public class ThreatIndicator {
     
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "indicator_id")
+    @Column(name = "indicator_id", length = 100)
     private String indicatorId;
     
     @Enumerated(EnumType.STRING)
     @Column(name = "indicator_type", nullable = false)
     private IndicatorType type;
     
-    @Column(name = "indicator_value", nullable = false)
+    @Column(name = "indicator_value", nullable = false, length = 1024)
     private String value;
     
     @Enumerated(EnumType.STRING)
@@ -41,19 +41,19 @@ public class ThreatIndicator {
     @Builder.Default
     private Double confidence = 0.5;
     
-    @Column(name = "source")
+    @Column(name = "source", length = 255)
     private String source;
     
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
     
-    @Column(name = "threat_actor")
+    @Column(name = "threat_actor", length = 255)
     private String threatActor;
     
-    @Column(name = "malware_family")
+    @Column(name = "malware_family", length = 255)
     private String malwareFamily;
     
-    @Column(name = "campaign")
+    @Column(name = "campaign", length = 255)
     private String campaign;
     
     @Enumerated(EnumType.STRING)
@@ -89,13 +89,13 @@ public class ThreatIndicator {
     @Builder.Default
     private Set<String> tags = new HashSet<>();
     
-    @Column(name = "mitre_attack_id")
+    @Column(name = "mitre_attack_id", length = 50)
     private String mitreAttackId;
     
-    @Column(name = "mitre_tactic")
+    @Column(name = "mitre_tactic", length = 100)
     private String mitreTactic;
     
-    @Column(name = "mitre_technique")
+    @Column(name = "mitre_technique", length = 100)
     private String mitreTechnique;
     
     @Column(name = "detection_count")
@@ -113,10 +113,10 @@ public class ThreatIndicator {
     @Column(name = "detected_at")
     private LocalDateTime detectedAt;
     
-    @Column(name = "cis_control")
+    @Column(name = "cis_control", length = 100)
     private String cisControl;
     
-    @Column(name = "nist_csf_category")
+    @Column(name = "nist_csf_category", length = 100)
     private String nistCsfCategory;
     
     @Column(name = "active")
@@ -126,10 +126,10 @@ public class ThreatIndicator {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    @Column(name = "campaign_id")
+    @Column(name = "campaign_id", length = 100)
     private String campaignId;
     
-    @Column(name = "threat_actor_id")
+    @Column(name = "threat_actor_id", length = 100)
     private String threatActorId;
     
     @ManyToMany
