@@ -30,135 +30,69 @@
                 </a>
             </div>
 
-            <!-- ============ READ-ONLY INFO (edit mode only) ============ -->
-            <div th:if="${policy.id != null}" class="modern-card p-6 space-y-4">
-                <h2 class="text-lg font-semibold" style="color:#e2e8f0;">
-                    <i class="fas fa-info-circle mr-2" style="color:#818cf8;"></i>
-                    <span th:text="#{admin.policy.detail.policy.info}">Policy Information</span>
-                </h2>
-
-                <!-- Status Badges Row -->
-                <div class="flex flex-wrap gap-3 items-center">
-                    <span class="status-badge" th:classappend="${policy.effect?.name() == 'ALLOW' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}">
-                        <i th:class="${policy.effect?.name() == 'ALLOW' ? 'fas fa-check-circle' : 'fas fa-ban'}"></i>
-                        <span th:text="${policy.effect}">ALLOW</span>
-                    </span>
-                    <span class="status-badge" th:classappend="${policy.isActive ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}">
-                        <i th:class="${policy.isActive ? 'fas fa-toggle-on' : 'fas fa-toggle-off'}"></i>
-                        <span th:text="${policy.isActive} ? #{admin.policy.detail.status.active} : #{admin.policy.detail.status.inactive}">Active</span>
-                    </span>
-                    <span class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30">
-                        <i class="fas fa-tag"></i>
-                        <span th:text="${policy.source}">MANUAL</span>
-                    </span>
-                    <span class="status-badge" th:classappend="${policy.approvalStatus?.name() == 'APPROVED' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                                                                 policy.approvalStatus?.name() == 'PENDING' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                                                                 policy.approvalStatus?.name() == 'REJECTED' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                                                                 'bg-slate-500/20 text-slate-400 border-slate-500/30'}">
-                        <i class="fas fa-clipboard-check"></i>
-                        <span th:text="${policy.approvalStatus}">NOT_REQUIRED</span>
-                    </span>
-                    <span style="color:#64748b;font-size:0.8125rem;">
-                        <strong style="color:#94a3b8;" th:text="#{admin.policy.center.list.th.priority}">Priority</strong>: <span th:text="${policy.priority}">100</span>
-                    </span>
-                </div>
-
-                <!-- Detail Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.75rem;">
-                        <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.created.at}">Created</div>
-                        <div style="color:#e2e8f0;font-size:0.875rem;" th:text="${policy.createdAt != null ? #temporals.format(policy.createdAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"></div>
-                    </div>
-                    <div style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.75rem;">
-                        <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.updated.at}">Updated</div>
-                        <div style="color:#e2e8f0;font-size:0.875rem;" th:text="${policy.updatedAt != null ? #temporals.format(policy.updatedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"></div>
-                    </div>
-                </div>
-
-                <!-- Approved By -->
-                <div th:if="${policy.approvedBy != null}" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.75rem;">
-                    <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.approved.by}">Approved By</div>
-                    <div style="color:#e2e8f0;font-size:0.875rem;">
-                        <span th:text="${policy.approvedBy}"></span>
-                        <span th:if="${policy.approvedAt != null}" style="color:#64748b;margin-left:0.5rem;" th:text="'(' + ${#temporals.format(policy.approvedAt, 'yyyy-MM-dd HH:mm')} + ')'"></span>
-                    </div>
-                </div>
-
-                <!-- Friendly Description -->
-                <div th:if="${policy.friendlyDescription != null}" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.75rem;">
-                    <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.friendly.desc}">Friendly Description</div>
-                    <div style="color:#cbd5e1;font-size:0.875rem;line-height:1.6;" th:text="${policy.friendlyDescription}"></div>
-                </div>
-
-                <!-- AI Info (if AI generated) -->
-                <div th:if="${policy.isAIGenerated()}" class="space-y-3">
-                    <div class="flex items-center gap-2 text-sm" style="color:#a78bfa;">
-                        <i class="fas fa-robot"></i>
-                        <strong th:text="#{admin.policy.detail.ai.info}">AI Generation Info</strong>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div th:if="${policy.aiModel != null}" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:0.5rem;padding:0.75rem;">
-                            <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.ai.model}">AI Model</div>
-                            <div style="color:#e2e8f0;font-size:0.875rem;" th:text="${policy.aiModel}"></div>
-                        </div>
-                        <div th:if="${policy.confidenceScore != null}" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:0.5rem;padding:0.75rem;">
-                            <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.ai.confidence}">Confidence Score</div>
-                            <div style="color:#e2e8f0;font-size:0.875rem;" th:text="${#numbers.formatDecimal(policy.confidenceScore, 1, 2)}"></div>
-                        </div>
-                    </div>
-                    <div th:if="${policy.reasoning != null}" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:0.5rem;padding:0.75rem;">
-                        <div class="text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.ai.reasoning}">AI Reasoning</div>
-                        <div style="color:#cbd5e1;font-size:0.8125rem;line-height:1.7;white-space:pre-wrap;" th:text="${policy.reasoning}"></div>
-                    </div>
-                </div>
-
-                <!-- Current Targets (read-only) -->
-                <div>
-                    <div class="text-xs font-semibold mb-2" style="color:#64748b;" th:text="#{admin.policy.detail.current.targets}">Current Targets</div>
-                    <div class="space-y-1">
-                        <div th:each="t : ${policy.targets}" class="flex items-center gap-2 text-sm" style="padding:0.375rem 0.625rem;background:rgba(30,41,59,0.4);border-radius:0.375rem;border:1px solid rgba(71,85,105,0.2);">
-                            <span class="resource-type-badge" th:classappend="${t.targetType == 'URL' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}" th:text="${t.targetType}" style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:0.25rem;"></span>
-                            <span th:if="${t.httpMethod != null and t.httpMethod != 'ANY'}" style="color:#94a3b8;font-size:0.75rem;" th:text="${t.httpMethod}"></span>
-                            <span class="font-mono" style="color:#e2e8f0;" th:text="${t.targetIdentifier}"></span>
-                        </div>
-                        <div th:if="${#lists.isEmpty(policy.targets)}" style="color:#64748b;font-size:0.8125rem;" th:text="#{admin.policy.detail.no.targets}">No targets defined.</div>
-                    </div>
-                </div>
-
-                <!-- Current Rules & Conditions (read-only) -->
-                <div>
-                    <div class="text-xs font-semibold mb-2" style="color:#64748b;" th:text="#{admin.policy.detail.current.rules}">Current Rules</div>
-                    <div class="space-y-2">
-                        <div th:each="r, rStat : ${policy.rules}" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.75rem;">
-                            <div class="font-semibold text-sm mb-2" style="color:#e2e8f0;">
-                                <span th:text="#{admin.policy.detail.rule.label}">Rule</span> #<span th:text="${rStat.index + 1}"></span>
-                                <span th:if="${r.description != null}" style="color:#94a3b8;font-weight:400;margin-left:0.5rem;" th:text="'- ' + ${r.description}"></span>
-                            </div>
-                            <div th:each="c : ${r.conditions}" class="flex items-start gap-2 mb-1" style="padding:0.25rem 0.5rem;background:rgba(15,23,42,0.4);border-radius:0.25rem;">
-                                <span class="status-badge" style="font-size:0.65rem;padding:0.1rem 0.4rem;flex-shrink:0;"
-                                      th:classappend="${c.authorizationPhase?.name() == 'PRE_AUTHORIZE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                                                       c.authorizationPhase?.name() == 'POST_AUTHORIZE' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                                                       'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'}"
-                                      th:text="${c.authorizationPhase}">PRE</span>
-                                <code class="font-mono text-xs" style="color:#cbd5e1;word-break:break-all;" th:text="${c.expression}"></code>
-                            </div>
-                            <div th:if="${#sets.isEmpty(r.conditions)}" style="color:#64748b;font-size:0.75rem;" th:text="#{admin.policy.detail.no.conditions}">No conditions.</div>
-                        </div>
-                        <div th:if="${#lists.isEmpty(policy.rules)}" style="color:#64748b;font-size:0.8125rem;" th:text="#{admin.policy.detail.no.rules}">No rules defined.</div>
-                    </div>
-                </div>
-            </div>
-
             <!-- ============ EDIT FORM ============ -->
             <form th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
-                <!-- Basic Info -->
-                <div class="modern-card p-6">
-                    <h2 class="text-lg font-semibold mb-4" style="color:#e2e8f0;">
-                        <i class="fas fa-edit mr-2" style="color:#818cf8;"></i>
-                        <span th:text="${policy.id != null} ? #{admin.policy.detail.edit.form} : #{admin.policy.detail.basic.info}">Edit</span>
+                <!-- Policy Info -->
+                <div class="modern-card p-6 space-y-4">
+                    <h2 class="text-lg font-semibold" style="color:#e2e8f0;">
+                        <i class="fas fa-shield-alt mr-2" style="color:#818cf8;"></i>
+                        <span th:text="#{admin.policy.detail.policy.info}">Policy Information</span>
                     </h2>
+
+                    <!-- Status Badges (edit mode only) -->
+                    <div th:if="${policy.id != null}" class="flex flex-wrap gap-3 items-center mb-2">
+                        <span class="status-badge" th:classappend="${policy.effect?.name() == 'ALLOW' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}">
+                            <i th:class="${policy.effect?.name() == 'ALLOW' ? 'fas fa-check-circle' : 'fas fa-ban'}"></i>
+                            <span th:text="${policy.effect}">ALLOW</span>
+                        </span>
+                        <span class="status-badge" th:classappend="${policy.isActive ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}">
+                            <i th:class="${policy.isActive ? 'fas fa-toggle-on' : 'fas fa-toggle-off'}"></i>
+                            <span th:text="${policy.isActive} ? #{admin.policy.detail.status.active} : #{admin.policy.detail.status.inactive}">Active</span>
+                        </span>
+                        <span class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30">
+                            <i class="fas fa-tag"></i> <span th:text="${policy.source}">MANUAL</span>
+                        </span>
+                        <span class="status-badge" th:classappend="${policy.approvalStatus?.name() == 'APPROVED' ? 'bg-green-500/20 text-green-400 border-green-500/30' : policy.approvalStatus?.name() == 'PENDING' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : policy.approvalStatus?.name() == 'REJECTED' ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}">
+                            <i class="fas fa-clipboard-check"></i> <span th:text="${policy.approvalStatus}">NOT_REQUIRED</span>
+                        </span>
+                    </div>
+
+                    <!-- Date/Approval Info (edit mode only) -->
+                    <div th:if="${policy.id != null}" class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+                        <div style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.625rem;">
+                            <span class="text-xs font-semibold" style="color:#64748b;" th:text="#{admin.policy.detail.created.at}">Created</span>
+                            <span style="color:#e2e8f0;font-size:0.8125rem;margin-left:0.5rem;" th:text="${policy.createdAt != null ? #temporals.format(policy.createdAt, 'yyyy-MM-dd HH:mm') : '-'}"></span>
+                        </div>
+                        <div style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.625rem;">
+                            <span class="text-xs font-semibold" style="color:#64748b;" th:text="#{admin.policy.detail.updated.at}">Updated</span>
+                            <span style="color:#e2e8f0;font-size:0.8125rem;margin-left:0.5rem;" th:text="${policy.updatedAt != null ? #temporals.format(policy.updatedAt, 'yyyy-MM-dd HH:mm') : '-'}"></span>
+                        </div>
+                    </div>
+                    <div th:if="${policy.approvedBy != null}" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.625rem;margin-bottom:0.5rem;">
+                        <span class="text-xs font-semibold" style="color:#64748b;" th:text="#{admin.policy.detail.approved.by}">Approved By</span>
+                        <span style="color:#e2e8f0;font-size:0.8125rem;margin-left:0.5rem;" th:text="${policy.approvedBy}"></span>
+                        <span th:if="${policy.approvedAt != null}" style="color:#64748b;font-size:0.75rem;margin-left:0.25rem;" th:text="'(' + ${#temporals.format(policy.approvedAt, 'yyyy-MM-dd HH:mm')} + ')'"></span>
+                    </div>
+                    <div th:if="${policy.id != null}" style="margin-bottom:0.5rem;">
+                        <label class="block text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.friendly.desc}">Friendly Description</label>
+                        <textarea th:field="*{friendlyDescription}" class="modern-input" rows="2" style="font-size:0.8125rem;"></textarea>
+                    </div>
+
+                    <!-- AI Info -->
+                    <div th:if="${policy.isAIGenerated()}" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:0.5rem;padding:0.75rem;margin-bottom:0.5rem;">
+                        <div class="flex items-center gap-2 text-xs font-semibold mb-2" style="color:#a78bfa;">
+                            <i class="fas fa-robot"></i> <span th:text="#{admin.policy.detail.ai.info}">AI Info</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3 text-sm" style="color:#e2e8f0;">
+                            <span th:if="${policy.aiModel != null}"><span style="color:#64748b;" th:text="#{admin.policy.detail.ai.model}">Model</span>: <span th:text="${policy.aiModel}"></span></span>
+                            <span th:if="${policy.confidenceScore != null}"><span style="color:#64748b;" th:text="#{admin.policy.detail.ai.confidence}">Score</span>: <span th:text="${#numbers.formatDecimal(policy.confidenceScore, 1, 2)}"></span></span>
+                        </div>
+                        <div th:if="${policy.reasoning != null}" style="color:#cbd5e1;font-size:0.8125rem;line-height:1.6;margin-top:0.5rem;white-space:pre-wrap;" th:text="${policy.reasoning}"></div>
+                    </div>
+
+                    <!-- Editable Fields -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{admin.policy.center.create.manual.policy.name}">Policy Name</label>
