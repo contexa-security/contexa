@@ -32,10 +32,11 @@ public class IamAdminCenterAutoConfiguration {
             BusinessPolicyService businessPolicyService,
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
+            io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
             MessageSource messageSource) {
         return new PolicyCenterController(
                 resourceRegistryService, policyService, policyRepository, roleService,
                 permissionCatalogService, businessPolicyService, conditionTemplateRepository,
-                managedResourceRepository, messageSource);
+                managedResourceRepository, securitySpelRepository, messageSource);
     }
 }
