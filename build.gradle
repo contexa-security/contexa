@@ -199,7 +199,7 @@ subprojects {
     }
 
 }
-
+//./gradlew clean publishToMavenCentral
 tasks.register('publishToMavenCentral') {
     group = 'publishing'
     description = 'Publish all modules to Maven Central and trigger Portal registration'
