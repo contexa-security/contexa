@@ -80,6 +80,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
             return MfaDecision.challenged("Zero Trust CHALLENGE - no user repository");
         }
 
+        log.error("[ZeroTrustPolicyEvaluator] findByUsernameWithGroupsRolesAndPermissions username={}", context.getUsername());
         Optional<Users> userOptional = userRepository
                 .findByUsernameWithGroupsRolesAndPermissions(context.getUsername());
 

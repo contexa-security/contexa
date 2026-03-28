@@ -83,6 +83,7 @@ public class AccessCenterController {
     @GetMapping("/api/users/{userId}/detail")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getUserDetail(@PathVariable Long userId) {
+        log.error("[AccessCenterController] findByIdWithGroupsRolesAndPermissions userId={}", userId);
         Users user = userRepository.findByIdWithGroupsRolesAndPermissions(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 

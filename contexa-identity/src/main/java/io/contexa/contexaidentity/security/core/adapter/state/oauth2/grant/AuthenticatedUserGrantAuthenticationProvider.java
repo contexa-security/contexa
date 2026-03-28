@@ -190,6 +190,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
     }
 
     private Users loadUserFromDatabase(String username) {
+        log.error("[AuthenticatedUserGrantAuthProvider] findByUsernameWithGroupsRolesAndPermissions username={}", username);
         return userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> {
                     log.error("User not found in database: {}", username);

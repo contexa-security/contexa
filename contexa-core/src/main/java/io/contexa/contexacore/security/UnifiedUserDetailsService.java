@@ -29,7 +29,8 @@ public class UnifiedUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        
+
+        log.error("[UnifiedUserDetailsService] findByUsernameWithGroupsRolesAndPermissions username={}", username);
         Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 

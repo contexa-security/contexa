@@ -1,7 +1,6 @@
 package io.contexa.contexacommon.repository;
 
 import io.contexa.contexacommon.entity.Users;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,7 +28,6 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             String authenticationSource
     );
 
-    @Cacheable(value = "usersWithAuthorities", key = "#username")
     @Query("SELECT u FROM Users u " +
             "LEFT JOIN FETCH u.userGroups ug " +
             "LEFT JOIN FETCH ug.group g " +
@@ -44,7 +42,6 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "WHERE u.username = :username")
     Optional<Users> findByUsernameWithGroupsRolesAndPermissions(@Param("username") String username);
 
-    @Cacheable(value = "usersWithAuthorities", key = "#id")
     @Query("SELECT u FROM Users u " +
             "LEFT JOIN FETCH u.userGroups ug " +
             "LEFT JOIN FETCH ug.group g " +

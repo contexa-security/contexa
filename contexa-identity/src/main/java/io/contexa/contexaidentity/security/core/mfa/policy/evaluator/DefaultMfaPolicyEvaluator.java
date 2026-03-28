@@ -41,6 +41,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
         String username = context.getUsername();
 
+        log.error("[DefaultMfaPolicyEvaluator] findByUsernameWithGroupsRolesAndPermissions username={}", username);
         Optional<Users> userOptional = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
         if (userOptional.isEmpty()) {
             log.error("User not found for MFA evaluation: {}", username);
