@@ -18,13 +18,16 @@ public class IamXacmlPipAutoConfiguration {
     public DatabaseAttributePIP databaseAttributePIP(
             UserRepository userRepository,
             AuditLogRepository auditLogRepository,
-            BusinessResourceActionRepository resourceActionRepository) {
-        return new DatabaseAttributePIP(userRepository, auditLogRepository, resourceActionRepository);
+            BusinessResourceActionRepository resourceActionRepository,
+            io.contexa.contexacommon.cache.ContexaCacheService cacheService) {
+        return new DatabaseAttributePIP(userRepository, auditLogRepository, resourceActionRepository, cacheService);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public DefaultContextHandler defaultContextHandler(UserRepository userRepository) {
-        return new DefaultContextHandler(userRepository);
+    public DefaultContextHandler defaultContextHandler(
+            UserRepository userRepository,
+            io.contexa.contexacommon.cache.ContexaCacheService cacheService) {
+        return new DefaultContextHandler(userRepository, cacheService);
     }
 }

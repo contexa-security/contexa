@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pip.context;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
@@ -20,6 +22,10 @@ import java.util.stream.Collectors;
 public class DefaultContextHandler implements ContextHandler {
 
     private final UserRepository userRepository;
+    private final ContexaCacheService cacheService;
+
+    private static final String CACHE_DOMAIN = "users";
+    private static final TypeReference<Users> USERS_TYPE = new TypeReference<>() {};
 
     @Override
     public AuthorizationContext create(Authentication authentication, HttpServletRequest request) {
@@ -81,7 +87,20 @@ public class DefaultContextHandler implements ContextHandler {
 
         if (principal instanceof UnifiedCustomUserDetails userDetails) {
             Long userId = userDetails.getAccount().getId();
-            return userRepository.findByIdWithGroupsRolesAndPermissions(userId).orElse(null);
+            if (userId != null) {
+                String cacheKey = "user_details:" + userId;
+                return cacheService.get(cacheKey,
+                        () -> userRepository.findByIdWithGroupsRolesAndPermissions(userId).orElse(null),
+                        USERS_TYPE, CACHE_DOMAIN);
+            }
+            String username = userDetails.getUsername();
+            if (username != null) {
+                String cacheKey = "user_details_name:" + username;
+                return cacheService.get(cacheKey,
+                        () -> userRepository.findByUsernameWithGroupsRolesAndPermissions(username).orElse(null),
+                        USERS_TYPE, CACHE_DOMAIN);
+            }
+            return null;
         }
 
         return null;

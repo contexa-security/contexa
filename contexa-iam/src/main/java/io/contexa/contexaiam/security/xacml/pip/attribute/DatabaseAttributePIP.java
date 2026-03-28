@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.entity.business.BusinessResource;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -24,6 +26,10 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final BusinessResourceActionRepository resourceActionRepository;
+    private final ContexaCacheService cacheService;
+
+    private static final String CACHE_DOMAIN = "users";
+    private static final TypeReference<Users> USERS_TYPE = new TypeReference<>() {};
 
     @Override
     public Map<String, Object> getAttributes(AuthorizationContext context) {
@@ -59,8 +65,13 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
             try {
                 String username = context.subject().getName();
                 attributes.put("username", username);
-                
-                Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
+                if (username == null || username.isBlank()) return;
+
+                String cacheKey = "user_details_name:" + username;
+                Users cached = cacheService.get(cacheKey,
+                        () -> userRepository.findByUsernameWithGroupsRolesAndPermissions(username).orElse(null),
+                        USERS_TYPE, CACHE_DOMAIN);
+                Optional<Users> userOpt = Optional.ofNullable(cached);
                 if (userOpt.isPresent()) {
                     Users user = userOpt.get();
 

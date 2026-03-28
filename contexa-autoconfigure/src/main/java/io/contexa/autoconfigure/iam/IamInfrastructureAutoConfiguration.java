@@ -15,10 +15,13 @@ import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.Pointcuts;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
 import org.springframework.beans.factory.ObjectProvider;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -35,6 +38,16 @@ import java.time.Duration;
 @AutoConfiguration
 @EnableCaching
 public class IamInfrastructureAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(CacheManager.class)
+    public CacheManager cacheManager() {
+        CaffeineCacheManager manager = new CaffeineCacheManager();
+        manager.setCaffeine(Caffeine.newBuilder()
+                .maximumSize(500)
+                .expireAfterWrite(java.time.Duration.ofMinutes(5)));
+        return manager;
+    }
 
     @Bean
     @ConditionalOnMissingBean

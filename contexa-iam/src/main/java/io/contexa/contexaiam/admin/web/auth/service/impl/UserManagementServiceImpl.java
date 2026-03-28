@@ -111,6 +111,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
 //    @Protectable
     public void modifyUser(@ModelAttribute UserDto userDto) {
+        log.error("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userDto.getId()));
 
@@ -176,6 +177,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(readOnly = true)
 //    @Protectable
     public UserDto getUser(Long id) {
+        log.error("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
         UserDto userDto = modelMapper.map(users, UserDto.class);
