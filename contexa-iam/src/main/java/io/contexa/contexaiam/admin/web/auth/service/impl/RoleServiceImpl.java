@@ -20,11 +20,10 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -78,12 +77,13 @@ public class RoleServiceImpl implements RoleService {
         }
 
         if (permissionIds != null && !permissionIds.isEmpty()) {
-            Set<RolePermission> rolePermissions = new HashSet<>();
-            for (Long permId : permissionIds) {
-                Permission permission = permissionRepository.findById(permId)
-                        .orElseThrow(() -> new IllegalArgumentException("Permission not found with ID: " + permId));
-                rolePermissions.add(RolePermission.builder().role(role).permission(permission).build());
+            List<Permission> permissions = permissionRepository.findAllById(permissionIds);
+            if (permissions.size() != permissionIds.size()) {
+                throw new IllegalArgumentException("Some permissions not found");
             }
+            Set<RolePermission> rolePermissions = permissions.stream()
+                    .map(p -> RolePermission.builder().role(role).permission(p).build())
+                    .collect(Collectors.toSet());
             role.setRolePermissions(rolePermissions);
         }
 
@@ -123,13 +123,13 @@ public class RoleServiceImpl implements RoleService {
                 .map(rp -> rp.getPermission().getId())
                 .collect(Collectors.toSet());
 
-        desiredPermissionIds.stream()
+        Set<Long> newPermIds = desiredPermissionIds.stream()
                 .filter(desiredId -> !currentPermissionIds.contains(desiredId))
-                .forEach(newPermId -> {
-                    Permission permission = permissionRepository.findById(newPermId)
-                            .orElseThrow(() -> new IllegalArgumentException("Permission not found with ID: " + newPermId));
-                    currentRolePermissions.add(RolePermission.builder().role(existingRole).permission(permission).build());
-                });
+                .collect(Collectors.toSet());
+        if (!newPermIds.isEmpty()) {
+            permissionRepository.findAllById(newPermIds).forEach(permission ->
+                    currentRolePermissions.add(RolePermission.builder().role(existingRole).permission(permission).build()));
+        }
 
         Role savedRole = roleRepository.save(existingRole);
         eventBus.publish(new RolePermissionsChangedEvent(savedRole.getId()));
@@ -151,7 +151,7 @@ public class RoleServiceImpl implements RoleService {
         // Check if role is referenced in any active hierarchy (exact token matching)
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));
-        java.util.List<String> referencedIn = new java.util.ArrayList<>();
+        List<String> referencedIn = new ArrayList<>();
         roleHierarchyRepository.findAllByIsActiveTrue().forEach(hierarchy -> {
             String hs = hierarchy.getHierarchyString();
             if (hs != null) {
@@ -178,7 +178,7 @@ public class RoleServiceImpl implements RoleService {
     private void auditRoleChange(AuditEventCategory category, Role role) {
         try {
             String principal = "SYSTEM";
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) principal = auth.getName();
 
             centralAuditFacade.recordAsync(AuditRecord.builder()
@@ -189,7 +189,7 @@ public class RoleServiceImpl implements RoleService {
                     .action(category.name())
                     .decision("SUCCESS")
                     .outcome("SUCCESS")
-                    .details(java.util.Map.of(
+                    .details(Map.of(
                             "roleId", role.getId() != null ? role.getId() : 0L,
                             "roleName", role.getRoleName() != null ? role.getRoleName() : ""))
                     .build());

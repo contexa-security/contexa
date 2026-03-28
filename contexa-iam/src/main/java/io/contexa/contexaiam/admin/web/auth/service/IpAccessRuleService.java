@@ -11,12 +11,40 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.InetAddress;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @RequiredArgsConstructor
 public class IpAccessRuleService {
 
     private final IpAccessRuleRepository ipAccessRuleRepository;
+
+    // In-memory cache for IP rules to avoid DB query on every request
+    private final AtomicReference<List<IpAccessRule>> cachedDenyRules = new AtomicReference<>();
+    private final AtomicReference<List<IpAccessRule>> cachedAllowRules = new AtomicReference<>();
+
+    private void invalidateCache() {
+        cachedDenyRules.set(null);
+        cachedAllowRules.set(null);
+    }
+
+    private List<IpAccessRule> getDenyRules() {
+        List<IpAccessRule> cached = cachedDenyRules.get();
+        if (cached == null) {
+            cached = ipAccessRuleRepository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY);
+            cachedDenyRules.set(cached);
+        }
+        return cached;
+    }
+
+    private List<IpAccessRule> getAllowRules() {
+        List<IpAccessRule> cached = cachedAllowRules.get();
+        if (cached == null) {
+            cached = ipAccessRuleRepository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.ALLOW);
+            cachedAllowRules.set(cached);
+        }
+        return cached;
+    }
 
     @Transactional(readOnly = true)
     public Page<IpAccessRule> getAllRules(Pageable pageable) {
@@ -40,12 +68,15 @@ public class IpAccessRuleService {
                 .expiresAt(expiresAt)
                 .enabled(true)
                 .build();
-        return ipAccessRuleRepository.save(rule);
+        IpAccessRule saved = ipAccessRuleRepository.save(rule);
+        invalidateCache();
+        return saved;
     }
 
     @Transactional
     public void deleteRule(Long id) {
         ipAccessRuleRepository.deleteById(id);
+        invalidateCache();
     }
 
     @Transactional
@@ -54,6 +85,7 @@ public class IpAccessRuleService {
             rule.setEnabled(!rule.isEnabled());
             ipAccessRuleRepository.save(rule);
         });
+        invalidateCache();
     }
 
     @Transactional(readOnly = true)
@@ -107,18 +139,13 @@ public class IpAccessRuleService {
      * Check if a client IP is denied by any active DENY rule.
      * Returns true if the IP matches any enabled DENY rule.
      */
-    @Transactional(readOnly = true)
     public boolean isIpDenied(String clientIp) {
         if (clientIp == null || clientIp.isBlank()) {
             return false;
         }
 
-        List<IpAccessRule> denyRules = ipAccessRuleRepository
-                .findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY);
-
         LocalDateTime now = LocalDateTime.now();
-        for (IpAccessRule rule : denyRules) {
-            // Skip expired rules
+        for (IpAccessRule rule : getDenyRules()) {
             if (rule.getExpiresAt() != null && rule.getExpiresAt().isBefore(now)) {
                 continue;
             }
@@ -129,20 +156,13 @@ public class IpAccessRuleService {
         return false;
     }
 
-    /**
-     * Check if a client IP is explicitly allowed by any active ALLOW rule.
-     */
-    @Transactional(readOnly = true)
     public boolean isIpAllowed(String clientIp) {
         if (clientIp == null || clientIp.isBlank()) {
             return false;
         }
 
-        List<IpAccessRule> allowRules = ipAccessRuleRepository
-                .findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.ALLOW);
-
         LocalDateTime now = LocalDateTime.now();
-        for (IpAccessRule rule : allowRules) {
+        for (IpAccessRule rule : getAllowRules()) {
             if (rule.getExpiresAt() != null && rule.getExpiresAt().isBefore(now)) {
                 continue;
             }

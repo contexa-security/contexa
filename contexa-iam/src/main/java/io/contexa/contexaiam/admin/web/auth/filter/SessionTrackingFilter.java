@@ -33,15 +33,20 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // Check for forced invalidation before processing request
+        // Check for forced invalidation (throttled to once per 10 seconds via session attribute)
         HttpSession session = request.getSession(false);
         if (session != null) {
-            ActiveSession tracked = activeSessionRepository.findById(session.getId()).orElse(null);
-            if (tracked != null && tracked.isExpired()) {
-                session.invalidate();
-                SecurityContextHolder.clearContext();
-                response.sendRedirect(request.getContextPath() + "/admin/login");
-                return;
+            Long lastCheck = (Long) session.getAttribute("_sessionExpireCheck");
+            long now = System.currentTimeMillis();
+            if (lastCheck == null || now - lastCheck > 10_000) {
+                session.setAttribute("_sessionExpireCheck", now);
+                ActiveSession tracked = activeSessionRepository.findById(session.getId()).orElse(null);
+                if (tracked != null && tracked.isExpired()) {
+                    session.invalidate();
+                    SecurityContextHolder.clearContext();
+                    response.sendRedirect(request.getContextPath() + "/admin/login");
+                    return;
+                }
             }
         }
 
@@ -51,12 +56,17 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
         if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
             session = request.getSession(false);
             if (session != null) {
-                sessionManagementService.trackSession(
-                        session.getId(),
-                        auth.getName(),
-                        auth.getName(),
-                        request.getRemoteAddr(),
-                        request.getHeader("User-Agent"));
+                Long lastTrack = (Long) session.getAttribute("_sessionTrackTime");
+                long nowTrack = System.currentTimeMillis();
+                if (lastTrack == null || nowTrack - lastTrack > 30_000) {
+                    session.setAttribute("_sessionTrackTime", nowTrack);
+                    sessionManagementService.trackSession(
+                            session.getId(),
+                            auth.getName(),
+                            auth.getName(),
+                            request.getRemoteAddr(),
+                            request.getHeader("User-Agent"));
+                }
             }
         }
     }

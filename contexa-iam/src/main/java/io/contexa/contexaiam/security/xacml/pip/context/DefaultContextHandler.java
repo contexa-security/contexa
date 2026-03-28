@@ -92,14 +92,11 @@ public class DefaultContextHandler implements ContextHandler {
             return new HashMap<>();
         }
 
-        Users userWithDetails = userRepository.findByIdWithGroupsRolesAndPermissions(subject.getId())
-                .orElse(subject);
-
         Map<String, Object> attributes = new HashMap<>();
 
-        attributes.put("userRoles", userWithDetails.getRoleNames());
+        attributes.put("userRoles", subject.getRoleNames());
 
-        List<String> groupNames = userWithDetails.getUserGroups().stream()
+        List<String> groupNames = subject.getUserGroups().stream()
                 .map(UserGroup::getGroup)
                 .map(group -> group != null ? group.getName() : null)
                 .filter(Objects::nonNull)

@@ -24,6 +24,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -494,14 +495,12 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private void updateResourceStatusForPermissions(Set<Long> permissionIds) {
         if (CollectionUtils.isEmpty(permissionIds)) return;
         try {
-            for (Long permId : permissionIds) {
-                permissionRepository.findById(permId).ifPresent(perm -> {
-                    ManagedResource resource = perm.getManagedResource();
-                    if (resource != null && resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED) {
-                        resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
-                    }
-                });
-            }
+            permissionRepository.findAllById(permissionIds).forEach(perm -> {
+                ManagedResource resource = perm.getManagedResource();
+                if (resource != null && resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED) {
+                    resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
+                }
+            });
         } catch (Exception e) {
             log.error("Failed to update resource status after policy creation", e);
         }
@@ -510,7 +509,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private void auditBusinessPolicyChange(AuditEventCategory category, Policy policy, BusinessPolicyDto dto) {
         try {
             String principal = "SYSTEM";
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) principal = auth.getName();
 
             centralAuditFacade.recordAsync(AuditRecord.builder()

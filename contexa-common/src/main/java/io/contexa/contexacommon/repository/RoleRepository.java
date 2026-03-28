@@ -28,14 +28,13 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     @Query("select r from Role r where r.expression = false")
     List<Role> findAllRolesWithoutExpression();
 
-    @Query("SELECT r FROM Role r LEFT JOIN FETCH r.rolePermissions p WHERE r.id = :id")
+    @Query("SELECT r FROM Role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission p LEFT JOIN FETCH p.managedResource WHERE r.id = :id")
     Optional<Role> findByIdWithPermissions(Long id);
 
-    
-    @Query("SELECT DISTINCT r FROM Role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission")
+    @Query("SELECT DISTINCT r FROM Role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission p LEFT JOIN FETCH p.managedResource")
     List<Role> findAllWithPermissions();
 
-    @Query("SELECT DISTINCT r FROM Role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission WHERE r.id IN :ids")
+    @Query("SELECT DISTINCT r FROM Role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission p LEFT JOIN FETCH p.managedResource WHERE r.id IN :ids")
     List<Role> findAllByIdWithPermissions(@Param("ids") Collection<Long> ids);
 
     

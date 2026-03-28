@@ -15,9 +15,11 @@ import java.util.Optional;
 
 public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
-    @Query(value = "SELECT * FROM policy p " +
-            "WHERE CAST(:keyword AS TEXT) IS NULL OR LOWER(CAST(p.name AS TEXT)) LIKE LOWER(CONCAT('%', CAST(:keyword AS TEXT), '%'))",
-            nativeQuery = true)
+    @Query(value = "SELECT DISTINCT p FROM Policy p " +
+            "LEFT JOIN FETCH p.targets " +
+            "WHERE :keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))",
+            countQuery = "SELECT COUNT(p) FROM Policy p " +
+            "WHERE :keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     Page<Policy> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     Optional<Policy> findByName(String name);
@@ -36,7 +38,7 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             "ORDER BY t.targetOrder ASC, p.priority ASC")
     List<Policy> findByTargetTypeWithDetails(@Param("targetType") String targetType);
 
-    @Query("SELECT p FROM Policy p JOIN p.targets t " +
+    @Query("SELECT p FROM Policy p JOIN FETCH p.targets t " +
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions c " +
             "WHERE t.targetType = 'METHOD' AND t.targetIdentifier = :methodIdentifier " +
@@ -54,12 +56,14 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     List<Policy> findAllUrlPoliciesWithDetails();
 
     @Query("SELECT DISTINCT p FROM Policy p " +
+            "LEFT JOIN FETCH p.targets " +
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions " +
             "ORDER BY p.id DESC")
     List<Policy> findTop5ByOrderByIdDesc();
 
     @Query("SELECT DISTINCT p FROM Policy p " +
+            "LEFT JOIN FETCH p.targets " +
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions " +
             "WHERE p.friendlyDescription IS NULL")

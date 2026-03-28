@@ -15,7 +15,13 @@ import java.util.Set;
 
 public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
-    @Query("SELECT p FROM Permission p LEFT JOIN p.managedResource mr " +
+    @Query(value = "SELECT p FROM Permission p LEFT JOIN FETCH p.managedResource mr " +
+            "WHERE mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.NEEDS_DEFINITION " +
+            "AND mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.EXCLUDED " +
+            "AND p.id NOT IN :excludeIds " +
+            "AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(p.friendlyName) LIKE LOWER(CONCAT('%', :keyword, '%')))",
+            countQuery = "SELECT COUNT(p) FROM Permission p LEFT JOIN p.managedResource mr " +
             "WHERE mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.NEEDS_DEFINITION " +
             "AND mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.EXCLUDED " +
             "AND p.id NOT IN :excludeIds " +
@@ -31,7 +37,8 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             String name, String friendlyName, String description, Pageable pageable);
 
     
-    List<Permission> findAllByNameIn(Set<String> names);
+    @Query("SELECT DISTINCT p FROM Permission p LEFT JOIN FETCH p.managedResource WHERE p.name IN :names")
+    List<Permission> findAllByNameIn(@Param("names") Set<String> names);
 
     
     @Query("SELECT p FROM Permission p " +
