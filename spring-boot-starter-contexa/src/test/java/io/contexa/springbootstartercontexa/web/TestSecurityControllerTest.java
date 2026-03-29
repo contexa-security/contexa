@@ -38,8 +38,7 @@ class TestSecurityControllerTest {
                 any(MockHttpServletRequest.class),
                 eq("alice"),
                 eq("sensitive"),
-                eq("resource-001"),
-                eq("REQUIRED")
+                eq("resource-001")
         )).thenReturn(new SecurityTestEvidenceService.RequestRegistration(
                 "req-001",
                 "req-001",
@@ -52,7 +51,6 @@ class TestSecurityControllerTest {
                 "session-001",
                 "/api/security-test/sensitive/resource-001",
                 "/api/security-test/sensitive/resource-001",
-                "REQUIRED",
                 "header",
                 "localStorage",
                 "SESSION_COOKIE + BEARER",

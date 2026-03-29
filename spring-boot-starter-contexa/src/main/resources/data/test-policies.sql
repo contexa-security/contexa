@@ -100,7 +100,7 @@ VALUES
 -- ============================================================================
 -- 공개 데이터: 인증만 확인 (Action 무관)
 -- ============================================================================
--- AnalysisRequirement.NOT_REQUIRED
+-- 공개 경로 예제
 -- LLM 분석 결과와 무관하게 인증된 사용자만 허용
 (10001, 10001,
  'isAuthenticated()',
@@ -110,7 +110,7 @@ VALUES
 -- ============================================================================
 -- 일반 데이터: Action이 ALLOW 또는 MONITOR일 때 허용
 -- ============================================================================
--- AnalysisRequirement.PREFERRED
+-- 일반 경로 예제
 -- 분석 결과가 있으면 사용하고, 없으면 defaultAction(MONITOR) 적용
 -- hasActionIn(): 현재 Action이 허용 목록에 포함되는지 확인
 (10002, 10002,
@@ -121,7 +121,7 @@ VALUES
 -- ============================================================================
 -- 민감 데이터: 분석 완료 + ALLOW/MONITOR Action 필수
 -- ============================================================================
--- AnalysisRequirement.REQUIRED
+-- 민감 경로 예제
 -- LLM 분석이 반드시 완료되어야 함 (PENDING_ANALYSIS는 차단)
 -- requiresAnalysisWithAction(): 분석 완료 여부 + Action 검증을 동시에 수행
 (10003, 10003,
@@ -132,7 +132,7 @@ VALUES
 -- ============================================================================
 -- 중요 데이터: ADMIN 권한 + 분석 완료 + ALLOW만 허용
 -- ============================================================================
--- AnalysisRequirement.STRICT
+-- 최고 중요 경로 예제
 -- 가장 엄격한 보안 수준: ALLOW Action만 허용 (MONITOR도 차단)
 -- requiresAnalysisWithAction('ALLOW'): ALLOW만 허용, MONITOR/BLOCK/PENDING 모두 차단
 (10004, 10004,
@@ -143,7 +143,7 @@ VALUES
 -- ============================================================================
 -- 대량 데이터: BLOCK이 아니면 허용 (분석 미완료 시 기본 MONITOR)
 -- ============================================================================
--- AnalysisRequirement.PREFERRED + enableRuntimeInterception
+-- 대용량 경로 예제
 -- hasActionOrDefault(defaultAction, allowedActions...):
 -- - 분석 완료: 현재 Action이 allowedActions에 포함되면 허용
 -- - 분석 미완료(PENDING_ANALYSIS): defaultAction을 사용하여 판단
@@ -172,7 +172,7 @@ VALUES
 -- 공개 데이터 조회 메서드 매핑
 -- ============================================================================
 -- TestSecurityService.getPublicData(String resourceId)
--- @Protectable(analysisRequirement = AnalysisRequirement.NOT_REQUIRED)
+-- @Protectable
 (10001, 10001, 'METHOD',
  'io.contexa.springbootstartercontexa.service.TestSecurityService.getPublicData(String)',
  'ANY'),
@@ -181,7 +181,7 @@ VALUES
 -- 일반 데이터 조회 메서드 매핑
 -- ============================================================================
 -- TestSecurityService.getNormalData(String resourceId)
--- @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED, defaultAction = "MONITOR")
+-- @Protectable
 (10002, 10002, 'METHOD',
  'io.contexa.springbootstartercontexa.service.TestSecurityService.getNormalData(String)',
  'ANY'),
@@ -190,7 +190,7 @@ VALUES
 -- 민감 데이터 조회 메서드 매핑
 -- ============================================================================
 -- TestSecurityService.getSensitiveData(String resourceId)
--- @Protectable(analysisRequirement = AnalysisRequirement.REQUIRED, analysisTimeout = 5000)
+-- @Protectable
 (10003, 10003, 'METHOD',
  'io.contexa.springbootstartercontexa.service.TestSecurityService.getSensitiveData(String)',
  'ANY'),
@@ -199,7 +199,7 @@ VALUES
 -- 중요 데이터 조회 메서드 매핑
 -- ============================================================================
 -- TestSecurityService.getCriticalData(String resourceId)
--- @Protectable(analysisRequirement = AnalysisRequirement.STRICT, analysisTimeout = 10000)
+-- @Protectable
 (10004, 10004, 'METHOD',
  'io.contexa.springbootstartercontexa.service.TestSecurityService.getCriticalData(String)',
  'ANY'),
@@ -208,7 +208,7 @@ VALUES
 -- 대량 데이터 조회 메서드 매핑
 -- ============================================================================
 -- TestSecurityService.getBulkData()
--- @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED, enableRuntimeInterception = true)
+-- @Protectable
 (10005, 10005, 'METHOD',
  'io.contexa.springbootstartercontexa.service.TestSecurityService.getBulkData()',
  'ANY');

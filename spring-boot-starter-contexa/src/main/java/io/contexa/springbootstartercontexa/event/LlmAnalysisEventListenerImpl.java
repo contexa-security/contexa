@@ -14,8 +14,8 @@ public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventObserver {
     private final LlmAnalysisEventPublisher eventPublisher;
 
     @Override
-    public void onContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
-        eventPublisher.publishContextCollected(userId, requestPath, analysisRequirement, metadata);
+    public void onContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
+        eventPublisher.publishContextCollected(userId, requestPath, metadata);
     }
 
     @Override

@@ -109,15 +109,15 @@
                 <p>실제 브라우저 요청에 실리는 핵심 헤더와 기대 판정 경로를 미리 보여 줍니다.</p>
             </div>
             <div class="endpoint-row">
-                <button type="button" class="endpoint-pill active" data-endpoint="sensitive">민감 리소스 / REQUIRED</button>
-                <button type="button" class="endpoint-pill" data-endpoint="critical">중요 리소스 / STRICT</button>
+                <button type="button" class="endpoint-pill active" data-endpoint="sensitive">민감 리소스 / 민감 정보 접근 경로</button>
+                <button type="button" class="endpoint-pill" data-endpoint="critical">중요 리소스 / 최고 중요 정보 접근 경로</button>
             </div>
             <dl class="scenario-summary">
                 <div><dt>시나리오</dt><dd id="selected-scenario-name">정상 사용자</dd></div>
                 <div><dt>예상 IP</dt><dd id="selected-scenario-ip">192.168.1.100</dd></div>
                 <div><dt>예상 User-Agent</dt><dd id="selected-scenario-ua">Chrome 120 / Windows 11 / Corp LAN</dd></div>
                 <div><dt>기대 제어</dt><dd id="selected-expected-action">ALLOW 또는 저위험 유지</dd></div>
-                <div><dt>리소스</dt><dd id="selected-endpoint-name">민감 리소스 / REQUIRED</dd></div>
+                <div><dt>리소스</dt><dd id="selected-endpoint-name">민감 리소스 / 민감 정보 접근 경로</dd></div>
             </dl>
             <div class="header-grid" id="request-header-preview"></div>
         </article>

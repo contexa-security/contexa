@@ -84,7 +84,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         additionalFields.put("threatEvidence", result.getThreatIndicators() != null
                 ? String.join(", ", result.getThreatIndicators()) : "");
         additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
-        putIfPresent(additionalFields, "analysisRequirement", event.getMetadata().get("analysisRequirement"));
         putIfPresent(additionalFields, "requestId", resolveRequestId(event));
         if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
             additionalFields.put("llmProposedAction", result.getProposedAction());

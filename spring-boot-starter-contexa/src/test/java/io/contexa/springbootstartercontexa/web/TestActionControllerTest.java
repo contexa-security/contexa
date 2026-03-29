@@ -40,7 +40,6 @@ class TestActionControllerTest {
                 "2026-03-29T11:00:00Z",
                 "takeover likely after auth",
                 "takeover likely after auth",
-                "STRICT",
                 "req-777",
                 "ctx-777",
                 "BLOCK"

@@ -1,6 +1,5 @@
 package io.contexa.springbootstartercontexa.service;
 
-import io.contexa.contexacommon.annotation.AnalysisRequirement;
 import io.contexa.contexacommon.annotation.Protectable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -9,7 +8,7 @@ import org.springframework.stereotype.Service;
  * 보안 플로우 테스트용 서비스
  *
  * 각 메서드는 @Protectable 어노테이션으로 보호되며,
- * AnalysisRequirement에 따라 다른 보안 정책이 적용된다.
+ * @Protectable 기반 보호 동작을 점검하기 위한 예제 서비스다.
  *
  * 메서드 식별자 형식: {패키지}.{클래스}.{메서드}({파라미터타입})
  */
@@ -20,7 +19,7 @@ public class TestSecurityService {
     /**
      * 공개 데이터 조회 - 분석 불필요
      *
-     * AnalysisRequirement.NOT_REQUIRED:
+     * 기본 공개 경로 예제:
      * - LLM 분석 결과와 무관하게 인증만 확인
      * - 공개 API나 비민감 리소스에 적합
      *
@@ -29,7 +28,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 공개 데이터 문자열
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.NOT_REQUIRED)
+    @Protectable
     public String getPublicData(String resourceId) {
         log.info("공개 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -43,7 +42,7 @@ public class TestSecurityService {
     /**
      * 일반 데이터 조회 - 분석 선호
      *
-     * AnalysisRequirement.PREFERRED:
+     * 일반 업무 경로 예제:
      * - LLM 분석 결과가 있으면 사용하고, 없으면 defaultAction 적용
      * - 일반적인 비즈니스 데이터에 적합
      *
@@ -52,7 +51,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 일반 데이터 문자열
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED)
+    @Protectable
     public String getNormalData(String resourceId) {
         log.info("일반 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -66,7 +65,7 @@ public class TestSecurityService {
     /**
      * 민감 데이터 조회 - 분석 필수
      *
-     * AnalysisRequirement.REQUIRED:
+     * 민감 경로 예제:
      * - LLM 분석 결과가 반드시 필요
      * - 분석 미완료시 analysisTimeout까지 대기 후 차단
      * - 개인정보, 금융정보 등 민감한 데이터에 적합
@@ -76,7 +75,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 민감 데이터 문자열
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.REQUIRED)
+    @Protectable
     public String getSensitiveData(String resourceId) {
         log.info("민감 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -90,7 +89,7 @@ public class TestSecurityService {
     /**
      * 중요 데이터 조회 - ALLOW만 허용
      *
-     * AnalysisRequirement.STRICT:
+     * 최고 중요 경로 예제:
      * - LLM 분석 결과가 반드시 ALLOW여야 함
      * - MONITOR도 차단됨
      * - 시스템 설정, 관리자 기능 등 가장 민감한 데이터에 적합
@@ -100,7 +99,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 중요 데이터 문자열
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.STRICT)
+    @Protectable
     public String getCriticalData(String resourceId) {
         log.info("중요 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -114,13 +113,13 @@ public class TestSecurityService {
     /**
      * Streaming bulk data access validation
      *
-     * AnalysisRequirement.PREFERRED + enableRuntimeInterception:
+     * 대용량 응답 전 접근 검증 예제:
      * - Triggers Zero Trust event before streaming response
      * - Used by /bulk-stream endpoint for real-time response blocking demo
      *
      * Method ID: io.contexa.springbootstartercontexa.service.TestSecurityService.validateBulkStreamAccess()
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED, runtimeInterception = true)
+    @Protectable
     public void validateBulkStreamAccess() {
         log.info("Bulk stream access validation - @Protectable triggered");
     }
@@ -128,7 +127,7 @@ public class TestSecurityService {
     /**
      * 대량 데이터 조회 - 실시간 차단 활성화
      *
-     * AnalysisRequirement.PREFERRED + enableRuntimeInterception:
+     * 대량 데이터 경로 예제:
      * - 메서드 실행 중에도 LLM이 BLOCK 판정하면 즉시 중단
      * - 대량 데이터 추출, 장시간 작업 등에 적합
      * - 데이터 유출 공격 방지에 효과적
@@ -137,7 +136,7 @@ public class TestSecurityService {
      *
      * @return 대량 데이터 문자열
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED, runtimeInterception = true)
+    @Protectable
     public String getBulkData() {
         log.info("대량 데이터 조회 요청");
 

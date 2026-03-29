@@ -117,7 +117,7 @@ public class LlmAnalysisSseController {
 
         switch (eventType) {
             case "CONTEXT_COLLECTED":
-                eventPublisher.publishContextCollected(userId, "/api/test/resource", "REQUIRED", Map.of());
+                eventPublisher.publishContextCollected(userId, "/api/test/resource", Map.of());
                 break;
             case "LAYER1_START":
                 eventPublisher.publishLayer1Start(userId, "/api/test/resource", Map.of());
@@ -202,7 +202,7 @@ public class LlmAnalysisSseController {
         new Thread(() -> {
             try {
                 // 1. Context Collected
-                eventPublisher.publishContextCollected(userId, requestPath, "REQUIRED", Map.of());
+                eventPublisher.publishContextCollected(userId, requestPath, Map.of());
                 Thread.sleep(500);
 
                 // 2. Layer1 Start
