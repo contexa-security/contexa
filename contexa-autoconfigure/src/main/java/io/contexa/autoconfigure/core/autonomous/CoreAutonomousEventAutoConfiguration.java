@@ -1,7 +1,6 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
@@ -30,6 +29,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -42,8 +42,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 import java.util.List;
 
 @AutoConfiguration
+@AutoConfigureAfter(name = "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration")
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class })
+@EnableConfigurationProperties(SecurityPlaneProperties.class)
 public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
@@ -121,21 +122,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ProcessingStrategy.class)
-    public ProcessingExecutionHandler processingExecutionHandler(
-            List<ProcessingStrategy> processingStrategies) {
-        return new ProcessingExecutionHandler(processingStrategies);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(ColdPathEventProcessor.class)
-    public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
-        return new ColdPathStrategy(coldPathEventProcessor);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public LlmAnalysisEventListener llmAnalysisEventListener(ObjectProvider<List<LlmAnalysisEventObserver>> observersProvider) {
         return new CompositeLlmAnalysisEventListener(observersProvider.getIfAvailable(List::of));
     }
@@ -148,6 +134,21 @@ public class CoreAutonomousEventAutoConfiguration {
             Layer2ExpertStrategy expertStrategy,
             LlmAnalysisEventListener llmAnalysisEventListener) {
         return new ColdPathEventProcessor(contextualStrategy, expertStrategy, llmAnalysisEventListener);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ColdPathEventProcessor.class)
+    public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
+        return new ColdPathStrategy(coldPathEventProcessor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ProcessingStrategy.class)
+    public ProcessingExecutionHandler processingExecutionHandler(
+            List<ProcessingStrategy> processingStrategies) {
+        return new ProcessingExecutionHandler(processingStrategies);
     }
 
     @Bean

@@ -1,6 +1,5 @@
 package io.contexa.autoconfigure.core.autonomous;
 
-import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
@@ -68,7 +67,11 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 @AutoConfiguration
-@AutoConfigureAfter(CoreHCADAutoConfiguration.class)
+@AutoConfigureAfter(name = {
+        "io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration",
+        "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
+        "io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration"
+})
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
         ContexaProperties.class,
