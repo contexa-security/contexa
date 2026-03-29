@@ -3,9 +3,11 @@
 # ============================================================
 
 contexa:
+  saas:
+    enabled: true
   llm:
-    chatModelPriority: ollama,openai,anthropic
-    embeddingModelPriority: ollama,openai
+    chatModelPriority: openai,ollama,anthropic
+    embeddingModelPriority: openai,ollama
 
 #security:
 #  zerotrust:
