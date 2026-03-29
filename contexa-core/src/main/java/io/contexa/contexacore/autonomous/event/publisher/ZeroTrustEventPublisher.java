@@ -121,9 +121,6 @@ public class ZeroTrustEventPublisher {
 
         Protectable protectable = resolveProtectable(methodInvocation);
         if (protectable != null) {
-            payload.put("analysisRequirement", protectable.analysisRequirement().name());
-            payload.put("analysisTimeoutMs", protectable.analysisTimeoutMs());
-            payload.put("runtimeInterception", protectable.runtimeInterception());
             payload.put("protectableSync", protectable.sync());
         }
 

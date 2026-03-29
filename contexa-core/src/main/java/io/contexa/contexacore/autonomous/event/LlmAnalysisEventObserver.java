@@ -4,10 +4,10 @@ import java.util.Map;
 
 public interface LlmAnalysisEventObserver {
 
-    default void onContextCollected(String userId, String requestPath, String analysisRequirement) {
+    default void onContextCollected(String userId, String requestPath) {
     }
-    default void onContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
-        onContextCollected(userId, requestPath, analysisRequirement);
+    default void onContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
+        onContextCollected(userId, requestPath);
     }
 
     default void onLayer1Start(String userId, String requestPath) {

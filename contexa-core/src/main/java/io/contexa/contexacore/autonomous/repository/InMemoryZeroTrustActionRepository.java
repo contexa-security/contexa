@@ -95,7 +95,6 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                 entry.updatedAt,
                 entry.reasoning,
                 entry.reasoningSummary,
-                entry.analysisRequirement,
                 entry.requestId,
                 entry.contextBindingHash,
                 entry.llmProposedAction
@@ -248,10 +247,6 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             Object reasoningSummary = additionalFields.get("reasoningSummary");
             if (reasoningSummary != null) {
                 entry.reasoningSummary = reasoningSummary.toString();
-            }
-            Object analysisRequirement = additionalFields.get("analysisRequirement");
-            if (analysisRequirement != null) {
-                entry.analysisRequirement = analysisRequirement.toString();
             }
             Object requestId = additionalFields.get("requestId");
             if (requestId != null) {
@@ -413,7 +408,6 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         String updatedAt;
         String reasoning;
         String reasoningSummary;
-        String analysisRequirement;
         String requestId;
         String contextBindingHash;
         String llmProposedAction;

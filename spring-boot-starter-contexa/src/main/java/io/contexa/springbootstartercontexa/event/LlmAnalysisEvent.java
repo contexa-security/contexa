@@ -68,9 +68,6 @@ public class LlmAnalysisEvent {
     @JsonProperty("requestPath")
     private String requestPath;
 
-    @JsonProperty("analysisRequirement")
-    private String analysisRequirement;
-
     @JsonProperty("clientIp")
     private String clientIp;
 
@@ -128,12 +125,10 @@ public class LlmAnalysisEvent {
     public static LlmAnalysisEvent contextCollected(
             String userId,
             String requestPath,
-            String analysisRequirement,
             Map<String, Object> metadata) {
         return baseBuilder(userId, metadata)
                 .type(EventType.CONTEXT_COLLECTED)
                 .requestPath(requestPath)
-                .analysisRequirement(analysisRequirement)
                 .status(Status.COMPLETED)
                 .build();
     }
@@ -265,7 +260,6 @@ public class LlmAnalysisEvent {
                 .requestId(text(normalized, "requestId"))
                 .correlationId(text(normalized, "correlationId"))
                 .requestPath(text(normalized, "requestPath"))
-                .analysisRequirement(text(normalized, "analysisRequirement"))
                 .clientIp(text(normalized, "clientIp"))
                 .userAgent(text(normalized, "userAgent"))
                 .contextBindingHash(text(normalized, "contextBindingHash"))
