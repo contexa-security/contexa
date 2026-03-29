@@ -138,6 +138,48 @@
     // ========================================================================
     // SSE Connection (security-test.js 그대로)
     // ========================================================================
+    async function initializeSSE() {
+        var probe = await probeSseAccess();
+        if (!probe.allowed) {
+            stopSSE(probe.message);
+            return;
+        }
+        connectSSE();
+    }
+
+    function stopSSE(message) {
+        if (state.eventSource) {
+            state.eventSource.close();
+            state.eventSource = null;
+        }
+        state.sseConnected = false;
+        updateSseStatus('disconnected', message);
+    }
+
+    async function probeSseAccess() {
+        try {
+            var response = await fetch(API.ACTION_STATUS, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            });
+            if (response.status === 401 || response.status === 403) {
+                return { allowed: false, message: '인증 또는 인가 확인 후 SSE를 연결하십시오.' };
+            }
+            if (!response.ok) {
+                return { allowed: false, message: 'SSE 사전 확인 실패 (' + response.status + ')' };
+            }
+            var payload = await response.json();
+            var userId = payload && payload.userId ? String(payload.userId).trim().toLowerCase() : '';
+            if (userId === 'anonymous' || userId === 'anonymoususer') {
+                return { allowed: false, message: '익명 상태에서는 SSE를 연결하지 않습니다.' };
+            }
+            return { allowed: true };
+        } catch (error) {
+            return { allowed: false, message: 'SSE 연결 전 서버 상태 확인에 실패했습니다.' };
+        }
+    }
+
     function connectSSE() {
         if (state.eventSource) {
             state.eventSource.close();
@@ -154,11 +196,16 @@
                 addTimelineEntry('info', 'SSE 연결 성공 - 실시간 AI 분석 수신 대기');
             };
 
-            state.eventSource.onerror = function() {
+            state.eventSource.onerror = async function() {
                 state.sseConnected = false;
                 updateSseStatus('disconnected', 'SSE 연결 끊김');
                 addTimelineEntry('error', 'SSE 연결 오류 - 재연결 시도 중...');
-                setTimeout(connectSSE, 5000);
+                var probe = await probeSseAccess();
+                if (!probe.allowed) {
+                    stopSSE(probe.message);
+                    addTimelineEntry('error', probe.message);
+                    return;
+                }
             };
 
             // Detailed pipeline events
@@ -966,7 +1013,7 @@
         initializeElements();
         bindEventListeners();
         initTabs();
-        connectSSE();
+        initializeSSE();
 
         updateActionBadge('PENDING');
         updateMetrics(0, 0);

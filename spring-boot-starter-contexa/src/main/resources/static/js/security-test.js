@@ -10,7 +10,7 @@ const st={user:document.body.dataset.username||'anonymous',scenario:'NORMAL_USER
 
 document.addEventListener('DOMContentLoaded',init);
 
-function init(){
+async function init(){
   bindElements();
   bindEvents();
   refreshAuth();
@@ -20,7 +20,7 @@ function init(){
   renderImmediateResponse();
   renderServerTruth();
   renderEvidence();
-  connectSse();
+  await initializeSse();
 }
 
 function bindElements(){
@@ -38,13 +38,69 @@ function bindEvents(){
   el.btnResetConsole.addEventListener('click',resetConsole);
 }
 
+async function initializeSse(){
+  refreshAuth();
+  if(!canStartSse()){
+    stopSse('인증 확인 후 SSE를 연결하십시오.');
+    return;
+  }
+  const probe=await probeSseAccess();
+  if(!probe.allowed){
+    stopSse(probe.message);
+    return;
+  }
+  connectSse();
+}
+
+function canStartSse(){
+  const subject=(st.auth&&st.auth.subject)||st.user;
+  if(!subject)return false;
+  const normalized=String(subject).trim().toLowerCase();
+  return normalized!==''&&normalized!=='anonymous'&&normalized!=='anonymoususer'&&normalized!=='unknown';
+}
+
+function stopSse(message){
+  if(st.eventSource){
+    st.eventSource.close();
+    st.eventSource=null;
+  }
+  setSseState('disconnected',message);
+}
+
+async function probeSseAccess(){
+  try{
+    const response=await fetch(API.status,{headers:buildHeaders({'Accept':'application/json'}),credentials:'same-origin'});
+    if(response.status===401||response.status===403){
+      return{allowed:false,message:'인증 또는 인가 확인 후 SSE를 연결하십시오.'};
+    }
+    if(!response.ok){
+      return{allowed:false,message:`SSE 사전 확인 실패 (${response.status})`};
+    }
+    const payload=await parseBody(response);
+    const userId=payload&&payload.userId?String(payload.userId).trim().toLowerCase():'';
+    if(userId==='anonymous'||userId==='anonymoususer'){
+      return{allowed:false,message:'익명 상태에서는 SSE를 연결하지 않습니다.'};
+    }
+    return{allowed:true};
+  }catch(error){
+    return{allowed:false,message:'SSE 연결 전 서버 상태 확인에 실패했습니다.'};
+  }
+}
+
 function connectSse(){
   if(st.eventSource)st.eventSource.close();
   setSseState('connecting','사용자 SSE 연결 중');
   st.eventSource=new EventSource(API.sse);
   SSE_TYPES.forEach(type=>st.eventSource.addEventListener(type,event=>handleSse(type,event)));
   st.eventSource.onopen=()=>setSseState('connected','사용자 SSE 연결됨');
-  st.eventSource.onerror=()=>{setSseState('disconnected','사용자 SSE 재연결 중');setTimeout(connectSse,3000);};
+  st.eventSource.onerror=async()=>{
+    const probe=await probeSseAccess();
+    if(!probe.allowed){
+      stopSse(probe.message);
+      return;
+    }
+    setSseState('disconnected','사용자 SSE가 자동 재연결 중입니다.');
+  };
 }
 
 function handleSse(type,event){
