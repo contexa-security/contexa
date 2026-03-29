@@ -1,5 +1,6 @@
 package io.contexa.contexacommon.entity.business;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,6 +34,7 @@ public class BusinessResource implements Serializable {
 
     @OneToMany(mappedBy = "businessResource", fetch = FetchType.LAZY)
     @Builder.Default
+    @JsonIgnore
     private Set<BusinessResourceAction> availableActions = new HashSet<>();
 
     @Override

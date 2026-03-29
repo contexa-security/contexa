@@ -1,5 +1,6 @@
 package io.contexa.contexacommon.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -128,11 +129,13 @@ public class Users {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude
+    @JsonIgnore
     private Set<UserGroup> userGroups = new HashSet<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude
+    @JsonIgnore
     private Set<UserRole> userRoles = new HashSet<>();
 
     @PrePersist
@@ -155,6 +158,7 @@ public class Users {
     }
 
     @Transient
+    @JsonIgnore
     public List<String> getRoleNames() {
         if (userGroups == null || userGroups.isEmpty()) {
             return Collections.emptyList();
@@ -172,6 +176,7 @@ public class Users {
     }
 
     @Transient
+    @JsonIgnore
     public List<String> getPermissionNames() {
         if (userGroups == null || userGroups.isEmpty()) {
             return Collections.emptyList();
