@@ -2,7 +2,7 @@
 (function(){
 const API={sse:'/admin/api/sse/llm-analysis/user',status:'/admin/api/test-action/status',evidence:'/admin/api/security-test/evidence',endpoints:{sensitive:'/admin/api/security-test/sensitive/resource-001',critical:'/admin/api/security-test/critical/resource-001'}};
 const STORE={access:'contexa_access_token',refresh:'contexa_refresh_token',mode:'authMode'};
-const SCENARIO={NORMAL_USER:{title:'정상 사용자',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11 / Corp LAN',expect:'ALLOW 또는 저위험 유지'},ACCOUNT_TAKEOVER:{title:'계정탈취자',ip:'203.0.113.50',ua:'Android 10 / Hijacked Session',expect:'후속 요청 CHALLENGE 또는 BLOCK'}};
+const SCENARIO={NORMAL_USER:{title:'정상 사용자',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11 / Corp LAN',expect:'ALLOW or LOW_RISK'},ACCOUNT_TAKEOVER:{title:'계정탈취자',ip:'203.0.113.50',ua:'Android 10 / Hijacked Session',expect:'CHALLENGE or BLOCK'}};
 const ENDPOINT={sensitive:{title:'민감 리소스',desc:'민감 정보 접근 경로'},critical:{title:'중요 리소스',desc:'최고 중요 정보 접근 경로'}};
 const SSE_TYPES=['connected','CONTEXT_COLLECTED','HCAD_ANALYSIS','SESSION_CONTEXT_LOADED','RAG_SEARCH_COMPLETE','BEHAVIOR_ANALYSIS_COMPLETE','LAYER1_START','LAYER1_COMPLETE','LAYER2_START','LAYER2_COMPLETE','LLM_EXECUTION_START','LLM_EXECUTION_COMPLETE','DECISION_APPLIED','RESPONSE_BLOCKED','ERROR'];
 const el={};
