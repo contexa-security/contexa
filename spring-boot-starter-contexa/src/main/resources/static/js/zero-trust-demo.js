@@ -298,8 +298,6 @@
         resetAnalysisUI();
 
         addTimelineEntry('info', '========== AI 분석 시작 ==========');
-        addTimelineEntry('info', `분석 요구 수준: ${data.analysisRequirement || 'N/A'}`);
-
         state.analysisPhase = 'context';
         updateStepStatus('context', 'active');
     }
@@ -664,7 +662,7 @@
         openModal(scenarioInfo.name);
         addTimelineEntry('info', 'Contexa AI Native Zero Trust Security Platform');
         addTimelineEntry('info', `시나리오: ${scenarioInfo.name} (IP: ${scenarioInfo.ip})`);
-        addTimelineEntry('info', `요청 전송: 민감 데이터 접근 (REQUIRED)`);
+        addTimelineEntry('info', '요청 전송: 민감 데이터 접근');
 
         try {
             var response = await fetch(url, {

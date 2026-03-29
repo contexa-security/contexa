@@ -56,7 +56,7 @@ class SecurityTestEvidenceServiceTest {
         session.setAttribute("seed", "ok");
 
         SecurityTestEvidenceService.RequestRegistration registration =
-                service.registerRequest(request, "alice", "sensitive", "resource-001", "REQUIRED");
+                service.registerRequest(request, "alice", "sensitive", "resource-001");
 
         Map<String, Object> responseBody = new LinkedHashMap<>();
         responseBody.put("requestId", registration.getRequestId());
@@ -73,7 +73,6 @@ class SecurityTestEvidenceServiceTest {
                 "2026-03-29T10:00:00Z",
                 "same session, different environment",
                 "same session, different environment",
-                "REQUIRED",
                 "req-001",
                 "ctx-123",
                 "CHALLENGE"

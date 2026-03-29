@@ -46,7 +46,7 @@ public class TestSecurityController {
     public ResponseEntity<Map<String, Object>> testPublicData(
             @PathVariable String resourceId,
             HttpServletRequest request) {
-        return executeProtectedRequest(request, resourceId, "public", "NOT_REQUIRED",
+        return executeProtectedRequest(request, resourceId, "public",
                 () -> testSecurityService.getPublicData(resourceId));
     }
 
@@ -54,7 +54,7 @@ public class TestSecurityController {
     public ResponseEntity<Map<String, Object>> testNormalData(
             @PathVariable String resourceId,
             HttpServletRequest request) {
-        return executeProtectedRequest(request, resourceId, "normal", "PREFERRED",
+        return executeProtectedRequest(request, resourceId, "normal",
                 () -> testSecurityService.getNormalData(resourceId));
     }
 
@@ -62,7 +62,7 @@ public class TestSecurityController {
     public ResponseEntity<Map<String, Object>> testSensitiveData(
             @PathVariable String resourceId,
             HttpServletRequest request) {
-        return executeProtectedRequest(request, resourceId, "sensitive", "REQUIRED",
+        return executeProtectedRequest(request, resourceId, "sensitive",
                 () -> testSecurityService.getSensitiveData(resourceId));
     }
 
@@ -70,13 +70,13 @@ public class TestSecurityController {
     public ResponseEntity<Map<String, Object>> testCriticalData(
             @PathVariable String resourceId,
             HttpServletRequest request) {
-        return executeProtectedRequest(request, resourceId, "critical", "STRICT",
+        return executeProtectedRequest(request, resourceId, "critical",
                 () -> testSecurityService.getCriticalData(resourceId));
     }
 
     @GetMapping("/bulk")
     public ResponseEntity<Map<String, Object>> testBulkData(HttpServletRequest request) {
-        return executeProtectedRequest(request, "bulk", "bulk", "PREFERRED",
+        return executeProtectedRequest(request, "bulk", "bulk",
                 testSecurityService::getBulkData);
     }
 
@@ -134,7 +134,6 @@ public class TestSecurityController {
             HttpServletRequest request,
             String resourceId,
             String endpointKey,
-            String analysisRequirement,
             ProtectedCall protectedCall) {
 
         long startTime = System.currentTimeMillis();
@@ -145,8 +144,7 @@ public class TestSecurityController {
                 request,
                 userId,
                 endpointKey,
-                resourceId,
-                analysisRequirement);
+                resourceId);
 
         try {
             String data = protectedCall.execute();
@@ -210,7 +208,6 @@ public class TestSecurityController {
         response.put("user", authentication != null ? authentication.getName() : "anonymous");
         response.put("resourceId", resourceId);
         response.put("endpointKey", endpointKey);
-        response.put("analysisRequirement", registration.getAnalysisRequirement());
         response.put("requestId", registration.getRequestId());
         response.put("correlationId", registration.getCorrelationId());
         response.put("scenario", registration.getScenario());

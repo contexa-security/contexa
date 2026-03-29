@@ -20,16 +20,16 @@ public class ZeroTrustAnalysisEventListener implements LlmAnalysisEventListener 
     private final LlmAnalysisEventListener delegate;
 
     @Override
-    public void onContextCollected(String userId, String requestPath, String analysisRequirement) {
+    public void onContextCollected(String userId, String requestPath) {
         if (delegate != null) {
-            delegate.onContextCollected(userId, requestPath, analysisRequirement);
+            delegate.onContextCollected(userId, requestPath);
         }
     }
 
     @Override
-    public void onContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
+    public void onContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
         if (delegate != null) {
-            delegate.onContextCollected(userId, requestPath, analysisRequirement, metadata);
+            delegate.onContextCollected(userId, requestPath, metadata);
         }
     }
 

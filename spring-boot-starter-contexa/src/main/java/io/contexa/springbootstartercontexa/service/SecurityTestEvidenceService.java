@@ -71,8 +71,7 @@ public class SecurityTestEvidenceService {
             HttpServletRequest request,
             String userId,
             String endpointKey,
-            String resourceId,
-            String analysisRequirement) {
+            String resourceId) {
 
         String requestId = firstNonBlank(request.getHeader("X-Request-ID"), UUID.randomUUID().toString());
         String correlationId = requestId;
@@ -102,7 +101,6 @@ public class SecurityTestEvidenceService {
                 .demoRunId(demoRunId)
                 .demoPhase(demoPhase)
                 .endpointKey(endpointKey)
-                .analysisRequirement(analysisRequirement)
                 .resourceId(resourceId)
                 .clientIp(clientIp)
                 .userAgent(userAgent)
@@ -136,7 +134,6 @@ public class SecurityTestEvidenceService {
                 sessionId,
                 requestPath,
                 servletPath,
-                analysisRequirement,
                 authMode,
                 tokenSource,
                 authCarrier,
@@ -292,7 +289,6 @@ public class SecurityTestEvidenceService {
             context.put("clientIp", trace.getClientIp());
             context.put("userAgent", trace.getUserAgent());
             context.put("sessionId", trace.getSessionId());
-            context.put("analysisRequirement", trace.getAnalysisRequirement());
         }
 
         if (analysisData != null && StringUtils.hasText(analysisData.contextBindingHash())) {
@@ -401,7 +397,6 @@ public class SecurityTestEvidenceService {
         map.put("updatedAt", data.updatedAt());
         map.put("reasoning", data.reasoning());
         map.put("reasoningSummary", data.reasoningSummary());
-        map.put("analysisRequirement", data.analysisRequirement());
         map.put("requestId", data.requestId());
         map.put("contextBindingHash", data.contextBindingHash());
         map.put("llmProposedAction", data.llmProposedAction());
@@ -636,7 +631,6 @@ public class SecurityTestEvidenceService {
         private final String sessionId;
         private final String requestPath;
         private final String servletPath;
-        private final String analysisRequirement;
         private final String authMode;
         private final String tokenSource;
         private final String authCarrier;
@@ -655,7 +649,6 @@ public class SecurityTestEvidenceService {
                 String sessionId,
                 String requestPath,
                 String servletPath,
-                String analysisRequirement,
                 String authMode,
                 String tokenSource,
                 String authCarrier,
@@ -672,7 +665,6 @@ public class SecurityTestEvidenceService {
             this.sessionId = sessionId;
             this.requestPath = requestPath;
             this.servletPath = servletPath;
-            this.analysisRequirement = analysisRequirement;
             this.authMode = authMode;
             this.tokenSource = tokenSource;
             this.authCarrier = authCarrier;
@@ -693,7 +685,6 @@ public class SecurityTestEvidenceService {
         private final String demoRunId;
         private final String demoPhase;
         private final String endpointKey;
-        private final String analysisRequirement;
         private final String resourceId;
         private final String clientIp;
         private final String userAgent;
@@ -721,7 +712,6 @@ public class SecurityTestEvidenceService {
             map.put("demoRunId", demoRunId);
             map.put("demoPhase", demoPhase);
             map.put("endpointKey", endpointKey);
-            map.put("analysisRequirement", analysisRequirement);
             map.put("resourceId", resourceId);
             map.put("clientIp", clientIp);
             map.put("userAgent", userAgent);

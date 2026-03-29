@@ -55,8 +55,8 @@ public class LlmAnalysisEventPublisher {
         publishToEmitters(globalEmitters, event);
     }
 
-    public void publishContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
-        publishEvent(LlmAnalysisEvent.contextCollected(userId, requestPath, analysisRequirement, metadata));
+    public void publishContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.contextCollected(userId, requestPath, metadata));
     }
 
     public void publishLayer1Start(String userId, String requestPath, Map<String, Object> metadata) {

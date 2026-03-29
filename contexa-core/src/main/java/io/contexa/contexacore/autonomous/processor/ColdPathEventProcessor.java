@@ -50,17 +50,14 @@ public class ColdPathEventProcessor implements IPathProcessor {
             }
 
             String requestPath = extractRequestPath(event);
-            String analysisRequirement = extractAnalysisRequirement(event);
-            Map<String, Object> listenerMetadata = buildListenerMetadata(event, requestPath, analysisRequirement);
-            publishContextCollected(userId, requestPath, analysisRequirement, listenerMetadata);
+            Map<String, Object> listenerMetadata = buildListenerMetadata(event, requestPath);
+            publishContextCollected(userId, requestPath, listenerMetadata);
 
             ProcessingResult result = ProcessingResult.builder()
                     .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                     .currentRiskLevel(riskScore)
                     .success(true)
                     .build();
-            result.addAnalysisData("analysisRequirement", analysisRequirement);
-
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore, listenerMetadata);
             result.setAction(analysisResult.getAction());
             result.setProposedAction(analysisResult.getProposedAction());
@@ -340,25 +337,14 @@ public class ColdPathEventProcessor implements IPathProcessor {
         return ZeroTrustAction.ESCALATE.name();
     }
 
-    private void publishContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
+    private void publishContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
         if (llmAnalysisEventListener != null) {
             try {
-                llmAnalysisEventListener.onContextCollected(userId, requestPath, analysisRequirement, metadata);
+                llmAnalysisEventListener.onContextCollected(userId, requestPath, metadata);
             } catch (Exception e) {
                 log.error("[ColdPath] Failed to publish context collection event: userId={}, requestPath={}", userId, requestPath, e);
             }
         }
-    }
-
-    private String extractAnalysisRequirement(SecurityEvent event) {
-        if (event == null || event.getMetadata() == null) {
-            return "PREFERRED";
-        }
-        Object requirement = event.getMetadata().get("analysisRequirement");
-        if (requirement != null) {
-            return requirement.toString();
-        }
-        return "PREFERRED";
     }
 
     private String extractRequestPath(SecurityEvent event) {
@@ -433,7 +419,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
         llmAnalysisEventListener.onEscalateProtectionTriggered(userId, requestPath, escalateCount, totalAnalysisCount);
     }
 
-    private Map<String, Object> buildListenerMetadata(SecurityEvent event, String requestPath, String analysisRequirement) {
+    private Map<String, Object> buildListenerMetadata(SecurityEvent event, String requestPath) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (event != null && event.getMetadata() != null) {
             metadata.putAll(event.getMetadata());
@@ -446,7 +432,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
             metadata.put("userAgent", event.getUserAgent());
         }
         metadata.put("requestPath", requestPath);
-        metadata.put("analysisRequirement", analysisRequirement);
         if (!metadata.containsKey("correlationId") && event != null) {
             metadata.put("correlationId", event.getEventId());
         }
@@ -496,7 +481,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     private Map<String, Object> buildErrorMetadata(SecurityEvent event) {
         String requestPath = extractRequestPath(event);
-        String analysisRequirement = extractAnalysisRequirement(event);
-        return buildListenerMetadata(event, requestPath, analysisRequirement);
+        return buildListenerMetadata(event, requestPath);
     }
 }

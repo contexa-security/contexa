@@ -74,7 +74,6 @@ public class TestActionController {
         response.put("updatedAt", data.updatedAt());
         response.put("reasoning", data.reasoning());
         response.put("reasoningSummary", data.reasoningSummary());
-        response.put("analysisRequirement", data.analysisRequirement());
         response.put("requestId", data.requestId());
         response.put("contextBindingHash", data.contextBindingHash());
         response.put("llmProposedAction", data.llmProposedAction());

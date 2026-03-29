@@ -15,13 +15,13 @@ public class CompositeLlmAnalysisEventListener implements LlmAnalysisEventListen
     }
 
     @Override
-    public void onContextCollected(String userId, String requestPath, String analysisRequirement) {
-        observers.forEach(observer -> invoke(() -> observer.onContextCollected(userId, requestPath, analysisRequirement)));
+    public void onContextCollected(String userId, String requestPath) {
+        observers.forEach(observer -> invoke(() -> observer.onContextCollected(userId, requestPath)));
     }
 
     @Override
-    public void onContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
-        observers.forEach(observer -> invoke(() -> observer.onContextCollected(userId, requestPath, analysisRequirement, metadata)));
+    public void onContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
+        observers.forEach(observer -> invoke(() -> observer.onContextCollected(userId, requestPath, metadata)));
     }
 
     @Override

@@ -30,7 +30,7 @@ public class TestPageController {
      * 기능:
      * - 현재 Action 상태 조회
      * - Action 강제 설정 (ALLOW, BLOCK, MONITOR 등)
-     * - 각 AnalysisRequirement 레벨별 API 테스트
+     * - 각 보호 대상 API 테스트
      * - 실행 결과 로그 표시
      *
      * @return 템플릿 경로

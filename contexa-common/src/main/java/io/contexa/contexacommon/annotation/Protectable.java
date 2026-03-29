@@ -9,8 +9,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Protectable {
     String ownerField() default "";
-    AnalysisRequirement analysisRequirement() default AnalysisRequirement.PREFERRED;
-    long analysisTimeoutMs() default 0L;
-    boolean runtimeInterception() default false;
     boolean sync() default false;
 }

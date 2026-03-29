@@ -154,7 +154,6 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     entries.get("updatedAt") != null ? entries.get("updatedAt").toString() : null,
                     entries.get("reasoning") != null ? entries.get("reasoning").toString() : null,
                     entries.get("reasoningSummary") != null ? entries.get("reasoningSummary").toString() : null,
-                    entries.get("analysisRequirement") != null ? entries.get("analysisRequirement").toString() : null,
                     entries.get("requestId") != null ? entries.get("requestId").toString() : null,
                     entries.get("contextBindingHash") != null ? entries.get("contextBindingHash").toString() : null,
                     entries.get("llmProposedAction") != null ? entries.get("llmProposedAction").toString() : null

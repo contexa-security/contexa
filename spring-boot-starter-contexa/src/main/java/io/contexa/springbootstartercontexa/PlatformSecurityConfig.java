@@ -62,7 +62,7 @@ public class PlatformSecurityConfig {
 
                 .mfa(mfa -> mfa.urlPrefix("/admin").requiredFactors(1)
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
-                                        .defaultSuccessUrl("/admin")
+                                        .defaultSuccessUrl("/admin/test/security")
                                 ))
                                 .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
