@@ -3,258 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contexa Security Test Console</title>
+    <title>Contexa - 인증 이후 접속자 이상 탐지</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/security-test.css}">
 </head>
 <body th:attr="data-username=${username}">
 <div class="page-shell">
+
+    <!-- ===== HERO ===== -->
     <header class="hero">
-        <div class="hero-copy">
-            <p class="eyebrow">비동기 제로트러스트 실전 리허설</p>
-            <h1>정상 사용자와 계정탈취 후속 요청 비교 콘솔</h1>
-            <p class="hero-description">
-                같은 인증 세션 이후의 요청을 정상 사용자와 계정탈취 시나리오로 나누어 실행하고,
-                즉시 응답, 사용자 전용 SSE, 서버 truth, 컨텍스트 evidence, SaaS 전달 evidence를
-                모두 같은 requestId 기준으로 추적합니다.
-            </p>
+        <div class="hero-backdrop"></div>
+        <div class="hero-left">
+            <div class="brand-mark">CONTEXA ZERO-TRUST</div>
+            <h1>인증 이후 접속자 이상 탐지</h1>
+            <p class="hero-sub">로그인 이후 동일 세션에서 정상 사용자와 계정탈취를 비교 시연합니다</p>
         </div>
-        <div class="hero-side">
-            <div class="hero-card">
-                <span class="label">로그인 사용자</span>
+        <div class="hero-status">
+            <div class="status-card status-card--user">
+                <span class="status-card__label">로그인 사용자</span>
                 <strong th:text="${username}">anonymous</strong>
+                <span class="status-card__sub" th:text="${urlAuthorities}">ROLE_ADMIN</span>
             </div>
-            <div class="hero-card">
-                <span class="label">사용자 SSE</span>
+            <div class="status-card status-card--sse">
+                <span class="status-card__label">실시간 연결</span>
                 <div class="sse-state">
                     <span id="sse-indicator" class="status-dot connecting"></span>
-                    <span id="sse-text">사용자 SSE 연결 중</span>
+                    <span id="sse-text">연결 중</span>
                 </div>
             </div>
-            <div class="hero-card">
-                <span class="label">현재 Run</span>
-                <code id="current-run-id">미지정</code>
+            <div class="status-card">
+                <span class="status-card__label">실행 번호</span>
+                <code id="current-run-id">-</code>
             </div>
-            <div class="hero-card">
-                <span class="label">선택 requestId</span>
-                <code id="selected-request-id">없음</code>
+            <div class="status-card">
+                <span class="status-card__label">요청 번호</span>
+                <code id="selected-request-id">-</code>
             </div>
-            <div class="hero-card">
-                <span class="label">인증 운반</span>
-                <code id="auth-transport">확인 중</code>
-            </div>
-            <div class="hero-card">
-                <span class="label">토큰 출처</span>
-                <code id="auth-token-source">없음</code>
-            </div>
-            <div class="hero-card">
-                <span class="label">액세스 토큰</span>
-                <code id="auth-token-state">확인 중</code>
-            </div>
-            <div class="hero-card">
-                <span class="label">인증 주체</span>
-                <code id="auth-subject">확인 중</code>
-            </div>
+        </div>
+        <div class="hero-auth-detail">
+            <div class="auth-chip"><span class="auth-chip__label">인증 방식</span><code id="auth-transport">확인 중</code></div>
+            <div class="auth-chip"><span class="auth-chip__label">토큰 출처</span><code id="auth-token-source">없음</code></div>
+            <div class="auth-chip"><span class="auth-chip__label">토큰 상태</span><code id="auth-token-state">확인 중</code></div>
+            <div class="auth-chip"><span class="auth-chip__label">인증 주체</span><code id="auth-subject">확인 중</code></div>
         </div>
     </header>
 
-    <section class="summary-grid">
-        <article class="panel">
-            <h2>시연 목적</h2>
-            <ul class="bullet-list">
-                <li>정상 사용자와 계정탈취자가 같은 인증 세션 이후에 어떻게 다르게 감지되는지 증명합니다.</li>
-                <li>브릿지, 컨텍스트, 프롬프트, LLM 판정, 다음 요청 제어, SaaS evidence가 끊김 없이 이어지는지 검증합니다.</li>
-                <li>UI와 서버가 같은 requestId, sessionId, auth metadata를 보고 있는지 즉시 검증합니다.</li>
-            </ul>
-        </article>
-        <article class="panel">
-            <h2>권한 요약</h2>
-            <div class="authority-grid">
-                <div>
-                    <h3>URL 권한</h3>
-                    <pre th:text="${urlAuthorities}">-</pre>
-                </div>
-                <div>
-                    <h3>METHOD 권한</h3>
-                    <pre th:text="${methodAuthorities}">-</pre>
-                </div>
-            </div>
-        </article>
-    </section>
-
+    <!-- ===== SCENARIO + CONTROL ROW ===== -->
     <section class="control-grid">
-        <article class="panel">
+        <article class="panel panel--scenario">
             <div class="panel-header">
                 <h2>1. 시나리오 선택</h2>
-                <p>같은 브라우저 인증 세션을 유지한 채 후속 요청의 환경 신호만 바꾸어 비교합니다.</p>
             </div>
             <div class="scenario-grid">
                 <button type="button" class="scenario-card selected" data-scenario="NORMAL_USER">
-                    <span class="tag allow">정상 사용자</span>
-                    <strong>사내 브라우저 세션에서 정상 접근</strong>
-                    <span>IP 192.168.1.100 / Chrome 120 / 동일 업무 세션</span>
-                    <span class="expectation">기대 결과: 초기 200, 후속 요청도 정상 유지 또는 저위험 ALLOW</span>
+                    <div class="scenario-card__icon scenario-card__icon--safe"></div>
+                    <div class="scenario-card__body">
+                        <span class="tag allow">정상 사용자</span>
+                        <strong>사내 브라우저에서 정상 접근</strong>
+                        <span>IP 192.168.1.100 / Chrome 120</span>
+                        <span class="expectation">기대: ALLOW</span>
+                    </div>
                 </button>
                 <button type="button" class="scenario-card danger" data-scenario="ACCOUNT_TAKEOVER">
-                    <span class="tag block">계정탈취자</span>
-                    <strong>같은 세션 쿠키를 재사용한 후속 접근</strong>
-                    <span>IP 203.0.113.50 / Android 10 / 동일 sessionId, 다른 환경 신호</span>
-                    <span class="expectation">기대 결과: 비동기 분석 후 후속 요청에서 CHALLENGE 또는 BLOCK</span>
+                    <div class="scenario-card__icon scenario-card__icon--threat"></div>
+                    <div class="scenario-card__body">
+                        <span class="tag block">계정탈취자</span>
+                        <strong>탈취된 로그인으로 다른 환경에서 접근</strong>
+                        <span>IP 203.0.113.50 / Android 10</span>
+                        <span class="expectation">기대: BLOCK / CHALLENGE</span>
+                    </div>
                 </button>
             </div>
         </article>
 
-        <article class="panel">
+        <!-- ===== VERDICT CENTER ===== -->
+        <article class="panel panel--verdict">
             <div class="panel-header">
-                <h2>2. 리소스와 헤더</h2>
-                <p>실제 브라우저 요청에 실리는 핵심 헤더와 기대 판정 경로를 미리 보여 줍니다.</p>
+                <h2>AI 판정 결과</h2>
             </div>
-            <div class="endpoint-row">
-                <button type="button" class="endpoint-pill active" data-endpoint="sensitive">민감 리소스 / 민감 정보 접근 경로</button>
-                <button type="button" class="endpoint-pill" data-endpoint="critical">중요 리소스 / 최고 중요 정보 접근 경로</button>
+            <div class="verdict-spotlight">
+                <div id="verdict-badge" class="verdict-badge pending">PENDING</div>
             </div>
-            <dl class="scenario-summary">
-                <div><dt>시나리오</dt><dd id="selected-scenario-name">정상 사용자</dd></div>
-                <div><dt>예상 IP</dt><dd id="selected-scenario-ip">192.168.1.100</dd></div>
-                <div><dt>예상 User-Agent</dt><dd id="selected-scenario-ua">Chrome 120 / Windows 11 / Corp LAN</dd></div>
-                <div><dt>기대 제어</dt><dd id="selected-expected-action">ALLOW 또는 저위험 유지</dd></div>
-                <div><dt>리소스</dt><dd id="selected-endpoint-name">민감 리소스 / 민감 정보 접근 경로</dd></div>
-            </dl>
-            <div class="header-grid" id="request-header-preview"></div>
-        </article>
-
-        <article class="panel">
-            <div class="panel-header">
-                <h2>3. 실행 제어</h2>
-                <p>1차 요청은 즉시 응답만 확인하고, 후속 요청에서 비동기 LLM 분석에 따른 제어 결과를 검증합니다.</p>
-            </div>
-            <div class="action-grid">
-                <button id="btn-run-initial" class="primary-action">1차 요청 실행</button>
-                <button id="btn-run-follow-up" class="secondary-action">후속 요청 실행</button>
-                <button id="btn-refresh-server" class="ghost-action">서버 truth 새로고침</button>
-                <button id="btn-export-evidence" class="ghost-action">증거 JSON 내보내기</button>
-                <button id="btn-stream-evidence" class="ghost-action">증거 NDJSON 보기</button>
-                <button id="btn-reset-console" class="ghost-action">화면 초기화</button>
-            </div>
-            <p class="panel-note">
-                기본 경로는 비동기입니다. 첫 응답은 즉시 돌아오고, SSE와 후속 요청 제어에서
-                실제 제로트러스트 판단 결과를 확인합니다.
-            </p>
-        </article>
-    </section>
-
-    <section class="overview-grid">
-        <article class="panel">
-            <div class="panel-header">
-                <h2>즉시 응답</h2>
-                <p>브라우저가 받은 즉시 응답입니다. requestId와 sessionId가 뒤따르는 모든 evidence의 기준이 됩니다.</p>
-            </div>
-            <dl class="fact-grid" id="immediate-response-facts"></dl>
-            <details class="raw-box">
-                <summary>즉시 응답 JSON</summary>
-                <pre id="immediate-response-json">{}</pre>
-            </details>
-        </article>
-
-        <article class="panel verdict-panel">
-            <div class="panel-header">
-                <h2>현재 판정 요약</h2>
-                <p>SSE와 서버 truth를 결합해 현재 사용자의 제로트러스트 상태를 요약합니다.</p>
-            </div>
-            <div id="verdict-badge" class="verdict-badge pending">PENDING</div>
-            <div class="metric-grid">
-                <div class="metric-box"><span>Risk</span><strong id="metric-risk">-</strong></div>
-                <div class="metric-box"><span>Confidence</span><strong id="metric-confidence">-</strong></div>
+            <div class="verdict-metrics">
+                <div class="metric-box"><span>위험도</span><strong id="metric-risk">-</strong></div>
+                <div class="metric-box"><span>신뢰도</span><strong id="metric-confidence">-</strong></div>
                 <div class="metric-box"><span>분석 깊이</span><strong id="metric-depth">-</strong></div>
-                <div class="metric-box"><span>Context Hash</span><strong id="metric-context-hash">-</strong></div>
+                <div class="metric-box"><span>환경 지문</span><strong id="metric-context-hash">-</strong></div>
             </div>
             <div class="summary-block">
-                <span class="summary-label">Reasoning Summary</span>
+                <span class="summary-label">판단 근거</span>
                 <p id="reasoning-summary">아직 분석 결과가 없습니다.</p>
             </div>
             <div class="summary-block">
-                <span class="summary-label">LLM 제안 Action</span>
+                <span class="summary-label">AI 제안 조치</span>
                 <p id="proposed-action">-</p>
             </div>
         </article>
 
-        <article class="panel">
+        <article class="panel panel--action">
             <div class="panel-header">
-                <h2>UI 대 서버 일치 검증</h2>
-                <p>같은 requestId, sessionId, auth metadata 기준으로 UI, SSE, 서버 저장소, SaaS outbox가 이어지는지 검증합니다.</p>
+                <h2>2. 접근 대상 / 실행</h2>
             </div>
-            <div id="consistency-list" class="consistency-list">
-                <div class="consistency-item pending">아직 검증할 요청이 없습니다.</div>
+            <div class="endpoint-row">
+                <button type="button" class="endpoint-pill active" data-endpoint="sensitive">민감 리소스</button>
+                <button type="button" class="endpoint-pill" data-endpoint="critical">중요 리소스</button>
+            </div>
+            <dl class="scenario-summary">
+                <div><dt>시나리오</dt><dd id="selected-scenario-name">정상 사용자</dd></div>
+                <div><dt>예상 IP</dt><dd id="selected-scenario-ip">192.168.1.100</dd></div>
+                <div><dt>예상 UA</dt><dd id="selected-scenario-ua">Chrome 120 / Windows 11 / Corp LAN</dd></div>
+                <div><dt>기대 제어</dt><dd id="selected-expected-action">ALLOW</dd></div>
+                <div><dt>리소스</dt><dd id="selected-endpoint-name">민감 리소스</dd></div>
+            </dl>
+            <div class="header-grid" id="request-header-preview"></div>
+            <div class="action-grid">
+                <button id="btn-run-initial" class="primary-action">1차 요청 실행</button>
+                <button id="btn-run-follow-up" class="secondary-action">후속 요청 실행</button>
+                <button id="btn-refresh-server" class="ghost-action">서버 기록 새로고침</button>
+                <button id="btn-export-evidence" class="ghost-action">증거 내보내기</button>
+                <button id="btn-stream-evidence" class="ghost-action">증거 스트림</button>
+                <button id="btn-reset-console" class="ghost-action">초기화</button>
             </div>
         </article>
     </section>
 
-    <section class="content-grid">
-        <div class="stack">
-            <article class="panel">
-                <div class="panel-header">
-                    <h2>비동기 SSE 타임라인</h2>
-                    <p>CONTEXT_COLLECTED, LAYER1/2, DECISION_APPLIED 등 실제 코어 이벤트를 시간순으로 표시합니다.</p>
-                </div>
-                <div id="timeline" class="timeline"></div>
-            </article>
+    <!-- ===== TABBED DETAIL SECTION (CSS-only tabs) ===== -->
+    <section class="detail-tabs">
+        <input type="radio" id="dtab-response" name="detail-tab" checked>
+        <label for="dtab-response" class="detail-tab-label">즉시 응답 / 일치 검증</label>
 
-            <article class="panel">
-                <div class="panel-header">
-                    <h2>요청 이력</h2>
-                    <p>정상/탈취 시나리오별 1차 요청과 후속 요청을 requestId 단위로 다시 열람합니다.</p>
-                </div>
-                <div id="request-history" class="request-history"></div>
-            </article>
+        <input type="radio" id="dtab-timeline" name="detail-tab">
+        <label for="dtab-timeline" class="detail-tab-label">실시간 타임라인</label>
+
+        <input type="radio" id="dtab-server" name="detail-tab">
+        <label for="dtab-server" class="detail-tab-label">서버 기록 / 분석 근거</label>
+
+        <input type="radio" id="dtab-evidence" name="detail-tab">
+        <label for="dtab-evidence" class="detail-tab-label">외부 전달 / 증거 보전</label>
+
+        <!-- Tab 1: Response + Consistency -->
+        <div class="detail-tab-content" id="dtab-response-content">
+            <div class="tab-grid-2">
+                <article class="panel">
+                    <div class="panel-header"><h2>즉시 응답</h2></div>
+                    <dl class="fact-grid" id="immediate-response-facts"></dl>
+                    <details class="raw-box">
+                        <summary>상세 데이터</summary>
+                        <pre id="immediate-response-json">{}</pre>
+                    </details>
+                </article>
+                <article class="panel">
+                    <div class="panel-header"><h2>화면-서버 일치 검증</h2></div>
+                    <div id="consistency-list" class="consistency-list">
+                        <div class="consistency-item pending">아직 검증할 요청이 없습니다.</div>
+                    </div>
+                </article>
+            </div>
         </div>
 
-        <div class="stack">
-            <article class="panel">
-                <div class="panel-header">
-                    <h2>서버 truth</h2>
-                    <p>ZeroTrustActionRepository가 기록한 최종 action, requestId, reasoning, threatEvidence를 그대로 보여 줍니다.</p>
-                </div>
-                <dl id="server-truth-facts" class="fact-grid"></dl>
-                <details class="raw-box">
-                    <summary>서버 truth JSON</summary>
-                    <pre id="server-truth-json">{}</pre>
-                </details>
-            </article>
-
-            <article class="panel">
-                <div class="panel-header">
-                    <h2>컨텍스트 evidence</h2>
-                    <p>브릿지, 요청, 세션, HCAD, work profile, narrative, authorization scope가 LLM 입력 근거로 어떻게 연결됐는지 요약합니다.</p>
-                </div>
-                <div id="context-summary" class="context-summary"></div>
-            </article>
+        <!-- Tab 2: Timeline + History -->
+        <div class="detail-tab-content" id="dtab-timeline-content">
+            <div class="tab-grid-2">
+                <article class="panel">
+                    <div class="panel-header"><h2>실시간 분석 타임라인</h2></div>
+                    <div id="timeline" class="timeline"></div>
+                </article>
+                <article class="panel">
+                    <div class="panel-header"><h2>요청 이력</h2></div>
+                    <div id="request-history" class="request-history"></div>
+                </article>
+            </div>
         </div>
 
-        <div class="stack">
-            <article class="panel">
-                <div class="panel-header">
-                    <h2>SaaS evidence와 공급 결과</h2>
-                    <p>고객 outbox 전달과 SaaS pull snapshot을 같은 화면에 보여 줍니다.</p>
-                </div>
-                <div id="saas-summary" class="saas-summary"></div>
-            </article>
+        <!-- Tab 3: Server Truth + Context -->
+        <div class="detail-tab-content" id="dtab-server-content">
+            <div class="tab-grid-2">
+                <article class="panel">
+                    <div class="panel-header"><h2>서버 기록</h2></div>
+                    <dl id="server-truth-facts" class="fact-grid"></dl>
+                    <details class="raw-box">
+                        <summary>상세 데이터</summary>
+                        <pre id="server-truth-json">{}</pre>
+                    </details>
+                </article>
+                <article class="panel">
+                    <div class="panel-header"><h2>분석 근거</h2></div>
+                    <div id="context-summary" class="context-summary"></div>
+                </article>
+            </div>
+        </div>
 
-            <article class="panel">
-                <div class="panel-header">
-                    <h2>증거 보전</h2>
-                    <p>현재 requestId에 대한 통합 evidence JSON과 NDJSON stream 주소를 확인합니다.</p>
-                </div>
-                <div class="evidence-links" id="evidence-links"></div>
-                <details class="raw-box" open>
-                    <summary>통합 evidence JSON</summary>
-                    <pre id="evidence-json">{}</pre>
-                </details>
-                <details class="raw-box">
-                    <summary>NDJSON 미리보기</summary>
-                    <pre id="evidence-stream-output">아직 요청하지 않았습니다.</pre>
-                </details>
-            </article>
+        <!-- Tab 4: SaaS + Evidence -->
+        <div class="detail-tab-content" id="dtab-evidence-content">
+            <div class="tab-grid-2">
+                <article class="panel">
+                    <div class="panel-header"><h2>외부 전달 결과</h2></div>
+                    <div id="saas-summary" class="saas-summary"></div>
+                </article>
+                <article class="panel">
+                    <div class="panel-header"><h2>증거 보전</h2></div>
+                    <div class="evidence-links" id="evidence-links"></div>
+                    <details class="raw-box" open>
+                        <summary>통합 증거 데이터</summary>
+                        <pre id="evidence-json">{}</pre>
+                    </details>
+                    <details class="raw-box">
+                        <summary>NDJSON 미리보기</summary>
+                        <pre id="evidence-stream-output">아직 요청하지 않았습니다.</pre>
+                    </details>
+                </article>
+            </div>
         </div>
     </section>
+
 </div>
 
 <script th:src="@{/js/security-test.js}"></script>
