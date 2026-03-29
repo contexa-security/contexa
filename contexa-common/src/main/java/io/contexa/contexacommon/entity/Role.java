@@ -1,5 +1,6 @@
 package io.contexa.contexacommon.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,11 +49,13 @@ public class Role implements Serializable {
     @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude
+    @JsonIgnore
     private Set<GroupRole> groupRoles = new HashSet<>();
 
     @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude
+    @JsonIgnore
     private Set<RolePermission> rolePermissions = new HashSet<>();
 
     @PrePersist
