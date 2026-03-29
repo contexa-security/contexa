@@ -33,8 +33,20 @@ dependencies {
 bootJar.enabled = true
 jar.enabled = true
 
+springBoot {
+    mainClass = 'io.contexa.springbootstartercontexa.SpringBootStarterContexaApplication'
+}
+
 tasks.named('resolveMainClassName') {
     enabled = false
+}
+
+tasks.named('bootRun') {
+    mainClass = 'io.contexa.springbootstartercontexa.SpringBootStarterContexaApplication'
+}
+
+tasks.named('bootJar') {
+    mainClass = 'io.contexa.springbootstartercontexa.SpringBootStarterContexaApplication'
 }
 
 tasks.named('test') {
@@ -42,10 +54,7 @@ tasks.named('test') {
 }
 
 tasks.named('processResources') {
-    exclude 'templates/test/security-test.html'
     exclude 'templates/test/token-test.html'
-    exclude 'static/js/security-test.js'
     exclude 'static/js/token-test.js'
-    exclude 'static/css/security-test.css'
     exclude 'static/css/token-test.css'
 }

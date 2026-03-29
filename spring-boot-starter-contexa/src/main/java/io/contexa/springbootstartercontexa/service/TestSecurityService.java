@@ -1,5 +1,6 @@
 package io.contexa.springbootstartercontexa.service;
 
+import io.contexa.contexacommon.annotation.AnalysisRequirement;
 import io.contexa.contexacommon.annotation.Protectable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 공개 데이터 문자열
      */
-    @Protectable
+    @Protectable(analysisRequirement = AnalysisRequirement.NOT_REQUIRED)
     public String getPublicData(String resourceId) {
         log.info("공개 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -51,7 +52,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 일반 데이터 문자열
      */
-    @Protectable
+    @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED)
     public String getNormalData(String resourceId) {
         log.info("일반 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -75,7 +76,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 민감 데이터 문자열
      */
-    @Protectable
+    @Protectable(analysisRequirement = AnalysisRequirement.REQUIRED)
     public String getSensitiveData(String resourceId) {
         log.info("민감 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -99,7 +100,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 중요 데이터 문자열
      */
-    @Protectable
+    @Protectable(analysisRequirement = AnalysisRequirement.STRICT)
     public String getCriticalData(String resourceId) {
         log.info("중요 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -119,7 +120,7 @@ public class TestSecurityService {
      *
      * Method ID: io.contexa.springbootstartercontexa.service.TestSecurityService.validateBulkStreamAccess()
      */
-    @Protectable
+    @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED, runtimeInterception = true)
     public void validateBulkStreamAccess() {
         log.info("Bulk stream access validation - @Protectable triggered");
     }
@@ -136,7 +137,7 @@ public class TestSecurityService {
      *
      * @return 대량 데이터 문자열
      */
-    @Protectable
+    @Protectable(analysisRequirement = AnalysisRequirement.PREFERRED, runtimeInterception = true)
     public String getBulkData() {
         log.info("대량 데이터 조회 요청");
 

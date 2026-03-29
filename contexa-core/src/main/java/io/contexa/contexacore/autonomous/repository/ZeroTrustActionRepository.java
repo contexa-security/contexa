@@ -71,12 +71,18 @@ public interface ZeroTrustActionRepository {
             Double confidence,
             String threatEvidence,
             Integer analysisDepth,
-            String updatedAt
+            String updatedAt,
+            String reasoning,
+            String reasoningSummary,
+            String analysisRequirement,
+            String requestId,
+            String contextBindingHash,
+            String llmProposedAction
     ) {
         public static ZeroTrustAnalysisData pending() {
             return new ZeroTrustAnalysisData(
                     ZeroTrustAction.PENDING_ANALYSIS.name(),
-                    null,  null, null, null, null
+                    null,  null, null, null, null, null, null, null, null, null, null
             );
         }
     }

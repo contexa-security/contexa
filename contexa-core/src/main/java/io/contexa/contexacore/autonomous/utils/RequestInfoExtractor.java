@@ -35,6 +35,9 @@ public final class RequestInfoExtractor {
                 .queryString(request.getQueryString())
                 .remoteHost(request.getRemoteHost())
                 .protocol(request.getProtocol())
+                .scenario(extractScenario(request))
+                .demoRunId(extractHeader(request, "X-Contexa-Demo-Run-Id"))
+                .demoPhase(extractHeader(request, "X-Contexa-Demo-Phase"))
                 .secure(request.isSecure())
                 .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
                 .isNewUser((Boolean) request.getAttribute("hcad.is_new_user"))
@@ -101,6 +104,16 @@ public final class RequestInfoExtractor {
         String requestId = request.getHeader("X-Request-ID");
         return (requestId != null && !requestId.isEmpty()) ?
                 requestId : UUID.randomUUID().toString();
+    }
+
+    public static String extractScenario(HttpServletRequest request) {
+        String scenario = request.getHeader("X-Contexa-Scenario");
+        return (scenario != null && !scenario.isBlank()) ? scenario.trim() : null;
+    }
+
+    private static String extractHeader(HttpServletRequest request, String name) {
+        String value = request.getHeader(name);
+        return (value != null && !value.isBlank()) ? value.trim() : null;
     }
 
     private static String extractClientIpLegacy(HttpServletRequest request) {
@@ -188,6 +201,9 @@ public final class RequestInfoExtractor {
         private final String queryString;
         private final String remoteHost;
         private final String protocol;
+        private final String scenario;
+        private final String demoRunId;
+        private final String demoPhase;
         private final boolean secure;
 
         private final Boolean isNewSession;

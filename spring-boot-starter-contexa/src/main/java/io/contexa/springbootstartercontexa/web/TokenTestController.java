@@ -15,7 +15,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/token-test")
+@RequestMapping({"/api/token-test", "/admin/api/token-test"})
 @ConditionalOnBean(TokenService.class)
 @RequiredArgsConstructor
 public class TokenTestController {

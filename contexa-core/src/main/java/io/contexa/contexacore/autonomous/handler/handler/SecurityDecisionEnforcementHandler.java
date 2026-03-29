@@ -77,10 +77,15 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         Map<String, Object> additionalFields = new HashMap<>();
+        additionalFields.put("riskScore", result.resolveAuditRiskScore());
+        additionalFields.put("confidence", result.resolveAuditConfidence());
+        additionalFields.put("reasoning", result.getReasoning());
         additionalFields.put("reasoningSummary", summarizeReasoning(result.getReasoning()));
         additionalFields.put("threatEvidence", result.getThreatIndicators() != null
                 ? String.join(", ", result.getThreatIndicators()) : "");
         additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
+        putIfPresent(additionalFields, "analysisRequirement", event.getMetadata().get("analysisRequirement"));
+        putIfPresent(additionalFields, "requestId", resolveRequestId(event));
         if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
             additionalFields.put("llmProposedAction", result.getProposedAction());
         }
@@ -92,8 +97,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             }
         }
 
-        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
-                event.getSessionId(), event.getSourceIp(), event.getUserAgent());
+        String contextBindingHash = resolveContextBindingHash(event);
         if (contextBindingHash != null) {
             additionalFields.put("contextBindingHash", contextBindingHash);
         }
@@ -106,7 +110,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private void handleBlockDecision(String userId, SecurityEvent event, ProcessingResult result) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = resolveRequestId(event);
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
 
         actionRedisRepository.setBlockedFlag(userId);
@@ -201,6 +205,37 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private String firstNonBlank(String value, String fallback) {
         return value != null && !value.isBlank() ? value : fallback;
+    }
+
+    private String resolveRequestId(SecurityEvent event) {
+        if (event != null && event.getMetadata() != null) {
+            Object requestId = event.getMetadata().get("requestId");
+            if (requestId != null && !requestId.toString().isBlank()) {
+                return requestId.toString();
+            }
+            Object correlationId = event.getMetadata().get("correlationId");
+            if (correlationId != null && !correlationId.toString().isBlank()) {
+                return correlationId.toString();
+            }
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    private String resolveContextBindingHash(SecurityEvent event) {
+        if (event != null && event.getMetadata() != null) {
+            Object existing = event.getMetadata().get("contextBindingHash");
+            if (existing != null && !existing.toString().isBlank()) {
+                return existing.toString();
+            }
+        }
+        return SessionFingerprintUtil.generateContextBindingHash(
+                event.getSessionId(), event.getSourceIp(), event.getUserAgent());
+    }
+
+    private void putIfPresent(Map<String, Object> fields, String key, Object value) {
+        if (value != null) {
+            fields.put(key, value);
+        }
     }
 
     @Override

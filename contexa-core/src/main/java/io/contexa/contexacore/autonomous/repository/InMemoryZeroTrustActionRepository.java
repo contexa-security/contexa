@@ -92,7 +92,13 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                 entry.confidence,
                 entry.threatEvidence,
                 entry.analysisDepth,
-                entry.updatedAt
+                entry.updatedAt,
+                entry.reasoning,
+                entry.reasoningSummary,
+                entry.analysisRequirement,
+                entry.requestId,
+                entry.contextBindingHash,
+                entry.llmProposedAction
         );
     }
 
@@ -223,13 +229,41 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             if (threatEvidence != null) {
                 entry.threatEvidence = threatEvidence.toString();
             }
+            Object riskScore = additionalFields.get("riskScore");
+            if (riskScore instanceof Number num) {
+                entry.riskScore = num.doubleValue();
+            }
+            Object confidence = additionalFields.get("confidence");
+            if (confidence instanceof Number num) {
+                entry.confidence = num.doubleValue();
+            }
             Object analysisDepth = additionalFields.get("analysisDepth");
             if (analysisDepth instanceof Number num) {
                 entry.analysisDepth = num.intValue();
             }
+            Object reasoning = additionalFields.get("reasoning");
+            if (reasoning != null) {
+                entry.reasoning = reasoning.toString();
+            }
+            Object reasoningSummary = additionalFields.get("reasoningSummary");
+            if (reasoningSummary != null) {
+                entry.reasoningSummary = reasoningSummary.toString();
+            }
+            Object analysisRequirement = additionalFields.get("analysisRequirement");
+            if (analysisRequirement != null) {
+                entry.analysisRequirement = analysisRequirement.toString();
+            }
+            Object requestId = additionalFields.get("requestId");
+            if (requestId != null) {
+                entry.requestId = requestId.toString();
+            }
             Object contextBindingHash = additionalFields.get("contextBindingHash");
             if (contextBindingHash != null) {
                 entry.contextBindingHash = contextBindingHash.toString();
+            }
+            Object llmProposedAction = additionalFields.get("llmProposedAction");
+            if (llmProposedAction != null) {
+                entry.llmProposedAction = llmProposedAction.toString();
             }
         }
 
@@ -377,7 +411,12 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         String threatEvidence;
         Integer analysisDepth;
         String updatedAt;
+        String reasoning;
+        String reasoningSummary;
+        String analysisRequirement;
+        String requestId;
         String contextBindingHash;
+        String llmProposedAction;
         Instant expiresAt;
     }
 

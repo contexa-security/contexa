@@ -1,17 +1,20 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -48,6 +51,10 @@ class ZeroTrustChallengeFilterTest {
     @Mock
     private DistributedLockService lockService;
     @Mock
+    private MfaFlowUrlRegistry mfaFlowUrlRegistry;
+    @Mock
+    private ZeroTrustActionRepository actionRepository;
+    @Mock
     private HttpServletRequest request;
     @Mock
     private HttpServletResponse response;
@@ -66,7 +73,9 @@ class ZeroTrustChallengeFilterTest {
                 authUrlProvider,
                 sessionRepository,
                 stateMachineIntegrator,
-                lockService
+                lockService,
+                mfaFlowUrlRegistry,
+                actionRepository
         );
 
         when(request.getContextPath()).thenReturn("");
@@ -75,6 +84,7 @@ class ZeroTrustChallengeFilterTest {
                 "/mfa/ott/request-code", "/mfa/ott/challenge",
                 "/mfa/passkey/challenge", "/mfa/recovery/challenge"
         ));
+        when(mfaFlowUrlRegistry.getAllMfaPageUrls()).thenReturn(Set.of());
     }
 
     @AfterEach
@@ -83,7 +93,8 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    void shouldNotFilter_mfaPaths() throws Exception {
+    @DisplayName("MFA API 경로는 challenge filter를 건너뛴다")
+    void mfa() throws Exception {
         when(request.getRequestURI()).thenReturn("/api/mfa/verify");
 
         filter.doFilter(request, response, filterChain);
@@ -92,7 +103,8 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    void shouldNotFilter_zeroTrustPaths() throws Exception {
+    @DisplayName("제로트러스트 안내 경로는 challenge filter를 건너뛴다")
+    void zero() throws Exception {
         when(request.getRequestURI()).thenReturn("/zero-trust/blocked");
 
         filter.doFilter(request, response, filterChain);
@@ -101,10 +113,11 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    void shouldPassThrough_whenNoChallengeAuthority() throws Exception {
+    @DisplayName("현재 action이 CHALLENGE가 아니면 요청을 그대로 통과시킨다")
+    void pass() throws Exception {
         when(request.getRequestURI()).thenReturn("/dashboard");
         when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getAuthorities()).thenReturn(List.of());
+        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.ALLOW);
         setUpAuthentication();
 
         filter.doFilter(request, response, filterChain);
@@ -113,7 +126,8 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    void shouldPassThrough_whenNotAuthenticated() throws Exception {
+    @DisplayName("미인증 상태면 요청을 그대로 통과시킨다")
+    void anon() throws Exception {
         when(request.getRequestURI()).thenReturn("/dashboard");
         // No authentication in SecurityContext
 
@@ -123,11 +137,13 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
+    @DisplayName("challenge 초기화 락을 얻지 못하면 503을 반환한다")
     @SuppressWarnings("unchecked")
-    void shouldReturnServiceUnavailable_whenLockFails() throws Exception {
+    void lock() throws Exception {
         when(request.getRequestURI()).thenReturn("/dashboard");
-        setUpAuthenticationWithChallengeAuthority();
+        setUpChallengeAuthentication();
         when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.CHALLENGE);
         when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(false);
 
         filter.doFilter(request, response, filterChain);
@@ -140,13 +156,15 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
+    @DisplayName("기존 challenge 세션이 없으면 새 MFA challenge flow를 초기화한다")
     @SuppressWarnings("unchecked")
-    void shouldInitializeChallengeFlow_whenNoExistingSession() throws Exception {
+    void init() throws Exception {
         when(request.getRequestURI()).thenReturn("/dashboard");
         when(request.getHeader("Accept")).thenReturn("text/html");
-        setUpAuthenticationWithChallengeAuthority();
+        setUpChallengeAuthentication();
 
         when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.CHALLENGE);
         when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
 
         FactorContext factorContext = mock(FactorContext.class);
@@ -163,12 +181,14 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
+    @DisplayName("challenge 초기화 중 예외가 나도 분산 락은 반드시 해제한다")
     @SuppressWarnings("unchecked")
-    void shouldUnlockAfterProcessing() throws Exception {
+    void unl() throws Exception {
         when(request.getRequestURI()).thenReturn("/dashboard");
-        setUpAuthenticationWithChallengeAuthority();
+        setUpChallengeAuthentication();
 
         when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.CHALLENGE);
         when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
 
         when(challengeMfaInitializer.initializeChallengeFlow(any(), any(), any()))
@@ -180,18 +200,17 @@ class ZeroTrustChallengeFilterTest {
     }
 
     private void setUpAuthentication() {
+        when(authentication.getName()).thenReturn("testUser");
         SecurityContextImpl securityContext = new SecurityContextImpl();
         securityContext.setAuthentication(authentication);
         SecurityContextHolder.setContext(securityContext);
     }
 
-    @SuppressWarnings("unchecked")
-    private void setUpAuthenticationWithChallengeAuthority() {
-        String challengeAuthority = ZeroTrustAction.CHALLENGE.getGrantedAuthority();
+    private void setUpChallengeAuthentication() {
         when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getName()).thenReturn("testUser");
-        List authorities = List.of(new SimpleGrantedAuthority(challengeAuthority));
-        when(authentication.getAuthorities()).thenReturn(authorities);
+        when(authentication.getAuthorities()).thenReturn(List.of(new SimpleGrantedAuthority(
+                ZeroTrustAction.CHALLENGE.getGrantedAuthority()
+        )));
         setUpAuthentication();
     }
 }

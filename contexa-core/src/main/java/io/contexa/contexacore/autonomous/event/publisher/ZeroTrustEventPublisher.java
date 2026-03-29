@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
@@ -15,8 +16,11 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -115,10 +119,26 @@ public class ZeroTrustEventPublisher {
         payload.put("methodName", methodInvocation.getMethod().getName());
         payload.put("className", methodInvocation.getMethod().getDeclaringClass().getName());
 
+        Protectable protectable = resolveProtectable(methodInvocation);
+        if (protectable != null) {
+            payload.put("analysisRequirement", protectable.analysisRequirement().name());
+            payload.put("analysisTimeoutMs", protectable.analysisTimeoutMs());
+            payload.put("runtimeInterception", protectable.runtimeInterception());
+            payload.put("protectableSync", protectable.sync());
+        }
+
         if (requestInfo != null) {
             payload.put("httpUri", requestInfo.getRequestUri());
             payload.put("requestPath", requestInfo.getRequestUri());
+            payload.put("requestUri", requestInfo.getRequestUri());
             payload.put("httpMethod", requestInfo.getMethod());
+            payload.put("requestId", requestInfo.getRequestId());
+            payload.put("correlationId", requestInfo.getRequestId());
+            payload.put("clientIp", requestInfo.getClientIp());
+            payload.put("userAgent", requestInfo.getUserAgent());
+            payload.put("scenario", requestInfo.getScenario());
+            payload.put("demoRunId", requestInfo.getDemoRunId());
+            payload.put("demoPhase", requestInfo.getDemoPhase());
             payload.put("isNewSession", requestInfo.getIsNewSession());
             payload.put("isNewUser", requestInfo.getIsNewUser());
             payload.put("isNewDevice", requestInfo.getIsNewDevice());
@@ -128,6 +148,12 @@ public class ZeroTrustEventPublisher {
             payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
             payload.put("mfaVerified", requestInfo.getMfaVerified());
             payload.put("userRoles", requestInfo.getUserRoles());
+            if (requestInfo.getServletPath() != null) {
+                payload.put("servletPath", requestInfo.getServletPath());
+            }
+            if (requestInfo.getQueryString() != null) {
+                payload.put("queryString", requestInfo.getQueryString());
+            }
             populateBridgePayload(requestInfo, payload);
 
             if (requestInfo.getGeoCountry() != null) {
@@ -312,5 +338,29 @@ public class ZeroTrustEventPublisher {
         if (value != null) {
             payload.put(key, value);
         }
+    }
+
+    private Protectable resolveProtectable(MethodInvocation methodInvocation) {
+        Protectable protectable = AnnotationUtils.findAnnotation(methodInvocation.getMethod(), Protectable.class);
+        if (protectable != null) {
+            return protectable;
+        }
+
+        Object target = methodInvocation.getThis();
+        if (target != null) {
+            Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
+            protectable = AnnotationUtils.findAnnotation(
+                    AopUtils.getMostSpecificMethod(methodInvocation.getMethod(), targetClass),
+                    Protectable.class);
+            if (protectable != null) {
+                return protectable;
+            }
+            protectable = AnnotationUtils.findAnnotation(targetClass, Protectable.class);
+            if (protectable != null) {
+                return protectable;
+            }
+        }
+
+        return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }

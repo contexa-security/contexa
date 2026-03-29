@@ -1,973 +1,303 @@
-/**
- * ============================================================================
- * Contexa AI Native Zero Trust Security Platform - TIPS Demo
- * ============================================================================
- *
- * 실시간 LLM 분석 시각화 및 SSE 연결
- *
- * 아키텍처:
- * ColdPathEventProcessor -> LlmAnalysisEventListener -> SSE -> Client
- *
- * SSE 이벤트 유형:
- * - CONTEXT_COLLECTED: 컨텍스트 수집 완료
- * - LAYER1_START: Layer1 분석 시작 (Llama 8B)
- * - LAYER1_COMPLETE: Layer1 분석 완료
- * - LAYER2_START: Layer2 에스컬레이션 (Claude)
- * - LAYER2_COMPLETE: Layer2 분석 완료
- * - DECISION_APPLIED: 최종 결정 적용
- * - ERROR: 오류 발생
- *
- * @author contexa
- * @since TIPS Demo v1.0
- */
-
-'use strict';
-
-(function() {
-    // ============================================================================
-    // 상수 정의
-    // ============================================================================
-
-    /**
-     * API 엔드포인트
-     */
-    const API = {
-        SSE_ENDPOINT: '/api/sse/llm-analysis',
-        ACTION_STATUS: '/api/test-action/status',
-        ACTION_RESET: '/api/test-action/reset',
-        TEST_NORMAL: '/api/security-test/normal/',
-        TEST_SENSITIVE: '/api/security-test/sensitive/',
-        TEST_CRITICAL: '/api/security-test/critical/'
-    };
-
-    /**
-     * Scenario-specific HTTP headers (X-Forwarded-For for IP simulation)
-     */
-    const SCENARIO_HEADERS = {
-        'NORMAL_USER': {
-            'X-Forwarded-For': '192.168.1.100'
-        },
-        'ACCOUNT_TAKEOVER': {
-            'X-Forwarded-For': '203.0.113.50'
-        },
-        'PRIVILEGE_ESCALATION': {
-            'X-Forwarded-For': '10.0.0.99'
-        }
-    };
-
-    /**
-     * 시나리오 정보
-     */
-    const SCENARIO_INFO = {
-        'NORMAL_USER': {
-            name: '정상 사용자',
-            ip: '192.168.1.100',
-            userAgent: 'Chrome/120.0 (Windows)',
-            expectedAction: 'ALLOW'
-        },
-        'ACCOUNT_TAKEOVER': {
-            name: '계정 탈취 의심',
-            ip: '203.0.113.50',
-            userAgent: 'Android 10 (Mobile)',
-            expectedAction: 'CHALLENGE'
-        },
-        'PRIVILEGE_ESCALATION': {
-            name: '권한 상승 시도',
-            ip: '10.0.0.99',
-            userAgent: 'python-requests/2.28',
-            expectedAction: 'BLOCK'
-        }
-    };
-
-    /**
-     * Action 색상 및 정보
-     * CSS 클래스명 형식: action-{ACTION} (예: action-ALLOW, action-BLOCK)
-     */
-    const ACTION_STYLES = {
-        'ALLOW': { class: 'action-ALLOW', color: '#2e7d32' },
-        'BLOCK': { class: 'action-BLOCK', color: '#c62828' },
-        'CHALLENGE': { class: 'action-CHALLENGE', color: '#1565c0' },
-        'ESCALATE': { class: 'action-ESCALATE', color: '#7b1fa2' },
-        'PENDING': { class: 'action-PENDING', color: '#666' }
-    };
-
-    /**
-     * Action 한국어 라벨
-     * 화면에 표시되는 텍스트
-     */
-    const ACTION_LABELS = {
-        'ALLOW': '승인',
-        'BLOCK': '차단',
-        'CHALLENGE': '2차 승인 필요',
-        'ESCALATE': '에스컬레이션',
-        'PENDING': '대기',
-        'PENDING_ANALYSIS': '분석 대기'
-    };
-
-    // ============================================================================
-    // 상태 관리
-    // ============================================================================
-
-    const state = {
-        selectedScenario: null,
-        currentAction: 'PENDING',
-        riskScore: 0.0,
-        confidence: 0.0,
-        mitre: null,
-        reasoning: null,
-        isTestRunning: false,
-        sseConnected: false,
-        eventSource: null,
-        analysisPhase: 'idle' // idle, context, layer1, layer2, decision
-    };
-
-    // ============================================================================
-    // DOM 요소 참조
-    // ============================================================================
-
-    let elements = {};
-
-    /**
-     * DOM 요소 초기화
-     */
-    function initializeElements() {
-        elements = {
-            // SSE 상태
-            sseStatus: document.getElementById('sse-status'),
-            sseIndicator: document.getElementById('sse-indicator'),
-            sseText: document.getElementById('sse-text'),
-
-            // 시나리오 카드
-            scenarioNormal: document.getElementById('scenario-normal'),
-            scenarioTakeover: document.getElementById('scenario-takeover'),
-            scenarioEscalation: document.getElementById('scenario-escalation'),
-
-            // 분석 단계 (컴팩트 레이아웃)
-            stepContext: document.getElementById('step-context'),
-            stepLayer1: document.getElementById('step-layer1'),
-            stepLayer2: document.getElementById('step-layer2'),
-            stepDecision: document.getElementById('step-decision'),
-            // Layer2 화살표 (에스컬레이션 시 표시)
-            layer2Arrow: document.querySelector('.layer2-arrow'),
-
-            // Action 배지
-            currentActionBadge: document.getElementById('current-action-badge'),
-
-            // 메트릭
-            riskFill: document.getElementById('risk-fill'),
-            riskValue: document.getElementById('risk-value'),
-            confidenceFill: document.getElementById('confidence-fill'),
-            confidenceValue: document.getElementById('confidence-value'),
-
-            // MITRE & Reasoning
-            mitreDisplay: document.getElementById('mitre-display'),
-            mitreValue: document.getElementById('mitre-value'),
-            reasoningDisplay: document.getElementById('reasoning-display'),
-            reasoningText: document.getElementById('reasoning-text'),
-
-            // 테스트 버튼 (컴팩트 버튼 바)
-            btnTestNormal: document.getElementById('btn-test-normal'),
-            btnTestSensitive: document.getElementById('btn-test-sensitive'),
-            btnTestCritical: document.getElementById('btn-test-critical'),
-
-            // 타임라인
-            timelineContainer: document.getElementById('timeline-container'),
-
-            // 컨트롤 버튼
-            btnClearTimeline: document.getElementById('btn-clear-timeline'),
-            btnResetAnalysis: document.getElementById('btn-reset-analysis'),
-
-            // AI Native v8.12: Action 리로드 버튼
-            reloadActionBtn: document.getElementById('reload-action-btn')
-        };
-    }
-
-    // ============================================================================
-    // SSE 연결 관리
-    // ============================================================================
-
-    /**
-     * SSE 연결 설정
-     */
-    function connectSSE() {
-        if (state.eventSource) {
-            state.eventSource.close();
-        }
-
-        updateSseStatus('connecting', 'SSE 연결 중...');
-
-        try {
-            state.eventSource = new EventSource(API.SSE_ENDPOINT);
-
-            state.eventSource.onopen = function() {
-                state.sseConnected = true;
-                updateSseStatus('connected', 'SSE 연결됨');
-                addTimelineEntry('info', 'SSE 연결 성공 - 실시간 LLM 분석 수신 대기');
-            };
-
-            state.eventSource.onerror = function(event) {
-                state.sseConnected = false;
-                updateSseStatus('disconnected', 'SSE 연결 끊김');
-                addTimelineEntry('error', 'SSE 연결 오류 - 재연결 시도 중...');
-
-                // 5초 후 재연결 시도
-                setTimeout(connectSSE, 5000);
-            };
-
-            // CONTEXT_COLLECTED 이벤트
-            state.eventSource.addEventListener('CONTEXT_COLLECTED', function(event) {
-                const data = JSON.parse(event.data);
-                handleContextCollected(data);
-            });
-
-            // LAYER1_START 이벤트
-            state.eventSource.addEventListener('LAYER1_START', function(event) {
-                const data = JSON.parse(event.data);
-                handleLayer1Start(data);
-            });
-
-            // LAYER1_COMPLETE 이벤트
-            state.eventSource.addEventListener('LAYER1_COMPLETE', function(event) {
-                const data = JSON.parse(event.data);
-                handleLayer1Complete(data);
-            });
-
-            // LAYER2_START 이벤트
-            state.eventSource.addEventListener('LAYER2_START', function(event) {
-                const data = JSON.parse(event.data);
-                handleLayer2Start(data);
-            });
-
-            // LAYER2_COMPLETE 이벤트
-            state.eventSource.addEventListener('LAYER2_COMPLETE', function(event) {
-                const data = JSON.parse(event.data);
-                handleLayer2Complete(data);
-            });
-
-            // DECISION_APPLIED 이벤트
-            state.eventSource.addEventListener('DECISION_APPLIED', function(event) {
-                const data = JSON.parse(event.data);
-                handleDecisionApplied(data);
-            });
-
-            // ERROR 이벤트
-            state.eventSource.addEventListener('ERROR', function(event) {
-                const data = JSON.parse(event.data);
-                handleError(data);
-            });
-
-            // heartbeat 이벤트 (연결 유지용)
-            state.eventSource.addEventListener('heartbeat', function(event) {
-                // 연결 유지 확인
-            });
-
-        } catch (error) {
-            console.error('SSE 연결 오류:', error);
-            updateSseStatus('disconnected', 'SSE 연결 실패');
-        }
-    }
-
-    /**
-     * SSE 상태 표시 업데이트
-     */
-    function updateSseStatus(status, text) {
-        if (elements.sseIndicator) {
-            elements.sseIndicator.className = 'sse-indicator ' + status;
-        }
-        if (elements.sseText) {
-            elements.sseText.textContent = text;
-        }
-    }
-
-    // ============================================================================
-    // SSE 이벤트 핸들러
-    // ============================================================================
-
-    /**
-     * 컨텍스트 수집 완료 처리
-     *
-     * AI Native v8.12: LLM 분석이 시작됨을 알리는 첫 SSE 이벤트
-     * 이 이벤트 수신 시점에 UI 변경 시작 (버튼 비활성화, 분석 UI 초기화)
-     */
-    function handleContextCollected(data) {
-        // AI Native v8.12: LLM 분석 시작 → 이제 UI 변경 시작
-        state.isTestRunning = true;
-        disableTestButtons();
-
-        // 분석 UI 초기화
-        resetAnalysisUI();
-
-        // 타임라인에 분석 시작 메시지
-        addTimelineEntry('info', '========== LLM 분석 시작 ==========');
-        addTimelineEntry('info', `분석 요구 수준: ${data.analysisRequirement || 'N/A'}`);
-
-        // 분석 단계 업데이트
-        state.analysisPhase = 'context';
-        updateStepStatus('context', 'active', '수집 완료');
-    }
-
-    /**
-     * Layer1 분석 시작 처리
-     */
-    function handleLayer1Start(data) {
-        state.analysisPhase = 'layer1';
-        updateStepStatus('context', 'completed', '완료');
-        updateStepStatus('layer1', 'active', '분석 중...');
-        addTimelineEntry('info', 'Layer1 분석 시작 (Llama 8B)');
-    }
-
-    /**
-     * Layer1 분석 완료 처리
-     */
-    function handleLayer1Complete(data) {
-        updateStepStatus('layer1', 'completed', `완료 (${data.elapsedMs || 0}ms)`);
-
-        // 메트릭 업데이트
-        updateMetrics(data.riskScore, data.confidence);
-
-        // MITRE 표시
-        if (data.mitre && data.mitre !== 'none') {
-            showMitre(data.mitre);
-        }
-
-        // Reasoning 표시
-        if (data.reasoning) {
-            showReasoning(data.reasoning);
-        }
-
-        // Action이 ESCALATE가 아니면 최종 결정으로 처리
-        if (data.action !== 'ESCALATE') {
-            updateActionBadge(data.action);
-            addTimelineEntry('success', `Layer1 분석 완료: ${ACTION_LABELS[data.action] || data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
-        } else {
-            addTimelineEntry('warning', `Layer1: ESCALATE - Layer2로 에스컬레이션`);
-        }
-    }
-
-    /**
-     * Layer2 에스컬레이션 시작 처리 (컴팩트 레이아웃)
-     */
-    function handleLayer2Start(data) {
-        state.analysisPhase = 'layer2';
-
-        // Layer2 단계 및 화살표 표시
-        if (elements.stepLayer2) {
-            elements.stepLayer2.style.display = 'flex';
-        }
-        if (elements.layer2Arrow) {
-            elements.layer2Arrow.style.display = 'flex';
-        }
-
-        updateStepStatus('layer2', 'active', '분석 중...');
-        addTimelineEntry('warning', `Layer2 에스컬레이션: ${data.reason || 'N/A'}`);
-    }
-
-    /**
-     * Layer2 분석 완료 처리
-     */
-    function handleLayer2Complete(data) {
-        updateStepStatus('layer2', 'completed', `완료 (${data.elapsedMs || 0}ms)`);
-
-        // 메트릭 업데이트
-        updateMetrics(data.riskScore, data.confidence);
-
-        // MITRE 표시
-        if (data.mitre && data.mitre !== 'none') {
-            showMitre(data.mitre);
-        }
-
-        // Reasoning 표시
-        if (data.reasoning) {
-            showReasoning(data.reasoning);
-        }
-
-        updateActionBadge(data.action);
-        addTimelineEntry('success', `Layer2 분석 완료: ${ACTION_LABELS[data.action] || data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
-    }
-
-    /**
-     * 최종 결정 적용 처리
-     */
-    function handleDecisionApplied(data) {
-        state.analysisPhase = 'decision';
-        updateStepStatus('decision', 'completed', '적용됨');
-        updateActionBadge(data.action);
-
-        const layerInfo = data.layer ? ` (${data.layer})` : '';
-        addTimelineEntry('success', `최종 결정 적용: ${ACTION_LABELS[data.action] || data.action}${layerInfo}`);
-
-        // 테스트 완료
-        state.isTestRunning = false;
-        enableTestButtons();
-    }
-
-    /**
-     * 에러 처리
-     */
-    function handleError(data) {
-        addTimelineEntry('error', `오류: ${data.message || 'Unknown error'}`);
-        state.isTestRunning = false;
-        enableTestButtons();
-    }
-
-    // ============================================================================
-    // UI 업데이트 함수
-    // ============================================================================
-
-    /**
-     * 분석 단계 상태 업데이트 (컴팩트 레이아웃)
-     */
-    function updateStepStatus(step, status, text) {
-        const stepElement = elements[`step${step.charAt(0).toUpperCase() + step.slice(1)}`];
-
-        if (stepElement) {
-            const indicator = stepElement.querySelector('.step-indicator');
-            if (indicator) {
-                indicator.className = 'step-indicator ' + status;
-            }
-        }
-    }
-
-    /**
-     * Action 배지 업데이트
-     */
-    function updateActionBadge(action) {
-        state.currentAction = action;
-
-        // 디버깅: 전달된 action 값과 변환 결과 확인
-        console.log('[updateActionBadge] action:', action, '-> label:', ACTION_LABELS[action] || action);
-
-        if (elements.currentActionBadge) {
-            const actionText = elements.currentActionBadge.querySelector('.action-text');
-            if (actionText) {
-                // 한국어 라벨 사용, 미정의 시 원본 표시
-                const label = ACTION_LABELS[action] || action;
-                console.log('[updateActionBadge] Setting text to:', label);
-                actionText.textContent = label;
-            }
-
-            // 모든 action 클래스 제거 (CSS 클래스명 형식: action-{ACTION})
-            elements.currentActionBadge.classList.remove(
-                'action-ALLOW', 'action-BLOCK', 'action-CHALLENGE', 'action-ESCALATE', 'action-PENDING'
-            );
-
-            // 새 action 클래스 추가
-            const style = ACTION_STYLES[action] || ACTION_STYLES['PENDING'];
-            elements.currentActionBadge.classList.add(style.class);
-        }
-    }
-
-    /**
-     * 메트릭 업데이트
-     */
-    function updateMetrics(riskScore, confidence) {
-        state.riskScore = riskScore || 0;
-        state.confidence = confidence || 0;
-
-        // Risk Score
-        if (elements.riskFill) {
-            elements.riskFill.style.width = `${state.riskScore * 100}%`;
-        }
-        if (elements.riskValue) {
-            elements.riskValue.textContent = state.riskScore.toFixed(2);
-        }
-
-        // Confidence
-        if (elements.confidenceFill) {
-            elements.confidenceFill.style.width = `${state.confidence * 100}%`;
-        }
-        if (elements.confidenceValue) {
-            elements.confidenceValue.textContent = state.confidence.toFixed(2);
-        }
-    }
-
-    /**
-     * MITRE ATT&CK 표시
-     */
-    function showMitre(mitre) {
-        state.mitre = mitre;
-
-        if (elements.mitreDisplay && mitre && mitre !== 'none') {
-            elements.mitreDisplay.style.display = 'block';
-            if (elements.mitreValue) {
-                elements.mitreValue.textContent = mitre;
-            }
-        }
-    }
-
-    /**
-     * LLM Reasoning 표시
-     */
-    function showReasoning(reasoning) {
-        state.reasoning = reasoning;
-
-        if (elements.reasoningDisplay && reasoning) {
-            elements.reasoningDisplay.style.display = 'block';
-            if (elements.reasoningText) {
-                elements.reasoningText.textContent = reasoning;
-            }
-        }
-    }
-
-    /**
-     * AI Native v8.12: MITRE 정보 숨기기
-     */
-    function hideMitre() {
-        state.mitre = null;
-        if (elements.mitreDisplay) {
-            elements.mitreDisplay.style.display = 'none';
-        }
-    }
-
-    /**
-     * AI Native v8.12: Reasoning 정보 숨기기
-     */
-    function hideReasoning() {
-        state.reasoning = null;
-        if (elements.reasoningDisplay) {
-            elements.reasoningDisplay.style.display = 'none';
-        }
-    }
-
-    /**
-     * 타임라인 엔트리 추가
-     */
-    function addTimelineEntry(type, message) {
-        if (!elements.timelineContainer) return;
-
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString('ko-KR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-
-        const entry = document.createElement('div');
-        entry.className = `timeline-entry ${type}`;
-        entry.innerHTML = `
-            <span class="timeline-time">${timeStr}</span>
-            <span class="timeline-message">${escapeHtml(message)}</span>
-        `;
-
-        elements.timelineContainer.appendChild(entry);
-
-        // 자동 스크롤
-        elements.timelineContainer.scrollTop = elements.timelineContainer.scrollHeight;
-    }
-
-    /**
-     * 타임라인 초기화
-     */
-    function clearTimeline() {
-        if (elements.timelineContainer) {
-            elements.timelineContainer.innerHTML = `
-                <div class="timeline-entry info">
-                    <span class="timeline-time">--:--:--</span>
-                    <span class="timeline-message">시나리오를 선택하고 테스트 버튼을 클릭하세요.</span>
-                </div>
-            `;
-        }
-    }
-
-    /**
-     * 분석 결과 초기화
-     */
-    function resetAnalysis() {
-        state.currentAction = 'PENDING';
-        state.riskScore = 0;
-        state.confidence = 0;
-        state.mitre = null;
-        state.reasoning = null;
-        state.analysisPhase = 'idle';
-
-        // Action 배지 초기화
-        updateActionBadge('PENDING');
-
-        // 메트릭 초기화
-        updateMetrics(0, 0);
-
-        // MITRE 숨기기
-        if (elements.mitreDisplay) {
-            elements.mitreDisplay.style.display = 'none';
-        }
-
-        // Reasoning 숨기기
-        if (elements.reasoningDisplay) {
-            elements.reasoningDisplay.style.display = 'none';
-        }
-
-        // 분석 단계 초기화
-        ['context', 'layer1', 'layer2', 'decision'].forEach(step => {
-            updateStepStatus(step, 'waiting', '대기');
-        });
-
-        // Layer2 및 화살표 숨기기
-        if (elements.stepLayer2) {
-            elements.stepLayer2.style.display = 'none';
-        }
-        if (elements.layer2Arrow) {
-            elements.layer2Arrow.style.display = 'none';
-        }
-
-        addTimelineEntry('info', '분석 결과가 초기화되었습니다.');
-    }
-
-    // ============================================================================
-    // 시나리오 선택
-    // ============================================================================
-
-    /**
-     * 시나리오 선택 처리
-     */
-    function selectScenario(scenario) {
-        state.selectedScenario = scenario;
-
-        // 모든 시나리오 카드에서 selected 클래스 제거
-        document.querySelectorAll('.scenario-card').forEach(card => {
-            card.classList.remove('selected');
-        });
-
-        // 선택된 카드에 selected 클래스 추가
-        const selectedCard = document.querySelector(`[data-scenario="${scenario}"]`);
-        if (selectedCard) {
-            selectedCard.classList.add('selected');
-        }
-
-        // 테스트 버튼 활성화
-        enableTestButtons();
-
-        const info = SCENARIO_INFO[scenario];
-        addTimelineEntry('info', `시나리오 선택: ${info.name} (IP: ${info.ip})`);
-    }
-
-    /**
-     * 테스트 버튼 활성화
-     */
-    function enableTestButtons() {
-        const enabled = state.selectedScenario && !state.isTestRunning;
-
-        [elements.btnTestNormal, elements.btnTestSensitive, elements.btnTestCritical].forEach(btn => {
-            if (btn) {
-                btn.disabled = !enabled;
-            }
-        });
-    }
-
-    /**
-     * 테스트 버튼 비활성화
-     */
-    function disableTestButtons() {
-        [elements.btnTestNormal, elements.btnTestSensitive, elements.btnTestCritical].forEach(btn => {
-            if (btn) {
-                btn.disabled = true;
-            }
-        });
-    }
-
-    // ============================================================================
-    // API 테스트 실행
-    // ============================================================================
-
-    /**
-     * API 테스트 실행
-     */
-    async function executeTest(type) {
-        if (state.isTestRunning) {
-            addTimelineEntry('warning', '테스트가 이미 실행 중입니다.');
-            return;
-        }
-
-        if (!state.selectedScenario) {
-            addTimelineEntry('warning', '먼저 시나리오를 선택하세요.');
-            return;
-        }
-
-        // AI Native v8.12: UI 변경은 SSE 이벤트(CONTEXT_COLLECTED) 수신 시에만 수행
-        // 클라이언트 요청 시점에서는 UI 변경 없이 fetch 요청만 전송
-        // LLM 분석이 스킵되면 SSE 이벤트가 오지 않으므로 분석 UI 표시 없음
-
-        const resourceId = 'resource-' + Date.now();
-        const url = getTestUrl(type, resourceId);
-        const scenarioInfo = SCENARIO_INFO[state.selectedScenario];
-
-        // AI Native v8.12: 요청 전송 알림 (최소한의 타임라인 메시지)
-        addTimelineEntry('info', `요청 전송: ${getTestTypeName(type)} - ${scenarioInfo.name}`);
-
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    ...SCENARIO_HEADERS[state.selectedScenario]
-                },
-                credentials: 'same-origin'
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                addTimelineEntry('success', `요청 성공: ${data.data || 'OK'}`);
-            } else {
-                const errorText = await response.text();
-                if (response.status === 403) {
-                    addTimelineEntry('error', `접근 차단됨 (HTTP 403)`);
-                } else {
-                    addTimelineEntry('error', `요청 실패 (HTTP ${response.status})`);
-                }
-            }
-        } catch (error) {
-            addTimelineEntry('error', `네트워크 오류: ${error.message}`);
-            state.isTestRunning = false;
-            enableTestButtons();
-        }
-    }
-
-    // ============================================================================
-    // AI Native v8.12: Action 리로드 기능
-    // ============================================================================
-
-    /**
-     * 현재 Action 새로고침
-     * Redis에서 HCAD 분석 결과 조회하여 UI 업데이트
-     */
-    async function reloadCurrentAction() {
-        const btn = elements.reloadActionBtn;
-        if (!btn) return;
-
-        // 로딩 상태 표시
-        btn.classList.add('loading');
-        btn.disabled = true;
-
-        try {
-            const response = await fetch(API.ACTION_STATUS, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin'
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            // UI 업데이트
-            handleCurrentActionResponse(data);
-
-            // 타임라인에 기록
-            const source = data.analysisStatus === 'ANALYZED' ? 'Redis 캐시' : '분석 없음';
-            addTimelineEntry('info', `Action 조회: ${ACTION_LABELS[data.action] || data.action} (${source})`);
-
-        } catch (error) {
-            console.error('Action 조회 실패:', error);
-            addTimelineEntry('error', `Action 조회 실패: ${error.message}`);
-        } finally {
-            // 로딩 상태 해제
-            btn.classList.remove('loading');
-            btn.disabled = false;
-        }
-    }
-
-    /**
-     * 현재 Action 응답 처리
-     * @param {Object} data - 서버 응답 데이터
-     */
-    function handleCurrentActionResponse(data) {
-        const action = data.action || 'PENDING_ANALYSIS';
-
-        // Action 배지 업데이트 (PENDING_ANALYSIS는 PENDING으로 표시)
-        const displayAction = action === 'PENDING_ANALYSIS' ? 'PENDING' : action;
-        updateActionBadge(displayAction);
-
-        // 메트릭 업데이트
-        if (data.riskScore !== undefined && data.riskScore !== null) {
-            updateMetrics(data.riskScore, data.confidence || 0);
-        } else {
-            // 분석 결과 없으면 메트릭 초기화
-            updateMetrics(0, 0);
-        }
-
-        // MITRE 표시/숨기기
-        if (data.mitre && data.mitre !== 'none') {
-            showMitre(data.mitre);
-        } else {
-            hideMitre();
-        }
-
-        // Reasoning 표시/숨기기
-        if (data.reasoning) {
-            showReasoning(data.reasoning);
-        } else if (data.analysisStatus === 'NOT_ANALYZED') {
-            // 분석 결과 없음 메시지
-            showReasoning('분석 결과 없음 - 보안 테스트 실행 시 LLM 분석이 수행됩니다.');
-        } else {
-            hideReasoning();
-        }
-
-        // 분석 상태에 따른 단계 표시 업데이트
-        if (data.analysisStatus === 'ANALYZED') {
-            // 캐시된 분석 결과가 있으면 모든 단계 완료로 표시
-            updateStepStatus('context', 'completed', '완료');
-            updateStepStatus('layer1', 'completed', '완료');
-            updateStepStatus('decision', 'completed', '적용됨');
-        } else if (data.analysisStatus === 'NOT_ANALYZED') {
-            // 분석 결과 없으면 단계 초기화
-            ['context', 'layer1', 'layer2', 'decision'].forEach(step => {
-                updateStepStatus(step, 'waiting', '대기');
-            });
-        }
-    }
-
-    /**
-     * 분석 UI만 초기화 (분석 결과 API 초기화 없이)
-     */
-    function resetAnalysisUI() {
-        state.currentAction = 'PENDING';
-        state.riskScore = 0;
-        state.confidence = 0;
-        state.mitre = null;
-        state.reasoning = null;
-        state.analysisPhase = 'idle';
-
-        updateActionBadge('PENDING');
-        updateMetrics(0, 0);
-
-        if (elements.mitreDisplay) {
-            elements.mitreDisplay.style.display = 'none';
-        }
-        if (elements.reasoningDisplay) {
-            elements.reasoningDisplay.style.display = 'none';
-        }
-
-        ['context', 'layer1', 'layer2', 'decision'].forEach(step => {
-            updateStepStatus(step, 'waiting', '대기');
-        });
-
-        if (elements.stepLayer2) {
-            elements.stepLayer2.style.display = 'none';
-        }
-        if (elements.layer2Arrow) {
-            elements.layer2Arrow.style.display = 'none';
-        }
-    }
-
-    /**
-     * 테스트 URL 생성
-     */
-    function getTestUrl(type, resourceId) {
-        switch (type) {
-            case 'normal':
-                return API.TEST_NORMAL + encodeURIComponent(resourceId);
-            case 'sensitive':
-                return API.TEST_SENSITIVE + encodeURIComponent(resourceId);
-            case 'critical':
-                return API.TEST_CRITICAL + encodeURIComponent(resourceId);
-            default:
-                return null;
-        }
-    }
-
-    /**
-     * 테스트 유형 이름 반환
-     */
-    function getTestTypeName(type) {
-        switch (type) {
-            case 'normal': return '일반 데이터 (PREFERRED)';
-            case 'sensitive': return '민감 데이터 (REQUIRED)';
-            case 'critical': return '중요 데이터 (STRICT)';
-            default: return type;
-        }
-    }
-
-    /**
-     * HTML 이스케이프
-     */
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // ============================================================================
-    // 이벤트 리스너
-    // ============================================================================
-
-    /**
-     * 이벤트 리스너 바인딩
-     */
-    function bindEventListeners() {
-        // 시나리오 카드 클릭
-        document.querySelectorAll('.scenario-card').forEach(card => {
-            card.addEventListener('click', function() {
-                const scenario = this.dataset.scenario;
-                if (scenario) {
-                    selectScenario(scenario);
-                }
-            });
-        });
-
-        // 테스트 버튼
-        if (elements.btnTestNormal) {
-            elements.btnTestNormal.addEventListener('click', () => executeTest('normal'));
-        }
-        if (elements.btnTestSensitive) {
-            elements.btnTestSensitive.addEventListener('click', () => executeTest('sensitive'));
-        }
-        if (elements.btnTestCritical) {
-            elements.btnTestCritical.addEventListener('click', () => executeTest('critical'));
-        }
-
-        // 타임라인 초기화 버튼
-        if (elements.btnClearTimeline) {
-            elements.btnClearTimeline.addEventListener('click', clearTimeline);
-        }
-
-        // 분석 결과 초기화 버튼
-        if (elements.btnResetAnalysis) {
-            elements.btnResetAnalysis.addEventListener('click', resetAnalysis);
-        }
-
-        // AI Native v8.12: Action 리로드 버튼
-        if (elements.reloadActionBtn) {
-            elements.reloadActionBtn.addEventListener('click', reloadCurrentAction);
-        }
-
-        // 키보드 단축키
-        document.addEventListener('keydown', function(event) {
-            if (event.key === '1') selectScenario('NORMAL_USER');
-            if (event.key === '2') selectScenario('ACCOUNT_TAKEOVER');
-            if (event.key === '3') selectScenario('PRIVILEGE_ESCALATION');
-        });
-    }
-
-    // ============================================================================
-    // 초기화
-    // ============================================================================
-
-    /**
-     * 애플리케이션 초기화
-     */
-    function initialize() {
-        initializeElements();
-        bindEventListeners();
-
-        // SSE 연결
-        connectSSE();
-
-        // 초기 상태
-        updateActionBadge('PENDING');
-        updateMetrics(0, 0);
-
-        addTimelineEntry('info', 'Contexa AI Native Zero Trust Security Platform');
-        addTimelineEntry('info', '시나리오를 선택하고 테스트 버튼을 클릭하세요.');
-    }
-
-    // DOM 로드 완료 시 초기화
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initialize);
-    } else {
-        initialize();
-    }
+﻿'use strict';
+(function(){
+const API={sse:'/admin/api/sse/llm-analysis/user',status:'/admin/api/test-action/status',evidence:'/admin/api/security-test/evidence',endpoints:{sensitive:'/admin/api/security-test/sensitive/resource-001',critical:'/admin/api/security-test/critical/resource-001'}};
+const STORE={access:'contexa_access_token',refresh:'contexa_refresh_token',mode:'authMode'};
+const SCENARIO={NORMAL_USER:{title:'정상 사용자',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11 / Corp LAN',expect:'ALLOW 또는 저위험 유지'},ACCOUNT_TAKEOVER:{title:'계정탈취자',ip:'203.0.113.50',ua:'Android 10 / Hijacked Session',expect:'후속 요청 CHALLENGE 또는 BLOCK'}};
+const ENDPOINT={sensitive:{title:'민감 리소스',req:'REQUIRED'},critical:{title:'중요 리소스',req:'STRICT'}};
+const SSE_TYPES=['connected','CONTEXT_COLLECTED','HCAD_ANALYSIS','SESSION_CONTEXT_LOADED','RAG_SEARCH_COMPLETE','BEHAVIOR_ANALYSIS_COMPLETE','LAYER1_START','LAYER1_COMPLETE','LAYER2_START','LAYER2_COMPLETE','LLM_EXECUTION_START','LLM_EXECUTION_COMPLETE','DECISION_APPLIED','RESPONSE_BLOCKED','ERROR'];
+const el={};
+const st={user:document.body.dataset.username||'anonymous',scenario:'NORMAL_USER',endpoint:'sensitive',runId:null,requestId:null,history:[],events:new Map(),responses:new Map(),evidence:new Map(),truth:null,eventSource:null,auth:{mode:'cookie',source:'none',carrier:'SESSION_COOKIE_ONLY',subject:document.body.dataset.username||'anonymous',attached:false,accessToken:null}};
+
+document.addEventListener('DOMContentLoaded',init);
+
+function init(){
+  bindElements();
+  bindEvents();
+  refreshAuth();
+  renderScenario();
+  renderRequestHistory();
+  renderTimeline();
+  renderImmediateResponse();
+  renderServerTruth();
+  renderEvidence();
+  connectSse();
+}
+
+function bindElements(){
+  ['sse-indicator','sse-text','current-run-id','selected-request-id','auth-transport','auth-token-source','auth-token-state','auth-subject','selected-scenario-name','selected-scenario-ip','selected-scenario-ua','selected-expected-action','selected-endpoint-name','request-header-preview','btn-run-initial','btn-run-follow-up','btn-refresh-server','btn-export-evidence','btn-stream-evidence','btn-reset-console','immediate-response-facts','immediate-response-json','verdict-badge','metric-risk','metric-confidence','metric-depth','metric-context-hash','reasoning-summary','proposed-action','consistency-list','timeline','request-history','server-truth-facts','server-truth-json','context-summary','saas-summary','evidence-links','evidence-json','evidence-stream-output'].forEach(id=>el[toCamel(id)]=document.getElementById(id));
+}
+
+function bindEvents(){
+  document.querySelectorAll('[data-scenario]').forEach(btn=>btn.addEventListener('click',()=>{st.scenario=btn.dataset.scenario;document.querySelectorAll('[data-scenario]').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');renderScenario();}));
+  document.querySelectorAll('[data-endpoint]').forEach(btn=>btn.addEventListener('click',()=>{st.endpoint=btn.dataset.endpoint;document.querySelectorAll('[data-endpoint]').forEach(x=>x.classList.remove('active'));btn.classList.add('active');renderScenario();}));
+  el.btnRunInitial.addEventListener('click',()=>executeRequest('INITIAL'));
+  el.btnRunFollowUp.addEventListener('click',()=>executeRequest('FOLLOW_UP'));
+  el.btnRefreshServer.addEventListener('click',()=>refreshEvidence(true));
+  el.btnExportEvidence.addEventListener('click',exportEvidence);
+  el.btnStreamEvidence.addEventListener('click',streamEvidence);
+  el.btnResetConsole.addEventListener('click',resetConsole);
+}
+
+function connectSse(){
+  if(st.eventSource)st.eventSource.close();
+  setSseState('connecting','사용자 SSE 연결 중');
+  st.eventSource=new EventSource(API.sse);
+  SSE_TYPES.forEach(type=>st.eventSource.addEventListener(type,event=>handleSse(type,event)));
+  st.eventSource.onopen=()=>setSseState('connected','사용자 SSE 연결됨');
+  st.eventSource.onerror=()=>{setSseState('disconnected','사용자 SSE 재연결 중');setTimeout(connectSse,3000);};
+}
+
+function handleSse(type,event){
+  const payload=asJson(event.data)||{type:type};
+  const requestId=payload.requestId||payload.correlationId||'unlinked';
+  const list=st.events.get(requestId)||[];
+  list.push(payload);
+  st.events.set(requestId,list);
+  if(requestId===st.requestId){renderTimeline();renderVerdict();}
+  if(payload.type==='DECISION_APPLIED'||payload.type==='LAYER2_COMPLETE'||payload.type==='ERROR')refreshEvidence(false);
+}
+
+async function executeRequest(phase){
+  refreshAuth();
+  if(phase==='FOLLOW_UP'&&!st.runId){alert('먼저 1차 요청을 실행하십시오.');return;}
+  if(phase==='INITIAL'){st.runId=createId('run');setText(el.currentRunId,st.runId);}
+  const scenario=SCENARIO[st.scenario];
+  const requestId=createId('req');
+  const headers=buildHeaders({'Accept':'application/json','X-Request-ID':requestId,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Scenario':st.scenario,'X-Contexa-Expected-Action':scenario.expect,'X-Contexa-Demo-Run-Id':st.runId,'X-Contexa-Demo-Phase':phase});
+  renderHeaderPreview(headers);
+  const response=await fetch(API.endpoints[st.endpoint],{method:'GET',headers:headers,credentials:'same-origin'});
+  const body=await parseBody(response);
+  const effectiveRequestId=body.requestId||requestId;
+  st.requestId=effectiveRequestId;
+  setText(el.selectedRequestId,effectiveRequestId);
+  st.responses.set(effectiveRequestId,body);
+  st.history.unshift({requestId:effectiveRequestId,phase:phase,scenario:st.scenario,status:response.status,body:body,authCarrier:st.auth.carrier});
+  renderRequestHistory();
+  renderImmediateResponse(body);
+  renderEvidenceLinks(body);
+  await refreshEvidence(true);
+  [800,1800,3200].forEach(delay=>setTimeout(()=>refreshEvidence(false),delay));
+}
+
+async function refreshEvidence(includeStream){
+  refreshAuth();
+  if(!st.requestId)return;
+  const [truth,evidence]=await Promise.all([fetchJson(API.status),fetchJson(`${API.evidence}/${st.requestId}`)]);
+  st.truth=truth;
+  st.evidence.set(st.requestId,evidence);
+  renderServerTruth(truth);
+  renderEvidence(evidence);
+  renderTimeline();
+  renderVerdict();
+  renderConsistency(evidence,truth);
+  if(includeStream)setText(el.evidenceStreamOutput,'NDJSON 스트림은 "증거 NDJSON 보기" 버튼으로 확인합니다.');
+}
+function exportEvidence(){
+  const response=st.responses.get(st.requestId);
+  if(!response||!response.evidenceExportUrl){alert('내보낼 evidence가 없습니다.');return;}
+  window.open(response.evidenceExportUrl,'_blank','noopener');
+}
+
+async function streamEvidence(){
+  const response=st.responses.get(st.requestId);
+  if(!response||!response.evidenceStreamUrl){alert('스트림할 evidence가 없습니다.');return;}
+  setText(el.evidenceStreamOutput,(await fetchText(response.evidenceStreamUrl))||'비어 있습니다.');
+}
+
+function resetConsole(){
+  st.runId=null;st.requestId=null;st.history=[];st.events.clear();st.responses.clear();st.evidence.clear();st.truth=null;
+  setText(el.currentRunId,'미지정');setText(el.selectedRequestId,'없음');
+  refreshAuth();renderScenario();renderRequestHistory();renderTimeline();renderImmediateResponse();renderServerTruth();renderEvidence();
+}
+
+function renderScenario(){
+  const scenario=SCENARIO[st.scenario];
+  const endpoint=ENDPOINT[st.endpoint];
+  setText(el.selectedScenarioName,scenario.title);
+  setText(el.selectedScenarioIp,scenario.ip);
+  setText(el.selectedScenarioUa,scenario.ua);
+  setText(el.selectedExpectedAction,scenario.expect);
+  setText(el.selectedEndpointName,`${endpoint.title} / ${endpoint.req}`);
+  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'미지정'}));
+}
+
+function renderHeaderPreview(headers){
+  const preview={...headers};
+  if(preview.Authorization)preview.Authorization=maskBearer(preview.Authorization);
+  setHtml(el.requestHeaderPreview,Object.entries(preview).map(([k,v])=>`<div class="header-item"><span>${esc(k)}</span><code>${esc(str(v))}</code></div>`).join(''));
+}
+
+function renderImmediateResponse(payload){
+  if(!payload){setHtml(el.immediateResponseFacts,facts([]));setText(el.immediateResponseJson,'{}');return;}
+  setHtml(el.immediateResponseFacts,facts([['HTTP 상태',payload.httpStatus],['Result Type',payload.resultType],['Request ID',payload.requestId],['Correlation ID',payload.correlationId],['Scenario',payload.scenario],['Phase',payload.demoPhase],['Client IP',payload.clientIp],['Session ID',payload.sessionId],['Auth Carrier',payload.authCarrier],['Auth Mode',payload.authMode],['Auth Subject',payload.authSubjectHint],['Authorization Header',payload.authorizationHeaderPresent]]));
+  setText(el.immediateResponseJson,pretty(payload));
+}
+
+function renderServerTruth(payload){
+  if(!payload){setHtml(el.serverTruthFacts,facts([]));setText(el.serverTruthJson,'{}');return;}
+  setHtml(el.serverTruthFacts,facts([['현재 Action',payload.action],['분석 상태',payload.analysisStatus],['Request ID',payload.requestId],['User ID',payload.userId],['Risk',payload.riskScore],['Confidence',payload.confidence],['Analysis Requirement',payload.analysisRequirement],['Context Binding Hash',payload.contextBindingHash],['Threat Evidence',payload.threatEvidence]]));
+  setText(el.serverTruthJson,pretty(payload));
+}
+
+function renderEvidence(evidence){
+  if(!evidence){
+    setHtml(el.contextSummary,empty('선택한 evidence가 없습니다.'));
+    setHtml(el.saasSummary,empty('선택한 evidence가 없습니다.'));
+    setText(el.evidenceJson,'{}');
+    setHtml(el.evidenceLinks,'');
+    renderConsistency();
+    renderVerdict();
+    return;
+  }
+  const request=evidence.request||{};
+  const context=evidence.context||{};
+  const saas=evidence.saas||{};
+  setText(el.evidenceJson,pretty(evidence));
+  setHtml(el.contextSummary,[row('Scenario',context.scenario||request.scenario),row('Expected Action',context.expectedAction||request.expectedAction),row('Client IP',context.clientIp||request.clientIp),row('User-Agent',context.userAgent||request.userAgent),row('Session ID',context.sessionId||request.sessionId),row('Context Binding Hash',context.contextBindingHash),row('Auth Carrier',request.authCarrier),row('Auth Mode',request.authMode),row('Auth Subject',request.authSubjectHint),row('Authorization Header',request.authorizationHeaderPresent),row('Recent Session Actions',sizeOf(context.recentSessionActions)),row('Recent Narrative Families',sizeOf(context.recentNarrativeActionFamilies)),row('Recent Protectable Accesses',sizeOf(context.recentProtectableAccesses)),row('Work Profile Observations',sizeOf(context.workProfileObservations)),row('Permission Change Observations',sizeOf(context.permissionChangeObservations)),row('HCAD Session Metadata',sizeOf(context.hcadSessionMetadata)),row('HCAD Analysis',sizeOf(context.hcadAnalysis))].join(''));
+  setHtml(el.saasSummary,[card('Security Decision Outbox',[['present',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.present],['status',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.status],['attemptCount',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.attemptCount],['deliveredAt',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.deliveredAt],['correlationId',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.correlationId]]),card('Prompt Context Audit Outbox',[['present',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.present],['status',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.status],['attemptCount',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.attemptCount],['deliveredAt',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.deliveredAt],['correlationId',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.correlationId]]),card('SaaS Pull Snapshots',[['baselineSeed',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.baselineSeed)],['threatIntelligence',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.threatIntelligence)],['knowledgePack',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.knowledgePack)],['runtimePolicy',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.runtimePolicy)]])].join(''));
+  renderConsistency(evidence,st.truth);
+  renderVerdict();
+}
+
+function renderConsistency(evidence,truth){
+  if(!evidence){setHtml(el.consistencyList,consistencyItem('대기','선택한 requestId에 대한 evidence가 없습니다.','pending'));return;}
+  refreshAuth();
+  const response=st.responses.get(st.requestId)||{};
+  const request=evidence.request||{};
+  const analysis=evidence.analysis||{};
+  const consistency=evidence.consistency||{};
+  const user=st.auth.subject&&st.auth.subject!=='unknown'?st.auth.subject:st.user;
+  setHtml(el.consistencyList,[boolItem('즉시 응답 requestId와 evidence requestId 일치',response.requestId===evidence.requestId),boolItem('즉시 응답 sessionId와 evidence sessionId 일치',response.sessionId===request.sessionId),boolItem('즉시 응답 clientIp와 evidence clientIp 일치',response.clientIp===request.clientIp),boolItem('UI auth carrier와 evidence request auth carrier 일치',!request.authCarrier||request.authCarrier===st.auth.carrier),boolItem('UI auth mode와 evidence request auth mode 일치',!request.authMode||request.authMode===st.auth.mode),boolItem('UI token source와 evidence request token source 일치',!request.tokenSource||request.tokenSource===st.auth.source),boolItem('UI auth subject와 evidence request auth subject 일치',!request.authSubjectHint||request.authSubjectHint===st.auth.subject),boolItem('Authorization 부착 여부가 evidence와 일치',request.authorizationHeaderPresent===undefined||request.authorizationHeaderPresent===st.auth.attached),boolItem('즉시 응답 user와 현재 인증 주체 일치',!response.user||response.user===user),boolItem('서버 truth userId와 현재 인증 주체 일치',!truth||!truth.userId||truth.userId===user),boolItem('서버 truth requestId와 evidence analysis.requestId 일치',!truth||!truth.requestId||truth.requestId===analysis.requestId),boolItem('SSE 이벤트가 현재 requestId와 연결됨',consistency.sseLinked),boolItem('분석 결과가 현재 requestId와 연결됨',consistency.analysisRequestLinked),boolItem('Decision outbox가 현재 requestId와 연결됨',consistency.decisionOutboxLinked),boolItem('Prompt audit outbox가 현재 requestId와 연결됨',consistency.promptAuditLinked),boolItem('Context binding hash가 존재함',consistency.contextBindingPresent),boolItem('서버 truth 준비 완료',consistency.serverTruthReady),boolItem('SaaS evidence 준비 완료',consistency.saasEvidenceReady)].join(''));
+}
+
+function renderVerdict(){
+  const evidence=st.evidence.get(st.requestId);
+  const analysis=evidence?(evidence.analysis||{}):{};
+  const events=st.events.get(st.requestId)||[];
+  const action=analysis.action||deriveAction(events)||'PENDING_ANALYSIS';
+  setText(el.metricRisk,num(analysis.riskScore));
+  setText(el.metricConfidence,num(analysis.confidence));
+  setText(el.metricDepth,analysis.analysisDepth||'-');
+  setText(el.metricContextHash,analysis.contextBindingHash||'-');
+  setText(el.reasoningSummary,analysis.reasoningSummary||latestReasoning(events)||'아직 분석 결과가 없습니다.');
+  setText(el.proposedAction,analysis.llmProposedAction||action||'-');
+  setText(el.verdictBadge,action);
+  el.verdictBadge.className=`verdict-badge ${verdictClass(action)}`;
+}
+function renderTimeline(){
+  const events=st.events.get(st.requestId)||[];
+  if(!events.length){setHtml(el.timeline,empty('아직 수신한 SSE 이벤트가 없습니다.'));return;}
+  setHtml(el.timeline,events.map(event=>`<div class="timeline-item ${timelineClass(event.type)}"><div class="timeline-head"><strong>${esc(event.type||'-')}</strong><span>${esc(formatTimestamp(event.timestamp))}</span></div><div class="timeline-body"><span>layer: ${esc(event.layer||'-')}</span><span>action: ${esc(event.action||'-')}</span><span>risk: ${esc(num(event.riskScore))}</span><span>confidence: ${esc(num(event.confidence))}</span><span>requestId: ${esc(event.requestId||event.correlationId||'-')}</span></div><p class="timeline-summary">${esc(event.reasoningSummary||event.reasoning||'-')}</p></div>`).join(''));
+}
+
+function renderRequestHistory(){
+  if(!st.history.length){setHtml(el.requestHistory,empty('아직 실행한 요청이 없습니다.'));return;}
+  setHtml(el.requestHistory,st.history.map(item=>{const response=item.body||{};const active=response.requestId===st.requestId?'active':'';return `<button type="button" class="history-item ${active}" data-request-id="${esc(response.requestId||item.requestId)}"><div class="history-head"><strong>${esc(item.phase)}</strong><span>${esc(item.scenario)}</span></div><div class="history-body"><span>requestId: ${esc(response.requestId||item.requestId)}</span><span>status: ${esc(str(item.status))}</span><span>sessionId: ${esc(response.sessionId||'-')}</span><span>auth: ${esc(item.authCarrier||'-')}</span></div></button>`;}).join(''));
+  el.requestHistory.querySelectorAll('[data-request-id]').forEach(button=>button.addEventListener('click',()=>{st.requestId=button.dataset.requestId;setText(el.selectedRequestId,st.requestId);renderRequestHistory();refreshEvidence(false);}));
+}
+
+function renderEvidenceLinks(response){
+  if(!response||!response.evidenceUrl){setHtml(el.evidenceLinks,'');return;}
+  setHtml(el.evidenceLinks,`<a href="${esc(response.evidenceUrl)}" target="_blank" rel="noopener">evidence JSON</a><a href="${esc(response.evidenceExportUrl)}" target="_blank" rel="noopener">export JSON</a><a href="${esc(response.evidenceStreamUrl)}" target="_blank" rel="noopener">NDJSON stream</a><a href="${esc(response.actionStatusUrl)}" target="_blank" rel="noopener">server truth</a>`);
+}
+
+function refreshAuth(){
+  restoreTokenMemory();
+  const tokenMemory=window.TokenMemory||{};
+  const accessToken=pick(tokenMemory.accessToken,safeGet(localStorage,STORE.access),safeGet(sessionStorage,STORE.access));
+  const refreshToken=pick(tokenMemory.refreshToken,safeGet(localStorage,STORE.refresh),safeGet(sessionStorage,STORE.refresh));
+  const source=resolveTokenSource(tokenMemory,accessToken);
+  const mode=pick(safeGet(localStorage,STORE.mode),safeGet(sessionStorage,STORE.mode),accessToken?'header':'cookie');
+  const subject=pick(resolveTokenSubject(accessToken),st.user,'unknown');
+  const attached=Boolean(accessToken);
+  st.auth={mode:mode,source:source,carrier:resolveAuthCarrier(mode,attached),subject:subject,attached:attached,accessToken:accessToken,refreshToken:refreshToken};
+  setText(el.authTransport,st.auth.carrier);
+  setText(el.authTokenSource,st.auth.source);
+  setText(el.authTokenState,attached?'PRESENT':'MISSING');
+  setText(el.authSubject,subject);
+}
+
+function restoreTokenMemory(){
+  const accessToken=pick(safeGet(localStorage,STORE.access),safeGet(sessionStorage,STORE.access));
+  const refreshToken=pick(safeGet(localStorage,STORE.refresh),safeGet(sessionStorage,STORE.refresh));
+  if(!window.TokenMemory)window.TokenMemory={accessToken:null,refreshToken:null};
+  if(!window.TokenMemory.accessToken&&accessToken)window.TokenMemory.accessToken=accessToken;
+  if(!window.TokenMemory.refreshToken&&refreshToken)window.TokenMemory.refreshToken=refreshToken;
+}
+
+function buildHeaders(base){
+  const headers={...base,'X-Contexa-Auth-Mode':st.auth.mode,'X-Contexa-Token-Source':st.auth.source,'X-Contexa-Auth-Carrier':st.auth.carrier,'X-Contexa-Auth-Subject':st.auth.subject,'X-Contexa-Authorization-Present':String(st.auth.attached)};
+  if(st.auth.accessToken)headers.Authorization=`Bearer ${st.auth.accessToken}`;
+  return headers;
+}
+
+function resolveTokenSource(tokenMemory,accessToken){
+  if(tokenMemory&&tokenMemory.accessToken&&tokenMemory.accessToken===accessToken)return'memory';
+  if(safeGet(localStorage,STORE.access)===accessToken&&accessToken)return'localStorage';
+  if(safeGet(sessionStorage,STORE.access)===accessToken&&accessToken)return'sessionStorage';
+  return'none';
+}
+
+function resolveTokenSubject(token){
+  const payload=decodeJwtPayload(token);
+  return payload?pick(payload.sub,payload.username,payload.user_name):null;
+}
+
+function decodeJwtPayload(token){
+  if(!token)return null;
+  const parts=token.split('.');
+  if(parts.length!==3)return null;
+  try{
+    const normalized=parts[1].replace(/-/g,'+').replace(/_/g,'/');
+    const padded=normalized+'='.repeat((4-normalized.length%4)%4);
+    return JSON.parse(window.atob(padded));
+  }catch(error){return null;}
+}
+
+function resolveAuthCarrier(mode,attached){
+  if(attached)return'SESSION_COOKIE + BEARER';
+  if(mode==='header'||mode==='header_cookie')return'SESSION_COOKIE_ONLY (TOKEN_MISSING)';
+  return'SESSION_COOKIE_ONLY';
+}
+
+async function fetchJson(url){
+  const response=await fetch(url,{headers:buildHeaders({'Accept':'application/json'}),credentials:'same-origin'});
+  return parseBody(response);
+}
+
+async function fetchText(url){
+  const response=await fetch(url,{headers:buildHeaders({'Accept':'application/x-ndjson, text/plain, application/json'}),credentials:'same-origin'});
+  return response.text();
+}
+async function parseBody(response){
+  const text=await response.text();
+  return asJson(text)||{raw:text,httpStatus:response.status};
+}
+
+function asJson(text){if(!text)return null;try{return JSON.parse(text);}catch(error){return null;}}
+function boolItem(label,passed){return consistencyItem(label,passed?'일치':'불일치',passed?'pass':'fail');}
+function consistencyItem(label,text,kind){return `<div class="consistency-item ${kind}"><strong>${esc(label)}</strong><span>${esc(text)}</span></div>`;}
+function card(title,pairs){return `<article class="summary-card"><h3>${esc(title)}</h3>${pairs.map(([k,v])=>row(k,v)).join('')}</article>`;}
+function row(label,value){return `<div class="summary-row"><span>${esc(label)}</span><strong>${esc(str(value))}</strong></div>`;}
+function facts(items){if(!items.length)return'<div><dt>상태</dt><dd>없음</dd></div>';return items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(str(v))}</dd></div>`).join('');}
+function deriveAction(events){const last=[...events].reverse().find(event=>event.action);return last?last.action:null;}
+function latestReasoning(events){const last=[...events].reverse().find(event=>event.reasoningSummary||event.reasoning);return last?(last.reasoningSummary||last.reasoning):null;}
+function snapshotSummary(snapshot){if(!snapshot)return'없음';const keys=Object.keys(snapshot).filter(key=>snapshot[key]!==null&&snapshot[key]!==undefined);if(!keys.length)return'없음';return keys.slice(0,3).map(key=>`${key}=${str(snapshot[key])}`).join(', ');}
+function verdictClass(action){const normalized=(action||'').toUpperCase();if(normalized.includes('BLOCK'))return'block';if(normalized.includes('CHALLENGE'))return'challenge';if(normalized.includes('ESCALATE'))return'escalate';if(normalized.includes('ALLOW'))return'allow';return'pending';}
+function timelineClass(type){if(type==='ERROR')return'error';if(type==='DECISION_APPLIED'||type==='RESPONSE_BLOCKED')return'decision';if(type&&type.includes('LAYER2'))return'layer2';if(type&&type.includes('LAYER1'))return'layer1';return'context';}
+function maskBearer(value){if(!value||!value.startsWith('Bearer '))return value;const token=value.slice(7);return token.length<=16?'Bearer <attached>':`Bearer ${token.slice(0,8)}...${token.slice(-8)}`;}
+function createId(prefix){return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2,8)}`;}
+function formatTimestamp(value){return value?new Date(value).toLocaleTimeString('ko-KR',{hour12:false}):'-';}
+function pretty(value){return JSON.stringify(value,null,2);}
+function sizeOf(value){if(Array.isArray(value))return value.length;if(value&&typeof value==='object')return Object.keys(value).length;return value??'-';}
+function num(value){return value===null||value===undefined||Number.isNaN(Number(value))?'-':Number(value).toFixed(2);}
+function str(value){if(value===null||value===undefined||value==='')return'-';return typeof value==='object'?JSON.stringify(value):String(value);}
+function pick(){for(let i=0;i<arguments.length;i+=1){const value=arguments[i];if(typeof value==='string'&&value.trim()!=='')return value.trim();}return null;}
+function safeGet(storage,key){try{return storage?storage.getItem(key):null;}catch(error){return null;}}
+function setSseState(kind,text){el.sseIndicator.className=`status-dot ${kind}`;setText(el.sseText,text);}
+function setHtml(node,value){node.innerHTML=value;}
+function setText(node,value){node.textContent=value;}
+function empty(message){return `<div class="empty-state">${esc(message)}</div>`;}
+function esc(value){return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function toCamel(id){return id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());}
 })();

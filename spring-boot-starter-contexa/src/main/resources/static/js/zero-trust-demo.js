@@ -20,11 +20,11 @@
 (function() {
 
     const API = {
-        SSE_ENDPOINT: '/api/sse/llm-analysis',
-        ACTION_STATUS: '/api/test-action/status',
-        ACTION_RESET: '/api/test-action/reset',
-        TEST_SENSITIVE: '/api/security-test/sensitive/',
-        BULK_STREAM: '/api/security-test/bulk-stream'
+        SSE_ENDPOINT: '/admin/api/sse/llm-analysis',
+        ACTION_STATUS: '/admin/api/test-action/status',
+        ACTION_RESET: '/admin/api/test-action/reset',
+        TEST_SENSITIVE: '/admin/api/security-test/sensitive/',
+        BULK_STREAM: '/admin/api/security-test/demo-bulk-stream'
     };
 
     const SCENARIO_HEADERS = {

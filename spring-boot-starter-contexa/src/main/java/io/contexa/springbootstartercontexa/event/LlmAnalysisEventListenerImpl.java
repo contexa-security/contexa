@@ -1,72 +1,68 @@
 package io.contexa.springbootstartercontexa.event;
 
-import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacore.autonomous.event.LlmAnalysisEventObserver;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-@Qualifier("llmAnalysisEventListener")
-public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
+public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventObserver {
 
     private final LlmAnalysisEventPublisher eventPublisher;
 
     @Override
-    public void onContextCollected(String userId, String requestPath, String analysisRequirement) {
-        eventPublisher.publishContextCollected(userId, requestPath, analysisRequirement);
+    public void onContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
+        eventPublisher.publishContextCollected(userId, requestPath, analysisRequirement, metadata);
     }
 
     @Override
-    public void onLayer1Start(String userId, String requestPath) {
-        eventPublisher.publishLayer1Start(userId, requestPath);
+    public void onLayer1Start(String userId, String requestPath, Map<String, Object> metadata) {
+        eventPublisher.publishLayer1Start(userId, requestPath, metadata);
     }
 
     @Override
-    public void onLayer1Complete(String userId, String action, Double riskScore,
-                                  Double confidence, String reasoning, String mitre, Long elapsedMs) {
-        eventPublisher.publishLayer1Complete(userId, action, riskScore, confidence, reasoning, mitre, elapsedMs);
+    public void onLayer1Complete(
+            String userId,
+            String action,
+            Double riskScore,
+            Double confidence,
+            String reasoning,
+            String mitre,
+            Long elapsedMs,
+            Map<String, Object> metadata) {
+        eventPublisher.publishLayer1Complete(userId, action, riskScore, confidence, reasoning, mitre, elapsedMs, metadata);
     }
 
     @Override
-    public void onLayer2Start(String userId, String requestPath, String reason) {
-        eventPublisher.publishLayer2Start(userId, requestPath, reason);
+    public void onLayer2Start(String userId, String requestPath, String reason, Map<String, Object> metadata) {
+        eventPublisher.publishLayer2Start(userId, requestPath, reason, metadata);
     }
 
     @Override
-    public void onLayer2Complete(String userId, String action, Double riskScore,
-                                  Double confidence, String reasoning, String mitre, Long elapsedMs) {
-        eventPublisher.publishLayer2Complete(userId, action, riskScore, confidence, reasoning, mitre, elapsedMs);
+    public void onLayer2Complete(
+            String userId,
+            String action,
+            Double riskScore,
+            Double confidence,
+            String reasoning,
+            String mitre,
+            Long elapsedMs,
+            Map<String, Object> metadata) {
+        eventPublisher.publishLayer2Complete(userId, action, riskScore, confidence, reasoning, mitre, elapsedMs, metadata);
     }
 
     @Override
-    public void onDecisionApplied(String userId, String action, String layer, String requestPath) {
-        eventPublisher.publishDecisionApplied(userId, action, layer, requestPath);
+    public void onDecisionApplied(String userId, String action, String layer, String requestPath, Map<String, Object> metadata) {
+        eventPublisher.publishDecisionApplied(userId, action, layer, requestPath, metadata);
     }
 
     @Override
-    public void onError(String userId, String message) {
-        eventPublisher.publishError(userId, message);
+    public void onError(String userId, String message, Map<String, Object> metadata) {
+        eventPublisher.publishError(userId, message, metadata);
     }
-
-    @Override
-    public void onLayer2Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs) {
-
-    }
-
-    @Override
-    public void onEscalateProtectionTriggered(String userId, String requestPath, int escalateCount, int totalAnalysisCount) {
-
-    }
-
-    @Override
-    public void onLayer1Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs) {
-
-    }
-
-    // Detailed pipeline events
 
     @Override
     public void onHcadAnalysis(String userId, Map<String, Object> hcadData) {
@@ -98,4 +94,14 @@ public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
         eventPublisher.publishLlmExecutionComplete(userId, llmExecutionMs, responseParseMs);
     }
 
+    @Override
+    public void onEscalateProtectionTriggered(String userId, String requestPath, int escalateCount, int totalAnalysisCount, Map<String, Object> metadata) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (metadata != null) {
+            merged.putAll(metadata);
+        }
+        merged.put("escalateCount", escalateCount);
+        merged.put("totalAnalysisCount", totalAnalysisCount);
+        eventPublisher.publishError(userId, "Escalate protection triggered", merged);
+    }
 }

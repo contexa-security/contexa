@@ -1,380 +1,308 @@
 package io.contexa.springbootstartercontexa.event;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * LLM 분석 이벤트 발행자
- *
- * TIPS 데모용 실시간 LLM 분석 과정을 SSE를 통해 클라이언트에 전송합니다.
- * 사용자별 구독 관리 및 브로드캐스트 기능을 제공합니다.
- *
- * 아키텍처:
- * ColdPathEventProcessor → LlmAnalysisEventPublisher → SseEmitter → Client
- *
- * @author contexa
- * @since TIPS Demo v1.0
- */
 @Component
 @Slf4j
 public class LlmAnalysisEventPublisher {
 
-    /**
-     * 전체 구독자 목록 (브로드캐스트용)
-     */
-    private final List<SseEmitter> globalEmitters = new CopyOnWriteArrayList<>();
-
-    /**
-     * 사용자별 구독자 목록 (개인화된 이벤트 전송용)
-     */
-    private final Map<String, List<SseEmitter>> userEmitters = new ConcurrentHashMap<>();
-
-    /**
-     * SSE 타임아웃 (5분)
-     */
     private static final long SSE_TIMEOUT = 300_000L;
+    private static final int MAX_RECENT_EVENTS = 80;
 
-    /**
-     * 새 구독자 등록 (글로벌)
-     *
-     * @return SseEmitter 인스턴스
-     */
+    private final List<SseEmitter> globalEmitters = new CopyOnWriteArrayList<>();
+    private final Map<String, List<SseEmitter>> userEmitters = new ConcurrentHashMap<>();
+    private final Deque<LlmAnalysisEvent> globalRecentEvents = new ArrayDeque<>();
+    private final Map<String, Deque<LlmAnalysisEvent>> recentEventsByUser = new ConcurrentHashMap<>();
+
     public SseEmitter addEmitter() {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
-
-        emitter.onCompletion(() -> {
-            globalEmitters.remove(emitter);
-            log.debug("[LlmAnalysisEventPublisher] SSE 연결 완료, 구독자 제거");
-        });
-
-        emitter.onTimeout(() -> {
-            globalEmitters.remove(emitter);
-            log.debug("[LlmAnalysisEventPublisher] SSE 타임아웃, 구독자 제거");
-        });
-
-        emitter.onError(e -> {
-            globalEmitters.remove(emitter);
-            log.debug("[LlmAnalysisEventPublisher] SSE 에러 발생, 구독자 제거: {}", e.getMessage());
-        });
-
-        globalEmitters.add(emitter);
-        log.info("[LlmAnalysisEventPublisher] 새 SSE 구독자 등록 (전체 구독자: {})", globalEmitters.size());
-
-        // 연결 확인 이벤트 전송
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("connected")
-                    .data("{\"status\":\"connected\",\"timestamp\":" + System.currentTimeMillis() + "}"));
-        } catch (IOException e) {
-            log.warn("[LlmAnalysisEventPublisher] 연결 확인 이벤트 전송 실패", e);
-        }
-
+        registerEmitter(globalEmitters, emitter, null);
+        sendConnectedEvent(emitter, null);
+        replay(emitter, snapshot(globalRecentEvents));
         return emitter;
     }
 
-    /**
-     * 사용자별 구독자 등록
-     *
-     * @param userId 사용자 ID
-     * @return SseEmitter 인스턴스
-     */
     public SseEmitter addEmitter(String userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
-
-        List<SseEmitter> userList = userEmitters.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>());
-
-        emitter.onCompletion(() -> {
-            userList.remove(emitter);
-            globalEmitters.remove(emitter);
-            log.debug("[LlmAnalysisEventPublisher] SSE 연결 완료 (userId: {})", userId);
-        });
-
-        emitter.onTimeout(() -> {
-            userList.remove(emitter);
-            globalEmitters.remove(emitter);
-            log.debug("[LlmAnalysisEventPublisher] SSE 타임아웃 (userId: {})", userId);
-        });
-
-        emitter.onError(e -> {
-            userList.remove(emitter);
-            globalEmitters.remove(emitter);
-            log.debug("[LlmAnalysisEventPublisher] SSE 에러 (userId: {}): {}", userId, e.getMessage());
-        });
-
-        userList.add(emitter);
-        globalEmitters.add(emitter);
-        log.info("[LlmAnalysisEventPublisher] 새 SSE 구독자 등록 - userId: {}, 전체: {}", userId, globalEmitters.size());
-
-        // 연결 확인 이벤트 전송
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("connected")
-                    .data("{\"status\":\"connected\",\"userId\":\"" + userId + "\",\"timestamp\":" + System.currentTimeMillis() + "}"));
-        } catch (IOException e) {
-            log.warn("[LlmAnalysisEventPublisher] 연결 확인 이벤트 전송 실패 (userId: {})", userId, e);
-        }
-
+        List<SseEmitter> emitters = userEmitters.computeIfAbsent(userId, ignored -> new CopyOnWriteArrayList<>());
+        registerEmitter(emitters, emitter, userId);
+        sendConnectedEvent(emitter, userId);
+        replay(emitter, getRecentEvents(userId));
         return emitter;
     }
 
-    /**
-     * 모든 구독자에게 이벤트 브로드캐스트
-     *
-     * @param event 전송할 이벤트
-     */
     public void publishEvent(LlmAnalysisEvent event) {
-        if (globalEmitters.isEmpty()) {
-            log.debug("[LlmAnalysisEventPublisher] 구독자 없음, 이벤트 전송 생략: {}", event.getType());
+        if (event == null) {
             return;
         }
+        cacheEvent(event);
 
-        String eventData = event.toJson();
-        String eventType = event.getType();
-
-        List<SseEmitter> deadEmitters = new CopyOnWriteArrayList<>();
-
-        for (SseEmitter emitter : globalEmitters) {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name(eventType)
-                        .data(eventData));
-            } catch (IOException e) {
-                deadEmitters.add(emitter);
-                log.debug("[LlmAnalysisEventPublisher] 이벤트 전송 실패, 구독자 제거: {}", e.getMessage());
-            }
+        if (event.getUserId() != null && !event.getUserId().isBlank()) {
+            publishToUserEmitters(event.getUserId(), event);
         }
-
-        // 죽은 구독자 제거
-        globalEmitters.removeAll(deadEmitters);
-
-        log.debug("[LlmAnalysisEventPublisher] 이벤트 브로드캐스트 완료 - type: {}, 구독자: {}, 제거: {}",
-                eventType, globalEmitters.size(), deadEmitters.size());
+        publishToEmitters(globalEmitters, event);
     }
 
-    /**
-     * 특정 사용자에게만 이벤트 전송
-     *
-     * @param userId 사용자 ID
-     * @param event 전송할 이벤트
-     */
-    public void publishEventToUser(String userId, LlmAnalysisEvent event) {
-        List<SseEmitter> userList = userEmitters.get(userId);
+    public void publishContextCollected(String userId, String requestPath, String analysisRequirement, Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.contextCollected(userId, requestPath, analysisRequirement, metadata));
+    }
 
-        if (userList == null || userList.isEmpty()) {
-            // 사용자별 구독자가 없으면 브로드캐스트로 폴백
-            publishEvent(event);
-            return;
+    public void publishLayer1Start(String userId, String requestPath, Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.layer1Start(userId, requestPath, metadata));
+    }
+
+    public void publishLayer1Complete(
+            String userId,
+            String action,
+            Double riskScore,
+            Double confidence,
+            String reasoning,
+            String mitre,
+            Long elapsedMs,
+            Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.layer1Complete(
+                userId,
+                action,
+                riskScore,
+                confidence,
+                reasoning,
+                mitre,
+                elapsedMs,
+                metadata));
+    }
+
+    public void publishLayer2Start(String userId, String requestPath, String reason, Map<String, Object> metadata) {
+        Map<String, Object> merged = mergeMetadata(metadata);
+        if (reason != null) {
+            merged.put("escalationReason", reason);
         }
-
-        String eventData = event.toJson();
-        String eventType = event.getType();
-
-        List<SseEmitter> deadEmitters = new CopyOnWriteArrayList<>();
-
-        for (SseEmitter emitter : userList) {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name(eventType)
-                        .data(eventData));
-            } catch (IOException e) {
-                deadEmitters.add(emitter);
-            }
-        }
-
-        userList.removeAll(deadEmitters);
-        globalEmitters.removeAll(deadEmitters);
-
-        log.debug("[LlmAnalysisEventPublisher] 사용자 이벤트 전송 완료 - userId: {}, type: {}", userId, eventType);
+        publishEvent(LlmAnalysisEvent.layer2Start(userId, requestPath, reason, merged));
     }
 
-    /**
-     * 컨텍스트 수집 완료 이벤트 발행
-     */
-    public void publishContextCollected(String userId, String requestPath, String analysisRequirement) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.contextCollected(userId, requestPath, analysisRequirement);
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] CONTEXT_COLLECTED - userId: {}, path: {}, requirement: {}",
-                userId, requestPath, analysisRequirement);
+    public void publishLayer2Complete(
+            String userId,
+            String action,
+            Double riskScore,
+            Double confidence,
+            String reasoning,
+            String mitre,
+            Long elapsedMs,
+            Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.layer2Complete(
+                userId,
+                action,
+                riskScore,
+                confidence,
+                reasoning,
+                mitre,
+                elapsedMs,
+                metadata));
     }
 
-    /**
-     * Layer1 분석 시작 이벤트 발행
-     */
-    public void publishLayer1Start(String userId, String requestPath) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.layer1Start(userId, requestPath);
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] LAYER1_START - userId: {}, path: {}", userId, requestPath);
+    public void publishDecisionApplied(String userId, String action, String layer, String requestPath, Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.decisionApplied(userId, action, layer, requestPath, metadata));
     }
 
-    /**
-     * Layer1 분석 완료 이벤트 발행
-     */
-    public void publishLayer1Complete(String userId, String action, Double riskScore,
-            Double confidence, String reasoning, String mitre, Long elapsedMs) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.layer1Complete(
-                userId, action, riskScore, confidence, reasoning, mitre, elapsedMs);
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] LAYER1_COMPLETE - userId: {}, action: {}, risk: {}, confidence: {}, elapsed: {}ms",
-                userId, action, riskScore, confidence, elapsedMs);
-    }
-
-    /**
-     * Layer2 에스컬레이션 이벤트 발행
-     */
-    public void publishLayer2Start(String userId, String requestPath, String reason) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.layer2Start(userId, requestPath, reason);
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] LAYER2_START - userId: {}, reason: {}", userId, reason);
-    }
-
-    /**
-     * Layer2 분석 완료 이벤트 발행
-     */
-    public void publishLayer2Complete(String userId, String action, Double riskScore,
-            Double confidence, String reasoning, String mitre, Long elapsedMs) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.layer2Complete(
-                userId, action, riskScore, confidence, reasoning, mitre, elapsedMs);
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] LAYER2_COMPLETE - userId: {}, action: {}, risk: {}, confidence: {}, elapsed: {}ms",
-                userId, action, riskScore, confidence, elapsedMs);
-    }
-
-    /**
-     * 최종 결정 적용 이벤트 발행
-     */
-    public void publishDecisionApplied(String userId, String action, String layer, String requestPath) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.decisionApplied(userId, action, layer, requestPath);
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] DECISION_APPLIED - userId: {}, action: {}, layer: {}, path: {}",
-                userId, action, layer, requestPath);
-    }
-
-    /**
-     * Response blocked event
-     */
-    public void publishResponseBlocked(String userId, long bytesTransferred, String reason) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.responseBlocked(userId, bytesTransferred, reason);
-        publishEvent(event);
-        log.error("[LlmAnalysisEventPublisher] RESPONSE_BLOCKED - userId: {}, bytesTransferred: {}, reason: {}",
-                userId, bytesTransferred, reason);
-    }
-
-    // ========================================================================
-    // Detailed pipeline events
-    // ========================================================================
-
-    private static final ObjectMapper mapper = new ObjectMapper();
-
-    private String toJsonString(Map<String, Object> data) {
-        try { return mapper.writeValueAsString(data); }
-        catch (JsonProcessingException e) { return "{}"; }
+    public void publishResponseBlocked(String userId, long bytesTransferred, String reason, Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.responseBlocked(userId, bytesTransferred, reason, metadata));
     }
 
     public void publishHcadAnalysis(String userId, Map<String, Object> hcadData) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.HCAD_ANALYSIS)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.COMPLETED)
-                .metadata(toJsonString(hcadData))
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] HCAD_ANALYSIS - userId: {}", userId);
+        publishEvent(LlmAnalysisEvent.pipeline(
+                LlmAnalysisEvent.EventType.HCAD_ANALYSIS,
+                userId,
+                LlmAnalysisEvent.Status.COMPLETED,
+                hcadData,
+                null));
     }
 
     public void publishSessionContextLoaded(String userId, Map<String, Object> sessionData) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.SESSION_CONTEXT_LOADED)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.COMPLETED)
-                .metadata(toJsonString(sessionData))
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] SESSION_CONTEXT_LOADED - userId: {}", userId);
+        publishEvent(LlmAnalysisEvent.pipeline(
+                LlmAnalysisEvent.EventType.SESSION_CONTEXT_LOADED,
+                userId,
+                LlmAnalysisEvent.Status.COMPLETED,
+                sessionData,
+                null));
     }
 
     public void publishRagSearchComplete(String userId, int matchedCount, long ragSearchMs) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.RAG_SEARCH_COMPLETE)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.COMPLETED)
-                .elapsedMs(ragSearchMs)
-                .metadata(String.valueOf(matchedCount))
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] RAG_SEARCH_COMPLETE - userId: {}, matched: {}, {}ms", userId, matchedCount, ragSearchMs);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("matchedCount", matchedCount);
+        publishEvent(LlmAnalysisEvent.pipeline(
+                LlmAnalysisEvent.EventType.RAG_SEARCH_COMPLETE,
+                userId,
+                LlmAnalysisEvent.Status.COMPLETED,
+                metadata,
+                ragSearchMs));
     }
 
     public void publishBehaviorAnalysisComplete(String userId, Map<String, Object> behaviorData) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.BEHAVIOR_ANALYSIS_COMPLETE)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.COMPLETED)
-                .metadata(toJsonString(behaviorData))
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] BEHAVIOR_ANALYSIS_COMPLETE - userId: {}", userId);
+        publishEvent(LlmAnalysisEvent.pipeline(
+                LlmAnalysisEvent.EventType.BEHAVIOR_ANALYSIS_COMPLETE,
+                userId,
+                LlmAnalysisEvent.Status.COMPLETED,
+                behaviorData,
+                null));
     }
 
     public void publishLlmExecutionStart(String userId, String modelName, long promptBuildMs) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.LLM_EXECUTION_START)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.IN_PROGRESS)
-                .elapsedMs(promptBuildMs)
-                .metadata(modelName)
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] LLM_EXECUTION_START - userId: {}, model: {}, promptBuild: {}ms", userId, modelName, promptBuildMs);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("modelName", modelName);
+        publishEvent(LlmAnalysisEvent.pipeline(
+                LlmAnalysisEvent.EventType.LLM_EXECUTION_START,
+                userId,
+                LlmAnalysisEvent.Status.IN_PROGRESS,
+                metadata,
+                promptBuildMs));
     }
 
     public void publishLlmExecutionComplete(String userId, long llmExecutionMs, long responseParseMs) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.LLM_EXECUTION_COMPLETE)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.COMPLETED)
-                .elapsedMs(llmExecutionMs)
-                .metadata(String.valueOf(responseParseMs))
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] LLM_EXECUTION_COMPLETE - userId: {}, llm: {}ms, parse: {}ms", userId, llmExecutionMs, responseParseMs);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("responseParseMs", responseParseMs);
+        publishEvent(LlmAnalysisEvent.pipeline(
+                LlmAnalysisEvent.EventType.LLM_EXECUTION_COMPLETE,
+                userId,
+                LlmAnalysisEvent.Status.COMPLETED,
+                metadata,
+                llmExecutionMs));
     }
 
-    /**
-     * 에러 이벤트 발행
-     */
-    public void publishError(String userId, String message) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.error(userId, message);
-        publishEvent(event);
-        log.error("[LlmAnalysisEventPublisher] ERROR - userId: {}, message: {}", userId, message);
+    public void publishError(String userId, String message, Map<String, Object> metadata) {
+        publishEvent(LlmAnalysisEvent.error(userId, message, metadata));
     }
 
-    /**
-     * 현재 구독자 수 조회
-     */
     public int getSubscriberCount() {
         return globalEmitters.size();
     }
 
-    /**
-     * 사용자별 구독자 수 조회
-     */
     public int getUserSubscriberCount(String userId) {
-        List<SseEmitter> userList = userEmitters.get(userId);
-        return userList != null ? userList.size() : 0;
+        List<SseEmitter> emitters = userEmitters.get(userId);
+        return emitters != null ? emitters.size() : 0;
+    }
+
+    public List<LlmAnalysisEvent> getRecentEvents(String userId) {
+        Deque<LlmAnalysisEvent> queue = recentEventsByUser.get(userId);
+        if (queue == null) {
+            return List.of();
+        }
+        synchronized (queue) {
+            return List.copyOf(queue);
+        }
+    }
+
+    private void registerEmitter(List<SseEmitter> registry, SseEmitter emitter, String userId) {
+        emitter.onCompletion(() -> removeEmitter(registry, emitter, userId));
+        emitter.onTimeout(() -> removeEmitter(registry, emitter, userId));
+        emitter.onError(ex -> removeEmitter(registry, emitter, userId));
+        registry.add(emitter);
+    }
+
+    private void removeEmitter(List<SseEmitter> registry, SseEmitter emitter, String userId) {
+        registry.remove(emitter);
+        if (userId != null) {
+            List<SseEmitter> emitters = userEmitters.get(userId);
+            if (emitters != null) {
+                emitters.remove(emitter);
+                if (emitters.isEmpty()) {
+                    userEmitters.remove(userId);
+                }
+            }
+        }
+    }
+
+    private void sendConnectedEvent(SseEmitter emitter, String userId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("status", "connected");
+        payload.put("timestamp", System.currentTimeMillis());
+        if (userId != null) {
+            payload.put("userId", userId);
+        }
+        try {
+            emitter.send(SseEmitter.event().name("connected").data(payload));
+        } catch (IOException e) {
+            log.debug("[LlmAnalysisEventPublisher] failed to send connected event", e);
+        }
+    }
+
+    private void replay(SseEmitter emitter, List<LlmAnalysisEvent> events) {
+        for (LlmAnalysisEvent event : events) {
+            try {
+                emitter.send(SseEmitter.event().name(event.getType()).data(event.toJson()));
+            } catch (IOException e) {
+                log.debug("[LlmAnalysisEventPublisher] replay failed: {}", e.getMessage());
+                break;
+            }
+        }
+    }
+
+    private void publishToUserEmitters(String userId, LlmAnalysisEvent event) {
+        List<SseEmitter> emitters = userEmitters.get(userId);
+        if (emitters == null || emitters.isEmpty()) {
+            return;
+        }
+        publishToEmitters(emitters, event);
+    }
+
+    private void publishToEmitters(List<SseEmitter> emitters, LlmAnalysisEvent event) {
+        if (emitters == null || emitters.isEmpty()) {
+            return;
+        }
+        List<SseEmitter> deadEmitters = new ArrayList<>();
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event().name(event.getType()).data(event.toJson()));
+            } catch (IOException e) {
+                deadEmitters.add(emitter);
+            }
+        }
+        emitters.removeAll(deadEmitters);
+    }
+
+    private void cacheEvent(LlmAnalysisEvent event) {
+        append(globalRecentEvents, event);
+        if (event.getUserId() != null && !event.getUserId().isBlank()) {
+            Deque<LlmAnalysisEvent> userQueue = recentEventsByUser.computeIfAbsent(event.getUserId(), ignored -> new ArrayDeque<>());
+            append(userQueue, event);
+        }
+    }
+
+    private void append(Deque<LlmAnalysisEvent> queue, LlmAnalysisEvent event) {
+        synchronized (queue) {
+            queue.addLast(event);
+            while (queue.size() > MAX_RECENT_EVENTS) {
+                queue.removeFirst();
+            }
+        }
+    }
+
+    private List<LlmAnalysisEvent> snapshot(Deque<LlmAnalysisEvent> queue) {
+        synchronized (queue) {
+            return List.copyOf(queue);
+        }
+    }
+
+    private Map<String, Object> mergeMetadata(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        Map<String, Object> merged = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (key != null && value != null) {
+                merged.put(key, value);
+            }
+        });
+        return merged;
     }
 }

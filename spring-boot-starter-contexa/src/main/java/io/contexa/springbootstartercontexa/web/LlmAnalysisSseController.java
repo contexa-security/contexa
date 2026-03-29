@@ -27,7 +27,7 @@ import java.util.Map;
  * @since TIPS Demo v1.0
  */
 @RestController
-@RequestMapping("/api/sse")
+@RequestMapping({"/api/sse", "/admin/api/sse"})
 @RequiredArgsConstructor
 @Slf4j
 public class LlmAnalysisSseController {
@@ -117,10 +117,10 @@ public class LlmAnalysisSseController {
 
         switch (eventType) {
             case "CONTEXT_COLLECTED":
-                eventPublisher.publishContextCollected(userId, "/api/test/resource", "REQUIRED");
+                eventPublisher.publishContextCollected(userId, "/api/test/resource", "REQUIRED", Map.of());
                 break;
             case "LAYER1_START":
-                eventPublisher.publishLayer1Start(userId, "/api/test/resource");
+                eventPublisher.publishLayer1Start(userId, "/api/test/resource", Map.of());
                 break;
             case "LAYER1_COMPLETE":
                 eventPublisher.publishLayer1Complete(
@@ -130,11 +130,12 @@ public class LlmAnalysisSseController {
                         confidence != null ? confidence : 0.85,
                         "Test reasoning for Layer1 analysis",
                         "none",
-                        500L
+                        500L,
+                        Map.of()
                 );
                 break;
             case "LAYER2_START":
-                eventPublisher.publishLayer2Start(userId, "/api/test/resource", "Escalation reason");
+                eventPublisher.publishLayer2Start(userId, "/api/test/resource", "Escalation reason", Map.of());
                 break;
             case "LAYER2_COMPLETE":
                 eventPublisher.publishLayer2Complete(
@@ -144,7 +145,8 @@ public class LlmAnalysisSseController {
                         confidence != null ? confidence : 0.75,
                         "Test reasoning for Layer2 analysis",
                         "T1078",
-                        1500L
+                        1500L,
+                        Map.of()
                 );
                 break;
             case "DECISION_APPLIED":
@@ -152,7 +154,8 @@ public class LlmAnalysisSseController {
                         userId,
                         action != null ? action : ZeroTrustAction.ALLOW.name(),
                         "LAYER1",
-                        "/api/test/resource"
+                        "/api/test/resource",
+                        Map.of()
                 );
                 break;
             default:
@@ -193,38 +196,38 @@ public class LlmAnalysisSseController {
         log.info("[LlmAnalysisSseController] 분석 시뮬레이션 시작 - userId: {}, escalate: {}, finalAction: {}",
                 userId, escalate, finalAction);
 
-        String requestPath = "/api/security-test/sensitive/demo-resource";
+        String requestPath = "/admin/api/security-test/sensitive/demo-resource";
 
         // 비동기로 시뮬레이션 실행
         new Thread(() -> {
             try {
                 // 1. Context Collected
-                eventPublisher.publishContextCollected(userId, requestPath, "REQUIRED");
+                eventPublisher.publishContextCollected(userId, requestPath, "REQUIRED", Map.of());
                 Thread.sleep(500);
 
                 // 2. Layer1 Start
-                eventPublisher.publishLayer1Start(userId, requestPath);
+                eventPublisher.publishLayer1Start(userId, requestPath, Map.of());
                 Thread.sleep(1000);
 
                 if (escalate) {
                     // 3a. Layer1 Complete (Escalate)
                     eventPublisher.publishLayer1Complete(
                             userId, ZeroTrustAction.ESCALATE.name(), 0.5, 0.35,
-                            "Insufficient confidence, escalating to Layer2", "none", 1000L);
+                            "Insufficient confidence, escalating to Layer2", "none", 1000L, Map.of());
                     Thread.sleep(500);
 
                     // 4. Layer2 Start
-                    eventPublisher.publishLayer2Start(userId, requestPath, "Low confidence in Layer1");
+                    eventPublisher.publishLayer2Start(userId, requestPath, "Low confidence in Layer1", Map.of());
                     Thread.sleep(2000);
 
                     // 5. Layer2 Complete
                     eventPublisher.publishLayer2Complete(
                             userId, finalAction, 0.4, 0.85,
-                            "Deep analysis completed by Claude", "T1078", 2000L);
+                            "Deep analysis completed by Claude", "T1078", 2000L, Map.of());
                     Thread.sleep(300);
 
                     // 6. Decision Applied
-                    eventPublisher.publishDecisionApplied(userId, finalAction, "LAYER2", requestPath);
+                    eventPublisher.publishDecisionApplied(userId, finalAction, "LAYER2", requestPath, Map.of());
 
                 } else {
                     // 3b. Layer1 Complete (No Escalation)
@@ -234,11 +237,11 @@ public class LlmAnalysisSseController {
 
                     eventPublisher.publishLayer1Complete(
                             userId, finalAction, riskScore, confidence,
-                            "Analysis completed by Llama 8B", "none", 1000L);
+                            "Analysis completed by Llama 8B", "none", 1000L, Map.of());
                     Thread.sleep(300);
 
                     // 4. Decision Applied
-                    eventPublisher.publishDecisionApplied(userId, finalAction, "LAYER1", requestPath);
+                    eventPublisher.publishDecisionApplied(userId, finalAction, "LAYER1", requestPath, Map.of());
                 }
 
                 log.info("[LlmAnalysisSseController] 분석 시뮬레이션 완료 - userId: {}", userId);

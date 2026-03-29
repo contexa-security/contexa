@@ -36,11 +36,21 @@ public class TestPageController {
      * @return 템플릿 경로
      */
     @GetMapping("/test/token")
+    public String legacyTokenTestPage() {
+        return "redirect:/admin/test/token";
+    }
+
+    @GetMapping("/admin/test/token")
     public String tokenTestPage() {
         return "test/token-test";
     }
 
     @GetMapping("/test/security")
+    public String legacySecurityTestPage() {
+        return "redirect:/admin/test/security";
+    }
+
+    @GetMapping("/admin/test/security")
     public String securityTestPage(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
@@ -74,6 +84,11 @@ public class TestPageController {
     }
 
     @GetMapping("/test/zero-trust-index")
+    public String legacyZeroTrustIndexPage() {
+        return "redirect:/admin/test/zero-trust-index";
+    }
+
+    @GetMapping("/admin/test/zero-trust-index")
     public String zeroTrustIndexPage(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = "anonymous";
@@ -85,6 +100,11 @@ public class TestPageController {
     }
 
     @GetMapping("/test/zero-trust-demo")
+    public String legacyZeroTrustDemoPage() {
+        return "redirect:/admin/test/zero-trust-demo";
+    }
+
+    @GetMapping("/admin/test/zero-trust-demo")
     public String zeroTrustDemoPage(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 

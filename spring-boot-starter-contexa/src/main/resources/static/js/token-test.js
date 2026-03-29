@@ -26,12 +26,12 @@
     };
 
     const API = {
-        TOKEN_REFRESH: '/api/token-test/refresh',
-        TOKEN_VALIDATE: '/api/token-test/validate',
-        TOKEN_USERINFO: '/api/token-test/userinfo',
-        TEST_NORMAL: '/api/security-test/normal/',
-        TEST_SENSITIVE: '/api/security-test/sensitive/',
-        TEST_CRITICAL: '/api/security-test/critical/'
+        TOKEN_REFRESH: '/admin/api/token-test/refresh',
+        TOKEN_VALIDATE: '/admin/api/token-test/validate',
+        TOKEN_USERINFO: '/admin/api/token-test/userinfo',
+        TEST_NORMAL: '/admin/api/security-test/normal/',
+        TEST_SENSITIVE: '/admin/api/security-test/sensitive/',
+        TEST_CRITICAL: '/admin/api/security-test/critical/'
     };
 
     const state = {

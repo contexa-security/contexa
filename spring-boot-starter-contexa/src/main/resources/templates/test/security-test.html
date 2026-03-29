@@ -3,183 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contexa AI Native Zero Trust Security Platform - TIPS Demo</title>
+    <title>Contexa Security Test Console</title>
     <link rel="stylesheet" th:href="@{/css/security-test.css}">
 </head>
-<body>
-<div class="container">
-    <!-- Compact Hero Header -->
-    <header class="hero-header">
-        <div class="hero-content">
-            <h1 class="hero-title">Contexa</h1>
-            <p class="hero-subtitle">AI Native Zero Trust Security Platform</p>
+<body th:attr="data-username=${username}">
+<div class="page-shell">
+    <header class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">비동기 제로트러스트 실전 리허설</p>
+            <h1>정상 사용자와 계정탈취 후속 요청 비교 콘솔</h1>
+            <p class="hero-description">
+                같은 인증 세션 이후의 요청을 정상 사용자와 계정탈취 시나리오로 나누어 실행하고,
+                즉시 응답, 사용자 전용 SSE, 서버 truth, 컨텍스트 evidence, SaaS 전달 evidence를
+                모두 같은 requestId 기준으로 추적합니다.
+            </p>
         </div>
-        <div class="hero-right">
-            <div class="sse-status" id="sse-status">
-                <span class="sse-indicator disconnected" id="sse-indicator"></span>
-                <span class="sse-text" id="sse-text">SSE 대기</span>
+        <div class="hero-side">
+            <div class="hero-card">
+                <span class="label">로그인 사용자</span>
+                <strong th:text="${username}">anonymous</strong>
             </div>
-            <div class="hero-badge">
-                <span class="badge-text">TIPS Demo</span>
+            <div class="hero-card">
+                <span class="label">사용자 SSE</span>
+                <div class="sse-state">
+                    <span id="sse-indicator" class="status-dot connecting"></span>
+                    <span id="sse-text">사용자 SSE 연결 중</span>
+                </div>
+            </div>
+            <div class="hero-card">
+                <span class="label">현재 Run</span>
+                <code id="current-run-id">미지정</code>
+            </div>
+            <div class="hero-card">
+                <span class="label">선택 requestId</span>
+                <code id="selected-request-id">없음</code>
+            </div>
+            <div class="hero-card">
+                <span class="label">인증 운반</span>
+                <code id="auth-transport">확인 중</code>
+            </div>
+            <div class="hero-card">
+                <span class="label">토큰 출처</span>
+                <code id="auth-token-source">없음</code>
+            </div>
+            <div class="hero-card">
+                <span class="label">액세스 토큰</span>
+                <code id="auth-token-state">확인 중</code>
+            </div>
+            <div class="hero-card">
+                <span class="label">인증 주체</span>
+                <code id="auth-subject">확인 중</code>
             </div>
         </div>
     </header>
 
-    <!-- Main Content Grid: 3 Columns -->
-    <div class="main-grid-3col">
-        <!-- Column 1: Scenario Selection (Compact) -->
-        <section class="section scenario-section">
-            <h2 class="section-title">시나리오</h2>
-            <div class="scenario-cards">
-                <!-- 정상 사용자 시나리오 -->
-                <div class="scenario-card" id="scenario-normal" data-scenario="NORMAL_USER">
-                    <div class="scenario-header normal">
-                        <span class="scenario-icon">&#128100;</span>
-                        <h3>정상 사용자</h3>
-                        <span class="expected-badge expected-allow">승인</span>
-                    </div>
-                    <div class="scenario-body">
-                        <span class="scenario-info">192.168.1.100 | Chrome/120 (Win)</span>
-                    </div>
+    <section class="summary-grid">
+        <article class="panel">
+            <h2>시연 목적</h2>
+            <ul class="bullet-list">
+                <li>정상 사용자와 계정탈취자가 같은 인증 세션 이후에 어떻게 다르게 감지되는지 증명합니다.</li>
+                <li>브릿지, 컨텍스트, 프롬프트, LLM 판정, 다음 요청 제어, SaaS evidence가 끊김 없이 이어지는지 검증합니다.</li>
+                <li>UI와 서버가 같은 requestId, sessionId, auth metadata를 보고 있는지 즉시 검증합니다.</li>
+            </ul>
+        </article>
+        <article class="panel">
+            <h2>권한 요약</h2>
+            <div class="authority-grid">
+                <div>
+                    <h3>URL 권한</h3>
+                    <pre th:text="${urlAuthorities}">-</pre>
                 </div>
-
-                <!-- 계정 탈취 시나리오 -->
-                <div class="scenario-card" id="scenario-takeover" data-scenario="ACCOUNT_TAKEOVER">
-                    <div class="scenario-header warning">
-                        <span class="scenario-icon">&#9888;</span>
-                        <h3>계정 탈취 의심</h3>
-                        <span class="expected-badge expected-challenge">2차 승인 필요</span>
-                    </div>
-                    <div class="scenario-body">
-                        <span class="scenario-info">203.0.113.50 | Android 10</span>
-                    </div>
-                </div>
-
-                <!-- 권한 상승 시나리오 -->
-                <div class="scenario-card" id="scenario-escalation" data-scenario="PRIVILEGE_ESCALATION">
-                    <div class="scenario-header danger">
-                        <span class="scenario-icon">&#128274;</span>
-                        <h3>권한 상승 시도</h3>
-                        <span class="expected-badge expected-block">차단</span>
-                    </div>
-                    <div class="scenario-body">
-                        <span class="scenario-info">10.0.0.99 | python-requests</span>
-                    </div>
+                <div>
+                    <h3>METHOD 권한</h3>
+                    <pre th:text="${methodAuthorities}">-</pre>
                 </div>
             </div>
-        </section>
-
-        <!-- Column 2: Real-time LLM Analysis Panel -->
-        <section class="section analysis-section">
-            <h2 class="section-title">실시간 LLM 분석</h2>
-
-            <!-- Analysis Progress (Compact) -->
-            <div class="analysis-panel">
-                <div class="analysis-steps-compact">
-                    <div class="analysis-step-compact" id="step-context">
-                        <div class="step-indicator waiting"></div>
-                        <span class="step-label-compact">Context</span>
-                    </div>
-                    <div class="step-arrow">&#10132;</div>
-                    <div class="analysis-step-compact" id="step-layer1">
-                        <div class="step-indicator waiting"></div>
-                        <span class="step-label-compact">Layer1</span>
-                    </div>
-                    <div class="step-arrow layer2-arrow" style="display: none;">&#10132;</div>
-                    <div class="analysis-step-compact layer2-step" id="step-layer2" style="display: none;">
-                        <div class="step-indicator waiting"></div>
-                        <span class="step-label-compact">Layer2</span>
-                    </div>
-                    <div class="step-arrow">&#10132;</div>
-                    <div class="analysis-step-compact" id="step-decision">
-                        <div class="step-indicator waiting"></div>
-                        <span class="step-label-compact">Decision</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Current Action Badge -->
-            <div class="action-display">
-                <div class="action-header">
-                    <span class="action-label">Action</span>
-                    <button class="reload-btn" id="reload-action-btn" title="Redis에서 현재 Action 조회">&#x27F3;</button>
-                </div>
-                <div class="action-badge-large" id="current-action-badge">
-                    <span class="action-text">대기</span>
-                </div>
-                <div class="metrics-row">
-                    <div class="metric">
-                        <span class="metric-label">Risk</span>
-                        <div class="metric-bar">
-                            <div class="metric-fill risk-fill" id="risk-fill" style="width: 0%"></div>
-                        </div>
-                        <span class="metric-value" id="risk-value">0.00</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Conf</span>
-                        <div class="metric-bar">
-                            <div class="metric-fill confidence-fill" id="confidence-fill" style="width: 0%"></div>
-                        </div>
-                        <span class="metric-value" id="confidence-value">0.00</span>
-                    </div>
-                </div>
-                <div class="mitre-display" id="mitre-display" style="display: none;">
-                    <span class="mitre-label">MITRE:</span>
-                    <span class="mitre-value" id="mitre-value">-</span>
-                </div>
-            </div>
-
-            <!-- Reasoning Display (Compact) -->
-            <div class="reasoning-display" id="reasoning-display" style="display: none;">
-                <h4>분석 근거</h4>
-                <p class="reasoning-text" id="reasoning-text">-</p>
-            </div>
-        </section>
-
-        <!-- Column 3: Decision Flow Timeline -->
-        <section class="section timeline-section">
-            <h2 class="section-title">Timeline</h2>
-            <div class="timeline-container" id="timeline-container">
-                <div class="timeline-entry info">
-                    <span class="timeline-time">--:--:--</span>
-                    <span class="timeline-message">시나리오 선택 후 테스트 실행</span>
-                </div>
-            </div>
-            <div class="timeline-controls">
-                <button class="btn-small" id="btn-clear-timeline">초기화</button>
-                <button class="btn-small" id="btn-reset-analysis">분석 리셋</button>
-            </div>
-        </section>
-    </div>
-
-    <!-- Security Test Execution - Compact Button Bar at Bottom -->
-    <section class="test-bar">
-        <div class="test-bar-label">보안 테스트:</div>
-        <div class="test-buttons">
-            <button class="btn-test-compact preferred" id="btn-test-normal" data-requirement="PREFERRED" data-endpoint="normal" disabled>
-                <span class="test-btn-label">일반 데이터</span>
-                <span class="test-btn-badge">PREFERRED</span>
-            </button>
-            <button class="btn-test-compact required" id="btn-test-sensitive" data-requirement="REQUIRED" data-endpoint="sensitive" disabled>
-                <span class="test-btn-label">민감 데이터</span>
-                <span class="test-btn-badge">REQUIRED</span>
-            </button>
-            <button class="btn-test-compact strict" id="btn-test-critical" data-requirement="STRICT" data-endpoint="critical" disabled>
-                <span class="test-btn-label">중요 데이터</span>
-                <span class="test-btn-badge">STRICT</span>
-            </button>
-        </div>
+        </article>
     </section>
 
-    <!-- Compact Footer -->
-    <footer class="footer">
-        <span class="footer-brand">Contexa Zero Trust</span>
-        <span class="footer-sep">|</span>
-        <span class="footer-version">TIPS Demo v1.0 | 2-Tier LLM (Llama 8B + Claude)</span>
-    </footer>
+    <section class="control-grid">
+        <article class="panel">
+            <div class="panel-header">
+                <h2>1. 시나리오 선택</h2>
+                <p>같은 브라우저 인증 세션을 유지한 채 후속 요청의 환경 신호만 바꾸어 비교합니다.</p>
+            </div>
+            <div class="scenario-grid">
+                <button type="button" class="scenario-card selected" data-scenario="NORMAL_USER">
+                    <span class="tag allow">정상 사용자</span>
+                    <strong>사내 브라우저 세션에서 정상 접근</strong>
+                    <span>IP 192.168.1.100 / Chrome 120 / 동일 업무 세션</span>
+                    <span class="expectation">기대 결과: 초기 200, 후속 요청도 정상 유지 또는 저위험 ALLOW</span>
+                </button>
+                <button type="button" class="scenario-card danger" data-scenario="ACCOUNT_TAKEOVER">
+                    <span class="tag block">계정탈취자</span>
+                    <strong>같은 세션 쿠키를 재사용한 후속 접근</strong>
+                    <span>IP 203.0.113.50 / Android 10 / 동일 sessionId, 다른 환경 신호</span>
+                    <span class="expectation">기대 결과: 비동기 분석 후 후속 요청에서 CHALLENGE 또는 BLOCK</span>
+                </button>
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>2. 리소스와 헤더</h2>
+                <p>실제 브라우저 요청에 실리는 핵심 헤더와 기대 판정 경로를 미리 보여 줍니다.</p>
+            </div>
+            <div class="endpoint-row">
+                <button type="button" class="endpoint-pill active" data-endpoint="sensitive">민감 리소스 / REQUIRED</button>
+                <button type="button" class="endpoint-pill" data-endpoint="critical">중요 리소스 / STRICT</button>
+            </div>
+            <dl class="scenario-summary">
+                <div><dt>시나리오</dt><dd id="selected-scenario-name">정상 사용자</dd></div>
+                <div><dt>예상 IP</dt><dd id="selected-scenario-ip">192.168.1.100</dd></div>
+                <div><dt>예상 User-Agent</dt><dd id="selected-scenario-ua">Chrome 120 / Windows 11 / Corp LAN</dd></div>
+                <div><dt>기대 제어</dt><dd id="selected-expected-action">ALLOW 또는 저위험 유지</dd></div>
+                <div><dt>리소스</dt><dd id="selected-endpoint-name">민감 리소스 / REQUIRED</dd></div>
+            </dl>
+            <div class="header-grid" id="request-header-preview"></div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>3. 실행 제어</h2>
+                <p>1차 요청은 즉시 응답만 확인하고, 후속 요청에서 비동기 LLM 분석에 따른 제어 결과를 검증합니다.</p>
+            </div>
+            <div class="action-grid">
+                <button id="btn-run-initial" class="primary-action">1차 요청 실행</button>
+                <button id="btn-run-follow-up" class="secondary-action">후속 요청 실행</button>
+                <button id="btn-refresh-server" class="ghost-action">서버 truth 새로고침</button>
+                <button id="btn-export-evidence" class="ghost-action">증거 JSON 내보내기</button>
+                <button id="btn-stream-evidence" class="ghost-action">증거 NDJSON 보기</button>
+                <button id="btn-reset-console" class="ghost-action">화면 초기화</button>
+            </div>
+            <p class="panel-note">
+                기본 경로는 비동기입니다. 첫 응답은 즉시 돌아오고, SSE와 후속 요청 제어에서
+                실제 제로트러스트 판단 결과를 확인합니다.
+            </p>
+        </article>
+    </section>
+
+    <section class="overview-grid">
+        <article class="panel">
+            <div class="panel-header">
+                <h2>즉시 응답</h2>
+                <p>브라우저가 받은 즉시 응답입니다. requestId와 sessionId가 뒤따르는 모든 evidence의 기준이 됩니다.</p>
+            </div>
+            <dl class="fact-grid" id="immediate-response-facts"></dl>
+            <details class="raw-box">
+                <summary>즉시 응답 JSON</summary>
+                <pre id="immediate-response-json">{}</pre>
+            </details>
+        </article>
+
+        <article class="panel verdict-panel">
+            <div class="panel-header">
+                <h2>현재 판정 요약</h2>
+                <p>SSE와 서버 truth를 결합해 현재 사용자의 제로트러스트 상태를 요약합니다.</p>
+            </div>
+            <div id="verdict-badge" class="verdict-badge pending">PENDING</div>
+            <div class="metric-grid">
+                <div class="metric-box"><span>Risk</span><strong id="metric-risk">-</strong></div>
+                <div class="metric-box"><span>Confidence</span><strong id="metric-confidence">-</strong></div>
+                <div class="metric-box"><span>분석 깊이</span><strong id="metric-depth">-</strong></div>
+                <div class="metric-box"><span>Context Hash</span><strong id="metric-context-hash">-</strong></div>
+            </div>
+            <div class="summary-block">
+                <span class="summary-label">Reasoning Summary</span>
+                <p id="reasoning-summary">아직 분석 결과가 없습니다.</p>
+            </div>
+            <div class="summary-block">
+                <span class="summary-label">LLM 제안 Action</span>
+                <p id="proposed-action">-</p>
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>UI 대 서버 일치 검증</h2>
+                <p>같은 requestId, sessionId, auth metadata 기준으로 UI, SSE, 서버 저장소, SaaS outbox가 이어지는지 검증합니다.</p>
+            </div>
+            <div id="consistency-list" class="consistency-list">
+                <div class="consistency-item pending">아직 검증할 요청이 없습니다.</div>
+            </div>
+        </article>
+    </section>
+
+    <section class="content-grid">
+        <div class="stack">
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>비동기 SSE 타임라인</h2>
+                    <p>CONTEXT_COLLECTED, LAYER1/2, DECISION_APPLIED 등 실제 코어 이벤트를 시간순으로 표시합니다.</p>
+                </div>
+                <div id="timeline" class="timeline"></div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>요청 이력</h2>
+                    <p>정상/탈취 시나리오별 1차 요청과 후속 요청을 requestId 단위로 다시 열람합니다.</p>
+                </div>
+                <div id="request-history" class="request-history"></div>
+            </article>
+        </div>
+
+        <div class="stack">
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>서버 truth</h2>
+                    <p>ZeroTrustActionRepository가 기록한 최종 action, requestId, reasoning, threatEvidence를 그대로 보여 줍니다.</p>
+                </div>
+                <dl id="server-truth-facts" class="fact-grid"></dl>
+                <details class="raw-box">
+                    <summary>서버 truth JSON</summary>
+                    <pre id="server-truth-json">{}</pre>
+                </details>
+            </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>컨텍스트 evidence</h2>
+                    <p>브릿지, 요청, 세션, HCAD, work profile, narrative, authorization scope가 LLM 입력 근거로 어떻게 연결됐는지 요약합니다.</p>
+                </div>
+                <div id="context-summary" class="context-summary"></div>
+            </article>
+        </div>
+
+        <div class="stack">
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>SaaS evidence와 공급 결과</h2>
+                    <p>고객 outbox 전달과 SaaS pull snapshot을 같은 화면에 보여 줍니다.</p>
+                </div>
+                <div id="saas-summary" class="saas-summary"></div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>증거 보전</h2>
+                    <p>현재 requestId에 대한 통합 evidence JSON과 NDJSON stream 주소를 확인합니다.</p>
+                </div>
+                <div class="evidence-links" id="evidence-links"></div>
+                <details class="raw-box" open>
+                    <summary>통합 evidence JSON</summary>
+                    <pre id="evidence-json">{}</pre>
+                </details>
+                <details class="raw-box">
+                    <summary>NDJSON 미리보기</summary>
+                    <pre id="evidence-stream-output">아직 요청하지 않았습니다.</pre>
+                </details>
+            </article>
+        </div>
+    </section>
 </div>
 
-<script th:src="@{/js/contexa-mfa-sdk.js}"></script>
 <script th:src="@{/js/security-test.js}"></script>
 </body>
 </html>

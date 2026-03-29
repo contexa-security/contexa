@@ -28,7 +28,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/test-action")
+@RequestMapping({"/api/test-action", "/admin/api/test-action"})
 @RequiredArgsConstructor
 public class TestActionController {
 
@@ -72,6 +72,13 @@ public class TestActionController {
         response.put("confidence", data.confidence() != null ? data.confidence() : 0.0);
         response.put("analysisStatus", "ANALYZED");
         response.put("updatedAt", data.updatedAt());
+        response.put("reasoning", data.reasoning());
+        response.put("reasoningSummary", data.reasoningSummary());
+        response.put("analysisRequirement", data.analysisRequirement());
+        response.put("requestId", data.requestId());
+        response.put("contextBindingHash", data.contextBindingHash());
+        response.put("llmProposedAction", data.llmProposedAction());
+        response.put("analysisDepth", data.analysisDepth());
 
         if (data.threatEvidence() != null) {
             response.put("threatEvidence", data.threatEvidence());

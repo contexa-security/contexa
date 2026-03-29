@@ -14,6 +14,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
@@ -41,6 +42,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
@@ -123,6 +126,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         }
 
+        persistSessionAuthentication(finalAuthentication, request, response, stateType);
+
         if (factorContext != null && factorContext.getMfaSessionId() != null) {
             stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
@@ -164,6 +169,34 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         if (factorContext != null && factorContext.isCompleted()) {
             auditAuthenticationSuccess(request, finalAuthentication, factorContext);
+        }
+    }
+
+    private void persistSessionAuthentication(Authentication finalAuthentication,
+                                              HttpServletRequest request,
+                                              HttpServletResponse response,
+                                              StateType stateType) {
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(finalAuthentication);
+        SecurityContextHolder.setContext(context);
+
+        if (stateType != StateType.SESSION) {
+            return;
+        }
+
+        try {
+            AISessionSecurityContextRepository repository =
+                    applicationContext.getBeanProvider(AISessionSecurityContextRepository.class).getIfAvailable();
+
+            if (repository != null) {
+                repository.saveContext(context, request, response);
+                return;
+            }
+
+            HttpSessionSecurityContextRepository fallbackRepository = new HttpSessionSecurityContextRepository();
+            fallbackRepository.saveContext(context, request, response);
+        } catch (Exception e) {
+            log.error("Failed to persist session SecurityContext after MFA success for user: {}", finalAuthentication.getName(), e);
         }
     }
 

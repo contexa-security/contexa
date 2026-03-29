@@ -151,7 +151,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     parseDouble(entries.get("confidence")),
                     entries.get("threatEvidence") != null ? entries.get("threatEvidence").toString() : null,
                     parseInteger(entries.get("analysisDepth")),
-                    entries.get("updatedAt") != null ? entries.get("updatedAt").toString() : null
+                    entries.get("updatedAt") != null ? entries.get("updatedAt").toString() : null,
+                    entries.get("reasoning") != null ? entries.get("reasoning").toString() : null,
+                    entries.get("reasoningSummary") != null ? entries.get("reasoningSummary").toString() : null,
+                    entries.get("analysisRequirement") != null ? entries.get("analysisRequirement").toString() : null,
+                    entries.get("requestId") != null ? entries.get("requestId").toString() : null,
+                    entries.get("contextBindingHash") != null ? entries.get("contextBindingHash").toString() : null,
+                    entries.get("llmProposedAction") != null ? entries.get("llmProposedAction").toString() : null
             );
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to get analysis data: userId={}", userId, e);
