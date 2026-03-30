@@ -67,8 +67,8 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Resource business label is available.");
         }
         else {
-            missingCriticalFacts.add("Resource business label is unavailable.");
             remediationHints.add("Register resource business labels through the resource registry or event metadata.");
+            confidenceWarnings.add("Resource business label is missing; business-purpose naming is partial, so rely more heavily on resource identity and sensitivity.");
         }
 
         if (CanonicalContextFieldPolicy.hasResourceSensitivity(context)) {
@@ -91,7 +91,6 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Observed work pattern is available.");
         }
         else {
-            missingCriticalFacts.add("Observed work pattern is unavailable.");
             remediationHints.add("Collect protectable access history so observed work patterns can be inferred.");
             confidenceWarnings.add("Observed work pattern is missing; comparisons against previously seen resources or action families remain limited.");
         }
@@ -100,7 +99,6 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Session narrative is available.");
         }
         else {
-            missingCriticalFacts.add("Session narrative is unavailable.");
             remediationHints.add("Provide previous path, previous action, request interval, or session action sequence.");
             confidenceWarnings.add("Session narrative is incomplete; sequence-based reasoning is partial.");
         }
@@ -108,24 +106,43 @@ public class ContextCoverageEvaluator {
         if (CanonicalContextFieldPolicy.hasWorkProfile(context)) {
             availableFacts.add("Personal work profile is available.");
         }
+        else if (CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)) {
+            availableFacts.add("Personal work profile evidence is available but provisional.");
+            remediationHints.add("Increase allowed observations and reduce fallback-derived work profile fields before treating personal work profile as a strong reasoning anchor.");
+            confidenceWarnings.add("Personal work profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of normal behavior.");
+        }
+        else if (CanonicalContextFieldPolicy.hasWorkProfileEvidence(context)) {
+            availableFacts.add("Personal work profile evidence is available but not yet trust-qualified.");
+            remediationHints.add("Attach personal work profile trust assessment before using work-pattern claims as a strong reasoning anchor.");
+            confidenceWarnings.add("Personal work profile evidence is present without an explicit trust assessment; keep work-pattern conclusions conservative.");
+        }
         else {
-            missingCriticalFacts.add("Personal work profile is unavailable.");
             remediationHints.add("Build personal work profile signals such as frequent resources, action families, and request rates.");
+            confidenceWarnings.add("Personal work profile is missing; do not claim the current request matches long-term normal work patterns.");
         }
 
         if (CanonicalContextFieldPolicy.hasRoleScopeProfile(context)) {
             availableFacts.add("Role scope profile is available.");
         }
+        else if (CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
+            availableFacts.add("Role scope profile evidence is available but provisional.");
+            remediationHints.add("Increase explicit role-scope evidence and reduce fallback-derived comparisons before treating role scope as a strong reasoning anchor.");
+            confidenceWarnings.add("Role scope profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of authorized business scope.");
+        }
+        else if (CanonicalContextFieldPolicy.hasRoleScopeProfileEvidence(context)) {
+            availableFacts.add("Role scope profile evidence is available but not yet trust-qualified.");
+            remediationHints.add("Attach role scope trust assessment before using role-scope comparisons as a strong reasoning anchor.");
+            confidenceWarnings.add("Role scope profile evidence is present without an explicit trust assessment; keep role-scope conclusions conservative.");
+        }
         else {
-            missingCriticalFacts.add("Role scope profile is unavailable.");
             remediationHints.add("Attach role-scoped resource families, action families, and permission change facts.");
+            confidenceWarnings.add("Role scope profile is missing; scope-fit conclusions should rely on direct authorization facts rather than inferred role norms.");
         }
 
         if (CanonicalContextFieldPolicy.hasPeerCohortProfile(context)) {
             availableFacts.add("Peer cohort delta is available.");
         }
         else {
-            missingCriticalFacts.add("Peer cohort delta is unavailable.");
             remediationHints.add("Attach peer cohort deltas through enterprise cohort enrichment when available.");
             confidenceWarnings.add("Peer cohort delta is missing; cohort-based deviation claims should remain conservative.");
         }
@@ -134,8 +151,8 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Friction and approval history is available.");
         }
         else {
-            missingCriticalFacts.add("Friction and approval history is unavailable.");
             remediationHints.add("Propagate challenge, block, escalation, approval, and denied-access history.");
+            confidenceWarnings.add("Friction and approval history is missing; do not assume prior approval, challenge, or denial precedent exists.");
         }
 
         appendDelegationFacts(context, availableFacts, missingCriticalFacts, remediationHints, confidenceWarnings);
@@ -144,7 +161,6 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Outcome and reasoning memory is available.");
         }
         else {
-            missingCriticalFacts.add("Outcome and reasoning memory is unavailable.");
             remediationHints.add("Attach reinforced cases, hard negatives, and reasoning memory facts from enterprise memory services when available.");
             confidenceWarnings.add("Reasoning memory is missing; avoid assuming prior validated cases or XAI-backed precedents exist.");
         }

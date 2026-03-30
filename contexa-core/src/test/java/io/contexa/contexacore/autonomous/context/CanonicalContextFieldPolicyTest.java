@@ -45,4 +45,24 @@ class CanonicalContextFieldPolicyTest {
         assertThat(CanonicalContextFieldPolicy.determineCoverageLevel(businessAware))
                 .isEqualTo(ContextCoverageLevel.BUSINESS_AWARE);
     }
+
+    @Test
+    void workProfileEvidenceShouldBeDistinguishedFromTrustedWorkProfile() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .workProfile(CanonicalSecurityContext.WorkProfile.builder()
+                        .summary("Observed protectable resources /api/customer/list")
+                        .frequentProtectableResources(List.of("/api/customer/list"))
+                        .build())
+                .contextTrustProfiles(List.of(ContextTrustProfile.builder()
+                        .profileKey("PERSONAL_WORK_PROFILE")
+                        .overallQualityGrade(ContextQualityGrade.WEAK)
+                        .overallQualityScore(42)
+                        .qualityWarnings(List.of("Work profile baseline is thin; treat pattern claims as provisional until more allowed observations accumulate."))
+                        .build()))
+                .build();
+
+        assertThat(CanonicalContextFieldPolicy.hasWorkProfileEvidence(context)).isTrue();
+        assertThat(CanonicalContextFieldPolicy.hasWorkProfile(context)).isFalse();
+        assertThat(CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)).isTrue();
+    }
 }

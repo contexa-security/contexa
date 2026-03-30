@@ -374,12 +374,18 @@ public class SecurityDecisionPostProcessor {
             metadata.put("action", autonomousAction.name());
             metadata.put("autonomousAction", autonomousAction.name());
         }
-        double rs = decision.getRiskScore();
-        metadata.put("riskScore", Double.isNaN(rs) ? -1.0 : rs);
-        double conf = decision.getConfidence();
-        metadata.put("confidence", Double.isNaN(conf) ? -1.0 : conf);
-        if (decision.resolveAuditConfidence() != null) {
-            metadata.put("llmAuditConfidence", decision.resolveAuditConfidence());
+        Double effectiveRiskScore = decision.getRiskScore();
+        Double auditRiskScore = decision.resolveAuditRiskScore();
+        metadata.put("riskScore", sanitizeScore(effectiveRiskScore != null ? effectiveRiskScore : auditRiskScore));
+        if (auditRiskScore != null) {
+            metadata.put("llmAuditRiskScore", sanitizeScore(auditRiskScore));
+        }
+
+        Double effectiveConfidence = decision.getConfidence();
+        Double auditConfidence = decision.resolveAuditConfidence();
+        metadata.put("confidence", sanitizeScore(effectiveConfidence != null ? effectiveConfidence : auditConfidence));
+        if (auditConfidence != null) {
+            metadata.put("llmAuditConfidence", sanitizeScore(auditConfidence));
         }
         if (Boolean.TRUE.equals(decision.getAutonomyConstraintApplied())) {
             metadata.put("autonomyConstraintApplied", true);
@@ -471,6 +477,13 @@ public class SecurityDecisionPostProcessor {
     private static String formatScore(Double score) {
         if (score == null || Double.isNaN(score)) return "N/A";
         return String.format("%.2f", score);
+    }
+
+    private static double sanitizeScore(Double score) {
+        if (score == null || Double.isNaN(score)) {
+            return -1.0;
+        }
+        return score;
     }
 
     private static String formatScore(double score) {

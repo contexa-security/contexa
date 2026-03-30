@@ -46,6 +46,16 @@ public final class RequestInfoExtractor {
                 .failedLoginAttempts(castToInteger(request.getAttribute("hcad.failed_login_attempts")))
                 .baselineConfidence(castToDouble(request.getAttribute("hcad.baseline_confidence")))
                 .isSensitiveResource((Boolean) request.getAttribute("hcad.is_sensitive_resource"))
+                .resourceSensitivity(extractAttributeText(request,
+                        "hcad.resource_sensitivity",
+                        "hcad.resourceSensitivity",
+                        "resourceSensitivity",
+                        "sensitivity"))
+                .resourceBusinessLabel(extractAttributeText(request,
+                        "hcad.resource_business_label",
+                        "hcad.resourceBusinessLabel",
+                        "resourceLabel",
+                        "businessLabel"))
                 .mfaVerified(castToBoolean(request.getAttribute("hcad.mfa_verified")))
                 .userRoles((String) request.getAttribute("hcad.user_roles"))
                 .geoCountry((String) request.getAttribute("hcad.country"))
@@ -114,6 +124,19 @@ public final class RequestInfoExtractor {
     private static String extractHeader(HttpServletRequest request, String name) {
         String value = request.getHeader(name);
         return (value != null && !value.isBlank()) ? value.trim() : null;
+    }
+
+    private static String extractAttributeText(HttpServletRequest request, String... names) {
+        if (request == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            Object value = request.getAttribute(name);
+            if (value instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        }
+        return null;
     }
 
     private static String extractClientIpLegacy(HttpServletRequest request) {
@@ -213,6 +236,8 @@ public final class RequestInfoExtractor {
         private final Integer failedLoginAttempts;
         private final Double baselineConfidence;
         private final Boolean isSensitiveResource;
+        private final String resourceSensitivity;
+        private final String resourceBusinessLabel;
         private final Boolean mfaVerified;
         private final String userRoles;
         private final BridgeResolutionResult bridgeResolutionResult;

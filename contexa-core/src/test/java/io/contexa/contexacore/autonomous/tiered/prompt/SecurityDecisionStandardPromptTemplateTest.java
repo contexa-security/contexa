@@ -55,6 +55,11 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
         assertThat(systemPrompt).contains("<output_format>");
+        assertThat(template.getAIGenerationType()).isEqualTo(SecurityDecisionResponseLite.class);
+        assertThat(systemPrompt)
+                .doesNotContain("errorMessage")
+                .doesNotContain("executionTime")
+                .doesNotContain("\"metadata\"");
         assertThat(userPrompt).contains("=== CURRENT REQUEST AND EVENT ===");
         assertThat(userPrompt).contains("/api/customer/export");
         assertThat(userPrompt).contains("alice");

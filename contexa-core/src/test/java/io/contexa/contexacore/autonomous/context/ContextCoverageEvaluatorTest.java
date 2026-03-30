@@ -62,4 +62,42 @@ class ContextCoverageEvaluatorTest {
                 "Scope limitation: Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.");
         assertThat(report.summary()).contains("Bridge coverage: AUTHORIZATION_CONTEXT.");
     }
+
+    @Test
+    void evaluateShouldTreatThinWorkProfileAsProvisionalInsteadOfUnavailable() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder()
+                        .userId("alice")
+                        .build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-1")
+                        .mfaVerified(true)
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .effectiveRoles(List.of("ANALYST"))
+                        .scopeTags(List.of("customer_data"))
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/export")
+                        .sensitivity("HIGH")
+                        .build())
+                .workProfile(CanonicalSecurityContext.WorkProfile.builder()
+                        .summary("Observed protectable resources /api/customer/list")
+                        .frequentProtectableResources(List.of("/api/customer/list"))
+                        .build())
+                .contextTrustProfiles(List.of(ContextTrustProfile.builder()
+                        .profileKey("PERSONAL_WORK_PROFILE")
+                        .overallQualityGrade(ContextQualityGrade.WEAK)
+                        .overallQualityScore(42)
+                        .qualityWarnings(List.of("Work profile baseline is thin; treat pattern claims as provisional until more allowed observations accumulate."))
+                        .build()))
+                .build();
+
+        ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
+
+        assertThat(report.availableFacts()).contains("Personal work profile evidence is available but provisional.");
+        assertThat(report.missingCriticalFacts()).doesNotContain("Personal work profile is unavailable.");
+        assertThat(report.confidenceWarnings())
+                .anyMatch(value -> value.contains("Personal work profile exists but remains thin"));
+    }
 }

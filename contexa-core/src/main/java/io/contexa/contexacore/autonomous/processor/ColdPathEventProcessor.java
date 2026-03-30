@@ -102,9 +102,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
         result.setBaseScore(riskScore);
         String userId = event.getUserId();
         String requestPath = extractRequestPath(event);
+        ThreatAssessment layer1Assessment = null;
 
         try {
-            ThreatAssessment layer1Assessment = null;
             if (contextualStrategy != null) {
                 publishLayer1Start(userId, requestPath, listenerMetadata);
                 long layer1StartTime = System.currentTimeMillis();
@@ -236,10 +236,22 @@ public class ColdPathEventProcessor implements IPathProcessor {
         } catch (Exception e) {
             log.error("[ColdPath] Tiered AI analysis failed, using fallback riskScore: eventId={}", event.getEventId(), e);
             publishError(userId, "Tiered AI analysis failed: " + e.getMessage(), buildErrorMetadata(event));
-            result.setFinalScore(null);
+            if (layer1Assessment != null) {
+                result.setFinalScore(layer1Assessment.resolveAuditRiskScore());
+                result.setConfidence(layer1Assessment.getConfidence());
+                result.setLlmAuditConfidence(layer1Assessment.resolveAuditConfidence());
+                result.addIndicators(layer1Assessment.getIndicators());
+                result.addRecommendedActions(layer1Assessment.getRecommendedActions());
+                result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
+                result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
+                result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+            } else {
+                result.setFinalScore(null);
+                result.setConfidence(null);
+                result.setLlmAuditConfidence(null);
+            }
             result.setAction(ZeroTrustAction.CHALLENGE.name());
-            result.setConfidence(null);
-            result.setAnalysisDepth(0);
+            result.setAnalysisDepth(layer1Assessment != null ? 1 : 0);
             return result;
         }
     }
@@ -422,18 +434,22 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private Map<String, Object> buildListenerMetadata(SecurityEvent event, String requestPath) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (event != null && event.getMetadata() != null) {
-            metadata.putAll(event.getMetadata());
+            event.getMetadata().forEach((key, value) -> {
+                if (key != null && value != null) {
+                    metadata.put(key, value);
+                }
+            });
         }
         if (event != null) {
-            metadata.put("eventId", event.getEventId());
-            metadata.put("userId", event.getUserId());
-            metadata.put("sessionId", event.getSessionId());
-            metadata.put("clientIp", event.getSourceIp());
-            metadata.put("userAgent", event.getUserAgent());
+            putIfNotNull(metadata, "eventId", event.getEventId());
+            putIfNotNull(metadata, "userId", event.getUserId());
+            putIfNotNull(metadata, "sessionId", event.getSessionId());
+            putIfNotNull(metadata, "clientIp", event.getSourceIp());
+            putIfNotNull(metadata, "userAgent", event.getUserAgent());
         }
-        metadata.put("requestPath", requestPath);
+        putIfNotNull(metadata, "requestPath", requestPath);
         if (!metadata.containsKey("correlationId") && event != null) {
-            metadata.put("correlationId", event.getEventId());
+            putIfNotNull(metadata, "correlationId", event.getEventId());
         }
         return Map.copyOf(metadata);
     }
@@ -445,13 +461,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
         Map<String, Object> metadata = new LinkedHashMap<>(baseMetadata);
         metadata.put("layer", layer);
         if (assessment != null) {
-            metadata.put("llmAction", assessment.getAction());
-            metadata.put("autonomousAction", assessment.getAutonomousAction());
-            metadata.put("riskScore", assessment.resolveAuditRiskScore());
-            metadata.put("confidence", assessment.resolveAuditConfidence());
-            metadata.put("reasoning", assessment.getReasoning());
-            metadata.put("autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
-            metadata.put("autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
+            putIfNotNull(metadata, "llmAction", assessment.getAction());
+            putIfNotNull(metadata, "autonomousAction", assessment.getAutonomousAction());
+            putIfNotNull(metadata, "riskScore", assessment.resolveAuditRiskScore());
+            putIfNotNull(metadata, "confidence", assessment.resolveAuditConfidence());
+            putIfNotNull(metadata, "reasoning", assessment.getReasoning());
+            putIfNotNull(metadata, "autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
+            putIfNotNull(metadata, "autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
             if (assessment.getAutonomyConstraintReasons() != null && !assessment.getAutonomyConstraintReasons().isEmpty()) {
                 metadata.put("autonomyConstraintReasons", assessment.getAutonomyConstraintReasons());
             }
@@ -465,18 +481,24 @@ public class ColdPathEventProcessor implements IPathProcessor {
             String layer) {
         Map<String, Object> metadata = new LinkedHashMap<>(baseMetadata);
         metadata.put("layer", layer);
-        metadata.put("action", result.getAction());
-        metadata.put("proposedAction", result.getProposedAction());
-        metadata.put("riskScore", result.getFinalScore());
-        metadata.put("confidence", result.getLlmAuditConfidence());
-        metadata.put("reasoning", result.getReasoning());
+        putIfNotNull(metadata, "action", result.getAction());
+        putIfNotNull(metadata, "proposedAction", result.getProposedAction());
+        putIfNotNull(metadata, "riskScore", result.getFinalScore());
+        putIfNotNull(metadata, "confidence", result.getLlmAuditConfidence());
+        putIfNotNull(metadata, "reasoning", result.getReasoning());
         metadata.put("analysisDepth", result.getAnalysisDepth());
-        metadata.put("autonomyConstraintApplied", result.getAutonomyConstraintApplied());
-        metadata.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+        putIfNotNull(metadata, "autonomyConstraintApplied", result.getAutonomyConstraintApplied());
+        putIfNotNull(metadata, "autonomyConstraintSummary", result.getAutonomyConstraintSummary());
         if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
             metadata.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
         }
         return Map.copyOf(metadata);
+    }
+
+    private void putIfNotNull(Map<String, Object> metadata, String key, Object value) {
+        if (key != null && value != null) {
+            metadata.put(key, value);
+        }
     }
 
     private Map<String, Object> buildErrorMetadata(SecurityEvent event) {

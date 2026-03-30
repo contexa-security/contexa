@@ -52,16 +52,8 @@ class PromptGeneratorTest {
         assertThat(result.getPromptExecutionMetadata().governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(result.getPromptExecutionMetadata().governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
         assertThat(result.getPromptExecutionMetadata().budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
-        assertThat(result.getPromptExecutionMetadata().promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
-        assertThat(result.getPromptExecutionMetadata().omittedSections()).contains(
-                "BRIDGE_AND_COVERAGE",
-                "IDENTITY_AND_ROLE",
-                "RESOURCE_AND_ACTION",
-                "SESSION_NARRATIVE",
-                "OBSERVED_AND_PERSONAL_WORK_PATTERN",
-                "ROLE_SCOPE",
-                "FRICTION_AND_APPROVAL",
-                "DELEGATED_OBJECTIVE");
+        assertThat(result.getPromptExecutionMetadata().promptEvidenceCompleteness().name()).isEqualTo("SUFFICIENT");
+        assertThat(result.getPromptExecutionMetadata().omittedSections()).isEmpty();
         assertThat(result.getPromptExecutionMetadata().promptHash()).startsWith("sha256:");
         assertThat(result.getMetadata()).containsKeys(
                 "promptKey",

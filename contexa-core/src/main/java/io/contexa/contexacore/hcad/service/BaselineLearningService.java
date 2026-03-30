@@ -827,7 +827,12 @@ public class BaselineLearningService {
         if (currentEvent != null) {
             String sourceIp = currentEvent.getSourceIp();
             String normalizedIp = extractIpRange(sourceIp);
-            sb.append(String.format("  IP: %s\n", normalizedIp != null ? normalizedIp : "NOT_PROVIDED"));
+            if (sourceIp != null && !sourceIp.isBlank() && normalizedIp != null && !normalizedIp.equals(sourceIp)) {
+                sb.append(String.format("  IP: %s (range %s)\n", sourceIp, normalizedIp));
+            }
+            else {
+                sb.append(String.format("  IP: %s\n", sourceIp != null && !sourceIp.isBlank() ? sourceIp : "NOT_PROVIDED"));
+            }
 
             if (currentEvent.getTimestamp() != null) {
                 sb.append(String.format("  Hour: %d\n", currentEvent.getTimestamp().getHour()));
@@ -844,8 +849,8 @@ public class BaselineLearningService {
 
         sb.append("Decision guidance (facts, not rules):\n");
         sb.append("- RELATED CONTEXT contains VERIFIED NORMAL BEHAVIOR (past ALLOW decisions)\n");
-        sb.append("- If RELATED CONTEXT has documents matching current OS/IP/Hour → verified pattern exists\n");
-        sb.append("- If RELATED CONTEXT is EMPTY → no verified patterns to compare against\n");
+        sb.append("- If RELATED CONTEXT has documents matching current OS/IP/Hour, a verified pattern may exist\n");
+        sb.append("- If RELATED CONTEXT is EMPTY, there are no verified patterns to compare against\n");
         sb.append("- Cannot verify behavior without comparison data\n\n");
 
         return sb.toString();
@@ -908,7 +913,7 @@ public class BaselineLearningService {
 
     private String extractUASignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
-            return "Browser";
+            return "UNKNOWN_BROWSER_SIGNATURE";
         }
 
         if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
@@ -923,7 +928,7 @@ public class BaselineLearningService {
             return browser.replace("Version", "Safari");
         }
 
-        return "Browser";
+        return "UNKNOWN_BROWSER_SIGNATURE";
     }
 
     private String extractBrowserVersion(String userAgent, String prefix) {

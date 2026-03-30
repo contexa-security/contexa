@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class DelegatedExecutionGraphBuilderTest {
 
     private final DelegatedExecutionGraphBuilder builder = new DelegatedExecutionGraphBuilder(new DelegatedExecutionFingerprintService());

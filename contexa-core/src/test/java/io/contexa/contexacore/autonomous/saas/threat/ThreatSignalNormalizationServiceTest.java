@@ -1,7 +1,7 @@
 package io.contexa.contexacore.autonomous.saas.threat;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;

@@ -240,7 +240,7 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("ConfidenceWarnings:");
         assertThat(promptSection).contains("BridgeAuthenticationSource: SECURITY_CONTEXT");
         assertThat(promptSection).contains("BridgeAuthorizationSource: HEADER");
-        assertThat(promptSection).contains("BridgeCompletenessSummary: Bridge completeness reached authentication and authorization context for the current request.");
+        assertThat(promptSection).contains("BridgeCompletenessSummary: Bridge resolved authentication and authorization context for the current request.");
         assertThat(promptSection).doesNotContain("BridgeCoverageScore:");
         assertThat(promptSection).contains("BridgeRemediationHints: If delegated agents are used, propagate delegation metadata for the current request. Otherwise this gap can be ignored.");
         assertThat(promptSection).contains("AuthenticationType: SESSION");
@@ -249,6 +249,7 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("PolicyId: policy-1");
         assertThat(promptSection).contains("NormalReadWriteExportRatio: 80:15:5");
         assertThat(promptSection).contains("ProtectableResourceHeatmap: /api/customer/list=9, /api/customer/export=3");
+        assertThat(promptSection).contains("WorkProfileEvidenceState: TRUSTED");
         assertThat(promptSection).contains("ContextEvidenceLimitation: PERSONAL_WORK_PROFILE | collector=PROTECTABLE_WORK_PROFILE_COLLECTOR");
         assertThat(promptSection).contains("ContextTrustLimitation: PERSONAL_WORK_PROFILE | Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.");
         assertThat(promptSection).contains("ContextTrustWarning: PERSONAL_WORK_PROFILE | Action family baseline includes fallback-derived signals; do not treat action semantics as proof of user intent.");
@@ -259,7 +260,7 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("NormalApprovalPatterns: Export requires manager approval");
         assertThat(promptSection).contains("ApprovalRequired: true");
         assertThat(promptSection).contains("CurrentResourceFamily: REPORT");
-        assertThat(promptSection).contains("CurrentResourcePresentInObservedHistory: false");
+        assertThat(promptSection).contains("CurrentResourcePresentInObservedHistory: true");
         assertThat(promptSection).contains("CurrentResourceFamilyPresentInExpectedRoleScope: true");
         assertThat(promptSection).contains("CurrentActionFamilyPresentInExpectedRoleScope: true");
         assertThat(promptSection).contains("TemporaryElevationReason: Emergency customer export review");
@@ -280,6 +281,28 @@ class PromptContextComposerTest {
         assertThat(promptSection).doesNotContain("ObjectiveDrift:");
         assertThat(promptSection).doesNotContain("OutlierAgainstCohort:");
         assertThat(promptSection).doesNotContain("ContextTrust: ");
+    }
+
+    @Test
+    void composeShouldMarkThinWorkProfileAsProvisional() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .workProfile(CanonicalSecurityContext.WorkProfile.builder()
+                        .summary("Observed protectable resources /api/customer/list")
+                        .frequentProtectableResources(List.of("/api/customer/list"))
+                        .build())
+                .contextTrustProfiles(List.of(ContextTrustProfile.builder()
+                        .profileKey("PERSONAL_WORK_PROFILE")
+                        .overallQualityGrade(ContextQualityGrade.WEAK)
+                        .overallQualityScore(42)
+                        .qualityWarnings(List.of("Work profile baseline is thin; treat pattern claims as provisional until more allowed observations accumulate."))
+                        .build()))
+                .build();
+
+        String section = new PromptContextComposer().composeWorkProfileSection(context);
+
+        assertThat(section).contains("=== PERSONAL WORK PROFILE ===");
+        assertThat(section).contains("WorkProfileEvidenceState: PROVISIONAL");
+        assertThat(section).contains("WorkProfileSummary: Observed protectable resources /api/customer/list");
     }
 
     private List<String> extractHeaders(String promptSection) {

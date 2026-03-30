@@ -34,6 +34,25 @@ class DefaultProtectableWorkProfileCollectorTest {
     }
 
     @Test
+    @DisplayName("collect does not create a personal work profile from the very first allowed request alone")
+    void collect_firstAllowedObservationDoesNotCreateSnapshot() {
+        SecurityEvent first = event(
+                "alice",
+                "tenant-acme",
+                LocalDateTime.of(2026, 3, 24, 9, 0),
+                "/api/customer/list",
+                "GET",
+                "READ",
+                "REPORT",
+                "HIGH",
+                true,
+                true,
+                null);
+
+        assertThat(collector.collect(first)).isEmpty();
+    }
+
+    @Test
     @DisplayName("collect builds work profile from prior history without contaminating it with the current request")
     void collect_buildsProfileFromPriorHistoryWithoutCurrentRequestContamination() {
         collector.collect(event(
@@ -75,7 +94,8 @@ class DefaultProtectableWorkProfileCollectorTest {
         assertThat(snapshot.getProtectableResourceHeatmap()).containsExactly("/api/customer/list=1");
         assertThat(snapshot.getFrequentSensitiveResourceCategories()).containsExactly("HIGH");
         assertThat(snapshot.getNormalReadWriteExportRatio()).isEqualTo("100:0:0");
-        assertThat(snapshot.getSummary()).contains("Frequent protectable resources /api/customer/list");
+        assertThat(snapshot.getSummary()).contains("Observed protectable resources /api/customer/list");
+        assertThat(snapshot.getSummary()).contains("Evidence state PROVISIONAL");
         assertThat(snapshot.getTrustProfile()).isNotNull();
         assertThat(snapshot.getTrustProfile().getOverallQualityGrade()).isEqualTo(ContextQualityGrade.WEAK);
         assertThat(snapshot.getTrustProfile().getFieldRecords())
@@ -99,7 +119,22 @@ class DefaultProtectableWorkProfileCollectorTest {
         first.addMetadata("isProtectable", true);
         first.addMetadata("granted", true);
 
-        ProtectableWorkProfileSnapshot snapshot = collector.collect(first).orElseThrow();
+        assertThat(collector.collect(first)).isEmpty();
+
+        SecurityEvent second = SecurityEvent.builder()
+                .userId("alice")
+                .timestamp(LocalDateTime.of(2026, 3, 24, 10, 0))
+                .description("GET missing-path-2")
+                .build();
+        second.addMetadata("tenantId", "tenant-acme");
+        second.addMetadata("httpMethod", "GET");
+        second.addMetadata("actionFamily", "READ");
+        second.addMetadata("currentResourceFamily", "REPORT");
+        second.addMetadata("resourceSensitivity", "HIGH");
+        second.addMetadata("isProtectable", true);
+        second.addMetadata("granted", true);
+
+        ProtectableWorkProfileSnapshot snapshot = collector.collect(second).orElseThrow();
 
         assertThat(snapshot.getFrequentProtectableResources()).isEmpty();
         assertThat(snapshot.getTrustProfile()).isNotNull();

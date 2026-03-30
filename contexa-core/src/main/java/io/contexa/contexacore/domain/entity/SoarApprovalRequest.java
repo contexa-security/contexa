@@ -79,7 +79,7 @@ public class SoarApprovalRequest {
     @Column(name = "organization_id", length = 100)
     private String organizationId;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "reviewer_comment", columnDefinition = "TEXT")
     private String reviewerComment;
 
     @Column(name = "approval_comment", columnDefinition = "TEXT")

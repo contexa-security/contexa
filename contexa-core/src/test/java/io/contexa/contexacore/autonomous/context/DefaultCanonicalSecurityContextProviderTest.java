@@ -443,6 +443,27 @@ class DefaultCanonicalSecurityContextProviderTest {
     }
 
     @Test
+    void resolveShouldFallbackResourceSensitivityFromSensitiveFlags() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .description("GET /api/customer/export")
+                .build();
+        event.addMetadata("requestPath", "/api/customer/export");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("isSensitiveResource", true);
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getResource()).isNotNull();
+        assertThat(context.getResource().getSensitiveResource()).isTrue();
+        assertThat(context.getResource().getSensitivity()).isEqualTo("HIGH");
+    }
+
+    @Test
     void resolveShouldPopulateRoleScopeFromCollectorWithoutSyntheticMetadata() {
         RoleScopeCollector collector =
                 new DefaultRoleScopeCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
@@ -471,8 +492,8 @@ class DefaultCanonicalSecurityContextProviderTest {
                 .timestamp(LocalDateTime.of(2026, 3, 25, 10, 0, 0))
                 .build();
         second.addMetadata("tenantId", "tenant-acme");
-        second.addMetadata("effectiveRoles", List.of("ROLE_ANALYST", "ROLE_EXPORT_REVIEWER"));
-        second.addMetadata("scopeTags", List.of("customer_data", "export"));
+        second.addMetadata("effectiveRoles", List.of("ROLE_ANALYST"));
+        second.addMetadata("scopeTags", List.of("customer_data"));
         second.addMetadata("effectivePermissions", List.of("report.read", "report.export"));
         second.addMetadata("currentActionFamily", "EXPORT");
         second.addMetadata("currentResourceFamily", "REPORT");

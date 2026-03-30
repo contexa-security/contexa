@@ -83,7 +83,7 @@ class BaselineLearningServiceTest {
         // given
         double alpha = 0.1;
         double existingTrust = 0.8;
-        double newRiskScore = 0.2; // trustScore = 1.0 - 0.2 = 0.8
+        double newRiskScore = 0.2;
 
         BaselineVector existing = BaselineVector.builder()
                 .userId("org1_user1")
@@ -119,8 +119,8 @@ class BaselineLearningServiceTest {
         verify(baselineDataStore).saveUserBaseline(eq("org1_user1"), captor.capture());
 
         BaselineVector saved = captor.getValue();
-        // EMA: alpha * newTrust + (1 - alpha) * oldTrust = 0.1 * 0.8 + 0.9 * 0.8 = 0.8
-        double expectedTrust = alpha * (1.0 - newRiskScore) + (1 - alpha) * existingTrust;
+        // The baseline learner uses verified action semantics for trust, so ALLOW contributes 1.0.
+        double expectedTrust = alpha * 1.0 + (1 - alpha) * existingTrust;
         assertThat(saved.getAvgTrustScore()).isCloseTo(expectedTrust, org.assertj.core.api.Assertions.within(0.001));
     }
 
@@ -249,5 +249,24 @@ class BaselineLearningServiceTest {
         // then
         assertThat(result).isFalse();
         verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("New user warning should preserve the full current IP and avoid broken guidance text")
+    void shouldBuildReadableNewUserWarning() {
+        when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
+        when(baselineDataStore.getOrganizationBaseline("org1")).thenReturn(null);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("192.168.1.100")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.of(2026, 3, 30, 2, 10))
+                .build();
+
+        String warning = service.buildBaselinePromptContext("org1_user1", event);
+
+        assertThat(warning).contains("IP: 192.168.1.100 (range 192.168.1)");
+        assertThat(warning).contains("UA: Chrome/120");
+        assertThat(warning).doesNotContain("??");
     }
 }

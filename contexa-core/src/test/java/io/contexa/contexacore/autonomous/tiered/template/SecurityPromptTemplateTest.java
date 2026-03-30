@@ -446,7 +446,7 @@ class SecurityPromptTemplateTest {
         assertThat(prompt.userText()).contains("=== PERSONAL WORK PROFILE ===");
         assertThat(prompt.userText()).contains("FrequentProtectableResources: /api/customer/list");
         assertThat(prompt.userText()).contains("FrequentActionFamilies: READ");
-        assertThat(prompt.userText()).contains("NormalAccessHours: 9");
+        assertThat(prompt.userText()).contains("NormalAccessHours: [9]");
         assertThat(prompt.userText()).contains("ProtectableInvocationDensity: 1.0");
         assertThat(prompt.userText()).contains("NormalReadWriteExportRatio: 100:0:0");
         assertThat(prompt.userText()).doesNotContain("=== USER PROFILE ===");

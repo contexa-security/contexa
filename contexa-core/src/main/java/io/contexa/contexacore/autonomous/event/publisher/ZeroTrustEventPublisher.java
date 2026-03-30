@@ -143,6 +143,12 @@ public class ZeroTrustEventPublisher {
             payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
             payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
             payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
+            if (requestInfo.getResourceSensitivity() != null) {
+                payload.put("resourceSensitivity", requestInfo.getResourceSensitivity());
+            }
+            if (requestInfo.getResourceBusinessLabel() != null) {
+                payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
+            }
             payload.put("mfaVerified", requestInfo.getMfaVerified());
             payload.put("userRoles", requestInfo.getUserRoles());
             if (requestInfo.getServletPath() != null) {

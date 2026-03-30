@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -129,10 +130,10 @@ class RoleScopeCollectorStoreParityTest {
             }
             return new ArrayList<>(list.subList(resolvedStart, resolvedEnd + 1));
         });
-        when(valueOperations.set(anyString(), any(), any(Duration.class))).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             values.put(invocation.getArgument(0), invocation.getArgument(1));
             return null;
-        });
+        }).when(valueOperations).set(anyString(), any(), any(Duration.class));
         when(valueOperations.get(anyString())).thenAnswer(invocation -> values.get(invocation.getArgument(0)));
 
         return new RedisSecurityContextDataStore(redisTemplate);

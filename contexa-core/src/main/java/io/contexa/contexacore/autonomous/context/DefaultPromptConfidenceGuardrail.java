@@ -35,6 +35,16 @@ public class DefaultPromptConfidenceGuardrail implements PromptConfidenceGuardra
             reasons.add("Sensitive approval state is unresolved; confidence remains limited until approval lineage is explicit.");
         }
 
+        if (requiresCriticalContextOverride(context, originalAction)) {
+            ZeroTrustAction conservativeAction = chooseConservativeAction(context);
+            if (conservativeAction != null && conservativeAction != originalAction) {
+                enforcementAction = conservativeAction;
+                reasons.add("Critical decision context is incomplete; autonomous allow is not permitted until role, scope, sensitivity, and assurance facts are explicit.");
+            }
+            effectiveConfidence = capConfidence(effectiveConfidence, LOW_CONFIDENCE_CAP);
+            reasons.add("Missing effective roles, authorization scope, resource sensitivity, or MFA state keeps the judgment provisional.");
+        }
+
         if (isHighConfidenceAllowWithEnvironmentOnlyCoverage(context, originalAction, effectiveConfidence)) {
             effectiveConfidence = capConfidence(effectiveConfidence, MODERATE_CONFIDENCE_CAP);
             reasons.add("Coverage is environment-only; high-confidence ALLOW is not permitted.");
@@ -110,6 +120,19 @@ public class DefaultPromptConfidenceGuardrail implements PromptConfidenceGuardra
             return false;
         }
         return isApprovalUnknown(friction) && isSensitiveResource(context.getResource());
+    }
+
+    private boolean requiresCriticalContextOverride(CanonicalSecurityContext context, ZeroTrustAction action) {
+        if (context == null || action != ZeroTrustAction.ALLOW) {
+            return false;
+        }
+        return !CanonicalContextFieldPolicy.hasActorIdentity(context)
+                || !CanonicalContextFieldPolicy.hasSessionIdentity(context)
+                || !CanonicalContextFieldPolicy.hasResourceIdentity(context)
+                || !CanonicalContextFieldPolicy.hasEffectiveRoles(context)
+                || !CanonicalContextFieldPolicy.hasAuthorizationScope(context)
+                || !CanonicalContextFieldPolicy.hasResourceSensitivity(context)
+                || !CanonicalContextFieldPolicy.hasMfaState(context);
     }
 
     private ZeroTrustAction chooseConservativeAction(CanonicalSecurityContext context) {

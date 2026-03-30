@@ -394,18 +394,38 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private CanonicalSecurityContext.Resource resolveResource(SecurityEvent event, Map<String, Object> metadata) {
         String resourceId = firstText(metadata.get("resourceId"), metadata.get("requestPath"), metadata.get("httpUri"), event.getDescription());
         String httpMethod = firstText(metadata.get("httpMethod"), metadata.get("method"));
+        Boolean sensitiveResource = resolveBoolean(metadata.get("isSensitiveResource"), metadata.get("is_sensitive_resource"));
+        Boolean privileged = resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged"));
+        Boolean exportSensitive = resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive"));
         return CanonicalSecurityContext.Resource.builder()
                 .resourceId(resourceId)
                 .resourceType(firstText(metadata.get("resourceType"), metadata.get("resourceCategory")))
                 .businessLabel(firstText(metadata.get("resourceLabel"), metadata.get("businessLabel")))
-                .sensitivity(firstText(metadata.get("resourceSensitivity"), metadata.get("sensitivity")))
+                .sensitivity(resolveResourceSensitivity(metadata, sensitiveResource, privileged, exportSensitive))
                 .requestPath(firstText(metadata.get("httpUri"), metadata.get("requestPath")))
                 .httpMethod(httpMethod)
                 .actionFamily(resolveActionFamily(httpMethod, metadata))
-                .sensitiveResource(resolveBoolean(metadata.get("isSensitiveResource"), metadata.get("is_sensitive_resource")))
-                .privileged(resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged")))
-                .exportSensitive(resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive")))
+                .sensitiveResource(sensitiveResource)
+                .privileged(privileged)
+                .exportSensitive(exportSensitive)
                 .build();
+    }
+
+    private String resolveResourceSensitivity(
+            Map<String, Object> metadata,
+            Boolean sensitiveResource,
+            Boolean privileged,
+            Boolean exportSensitive) {
+        String explicitSensitivity = firstText(metadata.get("resourceSensitivity"), metadata.get("sensitivity"));
+        if (StringUtils.hasText(explicitSensitivity)) {
+            return explicitSensitivity;
+        }
+        if (Boolean.TRUE.equals(sensitiveResource)
+                || Boolean.TRUE.equals(privileged)
+                || Boolean.TRUE.equals(exportSensitive)) {
+            return "HIGH";
+        }
+        return null;
     }
 
     private CanonicalSecurityContext.Authorization resolveAuthorization(Map<String, Object> metadata) {

@@ -37,7 +37,7 @@ class ObjectiveDriftEvaluatorTest {
         assertThat(evaluation.comparisonSource()).isEqualTo("EXPLICIT_DELEGATION_SCOPE");
         assertThat(evaluation.currentActionFamily()).isEqualTo("EXPORT");
         assertThat(evaluation.currentResourceFamily()).isEqualTo("REPORT");
-        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current action family falls outside"));
+        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current action family is not listed"));
         assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current resource does not match delegated raw resource constraints"));
     }
 
@@ -66,7 +66,8 @@ class ObjectiveDriftEvaluatorTest {
         assertThat(evaluation.comparisonSource()).isEqualTo("OBJECTIVE_CONTRACT");
         assertThat(evaluation.allowedActionFamilies()).contains("INGEST", "AUDIT");
         assertThat(evaluation.allowedResourceFamilies()).contains("PROMPT_CONTEXT", "MEMORY_CONTEXT");
-        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Delegated objective remains aligned"));
+        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current action family is listed in delegated action scope evidence."));
+        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current resource family is listed in delegated resource scope evidence."));
     }
 
     @Test
@@ -84,6 +85,6 @@ class ObjectiveDriftEvaluatorTest {
         ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
 
         assertThat(evaluation.objectiveDrift()).isNull();
-        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Objective drift is unknown"));
+        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Delegated objective comparison is incomplete because comparable action/resource family inputs are missing."));
     }
 }

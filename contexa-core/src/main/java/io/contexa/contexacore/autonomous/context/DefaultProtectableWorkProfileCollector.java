@@ -34,6 +34,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     private static final int FALLBACK_WINDOW_DAYS = 30;
     private static final int MAX_EVIDENCE_RECORDS = 4;
     private static final int MAX_FIELD_EVIDENCE_IDS = 6;
+    private static final int PROVISIONAL_OBSERVATION_THRESHOLD = 3;
     private static final String NULL_TOKEN = "~";
     private static final String SERIALIZATION_VERSION_V2 = "v2";
     private static final String PROFILE_KEY = "PERSONAL_WORK_PROFILE";
@@ -94,7 +95,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
 
     private List<WorkProfileObservation> selectBaseline(List<WorkProfileObservation> history, WorkProfileObservation currentObservation) {
         if (history.isEmpty()) {
-            return shouldPersist(currentObservation) ? List.of(currentObservation) : List.of();
+            return List.of();
         }
 
         long primaryWindowStart = currentObservation.timestampMs() - PRIMARY_WINDOW_DAYS * 24L * 60L * 60L * 1_000L;
@@ -1019,14 +1020,21 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         StringJoiner joiner = new StringJoiner(" | ");
         joiner.add("Window " + windowDays + "d");
         joiner.add("Observations " + observationCount);
+        boolean provisionalEvidence = observationCount < PROVISIONAL_OBSERVATION_THRESHOLD;
+        if (provisionalEvidence) {
+            joiner.add("Evidence state PROVISIONAL");
+        }
         if (!frequentProtectableResources.isEmpty()) {
-            joiner.add("Frequent protectable resources " + String.join(", ", frequentProtectableResources));
+            joiner.add((provisionalEvidence ? "Observed protectable resources " : "Frequent protectable resources ")
+                    + String.join(", ", frequentProtectableResources));
         }
         if (!frequentActionFamilies.isEmpty()) {
-            joiner.add("Frequent action families " + String.join(", ", frequentActionFamilies));
+            joiner.add((provisionalEvidence ? "Observed action families " : "Frequent action families ")
+                    + String.join(", ", frequentActionFamilies));
         }
         if (!normalAccessHours.isEmpty()) {
-            joiner.add("Normal access hours " + joinIntegers(normalAccessHours));
+            joiner.add((provisionalEvidence ? "Observed access hours " : "Normal access hours ")
+                    + joinIntegers(normalAccessHours));
         }
         if (protectableInvocationDensity != null) {
             joiner.add(String.format(Locale.ROOT, "Protectable density %.2f", protectableInvocationDensity));

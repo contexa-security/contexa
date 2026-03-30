@@ -3,9 +3,12 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
+import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,12 +47,27 @@ class AdminOverrideServiceTest {
     @Mock
     private CentralAuditFacade centralAuditFacade;
 
+    @Mock
+    private DecisionFeedbackForwardingService decisionFeedbackForwardingService;
+
+    @Mock
+    private ThreatOutcomeForwardingService threatOutcomeForwardingService;
+
+    @Mock
+    private BlockingSignalBroadcaster blockingSignalBroadcaster;
+
     private AdminOverrideService adminOverrideService;
 
     @BeforeEach
     void setUp() {
         adminOverrideService = new AdminOverrideService(
-                securityLearningService, actionRedisRepository, lockService, centralAuditFacade);
+                securityLearningService,
+                actionRedisRepository,
+                lockService,
+                centralAuditFacade,
+                decisionFeedbackForwardingService,
+                threatOutcomeForwardingService,
+                blockingSignalBroadcaster);
 
         // Default: executeWithLock executes the operation directly
         when(lockService.executeWithLock(anyString(), any(Duration.class), any()))

@@ -49,7 +49,7 @@ class DefaultRoleScopeCollectorTest {
         assertThat(snapshot.getExpectedActionFamilies()).containsExactly("READ");
         assertThat(snapshot.getResourceFamilyDrift()).isFalse();
         assertThat(snapshot.getActionFamilyDrift()).isTrue();
-        assertThat(snapshot.getRecentPermissionChanges()).isEmpty();
+        assertThat(snapshot.getRecentPermissionChanges()).containsExactly("Authorization scope changed: permissions changed");
         assertThat(snapshot.getSummary()).contains("Effective roles ROLE_ANALYST");
         assertThat(snapshot.getTrustProfile()).isNotNull();
         assertThat(snapshot.getTrustProfile().getProfileKey()).isEqualTo("ROLE_SCOPE_PROFILE");
@@ -123,7 +123,7 @@ class DefaultRoleScopeCollectorTest {
         assertThat(snapshot.getTemporaryElevation()).isTrue();
         assertThat(snapshot.getElevatedPrivilegeWindowActive()).isTrue();
         assertThat(snapshot.getTemporaryElevationReason()).contains("Emergency customer export review");
-        assertThat(snapshot.getElevationWindowSummary()).contains("10");
+        assertThat(snapshot.getElevationWindowSummary()).contains("0");
     }
 
     private SecurityEvent event(

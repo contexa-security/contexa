@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.core.std;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseProcessor;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.properties.ContexaRagProperties;
@@ -181,6 +182,12 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public PostprocessingStep postprocessingStep(Optional<List<DomainResponseProcessor>> domainResponseProcessors) {
         return new PostprocessingStep(domainResponseProcessors);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityDecisionResponseProcessor securityDecisionResponseProcessor() {
+        return new SecurityDecisionResponseProcessor();
     }
 
     @Bean

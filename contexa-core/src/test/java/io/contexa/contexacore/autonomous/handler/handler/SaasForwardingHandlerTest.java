@@ -3,7 +3,7 @@ package io.contexa.contexacore.autonomous.handler.handler;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.saas.SaasDecisionOutboxService;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
