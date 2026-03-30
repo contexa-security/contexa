@@ -251,10 +251,14 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         
         context.setHumanApprovalNeeded(threatIndicators.stream()
             .anyMatch(indicator -> indicator.getSeverity() == ThreatIndicator.Severity.CRITICAL &&
-                                   indicator.getConfidence() > 0.8));
+                                   hasHighConfidence(indicator.getConfidence())));
 
         logger.error("Created SOAR context from {} threat indicators: {}", threatIndicators.size(), incidentId);
 
         return context;
+    }
+
+    private boolean hasHighConfidence(Double confidence) {
+        return confidence != null && confidence > 0.8;
     }
 }

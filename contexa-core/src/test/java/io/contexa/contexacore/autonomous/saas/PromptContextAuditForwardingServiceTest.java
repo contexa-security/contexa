@@ -71,6 +71,8 @@ class PromptContextAuditForwardingServiceTest {
         assertThat(saved.getAuditId()).isEqualTo("audit-001");
         assertThat(saved.getTenantExternalRef()).isEqualTo("tenant-acme");
         assertThat(saved.getStatus()).isEqualTo(PromptContextAuditForwardingOutboxRecord.STATUS_PENDING);
+        assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getUpdatedAt()).isNotNull();
         verify(payloadMapper, never()).resolveTenantExternalRef(event);
         verify(dispatcher).dispatch(11L);
     }
@@ -122,6 +124,8 @@ class PromptContextAuditForwardingServiceTest {
         ArgumentCaptor<PromptContextAuditForwardingOutboxRecord> captor = ArgumentCaptor.forClass(PromptContextAuditForwardingOutboxRecord.class);
         verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getTenantExternalRef()).isEqualTo("tenant-fallback");
+        assertThat(captor.getValue().getCreatedAt()).isNotNull();
+        assertThat(captor.getValue().getUpdatedAt()).isNotNull();
         verify(payloadMapper).resolveTenantExternalRef(event);
         verify(dispatcher).dispatch(17L);
     }

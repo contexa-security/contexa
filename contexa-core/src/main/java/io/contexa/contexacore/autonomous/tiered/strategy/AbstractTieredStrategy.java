@@ -60,7 +60,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .timeoutSeconds(120)
                     .build();
 
-    protected final UnifiedLLMOrchestrator llmOrchestrator;
     protected final SecurityEventEnricher eventEnricher;
     protected final SecurityDecisionStandardPromptTemplate promptTemplate;
     protected final BehaviorVectorService behaviorVectorService;
@@ -89,7 +88,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .build();
 
     protected AbstractTieredStrategy(
-            UnifiedLLMOrchestrator llmOrchestrator,
             SecurityEventEnricher eventEnricher,
             SecurityDecisionStandardPromptTemplate promptTemplate,
             BehaviorVectorService behaviorVectorService,
@@ -98,7 +96,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             PromptContextAuthorizationService promptContextAuthorizationService,
             PromptContextAuditForwardingService promptContextAuditForwardingService,
             TieredStrategyProperties tieredStrategyProperties) {
-        this.llmOrchestrator = llmOrchestrator;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate
             : new SecurityDecisionStandardPromptTemplate(this.eventEnricher, tieredStrategyProperties);
@@ -121,7 +118,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     protected String getContextRetrievalPurpose() {
-        return getLayerName().toLowerCase(Locale.ROOT) + "_security_investigation";
+        return "security_investigation";
     }
 
     protected static void cacheEscalationContext(String eventId,
@@ -572,7 +569,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
 
         public List<String> getRecentActions() { return recentActions; }
-        public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
+        public void setRecentActions(List<String> recentActions) {
+            this.recentActions = recentActions != null
+                    ? new ArrayList<>(recentActions)
+                    : new ArrayList<>();
+        }
 
         public int getAccessFrequency() { return accessFrequency; }
         public void setAccessFrequency(int accessFrequency) { this.accessFrequency = accessFrequency; }

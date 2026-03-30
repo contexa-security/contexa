@@ -87,6 +87,10 @@ public final class CanonicalContextFieldPolicy {
         if (trustProfile != null && ContextSemanticBoundaryPolicy.requiresEvidenceCaution(trustProfile)) {
             return false;
         }
+        return hasWorkProfileEvidence(context);
+    }
+
+    public static boolean hasWorkProfileEvidence(CanonicalSecurityContext context) {
         return context != null
                 && context.getWorkProfile() != null
                 && (StringUtils.hasText(context.getWorkProfile().getSummary())
@@ -100,7 +104,15 @@ public final class CanonicalContextFieldPolicy {
                 || !context.getWorkProfile().getLongTailLegitimateTasks().isEmpty());
     }
 
-    private static ContextTrustProfile findTrustProfile(CanonicalSecurityContext context, String profileKey) {
+    public static boolean hasWorkProfileTrustAssessment(CanonicalSecurityContext context) {
+        return findTrustProfile(context, "PERSONAL_WORK_PROFILE") != null;
+    }
+
+    public static boolean hasProvisionalWorkProfile(CanonicalSecurityContext context) {
+        return hasWorkProfileEvidence(context) && !hasWorkProfile(context);
+    }
+
+    static ContextTrustProfile findTrustProfile(CanonicalSecurityContext context, String profileKey) {
         if (context == null || context.getContextTrustProfiles() == null || context.getContextTrustProfiles().isEmpty()) {
             return null;
         }
@@ -117,6 +129,10 @@ public final class CanonicalContextFieldPolicy {
         if (trustProfile != null && ContextSemanticBoundaryPolicy.requiresEvidenceCaution(trustProfile)) {
             return false;
         }
+        return hasRoleScopeProfileEvidence(context);
+    }
+
+    public static boolean hasRoleScopeProfileEvidence(CanonicalSecurityContext context) {
         return context != null
                 && context.getRoleScopeProfile() != null
                 && (StringUtils.hasText(context.getRoleScopeProfile().getSummary())
@@ -129,6 +145,14 @@ public final class CanonicalContextFieldPolicy {
                 || !context.getRoleScopeProfile().getRecentPermissionChanges().isEmpty()
                 || StringUtils.hasText(context.getRoleScopeProfile().getTemporaryElevationReason())
                 || context.getRoleScopeProfile().getTemporaryElevation() != null);
+    }
+
+    public static boolean hasRoleScopeTrustAssessment(CanonicalSecurityContext context) {
+        return findTrustProfile(context, "ROLE_SCOPE_PROFILE") != null;
+    }
+
+    public static boolean hasProvisionalRoleScopeProfile(CanonicalSecurityContext context) {
+        return hasRoleScopeProfileEvidence(context) && !hasRoleScopeProfile(context);
     }
 
     public static boolean hasFrictionProfile(CanonicalSecurityContext context) {
@@ -212,8 +236,8 @@ public final class CanonicalContextFieldPolicy {
         boolean businessAware = hasResourceBusinessSemantics(context)
                 && (hasObservedScope(context)
                 || hasSessionNarrativeProfile(context)
-                || hasWorkProfile(context)
-                || hasRoleScopeProfile(context)
+                || hasWorkProfileEvidence(context)
+                || hasRoleScopeProfileEvidence(context)
                 || hasPeerCohortProfile(context)
                 || hasFrictionProfile(context)
                 || hasReasoningMemoryProfile(context));

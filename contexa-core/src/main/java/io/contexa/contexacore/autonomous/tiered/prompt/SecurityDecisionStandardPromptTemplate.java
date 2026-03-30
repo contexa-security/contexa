@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public class SecurityDecisionStandardPromptTemplate extends AbstractStandardPromptTemplate<SecurityDecisionResponse> {
+public class SecurityDecisionStandardPromptTemplate extends AbstractStandardPromptTemplate<SecurityDecisionResponseLite> {
 
     private static final String STRUCTURED_PROMPT_CACHE_KEY = "securityDecisionStructuredPrompt";
 
@@ -86,7 +86,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     }
 
     public SecurityDecisionStandardPromptTemplate(SecurityDecisionPromptSections promptSections) {
-        super(SecurityDecisionResponse.class);
+        super(SecurityDecisionResponseLite.class);
         this.promptSections = promptSections;
     }
 

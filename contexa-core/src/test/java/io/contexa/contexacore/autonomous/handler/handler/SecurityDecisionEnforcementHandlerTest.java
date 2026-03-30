@@ -5,8 +5,8 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +39,7 @@ class SecurityDecisionEnforcementHandlerTest {
     private SecurityLearningService securityLearningService;
 
     @Mock
-    private SecurityZeroTrustProperties securityZeroTrustProperties;
+    IBlockedUserRecorder blockedUserRecorder;
 
     @Mock
     private BlockingSignalBroadcaster blockingSignalBroadcaster;
@@ -49,11 +49,7 @@ class SecurityDecisionEnforcementHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService, securityZeroTrustProperties);
-        handler.setBlockingDecisionRegistry(blockingSignalBroadcaster);
-
-        when(securityZeroTrustProperties.isEnforcementEnabled()).thenReturn(true);
-        when(securityZeroTrustProperties.getMode()).thenReturn(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+                actionRepository, securityLearningService, blockedUserRecorder, blockingSignalBroadcaster);
     }
 
     @Test
@@ -119,12 +115,8 @@ class SecurityDecisionEnforcementHandlerTest {
     }
 
     @Test
-    @DisplayName("Enforcement disabled should return false from canHandle")
-    void enforcementDisabled_shouldReturnFalseFromCanHandle() {
-        // given
-        when(securityZeroTrustProperties.isEnforcementEnabled()).thenReturn(false);
-        when(securityZeroTrustProperties.getMode()).thenReturn(SecurityZeroTrustProperties.SecurityMode.SHADOW);
-
+    @DisplayName("Default handler should accept active context")
+    void canHandle_shouldAcceptActiveContext() {
         SecurityEvent event = SecurityEvent.builder()
                 .userId("user-3")
                 .build();
@@ -136,7 +128,7 @@ class SecurityDecisionEnforcementHandlerTest {
         boolean canHandle = handler.canHandle(context);
 
         // then
-        assertThat(canHandle).isFalse();
+        assertThat(canHandle).isTrue();
     }
 
     @Test

@@ -109,9 +109,8 @@ public class ProcessingResult {
     public static ProcessingResult success(ProcessingPath path, Double riskScore) {
         return ProcessingResult.builder()
                 .processingPath(path)
-                .riskScore(null)
                 .llmAuditRiskScore(riskScore)
-                .riskScore(riskScore)
+                .riskScore(null)
                 .success(true)
                 .status(ProcessingStatus.SUCCESS)
                 .processedAt(LocalDateTime.now())

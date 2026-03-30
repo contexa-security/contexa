@@ -48,8 +48,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private final PipelineOrchestrator pipelineOrchestrator;
 
     @Autowired
-    public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
-                                ApprovalService approvalService,
+    public Layer2ExpertStrategy(ApprovalService approvalService,
                                 SecurityContextDataStore dataStore,
                                 SecurityEventEnricher eventEnricher,
                                 SecurityDecisionStandardPromptTemplate promptTemplate,
@@ -64,7 +63,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 PromptContextAuthorizationService promptContextAuthorizationService,
                                 PromptContextAuditForwardingService promptContextAuditForwardingService,
                                 PipelineOrchestrator pipelineOrchestrator) {
-        super(llmOrchestrator, eventEnricher, promptTemplate,
+        super(eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
               promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
 

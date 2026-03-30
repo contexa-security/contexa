@@ -94,6 +94,20 @@ class DefaultSessionNarrativeCollectorTest {
     }
 
     @Test
+    @DisplayName("collect ignores support and evidence routes that should not influence prompt session history")
+    void collect_supportRoute_returnsEmpty() {
+        SecurityEvent event = event(
+                "session-support",
+                LocalDateTime.of(2026, 3, 25, 9, 30, 0),
+                "/admin/api/security-test/evidence/server-truth",
+                "GET",
+                false,
+                "READ");
+
+        assertThat(collector.collect(event)).isEmpty();
+    }
+
+    @Test
     @DisplayName("collect keeps non-protectable requests out of protectable sequence")
     void collect_nonProtectableRequest_excludesProtectableSequence() {
         SessionNarrativeSnapshot snapshot = collector.collect(event(

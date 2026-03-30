@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.saas.mapper.ThreatOutcomePayloadMapper;
 import io.contexa.contexacore.domain.entity.ThreatOutcomeForwardingOutboxRecord;
 import io.contexa.contexacore.repository.ThreatOutcomeForwardingOutboxRepository;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.Executor;
 
 public class SaasThreatOutcomeOutboxService implements ThreatOutcomeForwardingService {
@@ -41,12 +42,15 @@ public class SaasThreatOutcomeOutboxService implements ThreatOutcomeForwardingSe
     }
 
     private void saveAndDispatch(ThreatOutcomePayload payload, SecurityEvent originalEvent) {
+        LocalDateTime now = LocalDateTime.now();
         ThreatOutcomeForwardingOutboxRecord saved = repository.saveAndFlush(ThreatOutcomeForwardingOutboxRecord.builder()
                 .outcomeId(payload.getOutcomeId())
                 .correlationId(payload.getCorrelationId())
                 .tenantExternalRef(payloadMapper.resolveTenantExternalRef(originalEvent))
                 .payloadJson(writePayload(payload))
                 .status(ThreatOutcomeForwardingOutboxRecord.STATUS_PENDING)
+                .createdAt(now)
+                .updatedAt(now)
                 .build());
         dispatchAsync(saved.getId());
     }

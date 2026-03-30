@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
@@ -614,7 +615,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                     reason,
                     reason,
                     windowMinutes,
-                    joinCsv(List.of(currentHints.temporaryElevationSourceKey(), currentHints.temporaryElevationReasonSourceKey())),
+                    joinCsv(Arrays.asList(currentHints.temporaryElevationSourceKey(), currentHints.temporaryElevationReasonSourceKey())),
                     currentHints.temporaryElevationFallback() || currentHints.temporaryElevationReasonFallback(),
                     currentHints.approvalLinked()));
         }
@@ -628,7 +629,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                     buildPermissionChangeSummary(previousState, authorizationScopeState),
                     buildPermissionChangeReason(previousState, authorizationScopeState),
                     windowMinutes,
-                    joinCsv(List.of(
+                    joinCsv(Arrays.asList(
                             authorizationScopeState.roleSourceKeySummary(),
                             authorizationScopeState.scopeTagSourceKeySummary(),
                             authorizationScopeState.permissionSourceKeySummary(),

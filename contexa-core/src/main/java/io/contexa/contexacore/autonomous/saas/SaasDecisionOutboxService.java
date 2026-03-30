@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.saas.mapper.SecurityDecisionForwardingP
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -41,11 +42,14 @@ public class SaasDecisionOutboxService {
     }
 
     private void saveAndDispatch(SecurityEvent event, SecurityDecisionForwardingPayload payload) {
+        LocalDateTime now = LocalDateTime.now();
         SecurityDecisionForwardingOutboxRecord saved = repository.saveAndFlush(SecurityDecisionForwardingOutboxRecord.builder()
                 .correlationId(payload.getCorrelationId())
                 .tenantExternalRef(resolveTenantExternalRef(event))
                 .payloadJson(writePayload(payload))
                 .status(SecurityDecisionForwardingOutboxRecord.STATUS_PENDING)
+                .createdAt(now)
+                .updatedAt(now)
                 .build());
         dispatchAsync(saved.getId());
     }

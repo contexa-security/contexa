@@ -41,7 +41,7 @@ function bindEvents(){
 async function initializeSse(){
   refreshAuth();
   if(!canStartSse()){
-    stopSse((window.ZT_MSG||{}).sseAuthRequired||'Please verify authentication before connecting SSE.');
+    stopSse('인증 확인 후 SSE를 연결하십시오.');
     return;
   }
   const probe=await probeSseAccess();
@@ -71,7 +71,7 @@ async function probeSseAccess(){
   try{
     const response=await fetch(API.status,{headers:buildHeaders({'Accept':'application/json'}),credentials:'same-origin'});
     if(response.status===401||response.status===403){
-      return{allowed:false,message:(window.ZT_MSG||{}).sseAuthOrAuthz||'Please verify authentication or authorization before connecting SSE.'};
+      return{allowed:false,message:'인증 또는 인가 확인 후 SSE를 연결하십시오.'};
     }
     if(!response.ok){
       return{allowed:false,message:`SSE 사전 확인 실패 (${response.status})`};
@@ -79,7 +79,7 @@ async function probeSseAccess(){
     const payload=await parseBody(response);
     const userId=payload&&payload.userId?String(payload.userId).trim().toLowerCase():'';
     if(userId==='anonymous'||userId==='anonymoususer'){
-      return{allowed:false,message:(window.ZT_MSG||{}).sseAnonymous||'SSE is not connected in anonymous state.'};
+      return{allowed:false,message:'익명 상태에서는 SSE를 연결하지 않습니다.'};
     }
     return{allowed:true};
   }catch(error){
@@ -89,17 +89,17 @@ async function probeSseAccess(){
 
 function connectSse(){
   if(st.eventSource)st.eventSource.close();
-  setSseState('connecting',(window.ZT_MSG||{}).sseConnecting||'Connecting to user SSE');
+  setSseState('connecting','사용자 SSE 연결 중');
   st.eventSource=new EventSource(API.sse);
   SSE_TYPES.forEach(type=>st.eventSource.addEventListener(type,event=>handleSse(type,event)));
-  st.eventSource.onopen=()=>setSseState('connected',(window.ZT_MSG||{}).sseConnected||'User SSE connected');
+  st.eventSource.onopen=()=>setSseState('connected','사용자 SSE 연결됨');
   st.eventSource.onerror=async()=>{
     const probe=await probeSseAccess();
     if(!probe.allowed){
       stopSse(probe.message);
       return;
     }
-    setSseState('disconnected',(window.ZT_MSG||{}).sseReconnecting||'User SSE auto-reconnecting.');
+    setSseState('disconnected','사용자 SSE가 자동 재연결 중입니다.');
   };
 }
 
@@ -115,7 +115,7 @@ function handleSse(type,event){
 
 async function executeRequest(phase){
   refreshAuth();
-  if(phase==='FOLLOW_UP'&&!st.runId){alert((window.ZT_MSG||{}).alertRunFirst||'Please execute the 1st request first.');return;}
+  if(phase==='FOLLOW_UP'&&!st.runId){alert('먼저 1차 요청을 실행하십시오.');return;}
   if(phase==='INITIAL'){st.runId=createId('run');setText(el.currentRunId,st.runId);}
   const scenario=SCENARIO[st.scenario];
   const requestId=createId('req');
@@ -146,23 +146,23 @@ async function refreshEvidence(includeStream){
   renderTimeline();
   renderVerdict();
   renderConsistency(evidence,truth);
-  if(includeStream)setText(el.evidenceStreamOutput,(window.ZT_MSG||{}).ndjsonHint||'Check NDJSON stream with the "View Evidence Live" button.');
+  if(includeStream)setText(el.evidenceStreamOutput,'NDJSON 스트림은 "증거 NDJSON 보기" 버튼으로 확인합니다.');
 }
 function exportEvidence(){
   const response=st.responses.get(st.requestId);
-  if(!response||!response.evidenceExportUrl){alert((window.ZT_MSG||{}).alertNoExport||'No evidence to export.');return;}
+  if(!response||!response.evidenceExportUrl){alert('내보낼 evidence가 없습니다.');return;}
   window.open(response.evidenceExportUrl,'_blank','noopener');
 }
 
 async function streamEvidence(){
   const response=st.responses.get(st.requestId);
-  if(!response||!response.evidenceStreamUrl){alert((window.ZT_MSG||{}).alertNoStream||'No evidence to stream.');return;}
-  setText(el.evidenceStreamOutput,(await fetchText(response.evidenceStreamUrl))||(window.ZT_MSG||{}).emptyStream||'Empty.');
+  if(!response||!response.evidenceStreamUrl){alert('스트림할 evidence가 없습니다.');return;}
+  setText(el.evidenceStreamOutput,(await fetchText(response.evidenceStreamUrl))||'비어 있습니다.');
 }
 
 function resetConsole(){
   st.runId=null;st.requestId=null;st.history=[];st.events.clear();st.responses.clear();st.evidence.clear();st.truth=null;
-  const M=window.ZT_MSG||{};setText(el.currentRunId,M.unset||'-');setText(el.selectedRequestId,M.none||'-');
+  setText(el.currentRunId,'미지정');setText(el.selectedRequestId,'없음');
   refreshAuth();renderScenario();renderRequestHistory();renderTimeline();renderImmediateResponse();renderServerTruth();renderEvidence();
 }
 
@@ -174,7 +174,7 @@ function renderScenario(){
   setText(el.selectedScenarioUa,scenario.ua);
   setText(el.selectedExpectedAction,scenario.expect);
   setText(el.selectedEndpointName,`${endpoint.title} / ${endpoint.desc}`);
-  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'-'}));
+  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'미지정'}));
 }
 
 function renderHeaderPreview(headers){
@@ -185,20 +185,20 @@ function renderHeaderPreview(headers){
 
 function renderImmediateResponse(payload){
   if(!payload){setHtml(el.immediateResponseFacts,facts([]));setText(el.immediateResponseJson,'{}');return;}
-  const M=window.ZT_MSG||{};setHtml(el.immediateResponseFacts,facts([[M.httpStatus||'HTTP Status',payload.httpStatus],[M.resultType||'Result Type',payload.resultType],[M.requestId||'Request ID',payload.requestId],[M.correlationId||'Correlation ID',payload.correlationId],[M.scenario||'Scenario',payload.scenario],[M.phase||'Phase',payload.demoPhase],[M.clientIp||'Client IP',payload.clientIp],[M.sessionId||'Session ID',payload.sessionId],[M.authCarrier||'Auth Carrier',payload.authCarrier],[M.authMode||'Auth Mode',payload.authMode],[M.authSubject||'Auth Subject',payload.authSubjectHint],[M.authHeader||'Authorization Header',payload.authorizationHeaderPresent]]));
+  setHtml(el.immediateResponseFacts,facts([['HTTP 상태',payload.httpStatus],['Result Type',payload.resultType],['Request ID',payload.requestId],['Correlation ID',payload.correlationId],['Scenario',payload.scenario],['Phase',payload.demoPhase],['Client IP',payload.clientIp],['Session ID',payload.sessionId],['Auth Carrier',payload.authCarrier],['Auth Mode',payload.authMode],['Auth Subject',payload.authSubjectHint],['Authorization Header',payload.authorizationHeaderPresent]]));
   setText(el.immediateResponseJson,pretty(payload));
 }
 
 function renderServerTruth(payload){
   if(!payload){setHtml(el.serverTruthFacts,facts([]));setText(el.serverTruthJson,'{}');return;}
-  const M=window.ZT_MSG||{};setHtml(el.serverTruthFacts,facts([[M.currentAction||'Current Action',payload.action],[M.analysisStatus||'Analysis Status',payload.analysisStatus],[M.requestId||'Request ID',payload.requestId],[M.userId||'User ID',payload.userId],[M.risk||'Risk',payload.riskScore],[M.confidence||'Confidence',payload.confidence],[M.contextHash||'Context Binding Hash',payload.contextBindingHash],[M.threatEvidence||'Threat Evidence',payload.threatEvidence]]));
+  setHtml(el.serverTruthFacts,facts([['현재 Action',payload.action],['분석 상태',payload.analysisStatus],['Request ID',payload.requestId],['User ID',payload.userId],['Risk',payload.riskScore],['Confidence',payload.confidence],['Context Binding Hash',payload.contextBindingHash],['Threat Evidence',payload.threatEvidence]]));
   setText(el.serverTruthJson,pretty(payload));
 }
 
 function renderEvidence(evidence){
   if(!evidence){
-    setHtml(el.contextSummary,empty((window.ZT_MSG||{}).noEvidence||'No evidence selected'));
-    setHtml(el.saasSummary,empty((window.ZT_MSG||{}).noEvidence||'No evidence selected'));
+    setHtml(el.contextSummary,empty('선택한 evidence가 없습니다.'));
+    setHtml(el.saasSummary,empty('선택한 evidence가 없습니다.'));
     setText(el.evidenceJson,'{}');
     setHtml(el.evidenceLinks,'');
     renderConsistency();
@@ -209,21 +209,21 @@ function renderEvidence(evidence){
   const context=evidence.context||{};
   const saas=evidence.saas||{};
   setText(el.evidenceJson,pretty(evidence));
-  const M=window.ZT_MSG||{};setHtml(el.contextSummary,[row(M.scenario||'Scenario',context.scenario||request.scenario),row(M.expectedAction||'Expected Action',context.expectedAction||request.expectedAction),row(M.clientIp||'Client IP',context.clientIp||request.clientIp),row(M.userAgent||'User-Agent',context.userAgent||request.userAgent),row(M.sessionId||'Session ID',context.sessionId||request.sessionId),row(M.contextHash||'Context Binding Hash',context.contextBindingHash),row(M.authCarrier||'Auth Carrier',request.authCarrier),row(M.authMode||'Auth Mode',request.authMode),row(M.authSubject||'Auth Subject',request.authSubjectHint),row(M.authHeader||'Authorization Header',request.authorizationHeaderPresent),row(M.recentSessionActions||'Recent Session Actions',sizeOf(context.recentSessionActions)),row(M.recentNarrativeFamilies||'Recent Narrative Families',sizeOf(context.recentNarrativeActionFamilies)),row(M.recentProtectableAccesses||'Recent Protectable Accesses',sizeOf(context.recentProtectableAccesses)),row(M.workProfileObservations||'Work Profile Observations',sizeOf(context.workProfileObservations)),row(M.permissionChangeObservations||'Permission Change Observations',sizeOf(context.permissionChangeObservations)),row(M.hcadSessionMetadata||'HCAD Session Metadata',sizeOf(context.hcadSessionMetadata)),row(M.hcadAnalysis||'HCAD Analysis',sizeOf(context.hcadAnalysis))].join(''));
-  const M2=window.ZT_MSG||{};setHtml(el.saasSummary,[card(M2.securityDecisionOutbox||'Security Decision Outbox',[[M2.present||'present',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.present],[M2.status||'status',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.status],[M2.attemptCount||'attemptCount',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.attemptCount],[M2.deliveredAt||'deliveredAt',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.deliveredAt],[M2.correlationId||'correlationId',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.correlationId]]),card(M2.promptContextAuditOutbox||'Prompt Context Audit Outbox',[[M2.present||'present',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.present],[M2.status||'status',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.status],[M2.attemptCount||'attemptCount',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.attemptCount],[M2.deliveredAt||'deliveredAt',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.deliveredAt],[M2.correlationId||'correlationId',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.correlationId]]),card(M2.saasPullSnapshots||'SaaS Pull Snapshots',[[M2.baselineSeed||'baselineSeed',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.baselineSeed)],[M2.threatIntelligence||'threatIntelligence',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.threatIntelligence)],[M2.knowledgePack||'knowledgePack',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.knowledgePack)],[M2.runtimePolicy||'runtimePolicy',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.runtimePolicy)]])].join(''));
+  setHtml(el.contextSummary,[row('Scenario',context.scenario||request.scenario),row('Expected Action',context.expectedAction||request.expectedAction),row('Client IP',context.clientIp||request.clientIp),row('User-Agent',context.userAgent||request.userAgent),row('Session ID',context.sessionId||request.sessionId),row('Context Binding Hash',context.contextBindingHash),row('Auth Carrier',request.authCarrier),row('Auth Mode',request.authMode),row('Auth Subject',request.authSubjectHint),row('Authorization Header',request.authorizationHeaderPresent),row('Recent Session Actions',sizeOf(context.recentSessionActions)),row('Recent Narrative Families',sizeOf(context.recentNarrativeActionFamilies)),row('Recent Protectable Accesses',sizeOf(context.recentProtectableAccesses)),row('Work Profile Observations',sizeOf(context.workProfileObservations)),row('Permission Change Observations',sizeOf(context.permissionChangeObservations)),row('HCAD Session Metadata',sizeOf(context.hcadSessionMetadata)),row('HCAD Analysis',sizeOf(context.hcadAnalysis))].join(''));
+  setHtml(el.saasSummary,[card('Security Decision Outbox',[['present',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.present],['status',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.status],['attemptCount',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.attemptCount],['deliveredAt',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.deliveredAt],['correlationId',saas.securityDecisionOutbox&&saas.securityDecisionOutbox.correlationId]]),card('Prompt Context Audit Outbox',[['present',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.present],['status',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.status],['attemptCount',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.attemptCount],['deliveredAt',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.deliveredAt],['correlationId',saas.promptContextAuditOutbox&&saas.promptContextAuditOutbox.correlationId]]),card('SaaS Pull Snapshots',[['baselineSeed',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.baselineSeed)],['threatIntelligence',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.threatIntelligence)],['knowledgePack',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.knowledgePack)],['runtimePolicy',snapshotSummary(saas.pullSnapshots&&saas.pullSnapshots.runtimePolicy)]])].join(''));
   renderConsistency(evidence,st.truth);
   renderVerdict();
 }
 
 function renderConsistency(evidence,truth){
-  if(!evidence){const M0=window.ZT_MSG||{};setHtml(el.consistencyList,consistencyItem(M0.waiting||'Waiting',M0.noEvidence||'No evidence for selected request','pending'));return;}
+  if(!evidence){setHtml(el.consistencyList,consistencyItem('대기','선택한 requestId에 대한 evidence가 없습니다.','pending'));return;}
   refreshAuth();
   const response=st.responses.get(st.requestId)||{};
   const request=evidence.request||{};
   const analysis=evidence.analysis||{};
   const consistency=evidence.consistency||{};
   const user=st.auth.subject&&st.auth.subject!=='unknown'?st.auth.subject:st.user;
-  const M=window.ZT_MSG||{};setHtml(el.consistencyList,[boolItem(M.consistencyRequestId||'Response requestId matches evidence requestId',response.requestId===evidence.requestId),boolItem(M.consistencySessionId||'Response sessionId matches evidence sessionId',response.sessionId===request.sessionId),boolItem(M.consistencyClientIp||'Response clientIp matches evidence clientIp',response.clientIp===request.clientIp),boolItem(M.consistencyAuthCarrier||'UI auth carrier matches evidence auth carrier',!request.authCarrier||request.authCarrier===st.auth.carrier),boolItem(M.consistencyAuthMode||'UI auth mode matches evidence auth mode',!request.authMode||request.authMode===st.auth.mode),boolItem(M.consistencyTokenSource||'UI token source matches evidence token source',!request.tokenSource||request.tokenSource===st.auth.source),boolItem(M.consistencyAuthSubject||'UI auth subject matches evidence auth subject',!request.authSubjectHint||request.authSubjectHint===st.auth.subject),boolItem(M.consistencyAuthAttached||'Authorization attachment matches evidence',request.authorizationHeaderPresent===undefined||request.authorizationHeaderPresent===st.auth.attached),boolItem(M.consistencyUser||'Response user matches current auth subject',!response.user||response.user===user),boolItem(M.consistencyTruthUser||'Server truth userId matches current auth subject',!truth||!truth.userId||truth.userId===user),boolItem(M.consistencyTruthRequest||'Server truth requestId matches evidence analysis requestId',!truth||!truth.requestId||truth.requestId===analysis.requestId),boolItem(M.consistencySseLinked||'SSE events linked to current requestId',consistency.sseLinked),boolItem(M.consistencyAnalysisLinked||'Analysis result linked to current requestId',consistency.analysisRequestLinked),boolItem(M.consistencyDecisionOutbox||'Decision outbox linked to current requestId',consistency.decisionOutboxLinked),boolItem(M.consistencyPromptAudit||'Prompt audit outbox linked to current requestId',consistency.promptAuditLinked),boolItem(M.consistencyContextBinding||'Context binding hash exists',consistency.contextBindingPresent),boolItem(M.consistencyServerTruth||'Server truth ready',consistency.serverTruthReady),boolItem(M.consistencySaasEvidence||'SaaS evidence ready',consistency.saasEvidenceReady)].join(''));
+  setHtml(el.consistencyList,[boolItem('즉시 응답 requestId와 evidence requestId 일치',response.requestId===evidence.requestId),boolItem('즉시 응답 sessionId와 evidence sessionId 일치',response.sessionId===request.sessionId),boolItem('즉시 응답 clientIp와 evidence clientIp 일치',response.clientIp===request.clientIp),boolItem('UI auth carrier와 evidence request auth carrier 일치',!request.authCarrier||request.authCarrier===st.auth.carrier),boolItem('UI auth mode와 evidence request auth mode 일치',!request.authMode||request.authMode===st.auth.mode),boolItem('UI token source와 evidence request token source 일치',!request.tokenSource||request.tokenSource===st.auth.source),boolItem('UI auth subject와 evidence request auth subject 일치',!request.authSubjectHint||request.authSubjectHint===st.auth.subject),boolItem('Authorization 부착 여부가 evidence와 일치',request.authorizationHeaderPresent===undefined||request.authorizationHeaderPresent===st.auth.attached),boolItem('즉시 응답 user와 현재 인증 주체 일치',!response.user||response.user===user),boolItem('서버 truth userId와 현재 인증 주체 일치',!truth||!truth.userId||truth.userId===user),boolItem('서버 truth requestId와 evidence analysis.requestId 일치',!truth||!truth.requestId||truth.requestId===analysis.requestId),boolItem('SSE 이벤트가 현재 requestId와 연결됨',consistency.sseLinked),boolItem('분석 결과가 현재 requestId와 연결됨',consistency.analysisRequestLinked),boolItem('Decision outbox가 현재 requestId와 연결됨',consistency.decisionOutboxLinked),boolItem('Prompt audit outbox가 현재 requestId와 연결됨',consistency.promptAuditLinked),boolItem('Context binding hash가 존재함',consistency.contextBindingPresent),boolItem('서버 truth 준비 완료',consistency.serverTruthReady),boolItem('SaaS evidence 준비 완료',consistency.saasEvidenceReady)].join(''));
 }
 
 function renderVerdict(){
@@ -235,26 +235,26 @@ function renderVerdict(){
   setText(el.metricConfidence,num(analysis.confidence));
   setText(el.metricDepth,analysis.analysisDepth||'-');
   setText(el.metricContextHash,analysis.contextBindingHash||'-');
-  setText(el.reasoningSummary,analysis.reasoningSummary||latestReasoning(events)||(window.ZT_MSG||{}).noAnalysis||'No analysis results yet.');
+  setText(el.reasoningSummary,analysis.reasoningSummary||latestReasoning(events)||'아직 분석 결과가 없습니다.');
   setText(el.proposedAction,analysis.llmProposedAction||action||'-');
   setText(el.verdictBadge,action);
   el.verdictBadge.className=`verdict-badge ${verdictClass(action)}`;
 }
 function renderTimeline(){
   const events=st.events.get(st.requestId)||[];
-  if(!events.length){setHtml(el.timeline,empty((window.ZT_MSG||{}).noSseEvents||'No SSE events received yet.'));return;}
+  if(!events.length){setHtml(el.timeline,empty('아직 수신한 SSE 이벤트가 없습니다.'));return;}
   setHtml(el.timeline,events.map(event=>`<div class="timeline-item ${timelineClass(event.type)}"><div class="timeline-head"><strong>${esc(event.type||'-')}</strong><span>${esc(formatTimestamp(event.timestamp))}</span></div><div class="timeline-body"><span>layer: ${esc(event.layer||'-')}</span><span>action: ${esc(event.action||'-')}</span><span>risk: ${esc(num(event.riskScore))}</span><span>confidence: ${esc(num(event.confidence))}</span><span>requestId: ${esc(event.requestId||event.correlationId||'-')}</span></div><p class="timeline-summary">${esc(event.reasoningSummary||event.reasoning||'-')}</p></div>`).join(''));
 }
 
 function renderRequestHistory(){
-  if(!st.history.length){setHtml(el.requestHistory,empty((window.ZT_MSG||{}).noRequests||'No requests executed yet.'));return;}
+  if(!st.history.length){setHtml(el.requestHistory,empty('아직 실행한 요청이 없습니다.'));return;}
   setHtml(el.requestHistory,st.history.map(item=>{const response=item.body||{};const active=response.requestId===st.requestId?'active':'';return `<button type="button" class="history-item ${active}" data-request-id="${esc(response.requestId||item.requestId)}"><div class="history-head"><strong>${esc(item.phase)}</strong><span>${esc(item.scenario)}</span></div><div class="history-body"><span>requestId: ${esc(response.requestId||item.requestId)}</span><span>status: ${esc(str(item.status))}</span><span>sessionId: ${esc(response.sessionId||'-')}</span><span>auth: ${esc(item.authCarrier||'-')}</span></div></button>`;}).join(''));
   el.requestHistory.querySelectorAll('[data-request-id]').forEach(button=>button.addEventListener('click',()=>{st.requestId=button.dataset.requestId;setText(el.selectedRequestId,st.requestId);renderRequestHistory();refreshEvidence(false);}));
 }
 
 function renderEvidenceLinks(response){
   if(!response||!response.evidenceUrl){setHtml(el.evidenceLinks,'');return;}
-  const M=window.ZT_MSG||{};setHtml(el.evidenceLinks,`<a href="${esc(response.evidenceUrl)}" target="_blank" rel="noopener">${esc(M.evidenceJson||'evidence JSON')}</a><a href="${esc(response.evidenceExportUrl)}" target="_blank" rel="noopener">${esc(M.exportJson||'export JSON')}</a><a href="${esc(response.evidenceStreamUrl)}" target="_blank" rel="noopener">${esc(M.ndjsonStream||'NDJSON stream')}</a><a href="${esc(response.actionStatusUrl)}" target="_blank" rel="noopener">${esc(M.serverTruth||'server truth')}</a>`);
+  setHtml(el.evidenceLinks,`<a href="${esc(response.evidenceUrl)}" target="_blank" rel="noopener">evidence JSON</a><a href="${esc(response.evidenceExportUrl)}" target="_blank" rel="noopener">export JSON</a><a href="${esc(response.evidenceStreamUrl)}" target="_blank" rel="noopener">NDJSON stream</a><a href="${esc(response.actionStatusUrl)}" target="_blank" rel="noopener">server truth</a>`);
 }
 
 function refreshAuth(){
@@ -331,14 +331,14 @@ async function parseBody(response){
 }
 
 function asJson(text){if(!text)return null;try{return JSON.parse(text);}catch(error){return null;}}
-function boolItem(label,passed){const M=window.ZT_MSG||{};return consistencyItem(label,passed?(M.match||'Match'):(M.mismatch||'Mismatch'),passed?'pass':'fail');}
+function boolItem(label,passed){return consistencyItem(label,passed?'일치':'불일치',passed?'pass':'fail');}
 function consistencyItem(label,text,kind){return `<div class="consistency-item ${kind}"><strong>${esc(label)}</strong><span>${esc(text)}</span></div>`;}
 function card(title,pairs){return `<article class="summary-card"><h3>${esc(title)}</h3>${pairs.map(([k,v])=>row(k,v)).join('')}</article>`;}
 function row(label,value){return `<div class="summary-row"><span>${esc(label)}</span><strong>${esc(str(value))}</strong></div>`;}
 function facts(items){if(!items.length)return'<div><dt>상태</dt><dd>없음</dd></div>';return items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(str(v))}</dd></div>`).join('');}
 function deriveAction(events){const last=[...events].reverse().find(event=>event.action);return last?last.action:null;}
 function latestReasoning(events){const last=[...events].reverse().find(event=>event.reasoningSummary||event.reasoning);return last?(last.reasoningSummary||last.reasoning):null;}
-function snapshotSummary(snapshot){const sn=(window.ZT_MSG||{}).snapshotNone||'None';if(!snapshot)return sn;const keys=Object.keys(snapshot).filter(key=>snapshot[key]!==null&&snapshot[key]!==undefined);if(!keys.length)return sn;return keys.slice(0,3).map(key=>`${key}=${str(snapshot[key])}`).join(', ');}
+function snapshotSummary(snapshot){if(!snapshot)return'없음';const keys=Object.keys(snapshot).filter(key=>snapshot[key]!==null&&snapshot[key]!==undefined);if(!keys.length)return'없음';return keys.slice(0,3).map(key=>`${key}=${str(snapshot[key])}`).join(', ');}
 function verdictClass(action){const normalized=(action||'').toUpperCase();if(normalized.includes('BLOCK'))return'block';if(normalized.includes('CHALLENGE'))return'challenge';if(normalized.includes('ESCALATE'))return'escalate';if(normalized.includes('ALLOW'))return'allow';return'pending';}
 function timelineClass(type){if(type==='ERROR')return'error';if(type==='DECISION_APPLIED'||type==='RESPONSE_BLOCKED')return'decision';if(type&&type.includes('LAYER2'))return'layer2';if(type&&type.includes('LAYER1'))return'layer1';return'context';}
 function maskBearer(value){if(!value||!value.startsWith('Bearer '))return value;const token=value.slice(7);return token.length<=16?'Bearer <attached>':`Bearer ${token.slice(0,8)}...${token.slice(-8)}`;}

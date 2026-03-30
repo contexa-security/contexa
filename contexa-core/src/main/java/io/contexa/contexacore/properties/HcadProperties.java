@@ -11,8 +11,8 @@ import java.util.List;
 @ConfigurationProperties(prefix = "hcad")
 public class HcadProperties {
 
-    private boolean enabled = false;
-    private int filterOrder = 0;
+    private boolean enabled = true;
+    private int filterOrder = 100;
 
     @NestedConfigurationProperty
     private ResourceSettings resource = new ResourceSettings();

@@ -6,6 +6,8 @@ import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResolutionConfigurer;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -35,8 +37,23 @@ class AiBridgeConfigurationTest {
     }
 
     @Test
-    void shouldNotRegisterBridgeFilterWhenDisabled() {
+    void shouldStillRegisterBridgeFilterWhenDisabledPropertyIsSet() {
         contextRunner.withPropertyValues("contexa.bridge.enabled=false")
-                .run(context -> assertThat(context).doesNotHaveBean(BridgeResolutionFilter.class));
+                .run(context -> {
+                    assertThat(context).hasSingleBean(BridgeResolutionFilter.class);
+                    assertThat(context.getBean(BridgeProperties.class).isEnabled()).isTrue();
+                });
+    }
+
+    @Test
+    void shouldRegisterBridgeResolutionConfigurerWhenUserProvidesPlatformConfig() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(AiSecurityConfiguration.class)
+                .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
+                .run(context -> {
+                    assertThat(context).hasSingleBean(BridgeResolutionFilter.class);
+                    assertThat(context).hasSingleBean(BridgeResolutionConfigurer.class);
+                    assertThat(context).hasSingleBean(PlatformConfig.class);
+                });
     }
 }

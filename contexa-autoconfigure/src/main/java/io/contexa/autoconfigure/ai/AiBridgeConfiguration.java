@@ -21,7 +21,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
@@ -34,7 +33,6 @@ import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(SecurityFilterChain.class)
-@ConditionalOnProperty(prefix = "contexa.bridge", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(BridgeProperties.class)
 public class AiBridgeConfiguration {
 

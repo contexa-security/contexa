@@ -99,6 +99,34 @@ public class BaselineSignalOutboxRecord {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (status == null || status.isBlank()) {
+            status = STATUS_PENDING;
+        }
+        if (attemptCount == null) {
+            attemptCount = 0;
+        }
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        if (status == null || status.isBlank()) {
+            status = STATUS_PENDING;
+        }
+        if (attemptCount == null) {
+            attemptCount = 0;
+        }
+        updatedAt = LocalDateTime.now();
+    }
+
     public static BaselineSignalOutboxRecord initialize(LocalDate periodStart) {
         return BaselineSignalOutboxRecord.builder()
                 .signalId(periodStart != null ? periodStart.toString() : null)

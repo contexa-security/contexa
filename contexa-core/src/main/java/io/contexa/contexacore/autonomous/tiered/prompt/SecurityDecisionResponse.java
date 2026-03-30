@@ -39,4 +39,17 @@ public class SecurityDecisionResponse extends AIResponse {
         decisionResponse.setMitre(response.getMitre());
         return decisionResponse;
     }
+
+    public static SecurityDecisionResponse fromLite(SecurityDecisionResponseLite response) {
+        SecurityDecisionResponse decisionResponse = new SecurityDecisionResponse();
+        if (response == null) {
+            return decisionResponse;
+        }
+        decisionResponse.setRiskScore(response.getRiskScore());
+        decisionResponse.setConfidence(response.getConfidence());
+        decisionResponse.setAction(response.getAction());
+        decisionResponse.setReasoning(response.getReasoning());
+        decisionResponse.setMitre(response.getMitre());
+        return decisionResponse;
+    }
 }

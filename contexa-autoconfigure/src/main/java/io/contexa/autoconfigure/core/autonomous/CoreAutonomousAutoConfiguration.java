@@ -288,7 +288,6 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer1ContextualStrategy contextualStrategy(
-            UnifiedLLMOrchestrator llmOrchestrator,
             UnifiedVectorService unifiedVectorService,
             SecurityContextDataStore dataStore,
             SecurityEventEnricher securityEventEnricher,
@@ -304,7 +303,6 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
-                llmOrchestrator,
                 unifiedVectorService,
                 dataStore,
                 securityEventEnricher,
@@ -325,7 +323,6 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer2ExpertStrategy expertStrategy(
-            UnifiedLLMOrchestrator llmOrchestrator,
             @Autowired(required = false) ApprovalService approvalService,
             SecurityContextDataStore dataStore,
             SecurityEventEnricher securityEventEnricher,
@@ -342,7 +339,6 @@ public class CoreAutonomousAutoConfiguration {
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator) {
         return new Layer2ExpertStrategy(
-                llmOrchestrator,
                 approvalService,
                 dataStore,
                 securityEventEnricher,

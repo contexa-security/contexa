@@ -60,7 +60,7 @@ public class PromptContextComposer {
     }
 
     public String composeWorkProfileSection(CanonicalSecurityContext context) {
-        return composeSection(context, section -> appendWorkProfileSection(section, context.getWorkProfile()));
+        return composeSection(context, section -> appendWorkProfileSection(section, context));
     }
 
     public String composeContextQualityAndProvenanceSection(CanonicalSecurityContext context) {
@@ -68,7 +68,7 @@ public class PromptContextComposer {
     }
 
     public String composeRoleScopeSection(CanonicalSecurityContext context) {
-        return composeSection(context, section -> appendRoleScopeSection(section, context.getRoleScopeProfile()));
+        return composeSection(context, section -> appendRoleScopeSection(section, context));
     }
 
     public String composePeerCohortSection(CanonicalSecurityContext context) {
@@ -107,10 +107,12 @@ public class PromptContextComposer {
     }
 
     private void appendBridgeSection(StringBuilder section, CanonicalSecurityContext.Bridge bridge) {
+        section.append("\n=== BRIDGE RESOLUTION CONTEXT ===\n");
         if (bridge == null) {
+            appendLine(section, "BridgeCompletenessLevel", "UNAVAILABLE");
+            appendLine(section, "BridgeCompletenessSummary", "Bridge-derived identity and authorization context was not attached to this request.");
             return;
         }
-        section.append("\n=== BRIDGE RESOLUTION CONTEXT ===\n");
         appendLine(section, "BridgeCompletenessLevel", bridge.getCoverageLevel());
         appendLine(section, "BridgeCompletenessSummary", bridge.getSummary());
         appendLine(section, "BridgeAuthenticationSource", bridge.getAuthenticationSource());
@@ -271,12 +273,17 @@ public class PromptContextComposer {
                 observedScope.getRareCurrentActionFamily());
     }
 
-    private void appendWorkProfileSection(StringBuilder section, CanonicalSecurityContext.WorkProfile workProfile) {
+    private void appendWorkProfileSection(StringBuilder section, CanonicalSecurityContext context) {
+        CanonicalSecurityContext.WorkProfile workProfile = context != null ? context.getWorkProfile() : null;
         if (workProfile == null) {
             return;
         }
 
         section.append("\n=== PERSONAL WORK PROFILE ===\n");
+        appendEvidenceState(section, "WorkProfileEvidenceState",
+                CanonicalContextFieldPolicy.hasWorkProfileTrustAssessment(context),
+                CanonicalContextFieldPolicy.hasWorkProfile(context),
+                CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context));
         appendLine(section, "WorkProfileSummary", workProfile.getSummary());
         appendList(section, "FrequentProtectableResources", workProfile.getFrequentProtectableResources());
         appendList(section, "FrequentActionFamilies", workProfile.getFrequentActionFamilies());
@@ -348,12 +355,17 @@ public class PromptContextComposer {
         }
     }
 
-    private void appendRoleScopeSection(StringBuilder section, CanonicalSecurityContext.RoleScopeProfile roleScopeProfile) {
+    private void appendRoleScopeSection(StringBuilder section, CanonicalSecurityContext context) {
+        CanonicalSecurityContext.RoleScopeProfile roleScopeProfile = context != null ? context.getRoleScopeProfile() : null;
         if (roleScopeProfile == null) {
             return;
         }
 
         section.append("\n=== ROLE AND WORK SCOPE CONTEXT ===\n");
+        appendEvidenceState(section, "RoleScopeEvidenceState",
+                CanonicalContextFieldPolicy.hasRoleScopeTrustAssessment(context),
+                CanonicalContextFieldPolicy.hasRoleScopeProfile(context),
+                CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context));
         appendLine(section, "RoleScopeSummary", roleScopeProfile.getSummary());
         appendLine(section, "CurrentResourceFamily", roleScopeProfile.getCurrentResourceFamily());
         appendLine(section, "CurrentActionFamily", roleScopeProfile.getCurrentActionFamily());
@@ -603,6 +615,24 @@ public class PromptContextComposer {
             }
         }
         return false;
+    }
+
+    private void appendEvidenceState(
+            StringBuilder section,
+            String label,
+            boolean hasTrustAssessment,
+            boolean trusted,
+            boolean provisional) {
+        if (!hasTrustAssessment) {
+            return;
+        }
+        if (trusted) {
+            appendLine(section, label, "TRUSTED");
+            return;
+        }
+        if (provisional) {
+            appendLine(section, label, "PROVISIONAL");
+        }
     }
 
     private boolean hasTrustGating(ContextTrustProfile trustProfile) {

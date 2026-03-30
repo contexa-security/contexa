@@ -46,7 +46,6 @@ class Layer2ExpertStrategyTest {
     @BeforeEach
     void setUp() {
         strategy = new Layer2ExpertStrategy(
-                null,
                 approvalService,
                 null,
                 new SecurityEventEnricher(),

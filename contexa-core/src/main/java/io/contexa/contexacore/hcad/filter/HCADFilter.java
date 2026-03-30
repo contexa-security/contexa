@@ -56,6 +56,9 @@ public class HCADFilter extends OncePerRequestFilter {
                 request.setAttribute("hcad.baseline_confidence", ctx.getBaselineConfidence());
                 request.setAttribute("hcad.is_sensitive_resource", ctx.getIsSensitiveResource());
                 request.setAttribute("hcad.mfa_verified", ctx.getHasValidMFA());
+                if (ctx.getAuthenticationMethod() != null) {
+                    request.setAttribute("hcad.auth_method", ctx.getAuthenticationMethod());
+                }
                 if (ctx.getCountry() != null) {
                     request.setAttribute("hcad.country", ctx.getCountry());
                 }
@@ -70,6 +73,19 @@ public class HCADFilter extends OncePerRequestFilter {
                 }
                 Map<String, Object> attrs = ctx.getAdditionalAttributes();
                 if (attrs != null) {
+                    Object resourceSensitivity = attrs.get("resourceSensitivity");
+                    if (resourceSensitivity != null) {
+                        request.setAttribute("hcad.resource_sensitivity", resourceSensitivity);
+                    } else {
+                        String inferredSensitivity = inferResourceSensitivity(request, ctx);
+                        if (inferredSensitivity != null) {
+                            request.setAttribute("hcad.resource_sensitivity", inferredSensitivity);
+                        }
+                    }
+                    Object resourceBusinessLabel = attrs.get("resourceBusinessLabel");
+                    if (resourceBusinessLabel != null) {
+                        request.setAttribute("hcad.resource_business_label", resourceBusinessLabel);
+                    }
                     if (Boolean.TRUE.equals(attrs.get("impossibleTravel"))) {
                         request.setAttribute("hcad.impossibleTravel", true);
                         request.setAttribute("hcad.travelDistanceKm", attrs.get("travelDistanceKm"));
@@ -96,6 +112,23 @@ public class HCADFilter extends OncePerRequestFilter {
             request.setAttribute("hcad.failReason", e.getClass().getSimpleName());
             filterChain.doFilter(request, response);
         }
+    }
+
+    private String inferResourceSensitivity(HttpServletRequest request, HCADContext context) {
+        String path = request != null ? request.getRequestURI() : null;
+        if (path != null) {
+            String lowerPath = path.toLowerCase();
+            if (lowerPath.contains("/critical/")) {
+                return "CRITICAL";
+            }
+            if (lowerPath.contains("/sensitive/")) {
+                return "HIGH";
+            }
+        }
+        if (Boolean.TRUE.equals(context.getIsSensitiveResource())) {
+            return "HIGH";
+        }
+        return null;
     }
 
     @Override

@@ -25,14 +25,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
-
-    @Setter
-    @Autowired(required = false)
-    private IBlockedUserRecorder blockedUserRecorder;
-
-    @Setter
-    @Autowired(required = false)
-    private BlockingSignalBroadcaster blockingDecisionRegistry;
+    private final IBlockedUserRecorder blockedUserRecorder;
+    private final BlockingSignalBroadcaster blockingDecisionRegistry;
 
     @Override
     public boolean handle(SecurityEventContext context) {

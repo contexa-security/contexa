@@ -364,8 +364,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .position(firstText(metadata.get("position"), metadata.get("jobTitle"), metadata.get("title")))
                 .principalType(firstText(metadata.get("principalType"), metadata.get("principal.type"), metadata.get("userType")))
                 .bridgeSubjectKey(firstText(metadata.get("bridgeSubjectKey"), metadata.get("bridge_subject_key")))
-                .roleSet(normalizeStrings(metadata.get("userRoles"), metadata.get("roles"), metadata.get("roleSet")))
-                .authoritySet(normalizeStrings(metadata.get("authorities"), metadata.get("permissions"), metadata.get("grantedAuthorities")))
+                .roleSet(normalizeRoleStrings(metadata.get("userRoles"), metadata.get("roles"), metadata.get("roleSet")))
+                .authoritySet(normalizeAuthorityStrings(metadata.get("authorities"), metadata.get("permissions"), metadata.get("grantedAuthorities")))
                 .build();
     }
 
@@ -394,24 +394,44 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private CanonicalSecurityContext.Resource resolveResource(SecurityEvent event, Map<String, Object> metadata) {
         String resourceId = firstText(metadata.get("resourceId"), metadata.get("requestPath"), metadata.get("httpUri"), event.getDescription());
         String httpMethod = firstText(metadata.get("httpMethod"), metadata.get("method"));
+        Boolean sensitiveResource = resolveBoolean(metadata.get("isSensitiveResource"), metadata.get("is_sensitive_resource"));
+        Boolean privileged = resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged"));
+        Boolean exportSensitive = resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive"));
         return CanonicalSecurityContext.Resource.builder()
                 .resourceId(resourceId)
                 .resourceType(firstText(metadata.get("resourceType"), metadata.get("resourceCategory")))
                 .businessLabel(firstText(metadata.get("resourceLabel"), metadata.get("businessLabel")))
-                .sensitivity(firstText(metadata.get("resourceSensitivity"), metadata.get("sensitivity")))
+                .sensitivity(resolveResourceSensitivity(metadata, sensitiveResource, privileged, exportSensitive))
                 .requestPath(firstText(metadata.get("httpUri"), metadata.get("requestPath")))
                 .httpMethod(httpMethod)
                 .actionFamily(resolveActionFamily(httpMethod, metadata))
-                .sensitiveResource(resolveBoolean(metadata.get("isSensitiveResource"), metadata.get("is_sensitive_resource")))
-                .privileged(resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged")))
-                .exportSensitive(resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive")))
+                .sensitiveResource(sensitiveResource)
+                .privileged(privileged)
+                .exportSensitive(exportSensitive)
                 .build();
+    }
+
+    private String resolveResourceSensitivity(
+            Map<String, Object> metadata,
+            Boolean sensitiveResource,
+            Boolean privileged,
+            Boolean exportSensitive) {
+        String explicitSensitivity = firstText(metadata.get("resourceSensitivity"), metadata.get("sensitivity"));
+        if (StringUtils.hasText(explicitSensitivity)) {
+            return explicitSensitivity;
+        }
+        if (Boolean.TRUE.equals(sensitiveResource)
+                || Boolean.TRUE.equals(privileged)
+                || Boolean.TRUE.equals(exportSensitive)) {
+            return "HIGH";
+        }
+        return null;
     }
 
     private CanonicalSecurityContext.Authorization resolveAuthorization(Map<String, Object> metadata) {
         return CanonicalSecurityContext.Authorization.builder()
-                .effectiveRoles(normalizeStrings(metadata.get("effectiveRoles"), metadata.get("userRoles"), metadata.get("roles")))
-                .effectivePermissions(normalizeStrings(metadata.get("effectivePermissions"), metadata.get("permissions"), metadata.get("authorities")))
+                .effectiveRoles(normalizeRoleStrings(metadata.get("effectiveRoles"), metadata.get("userRoles"), metadata.get("roles")))
+                .effectivePermissions(normalizePermissionStrings(metadata.get("effectivePermissions"), metadata.get("permissions"), metadata.get("authorities")))
                 .scopeTags(normalizeStrings(metadata.get("scopeTags"), metadata.get("authorizationScope"), metadata.get("scope")))
                 .authorizationEffect(firstText(metadata.get("authorizationEffect"), metadata.get("authorization_effect"), metadata.get("effect")))
                 .policyId(firstText(metadata.get("policyId"), metadata.get("policy_id")))
@@ -782,7 +802,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .approvalStatus(approvalStatus)
                 .approvalLineage(normalizeStrings(existing != null ? existing.getApprovalLineage() : null, metadata.get("approvalLineage"), metadata.get("approverLineage"), metadata.get("approval_lineage"), metadata.get("approverChain")))
                 .pendingApproverRoles(normalizeStrings(existing != null ? existing.getPendingApproverRoles() : null, metadata.get("pendingApproverRoles"), metadata.get("pending_approver_roles"), metadata.get("approverRoles")))
-                .approvalTicketId(firstText(existing != null ? existing.getApprovalTicketId() : null, metadata.get("approvalTicketId"), metadata.get("approvalRequestId"), metadata.get("approval_request_id"), metadata.get("requestId")))
+                .approvalTicketId(firstText(existing != null ? existing.getApprovalTicketId() : null, metadata.get("approvalTicketId"), metadata.get("approvalRequestId"), metadata.get("approval_request_id")))
                 .approvalDecisionAgeMinutes(resolveInteger(existing != null ? existing.getApprovalDecisionAgeMinutes() : null, metadata.get("approvalDecisionAgeMinutes"), metadata.get("approvalAgeMinutes"), metadata.get("approval_age_minutes")))
                 .breakGlass(resolveBoolean(existing != null ? existing.getBreakGlass() : null, metadata.get("breakGlass"), metadata.get("break_glass"), metadata.get("breakGlassRequested")))
                 .recentDeniedAccessCount(recentDeniedAccessCount)
@@ -904,6 +924,37 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         return List.copyOf(values);
     }
 
+    private List<String> normalizeRoleStrings(Object... rawValues) {
+        Set<String> values = new LinkedHashSet<>();
+        for (String rawValue : normalizeStrings(rawValues)) {
+            String normalizedRole = normalizeRoleToken(rawValue);
+            if (normalizedRole != null) {
+                values.add(normalizedRole);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> normalizeAuthorityStrings(Object... rawValues) {
+        Set<String> values = new LinkedHashSet<>();
+        for (String rawValue : normalizeStrings(rawValues)) {
+            if (isAuthorityLikeToken(rawValue)) {
+                values.add(rawValue);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> normalizePermissionStrings(Object... rawValues) {
+        Set<String> values = new LinkedHashSet<>();
+        for (String rawValue : normalizeStrings(rawValues)) {
+            if (isPermissionLikeToken(rawValue)) {
+                values.add(rawValue);
+            }
+        }
+        return List.copyOf(values);
+    }
+
     private void addNormalized(Set<String> values, Object rawValue) {
         if (rawValue == null) {
             return;
@@ -912,6 +963,51 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (!value.isBlank()) {
             values.add(value);
         }
+    }
+
+    private String normalizeRoleToken(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        String candidate = rawValue.trim();
+        if (candidate.startsWith("ROLE_")) {
+            candidate = candidate.substring("ROLE_".length());
+        }
+        if (candidate.isBlank()
+                || candidate.contains("/")
+                || candidate.contains(".")
+                || candidate.contains(" ")) {
+            return null;
+        }
+        String upper = candidate.toUpperCase(Locale.ROOT);
+        if ("READ".equals(upper)
+                || "WRITE".equals(upper)
+                || "EXPORT".equals(upper)
+                || "DELETE".equals(upper)
+                || "CREATE".equals(upper)
+                || "UPDATE".equals(upper)
+                || "GET".equals(upper)
+                || "POST".equals(upper)
+                || "PUT".equals(upper)
+                || "PATCH".equals(upper)) {
+            return null;
+        }
+        return upper;
+    }
+
+    private boolean isAuthorityLikeToken(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return false;
+        }
+        String candidate = rawValue.trim();
+        return normalizeRoleToken(candidate) == null;
+    }
+
+    private boolean isPermissionLikeToken(String rawValue) {
+        if (!isAuthorityLikeToken(rawValue)) {
+            return false;
+        }
+        return !rawValue.contains("/");
     }
 
     private Boolean resolveBoolean(Object... values) {

@@ -66,7 +66,6 @@ class AbstractTieredStrategyTest {
     void setUp() {
         tieredStrategyProperties = new TieredStrategyProperties();
         strategy = new ConcreteStrategy(
-                llmOrchestrator,
                 eventEnricher,
                 promptTemplate,
                 behaviorVectorService,
@@ -219,6 +218,12 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("context retrieval purpose should remain stable across analysis layers")
+    void getContextRetrievalPurpose_returnsStableSecurityInvestigationPurpose() {
+        assertThat(strategy.getContextRetrievalPurposeForTest()).isEqualTo("security_investigation");
+    }
+
+    @Test
     @DisplayName("getCachedSessionContext should return null for null eventId")
     void getCachedSessionContext_nullEventId_returnsNull() {
         SecurityDecisionStandardPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(null);
@@ -230,6 +235,20 @@ class AbstractTieredStrategyTest {
     void getCachedBehaviorAnalysis_unknownEventId_returnsNull() {
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis cached = AbstractTieredStrategy.getCachedBehaviorAnalysis("non-existent-id");
         assertThat(cached).isNull();
+    }
+
+    @Test
+    @DisplayName("BaseSessionContext should copy immutable recent actions into mutable storage")
+    void baseSessionContext_setRecentActions_shouldCreateMutableCopy() {
+        AbstractTieredStrategy.BaseSessionContext sessionContext = new AbstractTieredStrategy.BaseSessionContext();
+
+        sessionContext.setRecentActions(List.of("10:30 | GET /admin/api/security-test/sensitive/resource-001"));
+        sessionContext.getRecentActions().add("10:31 | GET /admin/api/security-test/sensitive/resource-001");
+
+        assertThat(sessionContext.getRecentActions())
+                .containsExactly(
+                        "10:30 | GET /admin/api/security-test/sensitive/resource-001",
+                        "10:31 | GET /admin/api/security-test/sensitive/resource-001");
     }
 
     @Test
@@ -288,8 +307,7 @@ class AbstractTieredStrategyTest {
 
     private static class ConcreteStrategy extends AbstractTieredStrategy {
 
-        ConcreteStrategy(UnifiedLLMOrchestrator llmOrchestrator,
-                         SecurityEventEnricher eventEnricher,
+        ConcreteStrategy(SecurityEventEnricher eventEnricher,
                          SecurityDecisionStandardPromptTemplate promptTemplate,
                          BehaviorVectorService behaviorVectorService,
                          UnifiedVectorService unifiedVectorService,
@@ -297,7 +315,7 @@ class AbstractTieredStrategyTest {
                          PromptContextAuthorizationService promptContextAuthorizationService,
                          PromptContextAuditForwardingService promptContextAuditForwardingService,
                          TieredStrategyProperties tieredStrategyProperties) {
-            super(llmOrchestrator, eventEnricher, promptTemplate,
+            super(eventEnricher, promptTemplate,
                     behaviorVectorService, unifiedVectorService,
                     baselineLearningService,
                     promptContextAuthorizationService,
@@ -326,6 +344,10 @@ class AbstractTieredStrategyTest {
 
         SecurityResponse callCreateDefaultResponse() {
             return createDefaultResponse();
+        }
+
+        String getContextRetrievalPurposeForTest() {
+            return getContextRetrievalPurpose();
         }
 
         ZeroTrustAction callMapStringToAction(String action) {

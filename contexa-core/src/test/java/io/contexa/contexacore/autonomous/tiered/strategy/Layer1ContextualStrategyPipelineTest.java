@@ -46,7 +46,6 @@ class Layer1ContextualStrategyPipelineTest {
         Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
                 null,
                 null,
-                null,
                 new SecurityEventEnricher(),
                 new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,

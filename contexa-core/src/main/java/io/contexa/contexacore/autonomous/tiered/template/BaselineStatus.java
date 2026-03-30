@@ -4,6 +4,8 @@ public enum BaselineStatus {
 
     ESTABLISHED("Available", "User baseline data is available for comparison"),
 
+    PROVISIONAL("PROVISIONAL", "Personal baseline evidence is forming but is not yet stable enough to prove normal behavior"),
+
     NEW_USER("[NEW_USER] No baseline established", "Cannot compare against historical patterns"),
 
     NOT_LOADED("[NO_DATA] Baseline available but not loaded", "Anomaly detection unavailable"),
@@ -39,7 +41,7 @@ public enum BaselineStatus {
         sb.append("=== BASELINE ===\n");
         sb.append("STATUS: ").append(statusLabel).append("\n");
 
-        if (this == ESTABLISHED && baselineContext != null) {
+        if ((this == ESTABLISHED || this == PROVISIONAL) && baselineContext != null) {
             sb.append(baselineContext).append("\n");
         } else {
             sb.append("IMPACT: ").append(impactDescription).append("\n");

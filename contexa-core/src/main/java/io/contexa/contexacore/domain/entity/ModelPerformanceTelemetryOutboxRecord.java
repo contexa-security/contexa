@@ -100,6 +100,34 @@ public class ModelPerformanceTelemetryOutboxRecord {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (status == null || status.isBlank()) {
+            status = STATUS_PENDING;
+        }
+        if (attemptCount == null) {
+            attemptCount = 0;
+        }
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        if (status == null || status.isBlank()) {
+            status = STATUS_PENDING;
+        }
+        if (attemptCount == null) {
+            attemptCount = 0;
+        }
+        updatedAt = LocalDateTime.now();
+    }
+
     public static ModelPerformanceTelemetryOutboxRecord initialize(LocalDate period) {
         return ModelPerformanceTelemetryOutboxRecord.builder()
                 .telemetryId(period != null ? period.toString() : null)

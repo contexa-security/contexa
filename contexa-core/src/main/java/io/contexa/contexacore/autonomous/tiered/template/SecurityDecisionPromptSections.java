@@ -2,8 +2,10 @@ package io.contexa.contexacore.autonomous.tiered.template;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacore.autonomous.context.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
+import io.contexa.contexacore.autonomous.context.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
@@ -147,7 +149,7 @@ public class SecurityDecisionPromptSections {
                 .map(PromptOmissionRecord::sectionKey)
                 .distinct()
                 .toList();
-        PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(omissionLedger);
+        PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger);
         String systemText = systemSections.composedText();
         String userText = userSections.composedText();
 
@@ -252,8 +254,29 @@ public class SecurityDecisionPromptSections {
         return PromptBudgetProfile.CORTEX_L1_STANDARD;
     }
 
-    private PromptEvidenceCompleteness evaluateCompleteness(List<PromptOmissionRecord> omissionLedger) {
+    private PromptEvidenceCompleteness evaluateCompleteness(
+            SecurityPromptBuildContext buildContext,
+            List<PromptOmissionRecord> omissionLedger) {
         if (omissionLedger == null || omissionLedger.isEmpty()) {
+            CanonicalSecurityContext context = buildContext != null ? buildContext.getCanonicalSecurityContext() : null;
+            if (context == null
+                    || !CanonicalContextFieldPolicy.hasActorIdentity(context)
+                    || !CanonicalContextFieldPolicy.hasSessionIdentity(context)
+                    || !CanonicalContextFieldPolicy.hasResourceIdentity(context)) {
+                return PromptEvidenceCompleteness.INCOMPLETE;
+            }
+            if (!CanonicalContextFieldPolicy.hasEffectiveRoles(context)
+                    || !CanonicalContextFieldPolicy.hasAuthorizationScope(context)
+                    || !CanonicalContextFieldPolicy.hasResourceSensitivity(context)
+                    || !CanonicalContextFieldPolicy.hasMfaState(context)
+                    || CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)
+                    || CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
+                return PromptEvidenceCompleteness.PARTIAL;
+            }
+            ContextCoverageReport coverage = context.getCoverage();
+            if (coverage != null && !coverage.missingCriticalFacts().isEmpty()) {
+                return PromptEvidenceCompleteness.PARTIAL;
+            }
             return PromptEvidenceCompleteness.SUFFICIENT;
         }
         boolean requiredOmission = omissionLedger.stream()
@@ -391,7 +414,9 @@ public class SecurityDecisionPromptSections {
 
 
     String buildCurrentRequestNarrative(SecurityEvent event,
-            BehaviorAnalysis behaviorAnalysis, DetectedPatterns patterns) {
+            BehaviorAnalysis behaviorAnalysis,
+            CanonicalSecurityContext canonicalSecurityContext,
+            DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== CURRENT REQUEST ===\n");
 
@@ -418,10 +443,14 @@ public class SecurityDecisionPromptSections {
 
         String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
         String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
-        if (os != null || browser != null) {
-            narrative.append(" using ");
-            if (browser != null) narrative.append(browser);
-            if (os != null) narrative.append(" on ").append(os);
+        if (browser != null && os != null) {
+            narrative.append(" using ").append(browser).append(" on ").append(os);
+        }
+        else if (browser != null) {
+            narrative.append(" using ").append(browser);
+        }
+        else if (os != null) {
+            narrative.append(" using a device on ").append(os);
         }
 
         if (event.getTimestamp() != null) {
@@ -440,18 +469,25 @@ public class SecurityDecisionPromptSections {
             }
         }
 
-        if (behaviorAnalysis != null) {
-            if (behaviorAnalysis.getPreviousPath() != null) {
+        CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile =
+                canonicalSecurityContext != null ? canonicalSecurityContext.getSessionNarrativeProfile() : null;
+        String previousPath = sessionNarrativeProfile != null
+                ? sessionNarrativeProfile.getPreviousPath()
+                : behaviorAnalysis != null ? behaviorAnalysis.getPreviousPath() : null;
+        Long lastRequestIntervalMs = sessionNarrativeProfile != null
+                ? sessionNarrativeProfile.getLastRequestIntervalMs()
+                : behaviorAnalysis != null ? behaviorAnalysis.getLastRequestIntervalMs() : null;
+
+        if (previousPath != null) {
                 section.append("Previous request path: ")
                        .append(PromptTemplateUtils.sanitizeUserInput(
-                               behaviorAnalysis.getPreviousPath()))
+                               previousPath))
                        .append(".\n");
-            }
-            if (behaviorAnalysis.getLastRequestIntervalMs() != null) {
-                long intervalSec = behaviorAnalysis.getLastRequestIntervalMs() / 1000;
-                section.append("Time since last request: ")
-                       .append(intervalSec).append(" seconds.\n");
-            }
+        }
+        if (lastRequestIntervalMs != null) {
+            long intervalSec = lastRequestIntervalMs / 1000;
+            section.append("Time since last request: ")
+                    .append(intervalSec).append(" seconds.\n");
         }
 
         return section.toString();
@@ -460,11 +496,12 @@ public class SecurityDecisionPromptSections {
     String buildCurrentRequestAndEventSection(SecurityEvent event,
             String userId,
             BehaviorAnalysis behaviorAnalysis,
+            CanonicalSecurityContext canonicalSecurityContext,
             DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("=== CURRENT REQUEST AND EVENT ===\n");
         appendSectionBody(section, buildEventSection(event, userId));
-        appendSectionBody(section, buildCurrentRequestNarrative(event, behaviorAnalysis, patterns));
+        appendSectionBody(section, buildCurrentRequestNarrative(event, behaviorAnalysis, canonicalSecurityContext, patterns));
         appendIfPresent(section, buildSupportingPromptBlock("NetworkContext", buildNetworkPromptSection(event)));
         appendIfPresent(section, buildSupportingPromptBlock("PayloadSummary", buildPayloadSection(event)));
         return section.toString();
@@ -484,17 +521,20 @@ public class SecurityDecisionPromptSections {
         }
 
         if (baselineStatus == BaselineStatus.NEW_USER) {
-            section.append("This is a new user without established behavioral baseline.\n");
-            section.append("No historical data available to compare against.\n");
+            section.append("Personal behavioral baseline is not established yet.\n");
+            section.append("Do not assume this request is normal based on user-specific history.\n");
             return section.toString();
         }
 
-        if (baselineStatus != BaselineStatus.ESTABLISHED) {
+        if (baselineStatus != BaselineStatus.ESTABLISHED && baselineStatus != BaselineStatus.PROVISIONAL) {
             section.append("User profile data is limited or unavailable.\n");
             return section.toString();
         }
 
-        StringBuilder profile = new StringBuilder("This user normally ");
+        boolean establishedPersonalBaseline = baselineStatus == BaselineStatus.ESTABLISHED;
+        StringBuilder profile = new StringBuilder(establishedPersonalBaseline
+                ? "This user normally "
+                : "A provisional personal baseline currently suggests ");
 
         if (!patterns.hourSet.isEmpty()) {
             profile.append("accesses the system during hours ")
@@ -528,9 +568,11 @@ public class SecurityDecisionPromptSections {
         section.append(profile).append("\n");
 
         if (!patterns.pathSet.isEmpty()) {
-            section.append("Frequent paths: ")
+            section.append(establishedPersonalBaseline
+                            ? "Frequent paths: "
+                            : "Observed candidate paths (still provisional): ")
                    .append(String.join(", ", patterns.pathSet))
-                   .append(".\n");
+                    .append(".\n");
         }
 
         if (behaviorAnalysis != null) {
@@ -540,9 +582,16 @@ public class SecurityDecisionPromptSections {
             }
         }
 
-        if (behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
+        if (establishedPersonalBaseline
+                && behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
                 && !behaviorAnalysis.getBaselineContext().startsWith("[")) {
             section.append("\nEstablished baseline (from learned behavior):\n");
+            section.append(PromptTemplateUtils.sanitizeUserInput(
+                    behaviorAnalysis.getBaselineContext()));
+            section.append("\n");
+        } else if (behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
+                && !behaviorAnalysis.getBaselineContext().startsWith("[")) {
+            section.append("\nProvisional baseline evidence (learning in progress):\n");
             section.append(PromptTemplateUtils.sanitizeUserInput(
                     behaviorAnalysis.getBaselineContext()));
             section.append("\n");
@@ -1174,7 +1223,7 @@ public class SecurityDecisionPromptSections {
             }
 
             String sig = SecurityEventEnricher.extractBrowserSignature(ua);
-            network.append("CurrentUA: ").append(sig != null ? sig : "Browser").append("\n");
+            network.append("CurrentUA: ").append(sig != null ? sig : "UNKNOWN_BROWSER_SIGNATURE").append("\n");
         }
 
         return network.toString().trim();
@@ -1459,8 +1508,12 @@ public class SecurityDecisionPromptSections {
             return BaselineStatus.NEW_USER;
         }
 
-        if (isValidBaseline(baselineContext)) {
+        if (behaviorAnalysis.isPersonalBaselineEstablished() && isValidBaseline(baselineContext)) {
             return BaselineStatus.ESTABLISHED;
+        }
+
+        if (behaviorAnalysis.isPersonalBaselineAvailable() && isValidBaseline(baselineContext)) {
+            return BaselineStatus.PROVISIONAL;
         }
 
         if (baselineContext != null && baselineContext.startsWith("[")) {
@@ -1481,7 +1534,7 @@ public class SecurityDecisionPromptSections {
             return BaselineStatus.NEW_USER;
         }
 
-        if (behaviorAnalysis.isBaselineEstablished()) {
+        if (behaviorAnalysis.isBaselineEstablished() || behaviorAnalysis.isPersonalBaselineEstablished()) {
             return BaselineStatus.NOT_LOADED;
         }
 
