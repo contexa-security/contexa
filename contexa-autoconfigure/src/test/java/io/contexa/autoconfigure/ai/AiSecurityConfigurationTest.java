@@ -24,4 +24,16 @@ class AiSecurityConfigurationTest {
                     assertThat(context).hasSingleBean(SessionSecurityContextRepositoryConfigurer.class);
                 });
     }
+
+    @Test
+    void shouldStillRegisterSessionSecurityContextRepositoryConfigurerWhenRepositoryBeanIsNotYetPresent() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(AiSecurityConfiguration.class)
+                .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
+                .run(context -> {
+                    assertThat(context).hasSingleBean(PlatformConfig.class);
+                    assertThat(context).doesNotHaveBean(AISessionSecurityContextRepository.class);
+                    assertThat(context).hasSingleBean(SessionSecurityContextRepositoryConfigurer.class);
+                });
+    }
 }

@@ -238,6 +238,20 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("BaseSessionContext should copy immutable recent actions into mutable storage")
+    void baseSessionContext_setRecentActions_shouldCreateMutableCopy() {
+        AbstractTieredStrategy.BaseSessionContext sessionContext = new AbstractTieredStrategy.BaseSessionContext();
+
+        sessionContext.setRecentActions(List.of("10:30 | GET /admin/api/security-test/sensitive/resource-001"));
+        sessionContext.getRecentActions().add("10:31 | GET /admin/api/security-test/sensitive/resource-001");
+
+        assertThat(sessionContext.getRecentActions())
+                .containsExactly(
+                        "10:30 | GET /admin/api/security-test/sensitive/resource-001",
+                        "10:31 | GET /admin/api/security-test/sensitive/resource-001");
+    }
+
+    @Test
     @DisplayName("capturePromptRuntimeTelemetry should copy prompt runtime facts into mutable event metadata")
     void capturePromptRuntimeTelemetry_copiesRuntimeFacts() {
         SecurityEvent event = SecurityEvent.builder()

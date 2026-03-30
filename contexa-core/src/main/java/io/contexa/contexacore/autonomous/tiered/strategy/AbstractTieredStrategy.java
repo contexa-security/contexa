@@ -569,7 +569,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
 
         public List<String> getRecentActions() { return recentActions; }
-        public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
+        public void setRecentActions(List<String> recentActions) {
+            this.recentActions = recentActions != null
+                    ? new ArrayList<>(recentActions)
+                    : new ArrayList<>();
+        }
 
         public int getAccessFrequency() { return accessFrequency; }
         public void setAccessFrequency(int accessFrequency) { this.accessFrequency = accessFrequency; }

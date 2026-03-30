@@ -90,15 +90,14 @@ public class AiSecurityConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(AISessionSecurityContextRepository.class)
     public SessionSecurityContextRepositoryConfigurer sessionSecurityContextRepositoryConfigurer(
-            AISessionSecurityContextRepository aiSessionSecurityContextRepository) {
-        return new SessionSecurityContextRepositoryConfigurer(aiSessionSecurityContextRepository);
+            ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepositoryProvider) {
+        return new SessionSecurityContextRepositoryConfigurer(
+                aiSessionSecurityContextRepositoryProvider.getIfAvailable());
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(BridgeResolutionFilter.class)
     public BridgeResolutionConfigurer bridgeResolutionConfigurer(
             ObjectProvider<BridgeResolutionFilter> bridgeResolutionFilterProvider) {
         return new BridgeResolutionConfigurer(bridgeResolutionFilterProvider.getIfAvailable());
