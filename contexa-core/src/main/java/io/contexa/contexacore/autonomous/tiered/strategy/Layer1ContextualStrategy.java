@@ -126,6 +126,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
             ragSearchMs = System.currentTimeMillis() - ragSearchStart;
 
+
             long behaviorAnalysisStart = System.currentTimeMillis();
             BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
             behaviorAnalysisMs = System.currentTimeMillis() - behaviorAnalysisStart;
