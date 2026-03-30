@@ -54,19 +54,16 @@ public class BaselineSignalOutboxRecord {
     private long userBaselineCount = 0L;
 
     @Convert(converter = JpaMapConverter.class)
-    @Lob
     @Column(name = "access_hours_distribution_json", columnDefinition = "TEXT")
     @Builder.Default
     private Map<String, Object> accessHoursDistribution = new LinkedHashMap<>();
 
     @Convert(converter = JpaMapConverter.class)
-    @Lob
     @Column(name = "access_days_distribution_json", columnDefinition = "TEXT")
     @Builder.Default
     private Map<String, Object> accessDaysDistribution = new LinkedHashMap<>();
 
     @Convert(converter = JpaMapConverter.class)
-    @Lob
     @Column(name = "operating_system_distribution_json", columnDefinition = "TEXT")
     @Builder.Default
     private Map<String, Object> operatingSystemDistribution = new LinkedHashMap<>();

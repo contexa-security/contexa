@@ -40,7 +40,6 @@ public class DecisionFeedbackForwardingOutboxRecord {
     @Column(name = "tenant_external_ref", nullable = false, length = 128)
     private String tenantExternalRef;
 
-    @Lob
     @Column(name = "payload_json", nullable = false, columnDefinition = "TEXT")
     private String payloadJson;
 
