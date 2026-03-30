@@ -104,6 +104,34 @@ body {
 }
 
 .panel h2 { margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-heading); }
+
+/* Step header with numbered circle */
+.panel-header--step {
+    display: flex; align-items: center; gap: 12px;
+}
+.step-number {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem; font-weight: 800;
+    flex-shrink: 0;
+}
+/* Color per step */
+.panel--scenario .step-number {
+    background: rgba(59,130,246,0.15); color: #60a5fa;
+    border: 1px solid rgba(59,130,246,0.3);
+    box-shadow: 0 0 10px rgba(59,130,246,0.15);
+}
+.panel--action .step-number {
+    background: rgba(6,182,212,0.15); color: #22d3ee;
+    border: 1px solid rgba(6,182,212,0.3);
+    box-shadow: 0 0 10px rgba(6,182,212,0.15);
+}
+.panel--verdict .step-number {
+    background: rgba(139,92,246,0.15); color: #a78bfa;
+    border: 1px solid rgba(139,92,246,0.3);
+    box-shadow: 0 0 10px rgba(139,92,246,0.15);
+}
 .panel h3 { margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text); }
 .panel-header { margin-bottom: 14px; }
 .panel-header p { margin: 4px 0 0; color: var(--dim); font-size: 0.88rem; }
@@ -163,12 +191,13 @@ body {
 .hero-status {
     position: relative; z-index: 1;
     grid-row: 1;
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 10px; align-content: center;
+    display: flex; gap: 10px; align-items: center;
+    justify-content: flex-end;
 }
 
 .status-card {
-    padding: 0.875rem 1rem;
+    flex: 1;
+    padding: 0.75rem 1rem;
     border-radius: 0.75rem;
     background: var(--card-bg-inner);
     border: 1px solid var(--card-border);
@@ -176,20 +205,7 @@ body {
 }
 .status-card:hover { background: var(--card-bg-hover); border-color: var(--card-border-hover); }
 
-.status-card--user {
-    grid-column: 1 / -1;
-    border-color: var(--cyan-border);
-    display: grid; grid-template-columns: 1fr auto;
-    gap: 2px 16px; align-items: center;
-}
-.status-card--user strong { font-size: 1.1rem; color: var(--cyan); }
-.status-card--user .status-card__sub {
-    grid-column: 2; grid-row: 1 / 3;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem; color: var(--muted);
-    background: rgba(30,41,59,0.8); border: 1px solid var(--card-border);
-    padding: 6px 12px; border-radius: 0.5rem;
-}
+/* status-card--user removed from hero, now in same-account-badge */
 
 .status-card__label {
     display: block; margin-bottom: 4px;
@@ -234,11 +250,13 @@ body {
    ================================================================ */
 .control-grid {
     display: grid;
-    grid-template-columns: 1fr 1.1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-auto-rows: 1fr;
     gap: 16px; margin-bottom: 18px;
+    align-items: stretch;
 }
 
-/* Each section has its own accent border color like admin dashboard */
+/* Step flow: 1 -> 2 -> 3 with accent borders */
 .panel--scenario { border-color: var(--info-border); }
 .panel--action { border-color: var(--cyan-border); }
 
@@ -258,6 +276,33 @@ body {
    SCENARIO CARDS
    ================================================================ */
 .scenario-grid { display: grid; gap: 10px; }
+
+/* Same account badge */
+.same-account-badge {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 14px; padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(6,182,212,0.06);
+    border: 1px solid rgba(6,182,212,0.2);
+    box-shadow: 0 0 16px rgba(6,182,212,0.06);
+}
+.badge-label {
+    font-size: 0.75rem; font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.05em;
+}
+.badge-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.92rem; font-weight: 700; color: var(--cyan);
+}
+.badge-value--role {
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(6,182,212,0.12); border: 1px solid rgba(6,182,212,0.25);
+    font-size: 0.78rem; color: var(--cyan);
+}
+.badge-divider {
+    width: 1px; height: 16px;
+    background: rgba(71,85,105,0.4);
+}
 
 .scenario-card {
     display: grid; grid-template-columns: 48px 1fr;
@@ -343,10 +388,18 @@ body {
 .scenario-summary dt, .fact-grid dt { color: var(--dim); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
 .scenario-summary dd, .fact-grid dd { margin: 0; font-weight: 600; color: var(--text-bright); word-break: break-word; font-size: 0.92rem; white-space: nowrap; }
 
-.header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.header-item { padding: 0.625rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--card-border); background: var(--card-bg-deep); }
-.header-item span { display: block; margin-bottom: 3px; color: var(--dim); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-.header-item code { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--cyan); word-break: break-all; }
+.header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.header-item {
+    padding: 0.75rem 0.875rem; border-radius: 0.75rem;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg-inner);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.03);
+    transition: all 0.2s;
+}
+.header-item:hover { border-color: rgba(71,85,105,0.6); background: var(--card-bg-hover); }
+.header-item span { display: block; margin-bottom: 4px; color: var(--dim); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.header-item code { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--cyan); word-break: break-all; }
+.hidden { display: none !important; }
 
 /* ================================================================
    ACTION BUTTONS
@@ -651,10 +704,10 @@ pre {
     .content-grid { grid-template-columns: 1fr; }
     .tab-grid-2 { grid-template-columns: 1fr; }
     .hero { grid-template-columns: 1fr; }
-    .hero-status { grid-template-columns: repeat(3, 1fr); }
+    .hero-status { flex-wrap: wrap; }
 }
 @media (max-width: 900px) {
-    .hero-status, .verdict-metrics { grid-template-columns: 1fr 1fr; }
+    .verdict-metrics { grid-template-columns: 1fr 1fr; }
     .page-shell { padding: 12px 10px 24px; }
     .hero h1 { font-size: 1.3rem; }
     .detail-tab-label { padding: 0.625rem 0.75rem; font-size: 0.82rem; }

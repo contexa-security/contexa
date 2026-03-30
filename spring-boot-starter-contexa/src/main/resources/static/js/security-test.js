@@ -2,7 +2,7 @@
 (function(){
 const API={sse:'/admin/api/sse/llm-analysis/user',status:'/admin/api/test-action/status',evidence:'/admin/api/security-test/evidence',endpoints:{sensitive:'/admin/api/security-test/sensitive/resource-001',critical:'/admin/api/security-test/critical/resource-001'}};
 const STORE={access:'contexa_access_token',refresh:'contexa_refresh_token',mode:'authMode'};
-const SCENARIO={NORMAL_USER:{title:(window.ZT_MSG||{}).scenarioNormalTitle||'Normal User',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11 / Corp LAN',expect:'ALLOW or LOW_RISK'},ACCOUNT_TAKEOVER:{title:(window.ZT_MSG||{}).scenarioTakeoverTitle||'Account Takeover',ip:'203.0.113.50',ua:'Android 10 / Hijacked Session',expect:'CHALLENGE or BLOCK'}};
+const SCENARIO={NORMAL_USER:{title:(window.ZT_MSG||{}).scenarioNormalTitle||'Normal User',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11',expect:'ALLOW or LOW_RISK',deviceId:'d7e3f1a2-4b8c-4e9d-a1f5-6c3b2d8e9f01'},ACCOUNT_TAKEOVER:{title:(window.ZT_MSG||{}).scenarioTakeoverTitle||'Account Takeover',ip:'203.0.113.50',ua:'Android 10 / Mobile',expect:'CHALLENGE or BLOCK',deviceId:'a9c4e7b1-2f6d-48a3-b5e8-1d7f3c9a2e04'}};
 const ENDPOINT={sensitive:{title:(window.ZT_MSG||{}).endpointSensitive||'Sensitive Resource',desc:(window.ZT_MSG||{}).endpointSensitiveDesc||'Sensitive information access path'},critical:{title:(window.ZT_MSG||{}).endpointCritical||'Critical Resource',desc:(window.ZT_MSG||{}).endpointCriticalDesc||'Critical information access path'}};
 const SSE_TYPES=['connected','CONTEXT_COLLECTED','HCAD_ANALYSIS','SESSION_CONTEXT_LOADED','RAG_SEARCH_COMPLETE','BEHAVIOR_ANALYSIS_COMPLETE','LAYER1_START','LAYER1_COMPLETE','LAYER2_START','LAYER2_COMPLETE','LLM_EXECUTION_START','LLM_EXECUTION_COMPLETE','DECISION_APPLIED','RESPONSE_BLOCKED','ERROR'];
 const el={};
@@ -179,9 +179,34 @@ function renderScenario(){
 
 function renderHeaderPreview(headers){
   const preview={...headers};
-  if(preview.Authorization)preview.Authorization=maskBearer(preview.Authorization);
-  const labels=(window.ZT_MSG||{}).headerLabels||{};
-  setHtml(el.requestHeaderPreview,Object.entries(preview).map(([k,v])=>`<div class="header-item"><span>${esc(labels[k]||k)}</span><code>${esc(str(v))}</code></div>`).join(''));
+  const hide=['X-Contexa-Demo-Run-Id','X-Contexa-Auth-Mode','X-Contexa-Token-Source','X-Contexa-Auth-Carrier','X-Contexa-Auth-Subject','X-Contexa-Authorization-Present','Authorization','X-Contexa-Demo-Phase','Accept','X-Request-ID','X-Contexa-Expected-Action'];
+  hide.forEach(k=>delete preview[k]);
+  const M=window.ZT_MSG||{};const labels=M.headerLabels||{};const vals=M.valueLabels||{};
+  const scenario=SCENARIO[st.scenario]||{};
+  const sessionCookie=resolveSessionCookie();
+  const items=[];
+  Object.entries(preview).forEach(([k,v])=>{
+    if(k==='X-Simulated-User-Agent'){
+      const parts=str(v).split('/').map(s=>s.trim());
+      items.push(`<div class="header-item"><span>${esc(M.headerBrowser||'Browser')}</span><code>${esc(parts[0]||'-')}</code></div>`);
+      items.push(`<div class="header-item"><span>${esc(M.headerOs||'OS')}</span><code>${esc(parts[1]||'-')}</code></div>`);
+    } else {
+      items.push(`<div class="header-item"><span>${esc(labels[k]||k)}</span><code>${esc(vals[str(v)]||str(v))}</code></div>`);
+    }
+  });
+  items.push(`<div class="header-item"><span>${esc(M.headerDevice||'Device ID')}</span><code>${esc(scenario.deviceId||'-')}</code></div>`);
+  items.push(`<div class="header-item"><span>${esc(M.headerSession||'Session')}</span><code>${esc(sessionCookie)}</code></div>`);
+  setHtml(el.requestHeaderPreview,items.join(''));
+}
+function resolveSessionCookie(){
+  const cookies=document.cookie.split(';');
+  for(let i=0;i<cookies.length;i++){
+    const c=cookies[i].trim();
+    if(c.startsWith('JSESSIONID=')){return c.substring(11);}
+  }
+  const last=st.history.length>0?st.history[0]:null;
+  if(last&&last.body&&last.body.sessionId)return last.body.sessionId;
+  return'-';
 }
 
 function renderImmediateResponse(payload){

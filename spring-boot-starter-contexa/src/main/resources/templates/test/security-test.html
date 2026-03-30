@@ -29,11 +29,6 @@
             <p class="hero-sub" th:text="#{zt.demo.subtitle}">Compare normal user and account takeover in the same session after login</p>
         </div>
         <div class="hero-status">
-            <div class="status-card status-card--user">
-                <span class="status-card__label" th:text="#{zt.demo.label.user}">Logged-in User</span>
-                <strong th:text="${username}">anonymous</strong>
-                <span class="status-card__sub" th:text="${urlAuthorities}">ROLE_ADMIN</span>
-            </div>
             <div class="status-card status-card--sse">
                 <span class="status-card__label" th:text="#{zt.demo.label.sse}">Live Connection</span>
                 <div class="sse-state">
@@ -50,19 +45,21 @@
                 <code id="selected-request-id">-</code>
             </div>
         </div>
-        <div class="hero-auth-detail">
-            <div class="auth-chip"><span class="auth-chip__label" th:text="#{zt.demo.label.auth.method}">Auth Method</span><code id="auth-transport">-</code></div>
-            <div class="auth-chip"><span class="auth-chip__label" th:text="#{zt.demo.label.token.source}">Token Source</span><code id="auth-token-source">-</code></div>
-            <div class="auth-chip"><span class="auth-chip__label" th:text="#{zt.demo.label.token.state}">Token State</span><code id="auth-token-state">-</code></div>
-            <div class="auth-chip"><span class="auth-chip__label" th:text="#{zt.demo.label.auth.principal}">Auth Principal</span><code id="auth-subject">-</code></div>
+        <!-- JS-required hidden elements for auth state -->
+        <div class="hidden">
+            <code id="auth-transport">-</code>
+            <code id="auth-token-source">-</code>
+            <code id="auth-token-state">-</code>
+            <code id="auth-subject">-</code>
         </div>
     </header>
 
-    <!-- ===== SCENARIO + VERDICT + ACTION ===== -->
+    <!-- ===== 1. SCENARIO → 2. TARGET/EXECUTE → 3. VERDICT ===== -->
     <section class="control-grid">
         <article class="panel panel--scenario">
-            <div class="panel-header">
-                <h2 th:text="#{zt.demo.section.scenario}">1. Scenario Selection</h2>
+            <div class="panel-header panel-header--step">
+                <span class="step-number">1</span>
+                <h2 th:text="#{zt.demo.section.scenario.title}">Scenario Selection</h2>
             </div>
             <div class="scenario-grid">
                 <button type="button" class="scenario-card selected" data-scenario="NORMAL_USER">
@@ -71,7 +68,6 @@
                         <span class="tag allow" th:text="#{zt.demo.scenario.normal}">Normal User</span>
                         <strong th:text="#{zt.demo.scenario.normal.desc}">Normal access from corporate browser</strong>
                         <span th:text="#{zt.demo.scenario.normal.env}">IP 192.168.1.100 / Chrome 120</span>
-                        <span class="expectation" th:text="#{zt.demo.scenario.normal.expect}">Expected: Allow (ALLOW)</span>
                     </div>
                 </button>
                 <button type="button" class="scenario-card danger" data-scenario="ACCOUNT_TAKEOVER">
@@ -80,15 +76,48 @@
                         <span class="tag block" th:text="#{zt.demo.scenario.takeover}">Account Takeover</span>
                         <strong th:text="#{zt.demo.scenario.takeover.desc}">Access from different environment with stolen login</strong>
                         <span th:text="#{zt.demo.scenario.takeover.env}">IP 203.0.113.50 / Android 10</span>
-                        <span class="expectation" th:text="#{zt.demo.scenario.takeover.expect}">Expected: Block (BLOCK) / Challenge (CHALLENGE)</span>
                     </div>
                 </button>
+            </div>
+            <div class="same-account-badge">
+                <span class="badge-label" th:text="#{zt.demo.label.account.prefix}">Account</span>
+                <span class="badge-value" th:text="${username}">admin</span>
+                <span class="badge-divider"></span>
+                <span class="badge-label" th:text="#{zt.demo.label.role.prefix}">Role</span>
+                <span class="badge-value badge-value--role" th:text="${urlAuthorities}">ROLE_ADMIN</span>
+            </div>
+        </article>
+
+        <article class="panel panel--action">
+            <div class="panel-header panel-header--step">
+                <span class="step-number">2</span>
+                <h2 th:text="#{zt.demo.section.target.title}">Target / Execute</h2>
+            </div>
+            <div class="endpoint-row">
+                <button type="button" class="endpoint-pill active" data-endpoint="sensitive" th:text="#{zt.demo.endpoint.sensitive}">Sensitive Resource</button>
+                <button type="button" class="endpoint-pill" data-endpoint="critical" th:text="#{zt.demo.endpoint.critical}">Critical Resource</button>
+            </div>
+            <div class="header-grid" id="request-header-preview"></div>
+            <!-- JS-required hidden elements for renderScenario() -->
+            <span id="selected-scenario-name" class="hidden"></span>
+            <span id="selected-scenario-ip" class="hidden"></span>
+            <span id="selected-scenario-ua" class="hidden"></span>
+            <span id="selected-expected-action" class="hidden"></span>
+            <span id="selected-endpoint-name" class="hidden"></span>
+            <div class="action-grid">
+                <button id="btn-run-initial" class="primary-action" th:text="#{zt.demo.btn.initial}">Execute 1st Request</button>
+                <button id="btn-run-follow-up" class="secondary-action" th:text="#{zt.demo.btn.followup}">Execute Follow-up</button>
+                <button id="btn-refresh-server" class="ghost-action" th:text="#{zt.demo.btn.refresh}">Refresh Server Record</button>
+                <button id="btn-export-evidence" class="ghost-action" th:text="#{zt.demo.btn.export}">Save Evidence</button>
+                <button id="btn-stream-evidence" class="ghost-action" th:text="#{zt.demo.btn.stream}">View Evidence Live</button>
+                <button id="btn-reset-console" class="ghost-action" th:text="#{zt.demo.btn.reset}">Reset</button>
             </div>
         </article>
 
         <article class="panel panel--verdict">
-            <div class="panel-header">
-                <h2 th:text="#{zt.demo.section.verdict}">AI Verdict</h2>
+            <div class="panel-header panel-header--step">
+                <span class="step-number">3</span>
+                <h2 th:text="#{zt.demo.section.verdict.title}">AI Verdict</h2>
             </div>
             <div class="verdict-spotlight">
                 <div id="verdict-badge" class="verdict-badge pending">PENDING</div>
@@ -106,32 +135,6 @@
             <div class="summary-block">
                 <span class="summary-label" th:text="#{zt.demo.label.ai.action}">AI Suggested Action</span>
                 <p id="proposed-action">-</p>
-            </div>
-        </article>
-
-        <article class="panel panel--action">
-            <div class="panel-header">
-                <h2 th:text="#{zt.demo.section.target}">2. Target / Execute</h2>
-            </div>
-            <div class="endpoint-row">
-                <button type="button" class="endpoint-pill active" data-endpoint="sensitive" th:text="#{zt.demo.endpoint.sensitive}">Sensitive Resource</button>
-                <button type="button" class="endpoint-pill" data-endpoint="critical" th:text="#{zt.demo.endpoint.critical}">Critical Resource</button>
-            </div>
-            <dl class="scenario-summary">
-                <div><dt th:text="#{zt.demo.label.scenario}">Scenario</dt><dd id="selected-scenario-name">-</dd></div>
-                <div><dt th:text="#{zt.demo.label.expected.ip}">Expected IP</dt><dd id="selected-scenario-ip">-</dd></div>
-                <div><dt th:text="#{zt.demo.label.expected.browser}">Expected Browser</dt><dd id="selected-scenario-ua">-</dd></div>
-                <div><dt th:text="#{zt.demo.label.expected.control}">Expected Control</dt><dd id="selected-expected-action">-</dd></div>
-                <div><dt th:text="#{zt.demo.label.target.resource}">Target Resource</dt><dd id="selected-endpoint-name">-</dd></div>
-            </dl>
-            <div class="header-grid" id="request-header-preview"></div>
-            <div class="action-grid">
-                <button id="btn-run-initial" class="primary-action" th:text="#{zt.demo.btn.initial}">Execute 1st Request</button>
-                <button id="btn-run-follow-up" class="secondary-action" th:text="#{zt.demo.btn.followup}">Execute Follow-up</button>
-                <button id="btn-refresh-server" class="ghost-action" th:text="#{zt.demo.btn.refresh}">Refresh Server Record</button>
-                <button id="btn-export-evidence" class="ghost-action" th:text="#{zt.demo.btn.export}">Save Evidence</button>
-                <button id="btn-stream-evidence" class="ghost-action" th:text="#{zt.demo.btn.stream}">View Evidence Live</button>
-                <button id="btn-reset-console" class="ghost-action" th:text="#{zt.demo.btn.reset}">Reset</button>
             </div>
         </article>
     </section>
@@ -311,6 +314,14 @@ window.ZT_MSG = {
         'X-Contexa-Authorization-Present': /*[[#{zt.demo.header.auth.present}]]*/ 'Authorization Present',
         'Authorization': /*[[#{zt.demo.header.authorization}]]*/ 'Authorization'
     },
+    valueLabels: {
+        'NORMAL_USER': /*[[#{zt.demo.value.normal.user}]]*/ 'Normal User',
+        'ACCOUNT_TAKEOVER': /*[[#{zt.demo.value.account.takeover}]]*/ 'Account Takeover'
+    },
+    headerBrowser: /*[[#{zt.demo.header.browser}]]*/ 'Browser',
+    headerOs: /*[[#{zt.demo.header.os}]]*/ 'OS',
+    headerDevice: /*[[#{zt.demo.header.device}]]*/ 'Device ID',
+    headerSession: /*[[#{zt.demo.header.session}]]*/ 'Session Cookie',
     scenarioNormalTitle: /*[[#{zt.demo.scenario.normal.title}]]*/ 'Normal User',
     scenarioTakeoverTitle: /*[[#{zt.demo.scenario.takeover.title}]]*/ 'Account Takeover',
     sseAuthRequired: /*[[#{zt.demo.sse.auth.required}]]*/ '',
