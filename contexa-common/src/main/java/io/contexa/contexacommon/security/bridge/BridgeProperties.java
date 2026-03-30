@@ -26,6 +26,10 @@ public class BridgeProperties {
     @NestedConfigurationProperty
     private Sync sync = new Sync();
 
+    public boolean isEnabled() {
+        return true;
+    }
+
     @Data
     public static class Authentication {
         private boolean preferSecurityContext = true;

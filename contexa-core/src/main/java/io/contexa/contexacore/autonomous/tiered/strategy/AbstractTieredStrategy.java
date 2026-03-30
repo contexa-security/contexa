@@ -118,7 +118,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     protected String getContextRetrievalPurpose() {
-        return getLayerName().toLowerCase(Locale.ROOT) + "_security_investigation";
+        return "security_investigation";
     }
 
     protected static void cacheEscalationContext(String eventId,

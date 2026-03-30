@@ -414,7 +414,9 @@ public class SecurityDecisionPromptSections {
 
 
     String buildCurrentRequestNarrative(SecurityEvent event,
-            BehaviorAnalysis behaviorAnalysis, DetectedPatterns patterns) {
+            BehaviorAnalysis behaviorAnalysis,
+            CanonicalSecurityContext canonicalSecurityContext,
+            DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== CURRENT REQUEST ===\n");
 
@@ -467,18 +469,25 @@ public class SecurityDecisionPromptSections {
             }
         }
 
-        if (behaviorAnalysis != null) {
-            if (behaviorAnalysis.getPreviousPath() != null) {
+        CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile =
+                canonicalSecurityContext != null ? canonicalSecurityContext.getSessionNarrativeProfile() : null;
+        String previousPath = sessionNarrativeProfile != null
+                ? sessionNarrativeProfile.getPreviousPath()
+                : behaviorAnalysis != null ? behaviorAnalysis.getPreviousPath() : null;
+        Long lastRequestIntervalMs = sessionNarrativeProfile != null
+                ? sessionNarrativeProfile.getLastRequestIntervalMs()
+                : behaviorAnalysis != null ? behaviorAnalysis.getLastRequestIntervalMs() : null;
+
+        if (previousPath != null) {
                 section.append("Previous request path: ")
                        .append(PromptTemplateUtils.sanitizeUserInput(
-                               behaviorAnalysis.getPreviousPath()))
+                               previousPath))
                        .append(".\n");
-            }
-            if (behaviorAnalysis.getLastRequestIntervalMs() != null) {
-                long intervalSec = behaviorAnalysis.getLastRequestIntervalMs() / 1000;
-                section.append("Time since last request: ")
-                       .append(intervalSec).append(" seconds.\n");
-            }
+        }
+        if (lastRequestIntervalMs != null) {
+            long intervalSec = lastRequestIntervalMs / 1000;
+            section.append("Time since last request: ")
+                    .append(intervalSec).append(" seconds.\n");
         }
 
         return section.toString();
@@ -487,11 +496,12 @@ public class SecurityDecisionPromptSections {
     String buildCurrentRequestAndEventSection(SecurityEvent event,
             String userId,
             BehaviorAnalysis behaviorAnalysis,
+            CanonicalSecurityContext canonicalSecurityContext,
             DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("=== CURRENT REQUEST AND EVENT ===\n");
         appendSectionBody(section, buildEventSection(event, userId));
-        appendSectionBody(section, buildCurrentRequestNarrative(event, behaviorAnalysis, patterns));
+        appendSectionBody(section, buildCurrentRequestNarrative(event, behaviorAnalysis, canonicalSecurityContext, patterns));
         appendIfPresent(section, buildSupportingPromptBlock("NetworkContext", buildNetworkPromptSection(event)));
         appendIfPresent(section, buildSupportingPromptBlock("PayloadSummary", buildPayloadSection(event)));
         return section.toString();
@@ -511,17 +521,20 @@ public class SecurityDecisionPromptSections {
         }
 
         if (baselineStatus == BaselineStatus.NEW_USER) {
-            section.append("This is a new user without established behavioral baseline.\n");
-            section.append("No historical data available to compare against.\n");
+            section.append("Personal behavioral baseline is not established yet.\n");
+            section.append("Do not assume this request is normal based on user-specific history.\n");
             return section.toString();
         }
 
-        if (baselineStatus != BaselineStatus.ESTABLISHED) {
+        if (baselineStatus != BaselineStatus.ESTABLISHED && baselineStatus != BaselineStatus.PROVISIONAL) {
             section.append("User profile data is limited or unavailable.\n");
             return section.toString();
         }
 
-        StringBuilder profile = new StringBuilder("This user normally ");
+        boolean establishedPersonalBaseline = baselineStatus == BaselineStatus.ESTABLISHED;
+        StringBuilder profile = new StringBuilder(establishedPersonalBaseline
+                ? "This user normally "
+                : "A provisional personal baseline currently suggests ");
 
         if (!patterns.hourSet.isEmpty()) {
             profile.append("accesses the system during hours ")
@@ -555,9 +568,11 @@ public class SecurityDecisionPromptSections {
         section.append(profile).append("\n");
 
         if (!patterns.pathSet.isEmpty()) {
-            section.append("Frequent paths: ")
+            section.append(establishedPersonalBaseline
+                            ? "Frequent paths: "
+                            : "Observed candidate paths (still provisional): ")
                    .append(String.join(", ", patterns.pathSet))
-                   .append(".\n");
+                    .append(".\n");
         }
 
         if (behaviorAnalysis != null) {
@@ -567,9 +582,16 @@ public class SecurityDecisionPromptSections {
             }
         }
 
-        if (behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
+        if (establishedPersonalBaseline
+                && behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
                 && !behaviorAnalysis.getBaselineContext().startsWith("[")) {
             section.append("\nEstablished baseline (from learned behavior):\n");
+            section.append(PromptTemplateUtils.sanitizeUserInput(
+                    behaviorAnalysis.getBaselineContext()));
+            section.append("\n");
+        } else if (behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
+                && !behaviorAnalysis.getBaselineContext().startsWith("[")) {
+            section.append("\nProvisional baseline evidence (learning in progress):\n");
             section.append(PromptTemplateUtils.sanitizeUserInput(
                     behaviorAnalysis.getBaselineContext()));
             section.append("\n");
@@ -1486,8 +1508,12 @@ public class SecurityDecisionPromptSections {
             return BaselineStatus.NEW_USER;
         }
 
-        if (isValidBaseline(baselineContext)) {
+        if (behaviorAnalysis.isPersonalBaselineEstablished() && isValidBaseline(baselineContext)) {
             return BaselineStatus.ESTABLISHED;
+        }
+
+        if (behaviorAnalysis.isPersonalBaselineAvailable() && isValidBaseline(baselineContext)) {
+            return BaselineStatus.PROVISIONAL;
         }
 
         if (baselineContext != null && baselineContext.startsWith("[")) {
@@ -1508,7 +1534,7 @@ public class SecurityDecisionPromptSections {
             return BaselineStatus.NEW_USER;
         }
 
-        if (behaviorAnalysis.isBaselineEstablished()) {
+        if (behaviorAnalysis.isBaselineEstablished() || behaviorAnalysis.isPersonalBaselineEstablished()) {
             return BaselineStatus.NOT_LOADED;
         }
 

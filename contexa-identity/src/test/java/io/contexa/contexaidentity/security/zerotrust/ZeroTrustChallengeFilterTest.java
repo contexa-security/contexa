@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
@@ -208,9 +209,10 @@ class ZeroTrustChallengeFilterTest {
 
     private void setUpChallengeAuthentication() {
         when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getAuthorities()).thenReturn(List.of(new SimpleGrantedAuthority(
-                ZeroTrustAction.CHALLENGE.getGrantedAuthority()
-        )));
+        List<? extends GrantedAuthority> authorities = List.of(
+                new SimpleGrantedAuthority(ZeroTrustAction.CHALLENGE.getGrantedAuthority())
+        );
+        doReturn(authorities).when(authentication).getAuthorities();
         setUpAuthentication();
     }
 }

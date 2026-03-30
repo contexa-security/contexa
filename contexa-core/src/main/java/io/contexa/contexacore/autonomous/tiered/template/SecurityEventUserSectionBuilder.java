@@ -8,6 +8,7 @@ public class SecurityEventUserSectionBuilder implements SecurityPromptSectionBui
                 context.getEvent(),
                 context.getUserId(),
                 context.getBehaviorAnalysis(),
+                context.getCanonicalSecurityContext(),
                 context.getDetectedPatterns()
         );
     }

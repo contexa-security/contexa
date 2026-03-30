@@ -305,6 +305,17 @@ class PromptContextComposerTest {
         assertThat(section).contains("WorkProfileSummary: Observed protectable resources /api/customer/list");
     }
 
+    @Test
+    void composeBridgeSectionShouldRenderExplicitUnavailableState() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder().build();
+
+        String section = new PromptContextComposer().composeBridgeSection(context);
+
+        assertThat(section).contains("=== BRIDGE RESOLUTION CONTEXT ===");
+        assertThat(section).contains("BridgeCompletenessLevel: UNAVAILABLE");
+        assertThat(section).contains("BridgeCompletenessSummary: Bridge-derived identity and authorization context was not attached to this request.");
+    }
+
     private List<String> extractHeaders(String promptSection) {
         List<String> headers = new ArrayList<>();
         for (String line : promptSection.split("\\R")) {

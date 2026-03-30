@@ -201,6 +201,8 @@ public class ContextCoverageEvaluator {
             List<String> remediationHints) {
         CanonicalSecurityContext.Bridge bridge = context.getBridge();
         if (bridge == null) {
+            missingCriticalFacts.add("Bridge-derived identity and authorization context is unavailable.");
+            remediationHints.add("Ensure bridge resolution remains active and propagates authentication, authorization, and request context before LLM evaluation.");
             return;
         }
         if (bridge.getCoverageLevel() != null) {

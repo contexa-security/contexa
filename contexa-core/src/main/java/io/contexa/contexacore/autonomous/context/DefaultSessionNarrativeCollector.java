@@ -39,6 +39,9 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         Long previousRequestTimestamp = dataStore.getSessionLastRequestTime(sessionId);
         String previousPath = dataStore.getSessionPreviousPath(sessionId);
         String currentPath = resolveRequestPath(event);
+        if (!PromptRelevantRequestPathPolicy.isPromptRelevantPath(currentPath)) {
+            return Optional.empty();
+        }
         String currentActionFamily = resolveActionFamily(event);
         boolean protectableRequest = isProtectableRequest(event);
 

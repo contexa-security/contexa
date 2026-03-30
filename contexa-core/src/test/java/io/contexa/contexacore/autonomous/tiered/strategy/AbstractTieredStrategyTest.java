@@ -218,6 +218,12 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("context retrieval purpose should remain stable across analysis layers")
+    void getContextRetrievalPurpose_returnsStableSecurityInvestigationPurpose() {
+        assertThat(strategy.getContextRetrievalPurposeForTest()).isEqualTo("security_investigation");
+    }
+
+    @Test
     @DisplayName("getCachedSessionContext should return null for null eventId")
     void getCachedSessionContext_nullEventId_returnsNull() {
         SecurityDecisionStandardPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(null);
@@ -324,6 +330,10 @@ class AbstractTieredStrategyTest {
 
         SecurityResponse callCreateDefaultResponse() {
             return createDefaultResponse();
+        }
+
+        String getContextRetrievalPurposeForTest() {
+            return getContextRetrievalPurpose();
         }
 
         ZeroTrustAction callMapStringToAction(String action) {

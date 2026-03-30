@@ -6,6 +6,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.autonomous.context.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
@@ -231,11 +232,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             if (authMethodObj instanceof String) {
                 context.setAuthMethod((String) authMethodObj);
             }
-
-            Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
-            if (recentRequestCountObj instanceof Number) {
-                context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
-            }
         }
 
         if (event.getUserAgent() != null) {
@@ -246,13 +242,22 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             try {
                 List<String> recentActions = dataStore.getRecentSessionActions(sessionId, 10);
                 if (!recentActions.isEmpty()) {
-                    context.setRecentActions(recentActions);
-                    if (context.getAccessFrequency() <= 0) {
-                        context.setAccessFrequency(recentActions.size());
+                    List<String> promptRelevantActions = recentActions.stream()
+                            .filter(PromptRelevantRequestPathPolicy::isPromptRelevantActionSummary)
+                            .toList();
+                    if (!promptRelevantActions.isEmpty()) {
+                        context.setRecentActions(promptRelevantActions);
+                        context.setAccessFrequency(promptRelevantActions.size());
                     }
                 }
             } catch (Exception e) {
                 log.error("[Layer1] Failed to retrieve recent actions: {}", e.getMessage());
+            }
+        }
+        if (context.getAccessFrequency() <= 0 && event.getMetadata() != null) {
+            Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
+            if (recentRequestCountObj instanceof Number) {
+                context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
             }
         }
         context.addEvent(event);
@@ -451,6 +456,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private class SessionContext extends BaseSessionContext {
 
         public void addEvent(SecurityEvent event) {
+            String requestPath = extractRequestPath(event);
+            if (!PromptRelevantRequestPathPolicy.isPromptRelevantPath(requestPath)) {
+                return;
+            }
             accessFrequency++;
 
             int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
@@ -492,6 +501,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             if (event.getSourceIp() != null) action.append(event.getSourceIp());
 
             return action.toString();
+        }
+
+        private String extractRequestPath(SecurityEvent event) {
+            if (event == null || event.getMetadata() == null) {
+                return null;
+            }
+            Object requestPath = event.getMetadata().get("requestPath");
+            if (requestPath == null) {
+                requestPath = event.getMetadata().get("targetResource");
+            }
+            return requestPath != null ? requestPath.toString() : null;
         }
     }
 

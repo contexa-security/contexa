@@ -128,4 +128,32 @@ class ContextCoverageEvaluatorTest {
         assertThat(report.confidenceWarnings())
                 .anyMatch(value -> value.contains("explicit authorization facts"));
     }
+
+    @Test
+    void evaluateShouldFlagMissingBridgeContext() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder()
+                        .userId("alice")
+                        .build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-1")
+                        .mfaVerified(true)
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .effectiveRoles(List.of("ANALYST"))
+                        .scopeTags(List.of("customer_data"))
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/export")
+                        .sensitivity("HIGH")
+                        .build())
+                .build();
+
+        ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
+
+        assertThat(report.missingCriticalFacts())
+                .contains("Bridge-derived identity and authorization context is unavailable.");
+        assertThat(report.remediationHints())
+                .contains("Ensure bridge resolution remains active and propagates authentication, authorization, and request context before LLM evaluation.");
+    }
 }

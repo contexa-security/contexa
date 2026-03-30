@@ -107,10 +107,12 @@ public class PromptContextComposer {
     }
 
     private void appendBridgeSection(StringBuilder section, CanonicalSecurityContext.Bridge bridge) {
+        section.append("\n=== BRIDGE RESOLUTION CONTEXT ===\n");
         if (bridge == null) {
+            appendLine(section, "BridgeCompletenessLevel", "UNAVAILABLE");
+            appendLine(section, "BridgeCompletenessSummary", "Bridge-derived identity and authorization context was not attached to this request.");
             return;
         }
-        section.append("\n=== BRIDGE RESOLUTION CONTEXT ===\n");
         appendLine(section, "BridgeCompletenessLevel", bridge.getCoverageLevel());
         appendLine(section, "BridgeCompletenessSummary", bridge.getSummary());
         appendLine(section, "BridgeAuthenticationSource", bridge.getAuthenticationSource());

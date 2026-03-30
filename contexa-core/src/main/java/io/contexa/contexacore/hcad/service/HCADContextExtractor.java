@@ -2,6 +2,7 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.autonomous.context.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
@@ -209,36 +210,42 @@ public class HCADContextExtractor {
     private void enrichWithRequestPattern(HCADContext context,
                                           String userId, HttpServletRequest request) {
         try {
-
             long currentTime = System.currentTimeMillis();
-            hcadDataStore.recordRequest(userId, currentTime);
-
             long fiveMinutesAgo = currentTime - (5 * 60 * 1000);
-            int recentCount = hcadDataStore.getRecentRequestCount(userId, fiveMinutesAgo, currentTime);
-            context.setRecentRequestCount(recentCount > 0 ? recentCount : 1);
+            String requestPath = request.getRequestURI();
+            boolean promptRelevantPath = PromptRelevantRequestPathPolicy.isPromptRelevantPath(requestPath);
 
-            Long lastReqTime = securityContextDataStore.getLastRequestTime(userId);
-            if (lastReqTime != null) {
-                long interval = currentTime - lastReqTime;
-                context.setLastRequestInterval(interval);
+            if (promptRelevantPath) {
+                hcadDataStore.recordRequest(userId, currentTime);
+                int recentCount = hcadDataStore.getRecentRequestCount(userId, fiveMinutesAgo, currentTime);
+                context.setRecentRequestCount(recentCount > 0 ? recentCount : 1);
+
+                Long lastReqTime = securityContextDataStore.getLastRequestTime(userId);
+                if (lastReqTime != null) {
+                    long interval = currentTime - lastReqTime;
+                    context.setLastRequestInterval(interval);
+                } else {
+                    context.setLastRequestInterval(0L);
+                }
+                securityContextDataStore.setLastRequestTime(userId, currentTime);
+
+                String previousPath = securityContextDataStore.getPreviousPath(userId);
+                context.setPreviousPath(previousPath);
+                securityContextDataStore.setPreviousPath(userId, requestPath);
+
+                String sessionId = context.getSessionId();
+                if (sessionId != null && securityContextDataStore != null) {
+                    String actionEntry = String.format("%02d:%02d | %s %s | %s",
+                            java.time.LocalTime.now().getHour(),
+                            java.time.LocalTime.now().getMinute(),
+                            request.getMethod(),
+                            requestPath,
+                            context.getRemoteIp() != null ? context.getRemoteIp() : "unknown");
+                    securityContextDataStore.addSessionAction(sessionId, actionEntry);
+                }
             } else {
-                context.setLastRequestInterval(0L);
-            }
-            securityContextDataStore.setLastRequestTime(userId, currentTime);
-
-            String previousPath = securityContextDataStore.getPreviousPath(userId);
-            context.setPreviousPath(previousPath);
-            securityContextDataStore.setPreviousPath(userId, request.getRequestURI());
-
-            String sessionId = context.getSessionId();
-            if (sessionId != null && securityContextDataStore != null) {
-                String actionEntry = String.format("%02d:%02d | %s %s | %s",
-                        java.time.LocalTime.now().getHour(),
-                        java.time.LocalTime.now().getMinute(),
-                        request.getMethod(),
-                        request.getRequestURI(),
-                        context.getRemoteIp() != null ? context.getRemoteIp() : "unknown");
-                securityContextDataStore.addSessionAction(sessionId, actionEntry);
+                int recentCount = hcadDataStore.getRecentRequestCount(userId, fiveMinutesAgo, currentTime);
+                context.setRecentRequestCount(recentCount);
             }
 
         } catch (Exception e) {
@@ -273,8 +280,12 @@ public class HCADContextExtractor {
             boolean hasMfa = resolveMfaVerified(userId);
             context.setHasValidMFA(hasMfa);
 
-            Set<String> roles = authentication.getAuthorities().stream()
+            Set<String> authorities = authentication.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toSet());
+            Set<String> roles = authorities.stream()
+                    .filter(authority -> authority != null && authority.startsWith("ROLE_"))
+                    .map(authority -> authority.substring("ROLE_".length()))
                     .collect(Collectors.toSet());
 
             Map<String, Object> additionalAttrs = context.getAdditionalAttributes();
@@ -283,6 +294,7 @@ public class HCADContextExtractor {
                 context.setAdditionalAttributes(additionalAttrs);
             }
             additionalAttrs.put("userRoles", roles);
+            additionalAttrs.put("authorities", authorities);
             additionalAttrs.put("mfaVerified", hasMfa);
 
         } catch (Exception e) {

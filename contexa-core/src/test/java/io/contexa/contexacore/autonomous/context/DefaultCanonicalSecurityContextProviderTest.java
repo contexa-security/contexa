@@ -219,6 +219,35 @@ class DefaultCanonicalSecurityContextProviderTest {
     }
 
     @Test
+    void resolveShouldSeparateRolesFromAuthoritiesAndPermissions() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .build();
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("userRoles", List.of("ROLE_ADMIN", "EXPORT_REVIEWER"));
+        event.addMetadata("authorities", List.of("ROLE_ADMIN", "report.read", "/admin/api/security-test/sensitive/resource-001"));
+        event.addMetadata("effectiveRoles", List.of("ROLE_ADMIN", "EXPORT_REVIEWER", "/admin/api/security-test/sensitive/resource-001"));
+        event.addMetadata("effectivePermissions", List.of("report.read", "report.export"));
+        event.addMetadata("scopeTags", List.of("customer_data", "export"));
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("mfaVerified", true);
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getActor().getRoleSet()).containsExactly("ADMIN", "EXPORT_REVIEWER");
+        assertThat(context.getActor().getAuthoritySet())
+                .contains("report.read", "/admin/api/security-test/sensitive/resource-001")
+                .doesNotContain("ROLE_ADMIN", "ADMIN");
+        assertThat(context.getAuthorization().getEffectiveRoles()).containsExactly("ADMIN", "EXPORT_REVIEWER");
+        assertThat(context.getAuthorization().getEffectivePermissions()).containsExactly("report.read", "report.export");
+    }
+
+    @Test
     void resolveShouldApplyExternalProvidersAndObservedScopeInference() {
         DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
                 new InMemoryResourceContextRegistry(),

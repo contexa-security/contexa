@@ -364,8 +364,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .position(firstText(metadata.get("position"), metadata.get("jobTitle"), metadata.get("title")))
                 .principalType(firstText(metadata.get("principalType"), metadata.get("principal.type"), metadata.get("userType")))
                 .bridgeSubjectKey(firstText(metadata.get("bridgeSubjectKey"), metadata.get("bridge_subject_key")))
-                .roleSet(normalizeStrings(metadata.get("userRoles"), metadata.get("roles"), metadata.get("roleSet")))
-                .authoritySet(normalizeStrings(metadata.get("authorities"), metadata.get("permissions"), metadata.get("grantedAuthorities")))
+                .roleSet(normalizeRoleStrings(metadata.get("userRoles"), metadata.get("roles"), metadata.get("roleSet")))
+                .authoritySet(normalizeAuthorityStrings(metadata.get("authorities"), metadata.get("permissions"), metadata.get("grantedAuthorities")))
                 .build();
     }
 
@@ -430,8 +430,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private CanonicalSecurityContext.Authorization resolveAuthorization(Map<String, Object> metadata) {
         return CanonicalSecurityContext.Authorization.builder()
-                .effectiveRoles(normalizeStrings(metadata.get("effectiveRoles"), metadata.get("userRoles"), metadata.get("roles")))
-                .effectivePermissions(normalizeStrings(metadata.get("effectivePermissions"), metadata.get("permissions"), metadata.get("authorities")))
+                .effectiveRoles(normalizeRoleStrings(metadata.get("effectiveRoles"), metadata.get("userRoles"), metadata.get("roles")))
+                .effectivePermissions(normalizePermissionStrings(metadata.get("effectivePermissions"), metadata.get("permissions"), metadata.get("authorities")))
                 .scopeTags(normalizeStrings(metadata.get("scopeTags"), metadata.get("authorizationScope"), metadata.get("scope")))
                 .authorizationEffect(firstText(metadata.get("authorizationEffect"), metadata.get("authorization_effect"), metadata.get("effect")))
                 .policyId(firstText(metadata.get("policyId"), metadata.get("policy_id")))
@@ -924,6 +924,37 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         return List.copyOf(values);
     }
 
+    private List<String> normalizeRoleStrings(Object... rawValues) {
+        Set<String> values = new LinkedHashSet<>();
+        for (String rawValue : normalizeStrings(rawValues)) {
+            String normalizedRole = normalizeRoleToken(rawValue);
+            if (normalizedRole != null) {
+                values.add(normalizedRole);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> normalizeAuthorityStrings(Object... rawValues) {
+        Set<String> values = new LinkedHashSet<>();
+        for (String rawValue : normalizeStrings(rawValues)) {
+            if (isAuthorityLikeToken(rawValue)) {
+                values.add(rawValue);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> normalizePermissionStrings(Object... rawValues) {
+        Set<String> values = new LinkedHashSet<>();
+        for (String rawValue : normalizeStrings(rawValues)) {
+            if (isPermissionLikeToken(rawValue)) {
+                values.add(rawValue);
+            }
+        }
+        return List.copyOf(values);
+    }
+
     private void addNormalized(Set<String> values, Object rawValue) {
         if (rawValue == null) {
             return;
@@ -932,6 +963,51 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (!value.isBlank()) {
             values.add(value);
         }
+    }
+
+    private String normalizeRoleToken(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        String candidate = rawValue.trim();
+        if (candidate.startsWith("ROLE_")) {
+            candidate = candidate.substring("ROLE_".length());
+        }
+        if (candidate.isBlank()
+                || candidate.contains("/")
+                || candidate.contains(".")
+                || candidate.contains(" ")) {
+            return null;
+        }
+        String upper = candidate.toUpperCase(Locale.ROOT);
+        if ("READ".equals(upper)
+                || "WRITE".equals(upper)
+                || "EXPORT".equals(upper)
+                || "DELETE".equals(upper)
+                || "CREATE".equals(upper)
+                || "UPDATE".equals(upper)
+                || "GET".equals(upper)
+                || "POST".equals(upper)
+                || "PUT".equals(upper)
+                || "PATCH".equals(upper)) {
+            return null;
+        }
+        return upper;
+    }
+
+    private boolean isAuthorityLikeToken(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return false;
+        }
+        String candidate = rawValue.trim();
+        return normalizeRoleToken(candidate) == null;
+    }
+
+    private boolean isPermissionLikeToken(String rawValue) {
+        if (!isAuthorityLikeToken(rawValue)) {
+            return false;
+        }
+        return !rawValue.contains("/");
     }
 
     private Boolean resolveBoolean(Object... values) {
