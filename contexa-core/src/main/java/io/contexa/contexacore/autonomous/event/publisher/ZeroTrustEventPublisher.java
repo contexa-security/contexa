@@ -22,15 +22,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 public class ZeroTrustEventPublisher {
@@ -185,6 +190,7 @@ public class ZeroTrustEventPublisher {
         }
 
         populateAuthenticationFallback(authentication, payload);
+        reconcileAuthorizationDecision(granted, payload);
 
         if (actionRedisRepository != null && authentication != null) {
             ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(authentication.getName());
@@ -315,12 +321,17 @@ public class ZeroTrustEventPublisher {
             if (!authorizationStamp.scopeTags().isEmpty()) {
                 payload.put("scopeTags", authorizationStamp.scopeTags());
             }
-            if (!authorizationStamp.effectiveRoles().isEmpty()) {
-                payload.put("effectiveRoles", authorizationStamp.effectiveRoles());
+            List<String> effectiveRoles = sanitizeRoleTokens(authorizationStamp.effectiveRoles());
+            if (!effectiveRoles.isEmpty()) {
+                payload.put("effectiveRoles", effectiveRoles);
             }
-            if (!authorizationStamp.effectiveAuthorities().isEmpty()) {
-                payload.put("effectivePermissions", authorizationStamp.effectiveAuthorities());
-                payload.put("authorities", authorizationStamp.effectiveAuthorities());
+            List<String> effectivePermissions = sanitizePermissionTokens(authorizationStamp.effectiveAuthorities());
+            if (!effectivePermissions.isEmpty()) {
+                payload.put("effectivePermissions", effectivePermissions);
+            }
+            List<String> authorityEvidence = sanitizeAuthorityTokens(authorizationStamp.effectiveAuthorities());
+            if (!authorityEvidence.isEmpty()) {
+                payload.put("authorities", mergeDistinctStringLists(payload.get("authorities"), authorityEvidence));
             }
         }
 
@@ -404,8 +415,227 @@ public class ZeroTrustEventPublisher {
         }
     }
 
+    private void reconcileAuthorizationDecision(boolean granted, Map<String, Object> payload) {
+        String existingEffect = textValue(payload.get("authorizationEffect"));
+        boolean synthesizedAuthorizationEffect = !StringUtils.hasText(existingEffect)
+                || "UNKNOWN".equalsIgnoreCase(existingEffect);
+        if (synthesizedAuthorizationEffect) {
+            payload.put("authorizationEffect", granted ? "ALLOW" : "DENY");
+        }
+
+        if (!payload.containsKey("bridgeCoverageLevel")) {
+            return;
+        }
+
+        List<String> missingContexts = new ArrayList<>(extractStringList(payload.get("bridgeMissingContexts")));
+        if (synthesizedAuthorizationEffect) {
+            missingContexts.remove(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
+        }
+        if (missingContexts.isEmpty()) {
+            payload.remove("bridgeMissingContexts");
+        } else {
+            payload.put("bridgeMissingContexts", List.copyOf(missingContexts));
+        }
+
+        List<String> remediationHints = new ArrayList<>(extractStringList(payload.get("bridgeRemediationHints")));
+        if (synthesizedAuthorizationEffect) {
+            remediationHints.removeIf(hint -> hint != null
+                    && hint.toLowerCase(Locale.ROOT).contains("authorization effect"));
+        }
+        if (remediationHints.isEmpty()) {
+            payload.remove("bridgeRemediationHints");
+        } else {
+            payload.put("bridgeRemediationHints", List.copyOf(remediationHints));
+        }
+
+        if (synthesizedAuthorizationEffect && payload.get("bridgeCoverageScore") instanceof Number number) {
+            int adjustedScore = Math.min(100, number.intValue() + 10);
+            payload.put("bridgeCoverageScore", adjustedScore);
+        }
+
+        String coverageLevel = textValue(payload.get("bridgeCoverageLevel"));
+        if (StringUtils.hasText(coverageLevel)) {
+            payload.put("bridgeCoverageSummary", resolveBridgeCoverageSummary(coverageLevel, missingContexts));
+        }
+    }
+
+    private String resolveBridgeCoverageSummary(String coverageLevel, List<String> missingContexts) {
+        boolean missingAuthorizationAuthorities = missingContexts.contains(MissingBridgeContext.AUTHORIZATION_AUTHORITIES.name());
+        boolean missingDelegation = missingContexts.contains(MissingBridgeContext.DELEGATION.name());
+        return switch (coverageLevel.trim().toUpperCase(Locale.ROOT)) {
+            case "AUTHORIZATION_CONTEXT" -> {
+                if (missingAuthorizationAuthorities) {
+                    yield "Bridge completeness reached authentication and partial authorization context for the current request.";
+                }
+                if (missingDelegation) {
+                    yield "Bridge completeness reached authentication and authorization context, but delegated execution metadata is incomplete for this request.";
+                }
+                yield "Bridge completeness reached authentication and authorization context for the current request.";
+            }
+            case "DELEGATION_CONTEXT" ->
+                    "Bridge completeness reached authentication, authorization, and delegated execution context for the current request.";
+            case "AUTHENTICATION_ONLY" ->
+                    "Bridge completeness reached authentication, but request-level authorization context is still incomplete.";
+            default -> "Bridge completeness did not reach an authenticated principal for the current request.";
+        };
+    }
+
     private boolean hasNonNullPayload(Map<String, Object> payload, String key) {
         return payload.containsKey(key) && payload.get(key) != null;
+    }
+
+    private List<String> sanitizeRoleTokens(List<String> rawValues) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String rawValue : rawValues) {
+            String normalized = normalizeAuthorityValue(rawValue);
+            if (!StringUtils.hasText(normalized)) {
+                continue;
+            }
+            if (isPermissionAuthorityArtifact(rawValue)) {
+                continue;
+            }
+            if (normalized.startsWith("ROLE_")) {
+                normalized = normalized.substring("ROLE_".length());
+            }
+            if (normalized.contains("/")
+                    || normalized.contains(".")
+                    || normalized.contains(":")
+                    || normalized.contains("=")
+                    || normalized.contains(" ")) {
+                continue;
+            }
+            values.add(normalized.toUpperCase(Locale.ROOT));
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> sanitizePermissionTokens(List<String> rawValues) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String rawValue : rawValues) {
+            String normalized = normalizeAuthorityValue(rawValue);
+            if (!StringUtils.hasText(normalized)) {
+                continue;
+            }
+            if (normalized.startsWith("ROLE_")
+                    || normalized.startsWith("/")
+                    || normalized.contains("=")
+                    || normalized.contains(" ")) {
+                continue;
+            }
+            if (isRoleAuthorityArtifact(rawValue)) {
+                continue;
+            }
+            values.add(normalized);
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> sanitizeAuthorityTokens(List<String> rawValues) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String rawValue : rawValues) {
+            String normalized = normalizeAuthorityValue(rawValue);
+            if (!StringUtils.hasText(normalized)) {
+                continue;
+            }
+            if (normalized.startsWith("ROLE_")) {
+                continue;
+            }
+            values.add(normalized);
+        }
+        return List.copyOf(values);
+    }
+
+    private List<String> mergeDistinctStringLists(Object existing, List<String> additions) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>(extractStringList(existing));
+        merged.addAll(additions);
+        return List.copyOf(merged);
+    }
+
+    private List<String> extractStringList(Object rawValue) {
+        if (rawValue == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        if (rawValue instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                String normalized = normalizeAuthorityValue(item != null ? item.toString() : null);
+                if (StringUtils.hasText(normalized)) {
+                    values.add(normalized);
+                }
+            }
+            return List.copyOf(values);
+        }
+        String text = rawValue.toString();
+        if (text.contains(",")) {
+            for (String token : text.split(",")) {
+                String normalized = normalizeAuthorityValue(token);
+                if (StringUtils.hasText(normalized)) {
+                    values.add(normalized);
+                }
+            }
+            return List.copyOf(values);
+        }
+        String normalized = normalizeAuthorityValue(text);
+        if (StringUtils.hasText(normalized)) {
+            values.add(normalized);
+        }
+        return List.copyOf(values);
+    }
+
+    private String normalizeAuthorityValue(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        String value = extractAuthorityLiteral(rawValue);
+        value = value != null ? value : rawValue.trim();
+        while (!value.isEmpty() && isWrapperChar(value.charAt(0))) {
+            value = value.substring(1).trim();
+        }
+        while (!value.isEmpty() && isWrapperChar(value.charAt(value.length() - 1))) {
+            value = value.substring(0, value.length() - 1).trim();
+        }
+        if (value.isBlank()
+                || "null".equalsIgnoreCase(value)
+                || value.startsWith("roleId=")
+                || value.startsWith("permissionId=")
+                || value.startsWith("targetType=")
+                || value.startsWith("actionType=")) {
+            return null;
+        }
+        return value;
+    }
+
+    private String extractAuthorityLiteral(String rawValue) {
+        Matcher quotedMatcher = Pattern.compile("authority='([^']+)'").matcher(rawValue);
+        if (quotedMatcher.find()) {
+            return quotedMatcher.group(1);
+        }
+        Matcher plainMatcher = Pattern.compile("authority=([^,}\\]]+)").matcher(rawValue);
+        if (plainMatcher.find()) {
+            return plainMatcher.group(1).trim();
+        }
+        return null;
+    }
+
+    private boolean isWrapperChar(char value) {
+        return value == '[' || value == ']' || value == '{' || value == '}'
+                || value == '(' || value == ')' || value == '"' || value == '\'';
+    }
+
+    private boolean isPermissionAuthorityArtifact(String rawValue) {
+        return rawValue != null && rawValue.contains("PermissionAuthority{");
+    }
+
+    private boolean isRoleAuthorityArtifact(String rawValue) {
+        return rawValue != null && rawValue.contains("RoleAuthority{");
+    }
+
+    private String textValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isBlank() ? null : text;
     }
 
     private void putIfPresent(Map<String, Object> payload, String key, Object value) {

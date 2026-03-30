@@ -248,6 +248,51 @@ class DefaultCanonicalSecurityContextProviderTest {
     }
 
     @Test
+    void resolveShouldSanitizeAuthorityArtifactsAndInferFrictionFromSessionActions() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .build();
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("userRoles", List.of("ROLE_ADMIN", "[EXPORT_REVIEWER]"));
+        event.addMetadata("authorities", List.of(
+                "RoleAuthority{authority='ROLE_ADMIN', roleId=1}",
+                "PermissionAuthority{authority='REPORT_EXPORT', permissionId=7}",
+                "/admin/api/security-test/sensitive/resource-001"));
+        event.addMetadata("effectiveRoles", List.of(
+                "RoleAuthority{authority='ROLE_ADMIN', roleId=1}",
+                "[EXPORT_REVIEWER]",
+                "PermissionAuthority{authority='REPORT_EXPORT', permissionId=7}"));
+        event.addMetadata("effectivePermissions", List.of(
+                "report.read",
+                "PermissionAuthority{authority='REPORT_EXPORT', permissionId=7}",
+                "/admin/api/security-test/sensitive/resource-001"));
+        event.addMetadata("scopeTags", List.of("customer_data", "export"));
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("sessionActionSequence", List.of(
+                "11:30 | MFA_COMPLETED (Zero Trust Challenge verified) | 192.168.1.100",
+                "11:31 | BLOCK /admin/api/security-test/sensitive/resource-001 | 192.168.1.100"));
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getActor().getRoleSet()).containsExactly("ADMIN", "EXPORT_REVIEWER");
+        assertThat(context.getActor().getAuthoritySet())
+                .containsExactly("REPORT_EXPORT", "/admin/api/security-test/sensitive/resource-001");
+        assertThat(context.getAuthorization().getEffectiveRoles()).containsExactly("ADMIN", "EXPORT_REVIEWER");
+        assertThat(context.getAuthorization().getEffectivePermissions()).containsExactly("report.read", "REPORT_EXPORT");
+        assertThat(context.getFrictionProfile()).isNotNull();
+        assertThat(context.getFrictionProfile().getRecentChallengeCount()).isEqualTo(1);
+        assertThat(context.getFrictionProfile().getRecentBlockCount()).isEqualTo(1);
+        assertThat(context.getFrictionProfile().getRecentDeniedAccessCount()).isEqualTo(1);
+    }
+
+    @Test
     void resolveShouldApplyExternalProvidersAndObservedScopeInference() {
         DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
                 new InMemoryResourceContextRegistry(),

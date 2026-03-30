@@ -210,4 +210,67 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("Historical records for context:");
         assertThat(userPrompt).contains("/admin/api/security-test/sensitive/resource-001");
     }
+
+    @Test
+    void generateUserPromptShouldRenderBridgeAndFrictionEvidenceForBrowserStyleFollowUpRequest() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-005")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 45))
+                .userId("alice")
+                .sessionId("session-1")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("previousPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("lastRequestIntervalMs", 42000L);
+        event.addMetadata("sessionActionSequence", List.of(
+                "11:30 | MFA_COMPLETED (Zero Trust Challenge verified) | 192.168.1.100",
+                "11:31 | GET /admin/api/security-test/sensitive/resource-001 | 192.168.1.100"));
+        event.addMetadata("bridgeCoverageLevel", "AUTHORIZATION_CONTEXT");
+        event.addMetadata("bridgeCoverageSummary", "Bridge completeness reached authentication and authorization context for the current request.");
+        event.addMetadata("bridgeAuthenticationSource", "SECURITY_CONTEXT");
+        event.addMetadata("bridgeAuthorizationSource", "HEADER");
+        event.addMetadata("effectiveRoles", List.of("ADMIN"));
+        event.addMetadata("effectivePermissions", List.of("report.read"));
+        event.addMetadata("scopeTags", List.of("customer_data"));
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("resourceLabel", "Sensitive Security Test Resource");
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-1");
+        sessionContext.setRequestCount(2);
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setBaselineContext("[NO_DATA] Baseline not loaded");
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        sessionContext,
+                        behaviorAnalysis,
+                        List.of(new Document("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon)"))));
+
+        String userPrompt = template.generateUserPrompt(request, "");
+
+        assertThat(userPrompt).contains("=== BRIDGE RESOLUTION CONTEXT ===");
+        assertThat(userPrompt).contains("AuthorizationEffect: ALLOW");
+        assertThat(userPrompt).contains("=== FRICTION AND APPROVAL HISTORY ===");
+        assertThat(userPrompt).contains("RecentChallengeCount: 1");
+        assertThat(userPrompt).contains("HistoricalComparableEvents:");
+    }
 }

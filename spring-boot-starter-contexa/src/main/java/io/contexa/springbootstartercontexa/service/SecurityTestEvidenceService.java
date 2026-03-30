@@ -19,6 +19,7 @@ import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxReco
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.springbootstartercontexa.event.LlmAnalysisEvent;
 import io.contexa.springbootstartercontexa.event.LlmAnalysisEventPublisher;
 import jakarta.servlet.http.HttpServletRequest;
@@ -219,6 +220,7 @@ public class SecurityTestEvidenceService {
                 "eventCount", recentEvents.size(),
                 "events", recentEvents.stream().map(this::toEventMap).toList()
         );
+        Map<String, Object> promptSection = buildPromptSection(recentEvents, decisionOutbox, promptAuditOutbox);
         Map<String, Object> contextSection = buildContextSection(trace, effectiveUserId, analysisData);
         Map<String, Object> saasSection = buildSaasSection(decisionOutbox, promptAuditOutbox);
         Map<String, Object> consistencySection = buildConsistencySection(
@@ -236,6 +238,7 @@ public class SecurityTestEvidenceService {
         result.put("response", responseSection);
         result.put("analysis", analysisSection);
         result.put("sse", sseSection);
+        result.put("prompt", promptSection);
         result.put("context", contextSection);
         result.put("saas", saasSection);
         result.put("consistency", consistencySection);
@@ -341,6 +344,46 @@ public class SecurityTestEvidenceService {
         return saas;
     }
 
+    private Map<String, Object> buildPromptSection(
+            List<LlmAnalysisEvent> recentEvents,
+            SecurityDecisionForwardingOutboxRecord decisionOutbox,
+            PromptContextAuditForwardingOutboxRecord promptAuditOutbox) {
+
+        Map<String, Object> prompt = new LinkedHashMap<>();
+        Map<String, Object> telemetry = new LinkedHashMap<>();
+
+        if (decisionOutbox != null) {
+            Map<String, Object> payload = parseJson(decisionOutbox.getPayloadJson());
+            mergePromptTelemetry(telemetry, payload);
+            mergePromptTelemetry(telemetry, castMap(payload.get("attributes")));
+        }
+
+        if (recentEvents != null) {
+            for (LlmAnalysisEvent recentEvent : recentEvents) {
+                if (recentEvent == null) {
+                    continue;
+                }
+                mergePromptTelemetry(telemetry, recentEvent.getMetadata());
+            }
+        }
+
+        Map<String, Object> promptAudit = Map.of();
+        if (promptAuditOutbox != null) {
+            Map<String, Object> payload = parseJson(promptAuditOutbox.getPayloadJson());
+            promptAudit = new LinkedHashMap<>();
+            copyIfPresent(payload, promptAudit, "retrievalPurpose");
+            copyIfPresent(payload, promptAudit, "requestedDocumentCount");
+            copyIfPresent(payload, promptAudit, "allowedDocumentCount");
+            copyIfPresent(payload, promptAudit, "deniedDocumentCount");
+            copyIfPresent(payload, promptAudit, "deniedReasons");
+        }
+
+        prompt.put("present", !telemetry.isEmpty() || !promptAudit.isEmpty());
+        prompt.put("telemetry", telemetry);
+        prompt.put("audit", promptAudit);
+        return prompt;
+    }
+
     private Map<String, Object> buildPullSnapshotSection() {
         Map<String, Object> pullSnapshots = new LinkedHashMap<>();
         pullSnapshots.put("baselineSeed", summarizeBaselineSeed());
@@ -401,6 +444,31 @@ public class SecurityTestEvidenceService {
         map.put("contextBindingHash", data.contextBindingHash());
         map.put("llmProposedAction", data.llmProposedAction());
         return map;
+    }
+
+    private void mergePromptTelemetry(Map<String, Object> target, Map<String, Object> source) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        for (String key : PromptRuntimeTelemetrySupport.runtimeTelemetryKeys()) {
+            if (target.containsKey(key)) {
+                continue;
+            }
+            Object value = source.get(key);
+            if (value != null) {
+                target.put(key, value);
+            }
+        }
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source == null || target == null) {
+            return;
+        }
+        Object value = source.get(key);
+        if (value != null) {
+            target.put(key, value);
+        }
     }
 
     private Map<String, Object> toEventMap(LlmAnalysisEvent event) {
