@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -77,6 +78,41 @@ class ZeroTrustEventPublisherTest {
         assertThat((List<String>) event.getPayload().get("bridgeRemediationHints")).contains("Populate an explicit authorization effect such as ALLOW or DENY for the current request.");
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("REPORT_EXPORT");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
+    }
+
+    @Test
+    void shouldPopulateAuthenticationFallbackMetadataWhenBridgeAuthorizationIsAbsent() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRequestedSessionId("session-42");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("203.0.113.10");
+        request.setAttribute("hcad.auth_method", "mfa");
+        request.setAttribute("hcad.resource_sensitivity", "HIGH");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "alice",
+                "n/a",
+                List.of(
+                        new SimpleGrantedAuthority("ROLE_ANALYST"),
+                        new SimpleGrantedAuthority("report.export"),
+                        new SimpleGrantedAuthority("MFA_VERIFIED"))
+        );
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(invocation, authentication, true, null);
+
+        assertThat(event.getPayload())
+                .containsEntry("authMethod", "mfa")
+                .containsEntry("mfaVerified", true)
+                .containsEntry("resourceSensitivity", "HIGH");
+        assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("ANALYST");
+        assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
+        assertThat((List<String>) event.getPayload().get("authorities")).contains("ROLE_ANALYST", "report.export", "MFA_VERIFIED");
     }
 
     private BridgeResolutionResult createBridgeResolutionResult() {

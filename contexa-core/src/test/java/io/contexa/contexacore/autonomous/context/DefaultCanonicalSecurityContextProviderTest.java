@@ -199,6 +199,26 @@ class DefaultCanonicalSecurityContextProviderTest {
     }
 
     @Test
+    void resolveShouldNotTreatRequestIdAsApprovalTicketFallback() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .build();
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestId", "req-123");
+        event.addMetadata("recentChallengeCount", 1);
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getFrictionProfile()).isNotNull();
+        assertThat(context.getFrictionProfile().getApprovalTicketId()).isNull();
+    }
+
+    @Test
     void resolveShouldApplyExternalProvidersAndObservedScopeInference() {
         DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
                 new InMemoryResourceContextRegistry(),

@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
@@ -156,9 +157,11 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
-            SecurityLearningService securityLearningService) {
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingSignalBroadcaster) {
         return new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService);
+                actionRepository, securityLearningService, blockedUserRecorder, blockingSignalBroadcaster);
     }
 
     @Bean

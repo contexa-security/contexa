@@ -46,8 +46,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final PipelineOrchestrator pipelineOrchestrator;
     private final Cache<String, SessionContext> sessionContextCache;
 
-    public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
-                                    UnifiedVectorService unifiedVectorService,
+    public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
                                     SecurityContextDataStore dataStore,
                                     SecurityEventEnricher eventEnricher,
                                     SecurityDecisionStandardPromptTemplate promptTemplate,
@@ -61,7 +60,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     PromptContextAuditForwardingService promptContextAuditForwardingService,
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties) {
-        super(llmOrchestrator, eventEnricher, promptTemplate,
+        super(eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
                 promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
         this.dataStore = dataStore;
@@ -248,6 +247,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 List<String> recentActions = dataStore.getRecentSessionActions(sessionId, 10);
                 if (!recentActions.isEmpty()) {
                     context.setRecentActions(recentActions);
+                    if (context.getAccessFrequency() <= 0) {
+                        context.setAccessFrequency(recentActions.size());
+                    }
                 }
             } catch (Exception e) {
                 log.error("[Layer1] Failed to retrieve recent actions: {}", e.getMessage());

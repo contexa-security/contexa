@@ -18,13 +18,13 @@ class CoreHCADAutoConfigurationTest {
     class ConditionalAnnotations {
 
         @Test
-        @DisplayName("Should have @ConditionalOnProperty for contexa.hcad.enabled with matchIfMissing=true")
+        @DisplayName("Should have @ConditionalOnProperty for hcad.enabled with matchIfMissing=true")
         void shouldHaveHcadEnabledCondition() {
             ConditionalOnProperty annotation = CoreHCADAutoConfiguration.class
                     .getAnnotation(ConditionalOnProperty.class);
 
             assertThat(annotation).isNotNull();
-            assertThat(annotation.prefix()).isEqualTo("contexa.hcad");
+            assertThat(annotation.prefix()).isEqualTo("hcad");
             assertThat(annotation.name()).containsExactly("enabled");
             assertThat(annotation.havingValue()).isEqualTo("true");
             assertThat(annotation.matchIfMissing()).isTrue();
@@ -43,14 +43,14 @@ class CoreHCADAutoConfigurationTest {
         }
 
         @Test
-        @DisplayName("Should have StandaloneHCADConfig inner class with @ConditionalOnMissingBean(RedisTemplate)")
+        @DisplayName("Should have StandaloneHCADConfig inner class with @ConditionalOnProperty for standalone mode")
         void shouldHaveStandaloneInnerClass() throws Exception {
             Class<?> standaloneClass = Class.forName(
                     CoreHCADAutoConfiguration.class.getName() + "$StandaloneHCADConfig");
 
             assertThat(standaloneClass).isNotNull();
             assertThat(standaloneClass.getAnnotation(
-                    org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean.class))
+                    org.springframework.boot.autoconfigure.condition.ConditionalOnProperty.class))
                     .isNotNull();
         }
     }

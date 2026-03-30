@@ -6,14 +6,24 @@ contexa:
   saas:
     enabled: true
   llm:
-    chatModelPriority: openai,ollama,anthropic
-    embeddingModelPriority: openai,ollama
+#    chatModelPriority: openai,ollama,anthropic
+    chatModelPriority: ollama,openai,anthropic
+#    embeddingModelPriority: openai,ollama
+    embeddingModelPriority: ollama,openai
 
 #security:
 #  zerotrust:
 #    mode: SHADOW
 
 hcad:
+  enabled: true
+  filterOrder: 100
+  resource:
+    sensitivePatterns:
+      - "/admin/api/security-test/sensitive/**"
+      - "/admin/api/security-test/critical/**"
+      - "/api/security-test/sensitive/**"
+      - "/api/security-test/critical/**"
   geoip:
     dbPath: data/GeoLite2-City.mmdb
 

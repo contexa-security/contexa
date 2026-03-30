@@ -26,7 +26,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -143,6 +145,9 @@ public class ZeroTrustEventPublisher {
             payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
             payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
             payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
+            if (requestInfo.getAuthMethod() != null) {
+                payload.put("authMethod", requestInfo.getAuthMethod());
+            }
             if (requestInfo.getResourceSensitivity() != null) {
                 payload.put("resourceSensitivity", requestInfo.getResourceSensitivity());
             }
@@ -178,6 +183,8 @@ public class ZeroTrustEventPublisher {
                 payload.put("previousLocation", requestInfo.getPreviousLocation());
             }
         }
+
+        populateAuthenticationFallback(authentication, payload);
 
         if (actionRedisRepository != null && authentication != null) {
             ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(authentication.getName());
@@ -335,6 +342,70 @@ public class ZeroTrustEventPublisher {
                 payload.put("allowedResources", delegationStamp.allowedResources());
             }
         }
+    }
+
+    private void populateAuthenticationFallback(Authentication authentication, Map<String, Object> payload) {
+        if (authentication == null) {
+            return;
+        }
+        List<String> authorities = authentication.getAuthorities().stream()
+                .map(grantedAuthority -> grantedAuthority != null ? grantedAuthority.getAuthority() : null)
+                .filter(authority -> authority != null && !authority.isBlank())
+                .distinct()
+                .toList();
+        if (authorities.isEmpty()) {
+            return;
+        }
+
+        if (!hasNonNullPayload(payload, "authMethod")) {
+            boolean hasMfaAuthority = authorities.stream()
+                    .anyMatch(authority -> authority.toUpperCase().contains("MFA"));
+            payload.put("authMethod", hasMfaAuthority ? "mfa" : "password");
+        }
+
+        if (!hasNonNullPayload(payload, "mfaVerified")) {
+            boolean hasMfaAuthority = authorities.stream()
+                    .anyMatch(authority -> authority.toUpperCase().contains("MFA"));
+            if (hasMfaAuthority) {
+                payload.put("mfaVerified", true);
+            }
+        }
+
+        if (!hasNonNullPayload(payload, "effectiveRoles")) {
+            List<String> effectiveRoles = authorities.stream()
+                    .filter(authority -> authority.startsWith("ROLE_"))
+                    .map(authority -> authority.substring("ROLE_".length()))
+                    .distinct()
+                    .toList();
+            if (!effectiveRoles.isEmpty()) {
+                payload.put("effectiveRoles", effectiveRoles);
+            }
+        }
+
+        if (!hasNonNullPayload(payload, "effectivePermissions")) {
+            List<String> effectivePermissions = new ArrayList<>(authorities.stream()
+                    .filter(authority -> !authority.toUpperCase().contains("MFA"))
+                    .filter(authority -> !authority.startsWith("ROLE_"))
+                    .distinct()
+                    .toList());
+            if (effectivePermissions.isEmpty()) {
+                effectivePermissions.addAll(authorities.stream()
+                        .filter(authority -> !authority.toUpperCase().contains("MFA"))
+                        .distinct()
+                        .toList());
+            }
+            if (!effectivePermissions.isEmpty()) {
+                payload.put("effectivePermissions", effectivePermissions);
+            }
+        }
+
+        if (!hasNonNullPayload(payload, "authorities")) {
+            payload.put("authorities", authorities);
+        }
+    }
+
+    private boolean hasNonNullPayload(Map<String, Object> payload, String key) {
+        return payload.containsKey(key) && payload.get(key) != null;
     }
 
     private void putIfPresent(Map<String, Object> payload, String key, Object value) {

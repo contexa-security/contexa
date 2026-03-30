@@ -358,6 +358,10 @@ public class HCADContextExtractor {
             if (additionalAttrs == null) {
                 additionalAttrs = new HashMap<>();
             }
+            String resourceSensitivity = resolveResourceSensitivity(path, context.getIsSensitiveResource());
+            if (resourceSensitivity != null) {
+                additionalAttrs.put("resourceSensitivity", resourceSensitivity);
+            }
             additionalAttrs.put("contentType", request.getContentType());
             additionalAttrs.put("queryString", request.getQueryString());
             additionalAttrs.put("protocol", request.getProtocol());
@@ -369,6 +373,22 @@ public class HCADContextExtractor {
             context.setResourceType(null);
             context.setIsSensitiveResource(null);
         }
+    }
+
+    private String resolveResourceSensitivity(String path, Boolean sensitiveResource) {
+        if (path != null) {
+            String lowerPath = path.toLowerCase();
+            if (lowerPath.contains("/critical/")) {
+                return "CRITICAL";
+            }
+            if (lowerPath.contains("/sensitive/")) {
+                return "HIGH";
+            }
+        }
+        if (Boolean.TRUE.equals(sensitiveResource)) {
+            return "HIGH";
+        }
+        return null;
     }
 
     private void enrichWithGeoLocation(HCADContext context, String clientIp) {

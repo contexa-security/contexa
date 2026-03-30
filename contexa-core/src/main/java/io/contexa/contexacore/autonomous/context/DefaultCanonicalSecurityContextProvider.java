@@ -802,7 +802,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .approvalStatus(approvalStatus)
                 .approvalLineage(normalizeStrings(existing != null ? existing.getApprovalLineage() : null, metadata.get("approvalLineage"), metadata.get("approverLineage"), metadata.get("approval_lineage"), metadata.get("approverChain")))
                 .pendingApproverRoles(normalizeStrings(existing != null ? existing.getPendingApproverRoles() : null, metadata.get("pendingApproverRoles"), metadata.get("pending_approver_roles"), metadata.get("approverRoles")))
-                .approvalTicketId(firstText(existing != null ? existing.getApprovalTicketId() : null, metadata.get("approvalTicketId"), metadata.get("approvalRequestId"), metadata.get("approval_request_id"), metadata.get("requestId")))
+                .approvalTicketId(firstText(existing != null ? existing.getApprovalTicketId() : null, metadata.get("approvalTicketId"), metadata.get("approvalRequestId"), metadata.get("approval_request_id")))
                 .approvalDecisionAgeMinutes(resolveInteger(existing != null ? existing.getApprovalDecisionAgeMinutes() : null, metadata.get("approvalDecisionAgeMinutes"), metadata.get("approvalAgeMinutes"), metadata.get("approval_age_minutes")))
                 .breakGlass(resolveBoolean(existing != null ? existing.getBreakGlass() : null, metadata.get("breakGlass"), metadata.get("break_glass"), metadata.get("breakGlassRequested")))
                 .recentDeniedAccessCount(recentDeniedAccessCount)

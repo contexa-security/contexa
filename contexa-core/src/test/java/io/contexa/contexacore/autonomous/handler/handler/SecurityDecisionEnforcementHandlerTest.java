@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,9 @@ class SecurityDecisionEnforcementHandlerTest {
     private SecurityLearningService securityLearningService;
 
     @Mock
+    IBlockedUserRecorder blockedUserRecorder;
+
+    @Mock
     private BlockingSignalBroadcaster blockingSignalBroadcaster;
 
     private SecurityDecisionEnforcementHandler handler;
@@ -45,8 +49,7 @@ class SecurityDecisionEnforcementHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService);
-        handler.setBlockingDecisionRegistry(blockingSignalBroadcaster);
+                actionRepository, securityLearningService, blockedUserRecorder, blockingSignalBroadcaster);
     }
 
     @Test

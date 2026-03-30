@@ -2,7 +2,22 @@
 (function(){
 const API={sse:'/admin/api/sse/llm-analysis/user',status:'/admin/api/test-action/status',evidence:'/admin/api/security-test/evidence',endpoints:{sensitive:'/admin/api/security-test/sensitive/resource-001',critical:'/admin/api/security-test/critical/resource-001'}};
 const STORE={access:'contexa_access_token',refresh:'contexa_refresh_token',mode:'authMode'};
-const SCENARIO={NORMAL_USER:{title:'정상 사용자',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11 / Corp LAN',expect:'ALLOW or LOW_RISK'},ACCOUNT_TAKEOVER:{title:'계정탈취자',ip:'203.0.113.50',ua:'Android 10 / Hijacked Session',expect:'CHALLENGE or BLOCK'}};
+const SCENARIO={
+  NORMAL_USER:{
+    title:'정상 사용자',
+    ip:'192.168.1.100',
+    uaLabel:'Chrome 120 / Windows 11 / Corp LAN',
+    rawUa:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    expect:'ALLOW or LOW_RISK'
+  },
+  ACCOUNT_TAKEOVER:{
+    title:'계정탈취자',
+    ip:'203.0.113.50',
+    uaLabel:'Android 10 / Hijacked Session',
+    rawUa:'Mozilla/5.0 (Linux; Android 10; SM-G973N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    expect:'CHALLENGE or BLOCK'
+  }
+};
 const ENDPOINT={sensitive:{title:'민감 리소스',desc:'민감 정보 접근 경로'},critical:{title:'중요 리소스',desc:'최고 중요 정보 접근 경로'}};
 const SSE_TYPES=['connected','CONTEXT_COLLECTED','HCAD_ANALYSIS','SESSION_CONTEXT_LOADED','RAG_SEARCH_COMPLETE','BEHAVIOR_ANALYSIS_COMPLETE','LAYER1_START','LAYER1_COMPLETE','LAYER2_START','LAYER2_COMPLETE','LLM_EXECUTION_START','LLM_EXECUTION_COMPLETE','DECISION_APPLIED','RESPONSE_BLOCKED','ERROR'];
 const el={};
@@ -119,7 +134,7 @@ async function executeRequest(phase){
   if(phase==='INITIAL'){st.runId=createId('run');setText(el.currentRunId,st.runId);}
   const scenario=SCENARIO[st.scenario];
   const requestId=createId('req');
-  const headers=buildHeaders({'Accept':'application/json','X-Request-ID':requestId,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Scenario':st.scenario,'X-Contexa-Expected-Action':scenario.expect,'X-Contexa-Demo-Run-Id':st.runId,'X-Contexa-Demo-Phase':phase});
+  const headers=buildHeaders({'Accept':'application/json','X-Request-ID':requestId,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.rawUa,'X-Contexa-Scenario':st.scenario,'X-Contexa-Expected-Action':scenario.expect,'X-Contexa-Demo-Run-Id':st.runId,'X-Contexa-Demo-Phase':phase});
   renderHeaderPreview(headers);
   const response=await fetch(API.endpoints[st.endpoint],{method:'GET',headers:headers,credentials:'same-origin'});
   const body=await parseBody(response);
@@ -171,10 +186,10 @@ function renderScenario(){
   const endpoint=ENDPOINT[st.endpoint];
   setText(el.selectedScenarioName,scenario.title);
   setText(el.selectedScenarioIp,scenario.ip);
-  setText(el.selectedScenarioUa,scenario.ua);
+  setText(el.selectedScenarioUa,scenario.uaLabel);
   setText(el.selectedExpectedAction,scenario.expect);
   setText(el.selectedEndpointName,`${endpoint.title} / ${endpoint.desc}`);
-  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'미지정'}));
+  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.rawUa,'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'미지정'}));
 }
 
 function renderHeaderPreview(headers){

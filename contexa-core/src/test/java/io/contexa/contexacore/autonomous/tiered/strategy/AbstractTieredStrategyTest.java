@@ -66,7 +66,6 @@ class AbstractTieredStrategyTest {
     void setUp() {
         tieredStrategyProperties = new TieredStrategyProperties();
         strategy = new ConcreteStrategy(
-                llmOrchestrator,
                 eventEnricher,
                 promptTemplate,
                 behaviorVectorService,
@@ -288,8 +287,7 @@ class AbstractTieredStrategyTest {
 
     private static class ConcreteStrategy extends AbstractTieredStrategy {
 
-        ConcreteStrategy(UnifiedLLMOrchestrator llmOrchestrator,
-                         SecurityEventEnricher eventEnricher,
+        ConcreteStrategy(SecurityEventEnricher eventEnricher,
                          SecurityDecisionStandardPromptTemplate promptTemplate,
                          BehaviorVectorService behaviorVectorService,
                          UnifiedVectorService unifiedVectorService,
@@ -297,7 +295,7 @@ class AbstractTieredStrategyTest {
                          PromptContextAuthorizationService promptContextAuthorizationService,
                          PromptContextAuditForwardingService promptContextAuditForwardingService,
                          TieredStrategyProperties tieredStrategyProperties) {
-            super(llmOrchestrator, eventEnricher, promptTemplate,
+            super(eventEnricher, promptTemplate,
                     behaviorVectorService, unifiedVectorService,
                     baselineLearningService,
                     promptContextAuthorizationService,

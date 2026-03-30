@@ -46,6 +46,10 @@ public final class RequestInfoExtractor {
                 .failedLoginAttempts(castToInteger(request.getAttribute("hcad.failed_login_attempts")))
                 .baselineConfidence(castToDouble(request.getAttribute("hcad.baseline_confidence")))
                 .isSensitiveResource((Boolean) request.getAttribute("hcad.is_sensitive_resource"))
+                .authMethod(extractAttributeText(request,
+                        "hcad.auth_method",
+                        "hcad.authMethod",
+                        "authMethod"))
                 .resourceSensitivity(extractAttributeText(request,
                         "hcad.resource_sensitivity",
                         "hcad.resourceSensitivity",
@@ -236,6 +240,7 @@ public final class RequestInfoExtractor {
         private final Integer failedLoginAttempts;
         private final Double baselineConfidence;
         private final Boolean isSensitiveResource;
+        private final String authMethod;
         private final String resourceSensitivity;
         private final String resourceBusinessLabel;
         private final Boolean mfaVerified;

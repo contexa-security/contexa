@@ -122,7 +122,12 @@ public class ContextCoverageEvaluator {
         }
 
         if (CanonicalContextFieldPolicy.hasRoleScopeProfile(context)) {
-            availableFacts.add("Role scope profile is available.");
+            if (CanonicalContextFieldPolicy.hasEffectiveRoles(context) || CanonicalContextFieldPolicy.hasAuthorizationScope(context)) {
+                availableFacts.add("Role scope profile is available.");
+            } else {
+                availableFacts.add("Role scope comparison evidence is available, but explicit authorization facts are still partial.");
+                confidenceWarnings.add("Role scope evidence currently reflects observed or inferred execution patterns more than explicit authorization facts; keep business-scope conclusions conservative.");
+            }
         }
         else if (CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
             availableFacts.add("Role scope profile evidence is available but provisional.");

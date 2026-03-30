@@ -100,4 +100,32 @@ class ContextCoverageEvaluatorTest {
         assertThat(report.confidenceWarnings())
                 .anyMatch(value -> value.contains("Personal work profile exists but remains thin"));
     }
+
+    @Test
+    void evaluateShouldDescribeRoleScopeAsComparisonEvidenceWhenExplicitAuthorizationFactsAreMissing() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder()
+                        .userId("alice")
+                        .build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-1")
+                        .mfaVerified(true)
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/export")
+                        .sensitivity("HIGH")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .summary("Current action family READ under observed protectable scope.")
+                        .currentActionFamily("READ")
+                        .build())
+                .build();
+
+        ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
+
+        assertThat(report.availableFacts())
+                .contains("Role scope comparison evidence is available, but explicit authorization facts are still partial.");
+        assertThat(report.confidenceWarnings())
+                .anyMatch(value -> value.contains("explicit authorization facts"));
+    }
 }

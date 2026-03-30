@@ -140,6 +140,7 @@ public class TestSecurityController {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String userId = authentication != null ? authentication.getName() : "anonymous";
+        applyPromptContextHints(request, endpointKey, resourceId, authentication);
         RequestRegistration registration = securityTestEvidenceService.registerRequest(
                 request,
                 userId,
@@ -194,6 +195,48 @@ public class TestSecurityController {
             securityTestEvidenceService.recordResponse(registration.getRequestId(), HttpStatus.INTERNAL_SERVER_ERROR.value(), false, response, processingTime);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
+    }
+
+    private void applyPromptContextHints(
+            HttpServletRequest request,
+            String endpointKey,
+            String resourceId,
+            Authentication authentication) {
+        String sensitivity = resolveSensitivity(endpointKey);
+        if (sensitivity != null) {
+            request.setAttribute("hcad.resource_sensitivity", sensitivity);
+            request.setAttribute("resourceSensitivity", sensitivity);
+        }
+        String businessLabel = resolveBusinessLabel(endpointKey, resourceId);
+        if (businessLabel != null) {
+            request.setAttribute("hcad.resource_business_label", businessLabel);
+            request.setAttribute("businessLabel", businessLabel);
+        }
+        if (authentication != null && request.getAttribute("hcad.auth_method") == null) {
+            boolean mfaAuthority = authentication.getAuthorities().stream()
+                    .anyMatch(authority -> authority != null
+                            && authority.getAuthority() != null
+                            && authority.getAuthority().toUpperCase().contains("MFA"));
+            request.setAttribute("hcad.auth_method", mfaAuthority ? "mfa" : "password");
+        }
+    }
+
+    private String resolveSensitivity(String endpointKey) {
+        return switch (endpointKey) {
+            case "critical" -> "CRITICAL";
+            case "sensitive" -> "HIGH";
+            case "normal" -> "STANDARD";
+            default -> null;
+        };
+    }
+
+    private String resolveBusinessLabel(String endpointKey, String resourceId) {
+        return switch (endpointKey) {
+            case "critical" -> "Critical Security Test Resource " + resourceId;
+            case "sensitive" -> "Sensitive Security Test Resource " + resourceId;
+            case "normal" -> "Standard Security Test Resource " + resourceId;
+            default -> null;
+        };
     }
 
     private Map<String, Object> createBaseResponse(

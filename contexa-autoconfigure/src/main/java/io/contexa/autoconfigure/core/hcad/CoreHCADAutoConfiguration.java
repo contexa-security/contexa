@@ -29,7 +29,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 
 @AutoConfiguration
-@ConditionalOnProperty(prefix = "contexa.hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class })
 public class CoreHCADAutoConfiguration {
 

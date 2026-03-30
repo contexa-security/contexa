@@ -66,10 +66,12 @@ class HCADFilterTest {
         ctx.setRecentRequestCount(5);
         ctx.setFailedLoginAttempts(0);
         ctx.setBaselineConfidence(0.8);
-        ctx.setIsSensitiveResource(false);
+        ctx.setIsSensitiveResource(true);
         ctx.setHasValidMFA(true);
+        ctx.setAuthenticationMethod("mfa");
         Map<String, Object> attrs = new HashMap<>();
         attrs.put("userRoles", "[ROLE_USER]");
+        attrs.put("resourceSensitivity", "CRITICAL");
         ctx.setAdditionalAttributes(attrs);
 
         HCADAnalysisResult result = HCADAnalysisResult.builder()
@@ -97,8 +99,10 @@ class HCADFilterTest {
         assertThat(request.getAttribute("hcad.recent_request_count")).isEqualTo(5);
         assertThat(request.getAttribute("hcad.failed_login_attempts")).isEqualTo(0);
         assertThat(request.getAttribute("hcad.baseline_confidence")).isEqualTo(0.8);
-        assertThat(request.getAttribute("hcad.is_sensitive_resource")).isEqualTo(false);
+        assertThat(request.getAttribute("hcad.is_sensitive_resource")).isEqualTo(true);
         assertThat(request.getAttribute("hcad.mfa_verified")).isEqualTo(true);
+        assertThat(request.getAttribute("hcad.auth_method")).isEqualTo("mfa");
+        assertThat(request.getAttribute("hcad.resource_sensitivity")).isEqualTo("CRITICAL");
         assertThat(request.getAttribute("hcad.user_roles")).isEqualTo("[ROLE_USER]");
     }
 

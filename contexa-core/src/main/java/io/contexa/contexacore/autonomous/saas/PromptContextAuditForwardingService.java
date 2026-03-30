@@ -10,6 +10,7 @@ import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepos
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.Executor;
 
 public class PromptContextAuditForwardingService {
@@ -41,6 +42,7 @@ public class PromptContextAuditForwardingService {
     }
 
     private void saveAndDispatch(SecurityEvent event, PromptContextAuditPayload payload) {
+        LocalDateTime now = LocalDateTime.now();
         PromptContextAuditForwardingOutboxRecord saved = repository.saveAndFlush(PromptContextAuditForwardingOutboxRecord.builder()
                 .auditId(payload.getAuditId())
                 .correlationId(payload.getCorrelationId())
@@ -49,6 +51,8 @@ public class PromptContextAuditForwardingService {
                         : payloadMapper.resolveTenantExternalRef(event))
                 .payloadJson(writePayload(payload))
                 .status(PromptContextAuditForwardingOutboxRecord.STATUS_PENDING)
+                .createdAt(now)
+                .updatedAt(now)
                 .build());
         dispatchAsync(saved.getId());
     }

@@ -60,7 +60,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .timeoutSeconds(120)
                     .build();
 
-    protected final UnifiedLLMOrchestrator llmOrchestrator;
     protected final SecurityEventEnricher eventEnricher;
     protected final SecurityDecisionStandardPromptTemplate promptTemplate;
     protected final BehaviorVectorService behaviorVectorService;
@@ -89,7 +88,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .build();
 
     protected AbstractTieredStrategy(
-            UnifiedLLMOrchestrator llmOrchestrator,
             SecurityEventEnricher eventEnricher,
             SecurityDecisionStandardPromptTemplate promptTemplate,
             BehaviorVectorService behaviorVectorService,
@@ -98,7 +96,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             PromptContextAuthorizationService promptContextAuthorizationService,
             PromptContextAuditForwardingService promptContextAuditForwardingService,
             TieredStrategyProperties tieredStrategyProperties) {
-        this.llmOrchestrator = llmOrchestrator;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate
             : new SecurityDecisionStandardPromptTemplate(this.eventEnricher, tieredStrategyProperties);
