@@ -32,6 +32,13 @@ public final class CanonicalContextFieldPolicy {
                 || !context.getAuthorization().getScopeTags().isEmpty());
     }
 
+    public static boolean hasAuthorizationEffect(CanonicalSecurityContext context) {
+        return context != null
+                && context.getAuthorization() != null
+                && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect())
+                && !"UNKNOWN".equalsIgnoreCase(context.getAuthorization().getAuthorizationEffect());
+    }
+
     public static boolean hasResourceIdentity(CanonicalSecurityContext context) {
         return context != null
                 && context.getResource() != null

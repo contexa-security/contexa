@@ -4,6 +4,8 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurityContextProvider {
 
@@ -790,6 +792,19 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (recentEscalationCount == null && context.getSession() != null) {
             recentEscalationCount = context.getSession().getRecentEscalationCount();
         }
+        List<String> sessionActionEvidence = resolveSessionActionEvidence(metadata, context);
+        if (recentChallengeCount == null) {
+            recentChallengeCount = inferChallengeCount(sessionActionEvidence);
+        }
+        if (recentBlockCount == null) {
+            recentBlockCount = inferBlockCount(sessionActionEvidence);
+        }
+        if (recentEscalationCount == null) {
+            recentEscalationCount = inferEscalationCount(sessionActionEvidence);
+        }
+        if (recentDeniedAccessCount == null) {
+            recentDeniedAccessCount = inferDeniedAccessCount(sessionActionEvidence);
+        }
 
         CanonicalSecurityContext.FrictionProfile frictionProfile = CanonicalSecurityContext.FrictionProfile.builder()
                 .summary(firstText(existing != null ? existing.getSummary() : null, metadata.get("frictionProfileSummary")))
@@ -908,25 +923,26 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             }
             if (rawValue instanceof Collection<?> collection) {
                 for (Object item : collection) {
-                    addNormalized(values, item);
+                    addNormalizedScalar(values, item);
+                }
+                continue;
+            }
+            if (rawValue.getClass().isArray()) {
+                int length = java.lang.reflect.Array.getLength(rawValue);
+                for (int index = 0; index < length; index++) {
+                    addNormalizedScalar(values, java.lang.reflect.Array.get(rawValue, index));
                 }
                 continue;
             }
             String text = rawValue.toString();
-            if (text.contains(",")) {
-                for (String token : text.split(",")) {
-                    addNormalized(values, token);
-                }
-                continue;
-            }
-            addNormalized(values, text);
+            addDelimitedOrScalar(values, text);
         }
         return List.copyOf(values);
     }
 
     private List<String> normalizeRoleStrings(Object... rawValues) {
         Set<String> values = new LinkedHashSet<>();
-        for (String rawValue : normalizeStrings(rawValues)) {
+        for (String rawValue : flattenTokens(rawValues)) {
             String normalizedRole = normalizeRoleToken(rawValue);
             if (normalizedRole != null) {
                 values.add(normalizedRole);
@@ -937,9 +953,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private List<String> normalizeAuthorityStrings(Object... rawValues) {
         Set<String> values = new LinkedHashSet<>();
-        for (String rawValue : normalizeStrings(rawValues)) {
+        for (String rawValue : flattenTokens(rawValues)) {
             if (isAuthorityLikeToken(rawValue)) {
-                values.add(rawValue);
+                values.add(normalizeScalarToken(rawValue));
             }
         }
         return List.copyOf(values);
@@ -947,21 +963,109 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private List<String> normalizePermissionStrings(Object... rawValues) {
         Set<String> values = new LinkedHashSet<>();
-        for (String rawValue : normalizeStrings(rawValues)) {
+        for (String rawValue : flattenTokens(rawValues)) {
             if (isPermissionLikeToken(rawValue)) {
-                values.add(rawValue);
+                values.add(normalizeScalarToken(rawValue));
             }
         }
         return List.copyOf(values);
+    }
+
+    private List<String> flattenTokens(Object... rawValues) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (Object rawValue : rawValues) {
+            if (rawValue == null) {
+                continue;
+            }
+            if (rawValue instanceof Collection<?> collection) {
+                for (Object item : collection) {
+                    addFlattenedToken(values, item);
+                }
+                continue;
+            }
+            if (rawValue.getClass().isArray()) {
+                int length = java.lang.reflect.Array.getLength(rawValue);
+                for (int index = 0; index < length; index++) {
+                    addFlattenedToken(values, java.lang.reflect.Array.get(rawValue, index));
+                }
+                continue;
+            }
+            addFlattenedToken(values, rawValue);
+        }
+        return List.copyOf(values);
+    }
+
+    private void addFlattenedToken(Set<String> values, Object rawValue) {
+        if (rawValue == null) {
+            return;
+        }
+        String text = rawValue.toString().trim();
+        if (!StringUtils.hasText(text)) {
+            return;
+        }
+        if (looksLikeBracketedCollection(text)) {
+            text = text.substring(1, text.length() - 1).trim();
+        }
+        if (text.contains(",")) {
+            for (String token : text.split(",")) {
+                String normalized = token.trim();
+                if (StringUtils.hasText(normalized)) {
+                    values.add(normalized);
+                }
+            }
+            return;
+        }
+        values.add(text);
     }
 
     private void addNormalized(Set<String> values, Object rawValue) {
         if (rawValue == null) {
             return;
         }
-        String value = rawValue.toString().trim();
-        if (!value.isBlank()) {
-            values.add(value);
+        String text = rawValue.toString();
+        String extractedAuthority = extractAuthorityLiteral(text);
+        if (StringUtils.hasText(extractedAuthority)) {
+            String normalized = normalizeScalarToken(extractedAuthority);
+            if (StringUtils.hasText(normalized)) {
+                values.add(normalized);
+            }
+            return;
+        }
+        String normalizedText = text.trim();
+        addDelimitedOrScalar(values, normalizedText);
+    }
+
+    private void addDelimitedOrScalar(Set<String> values, String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return;
+        }
+        String normalizedText = rawValue.trim();
+        boolean bracketedCollection = looksLikeBracketedCollection(normalizedText);
+        if (bracketedCollection) {
+            normalizedText = normalizedText.substring(1, normalizedText.length() - 1).trim();
+        }
+        if (normalizedText.contains(",") && (bracketedCollection || isDelimitedTokenList(normalizedText))) {
+            for (String token : normalizedText.split(",")) {
+                String normalized = normalizeScalarToken(token);
+                if (StringUtils.hasText(normalized)) {
+                    values.add(normalized);
+                }
+            }
+            return;
+        }
+        String normalized = normalizeScalarToken(normalizedText);
+        if (StringUtils.hasText(normalized)) {
+            values.add(normalized);
+        }
+    }
+
+    private void addNormalizedScalar(Set<String> values, Object rawValue) {
+        if (rawValue == null) {
+            return;
+        }
+        String normalized = normalizeScalarToken(rawValue.toString());
+        if (StringUtils.hasText(normalized)) {
+            values.add(normalized);
         }
     }
 
@@ -969,13 +1073,21 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (!StringUtils.hasText(rawValue)) {
             return null;
         }
-        String candidate = rawValue.trim();
+        if (rawValue.contains("PermissionAuthority{")) {
+            return null;
+        }
+        String candidate = normalizeScalarToken(rawValue);
+        if (!StringUtils.hasText(candidate)) {
+            return null;
+        }
         if (candidate.startsWith("ROLE_")) {
             candidate = candidate.substring("ROLE_".length());
         }
         if (candidate.isBlank()
                 || candidate.contains("/")
                 || candidate.contains(".")
+                || candidate.contains(":")
+                || candidate.contains("=")
                 || candidate.contains(" ")) {
             return null;
         }
@@ -996,18 +1108,139 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     }
 
     private boolean isAuthorityLikeToken(String rawValue) {
-        if (!StringUtils.hasText(rawValue)) {
+        String candidate = normalizeScalarToken(rawValue);
+        if (!StringUtils.hasText(candidate)) {
             return false;
         }
-        String candidate = rawValue.trim();
-        return normalizeRoleToken(candidate) == null;
+        return normalizeRoleToken(rawValue) == null;
     }
 
     private boolean isPermissionLikeToken(String rawValue) {
+        String candidate = normalizeScalarToken(rawValue);
+        if (!StringUtils.hasText(candidate)) {
+            return false;
+        }
         if (!isAuthorityLikeToken(rawValue)) {
             return false;
         }
-        return !rawValue.contains("/");
+        return !candidate.startsWith("/")
+                && !candidate.contains("=")
+                && !candidate.contains(" ");
+    }
+
+    private boolean looksLikeBracketedCollection(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return false;
+        }
+        String value = rawValue.trim();
+        return (value.startsWith("[") && value.endsWith("]"))
+                || (value.startsWith("(") && value.endsWith(")"))
+                || (value.startsWith("{") && value.endsWith("}"));
+    }
+
+    private boolean isDelimitedTokenList(String rawValue) {
+        if (!StringUtils.hasText(rawValue) || !rawValue.contains(",")) {
+            return false;
+        }
+        String[] tokens = rawValue.split(",");
+        if (tokens.length < 2) {
+            return false;
+        }
+        for (String token : tokens) {
+            String normalized = normalizeScalarToken(token);
+            if (!StringUtils.hasText(normalized) || normalized.contains(" ")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String normalizeScalarToken(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        String extractedAuthority = extractAuthorityLiteral(rawValue);
+        String value = extractedAuthority != null ? extractedAuthority.trim() : rawValue.trim();
+        while (!value.isEmpty() && isWrapperChar(value.charAt(0))) {
+            value = value.substring(1).trim();
+        }
+        while (!value.isEmpty() && isWrapperChar(value.charAt(value.length() - 1))) {
+            value = value.substring(0, value.length() - 1).trim();
+        }
+        if (value.isBlank()
+                || "null".equalsIgnoreCase(value)
+                || value.startsWith("roleId=")
+                || value.startsWith("permissionId=")
+                || value.startsWith("targetType=")
+                || value.startsWith("actionType=")) {
+            return null;
+        }
+        return value;
+    }
+
+    private String extractAuthorityLiteral(String rawValue) {
+        Matcher quotedMatcher = Pattern.compile("authority='([^']+)'").matcher(rawValue);
+        if (quotedMatcher.find()) {
+            return quotedMatcher.group(1);
+        }
+        Matcher plainMatcher = Pattern.compile("authority=([^,}\\]]+)").matcher(rawValue);
+        if (plainMatcher.find()) {
+            return plainMatcher.group(1).trim();
+        }
+        return null;
+    }
+
+    private boolean isWrapperChar(char value) {
+        return value == '[' || value == ']' || value == '{' || value == '}'
+                || value == '(' || value == ')' || value == '"' || value == '\'';
+    }
+
+    private List<String> resolveSessionActionEvidence(Map<String, Object> metadata, CanonicalSecurityContext context) {
+        CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile =
+                context != null ? context.getSessionNarrativeProfile() : null;
+        if (sessionNarrativeProfile != null && !sessionNarrativeProfile.getSessionActionSequence().isEmpty()) {
+            return sessionNarrativeProfile.getSessionActionSequence();
+        }
+        return normalizeStrings(
+                metadata.get("sessionActionSequence"),
+                metadata.get("recentSessionActions"),
+                metadata.get("sessionActions"));
+    }
+
+    private Integer inferChallengeCount(List<String> sessionActions) {
+        return inferActionCount(sessionActions, "CHALLENGE", "MFA_COMPLETED", "MFA_REQUIRED");
+    }
+
+    private Integer inferBlockCount(List<String> sessionActions) {
+        return inferActionCount(sessionActions, "BLOCK", "DENIED", "ACCESS_DENIED");
+    }
+
+    private Integer inferEscalationCount(List<String> sessionActions) {
+        return inferActionCount(sessionActions, "ESCALATE", "ESCALATED");
+    }
+
+    private Integer inferDeniedAccessCount(List<String> sessionActions) {
+        return inferActionCount(sessionActions, "DENIED", "BLOCK", "ACCESS_DENIED");
+    }
+
+    private Integer inferActionCount(List<String> sessionActions, String... markers) {
+        if (sessionActions == null || sessionActions.isEmpty()) {
+            return null;
+        }
+        int count = 0;
+        for (String sessionAction : sessionActions) {
+            if (!StringUtils.hasText(sessionAction)) {
+                continue;
+            }
+            String normalized = sessionAction.toUpperCase(Locale.ROOT);
+            for (String marker : markers) {
+                if (normalized.contains(marker)) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count > 0 ? count : null;
     }
 
     private Boolean resolveBoolean(Object... values) {

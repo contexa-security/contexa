@@ -46,8 +46,15 @@ public class ContextCoverageEvaluator {
             remediationHints.add("Propagate effective roles for the current request when they exist.");
         }
 
-        if (CanonicalContextFieldPolicy.hasAuthorizationScope(context)) {
+        if (CanonicalContextFieldPolicy.hasAuthorizationScope(context)
+                && CanonicalContextFieldPolicy.hasAuthorizationEffect(context)) {
             availableFacts.add("Authorization scope is available.");
+        }
+        else if (CanonicalContextFieldPolicy.hasAuthorizationScope(context)) {
+            availableFacts.add("Authorization scope evidence is available, but authorization effect is still partial.");
+            missingCriticalFacts.add("Authorization effect is unavailable.");
+            remediationHints.add("Propagate a resolved authorization effect such as ALLOW, DENY, CHALLENGE, or ESCALATE for the current request.");
+            confidenceWarnings.add("Authorization scope exists without a resolved authorization effect; privilege conclusions should remain conservative.");
         }
         else {
             missingCriticalFacts.add("Authorization scope is unavailable.");

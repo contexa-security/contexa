@@ -2,6 +2,10 @@ package io.contexa.springbootstartercontexa.service;
 
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository.ZeroTrustAnalysisData;
+import io.contexa.contexacore.domain.entity.PromptContextAuditForwardingOutboxRecord;
+import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
+import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
+import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
 import io.contexa.springbootstartercontexa.event.LlmAnalysisEvent;
 import io.contexa.springbootstartercontexa.event.LlmAnalysisEventPublisher;
 import jakarta.servlet.http.HttpSession;
@@ -13,6 +17,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -114,10 +119,101 @@ class SecurityTestEvidenceServiceTest {
                 .containsEntry("contextBindingPresent", true);
     }
 
+    @Test
+    void exposePromptTelemetryFromSaasOutboxPayload() throws Exception {
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        LlmAnalysisEventPublisher publisher = mock(LlmAnalysisEventPublisher.class);
+        SecurityDecisionForwardingOutboxRepository decisionOutboxRepository = mock(SecurityDecisionForwardingOutboxRepository.class);
+        PromptContextAuditForwardingOutboxRepository promptAuditRepository = mock(PromptContextAuditForwardingOutboxRepository.class);
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        SecurityTestEvidenceService service = new SecurityTestEvidenceService(
+                actionRepository,
+                publisher,
+                objectMapper,
+                providerWith(decisionOutboxRepository),
+                providerWith(promptAuditRepository),
+                emptyProvider(),
+                emptyProvider(),
+                emptyProvider(),
+                emptyProvider(),
+                emptyProvider(),
+                emptyProvider()
+        );
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-telemetry-001");
+        request.addHeader("X-Contexa-Scenario", "ACCOUNT_TAKEOVER");
+        request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        request.addHeader("X-Forwarded-For", "203.0.113.50");
+        request.getSession(true);
+
+        service.registerRequest(request, "alice", "sensitive", "resource-001");
+
+        SecurityDecisionForwardingOutboxRecord decisionOutbox = SecurityDecisionForwardingOutboxRecord.builder()
+                .correlationId("req-telemetry-001")
+                .tenantExternalRef("default")
+                .payloadJson(objectMapper.writeValueAsString(Map.of(
+                        "promptVersion", "2026.03.26-e0.1",
+                        "promptHash", "sha256:prompt",
+                        "systemPromptHash", "sha256:system",
+                        "userPromptHash", "sha256:user",
+                        "promptEvidenceCompleteness", "SUFFICIENT",
+                        "omittedSections", List.of(),
+                        "budgetProfile", "CORTEX_L1_STANDARD")))
+                .build();
+        PromptContextAuditForwardingOutboxRecord promptAuditOutbox = PromptContextAuditForwardingOutboxRecord.builder()
+                .auditId("audit-1")
+                .correlationId("req-telemetry-001")
+                .tenantExternalRef("default")
+                .payloadJson(objectMapper.writeValueAsString(Map.of(
+                        "retrievalPurpose", "security_investigation",
+                        "requestedDocumentCount", 2,
+                        "allowedDocumentCount", 2,
+                        "deniedDocumentCount", 0,
+                        "deniedReasons", List.of())))
+                .build();
+
+        when(decisionOutboxRepository.findByCorrelationId("req-telemetry-001")).thenReturn(Optional.of(decisionOutbox));
+        when(promptAuditRepository.findByCorrelationId("req-telemetry-001")).thenReturn(Optional.of(promptAuditOutbox));
+        when(actionRepository.getAnalysisData("alice")).thenReturn(ZeroTrustAnalysisData.pending());
+        when(publisher.getRecentEvents("alice")).thenReturn(List.of());
+
+        Map<String, Object> evidence = service.getEvidence("alice", "req-telemetry-001");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> prompt = (Map<String, Object>) evidence.get("prompt");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> telemetry = (Map<String, Object>) prompt.get("telemetry");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> audit = (Map<String, Object>) prompt.get("audit");
+
+        assertThat(prompt).containsEntry("present", true);
+        assertThat(telemetry)
+                .containsEntry("promptVersion", "2026.03.26-e0.1")
+                .containsEntry("promptHash", "sha256:prompt")
+                .containsEntry("systemPromptHash", "sha256:system")
+                .containsEntry("userPromptHash", "sha256:user")
+                .containsEntry("promptEvidenceCompleteness", "SUFFICIENT")
+                .containsEntry("budgetProfile", "CORTEX_L1_STANDARD");
+        assertThat(audit)
+                .containsEntry("retrievalPurpose", "security_investigation")
+                .containsEntry("requestedDocumentCount", 2)
+                .containsEntry("allowedDocumentCount", 2)
+                .containsEntry("deniedDocumentCount", 0);
+    }
+
     @SuppressWarnings("unchecked")
     private <T> ObjectProvider<T> emptyProvider() {
         ObjectProvider<T> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
+        return provider;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> ObjectProvider<T> providerWith(T instance) {
+        ObjectProvider<T> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(instance);
         return provider;
     }
 }

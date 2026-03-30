@@ -130,6 +130,37 @@ class ContextCoverageEvaluatorTest {
     }
 
     @Test
+    void evaluateShouldKeepAuthorizationCoverageConservativeWhenEffectIsMissing() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder()
+                        .userId("alice")
+                        .build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-1")
+                        .mfaVerified(true)
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .effectiveRoles(List.of("ANALYST"))
+                        .scopeTags(List.of("customer_data"))
+                        .authorizationEffect("UNKNOWN")
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/export")
+                        .sensitivity("HIGH")
+                        .build())
+                .build();
+
+        ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
+
+        assertThat(report.availableFacts())
+                .contains("Authorization scope evidence is available, but authorization effect is still partial.");
+        assertThat(report.missingCriticalFacts())
+                .contains("Authorization effect is unavailable.");
+        assertThat(report.confidenceWarnings())
+                .anyMatch(value -> value.contains("authorization effect"));
+    }
+
+    @Test
     void evaluateShouldFlagMissingBridgeContext() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(CanonicalSecurityContext.Actor.builder()
