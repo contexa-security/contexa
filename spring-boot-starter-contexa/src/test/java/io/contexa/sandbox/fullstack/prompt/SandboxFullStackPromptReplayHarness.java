@@ -98,16 +98,42 @@ public class SandboxFullStackPromptReplayHarness {
             String password,
             String benchmarkRunId,
             SandboxPromptReplayScenario scenario) {
+        return replayScenarioInternal(username, password, benchmarkRunId, scenario, true);
+    }
+
+    public SandboxPromptReplayRun replayScenarioWithoutEnvironmentReset(
+            String username,
+            String password,
+            String benchmarkRunId,
+            SandboxPromptReplayScenario scenario) {
+        return replayScenarioInternal(username, password, benchmarkRunId, scenario, false);
+    }
+
+    public void prepareCleanReplayEnvironment() {
+        sandboxVectorStoreIsolationSupport.prepareCleanReplayRun();
+        sandboxOttCodeCapture.clearAll();
+        sandboxPromptTraceStore.clearAll();
+    }
+
+    private SandboxPromptReplayRun replayScenarioInternal(
+            String username,
+            String password,
+            String benchmarkRunId,
+            SandboxPromptReplayScenario scenario,
+            boolean resetEnvironment) {
         if (scenario == null) {
             throw new IllegalArgumentException("scenario must not be null");
         }
         if (scenario.roundCount() < 3) {
             throw new IllegalArgumentException("scenario.roundCount must be at least 3");
         }
-        sandboxVectorStoreIsolationSupport.prepareCleanReplayRun();
+        if (resetEnvironment) {
+            prepareCleanReplayEnvironment();
+        } else {
+            sandboxOttCodeCapture.clearAll();
+            sandboxPromptTraceStore.clearAll();
+        }
         sandboxPromptUserProvisioner.ensurePromptAdminUser(username, password);
-        sandboxOttCodeCapture.clearAll();
-        sandboxPromptTraceStore.clearAll();
 
         Map<String, String> deviceIdsByAlias = new HashMap<>();
         SandboxWebSessionClient webSessionClient = null;

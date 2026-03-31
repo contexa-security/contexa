@@ -195,6 +195,55 @@ public final class SandboxPromptMetricReportWriter {
                     row.put("systemPromptHashPresent", hasText(snapshot.metadata().get("systemPromptHash")));
                     row.put("userPromptHashPresent", hasText(snapshot.metadata().get("userPromptHash")));
                     row.put("promptHashPresent", hasText(snapshot.metadata().get("promptHash")));
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.METADATA_TRACEABILITY_RATE) {
+                    Map<String, Object> snapshotMetadata = snapshot.metadata();
+                    Map<String, Object> promptExecutionMetadata = snapshot.promptExecutionMetadata() != null
+                            ? objectMapper.convertValue(snapshot.promptExecutionMetadata(), Map.class)
+                            : Map.of();
+                    Map<String, Object> governanceDescriptor = castMap(promptExecutionMetadata.get("governanceDescriptor"));
+                    row.put("traceRequestId", snapshot.requestId());
+                    row.put("eventRequestId", text(eventMetadata.get("requestId")));
+                    row.put("eventCorrelationId", text(eventMetadata.get("correlationId")));
+                    row.put("traceRequestIdAligned", hasText(snapshot.requestId()) && snapshot.requestId().equals(text(eventMetadata.get("requestId"))));
+                    row.put("correlationIdPresent", hasText(eventMetadata.get("correlationId")));
+                    row.put("promptVersion", snapshotMetadata.get("promptVersion"));
+                    row.put("promptVersionPresent", hasText(snapshotMetadata.get("promptVersion")));
+                    row.put("promptHashPresent", hasText(snapshotMetadata.get("promptHash")));
+                    row.put("systemPromptHashPresent", hasText(snapshotMetadata.get("systemPromptHash")));
+                    row.put("userPromptHashPresent", hasText(snapshotMetadata.get("userPromptHash")));
+                    row.put("metadataPromptSectionCount", sizeOf(snapshotMetadata.get("promptSectionSet")));
+                    row.put("executionPromptSectionCount", sizeOf(promptExecutionMetadata.get("sectionSet")));
+                    row.put("sectionSetAligned",
+                            castList(snapshotMetadata.get("promptSectionSet")).equals(castList(promptExecutionMetadata.get("sectionSet"))));
+                    row.put("omittedSectionsTracked", snapshotMetadata.containsKey("omittedSections"));
+                    row.put("governancePromptKey", text(governanceDescriptor.get("promptKey")));
+                    row.put("governanceTemplateKey", text(governanceDescriptor.get("templateKey")));
+                    row.put("promptEvidenceCompleteness", text(promptExecutionMetadata.get("promptEvidenceCompleteness")));
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.CONTEXT_CONTAMINATION_RATE) {
+                    SandboxRetrievalAuditSnapshot retrievalAudit = snapshot.retrievalAudit();
+                    double contaminationRate = contaminationRateFor(retrievalAudit, result.username());
+                    row.put("retrievalAuditPresent", retrievalAudit != null);
+                    row.put("rawRetrievedCount", retrievalAudit != null ? retrievalAudit.rawRetrievedCount() : 0);
+                    row.put("authorizeRequestedCount", retrievalAudit != null ? retrievalAudit.authorizeRequestedCount() : 0);
+                    row.put("authorizeAllowedCount", retrievalAudit != null ? retrievalAudit.authorizeAllowedCount() : 0);
+                    row.put("authorizeDeniedCount", retrievalAudit != null ? retrievalAudit.authorizeDeniedCount() : 0);
+                    row.put("retrievalPurpose", retrievalAudit != null ? retrievalAudit.retrievalPurpose() : null);
+                    row.put("contaminationRate", contaminationRate);
+                    row.put("contaminationFree", contaminationRate <= 0.0d);
+                    row.put("foreignUserDocumentCount", foreignUserDocumentCount(retrievalAudit, result.username()));
+                    row.put("purposeMismatchCount", purposeMismatchCount(retrievalAudit));
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.RAG_AUTHORIZATION_PRECISION) {
+                    SandboxRetrievalAuditSnapshot retrievalAudit = snapshot.retrievalAudit();
+                    double precision = authorizationPrecisionFor(retrievalAudit);
+                    row.put("retrievalAuditPresent", retrievalAudit != null);
+                    row.put("rawRetrievedCount", retrievalAudit != null ? retrievalAudit.rawRetrievedCount() : 0);
+                    row.put("authorizeRequestedCount", retrievalAudit != null ? retrievalAudit.authorizeRequestedCount() : 0);
+                    row.put("authorizeAllowedCount", retrievalAudit != null ? retrievalAudit.authorizeAllowedCount() : 0);
+                    row.put("authorizeDeniedCount", retrievalAudit != null ? retrievalAudit.authorizeDeniedCount() : 0);
+                    row.put("retrievalPurpose", retrievalAudit != null ? retrievalAudit.retrievalPurpose() : null);
+                    row.put("authorizationPrecision", precision);
+                    row.put("authorizationPerfect", precision >= 100.0d);
+                    row.put("deniedReasons", retrievalAudit != null ? retrievalAudit.authorizeDeniedReasons() : List.of());
                 }
                 rows.add(row);
             }
@@ -276,6 +325,20 @@ public final class SandboxPromptMetricReportWriter {
         return value instanceof List<?> list ? list.size() : 0;
     }
 
+    private static Map<String, Object> castMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> casted = new LinkedHashMap<>();
+            map.forEach((key, entryValue) -> casted.put(String.valueOf(key), entryValue));
+            return casted;
+        }
+        return Map.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> castList(Object value) {
+        return value instanceof List<?> list ? (List<Object>) list : List.of();
+    }
+
     private static String text(Object value) {
         return value == null ? null : String.valueOf(value);
     }
@@ -345,8 +408,97 @@ public final class SandboxPromptMetricReportWriter {
                     "PROMPT_HASH",
                     "PROMPT_LENGTH",
                     "RENDERED_MATCH");
+            case METADATA_TRACEABILITY_RATE -> containsAny(corpus,
+                    "TRACE.REQUESTID",
+                    "EVENT.METADATA.REQUESTID",
+                    "CORRELATIONID",
+                    "PROMPTVERSION",
+                    "PROMPTHASH",
+                    "SYSTEMPROMPTHASH",
+                    "USERPROMPTHASH",
+                    "PROMPTSECTIONSET",
+                    "OMITTEDSECTIONS",
+                    "GOVERNANCEDESCRIPTOR",
+                    "PROMPTEVIDENCECOMPLETENESS");
+            case CONTEXT_CONTAMINATION_RATE -> containsAny(corpus,
+                    "CONTEXT_CONTAMINATION",
+                    "FOREIGN USER",
+                    "RETRIEVAL PURPOSE",
+                    "DENIED_USER_SCOPE",
+                    "DENIED_ORGANIZATION_SCOPE",
+                    "MEMORY READ",
+                    "PROMPT SAFETY");
+            case RAG_AUTHORIZATION_PRECISION -> containsAny(corpus,
+                    "ALLOWED_USER_SCOPE",
+                    "ALLOWED_ORGANIZATION_SCOPE",
+                    "DENIED_USER_SCOPE",
+                    "DENIED_ORGANIZATION_SCOPE",
+                    "DENIED_PURPOSE",
+                    "PROMPT SAFETY",
+                    "MEMORY READ",
+                    "AUTHORIZATION");
             default -> true;
         };
+    }
+
+    private static double contaminationRateFor(
+            SandboxRetrievalAuditSnapshot retrievalAudit,
+            String expectedUserId) {
+        if (retrievalAudit == null || retrievalAudit.rawRetrievedDocuments().isEmpty()) {
+            return 0.0d;
+        }
+        long contaminatedCount = retrievalAudit.rawRetrievedDocuments().stream()
+                .filter(document -> isContaminated(document, expectedUserId, retrievalAudit.retrievalPurpose()))
+                .count();
+        return (contaminatedCount * 100.0d) / retrievalAudit.rawRetrievedDocuments().size();
+    }
+
+    private static long foreignUserDocumentCount(
+            SandboxRetrievalAuditSnapshot retrievalAudit,
+            String expectedUserId) {
+        if (retrievalAudit == null || retrievalAudit.rawRetrievedDocuments().isEmpty()) {
+            return 0L;
+        }
+        return retrievalAudit.rawRetrievedDocuments().stream()
+                .filter(document -> hasText(document.userId()) && !document.userId().equalsIgnoreCase(expectedUserId))
+                .count();
+    }
+
+    private static long purposeMismatchCount(SandboxRetrievalAuditSnapshot retrievalAudit) {
+        if (retrievalAudit == null || retrievalAudit.rawRetrievedDocuments().isEmpty()) {
+            return 0L;
+        }
+        String expectedPurpose = retrievalAudit.retrievalPurpose();
+        if (!hasText(expectedPurpose)) {
+            return 0L;
+        }
+        return retrievalAudit.rawRetrievedDocuments().stream()
+                .filter(document -> hasText(document.retrievalPurpose())
+                        && !document.retrievalPurpose().equalsIgnoreCase(expectedPurpose))
+                .count();
+    }
+
+    private static boolean isContaminated(
+            SandboxRetrievalAuditStore.RetrievedDocumentRecord document,
+            String expectedUserId,
+            String expectedPurpose) {
+        if (document == null) {
+            return false;
+        }
+        if (hasText(document.userId()) && hasText(expectedUserId)
+                && !document.userId().equalsIgnoreCase(expectedUserId)) {
+            return true;
+        }
+        return hasText(document.retrievalPurpose())
+                && hasText(expectedPurpose)
+                && !document.retrievalPurpose().equalsIgnoreCase(expectedPurpose);
+    }
+
+    private static double authorizationPrecisionFor(SandboxRetrievalAuditSnapshot retrievalAudit) {
+        if (retrievalAudit == null || retrievalAudit.authorizeRequestedCount() <= 0) {
+            return 100.0d;
+        }
+        return (retrievalAudit.authorizeAllowedCount() * 100.0d) / retrievalAudit.authorizeRequestedCount();
     }
 
     private static boolean containsAny(String corpus, String... tokens) {
