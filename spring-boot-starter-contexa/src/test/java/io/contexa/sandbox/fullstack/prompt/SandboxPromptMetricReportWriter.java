@@ -244,6 +244,47 @@ public final class SandboxPromptMetricReportWriter {
                     row.put("authorizationPrecision", precision);
                     row.put("authorizationPerfect", precision >= 100.0d);
                     row.put("deniedReasons", retrievalAudit != null ? retrievalAudit.authorizeDeniedReasons() : List.of());
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.ROUND_PROGRESSION_INTEGRITY) {
+                    int previousRelatedDocumentsCount = index == 0
+                            ? 0
+                            : safeRelatedDocumentCount(result.replayRun().rounds().get(index - 1).snapshot());
+                    int currentRelatedDocumentsCount = safeRelatedDocumentCount(snapshot);
+                    int expectedMinimumRelatedDocuments = Math.min(index, 12);
+                    int previousObservationCount = index == 0
+                            ? 0
+                            : extractObservationCount(result.replayRun().rounds().get(index - 1).snapshot().userPrompt());
+                    int currentObservationCount = extractObservationCount(snapshot.userPrompt());
+
+                    row.put("expectedMinimumRelatedDocuments", expectedMinimumRelatedDocuments);
+                    row.put("previousRelatedDocumentsCount", previousRelatedDocumentsCount);
+                    row.put("currentRelatedDocumentsCount", currentRelatedDocumentsCount);
+                    row.put("relatedDocumentsNonDecreasing", currentRelatedDocumentsCount >= previousRelatedDocumentsCount);
+                    row.put("relatedDocumentsExpectationMet", currentRelatedDocumentsCount >= expectedMinimumRelatedDocuments);
+                    row.put("previousObservationCount", previousObservationCount);
+                    row.put("currentObservationCount", currentObservationCount);
+                    row.put("observationCountNonDecreasing",
+                            currentObservationCount < 0 || currentObservationCount >= previousObservationCount);
+                    row.put("baselineContextPresent",
+                            containsAny(snapshot.userPrompt(), "=== OBSERVED WORK PATTERN CONTEXT ===", "WorkProfileSummary:"));
+                    row.put("progressionPassRate", result.progressionScorecard().passRatePercent());
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.BASELINE_MATURITY_ACCURACY) {
+                    int previousObservationCount = index == 0
+                            ? 0
+                            : extractObservationCount(result.replayRun().rounds().get(index - 1).snapshot().userPrompt());
+                    int currentObservationCount = extractObservationCount(snapshot.userPrompt());
+                    boolean provisionalOrEmptyBaseline = containsAny(snapshot.userPrompt(), "PROVISIONAL", "No baseline established");
+                    boolean baselineContextPresent = contains(snapshot.userPrompt(), "=== OBSERVED WORK PATTERN CONTEXT ===");
+
+                    row.put("initialRound", index == 0);
+                    row.put("initialRoundBaselineProvisional", index == 0 && provisionalOrEmptyBaseline);
+                    row.put("baselineContextPresent", baselineContextPresent);
+                    row.put("previousObservationCount", previousObservationCount);
+                    row.put("currentObservationCount", currentObservationCount);
+                    row.put("observationCountNonDecreasing",
+                            index == 0 || currentObservationCount >= previousObservationCount);
+                    row.put("workProfileSummaryPresent", contains(snapshot.userPrompt(), "WorkProfileSummary:"));
+                    row.put("baselineMaturityExpectationMet",
+                            index == 0 ? provisionalOrEmptyBaseline : baselineContextPresent);
                 }
                 rows.add(row);
             }
@@ -343,6 +384,10 @@ public final class SandboxPromptMetricReportWriter {
         return value == null ? null : String.valueOf(value);
     }
 
+    private static boolean contains(String text, String expected) {
+        return hasText(text) && hasText(expected) && String.valueOf(text).contains(expected);
+    }
+
     private static Boolean asBoolean(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
@@ -437,6 +482,13 @@ public final class SandboxPromptMetricReportWriter {
                     "PROMPT SAFETY",
                     "MEMORY READ",
                     "AUTHORIZATION");
+            case BASELINE_MATURITY_ACCURACY -> containsAny(corpus,
+                    "PROVISIONAL",
+                    "NO BASELINE ESTABLISHED",
+                    "WORKPROFILESUMMARY",
+                    "OBSERVED WORK PATTERN",
+                    "OBSERVATIONS",
+                    "BASELINE");
             default -> true;
         };
     }
@@ -499,6 +551,30 @@ public final class SandboxPromptMetricReportWriter {
             return 100.0d;
         }
         return (retrievalAudit.authorizeAllowedCount() * 100.0d) / retrievalAudit.authorizeRequestedCount();
+    }
+
+    private static int safeRelatedDocumentCount(SandboxPromptTraceSnapshot snapshot) {
+        return snapshot != null && snapshot.relatedDocuments() != null ? snapshot.relatedDocuments().size() : 0;
+    }
+
+    private static int extractObservationCount(String userPrompt) {
+        if (!hasText(userPrompt)) {
+            return -1;
+        }
+        String marker = "WorkProfileSummary: Window 7d | Observations ";
+        int start = userPrompt.indexOf(marker);
+        if (start < 0) {
+            return -1;
+        }
+        int numberStart = start + marker.length();
+        int numberEnd = numberStart;
+        while (numberEnd < userPrompt.length() && Character.isDigit(userPrompt.charAt(numberEnd))) {
+            numberEnd++;
+        }
+        if (numberEnd <= numberStart) {
+            return -1;
+        }
+        return Integer.parseInt(userPrompt.substring(numberStart, numberEnd));
     }
 
     private static boolean containsAny(String corpus, String... tokens) {
