@@ -44,7 +44,7 @@ class SandboxFullStackPromptBenchmarkTest {
     private static final String DEFAULT_PASSWORD = "1234";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration TRACE_TIMEOUT = Duration.ofSeconds(20);
-    private static final Duration ROUND_COOLDOWN = Duration.ofMillis(5_200);
+    private static final Duration ROUND_COOLDOWN = SandboxBenchmarkRuntimeSettings.roundCooldown();
     private static final int DEFAULT_SAMPLE_COUNT = 1;
     private static final int DEFAULT_ROUND_COUNT = 24;
     private static final SandboxPostgresqlSchemaSupport POSTGRESQL_SCHEMA_SUPPORT =
@@ -79,6 +79,7 @@ class SandboxFullStackPromptBenchmarkTest {
     @DynamicPropertySource
     static void registerSandboxDatasource(DynamicPropertyRegistry registry) {
         POSTGRESQL_SCHEMA_SUPPORT.register(registry);
+        SandboxBenchmarkRuntimeSettings.registerSandboxBenchmarkProperties(registry);
         registry.add("sandbox.prompt.username", () -> "sandbox-seed-" + UUID.randomUUID() + "@example.com");
         registry.add("sandbox.prompt.password", () -> DEFAULT_PASSWORD);
     }

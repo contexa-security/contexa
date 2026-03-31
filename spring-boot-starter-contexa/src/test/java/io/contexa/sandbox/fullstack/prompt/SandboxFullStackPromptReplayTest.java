@@ -70,7 +70,7 @@ class SandboxFullStackPromptReplayTest {
     private static final String REQUEST_PATH = "/admin/api/security-test/sensitive/resource-001";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration TRACE_TIMEOUT = Duration.ofSeconds(20);
-    private static final Duration ROUND_REENTRY_GUARD_COOLDOWN = Duration.ofMillis(5_200);
+    private static final Duration ROUND_REENTRY_GUARD_COOLDOWN = SandboxBenchmarkRuntimeSettings.roundCooldown();
     private static final SandboxPostgresqlSchemaSupport POSTGRESQL_SCHEMA_SUPPORT =
             SandboxPostgresqlSchemaSupport.create();
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() { };
@@ -102,6 +102,7 @@ class SandboxFullStackPromptReplayTest {
     @DynamicPropertySource
     static void registerSandboxDatasource(DynamicPropertyRegistry registry) {
         POSTGRESQL_SCHEMA_SUPPORT.register(registry);
+        SandboxBenchmarkRuntimeSettings.registerSandboxBenchmarkProperties(registry);
         registry.add("sandbox.prompt.username", () -> USERNAME);
         registry.add("sandbox.prompt.password", () -> PASSWORD);
     }
@@ -405,7 +406,9 @@ class SandboxFullStackPromptReplayTest {
 
     private void waitForNextRoundWindow() {
         try {
-            Thread.sleep(ROUND_REENTRY_GUARD_COOLDOWN.toMillis());
+            Thread.sleep(Math.max(
+                    SandboxBenchmarkRuntimeSettings.minSafeRoundCooldownMs(),
+                    ROUND_REENTRY_GUARD_COOLDOWN.toMillis()));
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting for rapid re-entry guard cooldown", interruptedException);

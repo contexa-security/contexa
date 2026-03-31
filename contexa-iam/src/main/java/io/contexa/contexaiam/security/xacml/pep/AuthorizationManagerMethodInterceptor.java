@@ -56,12 +56,20 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         boolean granted = false;
         boolean publishEvent = true;
         String denialReason = null;
+        Protectable protectable = resolveProtectable(mi);
+        boolean rapidReentryAllowed = true;
 
         try {
-            rapidReentryGuard.check(authentication, mi);
+            rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi);
+            if (!rapidReentryAllowed && (protectable == null || !protectable.sync())) {
+                publishEvent = false;
+                log.debug("[ZeroTrust] Rapid re-entry detected for async protectable. Access will proceed and analysis will be skipped.");
+            } else if (!rapidReentryAllowed) {
+                rapidReentryGuard.check(authentication, mi);
+            }
+
             authorizationManager.protectable(() -> authentication, mi);
 
-            Protectable protectable = resolveProtectable(mi);
             if (isSyncProtectable(protectable)) {
                 SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {

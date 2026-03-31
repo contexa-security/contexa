@@ -83,6 +83,21 @@ class ProtectableRapidReentryGuardTest {
         }
 
         @Test
+        @DisplayName("Should expose non-throwing acquisition result for async analysis dedupe")
+        void shouldReturnFalseInsteadOfThrowingWhenUsingTryAcquire() {
+            try (MockedStatic<SessionFingerprintUtil> fingerprint = mockStatic(SessionFingerprintUtil.class)) {
+                fingerprint.when(() -> SessionFingerprintUtil.generateContextBindingHash(request))
+                        .thenReturn("hash123");
+                when(repository.tryAcquire(eq("user1"), eq("hash123"), any(), eq(Duration.ofSeconds(5))))
+                        .thenReturn(false);
+
+                boolean acquired = guard.tryAcquire(authentication, methodInvocation);
+
+                org.assertj.core.api.Assertions.assertThat(acquired).isFalse();
+            }
+        }
+
+        @Test
         @DisplayName("Should deny rapid re-entry when repository returns false")
         void shouldDenyRapidReentry() {
             try (MockedStatic<SessionFingerprintUtil> fingerprint = mockStatic(SessionFingerprintUtil.class)) {
@@ -238,6 +253,23 @@ class ProtectableRapidReentryGuardTest {
                 assertThatCode(() -> guard.check(authentication, methodInvocation))
                         .doesNotThrowAnyException();
             }
+
+            verify(repository, never()).tryAcquire(any(), any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Configurable rapid re-entry window")
+    class ConfigurableWindowTests {
+
+        @Test
+        @DisplayName("Should skip guard when rapid re-entry window is disabled")
+        void shouldSkipGuardWhenWindowIsDisabled() {
+            ProtectableRapidReentryGuard disabledGuard =
+                    new ProtectableRapidReentryGuard(repository, Duration.ZERO);
+
+            assertThatCode(() -> disabledGuard.check(authentication, methodInvocation))
+                    .doesNotThrowAnyException();
 
             verify(repository, never()).tryAcquire(any(), any(), any(), any());
         }

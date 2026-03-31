@@ -316,7 +316,18 @@ public class SandboxFullStackPromptReplayHarness {
 
     private void waitForNextRoundWindow(long cooldownBeforeRoundMs) {
         try {
-            Thread.sleep(Math.max(roundCooldown.toMillis(), cooldownBeforeRoundMs));
+            // 장기 시나리오의 "몇 분/몇 일 뒤 재접근" 의미는 observedAt 헤더가 전달한다.
+            // 실제 wall-clock sleep 은 재진입 경쟁과 trace 저장 경합만 피할 수 있으면 충분하다.
+            long configuredCooldownMs = Math.max(
+                    SandboxBenchmarkRuntimeSettings.minSafeRoundCooldownMs(),
+                    roundCooldown.toMillis());
+            long scenarioSuggestedCooldownMs = cooldownBeforeRoundMs > 0L
+                    ? cooldownBeforeRoundMs
+                    : configuredCooldownMs;
+            long effectiveCooldownMs = Math.max(
+                    SandboxBenchmarkRuntimeSettings.minSafeRoundCooldownMs(),
+                    Math.min(configuredCooldownMs, scenarioSuggestedCooldownMs));
+            Thread.sleep(effectiveCooldownMs);
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting for rapid re-entry guard cooldown", interruptedException);

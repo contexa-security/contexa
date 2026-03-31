@@ -123,10 +123,28 @@ class AuthorizationManagerMethodInterceptorTest {
     class RapidReentryGuardTests {
 
         @Test
-        @DisplayName("Should rethrow RapidProtectableReentryDeniedException without publishing event")
-        void shouldRethrowRapidReentryDenied() throws Throwable {
+        @DisplayName("Should allow async protectable access and skip event publication on rapid re-entry")
+        void shouldAllowAsyncProtectableAndSkipAnalysisOnRapidReentry() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
+            when(methodInvocation.proceed()).thenReturn("success");
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("success");
+            verify(authorizationManager).protectable(any(), eq(methodInvocation));
+            verify(rapidReentryGuard, never()).check(any(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+        }
+
+        @Test
+        @DisplayName("Should keep blocking sync protectable when rapid re-entry is detected")
+        void shouldBlockSyncProtectableOnRapidReentry() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
             RapidProtectableReentryDeniedException exception =
-                    new RapidProtectableReentryDeniedException("SampleService.sampleMethod", 5);
+                    new RapidProtectableReentryDeniedException("SyncProtectableService.protectedMethod", 5);
             doThrow(exception).when(rapidReentryGuard).check(authentication, methodInvocation);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
