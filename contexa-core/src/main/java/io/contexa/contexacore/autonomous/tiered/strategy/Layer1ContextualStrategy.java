@@ -46,7 +46,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final SaasThreatKnowledgePackService threatKnowledgePackService;
     private final PipelineOrchestrator pipelineOrchestrator;
     private final Cache<String, SessionContext> sessionContextCache;
-
     public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
                                     SecurityContextDataStore dataStore,
                                     SecurityEventEnricher eventEnricher,
@@ -201,6 +200,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return createFallbackDecision(startTime);
         }
     }
+
     public Mono<SecurityDecision> analyzeWithContextAsync(SecurityEvent event) {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
         return Mono.fromCallable(() -> analyzeWithContext(event))
@@ -338,15 +338,21 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (dataStore == null || event.getUserId() == null) return;
 
         try {
-            Long lastReqTime = dataStore.getLastRequestTime(event.getUserId());
-            if (lastReqTime != null) {
-                long interval = System.currentTimeMillis() - lastReqTime;
-                ctx.setLastRequestIntervalMs(interval);
+            Map<String, Object> metadata = event.getMetadata();
+            if (metadata != null && metadata.containsKey("lastRequestIntervalMs")) {
+                Object interval = metadata.get("lastRequestIntervalMs");
+                if (interval instanceof Number number) {
+                    ctx.setLastRequestIntervalMs(number.longValue());
+                } else if (interval instanceof String text && text.matches("-?\\d+")) {
+                    ctx.setLastRequestIntervalMs(Long.parseLong(text));
+                }
             }
 
-            String prevPath = dataStore.getPreviousPath(event.getUserId());
-            if (prevPath != null) {
-                ctx.setPreviousPath(prevPath);
+            if (metadata != null && metadata.containsKey("previousPath")) {
+                Object previousPath = metadata.get("previousPath");
+                if (previousPath instanceof String text && !text.isBlank()) {
+                    ctx.setPreviousPath(text);
+                }
             }
         } catch (Exception e) {
             log.error("[Layer1] Failed to enrich activity context: {}",

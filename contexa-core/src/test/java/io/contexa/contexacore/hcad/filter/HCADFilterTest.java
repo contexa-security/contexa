@@ -53,7 +53,7 @@ class HCADFilterTest {
     }
 
     @Test
-    @DisplayName("Normal analysis stores context attributes in request")
+    @DisplayName("정상 HCAD 분석이면 previousPath와 interval까지 request attribute로 남겨야 한다")
     void doFilterInternal_normalAnalysis_storesContextInRequest() throws Exception {
         // given
         when(hcadProperties.isEnabled()).thenReturn(true);
@@ -69,6 +69,8 @@ class HCADFilterTest {
         ctx.setIsSensitiveResource(true);
         ctx.setHasValidMFA(true);
         ctx.setAuthenticationMethod("mfa");
+        ctx.setPreviousPath("/admin/api/security-test/sensitive/resource-previous");
+        ctx.setLastRequestInterval(4_200L);
         Map<String, Object> attrs = new HashMap<>();
         attrs.put("userRoles", "[ROLE_USER]");
         attrs.put("resourceSensitivity", "CRITICAL");
@@ -101,6 +103,10 @@ class HCADFilterTest {
         assertThat(request.getAttribute("hcad.baseline_confidence")).isEqualTo(0.8);
         assertThat(request.getAttribute("hcad.is_sensitive_resource")).isEqualTo(true);
         assertThat(request.getAttribute("hcad.mfa_verified")).isEqualTo(true);
+        // previousPath / interval이 여기서 빠지면 round1/round2 userPrompt가 자기 자신 경로를 previousPath로 읽거나
+        // 시간 간격을 0초로 왜곡하는 구조 결함이 생긴다.
+        assertThat(request.getAttribute("hcad.previous_path")).isEqualTo("/admin/api/security-test/sensitive/resource-previous");
+        assertThat(request.getAttribute("hcad.last_request_interval_ms")).isEqualTo(4_200L);
         assertThat(request.getAttribute("hcad.auth_method")).isEqualTo("mfa");
         assertThat(request.getAttribute("hcad.resource_sensitivity")).isEqualTo("CRITICAL");
         assertThat(request.getAttribute("hcad.user_roles")).isEqualTo("[ROLE_USER]");

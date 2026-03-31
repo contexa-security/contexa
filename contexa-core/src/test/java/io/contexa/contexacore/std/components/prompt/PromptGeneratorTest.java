@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -16,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PromptGeneratorTest {
 
     @Test
+    @DisplayName("PromptGenerator??SecurityDecisionTemplate??援ъ“??metadata瑜???뼱?곗? ?딄퀬 sectionSet怨?omission ?뺣낫瑜?洹몃?濡??좎??댁빞 ?쒕떎")
     void generatePromptShouldAttachGovernanceMetadata() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -52,8 +54,10 @@ class PromptGeneratorTest {
         assertThat(result.getPromptExecutionMetadata().governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(result.getPromptExecutionMetadata().governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
         assertThat(result.getPromptExecutionMetadata().budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
-        assertThat(result.getPromptExecutionMetadata().promptEvidenceCompleteness().name()).isEqualTo("SUFFICIENT");
-        assertThat(result.getPromptExecutionMetadata().omittedSections()).isEmpty();
+        assertThat(result.getPromptExecutionMetadata().promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
+        assertThat(result.getPromptExecutionMetadata().omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(result.getPromptExecutionMetadata().sectionSet())
+                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
         assertThat(result.getPromptExecutionMetadata().promptHash()).startsWith("sha256:");
         assertThat(result.getMetadata()).containsKeys(
                 "promptKey",
@@ -67,5 +71,9 @@ class PromptGeneratorTest {
                 "promptHash",
                 "systemPromptHash",
                 "userPromptHash");
+        assertThat(result.getMetadata().get("promptSectionSet")).asList()
+                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
+        assertThat(result.getMetadata().get("omittedSections")).asList()
+                .contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
     }
 }

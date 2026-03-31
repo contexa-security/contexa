@@ -2,7 +2,7 @@
 (function(){
 const API={sse:'/admin/api/sse/llm-analysis/user',status:'/admin/api/test-action/status',evidence:'/admin/api/security-test/evidence',endpoints:{sensitive:'/admin/api/security-test/sensitive/resource-001',critical:'/admin/api/security-test/critical/resource-001'}};
 const STORE={access:'contexa_access_token',refresh:'contexa_refresh_token',mode:'authMode'};
-const SCENARIO={NORMAL_USER:{title:(window.ZT_MSG||{}).scenarioNormalTitle||'Normal User',ip:'192.168.1.100',ua:'Chrome 120 / Windows 11',expect:'ALLOW or LOW_RISK',deviceId:'d7e3f1a2-4b8c-4e9d-a1f5-6c3b2d8e9f01'},ACCOUNT_TAKEOVER:{title:(window.ZT_MSG||{}).scenarioTakeoverTitle||'Account Takeover',ip:'203.0.113.50',ua:'Android 10 / Mobile',expect:'CHALLENGE or BLOCK',deviceId:'a9c4e7b1-2f6d-48a3-b5e8-1d7f3c9a2e04'}};
+const SCENARIO={NORMAL_USER:{title:(window.ZT_MSG||{}).scenarioNormalTitle||'Normal User',ip:'192.168.1.100',uaLabel:'Chrome 120 / Windows 11',uaHeader:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',expect:'ALLOW or LOW_RISK',deviceId:'d7e3f1a2-4b8c-4e9d-a1f5-6c3b2d8e9f01'},ACCOUNT_TAKEOVER:{title:(window.ZT_MSG||{}).scenarioTakeoverTitle||'Account Takeover',ip:'203.0.113.50',uaLabel:'Android 10 / Mobile',uaHeader:'Mozilla/5.0 (Linux; Android 10; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',expect:'CHALLENGE or BLOCK',deviceId:'a9c4e7b1-2f6d-48a3-b5e8-1d7f3c9a2e04'}};
 const ENDPOINT={sensitive:{title:(window.ZT_MSG||{}).endpointSensitive||'Sensitive Resource',desc:(window.ZT_MSG||{}).endpointSensitiveDesc||'Sensitive information access path'},critical:{title:(window.ZT_MSG||{}).endpointCritical||'Critical Resource',desc:(window.ZT_MSG||{}).endpointCriticalDesc||'Critical information access path'}};
 const SSE_TYPES=['connected','CONTEXT_COLLECTED','HCAD_ANALYSIS','SESSION_CONTEXT_LOADED','RAG_SEARCH_COMPLETE','BEHAVIOR_ANALYSIS_COMPLETE','LAYER1_START','LAYER1_COMPLETE','LAYER2_START','LAYER2_COMPLETE','LLM_EXECUTION_START','LLM_EXECUTION_COMPLETE','DECISION_APPLIED','RESPONSE_BLOCKED','ERROR'];
 const el={};
@@ -119,7 +119,8 @@ async function executeRequest(phase){
   if(phase==='INITIAL'){st.runId=createId('run');setText(el.currentRunId,st.runId);}
   const scenario=SCENARIO[st.scenario];
   const requestId=createId('req');
-  const headers=buildHeaders({'Accept':'application/json','X-Request-ID':requestId,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Scenario':st.scenario,'X-Contexa-Expected-Action':scenario.expect,'X-Contexa-Demo-Run-Id':st.runId,'X-Contexa-Demo-Phase':phase});
+  const deviceId=resolveDeviceId(scenario);
+  const headers=buildHeaders({'Accept':'application/json','X-Request-ID':requestId,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':resolveScenarioUaHeader(scenario),'X-Device-Id':deviceId,'X-Contexa-Scenario':st.scenario,'X-Contexa-Expected-Action':scenario.expect,'X-Contexa-Demo-Run-Id':st.runId,'X-Contexa-Demo-Phase':phase});
   renderHeaderPreview(headers);
   const response=await fetch(API.endpoints[st.endpoint],{method:'GET',headers:headers,credentials:'same-origin'});
   const body=await parseBody(response);
@@ -171,10 +172,10 @@ function renderScenario(){
   const endpoint=ENDPOINT[st.endpoint];
   setText(el.selectedScenarioName,scenario.title);
   setText(el.selectedScenarioIp,scenario.ip);
-  setText(el.selectedScenarioUa,scenario.ua);
+  setText(el.selectedScenarioUa,resolveScenarioUaLabel(scenario));
   setText(el.selectedExpectedAction,scenario.expect);
   setText(el.selectedEndpointName,`${endpoint.title} / ${endpoint.desc}`);
-  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':scenario.ua,'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'-'}));
+  renderHeaderPreview(buildHeaders({'X-Contexa-Scenario':st.scenario,'X-Forwarded-For':scenario.ip,'X-Simulated-User-Agent':resolveScenarioUaHeader(scenario),'X-Device-Id':resolveDeviceId(scenario),'X-Contexa-Demo-Phase':'INITIAL','X-Contexa-Demo-Run-Id':st.runId||'-'}));
 }
 
 function renderHeaderPreview(headers){
@@ -184,6 +185,7 @@ function renderHeaderPreview(headers){
   const M=window.ZT_MSG||{};const labels=M.headerLabels||{};const vals=M.valueLabels||{};
   const scenario=SCENARIO[st.scenario]||{};
   const sessionCookie=resolveSessionCookie();
+  const resolvedDeviceId=preview['X-Device-Id']||resolveDeviceId(scenario);
   const items=[];
   Object.entries(preview).forEach(([k,v])=>{
     if(k==='X-Simulated-User-Agent'){
@@ -194,7 +196,7 @@ function renderHeaderPreview(headers){
       items.push(`<div class="header-item"><span>${esc(labels[k]||k)}</span><code>${esc(vals[str(v)]||str(v))}</code></div>`);
     }
   });
-  items.push(`<div class="header-item"><span>${esc(M.headerDevice||'Device ID')}</span><code>${esc(scenario.deviceId||'-')}</code></div>`);
+  items.push(`<div class="header-item"><span>${esc(M.headerDevice||'Device ID')}</span><code>${esc(resolvedDeviceId||'-')}</code></div>`);
   items.push(`<div class="header-item"><span>${esc(M.headerSession||'Session')}</span><code>${esc(sessionCookie)}</code></div>`);
   setHtml(el.requestHeaderPreview,items.join(''));
 }
@@ -207,6 +209,24 @@ function resolveSessionCookie(){
   const last=st.history.length>0?st.history[0]:null;
   if(last&&last.body&&last.body.sessionId)return last.body.sessionId;
   return'-';
+}
+
+function resolveDeviceId(scenario){
+  try{
+    const stored=window.localStorage?window.localStorage.getItem('deviceId'):null;
+    if(stored&&String(stored).trim()!=='')return String(stored).trim();
+  }catch(error){}
+  return scenario&&scenario.deviceId?scenario.deviceId:'-';
+}
+
+function resolveScenarioUaHeader(scenario){
+  if(scenario&&scenario.uaHeader&&String(scenario.uaHeader).trim()!=='')return String(scenario.uaHeader).trim();
+  return scenario&&scenario.ua?String(scenario.ua).trim():'-';
+}
+
+function resolveScenarioUaLabel(scenario){
+  if(scenario&&scenario.uaLabel&&String(scenario.uaLabel).trim()!=='')return String(scenario.uaLabel).trim();
+  return scenario&&scenario.ua?String(scenario.ua).trim():'-';
 }
 
 function renderImmediateResponse(payload){

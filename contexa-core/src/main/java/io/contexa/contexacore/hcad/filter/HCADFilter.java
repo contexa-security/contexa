@@ -56,6 +56,9 @@ public class HCADFilter extends OncePerRequestFilter {
                 request.setAttribute("hcad.baseline_confidence", ctx.getBaselineConfidence());
                 request.setAttribute("hcad.is_sensitive_resource", ctx.getIsSensitiveResource());
                 request.setAttribute("hcad.mfa_verified", ctx.getHasValidMFA());
+                request.setAttribute("hcad.previous_path", ctx.getPreviousPath());
+                request.setAttribute("hcad.last_request_interval_ms", ctx.getLastRequestInterval());
+                request.setAttribute("hcad.observed_at", ctx.getTimestamp());
                 if (ctx.getAuthenticationMethod() != null) {
                     request.setAttribute("hcad.auth_method", ctx.getAuthenticationMethod());
                 }

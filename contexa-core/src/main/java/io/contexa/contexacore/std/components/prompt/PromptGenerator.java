@@ -46,7 +46,8 @@ public class PromptGenerator {
         String systemPrompt = template.generateSystemPrompt(request, systemMetadata);
         String userPrompt = template.generateUserPrompt(request, contextInfo);
 
-        PromptExecutionMetadata promptExecutionMetadata = buildPromptExecutionMetadata(templateKey, template, systemPrompt, userPrompt);
+        PromptExecutionMetadata promptExecutionMetadata =
+                buildPromptExecutionMetadata(request, templateKey, template, systemPrompt, userPrompt);
         Map<String, Object> metadata = new LinkedHashMap<>(promptExecutionMetadata.toMetadataMap());
 
         SystemMessage systemMessage = SystemMessage.builder().text(systemPrompt).metadata(metadata).build();
@@ -86,12 +87,13 @@ public class PromptGenerator {
     }
 
     private PromptExecutionMetadata buildPromptExecutionMetadata(
+            AIRequest<? extends DomainContext> request,
             String templateKey,
             PromptTemplate template,
             String systemPrompt,
             String userPrompt) {
         if (template instanceof GovernedPromptTemplate governedPromptTemplate) {
-            return governedPromptTemplate.buildPromptExecutionMetadata(systemPrompt, userPrompt);
+            return governedPromptTemplate.buildPromptExecutionMetadata(request, systemPrompt, userPrompt);
         }
         PromptGovernanceDescriptor descriptor =
                 PromptGovernanceSupport.buildDefaultDescriptor(templateKey, template.getClass());

@@ -47,9 +47,9 @@ public class PlatformSecurityConfig {
                         .defaultSuccessUrl("/admin")
                         .rawHttp(http-> http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)))
                 )
-                .oauth2(Customizer.withDefaults())
+                .session(Customizer.withDefaults())*/
 
-
+/*
                 .rest(rest -> rest.order(10)
                         .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
                 .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
@@ -64,10 +64,10 @@ public class PlatformSecurityConfig {
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
                                         .defaultSuccessUrl("/admin/test/security")
                                 ))
-                                .passkey(Customizer.withDefaults())
+//                                .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
-                                .passkey(Customizer.withDefaults())
-                                .ott(Customizer.withDefaults())
+//                                .passkey(Customizer.withDefaults())
+//                                .ott(Customizer.withDefaults())
                         .order(90)
                 ).session(Customizer.withDefaults())
                /* .mfa(mfa -> mfa.requiredFactors(1)

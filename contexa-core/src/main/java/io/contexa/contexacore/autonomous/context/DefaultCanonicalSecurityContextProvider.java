@@ -1112,6 +1112,11 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (!StringUtils.hasText(candidate)) {
             return false;
         }
+        if (candidate.startsWith("/")
+                || candidate.contains("=")
+                || candidate.contains(" ")) {
+            return false;
+        }
         return normalizeRoleToken(rawValue) == null;
     }
 

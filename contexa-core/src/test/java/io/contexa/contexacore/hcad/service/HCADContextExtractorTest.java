@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -137,6 +139,65 @@ class HCADContextExtractorTest {
         // then
         assertThat(context.getIsNewSession()).isTrue();
         assertThat(context.getIsNewDevice()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should not let test page requests consume context-level new user session device state")
+    void shouldNotConsumeContextNewnessForNonPromptRelevantRequests() {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/admin/test/security");
+        request.setMethod("GET");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("User-Agent", "Browser/1.0");
+
+        Authentication auth = new TestingAuthenticationToken("admin", "password", "ROLE_ADMIN");
+
+        when(hcadDataStore.getSessionMetadata(anyString())).thenReturn(Collections.emptyMap());
+        when(hcadDataStore.isDeviceRegistered(anyString(), anyString())).thenReturn(false);
+        when(hcadDataStore.isUserRegistered(anyString())).thenReturn(false);
+
+        // when
+        HCADContext context = extractor.extractContext(request, auth);
+
+        // then
+        // ?뚯뒪???붾㈃ 吏꾩엯?대굹 ?곹깭 議고쉶??LLM ?낅젰??而⑦뀓?ㅽ듃瑜?留뚮뱾湲??꾪븳 business access媛 ?꾨땲??
+        // ?ш린???좉퇋 ?ъ슜???몄뀡/?붾컮?댁뒪瑜??뚮え?대쾭由щ㈃ ?댄썑 泥?蹂댄샇 由ъ냼???묎렐?????댁긽 "泥??묎렐"?쇰줈 蹂댁씠吏 ?딅뒗??
+        assertThat(context.getIsNewSession()).isTrue();
+        assertThat(context.getIsNewDevice()).isTrue();
+        assertThat(context.getIsNewUser()).isTrue();
+        verify(hcadDataStore, never()).saveSessionMetadata(any(), any());
+        verify(hcadDataStore, never()).registerDevice(anyString(), anyString());
+        verify(hcadDataStore, never()).registerUser(anyString());
+    }
+
+    @Test
+    @DisplayName("Should register new user session device only when the request is prompt-relevant protected access")
+    void shouldRegisterContextNewnessOnlyForPromptRelevantProtectedRequests() {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/admin/api/security-test/sensitive/resource-001");
+        request.setMethod("GET");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("User-Agent", "Browser/1.0");
+
+        Authentication auth = new TestingAuthenticationToken("admin", "password", "ROLE_ADMIN");
+
+        when(hcadDataStore.getSessionMetadata(anyString())).thenReturn(Collections.emptyMap());
+        when(hcadDataStore.isDeviceRegistered(anyString(), anyString())).thenReturn(false);
+        when(hcadDataStore.isUserRegistered(anyString())).thenReturn(false);
+
+        // when
+        HCADContext context = extractor.extractContext(request, auth);
+
+        // then
+        // ?ㅼ젣 蹂댄샇 由ъ냼???묎렐???뚮쭔 ?좉퇋???곹깭瑜??깅줉?댁빞 ?ㅼ쓬 蹂댄샇 由ъ냼???묎렐遺??false濡??꾩씠?쒕떎.
+        assertThat(context.getIsNewSession()).isTrue();
+        assertThat(context.getIsNewDevice()).isTrue();
+        assertThat(context.getIsNewUser()).isTrue();
+        verify(hcadDataStore).saveSessionMetadata(any(), any());
+        verify(hcadDataStore).registerDevice(anyString(), anyString());
+        verify(hcadDataStore).registerUser(anyString());
     }
 
     @Test

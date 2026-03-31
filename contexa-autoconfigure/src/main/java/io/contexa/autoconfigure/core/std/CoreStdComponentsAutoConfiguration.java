@@ -38,6 +38,7 @@ import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -198,8 +199,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptGenerationStep promptGenerationStep(
-            PromptGenerator promptGenerator) {
+    public PromptGenerationStep promptGenerationStep(PromptGenerator promptGenerator) {
         return new PromptGenerationStep(promptGenerator);
     }
 

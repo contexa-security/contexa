@@ -132,6 +132,10 @@ public class SecurityDecisionPostProcessor {
 
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sb = new StringBuilder();
+        Double effectiveRiskScore = resolveEffectiveRiskScore(decision);
+        Double effectiveConfidence = resolveEffectiveConfidence(decision);
+        Double auditRiskScore = decision.resolveAuditRiskScore();
+        Double auditConfidence = decision.resolveAuditConfidence();
 
         sb.append(buildActionSummary(event, decision));
         sb.append("\n");
@@ -141,9 +145,14 @@ public class SecurityDecisionPostProcessor {
         if (autonomousAction != null) {
             sb.append(", autonomousAction=").append(autonomousAction.name());
         }
-        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
-        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
-        sb.append(", llmAuditConfidence=").append(formatScore(decision.resolveAuditConfidence()));
+        sb.append(", riskScore=").append(formatScore(effectiveRiskScore));
+        sb.append(", confidence=").append(formatScore(effectiveConfidence));
+        if (auditRiskScore != null) {
+            sb.append(", llmAuditRiskScore=").append(formatScore(auditRiskScore));
+        }
+        if (auditConfidence != null) {
+            sb.append(", llmAuditConfidence=").append(formatScore(auditConfidence));
+        }
         if (decision.getProcessingLayer() > 0) {
             sb.append(", analysisLayer=").append(decision.getProcessingLayer());
         }
@@ -374,14 +383,14 @@ public class SecurityDecisionPostProcessor {
             metadata.put("action", autonomousAction.name());
             metadata.put("autonomousAction", autonomousAction.name());
         }
-        Double effectiveRiskScore = decision.getRiskScore();
+        Double effectiveRiskScore = resolveEffectiveRiskScore(decision);
         Double auditRiskScore = decision.resolveAuditRiskScore();
         metadata.put("riskScore", sanitizeScore(effectiveRiskScore != null ? effectiveRiskScore : auditRiskScore));
         if (auditRiskScore != null) {
             metadata.put("llmAuditRiskScore", sanitizeScore(auditRiskScore));
         }
 
-        Double effectiveConfidence = decision.getConfidence();
+        Double effectiveConfidence = resolveEffectiveConfidence(decision);
         Double auditConfidence = decision.resolveAuditConfidence();
         metadata.put("confidence", sanitizeScore(effectiveConfidence != null ? effectiveConfidence : auditConfidence));
         if (auditConfidence != null) {
@@ -477,6 +486,20 @@ public class SecurityDecisionPostProcessor {
     private static String formatScore(Double score) {
         if (score == null || Double.isNaN(score)) return "N/A";
         return String.format("%.2f", score);
+    }
+
+    private static Double resolveEffectiveRiskScore(SecurityDecision decision) {
+        if (decision == null) {
+            return null;
+        }
+        return decision.getRiskScore() != null ? decision.getRiskScore() : decision.resolveAuditRiskScore();
+    }
+
+    private static Double resolveEffectiveConfidence(SecurityDecision decision) {
+        if (decision == null) {
+            return null;
+        }
+        return decision.getConfidence() != null ? decision.getConfidence() : decision.resolveAuditConfidence();
     }
 
     private static double sanitizeScore(Double score) {

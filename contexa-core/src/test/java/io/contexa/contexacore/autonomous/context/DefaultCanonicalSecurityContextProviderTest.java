@@ -241,8 +241,8 @@ class DefaultCanonicalSecurityContextProviderTest {
 
         assertThat(context.getActor().getRoleSet()).containsExactly("ADMIN", "EXPORT_REVIEWER");
         assertThat(context.getActor().getAuthoritySet())
-                .contains("report.read", "/admin/api/security-test/sensitive/resource-001")
-                .doesNotContain("ROLE_ADMIN", "ADMIN");
+                .contains("report.read")
+                .doesNotContain("ROLE_ADMIN", "ADMIN", "/admin/api/security-test/sensitive/resource-001");
         assertThat(context.getAuthorization().getEffectiveRoles()).containsExactly("ADMIN", "EXPORT_REVIEWER");
         assertThat(context.getAuthorization().getEffectivePermissions()).containsExactly("report.read", "report.export");
     }
@@ -283,7 +283,7 @@ class DefaultCanonicalSecurityContextProviderTest {
 
         assertThat(context.getActor().getRoleSet()).containsExactly("ADMIN", "EXPORT_REVIEWER");
         assertThat(context.getActor().getAuthoritySet())
-                .containsExactly("REPORT_EXPORT", "/admin/api/security-test/sensitive/resource-001");
+                .containsExactly("REPORT_EXPORT");
         assertThat(context.getAuthorization().getEffectiveRoles()).containsExactly("ADMIN", "EXPORT_REVIEWER");
         assertThat(context.getAuthorization().getEffectivePermissions()).containsExactly("report.read", "REPORT_EXPORT");
         assertThat(context.getFrictionProfile()).isNotNull();

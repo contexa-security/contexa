@@ -39,6 +39,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -494,14 +495,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 return Collections.emptyList();
             }
 
+            String retrievalPurpose = getContextRetrievalPurpose();
+
             FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
-            Filter.Expression filter = filterBuilder.and(
-                filterBuilder.or(
-                    filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
-                    filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue())
-                ),
-                filterBuilder.eq("userId", userId)
-            ).build();
+            List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
+            predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
+            predicates.add(filterBuilder.eq("userId", userId));
+            if (StringUtils.hasText(retrievalPurpose)) {
+                predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
+            }
+
+            FilterExpressionBuilder.Op combinedPredicate = predicates.getFirst();
+            for (int index = 1; index < predicates.size(); index++) {
+                combinedPredicate = filterBuilder.and(combinedPredicate, predicates.get(index));
+            }
+            Filter.Expression filter = combinedPredicate.build();
 
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
@@ -510,25 +518,84 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .filterExpression(filter)
                     .build();
 
-            List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
-            if (documents == null || documents.isEmpty()) {
-                return Collections.emptyList();
+            int requestedTopK = Math.max(topK, 1);
+            int searchTopK = requestedTopK;
+            int maxSearchTopK = Math.max(requestedTopK * 10, 50);
+            AuthorizedPromptContext authorizedPromptContext = null;
+
+            while (true) {
+                searchRequest = SearchRequest.builder()
+                        .query(query)
+                        .topK(searchTopK)
+                        .similarityThreshold(similarityThreshold)
+                        .filterExpression(filter)
+                        .build();
+
+                List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+                if (documents == null || documents.isEmpty()) {
+                    return Collections.emptyList();
+                }
+
+                authorizedPromptContext = promptContextAuthorizationService
+                        .authorize(event, getContextRetrievalPurpose(), documents);
+
+                int authorizedCount = authorizedPromptContext.documents().size();
+                boolean enoughAuthorizedDocuments = authorizedCount >= requestedTopK;
+                boolean exhaustedSearchWindow = documents.size() < searchTopK || searchTopK >= maxSearchTopK;
+                if (enoughAuthorizedDocuments || exhaustedSearchWindow) {
+                    break;
+                }
+
+                searchTopK = Math.min(maxSearchTopK, searchTopK * 2);
             }
 
-            AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
-                    .authorize(event, getContextRetrievalPurpose(), documents);
+            AuthorizedPromptContext limitedAuthorizedPromptContext =
+                    limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
             if (promptContextAuditForwardingService != null) {
                 promptContextAuditForwardingService.capture(
                         event,
                         getContextRetrievalPurpose(),
-                        authorizedPromptContext);
+                        limitedAuthorizedPromptContext);
             }
-            return authorizedPromptContext.documents();
+            return limitedAuthorizedPromptContext.documents();
 
         } catch (Exception e) {
             log.error("[{}] Vector store context search failed", getLayerName(), e);
             return Collections.emptyList();
         }
+    }
+
+    private AuthorizedPromptContext limitAuthorizedPromptContext(
+            AuthorizedPromptContext authorizedPromptContext,
+            int requestedTopK) {
+        if (authorizedPromptContext == null || authorizedPromptContext.documents().isEmpty()) {
+            return new AuthorizedPromptContext(
+                    List.of(),
+                    0,
+                    0,
+                    0,
+                    getContextRetrievalPurpose(),
+                    List.of());
+        }
+
+        if (authorizedPromptContext.documents().size() <= requestedTopK) {
+            return authorizedPromptContext;
+        }
+
+        List<Document> limitedDocuments = authorizedPromptContext.documents()
+                .subList(0, requestedTopK);
+        return new AuthorizedPromptContext(
+                limitedDocuments,
+                authorizedPromptContext.requestedDocumentCount(),
+                limitedDocuments.size(),
+                Math.max(0,
+                        authorizedPromptContext.deniedDocumentCount()
+                                + (authorizedPromptContext.allowedDocumentCount() - limitedDocuments.size())),
+                authorizedPromptContext.retrievalPurpose(),
+                authorizedPromptContext.deniedReasons(),
+                authorizedPromptContext.retrievalPolicy(),
+                authorizedPromptContext.provenanceRecords(),
+                authorizedPromptContext.contextItems());
     }
 
     protected static class BaseSessionContext {

@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class SecurityTestEvidenceServiceTest {
 
     @Test
-    @DisplayName("requestId 기준 evidence가 즉시 응답, SSE, 서버 truth를 함께 묶는다")
+    @DisplayName("동일 requestId로 즉시 응답 SSE 서버 truth 컨텍스트가 하나의 증거 체인으로 연결되어야 한다")
     void bind() {
         ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
         LlmAnalysisEventPublisher publisher = mock(LlmAnalysisEventPublisher.class);
@@ -97,6 +97,8 @@ class SecurityTestEvidenceServiceTest {
 
         Map<String, Object> evidence = service.getEvidence("alice", "req-001");
 
+        // 브라우저 화면과 서버 truth가 requestId 기준으로 연결되어야
+        // "지금 보고 있는 값이 실제 분석 흐름과 같은가"를 입증할 수 있다.
         assertThat(evidence.get("requestId")).isEqualTo("req-001");
         assertThat(((Map<?, ?>) evidence.get("request")).get("scenario")).isEqualTo("ACCOUNT_TAKEOVER");
         assertThat(((Map<?, ?>) evidence.get("request")).get("sessionId")).isEqualTo(registration.getSessionId());
@@ -105,12 +107,15 @@ class SecurityTestEvidenceServiceTest {
         assertThat(((Map<?, ?>) evidence.get("request")).get("authCarrier")).isEqualTo("SESSION_COOKIE + BEARER");
         assertThat(((Map<?, ?>) evidence.get("request")).get("authSubjectHint")).isEqualTo("alice");
         assertThat(((Map<?, ?>) evidence.get("request")).get("authorizationHeaderPresent")).isEqualTo(true);
-        assertThat(((Map<?, ?>) evidence.get("response")).get("body")).asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+        assertThat(((Map<?, ?>) evidence.get("response")).get("body"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                 .containsEntry("message", null);
         assertThat(((Map<?, ?>) evidence.get("analysis")).get("requestId")).isEqualTo("req-001");
         assertThat(((Map<?, ?>) evidence.get("context")).get("clientIp")).isEqualTo("203.0.113.50");
+
         @SuppressWarnings("unchecked")
         Map<String, Object> consistency = (Map<String, Object>) evidence.get("consistency");
+        // consistency 플래그는 어느 링크가 빠졌는지 바로 진단하기 위한 최소 건강검진이다.
         assertThat(consistency)
                 .containsEntry("requestRegistered", true)
                 .containsEntry("responseCaptured", true)
@@ -120,6 +125,7 @@ class SecurityTestEvidenceServiceTest {
     }
 
     @Test
+    @DisplayName("증거 API는 prompt telemetry와 prompt audit 카운터를 함께 노출해야 한다")
     void exposePromptTelemetryFromSaasOutboxPayload() throws Exception {
         ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
         LlmAnalysisEventPublisher publisher = mock(LlmAnalysisEventPublisher.class);
@@ -188,6 +194,7 @@ class SecurityTestEvidenceServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> audit = (Map<String, Object>) prompt.get("audit");
 
+        // 심사와 디버깅에서는 어떤 프롬프트 버전/해시가 어떤 산출물을 만들었는지 바로 보여야 한다.
         assertThat(prompt).containsEntry("present", true);
         assertThat(telemetry)
                 .containsEntry("promptVersion", "2026.03.26-e0.1")
@@ -196,6 +203,7 @@ class SecurityTestEvidenceServiceTest {
                 .containsEntry("userPromptHash", "sha256:user")
                 .containsEntry("promptEvidenceCompleteness", "SUFFICIENT")
                 .containsEntry("budgetProfile", "CORTEX_L1_STANDARD");
+        // retrievalPurpose와 허용/거부 문서 수는 RAG 경로가 실제로 작동했는지를 설명하는 핵심 근거다.
         assertThat(audit)
                 .containsEntry("retrievalPurpose", "security_investigation")
                 .containsEntry("requestedDocumentCount", 2)

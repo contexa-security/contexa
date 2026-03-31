@@ -94,4 +94,51 @@ class SecurityDecisionPostProcessorTest {
         assertThat(metadata.get("confidence")).isEqualTo(0.61);
         assertThat(metadata.get("llmAuditConfidence")).isEqualTo(0.61);
     }
+
+    @Test
+    void storeBehaviorDocumentShouldKeepTextAndMetadataScoresAligned() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-behavior-001")
+                .sessionId("session-1")
+                .userId("alice")
+                .sourceIp("203.0.113.10")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .description("GET /payments")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 30))
+                .build();
+        event.addMetadata("requestPath", "/payments");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("isSensitiveResource", true);
+        event.addMetadata("recentRequestCount", 4);
+
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .autonomousAction(ZeroTrustAction.ALLOW)
+                .riskScore(null)
+                .confidence(null)
+                .llmAuditRiskScore(0.10)
+                .llmAuditConfidence(0.70)
+                .reasoning("Current context is consistent with recent allowed protectable access.")
+                .processingLayer(1)
+                .build();
+
+        doNothing().when(unifiedVectorService).storeDocument(any(Document.class));
+
+        processor.storeInVectorDatabase(event, decision);
+
+        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
+        verify(unifiedVectorService).storeDocument(documentCaptor.capture());
+        Document document = documentCaptor.getValue();
+
+        assertThat(document.getText()).contains("riskScore=0.10");
+        assertThat(document.getText()).contains("confidence=0.70");
+        assertThat(document.getText()).contains("llmAuditRiskScore=0.10");
+        assertThat(document.getText()).contains("llmAuditConfidence=0.70");
+        assertThat(document.getMetadata()).containsEntry("riskScore", 0.10);
+        assertThat(document.getMetadata()).containsEntry("confidence", 0.70);
+        assertThat(document.getMetadata()).containsEntry("llmAuditRiskScore", 0.10);
+        assertThat(document.getMetadata()).containsEntry("llmAuditConfidence", 0.70);
+    }
 }

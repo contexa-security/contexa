@@ -613,6 +613,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         Map<String, Object> metadata = event.getMetadata();
         long timestampMs = resolveTimestamp(event);
         ResolvedSignal requestPath = resolveRequestPath(metadata);
+        if (StringUtils.hasText(requestPath.value())
+                && !PromptRelevantRequestPathPolicy.isPromptRelevantPath(requestPath.value())) {
+            return null;
+        }
         ResolvedSignal resourceFamily = resolveResourceFamily(metadata);
         ResolvedSignal actionFamily = resolveActionFamily(event);
         ResolvedSignal sensitivity = resolveSensitivity(metadata);

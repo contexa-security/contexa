@@ -160,6 +160,12 @@ public class ZeroTrustEventPublisher {
                 payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
             }
             payload.put("mfaVerified", requestInfo.getMfaVerified());
+            if (requestInfo.getPreviousPath() != null) {
+                payload.put("previousPath", requestInfo.getPreviousPath());
+            }
+            if (requestInfo.getLastRequestIntervalMs() != null) {
+                payload.put("lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
+            }
             payload.put("userRoles", requestInfo.getUserRoles());
             if (requestInfo.getServletPath() != null) {
                 payload.put("servletPath", requestInfo.getServletPath());
@@ -207,7 +213,8 @@ public class ZeroTrustEventPublisher {
                 requestInfo != null ? requestInfo.getClientIp() : null,
                 requestInfo != null ? requestInfo.getUserAgent() : null,
                 resource,
-                payload
+                payload,
+                requestInfo != null ? requestInfo.getObservedAt() : null
         );
     }
 
@@ -237,7 +244,8 @@ public class ZeroTrustEventPublisher {
                 clientIp,
                 userAgent,
                 resource,
-                payload
+                payload,
+                null
         );
         eventPublisher.publishEvent(event);
     }
@@ -250,7 +258,8 @@ public class ZeroTrustEventPublisher {
             String clientIp,
             String userAgent,
             String resource,
-            Map<String, Object> payload) {
+            Map<String, Object> payload,
+            Instant eventTimestamp) {
 
         return ZeroTrustSpringEvent.builder(this)
                 .category(category)
@@ -260,7 +269,7 @@ public class ZeroTrustEventPublisher {
                 .clientIp(clientIp)
                 .userAgent(userAgent)
                 .resource(resource)
-                .eventTimestamp(Instant.now())
+                .eventTimestamp(eventTimestamp != null ? eventTimestamp : Instant.now())
                 .payload(payload != null ? payload : Map.of())
                 .build();
     }
@@ -512,7 +521,7 @@ public class ZeroTrustEventPublisher {
     private List<String> sanitizePermissionTokens(List<String> rawValues) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         for (String rawValue : rawValues) {
-            String normalized = normalizeAuthorityValue(rawValue);
+            String normalized = normalizePermissionValue(rawValue);
             if (!StringUtils.hasText(normalized)) {
                 continue;
             }
@@ -537,7 +546,10 @@ public class ZeroTrustEventPublisher {
             if (!StringUtils.hasText(normalized)) {
                 continue;
             }
-            if (normalized.startsWith("ROLE_")) {
+            if (normalized.startsWith("ROLE_")
+                    || normalized.startsWith("/")
+                    || normalized.contains("=")
+                    || normalized.contains(" ")) {
                 continue;
             }
             values.add(normalized);
@@ -603,6 +615,25 @@ public class ZeroTrustEventPublisher {
             return null;
         }
         return value;
+    }
+
+    private String normalizePermissionValue(String rawValue) {
+        String normalized = normalizeAuthorityValue(rawValue);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        // Permission authority artifacts often arrive as REPORT_READ style identifiers.
+        // For prompt quality and cross-round comparison we normalize them to the same
+        // dotted lowercase vocabulary used by scope tags and prompt sections.
+        if (normalized.indexOf('.') < 0
+                && normalized.indexOf('/') < 0
+                && normalized.indexOf(':') < 0
+                && normalized.indexOf('=') < 0
+                && normalized.equals(normalized.toUpperCase(Locale.ROOT))
+                && normalized.contains("_")) {
+            return normalized.toLowerCase(Locale.ROOT).replace('_', '.');
+        }
+        return normalized;
     }
 
     private String extractAuthorityLiteral(String rawValue) {

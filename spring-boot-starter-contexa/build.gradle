@@ -28,6 +28,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.awaitility:awaitility:4.2.0'
 }
 
 bootJar.enabled = true
@@ -51,6 +56,18 @@ tasks.named('bootJar') {
 
 tasks.named('test') {
     useJUnitPlatform()
+    def benchmarkSamples = System.getProperty('sandbox.prompt.benchmark.samples') ?: System.getenv('SANDBOX_PROMPT_BENCHMARK_SAMPLES')
+    if (benchmarkSamples) {
+        systemProperty 'sandbox.prompt.benchmark.samples', benchmarkSamples
+    }
+    def benchmarkRounds = System.getProperty('sandbox.prompt.benchmark.rounds') ?: System.getenv('SANDBOX_PROMPT_BENCHMARK_ROUNDS')
+    if (benchmarkRounds) {
+        systemProperty 'sandbox.prompt.benchmark.rounds', benchmarkRounds
+    }
+    def benchmarkScenarios = System.getProperty('sandbox.prompt.benchmark.scenarios') ?: System.getenv('SANDBOX_PROMPT_BENCHMARK_SCENARIOS')
+    if (benchmarkScenarios) {
+        systemProperty 'sandbox.prompt.benchmark.scenarios', benchmarkScenarios
+    }
 }
 
 tasks.named('processResources') {

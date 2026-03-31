@@ -9,6 +9,10 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +35,7 @@ public final class RequestInfoExtractor {
                 .userAgent(extractUserAgent(request))
                 .sessionId(request.getRequestedSessionId())
                 .requestId(extractRequestId(request))
+                .observedAt(extractObservedAt(request))
                 .servletPath(request.getServletPath())
                 .queryString(request.getQueryString())
                 .remoteHost(request.getRemoteHost())
@@ -61,6 +66,15 @@ public final class RequestInfoExtractor {
                         "resourceLabel",
                         "businessLabel"))
                 .mfaVerified(castToBoolean(request.getAttribute("hcad.mfa_verified")))
+                .previousPath(extractAttributeText(request,
+                        "hcad.previous_path",
+                        "hcad.previousPath",
+                        "previousPath"))
+                .lastRequestIntervalMs(castToLong(
+                        firstNonNullAttribute(request,
+                                "hcad.last_request_interval_ms",
+                                "hcad.lastRequestIntervalMs",
+                                "lastRequestIntervalMs")))
                 .userRoles((String) request.getAttribute("hcad.user_roles"))
                 .geoCountry((String) request.getAttribute("hcad.country"))
                 .geoCity((String) request.getAttribute("hcad.city"))
@@ -72,6 +86,24 @@ public final class RequestInfoExtractor {
                 .previousLocation((String) request.getAttribute("hcad.previousLocation"))
                 .bridgeResolutionResult((BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT))
                 .build();
+    }
+
+    public static Instant extractObservedAt(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+
+        Instant fromAttribute = parseObservedAt(request.getAttribute("hcad.observed_at"));
+        if (fromAttribute != null) {
+            return fromAttribute;
+        }
+
+        Instant fromPrimaryHeader = parseObservedAt(request.getHeader("X-Contexa-Observed-At"));
+        if (fromPrimaryHeader != null) {
+            return fromPrimaryHeader;
+        }
+
+        return parseObservedAt(request.getHeader("X-Simulated-Observed-At"));
     }
 
     public static String extractClientIp(HttpServletRequest request, TieredStrategyProperties.Security security) {
@@ -125,6 +157,53 @@ public final class RequestInfoExtractor {
         return (scenario != null && !scenario.isBlank()) ? scenario.trim() : null;
     }
 
+    private static Instant parseObservedAt(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        if (rawValue instanceof Instant instant) {
+            return instant;
+        }
+        if (rawValue instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime.toInstant();
+        }
+        if (rawValue instanceof LocalDateTime localDateTime) {
+            return localDateTime.atZone(ZoneId.systemDefault()).toInstant();
+        }
+
+        String text = rawValue.toString();
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+
+        try {
+            return Instant.parse(text.trim());
+        } catch (Exception ignored) {
+        }
+
+        try {
+            return OffsetDateTime.parse(text.trim()).toInstant();
+        } catch (Exception ignored) {
+        }
+
+        try {
+            return LocalDateTime.parse(text.trim()).atZone(ZoneId.systemDefault()).toInstant();
+        } catch (Exception ignored) {
+        }
+
+        if (text.trim().matches("-?\\d+")) {
+            try {
+                long epochValue = Long.parseLong(text.trim());
+                return text.trim().length() > 10
+                        ? Instant.ofEpochMilli(epochValue)
+                        : Instant.ofEpochSecond(epochValue);
+            } catch (Exception ignored) {
+            }
+        }
+
+        return null;
+    }
+
     private static String extractHeader(HttpServletRequest request, String name) {
         String value = request.getHeader(name);
         return (value != null && !value.isBlank()) ? value.trim() : null;
@@ -138,6 +217,19 @@ public final class RequestInfoExtractor {
             Object value = request.getAttribute(name);
             if (value instanceof String text && !text.isBlank()) {
                 return text.trim();
+            }
+        }
+        return null;
+    }
+
+    private static Object firstNonNullAttribute(HttpServletRequest request, String... names) {
+        if (request == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            Object value = request.getAttribute(name);
+            if (value != null) {
+                return value;
             }
         }
         return null;
@@ -224,6 +316,7 @@ public final class RequestInfoExtractor {
         private final String userAgent;
         private final String sessionId;
         private final String requestId;
+        private final Instant observedAt;
         private final String servletPath;
         private final String queryString;
         private final String remoteHost;
@@ -244,6 +337,8 @@ public final class RequestInfoExtractor {
         private final String resourceSensitivity;
         private final String resourceBusinessLabel;
         private final Boolean mfaVerified;
+        private final String previousPath;
+        private final Long lastRequestIntervalMs;
         private final String userRoles;
         private final BridgeResolutionResult bridgeResolutionResult;
 
@@ -272,6 +367,15 @@ public final class RequestInfoExtractor {
 
     private static Boolean castToBoolean(Object value) {
         if (value instanceof Boolean) return (Boolean) value;
+        return null;
+    }
+
+    private static Long castToLong(Object value) {
+        if (value instanceof Long) return (Long) value;
+        if (value instanceof Number) return ((Number) value).longValue();
+        if (value instanceof String text && text.matches("-?\\d+")) {
+            return Long.parseLong(text);
+        }
         return null;
     }
 }

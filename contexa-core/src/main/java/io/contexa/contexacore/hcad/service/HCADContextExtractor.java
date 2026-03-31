@@ -16,6 +16,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.AntPathMatcher;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,13 +73,16 @@ public class HCADContextExtractor {
                     ? simulatedUA : request.getHeader("User-Agent");
             context.setUserAgent(userAgent != null ? userAgent : "unknown");
             context.setReferer(request.getHeader("Referer"));
-            context.setTimestamp(Instant.now());
+            Instant observedAt = resolveObservedAt(request);
+            context.setTimestamp(observedAt);
 
-            enrichWithSessionInfo(context, userId, sessionId);
+            boolean promptRelevantPath = PromptRelevantRequestPathPolicy.isPromptRelevantPath(context.getRequestPath());
 
-            enrichWithRequestPattern(context, userId, request);
+            enrichWithSessionInfo(context, userId, sessionId, promptRelevantPath, observedAt);
 
-            enrichWithSecurityInfo(context, userId, authentication);
+            enrichWithRequestPattern(context, userId, request, promptRelevantPath, observedAt);
+
+            enrichWithSecurityInfo(context, userId, authentication, promptRelevantPath);
 
             enrichWithResourceInfo(context, request);
 
@@ -96,7 +101,7 @@ public class HCADContextExtractor {
                     .requestPath(request.getRequestURI())
                     .httpMethod(request.getMethod())
                     .remoteIp(request.getRemoteAddr())
-                    .timestamp(Instant.now())
+                    .timestamp(resolveObservedAt(request))
                     .isNewSession(true)
                     .isNewUser(true)
                     .isNewDevice(true)
@@ -164,7 +169,10 @@ public class HCADContextExtractor {
     }
 
     private void enrichWithSessionInfo(HCADContext context,
-                                       String userId, String sessionId) {
+                                       String userId,
+                                       String sessionId,
+                                       boolean promptRelevantPath,
+                                       Instant observedAt) {
         try {
 
             Map<Object, Object> sessionInfo = hcadDataStore.getSessionMetadata(sessionId);
@@ -173,14 +181,14 @@ public class HCADContextExtractor {
             context.setIsNewSession(isNewSession);
 
             String currentDevice = context.getUserAgent();
-            boolean isNewDevice = checkAndRegisterDevice(userId, currentDevice);
+            boolean isNewDevice = checkAndRegisterDevice(userId, currentDevice, promptRelevantPath);
             context.setIsNewDevice(isNewDevice);
 
-            if (isNewSession) {
+            if (promptRelevantPath && isNewSession) {
                 Map<String, Object> newSessionInfo = new HashMap<>();
                 newSessionInfo.put("userId", userId);
                 newSessionInfo.put("device", currentDevice);
-                newSessionInfo.put("createdAt", Instant.now().toString());
+                newSessionInfo.put("createdAt", observedAt.toString());
                 hcadDataStore.saveSessionMetadata(sessionId, newSessionInfo);
             }
 
@@ -190,7 +198,7 @@ public class HCADContextExtractor {
         }
     }
 
-    private boolean checkAndRegisterDevice(String userId, String currentDevice) {
+    private boolean checkAndRegisterDevice(String userId, String currentDevice, boolean promptRelevantPath) {
         if (userId == null || currentDevice == null || currentDevice.isEmpty()) {
             return true;
         }
@@ -199,7 +207,9 @@ public class HCADContextExtractor {
             if (hcadDataStore.isDeviceRegistered(userId, currentDevice)) {
                 return false;
             } else {
-                hcadDataStore.registerDevice(userId, currentDevice);
+                if (promptRelevantPath) {
+                    hcadDataStore.registerDevice(userId, currentDevice);
+                }
                 return true;
             }
         } catch (Exception e) {
@@ -208,12 +218,14 @@ public class HCADContextExtractor {
     }
 
     private void enrichWithRequestPattern(HCADContext context,
-                                          String userId, HttpServletRequest request) {
+                                          String userId,
+                                          HttpServletRequest request,
+                                          boolean promptRelevantPath,
+                                          Instant observedAt) {
         try {
-            long currentTime = System.currentTimeMillis();
+            long currentTime = observedAt.toEpochMilli();
             long fiveMinutesAgo = currentTime - (5 * 60 * 1000);
             String requestPath = request.getRequestURI();
-            boolean promptRelevantPath = PromptRelevantRequestPathPolicy.isPromptRelevantPath(requestPath);
 
             if (promptRelevantPath) {
                 hcadDataStore.recordRequest(userId, currentTime);
@@ -235,9 +247,10 @@ public class HCADContextExtractor {
 
                 String sessionId = context.getSessionId();
                 if (sessionId != null && securityContextDataStore != null) {
+                    LocalDateTime observedDateTime = LocalDateTime.ofInstant(observedAt, ZoneId.systemDefault());
                     String actionEntry = String.format("%02d:%02d | %s %s | %s",
-                            java.time.LocalTime.now().getHour(),
-                            java.time.LocalTime.now().getMinute(),
+                            observedDateTime.getHour(),
+                            observedDateTime.getMinute(),
                             request.getMethod(),
                             requestPath,
                             context.getRemoteIp() != null ? context.getRemoteIp() : "unknown");
@@ -255,13 +268,17 @@ public class HCADContextExtractor {
     }
 
     private void enrichWithSecurityInfo(HCADContext context,
-                                        String userId, Authentication authentication) {
+                                        String userId,
+                                        Authentication authentication,
+                                        boolean promptRelevantPath) {
         try {
 
             boolean isRegistered = hcadDataStore.isUserRegistered(userId);
 
             if (!isRegistered) {
-                hcadDataStore.registerUser(userId);
+                if (promptRelevantPath) {
+                    hcadDataStore.registerUser(userId);
+                }
                 context.setNewUser(true);
             } else {
                 context.setNewUser(false);
@@ -385,6 +402,11 @@ public class HCADContextExtractor {
             context.setResourceType(null);
             context.setIsSensitiveResource(null);
         }
+    }
+
+    private Instant resolveObservedAt(HttpServletRequest request) {
+        Instant observedAt = io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.extractObservedAt(request);
+        return observedAt != null ? observedAt : Instant.now();
     }
 
     private String resolveResourceSensitivity(String path, Boolean sensitiveResource) {

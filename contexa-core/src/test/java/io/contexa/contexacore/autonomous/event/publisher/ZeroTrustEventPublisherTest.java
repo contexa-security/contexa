@@ -14,6 +14,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -40,6 +41,7 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
+    @DisplayName("bridge ?멸? ?④낵媛 鍮꾩뼱 ?덉뼱??post-auth ?대깽?몃뒗 ALLOW ?④낵瑜?蹂댁젙???댁븘???쒕떎")
     void shouldIncludeBridgeMetadataInAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         request.setRequestedSessionId("session-1");
@@ -60,6 +62,8 @@ class ZeroTrustEventPublisherTest {
                 null
         );
 
+        // granted=true??post-auth ?대깽?몃씪硫?authorizationEffect??UNKNOWN?쇰줈 ?⑥쑝硫????쒕떎.
+        // ??媛믪씠 鍮꾩뼱 ?덉쑝硫?prompt coverage媛 partial濡??붾뱾由ш퀬 bridge ?덉쭏??怨쇱냼?됯??쒕떎.
         assertThat(event.getPayload())
                 .containsEntry("principalType", "USER")
                 .containsEntry("authenticationType", "JWT")
@@ -80,11 +84,12 @@ class ZeroTrustEventPublisherTest {
                 .doesNotContain(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeRemediationHints", List.of()))
                 .noneMatch(hint -> hint.contains("authorization effect"));
-        assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("REPORT_EXPORT");
+        assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
     }
 
     @Test
+    @DisplayName("bridge authorization???놁뼱???몄쬆 ?뺣낫留뚯쑝濡?理쒖냼 沅뚰븳 硫뷀??곗씠?곕뒗 梨꾩썙?몄빞 ?쒕떎")
     void shouldPopulateAuthenticationFallbackMetadataWhenBridgeAuthorizationIsAbsent() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-42");
@@ -92,6 +97,8 @@ class ZeroTrustEventPublisherTest {
         request.setRemoteAddr("203.0.113.10");
         request.setAttribute("hcad.auth_method", "mfa");
         request.setAttribute("hcad.resource_sensitivity", "HIGH");
+        request.setAttribute("hcad.previous_path", "/admin/api/security-test/sensitive/resource-000");
+        request.setAttribute("hcad.last_request_interval_ms", 4_200L);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -110,14 +117,42 @@ class ZeroTrustEventPublisherTest {
         ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
         ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(invocation, authentication, true, null);
 
+        // fallback 硫뷀??곗씠?곌? 梨꾩썙?몄빞 bridge媛 ?쏀븳 ?섍꼍?먯꽌??prompt ?듭떖 ?꾨뱶媛 鍮덇컪?쇰줈 ?⑥? ?딅뒗??
         assertThat(event.getPayload())
                 .containsEntry("authMethod", "mfa")
                 .containsEntry("mfaVerified", true)
-                .containsEntry("resourceSensitivity", "HIGH");
+                .containsEntry("resourceSensitivity", "HIGH")
+                .containsEntry("previousPath", "/admin/api/security-test/sensitive/resource-000")
+                .containsEntry("lastRequestIntervalMs", 4_200L);
         assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("ANALYST");
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("authorities")).contains("ROLE_ANALYST", "report.export", "MFA_VERIFIED");
         assertThat(event.getPayload()).containsEntry("authorizationEffect", "ALLOW");
+    }
+    @Test
+    @DisplayName("관측 시각 헤더가 있으면 authorization event timestamp는 현재 시각이 아니라 그 시각을 따라야 한다")
+    void shouldUseObservedAtForAuthorizationEventTimestamp() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRequestedSessionId("session-observed-at");
+        request.addHeader("User-Agent", "JUnit");
+        request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
+        request.setRemoteAddr("203.0.113.10");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        // 이 값이 현재 시각으로 찍히면 benchmark에서 시간대/요일/간격 패턴이 모두 거짓 데이터가 된다.
+        assertThat(event.getEventTimestamp()).isEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
     }
 
     private BridgeResolutionResult createBridgeResolutionResult() {

@@ -15,8 +15,7 @@ public class PromptGenerationStep implements PipelineStep {
 
     private final PromptGenerator promptGenerator;
 
-    public PromptGenerationStep(
-            PromptGenerator promptGenerator) {
+    public PromptGenerationStep(PromptGenerator promptGenerator) {
         this.promptGenerator = promptGenerator;
     }
 

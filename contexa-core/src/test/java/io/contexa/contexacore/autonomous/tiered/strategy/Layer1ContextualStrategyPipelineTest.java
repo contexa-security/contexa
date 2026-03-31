@@ -11,6 +11,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -33,6 +34,7 @@ class Layer1ContextualStrategyPipelineTest {
     private PipelineOrchestrator pipelineOrchestrator;
 
     @Test
+    @DisplayName("Layer1 파이프라인은 표준 SecurityDecisionRequest를 구성해 오케스트레이터에 전달해야 한다")
     void analyzeWithContextShouldUseStandardPipeline() {
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setAction("ALLOW");
@@ -76,7 +78,9 @@ class Layer1ContextualStrategyPipelineTest {
         ArgumentCaptor<SecurityDecisionRequest> requestCaptor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
         verify(pipelineOrchestrator).execute(requestCaptor.capture(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
 
+        // eventId가 request context에 그대로 전달되어야 후단 evidence, prompt audit, outbox linkage가 맞물린다.
         assertThat(requestCaptor.getValue().getContext().getSecurityEvent().getEventId()).isEqualTo("event-layer1-pipeline-001");
+        // 파이프라인 응답은 ZeroTrustAction과 audit score로 정확히 변환되어야 한다.
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
         assertThat(decision.getReasoning()).isEqualTo("The request matches the normal work pattern.");
         assertThat(decision.resolveAuditRiskScore()).isEqualTo(0.22);

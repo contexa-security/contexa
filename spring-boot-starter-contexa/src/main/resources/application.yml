@@ -64,6 +64,10 @@ spring:
           temperature: 0.3
     security:
       tiered:
+        layer1:
+          vector-search-limit: 12
+          prompt:
+            max-rag-documents: 12
         security:
           trusted-proxy-validation-enabled: true
           trusted-proxies:

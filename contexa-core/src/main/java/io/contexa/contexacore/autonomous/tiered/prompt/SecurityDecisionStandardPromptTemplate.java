@@ -110,6 +110,30 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         return SECURITY_DECISION_PROMPT_GOVERNANCE;
     }
 
+    @Override
+    public PromptExecutionMetadata buildPromptExecutionMetadata(
+            AIRequest<? extends DomainContext> request,
+            String systemPrompt,
+            String userPrompt) {
+        StructuredPrompt structuredPrompt = buildStructuredPrompt(request);
+        if (structuredPrompt.executionMetadata() != null) {
+            PromptExecutionMetadata baseMetadata = structuredPrompt.executionMetadata();
+            return io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.buildExecutionMetadata(
+                    baseMetadata.governanceDescriptor(),
+                    baseMetadata.budgetProfile(),
+                    baseMetadata.sectionSet(),
+                    baseMetadata.omittedSections(),
+                    baseMetadata.omissionLedger(),
+                    baseMetadata.promptEvidenceCompleteness(),
+                    systemPrompt,
+                    userPrompt);
+        }
+        return io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.buildExecutionMetadata(
+                getPromptGovernanceDescriptor(),
+                systemPrompt,
+                userPrompt);
+    }
+
     public StructuredPrompt buildStructuredPrompt(
             SecurityEvent event,
             SessionContext sessionContext,
