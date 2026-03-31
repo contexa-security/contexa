@@ -456,9 +456,19 @@ public class SandboxPromptBenchmarkReportWriter {
         row.put("userProfileKey", result.replayRun().scenario().userProfileKey());
         row.put("scenarioFamily", result.replayRun().scenario().scenarioFamily());
         row.put("round", roundNumber);
+        row.put("roundKey", round.roundPlan().roundKey());
         row.put("phase", round.phase());
+        row.put("behaviorPhase", round.roundPlan().behaviorPhase());
+        row.put("anomalySignal", round.roundPlan().anomalySignal());
+        row.put("sessionMode", round.roundPlan().sessionMode().name());
+        row.put("observedAt", round.roundPlan().observedAt().toString());
+        row.put("deviceAlias", round.roundPlan().deviceAlias());
+        row.put("expectationNote", round.roundPlan().expectationNote());
+        row.put("semanticMarkers", round.roundPlan().semanticMarkers());
         row.put("requestId", round.requestId());
         row.put("requestPath", round.requestPath());
+        row.put("clientIp", round.clientIp());
+        row.put("userAgentLabel", round.userAgentLabel());
         row.put("passRatePercent", result.roundScorecards().get(roundNumber - 1).passRatePercent());
         row.put("traceContractCompliance", result.traceContractAssessments().get(roundNumber - 1).complianceRate());
         row.put("promptFidelityRate", result.promptFidelityAssessments().get(roundNumber - 1).fidelityRate());
@@ -467,6 +477,16 @@ public class SandboxPromptBenchmarkReportWriter {
         row.put("rawRetrievedCount", round.snapshot().retrievalAudit() != null ? round.snapshot().retrievalAudit().rawRetrievedCount() : 0);
         row.put("authorizeAllowedCount", round.snapshot().retrievalAudit() != null ? round.snapshot().retrievalAudit().authorizeAllowedCount() : 0);
         row.put("authorizeDeniedCount", round.snapshot().retrievalAudit() != null ? round.snapshot().retrievalAudit().authorizeDeniedCount() : 0);
+        Map<String, Object> eventMetadata = round.snapshot().event() != null && round.snapshot().event().getMetadata() != null
+                ? round.snapshot().event().getMetadata()
+                : Map.of();
+        row.put("eventRecentRequestCount", eventMetadata.get("recentRequestCount"));
+        row.put("eventIsNewSession", eventMetadata.get("isNewSession"));
+        row.put("eventIsNewDevice", eventMetadata.get("isNewDevice"));
+        row.put("eventIsNewUser", eventMetadata.get("isNewUser"));
+        row.put("sessionRequestCount", round.snapshot().sessionContext() != null ? round.snapshot().sessionContext().getRequestCount() : null);
+        row.put("behaviorPreviousPathPresent", round.snapshot().behaviorAnalysis() != null
+                && round.snapshot().behaviorAnalysis().getPreviousPath() != null);
         row.put("promptVersion", round.snapshot().metadata().get("promptVersion"));
         row.put("contractVersion", round.snapshot().metadata().get("contractVersion"));
         row.put("templateKey", round.snapshot().metadata().get("templateKey"));

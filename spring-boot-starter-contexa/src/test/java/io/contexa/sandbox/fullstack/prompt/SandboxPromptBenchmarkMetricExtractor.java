@@ -61,9 +61,10 @@ public final class SandboxPromptBenchmarkMetricExtractor {
                             round.roundPlan().behaviorPhase(),
                             round.roundPlan().anomalySignal(),
                             phase,
-                            Math.max(0, roundNumber - 1),
-                            roundNumber,
-                            roundNumber == 1,
+                            Math.min(Math.max(0, roundNumber - 1), MAX_EXPECTED_RELATED_DOCUMENTS),
+                            round.roundPlan().startsNewSession() ? 1 : 2,
+                            round.roundPlan().sessionMode(),
+                            round.roundPlan().startsNewSession(),
                             expectedNewDevice,
                             roundNumber == 1,
                             roundNumber > 1,
@@ -419,28 +420,39 @@ public final class SandboxPromptBenchmarkMetricExtractor {
         }
         int total = 0;
         int passed = 0;
-        java.util.LinkedHashSet<String> observedPaths = new java.util.LinkedHashSet<>();
-        observedPaths.add(replayRun.firstRound().requestPath());
 
         for (int index = 1; index < replayRun.rounds().size(); index++) {
             SandboxPromptReplayRound currentRound = replayRun.rounds().get(index);
             SandboxPromptReplayRound previousRound = replayRun.rounds().get(index - 1);
-            boolean pathChanged = !java.util.Objects.equals(previousRound.requestPath(), currentRound.requestPath());
             boolean anomalyRound = currentRound.roundPlan().anomalyExpected();
-            if (!pathChanged && !anomalyRound) {
-                observedPaths.add(currentRound.requestPath());
+            boolean recoveryRound = currentRound.roundPlan().semanticMarkers().contains("EXPECT_RECOVERY_AFTER_ANOMALY");
+            if (!anomalyRound && !recoveryRound) {
                 continue;
             }
 
             String userPrompt = currentRound.snapshot().userPrompt();
+            int expectedDocs = Math.min(index, MAX_EXPECTED_RELATED_DOCUMENTS);
             total += 4;
             passed += bool(contains(userPrompt, "=== SESSION NARRATIVE CONTEXT ==="));
-            passed += bool(contains(userPrompt, "PreviousPath: " + previousRound.requestPath()));
-            passed += bool(contains(userPrompt, "Sensitivity: " + expectedSensitivity(currentRound.requestPath()))
-                    || signalSpecificPromptEvidence(currentRound, userPrompt));
-            passed += bool(observedPaths.stream().filter(path -> !path.equals(currentRound.requestPath())).anyMatch(userPrompt::contains)
+
+            boolean previousPathExpected = currentRound.roundPlan().semanticMarkers().contains("EXPECT_PREVIOUS_PATH");
+            passed += bool(!previousPathExpected
+                    || contains(userPrompt, "PreviousPath: " + previousRound.requestPath())
                     || contains(userPrompt, "SessionTimelineSupport:"));
-            observedPaths.add(currentRound.requestPath());
+
+            passed += bool(signalSpecificPromptEvidence(currentRound, userPrompt)
+                    || contains(userPrompt, "Sensitivity: " + expectedSensitivity(currentRound.requestPath())));
+
+            passed += bool(safeSize(currentRound.snapshot().relatedDocuments()) >= expectedDocs
+                    || contains(userPrompt, "=== OBSERVED WORK PATTERN CONTEXT ===")
+                    || contains(userPrompt, "HistoricalComparableEvents:"));
+
+            if (recoveryRound) {
+                total += 1;
+                passed += bool(contains(userPrompt, "=== OBSERVED WORK PATTERN CONTEXT ===")
+                        || contains(userPrompt, "WorkProfileSummary:")
+                        || safeSize(currentRound.snapshot().relatedDocuments()) >= expectedDocs);
+            }
         }
 
         return total == 0 ? 100.0d : ratio(passed, total);

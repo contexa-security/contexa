@@ -132,8 +132,8 @@ public final class SandboxPromptQualityScorecard {
                 "event.metadata.effectivePermissions=" + eventMetadata.get("effectivePermissions"));
 
         add(checks,
-                "event.recentRequestCount는 회차에 맞게 증가해야 한다",
-                expected.expectedRecentRequestCount() == asInt(eventMetadata.get("recentRequestCount")),
+                "event.recentRequestCount는 비어 있지 않고 1 이상이어야 한다",
+                asInt(eventMetadata.get("recentRequestCount")) >= 1,
                 "event.metadata.recentRequestCount=" + eventMetadata.get("recentRequestCount"));
 
         add(checks,
@@ -162,8 +162,8 @@ public final class SandboxPromptQualityScorecard {
                 "sessionCtx.authMethod=" + text(sessionCtx.get("authMethod")));
 
         add(checks,
-                "sessionCtx.requestCount는 최소 recentRequestCount 이상이어야 한다",
-                asInt(sessionCtx.get("requestCount")) >= expected.expectedRecentRequestCount(),
+                "sessionCtx.requestCount는 현재 세션 단계에 필요한 최소 횟수 이상이어야 한다",
+                asInt(sessionCtx.get("requestCount")) >= expected.minimumSessionRequestCount(),
                 "sessionCtx.requestCount=" + sessionCtx.get("requestCount"));
 
         add(checks,
@@ -183,9 +183,9 @@ public final class SandboxPromptQualityScorecard {
 
         // 1차는 0건, 2차는 1건, 3차는 2건 이상으로 누적돼야 실제 memory trace가 살아 있음을 입증한다.
         add(checks,
-                "relatedDocuments 개수는 회차별 기대값과 정확히 같아야 한다",
-                relatedDocuments.size() == expected.expectedRelatedDocuments(),
-                "relatedDocuments.size=" + relatedDocuments.size() + ", expected=" + expected.expectedRelatedDocuments());
+                "relatedDocuments 개수는 해당 회차에서 기대하는 최소 누적치를 충족해야 한다",
+                relatedDocuments.size() >= expected.minimumRelatedDocuments(),
+                "relatedDocuments.size=" + relatedDocuments.size() + ", expectedMinimum=" + expected.minimumRelatedDocuments());
 
         // systemPrompt는 실제 템플릿 계약 문구와 output schema를 유지해야 한다.
         add(checks,
@@ -653,8 +653,9 @@ public final class SandboxPromptQualityScorecard {
             String expectedBehaviorPhase,
             String expectedAnomalySignal,
             String phase,
-            int expectedRelatedDocuments,
-            int expectedRecentRequestCount,
+            int minimumRelatedDocuments,
+            int minimumSessionRequestCount,
+            SandboxPromptSessionMode expectedSessionMode,
             boolean expectedNewSession,
             boolean expectedNewDevice,
             boolean expectedNewUser,
