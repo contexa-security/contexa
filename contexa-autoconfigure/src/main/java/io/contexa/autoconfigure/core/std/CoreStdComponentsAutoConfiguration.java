@@ -12,7 +12,9 @@ import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
+import io.contexa.contexacore.std.components.prompt.LLMViewComposer;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.prompt.SafePromptNormalizationLLMViewComposer;
 import io.contexa.contexacore.std.components.retriever.AuthorizedContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
@@ -67,8 +69,14 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptGenerator promptGenerator(List<PromptTemplate> promptTemplates) {
-        return new PromptGenerator(promptTemplates);
+    public LLMViewComposer llmViewComposer() {
+        return new SafePromptNormalizationLLMViewComposer();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PromptGenerator promptGenerator(List<PromptTemplate> promptTemplates, LLMViewComposer llmViewComposer) {
+        return new PromptGenerator(promptTemplates, llmViewComposer);
     }
 
     @Bean

@@ -746,8 +746,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         relatedDocuments
                 ));
         request.withParameter("responseType", SecurityDecisionResponse.class);
-        request.withParameter("promptBudgetProfile", resolvePromptBudgetProfile().profileKey());
+        request.withParameter("promptBudgetProfile", resolvePromptBudgetProfile(event).profileKey());
         return request;
+    }
+
+    protected PromptBudgetProfile resolvePromptBudgetProfile(SecurityEvent event) {
+        if (event != null && event.getMetadata() != null) {
+            Object explicitProfile = event.getMetadata().get("promptBudgetProfile");
+            if (explicitProfile instanceof PromptBudgetProfile budgetProfile) {
+                return budgetProfile;
+            }
+            if (explicitProfile instanceof String profileKey && !profileKey.isBlank()) {
+                return PromptBudgetProfile.fromKey(profileKey, resolvePromptBudgetProfile());
+            }
+        }
+        return resolvePromptBudgetProfile();
     }
 
     protected PromptBudgetProfile resolvePromptBudgetProfile() {

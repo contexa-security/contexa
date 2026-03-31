@@ -28,9 +28,9 @@ public enum SandboxPromptBenchmarkMetricCatalog {
     BASELINE_MATURITY_ACCURACY("BMA", "Baseline Maturity Accuracy", "RAG_AND_BASELINE", true, 95.0d, true, true),
     USER_SPECIFIC_NOVELTY_SENSITIVITY("USNS", "User-Specific Novelty Sensitivity", "BEHAVIORAL_CONTEXT", true, 95.0d, true, true),
     BEHAVIORAL_SURPRISE_RESOLUTION("BSR", "Behavioral Surprise Resolution", "BEHAVIORAL_CONTEXT", true, 95.0d, true, true),
-    CONTEXT_TO_DECISION_CALIBRATION("CDC", "Context-to-Decision Calibration", "LLM_DECISION", true, 95.0d, true, false),
-    EVIDENCE_REASON_ALIGNMENT("ERA", "Evidence-Reason Alignment", "LLM_DECISION", true, 95.0d, true, false),
-    SAFE_UNCERTAINTY_HANDLING_RATE("SUHR", "Safe-Uncertainty Handling Rate", "LLM_DECISION", true, 95.0d, true, false),
+    CONTEXT_TO_DECISION_CALIBRATION("CDC", "Context-to-Decision Calibration", "LLM_DECISION", true, 95.0d, true, true),
+    EVIDENCE_REASON_ALIGNMENT("ERA", "Evidence-Reason Alignment", "LLM_DECISION", true, 95.0d, true, true),
+    SAFE_UNCERTAINTY_HANDLING_RATE("SUHR", "Safe-Uncertainty Handling Rate", "LLM_DECISION", true, 95.0d, true, true),
 
     MEMORY_TRACE_RECALL("MTRC", "Memory Trace Recall", "SUPPLEMENTARY", false, 95.0d, true, true),
     MEMORY_ARTIFACT_INTEGRITY("MAI", "Memory Artifact Integrity", "SUPPLEMENTARY", false, 95.0d, true, true),

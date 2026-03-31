@@ -143,6 +143,21 @@ public class ZeroTrustEventPublisher {
             payload.put("scenario", requestInfo.getScenario());
             payload.put("demoRunId", requestInfo.getDemoRunId());
             payload.put("demoPhase", requestInfo.getDemoPhase());
+            if (requestInfo.getRoundKey() != null) {
+                payload.put("roundKey", requestInfo.getRoundKey());
+            }
+            if (requestInfo.getBehaviorPhase() != null) {
+                payload.put("behaviorPhase", requestInfo.getBehaviorPhase());
+            }
+            if (requestInfo.getAnomalySignal() != null) {
+                payload.put("anomalySignal", requestInfo.getAnomalySignal());
+            }
+            if (requestInfo.getPromptBudgetProfile() != null) {
+                payload.put("promptBudgetProfile", requestInfo.getPromptBudgetProfile());
+            }
+            if (requestInfo.getSimulatedUserAgentLabel() != null) {
+                payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
+            }
             payload.put("isNewSession", requestInfo.getIsNewSession());
             payload.put("isNewUser", requestInfo.getIsNewUser());
             payload.put("isNewDevice", requestInfo.getIsNewDevice());

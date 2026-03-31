@@ -6,6 +6,8 @@ import java.security.NoSuchAlgorithmException;
 
 public final class PromptGovernanceSupport {
 
+    private static final PromptTokenEstimator DEFAULT_PROMPT_TOKEN_ESTIMATOR = new HeuristicPromptTokenEstimator();
+
     private PromptGovernanceSupport() {
     }
 
@@ -21,7 +23,10 @@ public final class PromptGovernanceSupport {
                 java.util.List.of(),
                 PromptEvidenceCompleteness.SUFFICIENT,
                 systemPrompt,
-                userPrompt);
+                userPrompt,
+                systemPrompt,
+                userPrompt,
+                PromptCompressionLedger.identity(systemPrompt, userPrompt));
     }
 
     public static PromptExecutionMetadata buildExecutionMetadata(
@@ -33,13 +38,62 @@ public final class PromptGovernanceSupport {
             PromptEvidenceCompleteness promptEvidenceCompleteness,
             String systemPrompt,
             String userPrompt) {
+        return buildExecutionMetadata(
+                descriptor,
+                budgetProfile,
+                sectionSet,
+                omittedSections,
+                omissionLedger,
+                promptEvidenceCompleteness,
+                systemPrompt,
+                userPrompt,
+                systemPrompt,
+                userPrompt,
+                PromptCompressionLedger.identity(systemPrompt, userPrompt));
+    }
+
+    public static PromptExecutionMetadata buildExecutionMetadata(
+            PromptGovernanceDescriptor descriptor,
+            PromptBudgetProfile budgetProfile,
+            java.util.List<String> sectionSet,
+            java.util.List<String> omittedSections,
+            java.util.List<PromptOmissionRecord> omissionLedger,
+            PromptEvidenceCompleteness promptEvidenceCompleteness,
+            String systemPrompt,
+            String userPrompt,
+            String rawSystemPrompt,
+            String rawUserPrompt,
+            PromptCompressionLedger promptCompressionLedger) {
         String normalizedSystemPrompt = systemPrompt != null ? systemPrompt : "";
         String normalizedUserPrompt = userPrompt != null ? userPrompt : "";
+        String normalizedRawSystemPrompt = rawSystemPrompt != null ? rawSystemPrompt : "";
+        String normalizedRawUserPrompt = rawUserPrompt != null ? rawUserPrompt : "";
         String combinedPrompt = normalizedSystemPrompt + "\n---\n" + normalizedUserPrompt;
+        String combinedRawPrompt = normalizedRawSystemPrompt + "\n---\n" + normalizedRawUserPrompt;
+        PromptTokenEstimate estimated =
+                DEFAULT_PROMPT_TOKEN_ESTIMATOR.estimate(normalizedSystemPrompt, normalizedUserPrompt, budgetProfile);
+        PromptCompressionLedger effectiveCompressionLedger = promptCompressionLedger != null
+                ? promptCompressionLedger
+                : PromptCompressionLedger.identity(normalizedRawSystemPrompt, normalizedRawUserPrompt);
+        String enforcementMode = effectiveCompressionLedger.compressionApplied()
+                ? "LLM_VIEW_ENFORCED"
+                : estimated.budgetEnforcementMode();
+        PromptTokenEstimate promptTokenEstimate = new PromptTokenEstimate(
+                estimated.estimatorKey(),
+                estimated.estimatedSystemTokens(),
+                estimated.estimatedUserTokens(),
+                estimated.estimatedTotalTokens(),
+                estimated.budgetRemainingTokens(),
+                estimated.budgetUtilizationRate(),
+                estimated.budgetExceeded(),
+                enforcementMode,
+                effectiveCompressionLedger.compressionApplied());
 
         return new PromptExecutionMetadata(
                 descriptor,
                 budgetProfile,
+                promptTokenEstimate,
+                effectiveCompressionLedger,
                 sectionSet,
                 omittedSections,
                 omissionLedger,
@@ -47,9 +101,15 @@ public final class PromptGovernanceSupport {
                 sha256(combinedPrompt),
                 sha256(normalizedSystemPrompt),
                 sha256(normalizedUserPrompt),
+                sha256(combinedRawPrompt),
+                sha256(normalizedRawSystemPrompt),
+                sha256(normalizedRawUserPrompt),
                 normalizedSystemPrompt.length(),
                 normalizedUserPrompt.length(),
                 normalizedSystemPrompt.length() + normalizedUserPrompt.length(),
+                normalizedRawSystemPrompt.length(),
+                normalizedRawUserPrompt.length(),
+                normalizedRawSystemPrompt.length() + normalizedRawUserPrompt.length(),
                 System.currentTimeMillis());
     }
 

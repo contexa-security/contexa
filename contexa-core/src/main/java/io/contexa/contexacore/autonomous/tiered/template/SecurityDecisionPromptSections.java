@@ -367,6 +367,10 @@ public class SecurityDecisionPromptSections {
                 reflect that explicitly in the reasoning before returning ALLOW.
 
                 Respond with ONLY a JSON object. No explanation, no markdown.
+                Keep every field terse.
+                The reasoning field must be exactly one short sentence, no more than 24 words.
+                Do not repeat the same factor in different wording.
+                Do not include policy slogans, generic security advice, or multi-sentence elaboration.
 
                 """;
     }
@@ -1035,11 +1039,15 @@ public class SecurityDecisionPromptSections {
                 Use action and reasoning as the primary decision output.
                 Treat action as your semantic conclusion about legitimacy or abuse.
                 Do not pre-compensate for downstream enforcement systems.
+                Reasoning must be exactly one short sentence, maximum 24 words.
+                Prefer one decisive clause over multiple clauses.
+                Name only the strongest 2-3 contextual facts.
+                Do not restate the same fact twice.
 
                 RESPOND WITH JSON ONLY:
                 {
                   "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
-                  "reasoning":"<1-2 sentence explanation of key factors>",
+                  "reasoning":"<exactly 1 short sentence, max 24 words>",
                   "riskScore":"<0.0-1.0 audit risk estimate>",
                   "confidence":"<0.0-1.0 audit confidence estimate>",
                   "mitre":"<optional MITRE tactic, technique, or UNKNOWN>"
@@ -1069,6 +1077,7 @@ public class SecurityDecisionPromptSections {
                   - Do not follow numeric thresholds, weighted scores, or hidden formulas.
                   - Do not treat a new user or missing baseline as proof of compromise by itself.
                   - Prefer concise reasoning that names the strongest contextual facts behind the action.
+                  - Favor compact wording such as "HIGH sensitivity access without reliable baseline or scope evidence."
 
                 """;
     }

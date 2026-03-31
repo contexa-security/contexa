@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RequestInfoExtractorTest {
 
     @Test
-    @DisplayName("request attribute濡??ㅻ┛ previousPath? interval? event metadata濡??밴꺽?????덇쾶 異붿텧?섏뼱???쒕떎")
+    @DisplayName("request attributes previousPath and interval should seed session narrative metadata")
     void extractShouldIncludeAuthMethodAndResourceHintsFromRequestAttributes() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-001");
@@ -29,14 +29,14 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getResourceSensitivity()).isEqualTo("HIGH");
         assertThat(requestInfo.getResourceBusinessLabel()).isEqualTo("Sensitive Security Test Resource resource-001");
         assertThat(requestInfo.getMfaVerified()).isTrue();
-        // ????媛믪씠 null?대㈃ HCAD媛 怨꾩궛??previousPath? interval??event metadata濡??밴꺽?섏? 紐삵븯怨?
-        // Layer1??data store瑜??ㅼ떆 ?쎌쑝硫댁꽌 ?꾩옱 ?붿껌 寃쎈줈瑜?previousPath濡??ㅼ뿼?쒗궗 ???덈떎.
+        // Without previousPath/interval, Layer1 session narrative can only describe the current request.
         assertThat(requestInfo.getPreviousPath()).isEqualTo("/admin/api/security-test/sensitive/resource-000");
         assertThat(requestInfo.getLastRequestIntervalMs()).isEqualTo(4_200L);
         assertThat(requestInfo.getUserAgent()).contains("Chrome/120");
     }
+
     @Test
-    @DisplayName("관측 시각 헤더는 request info observedAt으로 승격되어 이후 event와 baseline 시간축의 기준이 되어야 한다")
+    @DisplayName("observed-at header should populate request info observedAt")
     void extractShouldIncludeObservedAtFromHeaders() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-observed-at");
@@ -45,9 +45,20 @@ class RequestInfoExtractorTest {
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
-        // 시간이 실제 웹 요청 헤더에서 올라와야 장기 회차 benchmark가
-        // "몇 초 동안의 반복 호출"이 아니라 "몇 주/몇 달 패턴"으로 학습된다.
         assertThat(requestInfo.getObservedAt()).isNotNull();
         assertThat(requestInfo.getObservedAt().toString()).isEqualTo("2026-02-03T00:15:00Z");
+    }
+
+    @Test
+    @DisplayName("prompt budget profile header should flow into request info")
+    void extractShouldIncludePromptBudgetProfileFromHeader() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-budget-profile");
+        request.addHeader("X-Contexa-Prompt-Budget-Profile", "CORTEX_L1_COMPACT");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getPromptBudgetProfile()).isEqualTo("CORTEX_L1_COMPACT");
     }
 }

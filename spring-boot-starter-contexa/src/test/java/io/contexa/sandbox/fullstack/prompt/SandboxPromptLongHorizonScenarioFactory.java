@@ -327,6 +327,129 @@ final class SandboxPromptLongHorizonScenarioFactory {
         return List.copyOf(rounds);
     }
 
+    static List<SandboxPromptRoundPlan> buildSparseEvidenceRounds() {
+        ArrayList<SandboxPromptRoundPlan> rounds = new ArrayList<>();
+        for (int week = 0; week < 3; week++) {
+            addBaselineSession(rounds, week, DayOfWeek.MONDAY, 9, 11 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/normal/resource-" + (111 + week),
+                    "/admin/api/security-test/sensitive/resource-" + (121 + week),
+                    "resource set keeps moving so baseline evidence stays sparse");
+            addBaselineSession(rounds, week, DayOfWeek.THURSDAY, 15, 6 + week, CORP_WIFI_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/normal/resource-" + (131 + week),
+                    "/admin/api/security-test/sensitive/resource-" + (141 + week),
+                    "same user revisits new assets without forming a dense history cluster");
+        }
+        addAnomalySession(rounds, 3, DayOfWeek.MONDAY, 9, 13, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-151",
+                "/admin/api/security-test/critical/resource-951",
+                "SPARSE_EVIDENCE",
+                "same account reaches high-value scope before enough comparable history exists");
+        addRecoverySession(rounds, 3, DayOfWeek.THURSDAY, 15, 9, CORP_WIFI_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/normal/resource-133",
+                "/admin/api/security-test/sensitive/resource-143",
+                "returns to rotating sparse workflow after ambiguity");
+        return List.copyOf(rounds);
+    }
+
+    static List<SandboxPromptRoundPlan> buildConflictingContextRounds() {
+        ArrayList<SandboxPromptRoundPlan> rounds = new ArrayList<>();
+        for (int week = 0; week < 3; week++) {
+            addBaselineSession(rounds, week, DayOfWeek.MONDAY, 9, 14 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-161",
+                    "/admin/api/security-test/sensitive/resource-162",
+                    "same device and same network build a stable sensitive baseline");
+            addBaselineSession(rounds, week, DayOfWeek.WEDNESDAY, 10, 9 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-163",
+                    "/admin/api/security-test/sensitive/resource-161",
+                    "mid-week baseline remains steady");
+            addBaselineSession(rounds, week, DayOfWeek.FRIDAY, 14, 7 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-162",
+                    "/admin/api/security-test/sensitive/resource-163",
+                    "baseline closes on the same office profile");
+        }
+        addAnomalySession(rounds, 3, DayOfWeek.MONDAY, 9, 15, VPN_IP, EDGE_RAW, EDGE_LABEL, "corp-laptop-b",
+                "/admin/api/security-test/sensitive/resource-161",
+                "/admin/api/security-test/sensitive/resource-162",
+                "CONFLICTING_CONTEXT",
+                "same user keeps the same resource scope while device and network signals pivot together");
+        addAnomalySession(rounds, 3, DayOfWeek.WEDNESDAY, 10, 10, BRANCH_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-163",
+                "/admin/api/security-test/critical/resource-963",
+                "CONFLICTING_CONTEXT",
+                "network reverts toward normal while scope escalates, leaving mixed evidence");
+        addRecoverySession(rounds, 3, DayOfWeek.FRIDAY, 14, 8, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-162",
+                "/admin/api/security-test/sensitive/resource-163",
+                "conflicting context clears and baseline path returns");
+        return List.copyOf(rounds);
+    }
+
+    static List<SandboxPromptRoundPlan> buildPartialMemoryRounds() {
+        ArrayList<SandboxPromptRoundPlan> rounds = new ArrayList<>();
+        for (int week = 0; week < 3; week++) {
+            addBaselineSession(rounds, week, DayOfWeek.MONDAY, 9, 2 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-" + (171 + week),
+                    "/admin/api/security-test/sensitive/resource-" + (181 + week),
+                    "memory disperses across adjacent assets");
+            addBaselineSession(rounds, week, DayOfWeek.WEDNESDAY, 10, 4 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-" + (191 + week),
+                    "/admin/api/security-test/sensitive/resource-" + (201 + week),
+                    "wide fan-out keeps direct memory for each path partial");
+            addBaselineSession(rounds, week, DayOfWeek.FRIDAY, 14, 5 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-" + (211 + week),
+                    "/admin/api/security-test/sensitive/resource-" + (221 + week),
+                    "history grows, but path-specific recall stays fragmented");
+        }
+        addAnomalySession(rounds, 3, DayOfWeek.MONDAY, 9, 3, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-171",
+                "/admin/api/security-test/critical/resource-971",
+                "PARTIAL_MEMORY",
+                "the user revisits an older thread where only partial memory is available");
+        addAnomalySession(rounds, 3, DayOfWeek.WEDNESDAY, 10, 5, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-201",
+                "/admin/api/security-test/critical/resource-972",
+                "PARTIAL_MEMORY",
+                "critical follow-up appears while comparable memory remains thin and dispersed");
+        addRecoverySession(rounds, 3, DayOfWeek.FRIDAY, 14, 6, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-223",
+                "/admin/api/security-test/sensitive/resource-211",
+                "falls back into the dispersed but familiar path family");
+        return List.copyOf(rounds);
+    }
+
+    static List<SandboxPromptRoundPlan> buildApprovalAmbiguityRounds() {
+        ArrayList<SandboxPromptRoundPlan> rounds = new ArrayList<>();
+        for (int week = 0; week < 3; week++) {
+            addBaselineSession(rounds, week, DayOfWeek.MONDAY, 8, 58 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/normal/resource-231",
+                    "/admin/api/security-test/sensitive/resource-231",
+                    "broad baseline builds normal-to-sensitive progression");
+            addBaselineSession(rounds, week, DayOfWeek.WEDNESDAY, 10, 2 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/normal/resource-232",
+                    "/admin/api/security-test/sensitive/resource-232",
+                    "mixed scope remains read-dominant");
+            addBaselineSession(rounds, week, DayOfWeek.FRIDAY, 14, 3 + week, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                    "/admin/api/security-test/sensitive/resource-233",
+                    "/admin/api/security-test/normal/resource-231",
+                    "scope summary stays broad but approval lineage remains thin");
+        }
+        addAnomalySession(rounds, 3, DayOfWeek.MONDAY, 9, 1, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-233",
+                "/admin/api/security-test/critical/resource-981",
+                "APPROVAL_AMBIGUITY",
+                "critical access appears while scope evidence is present but approval lineage is still ambiguous");
+        addAnomalySession(rounds, 3, DayOfWeek.WEDNESDAY, 10, 6, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/normal/resource-232",
+                "/admin/api/security-test/critical/resource-982",
+                "APPROVAL_AMBIGUITY",
+                "critical action persists on a branch where approval evidence stays thin");
+        addRecoverySession(rounds, 3, DayOfWeek.FRIDAY, 14, 5, CORP_LAN_IP, CHROME_RAW, CHROME_LABEL, "corp-laptop-a",
+                "/admin/api/security-test/sensitive/resource-233",
+                "/admin/api/security-test/normal/resource-231",
+                "returns to broad mixed-scope baseline after approval ambiguity");
+        return List.copyOf(rounds);
+    }
+
     private static void addBaselineSession(
             List<SandboxPromptRoundPlan> rounds,
             int week,
@@ -446,7 +569,9 @@ final class SandboxPromptLongHorizonScenarioFactory {
         int dayOffset = dayOfWeek.getValue() - DayOfWeek.MONDAY.getValue();
         return BASE_MONDAY.plusWeeks(weekOffset)
                 .plusDays(dayOffset)
-                .atTime(hour, minute)
+                .atTime(0, 0)
+                .plusHours(hour)
+                .plusMinutes(minute)
                 .atOffset(SEOUL_OFFSET);
     }
 }

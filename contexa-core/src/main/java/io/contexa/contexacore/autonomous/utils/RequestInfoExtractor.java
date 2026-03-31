@@ -43,6 +43,11 @@ public final class RequestInfoExtractor {
                 .scenario(extractScenario(request))
                 .demoRunId(extractHeader(request, "X-Contexa-Demo-Run-Id"))
                 .demoPhase(extractHeader(request, "X-Contexa-Demo-Phase"))
+                .roundKey(extractHeader(request, "X-Contexa-Round-Key"))
+                .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
+                .anomalySignal(extractHeader(request, "X-Contexa-Anomaly-Signal"))
+                .promptBudgetProfile(extractHeader(request, "X-Contexa-Prompt-Budget-Profile"))
+                .simulatedUserAgentLabel(extractHeader(request, "X-Simulated-User-Agent-Label"))
                 .secure(request.isSecure())
                 .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
                 .isNewUser((Boolean) request.getAttribute("hcad.is_new_user"))
@@ -324,6 +329,11 @@ public final class RequestInfoExtractor {
         private final String scenario;
         private final String demoRunId;
         private final String demoPhase;
+        private final String roundKey;
+        private final String behaviorPhase;
+        private final String anomalySignal;
+        private final String promptBudgetProfile;
+        private final String simulatedUserAgentLabel;
         private final boolean secure;
 
         private final Boolean isNewSession;

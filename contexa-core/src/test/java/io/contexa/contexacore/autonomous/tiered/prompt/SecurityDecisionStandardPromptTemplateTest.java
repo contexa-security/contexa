@@ -64,6 +64,8 @@ class SecurityDecisionStandardPromptTemplateTest {
         // 여기서 불필요한 런타임 메타데이터가 노출되면 소형 모델의 출력 순응도가 흔들릴 수 있다.
         assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
         assertThat(systemPrompt).contains("<output_format>");
+        assertThat(systemPrompt).contains("The reasoning field must be exactly one short sentence, no more than 24 words.");
+        assertThat(systemPrompt).contains("Do not repeat the same factor in different wording.");
         assertThat(template.getAIGenerationType()).isEqualTo(SecurityDecisionResponseLite.class);
         assertThat(systemPrompt)
                 .doesNotContain("errorMessage")
@@ -81,6 +83,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
+        assertThat(systemPrompt).contains("\"reasoning\":\"<exactly 1 short sentence, max 24 words>\"");
     }
 
     @Test

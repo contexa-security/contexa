@@ -25,6 +25,7 @@ import java.util.UUID;
  */
 public class SandboxFullStackPromptReplayHarness {
 
+    private static final String BLOCK_SIGNAL_PREFIX = "__CONTEXA_RESPONSE_BLOCKED__:";
     public static final String DEFAULT_REQUEST_PATH = "/admin/api/security-test/sensitive/resource-001";
     public static final String DEFAULT_CLIENT_IP = "192.168.1.100";
     public static final String DEFAULT_SCENARIO_KEY = "ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE";
@@ -42,6 +43,8 @@ public class SandboxFullStackPromptReplayHarness {
     private final ObjectMapper objectMapper;
     private final SandboxOttCodeCapture sandboxOttCodeCapture;
     private final SandboxPromptTraceStore sandboxPromptTraceStore;
+    private final SandboxDecisionTraceStore sandboxDecisionTraceStore;
+    private final SandboxDecisionEnforcementStore sandboxDecisionEnforcementStore;
     private final ZeroTrustActionRepository zeroTrustActionRepository;
     private final SandboxPromptUserProvisioner sandboxPromptUserProvisioner;
     private final SandboxVectorStoreIsolationSupport sandboxVectorStoreIsolationSupport;
@@ -57,6 +60,61 @@ public class SandboxFullStackPromptReplayHarness {
             ZeroTrustActionRepository zeroTrustActionRepository,
             SandboxPromptUserProvisioner sandboxPromptUserProvisioner,
             SandboxVectorStoreIsolationSupport sandboxVectorStoreIsolationSupport) {
+        this(
+                baseUrl,
+                httpTimeout,
+                traceTimeout,
+                roundCooldown,
+                objectMapper,
+                sandboxOttCodeCapture,
+                sandboxPromptTraceStore,
+                null,
+                null,
+                zeroTrustActionRepository,
+                sandboxPromptUserProvisioner,
+                sandboxVectorStoreIsolationSupport);
+    }
+
+    public SandboxFullStackPromptReplayHarness(
+            String baseUrl,
+            Duration httpTimeout,
+            Duration traceTimeout,
+            Duration roundCooldown,
+            ObjectMapper objectMapper,
+            SandboxOttCodeCapture sandboxOttCodeCapture,
+            SandboxPromptTraceStore sandboxPromptTraceStore,
+            SandboxDecisionTraceStore sandboxDecisionTraceStore,
+            ZeroTrustActionRepository zeroTrustActionRepository,
+            SandboxPromptUserProvisioner sandboxPromptUserProvisioner,
+            SandboxVectorStoreIsolationSupport sandboxVectorStoreIsolationSupport) {
+        this(
+                baseUrl,
+                httpTimeout,
+                traceTimeout,
+                roundCooldown,
+                objectMapper,
+                sandboxOttCodeCapture,
+                sandboxPromptTraceStore,
+                sandboxDecisionTraceStore,
+                null,
+                zeroTrustActionRepository,
+                sandboxPromptUserProvisioner,
+                sandboxVectorStoreIsolationSupport);
+    }
+
+    public SandboxFullStackPromptReplayHarness(
+            String baseUrl,
+            Duration httpTimeout,
+            Duration traceTimeout,
+            Duration roundCooldown,
+            ObjectMapper objectMapper,
+            SandboxOttCodeCapture sandboxOttCodeCapture,
+            SandboxPromptTraceStore sandboxPromptTraceStore,
+            SandboxDecisionTraceStore sandboxDecisionTraceStore,
+            SandboxDecisionEnforcementStore sandboxDecisionEnforcementStore,
+            ZeroTrustActionRepository zeroTrustActionRepository,
+            SandboxPromptUserProvisioner sandboxPromptUserProvisioner,
+            SandboxVectorStoreIsolationSupport sandboxVectorStoreIsolationSupport) {
         this.baseUrl = baseUrl;
         this.httpTimeout = httpTimeout;
         this.traceTimeout = traceTimeout;
@@ -64,6 +122,8 @@ public class SandboxFullStackPromptReplayHarness {
         this.objectMapper = objectMapper;
         this.sandboxOttCodeCapture = sandboxOttCodeCapture;
         this.sandboxPromptTraceStore = sandboxPromptTraceStore;
+        this.sandboxDecisionTraceStore = sandboxDecisionTraceStore;
+        this.sandboxDecisionEnforcementStore = sandboxDecisionEnforcementStore;
         this.zeroTrustActionRepository = zeroTrustActionRepository;
         this.sandboxPromptUserProvisioner = sandboxPromptUserProvisioner;
         this.sandboxVectorStoreIsolationSupport = sandboxVectorStoreIsolationSupport;
@@ -113,6 +173,13 @@ public class SandboxFullStackPromptReplayHarness {
         sandboxVectorStoreIsolationSupport.prepareCleanReplayRun();
         sandboxOttCodeCapture.clearAll();
         sandboxPromptTraceStore.clearAll();
+        SandboxStableDecisionCaptureStore.clearAll();
+        if (sandboxDecisionTraceStore != null) {
+            sandboxDecisionTraceStore.clearAll();
+        }
+        if (sandboxDecisionEnforcementStore != null) {
+            sandboxDecisionEnforcementStore.clearAll();
+        }
     }
 
     private SandboxPromptReplayRun replayScenarioInternal(
@@ -132,6 +199,9 @@ public class SandboxFullStackPromptReplayHarness {
         } else {
             sandboxOttCodeCapture.clearAll();
             sandboxPromptTraceStore.clearAll();
+            if (sandboxDecisionTraceStore != null) {
+                sandboxDecisionTraceStore.clearAll();
+            }
         }
         sandboxPromptUserProvisioner.ensurePromptAdminUser(username, password);
 
@@ -149,7 +219,6 @@ public class SandboxFullStackPromptReplayHarness {
                     roundPlan.deviceAlias(),
                     ignored -> UUID.randomUUID().toString());
             if (webSessionClient == null || roundPlan.startsNewSession()) {
-                preparePendingAnalysisForAuthentication(username, phase);
                 webSessionClient = new SandboxWebSessionClient(baseUrl, httpTimeout);
                 authenticateUsingRealOttMfa(webSessionClient, username, password, scenario, roundPlan, deviceId);
             }
@@ -180,6 +249,7 @@ public class SandboxFullStackPromptReplayHarness {
             SandboxPromptReplayScenario scenario,
             SandboxPromptRoundPlan initialRoundPlan,
             String deviceId) {
+        prepareAuthenticationReplayWindow(username);
 
         SandboxHttpResponse loginPageResponse = webSessionClient.get(
                 "/customLogin",
@@ -192,10 +262,22 @@ public class SandboxFullStackPromptReplayHarness {
                 Map.of("username", username, "password", password));
 
         Map<String, Object> loginBody = parseJsonBody(loginResponse);
-        Assertions.assertThat(loginResponse.status()).isEqualTo(200);
+        Assertions.assertThat(loginResponse.status())
+                .as("MFA primary login must return 200. username=%s, scenario=%s, roundKey=%s, body=%s, headers=%s",
+                        username,
+                        scenario.scenarioKey(),
+                        initialRoundPlan.roundKey(),
+                        loginResponse.body(),
+                        loginResponse.headers())
+                .isEqualTo(200);
         Assertions.assertThat(text(loginBody.get("status")))
                 .as("1???癲ル슢???먥꼻?? ?熬곣뫖利??レ벁???MFA_REQUIRED ??影??낟??????븐뻤????熬곣뫖利??????ㅿ폑?????ш끽維?????繹먮냱議?MFA ?嚥▲굧???뚪뜮?熬곣벀嫄??????????딅젩.")
-                .isIn("MFA_REQUIRED_SELECT_FACTOR", "MFA_REQUIRED", "MFA_CONTINUE");
+                .isIn("MFA_REQUIRED_SELECT_FACTOR", "MFA_REQUIRED", "MFA_CONTINUE", "MFA_COMPLETED", "MFA_NOT_REQUIRED");
+
+        String loginStatus = text(loginBody.get("status"));
+        if ("MFA_COMPLETED".equals(loginStatus) || "MFA_NOT_REQUIRED".equals(loginStatus)) {
+            return;
+        }
 
         String factorType = resolveFactorType(loginBody);
 
@@ -204,7 +286,10 @@ public class SandboxFullStackPromptReplayHarness {
                 jsonHeaders(deviceId, initialRoundPlan),
                 Map.of("factorType", factorType, "username", username));
         Map<String, Object> factorSelectionBody = parseJsonBody(factorSelectionResponse);
-        Assertions.assertThat(factorSelectionResponse.status()).isEqualTo(200);
+        Assertions.assertThat(factorSelectionResponse.status())
+                .as("select-factor must return 200. loginBody=%s, factorType=%s, responseBody=%s",
+                        loginBody, factorType, factorSelectionResponse.body())
+                .isEqualTo(200);
 
         String ottRequestPageUrl = text(factorSelectionBody.get("nextStepUrl"));
         Assertions.assertThat(ottRequestPageUrl)
@@ -214,7 +299,14 @@ public class SandboxFullStackPromptReplayHarness {
         SandboxHttpResponse ottRequestPageResponse = webSessionClient.get(
                 toRelativePath(ottRequestPageUrl),
                 baseBrowserHeaders(deviceId, initialRoundPlan));
-        Assertions.assertThat(ottRequestPageResponse.status()).isEqualTo(200);
+        Assertions.assertThat(ottRequestPageResponse.status())
+                .as("OTT request page must return 200. username=%s, scenario=%s, roundKey=%s, body=%s, headers=%s",
+                        username,
+                        scenario.scenarioKey(),
+                        initialRoundPlan.roundKey(),
+                        ottRequestPageResponse.body(),
+                        ottRequestPageResponse.headers())
+                .isEqualTo(200);
 
         String ottCodeGenerationUrl = extractFormAction(ottRequestPageResponse.body(), "ottRequestForm", "ott-request-form");
         Map<String, String> requestCodeForm = extractHiddenInputs(
@@ -243,7 +335,14 @@ public class SandboxFullStackPromptReplayHarness {
         SandboxHttpResponse ottVerifyPageResponse = webSessionClient.get(
                 toRelativePath(ottVerifyPageUrl),
                 baseBrowserHeaders(deviceId, initialRoundPlan));
-        Assertions.assertThat(ottVerifyPageResponse.status()).isEqualTo(200);
+        Assertions.assertThat(ottVerifyPageResponse.status())
+                .as("OTT verification page must return 200. username=%s, scenario=%s, roundKey=%s, body=%s, headers=%s",
+                        username,
+                        scenario.scenarioKey(),
+                        initialRoundPlan.roundKey(),
+                        ottVerifyPageResponse.body(),
+                        ottVerifyPageResponse.headers())
+                .isEqualTo(200);
 
         String ottVerifyUrl = extractFormAction(ottVerifyPageResponse.body(), "verifyForm", "ott-verify-form");
         Map<String, String> verifyForm = extractHiddenInputs(
@@ -258,11 +357,29 @@ public class SandboxFullStackPromptReplayHarness {
                 verifyForm);
 
         Map<String, Object> verifyBody = parseJsonBody(verifyResponse);
-        Assertions.assertThat(verifyResponse.status()).isEqualTo(200);
+        Assertions.assertThat(verifyResponse.status())
+                .as("OTT verification submit must return 200. username=%s, scenario=%s, roundKey=%s, body=%s, headers=%s",
+                        username,
+                        scenario.scenarioKey(),
+                        initialRoundPlan.roundKey(),
+                        verifyResponse.body(),
+                        verifyResponse.headers())
+                .isEqualTo(200);
         Assertions.assertThat(text(verifyBody.get("status")))
                 .as("MFA??醫딆쓧? ????썹땟???嶺뚮슣??땻?????ш끽維????⑤슢??????잙갭큔?딆뼇???????뗫떔??????繹먮냱議??癲ル슢???먥꼻??癲ル슢???????Β???꿔꺂????紐꾩뗄??嶺뚮㉡???")
                 .isEqualTo("MFA_COMPLETED");
 
+    }
+
+    private void prepareAuthenticationReplayWindow(String username) {
+        // Decision benchmarks must measure the decision output itself, not let a previous round's
+        // ESCALATE/BLOCK enforcement prevent the next session from logging in.
+        // The protected resource round is re-armed to PENDING_ANALYSIS immediately before access,
+        // so resetting the authentication window to ALLOW only removes enforcement side-effects
+        // during the MFA/login path.
+        zeroTrustActionRepository.saveActionWithPrevious(username, ZeroTrustAction.ALLOW);
+        zeroTrustActionRepository.removeBlockedFlag(username);
+        zeroTrustActionRepository.clearBlockMfaPending(username);
     }
 
     private SandboxPromptReplayRound executeProtectedRound(
@@ -276,6 +393,12 @@ public class SandboxFullStackPromptReplayHarness {
             SandboxPromptRoundPlan roundPlan) {
         rearmPendingAnalysisForReplayRound(username, phase);
         sandboxPromptTraceStore.clearAll();
+        if (sandboxDecisionTraceStore != null) {
+            sandboxDecisionTraceStore.clearAll();
+        }
+        if (sandboxDecisionEnforcementStore != null) {
+            sandboxDecisionEnforcementStore.clearAll();
+        }
 
         String requestPath = roundPlan.requestPath();
         String requestId = "sandbox-req-" + phase.toLowerCase(Locale.ROOT) + "-" + UUID.randomUUID();
@@ -288,18 +411,24 @@ public class SandboxFullStackPromptReplayHarness {
                 scenario,
                 roundPlan);
         SandboxHttpResponse protectedResponse = webSessionClient.get(requestPath, requestHeaders);
-        Map<String, Object> responseBody = parseJsonBody(protectedResponse);
+        Map<String, Object> responseBody = parseProtectedResponseBody(protectedResponse, requestId);
 
         Assertions.assertThat(protectedResponse.status())
                 .as("??⑤슢??????잙갭큔?딆뼇???????뗫떔???200??????썹땟????ㅷ빊?prompt ???繹먮끏堉?????ㅼ굣??????繹먮냱議?HTTP ?嚥▲굧???뚪뜮?域민쇱?? ?μ떜媛?力?????嚥▲굧?????")
-                .isEqualTo(200);
+                .isIn(sandboxDecisionTraceStore == null ? List.of(200) : List.of(200, 403, 423));
 
         String effectiveRequestId = text(responseBody.get("requestId"));
         Assertions.assertThat(effectiveRequestId)
                 .as("??⑤슢??????잙갭큔?딆뼇??????????????requestId??醫딆쓧? ????⑥ろ맖??event/prompt/evidence?????β뼯援η뙴???꿔꺂????????Β?????ㅻ쿋驪??????????딅젩.")
                 .isNotBlank();
 
-        SandboxPromptTraceSnapshot snapshot = resolvePromptTrace(effectiveRequestId);
+        SandboxPromptTraceSnapshot snapshot = resolvePromptTraceWithPendingFallback(effectiveRequestId);
+        SandboxDecisionTraceSnapshot decisionSnapshot = sandboxDecisionTraceStore != null
+                ? resolveDecisionTrace(effectiveRequestId)
+                : null;
+        if (decisionSnapshot != null) {
+            waitForDecisionApplication(username, effectiveRequestId);
+        }
         return new SandboxPromptReplayRound(
                 phase,
                 roundNumber,
@@ -310,21 +439,19 @@ public class SandboxFullStackPromptReplayHarness {
                 roundPlan.simulatedUserAgentLabel(),
                 deviceId,
                 responseBody,
-                snapshot);
+                snapshot,
+                decisionSnapshot);
     }
 
     private void rearmPendingAnalysisForReplayRound(String username, String phase) {
         // ???? ?癲ル슢캉????LLM ???곗뒩泳??? PENDING_ANALYSIS ????븐뻤?????????꿔꺂??????嶺뚮㉡???
         // ????산뭐???replay ?????癲ル슢??蹂?쭍?????ㅼ굣??round??memory????????β뼯源닻?????썹땟???????action??PENDING????Β?????β뼯爰??濚밸Þ????
+        zeroTrustActionRepository.removeBlockedFlag(username);
+        zeroTrustActionRepository.clearBlockMfaPending(username);
         zeroTrustActionRepository.saveActionWithPrevious(username, ZeroTrustAction.PENDING_ANALYSIS);
         Assertions.assertThat(zeroTrustActionRepository.getCurrentAction(username))
                 .as("%s ??????????덊떀 ??????썹땟??action?? ?熬곣뫖利??レ벁???PENDING_ANALYSIS??????嶺뚮㉡???", phase)
                 .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
-    }
-
-    private void preparePendingAnalysisForAuthentication(String username, String phase) {
-        zeroTrustActionRepository.removeAllUserData(username);
-        rearmPendingAnalysisForReplayRound(username, phase + "_AUTH");
     }
 
     private SandboxPromptTraceSnapshot resolvePromptTrace(String requestId) {
@@ -337,6 +464,120 @@ public class SandboxFullStackPromptReplayHarness {
                     .as("Layer1 ????썹땟??????썹땟?????癲ル슢캉????trace??requestId????⑤슢??????잙갭큔?딆뼇??????????requestId?? ??濚밸Ŧ遊얕맱????ㅿ폑????嶺뚮㉡???")
                     .isEqualTo(requestId);
             return latestSnapshot;
+        }
+    }
+
+    private SandboxDecisionTraceSnapshot resolveDecisionTrace(String requestId) {
+        try {
+            return sandboxDecisionTraceStore.await(requestId, traceTimeout);
+        } catch (IllegalStateException missingRequestIdTrace) {
+            SandboxDecisionTraceSnapshot latestSnapshot = sandboxDecisionTraceStore.awaitAny(traceTimeout);
+            if (latestSnapshot != null
+                    && StringUtils.hasText(latestSnapshot.requestId())
+                    && latestSnapshot.requestId().equals(requestId)) {
+                return latestSnapshot;
+            }
+            return SandboxStableDecisionCaptureStore.find(requestId)
+                    .map(capture -> synthesizeDecisionTraceFromStableCapture(requestId, capture))
+                    .orElseThrow(() -> missingRequestIdTrace);
+        }
+    }
+
+    private SandboxPromptTraceSnapshot resolvePromptTraceWithPendingFallback(String requestId) {
+        try {
+            return resolvePromptTrace(requestId);
+        } catch (IllegalStateException missingRequestIdTrace) {
+            SandboxPromptTraceSnapshot requestPendingSnapshot = sandboxPromptTraceStore.findPending(requestId)
+                    .orElse(null);
+            if (requestPendingSnapshot != null) {
+                return requestPendingSnapshot;
+            }
+
+            SandboxPromptTraceSnapshot latestCompletedSnapshot = sandboxPromptTraceStore.findLatest()
+                    .orElse(null);
+            if (latestCompletedSnapshot != null) {
+                String latestCompletedRequestId = extractTraceRequestId(latestCompletedSnapshot);
+                if (requestId.equals(latestCompletedRequestId)) {
+                    return latestCompletedSnapshot;
+                }
+            }
+
+            SandboxPromptTraceSnapshot latestPendingSnapshot = sandboxPromptTraceStore.findLatestPending()
+                    .orElse(null);
+            if (latestPendingSnapshot != null) {
+                String latestPendingRequestId = extractTraceRequestId(latestPendingSnapshot);
+                if (requestId.equals(latestPendingRequestId)) {
+                    return latestPendingSnapshot;
+                }
+            }
+
+            throw missingRequestIdTrace;
+        }
+    }
+
+    private SandboxDecisionTraceSnapshot synthesizeDecisionTraceFromStableCapture(
+            String requestId,
+            SandboxStableDecisionCaptureStore.StableDecisionCapture capture) {
+        SandboxPromptTraceSnapshot promptSnapshot = resolvePromptTrace(requestId);
+        return new SandboxDecisionTraceSnapshot(
+                requestId,
+                java.time.Instant.now(),
+                capture.boundaryMode(),
+                capture.modelId(),
+                capture.aiGenerationType(),
+                capture.targetResponseType(),
+                capture.structuredOutputComplete(),
+                capture.llmRawRequest(),
+                capture.llmRawResponse(),
+                capture.llmExecutionResult(),
+                capture.llmExecutionResult(),
+                capture.llmExecutionResult(),
+                promptSnapshot.metadata().get("rawSystemPrompt") instanceof String rawSystem ? rawSystem : promptSnapshot.systemPrompt(),
+                promptSnapshot.metadata().get("rawUserPrompt") instanceof String rawUser ? rawUser : promptSnapshot.userPrompt(),
+                promptSnapshot.systemPrompt(),
+                promptSnapshot.userPrompt(),
+                promptSnapshot.metadata(),
+                promptSnapshot.promptExecutionMetadata(),
+                capture.pipelineMetadata());
+    }
+
+    private void waitForDecisionApplication(String username, String requestId) {
+        Duration decisionApplicationTimeout = traceTimeout;
+        if (sandboxDecisionTraceStore != null) {
+            decisionApplicationTimeout = Duration.ofMillis(Math.min(
+                    traceTimeout.toMillis(),
+                    SandboxDecisionBenchmarkSettings.decisionApplicationWaitMs()));
+        }
+        if (sandboxDecisionEnforcementStore != null) {
+            try {
+                sandboxDecisionEnforcementStore.await(requestId, decisionApplicationTimeout);
+                return;
+            } catch (IllegalStateException ignored) {
+                // Some decision paths settle in the repository without flowing through the
+                // enforcement aspect. In those cases the repository state is the completion signal.
+            }
+        }
+        awaitRepositoryDecisionStateBestEffort(username, requestId, decisionApplicationTimeout);
+    }
+
+    private void awaitRepositoryDecisionStateBestEffort(String username, String requestId, Duration timeout) {
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() <= deadline) {
+            ZeroTrustActionRepository.ZeroTrustAnalysisData analysisData =
+                    zeroTrustActionRepository.getAnalysisData(username);
+            if (analysisData != null
+                    && StringUtils.hasText(analysisData.requestId())
+                    && requestId.equals(analysisData.requestId())
+                    && StringUtils.hasText(analysisData.action())
+                    && !ZeroTrustAction.PENDING_ANALYSIS.name().equalsIgnoreCase(analysisData.action())) {
+                return;
+            }
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
@@ -412,6 +653,10 @@ public class SandboxFullStackPromptReplayHarness {
         headers.put("X-Contexa-Round-Key", roundPlan.roundKey());
         headers.put("X-Contexa-Behavior-Phase", roundPlan.behaviorPhase());
         headers.put("X-Contexa-Anomaly-Signal", roundPlan.anomalySignal());
+        String promptBudgetProfileOverride = SandboxBenchmarkRuntimeSettings.promptBudgetProfileOverride();
+        if (StringUtils.hasText(promptBudgetProfileOverride)) {
+            headers.put("X-Contexa-Prompt-Budget-Profile", promptBudgetProfileOverride);
+        }
         return headers;
     }
 
@@ -425,6 +670,21 @@ public class SandboxFullStackPromptReplayHarness {
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to parse sandbox HTTP response body: " + response.body(), exception);
         }
+    }
+
+    private Map<String, Object> parseProtectedResponseBody(SandboxHttpResponse response, String requestId) {
+        String body = response.body();
+        if (StringUtils.hasText(body) && body.contains(BLOCK_SIGNAL_PREFIX)) {
+            String blockedAction = body.substring(body.indexOf(BLOCK_SIGNAL_PREFIX) + BLOCK_SIGNAL_PREFIX.length()).trim();
+            Map<String, Object> blockedResponse = new LinkedHashMap<>();
+            blockedResponse.put("requestId", requestId);
+            blockedResponse.put("blocked", true);
+            blockedResponse.put("action", blockedAction);
+            blockedResponse.put("status", "BLOCKED");
+            blockedResponse.put("rawBody", body);
+            return blockedResponse;
+        }
+        return parseJsonBody(response);
     }
 
     private String resolveFactorType(Map<String, Object> loginBody) {

@@ -9,6 +9,7 @@ import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.prompt.LLMViewComposer;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ import java.util.List;
  * 실제 웹 호출 -> 실제 비동기 분석 -> 실제 prompt 생성의 결과를 저장하는 역할만 한다.
  */
 @TestConfiguration(proxyBeanMethods = false)
+@org.springframework.context.annotation.Import(SandboxOttFirstPlatformConfigTestConfiguration.class)
 public class SandboxPromptTraceTestConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(SandboxPromptTraceTestConfiguration.class);
@@ -44,6 +46,22 @@ public class SandboxPromptTraceTestConfiguration {
     public SandboxPromptTraceStore sandboxPromptTraceStore(
             SandboxRetrievalAuditStore sandboxRetrievalAuditStore) {
         return new SandboxPromptTraceStore(sandboxRetrievalAuditStore);
+    }
+
+    @Bean
+    public SandboxDecisionTraceStore sandboxDecisionTraceStore() {
+        return new SandboxDecisionTraceStore();
+    }
+
+    @Bean
+    public SandboxDecisionEnforcementStore sandboxDecisionEnforcementStore() {
+        return new SandboxDecisionEnforcementStore();
+    }
+
+    @Bean
+    public SandboxDecisionEnforcementAspect sandboxDecisionEnforcementAspect(
+            SandboxDecisionEnforcementStore sandboxDecisionEnforcementStore) {
+        return new SandboxDecisionEnforcementAspect(sandboxDecisionEnforcementStore);
     }
 
     @Bean
@@ -63,6 +81,12 @@ public class SandboxPromptTraceTestConfiguration {
     public SandboxLayer1CompletionAspect sandboxLayer1CompletionAspect(
             SandboxPromptTraceStore sandboxPromptTraceStore) {
         return new SandboxLayer1CompletionAspect(sandboxPromptTraceStore);
+    }
+
+    @Bean
+    public SandboxDecisionPostprocessingAspect sandboxDecisionPostprocessingAspect(
+            SandboxDecisionTraceStore sandboxDecisionTraceStore) {
+        return new SandboxDecisionPostprocessingAspect(sandboxDecisionTraceStore);
     }
 
     @Bean
@@ -90,9 +114,10 @@ public class SandboxPromptTraceTestConfiguration {
     @Primary
     public PromptGenerator sandboxCapturingPromptGenerator(
             List<PromptTemplate> promptTemplates,
+            LLMViewComposer llmViewComposer,
             SandboxPromptTraceStore sandboxPromptTraceStore) {
 
-        return new PromptGenerator(promptTemplates) {
+        return new PromptGenerator(promptTemplates, llmViewComposer) {
             @Override
             public PromptGenerationResult generatePrompt(
                     AIRequest<? extends DomainContext> request,

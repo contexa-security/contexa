@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,6 +28,7 @@ public class PlatformSecurityConfig {
     private final AISessionSecurityContextRepository aiSessionSecurityContextRepository;
 
     @Bean
+    @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
@@ -64,8 +66,8 @@ public class PlatformSecurityConfig {
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
                                         .defaultSuccessUrl("/admin/test/security")
                                 ))
-//                                .passkey(Customizer.withDefaults())
-                                .ott(Customizer.withDefaults())
+                                .passkey(Customizer.withDefaults())
+//                                .ott(Customizer.withDefaults())
 //                                .passkey(Customizer.withDefaults())
 //                                .ott(Customizer.withDefaults())
                         .order(90)

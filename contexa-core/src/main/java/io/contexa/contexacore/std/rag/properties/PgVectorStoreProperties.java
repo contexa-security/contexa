@@ -43,6 +43,14 @@ public class PgVectorStoreProperties extends CommonVectorStoreProperties {
     @DecimalMax("1.0")
     private double similarityThreshold = 0.5;
 
+    @Min(100)
+    @Max(600000)
+    private long searchTimeoutMs = 10000;
+
+    @Min(100)
+    @Max(600000)
+    private long storeTimeoutMs = 10000;
+
     private HnswConfig hnsw = new HnswConfig();
 
     private IvfflatConfig ivfflat = new IvfflatConfig();

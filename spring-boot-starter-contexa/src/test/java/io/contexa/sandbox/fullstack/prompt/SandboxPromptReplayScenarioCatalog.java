@@ -27,6 +27,10 @@ public final class SandboxPromptReplayScenarioCatalog {
     private static final String FAMILY_SEQUENCE_REVERSAL = "SEQUENCE_REVERSAL";
     private static final String FAMILY_LATE_ESCALATION = "LATE_ESCALATION";
     private static final String FAMILY_RECOVERY = "RECOVERY";
+    private static final String FAMILY_SPARSE_EVIDENCE = "SPARSE_EVIDENCE";
+    private static final String FAMILY_CONFLICTING_CONTEXT = "CONFLICTING_CONTEXT";
+    private static final String FAMILY_PARTIAL_MEMORY = "PARTIAL_MEMORY";
+    private static final String FAMILY_APPROVAL_AMBIGUITY = "APPROVAL_AMBIGUITY";
 
     public static final SandboxPromptReplayScenario ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE =
             scenario(
@@ -92,6 +96,38 @@ public final class SandboxPromptReplayScenarioCatalog {
                     "ADMIN_CRITICAL_BASELINE_RECOVERY",
                     SandboxPromptLongHorizonScenarioFactory.buildRecoveryRounds());
 
+    public static final SandboxPromptReplayScenario ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY =
+            scenario(
+                    "ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY",
+                    FAMILY_SPARSE_EVIDENCE,
+                    "Decision benchmark should keep safe uncertainty when the same account re-enters a high-value path with sparse comparable history",
+                    "ADMIN_SPARSE_EVIDENCE_PROFILE",
+                    SandboxPromptLongHorizonScenarioFactory.buildSparseEvidenceRounds());
+
+    public static final SandboxPromptReplayScenario ADMIN_STEADY_BASELINE_THEN_CONFLICTING_CONTEXT =
+            scenario(
+                    "ADMIN_STEADY_BASELINE_THEN_CONFLICTING_CONTEXT",
+                    FAMILY_CONFLICTING_CONTEXT,
+                    "Decision benchmark should handle mixed network, device and scope signals without overconfident reasoning",
+                    "ADMIN_CONFLICTING_CONTEXT_PROFILE",
+                    SandboxPromptLongHorizonScenarioFactory.buildConflictingContextRounds());
+
+    public static final SandboxPromptReplayScenario ADMIN_WIDE_FANOUT_THEN_PARTIAL_MEMORY_REENTRY =
+            scenario(
+                    "ADMIN_WIDE_FANOUT_THEN_PARTIAL_MEMORY_REENTRY",
+                    FAMILY_PARTIAL_MEMORY,
+                    "Decision benchmark should stay grounded when comparable memory is partial and path-specific recall is thin",
+                    "ADMIN_PARTIAL_MEMORY_PROFILE",
+                    SandboxPromptLongHorizonScenarioFactory.buildPartialMemoryRounds());
+
+    public static final SandboxPromptReplayScenario ADMIN_MIXED_SCOPE_THEN_APPROVAL_AMBIGUITY =
+            scenario(
+                    "ADMIN_MIXED_SCOPE_THEN_APPROVAL_AMBIGUITY",
+                    FAMILY_APPROVAL_AMBIGUITY,
+                    "Decision benchmark should avoid overconfident approval assumptions when critical scope appears under thin approval lineage",
+                    "ADMIN_APPROVAL_AMBIGUITY_PROFILE",
+                    SandboxPromptLongHorizonScenarioFactory.buildApprovalAmbiguityRounds());
+
     private static final List<SandboxPromptReplayScenario> ALL_SCENARIOS = List.of(
             ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE,
             ADMIN_SENSITIVE_BASELINE_THEN_UNSEEN_SENSITIVE_FANOUT,
@@ -102,7 +138,16 @@ public final class SandboxPromptReplayScenarioCatalog {
             ADMIN_MIXED_SCOPE_BASELINE_THEN_LATE_CRITICAL_APPROVAL,
             ADMIN_CRITICAL_BASELINE_THEN_NORMALIZED_RECOVERY);
 
-    private static final Map<String, SandboxPromptReplayScenario> BY_KEY = ALL_SCENARIOS.stream()
+    private static final List<SandboxPromptReplayScenario> DECISION_AMBIGUITY_SCENARIOS = List.of(
+            ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY,
+            ADMIN_STEADY_BASELINE_THEN_CONFLICTING_CONTEXT,
+            ADMIN_WIDE_FANOUT_THEN_PARTIAL_MEMORY_REENTRY,
+            ADMIN_MIXED_SCOPE_THEN_APPROVAL_AMBIGUITY);
+
+    private static final List<SandboxPromptReplayScenario> DECISION_OFFICIAL_SCENARIOS =
+            concat(ALL_SCENARIOS, DECISION_AMBIGUITY_SCENARIOS);
+
+    private static final Map<String, SandboxPromptReplayScenario> BY_KEY = DECISION_OFFICIAL_SCENARIOS.stream()
             .collect(LinkedHashMap::new,
                     (map, scenario) -> map.put(scenario.scenarioKey(), scenario),
                     LinkedHashMap::putAll);
@@ -126,6 +171,14 @@ public final class SandboxPromptReplayScenarioCatalog {
         return ALL_SCENARIOS;
     }
 
+    public static List<SandboxPromptReplayScenario> ambiguityScenarioSet() {
+        return DECISION_AMBIGUITY_SCENARIOS;
+    }
+
+    public static List<SandboxPromptReplayScenario> decisionOfficialScenarioSet() {
+        return DECISION_OFFICIAL_SCENARIOS;
+    }
+
     public static List<SandboxPromptReplayScenario> resolve(String selector) {
         if (selector == null || selector.isBlank()) {
             return defaultScenarios();
@@ -139,6 +192,12 @@ public final class SandboxPromptReplayScenarioCatalog {
         }
         if ("EXTENDED".equals(normalized) || "ALL".equals(normalized)) {
             return extendedScenarioSet();
+        }
+        if ("AMBIGUITY".equals(normalized) || "DECISION_AMBIGUITY".equals(normalized)) {
+            return ambiguityScenarioSet();
+        }
+        if ("DECISION".equals(normalized) || "DECISION_OFFICIAL".equals(normalized)) {
+            return decisionOfficialScenarioSet();
         }
 
         LinkedHashMap<String, SandboxPromptReplayScenario> resolved = new LinkedHashMap<>();
@@ -230,5 +289,14 @@ public final class SandboxPromptReplayScenarioCatalog {
                 userProfileKey,
                 scenarioFamily,
                 roundPlans);
+    }
+
+    private static List<SandboxPromptReplayScenario> concat(
+            List<SandboxPromptReplayScenario> left,
+            List<SandboxPromptReplayScenario> right) {
+        ArrayList<SandboxPromptReplayScenario> merged = new ArrayList<>(left.size() + right.size());
+        merged.addAll(left);
+        merged.addAll(right);
+        return List.copyOf(merged);
     }
 }

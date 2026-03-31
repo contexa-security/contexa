@@ -74,6 +74,9 @@ public class SandboxPromptBenchmarkReportWriter {
         Files.writeString(
                 reportDirectory.resolve("summary.md"),
                 buildMarkdown(benchmarkName, runResults, jsonReport));
+        Files.writeString(
+                reportDirectory.resolve("summary.html"),
+                buildHtml(benchmarkName, jsonReport));
 
         writeNdjson(reportDirectory.resolve("runs.ndjson"), buildRunLedger(runResults));
         writeNdjson(reportDirectory.resolve("rounds.ndjson"), buildRoundLedger(runResults));
@@ -91,6 +94,9 @@ public class SandboxPromptBenchmarkReportWriter {
                 reportDirectory.resolve("latest-history.json"),
                 objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(historyRow));
         appendNdjson(reportDirectory.resolve("history.ndjson"), historyRow);
+
+        new SandboxPromptCompressionEvidenceWriter(objectMapper, reportDirectory.resolve("compression"))
+                .write(runResults);
     }
 
     private Map<String, Object> buildMetricSummary(List<SandboxPromptBenchmarkRunResult> runResults) {
@@ -188,8 +194,11 @@ public class SandboxPromptBenchmarkReportWriter {
     }
 
     private Map<String, Object> buildOfficialMetricCoverage(Map<String, Object> metricSummary) {
+        TreeSet<String> observedImplementedMetricNames = new TreeSet<>(metricSummary.keySet());
+        observedImplementedMetricNames.addAll(loadExternalDecisionMetricNames());
+
         List<String> implementedOfficialMetrics = SandboxPromptBenchmarkMetricCatalog.implementedOfficialMetrics().stream()
-                .filter(metric -> metricSummary.containsKey(metric.metricName()))
+                .filter(metric -> observedImplementedMetricNames.contains(metric.metricName()))
                 .map(SandboxPromptBenchmarkMetricCatalog::metricName)
                 .toList();
         List<String> pendingOfficialMetrics = SandboxPromptBenchmarkMetricCatalog.pendingOfficialMetrics().stream()
@@ -197,7 +206,7 @@ public class SandboxPromptBenchmarkReportWriter {
                 .toList();
         List<String> missingImplementedOfficialMetrics = SandboxPromptBenchmarkMetricCatalog.implementedOfficialMetrics().stream()
                 .map(SandboxPromptBenchmarkMetricCatalog::metricName)
-                .filter(metricName -> !metricSummary.containsKey(metricName))
+                .filter(metricName -> !observedImplementedMetricNames.contains(metricName))
                 .toList();
 
         Map<String, Object> coverage = new LinkedHashMap<>();
@@ -207,7 +216,30 @@ public class SandboxPromptBenchmarkReportWriter {
         coverage.put("implementedOfficialMetrics", implementedOfficialMetrics);
         coverage.put("missingImplementedOfficialMetrics", missingImplementedOfficialMetrics);
         coverage.put("pendingOfficialMetrics", pendingOfficialMetrics);
+        coverage.put("externalDecisionSummaryAvailable", Files.exists(reportDirectory.resolve("decision-summary.json")));
+        coverage.put("externalDecisionMetricNames", loadExternalDecisionMetricNames());
         return coverage;
+    }
+
+    private List<String> loadExternalDecisionMetricNames() {
+        Path decisionSummaryPath = reportDirectory.resolve("decision-summary.json");
+        if (!Files.exists(decisionSummaryPath)) {
+            return List.of();
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> summary = objectMapper.readValue(Files.readString(decisionSummaryPath), Map.class);
+            Object metrics = summary.get("metrics");
+            if (!(metrics instanceof Map<?, ?> metricMap)) {
+                return List.of();
+            }
+            return metricMap.keySet().stream()
+                    .map(String::valueOf)
+                    .sorted()
+                    .toList();
+        } catch (IOException ignored) {
+            return List.of();
+        }
     }
 
     private List<Map<String, Object>> buildGroupedSummaries(
@@ -615,7 +647,9 @@ public class SandboxPromptBenchmarkReportWriter {
         builder.append("- pendingOfficialMetricCount: ").append(officialMetricCoverage.get("pendingOfficialMetricCount")).append('\n');
         builder.append("- implementedOfficialMetrics: ").append(officialMetricCoverage.get("implementedOfficialMetrics")).append('\n');
         builder.append("- missingImplementedOfficialMetrics: ").append(officialMetricCoverage.get("missingImplementedOfficialMetrics")).append('\n');
-        builder.append("- pendingOfficialMetrics: ").append(officialMetricCoverage.get("pendingOfficialMetrics")).append("\n\n");
+        builder.append("- pendingOfficialMetrics: ").append(officialMetricCoverage.get("pendingOfficialMetrics")).append('\n');
+        builder.append("- externalDecisionSummaryAvailable: ").append(officialMetricCoverage.get("externalDecisionSummaryAvailable")).append('\n');
+        builder.append("- externalDecisionMetricNames: ").append(officialMetricCoverage.get("externalDecisionMetricNames")).append("\n\n");
 
         builder.append("## Metric Catalog\n\n");
         @SuppressWarnings("unchecked")
@@ -780,6 +814,63 @@ public class SandboxPromptBenchmarkReportWriter {
         return builder.toString();
     }
 
+    private String buildHtml(String benchmarkName, Map<String, Object> jsonReport) {
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> metricSummaries =
+                (Map<String, Map<String, Object>>) jsonReport.get("metricSummaries");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> officialCoverage =
+                (Map<String, Object>) jsonReport.get("officialMetricCoverage");
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
+                .append("<title>").append(escapeHtml(benchmarkName)).append("</title>")
+                .append("<style>")
+                .append("body{font-family:'Segoe UI',sans-serif;margin:32px;color:#111827;background:#f9fafb;}")
+                .append("h1,h2{color:#111827;}table{border-collapse:collapse;width:100%;margin:16px 0;}")
+                .append("th,td{border:1px solid #d1d5db;padding:8px;text-align:left;font-size:14px;}")
+                .append("th{background:#eef2ff;}code{background:#e5e7eb;padding:2px 4px;border-radius:4px;}")
+                .append("a{color:#2563eb;text-decoration:none;}ul{line-height:1.6;}")
+                .append("</style></head><body>");
+        builder.append("<h1>").append(escapeHtml(benchmarkName)).append("</h1>");
+        builder.append("<p>Generated at ").append(escapeHtml(String.valueOf(jsonReport.get("generatedAt")))).append("</p>");
+        builder.append("<ul>");
+        builder.append("<li>Benchmark version: <code>").append(escapeHtml(String.valueOf(jsonReport.get("benchmarkVersion")))).append("</code></li>");
+        builder.append("<li>Run count: ").append(escapeHtml(String.valueOf(jsonReport.get("runCount")))).append("</li>");
+        builder.append("<li>Implemented official metrics: ").append(escapeHtml(String.valueOf(officialCoverage.get("implementedOfficialMetricCount")))).append("</li>");
+        builder.append("<li>Pending official metrics: ").append(escapeHtml(String.valueOf(officialCoverage.get("pendingOfficialMetricCount")))).append("</li>");
+        builder.append("</ul>");
+        builder.append("<p>")
+                .append("<a href=\"summary.json\">summary.json</a> | ")
+                .append("<a href=\"summary.md\">summary.md</a> | ")
+                .append("<a href=\"runs.ndjson\">runs.ndjson</a> | ")
+                .append("<a href=\"rounds.ndjson\">rounds.ndjson</a> | ")
+                .append("<a href=\"metrics.ndjson\">metrics.ndjson</a> | ")
+                .append("<a href=\"defects.ndjson\">defects.ndjson</a> | ")
+                .append("<a href=\"decision-summary.html\">decision summary</a> | ")
+                .append("<a href=\"decision-index.html\">decision index</a> | ")
+                .append("<a href=\"compression/compression-summary.html\">compression evidence</a> | ")
+                .append("<a href=\"compression-impact/compression-impact-summary.html\">compression impact</a>")
+                .append("</p>");
+        builder.append("<h2>Metric Summary</h2><table><thead><tr>")
+                .append("<th>Metric</th><th>Mean</th><th>Failure Rate</th><th>95% CI</th><th>Stability</th></tr>")
+                .append("</thead><tbody>");
+        for (Map.Entry<String, Map<String, Object>> entry : metricSummaries.entrySet()) {
+            Map<String, Object> summary = entry.getValue();
+            builder.append("<tr><td>").append(escapeHtml(entry.getKey())).append("</td>")
+                    .append("<td>").append(formatNumber(summary.get("mean"))).append("</td>")
+                    .append("<td>").append(formatNumber(summary.get("failureRatePercent"))).append("%</td>")
+                    .append("<td>[")
+                    .append(formatNumber(summary.get("ci95Low")))
+                    .append(", ")
+                    .append(formatNumber(summary.get("ci95High")))
+                    .append("]</td>")
+                    .append("<td>").append(escapeHtml(String.valueOf(summary.get("stabilityClass")))).append("</td></tr>");
+        }
+        builder.append("</tbody></table></body></html>");
+        return builder.toString();
+    }
+
     private void writeNdjson(Path outputPath, List<Map<String, Object>> rows) throws IOException {
         StringBuilder builder = new StringBuilder();
         for (Map<String, Object> row : rows) {
@@ -792,6 +883,7 @@ public class SandboxPromptBenchmarkReportWriter {
         List<String> fileNames = List.of(
                 "summary.json",
                 "summary.md",
+                "summary.html",
                 "runs.ndjson",
                 "rounds.ndjson",
                 "metrics.ndjson",
@@ -806,6 +898,24 @@ public class SandboxPromptBenchmarkReportWriter {
         for (String fileName : fileNames) {
             Files.deleteIfExists(reportDirectory.resolve(fileName));
         }
+    }
+
+    private String formatNumber(Object value) {
+        if (value instanceof Number number) {
+            return String.format(Locale.ROOT, "%.3f", number.doubleValue());
+        }
+        return escapeHtml(String.valueOf(value));
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 
     private Map<String, Object> readPreviousHistoryRow() throws IOException {

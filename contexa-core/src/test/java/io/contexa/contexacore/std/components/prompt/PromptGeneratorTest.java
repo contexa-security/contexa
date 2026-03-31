@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PromptGeneratorTest {
 
     @Test
-    @DisplayName("PromptGenerator??SecurityDecisionTemplate??援ъ“??metadata瑜???뼱?곗? ?딄퀬 sectionSet怨?omission ?뺣낫瑜?洹몃?濡??좎??댁빞 ?쒕떎")
+    @DisplayName("PromptGenerator는 governance metadata와 raw/view prompt telemetry를 함께 제공해야 한다")
     void generatePromptShouldAttachGovernanceMetadata() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -49,16 +49,24 @@ class PromptGeneratorTest {
                 "",
                 "");
 
-        assertThat(result.getPromptExecutionMetadata()).isNotNull();
-        assertThat(result.getPromptExecutionMetadata().governanceDescriptor().promptVersion()).isEqualTo("2026.03.26-e0.1");
-        assertThat(result.getPromptExecutionMetadata().governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
-        assertThat(result.getPromptExecutionMetadata().governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(result.getPromptExecutionMetadata().budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
-        assertThat(result.getPromptExecutionMetadata().promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
-        assertThat(result.getPromptExecutionMetadata().omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
-        assertThat(result.getPromptExecutionMetadata().sectionSet())
+        PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
+        assertThat(executionMetadata).isNotNull();
+        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.03.26-e0.1");
+        assertThat(executionMetadata.governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
+        assertThat(executionMetadata.governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
+        assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
+        assertThat(executionMetadata.promptTokenEstimate().estimatorKey()).isEqualTo("heuristic-char-div4-v1");
+        assertThat(executionMetadata.promptTokenEstimate().budgetEnforcementMode()).isEqualTo("LLM_VIEW_ENFORCED");
+        assertThat(executionMetadata.promptTokenEstimate().estimatedTotalTokens()).isPositive();
+        assertThat(executionMetadata.promptTokenEstimate().compressionApplied())
+                .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
+        assertThat(executionMetadata.promptCompressionLedger().transformationMode()).isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_COMPACT", "NORMALIZE_AND_FUSE");
+        assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
+        assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(executionMetadata.sectionSet())
                 .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
-        assertThat(result.getPromptExecutionMetadata().promptHash()).startsWith("sha256:");
+        assertThat(executionMetadata.promptHash()).startsWith("sha256:");
+        assertThat(executionMetadata.rawPromptHash()).startsWith("sha256:");
         assertThat(result.getMetadata()).containsKeys(
                 "promptKey",
                 "promptVersion",
@@ -70,10 +78,34 @@ class PromptGeneratorTest {
                 "promptEvidenceCompleteness",
                 "promptHash",
                 "systemPromptHash",
-                "userPromptHash");
+                "userPromptHash",
+                "rawPromptHash",
+                "rawSystemPromptHash",
+                "rawUserPromptHash",
+                "promptTokenEstimator",
+                "estimatedSystemTokens",
+                "estimatedUserTokens",
+                "estimatedTotalTokens",
+                "promptBudgetRemainingTokens",
+                "promptBudgetUtilizationRate",
+                "promptBudgetExceeded",
+                "promptBudgetEnforcementMode",
+                "promptCompressionApplied",
+                "promptTransformationMode",
+                "promptRawTruthParity",
+                "promptCompressionOperationCount",
+                "promptCompressionSavedCharacters",
+                "promptCompressionSavedEstimatedTokens",
+                "promptCompressionLedger");
         assertThat(result.getMetadata().get("promptSectionSet")).asList()
                 .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
         assertThat(result.getMetadata().get("omittedSections")).asList()
                 .contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(result.getSystemPrompt()).doesNotContain("promptHash");
+        assertThat(result.getUserPrompt()).doesNotContain("promptHash");
+        assertThat(result.getRawSystemPrompt()).isNotBlank();
+        assertThat(result.getRawUserPrompt()).isNotBlank();
+        assertThat(result.getMetadata().get("promptCompressionApplied"))
+                .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
     }
 }

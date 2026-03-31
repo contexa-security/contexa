@@ -23,6 +23,21 @@ class SandboxPromptReplayScenarioCatalogTest {
     }
 
     @Test
+    @DisplayName("DECISION_OFFICIAL selector는 ambiguity family를 포함한 전용 시나리오 집합을 제공해야 한다")
+    void shouldExposeDecisionOfficialScenariosWithAmbiguityFamilies() {
+        List<SandboxPromptReplayScenario> decisionScenarios = SandboxPromptReplayScenarioCatalog.resolve("DECISION_OFFICIAL");
+
+        assertThat(decisionScenarios).hasSizeGreaterThanOrEqualTo(12);
+        assertThat(decisionScenarios)
+                .extracting(SandboxPromptReplayScenario::scenarioFamily)
+                .contains(
+                        "SPARSE_EVIDENCE",
+                        "CONFLICTING_CONTEXT",
+                        "PARTIAL_MEMORY",
+                        "APPROVAL_AMBIGUITY");
+    }
+
+    @Test
     @DisplayName("CORE selector는 기본 세트와 같고 ALL selector는 EXTENDED와 같아야 한다")
     void shouldResolveScenarioSelectorsDeterministically() {
         List<SandboxPromptReplayScenario> defaultScenarios = SandboxPromptReplayScenarioCatalog.resolve("DEFAULT");

@@ -5,8 +5,8 @@ import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
@@ -47,13 +47,9 @@ public class PromptGenerationStep implements PipelineStep {
             }
             if (promptResult.getPromptExecutionMetadata() != null) {
                 context.addMetadata("promptExecutionMetadata", promptResult.getPromptExecutionMetadata());
-                context.addMetadata("promptHash", promptResult.getPromptExecutionMetadata().promptHash());
-                context.addMetadata("promptVersion", promptResult.getPromptExecutionMetadata()
-                        .governanceDescriptor()
-                        .promptVersion());
-                context.addMetadata("budgetProfile", promptResult.getPromptExecutionMetadata().budgetProfile().profileKey());
-                context.addMetadata("promptEvidenceCompleteness", promptResult.getPromptExecutionMetadata().promptEvidenceCompleteness().name());
-                context.addMetadata("omittedSections", promptResult.getPromptExecutionMetadata().omittedSections());
+                promptResult.getPromptExecutionMetadata()
+                        .toMetadataMap()
+                        .forEach(context::addMetadata);
             }
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 

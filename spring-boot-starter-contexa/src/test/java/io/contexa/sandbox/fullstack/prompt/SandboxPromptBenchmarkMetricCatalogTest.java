@@ -19,13 +19,11 @@ class SandboxPromptBenchmarkMetricCatalogTest {
                 .contains(
                         "Event Integrity Rate",
                         "Prompt Fidelity Rate",
-                        "User-Specific Novelty Sensitivity",
-                        "Behavioral Surprise Resolution");
-        assertThat(SandboxPromptBenchmarkMetricCatalog.pendingOfficialMetrics())
-                .extracting(SandboxPromptBenchmarkMetricCatalog::metricName)
-                .containsExactly(
                         "Context-to-Decision Calibration",
                         "Evidence-Reason Alignment",
-                        "Safe-Uncertainty Handling Rate");
+                        "Safe-Uncertainty Handling Rate",
+                        "User-Specific Novelty Sensitivity",
+                        "Behavioral Surprise Resolution");
+        assertThat(SandboxPromptBenchmarkMetricCatalog.pendingOfficialMetrics()).isEmpty();
     }
 }

@@ -20,10 +20,16 @@ public class PromptGenerator {
 
     private static final Map<String, PromptTemplate> promptTemplates = new ConcurrentHashMap<>();
     private final List<PromptTemplate> templateBeans;
+    private final LLMViewComposer llmViewComposer;
 
     @Autowired
     public PromptGenerator(List<PromptTemplate> templateBeans) {
+        this(templateBeans, null);
+    }
+
+    public PromptGenerator(List<PromptTemplate> templateBeans, LLMViewComposer llmViewComposer) {
         this.templateBeans = templateBeans;
+        this.llmViewComposer = llmViewComposer != null ? llmViewComposer : new SafePromptNormalizationLLMViewComposer();
     }
 
     @PostConstruct
@@ -43,18 +49,31 @@ public class PromptGenerator {
 
         String templateKey = determineTemplateKey(request);
         PromptTemplate template = promptTemplates.get(templateKey);
-        String systemPrompt = template.generateSystemPrompt(request, systemMetadata);
-        String userPrompt = template.generateUserPrompt(request, contextInfo);
+        String rawSystemPrompt = template.generateSystemPrompt(request, systemMetadata);
+        String rawUserPrompt = template.generateUserPrompt(request, contextInfo);
+        PromptViewComposition promptViewComposition = llmViewComposer.compose(
+                rawSystemPrompt,
+                rawUserPrompt,
+                resolveBudgetProfile(request));
+        String systemPrompt = promptViewComposition.llmSystemPrompt();
+        String userPrompt = promptViewComposition.llmUserPrompt();
 
         PromptExecutionMetadata promptExecutionMetadata =
-                buildPromptExecutionMetadata(request, templateKey, template, systemPrompt, userPrompt);
+                buildPromptExecutionMetadata(request, templateKey, template, promptViewComposition);
         Map<String, Object> metadata = new LinkedHashMap<>(promptExecutionMetadata.toMetadataMap());
 
         SystemMessage systemMessage = SystemMessage.builder().text(systemPrompt).metadata(metadata).build();
         UserMessage userMessage = UserMessage.builder().text(userPrompt).metadata(metadata).build();
         Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
 
-        return new PromptGenerationResult(prompt, systemPrompt, userPrompt, metadata, promptExecutionMetadata);
+        return new PromptGenerationResult(
+                prompt,
+                systemPrompt,
+                userPrompt,
+                promptViewComposition.rawSystemPrompt(),
+                promptViewComposition.rawUserPrompt(),
+                metadata,
+                promptExecutionMetadata);
     }
 
     public void registerTemplate(String key, PromptTemplate template) {
@@ -90,13 +109,37 @@ public class PromptGenerator {
             AIRequest<? extends DomainContext> request,
             String templateKey,
             PromptTemplate template,
-            String systemPrompt,
-            String userPrompt) {
+            PromptViewComposition promptViewComposition) {
         if (template instanceof GovernedPromptTemplate governedPromptTemplate) {
-            return governedPromptTemplate.buildPromptExecutionMetadata(request, systemPrompt, userPrompt);
+            return governedPromptTemplate.buildPromptExecutionMetadata(request, promptViewComposition);
         }
         PromptGovernanceDescriptor descriptor =
                 PromptGovernanceSupport.buildDefaultDescriptor(templateKey, template.getClass());
-        return PromptGovernanceSupport.buildExecutionMetadata(descriptor, systemPrompt, userPrompt);
+        return PromptGovernanceSupport.buildExecutionMetadata(
+                descriptor,
+                resolveBudgetProfile(request),
+                List.of(),
+                List.of(),
+                List.of(),
+                PromptEvidenceCompleteness.SUFFICIENT,
+                promptViewComposition.llmSystemPrompt(),
+                promptViewComposition.llmUserPrompt(),
+                promptViewComposition.rawSystemPrompt(),
+                promptViewComposition.rawUserPrompt(),
+                promptViewComposition.compressionLedger());
+    }
+
+    private PromptBudgetProfile resolveBudgetProfile(AIRequest<? extends DomainContext> request) {
+        if (request == null) {
+            return PromptBudgetProfile.CORTEX_L1_STANDARD;
+        }
+        Object parameter = request.getParameter("promptBudgetProfile", Object.class);
+        if (parameter instanceof PromptBudgetProfile profile) {
+            return profile;
+        }
+        if (parameter instanceof String profileKey) {
+            return PromptBudgetProfile.fromKey(profileKey, PromptBudgetProfile.CORTEX_L1_STANDARD);
+        }
+        return PromptBudgetProfile.CORTEX_L1_STANDARD;
     }
 }

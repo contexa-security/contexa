@@ -9,22 +9,31 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -115,6 +124,121 @@ class Layer1ContextualStrategyTest {
     @DisplayName("getLayerName should return Layer1")
     void getLayerName_returnsLayer1() {
         assertThat(strategy.getStrategyName()).isEqualTo("Layer1");
+    }
+
+    @Test
+    @DisplayName("RAG summary 생성이 실패해도 빈 relatedDocuments로 계속 진행하고 prompt 분석은 유지되어야 한다")
+    void analyzeWithContext_ragSummaryFailure_shouldContinueWithEmptyRelatedDocuments() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
+        Document brokenDocument = mock(Document.class);
+
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenReturn(List.of(brokenDocument));
+        when(authorizationService.authorize(any(), any(), ArgumentMatchers.<List<Document>>any()))
+                .thenReturn(new AuthorizedPromptContext(
+                        List.of(brokenDocument),
+                        1,
+                        1,
+                        0,
+                        "security_investigation",
+                        List.of()));
+        when(brokenDocument.getMetadata()).thenThrow(new IllegalStateException("broken metadata"));
+
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.12);
+        response.setConfidence(0.88);
+        response.setAction("ALLOW");
+        response.setReasoning("Continue with empty memory context");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        Layer1ContextualStrategy ragTolerantStrategy = new Layer1ContextualStrategy(
+                vectorService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                authorizationService,
+                null,
+                pipelineOrchestrator,
+                new TieredStrategyProperties()
+        );
+
+        SecurityEvent event = buildTestEvent();
+
+        ThreatAssessment assessment = ragTolerantStrategy.evaluate(event);
+
+        assertThat(assessment).isNotNull();
+        assertThat(assessment.getAction()).isEqualTo("ALLOW");
+        assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
+        assertThat(event.getMetadata()).containsEntry("relatedDocumentsCount", 0);
+        assertThat(event.getMetadata()).containsKey("ragFailureType");
+        assertThat(event.getMetadata()).containsKey("ragFailureMessage");
+        verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+    }
+
+    @Test
+    @DisplayName("RAG 검색이 timeout 되면 분석은 계속되고 timeout metadata 가 남아야 한다")
+    void analyzeWithContext_ragTimeout_shouldContinueWithEmptyRelatedDocuments() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        AtomicBoolean interrupted = new AtomicBoolean(false);
+        properties.getLayer1().getTimeout().setRagMs(50);
+
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenAnswer(invocation -> {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException interruptedException) {
+                interrupted.set(true);
+                Thread.currentThread().interrupt();
+            }
+            return List.of();
+        });
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.18);
+        response.setConfidence(0.82);
+        response.setAction("ALLOW");
+        response.setReasoning("Continue without waiting for slow memory lookup");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        Layer1ContextualStrategy ragTimeoutStrategy = new Layer1ContextualStrategy(
+                vectorService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                authorizationService,
+                null,
+                pipelineOrchestrator,
+                properties
+        );
+
+        SecurityEvent event = buildTestEvent();
+
+        ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
+
+        assertThat(assessment).isNotNull();
+        assertThat(assessment.getAction()).isEqualTo("ALLOW");
+        assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
+        assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
+        assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
+        assertThat(event.getMetadata()).containsEntry("relatedDocumentsCount", 0);
+        assertThat(event.getMetadata()).containsKey("ragFailureType");
+        assertThat(event.getMetadata()).containsKey("ragFailureMessage");
+        assertThat(interrupted.get()).isTrue();
+        verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
     }
 
     private SecurityEvent buildTestEvent() {

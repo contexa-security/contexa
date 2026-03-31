@@ -68,6 +68,38 @@ tasks.named('test') {
     if (benchmarkScenarios) {
         systemProperty 'sandbox.prompt.benchmark.scenarios', benchmarkScenarios
     }
+    def decisionRealLlm = System.getProperty('sandbox.decision.real-llm') ?: System.getenv('SANDBOX_DECISION_REAL_LLM')
+    if (decisionRealLlm) {
+        systemProperty 'sandbox.decision.real-llm', decisionRealLlm
+    }
+    def decisionModelId = System.getProperty('sandbox.decision.model-id') ?: System.getenv('SANDBOX_DECISION_MODEL_ID')
+    if (decisionModelId) {
+        systemProperty 'sandbox.decision.model-id', decisionModelId
+    }
+    def decisionSamples = System.getProperty('sandbox.decision.samples') ?: System.getenv('SANDBOX_DECISION_SAMPLES')
+    if (decisionSamples) {
+        systemProperty 'sandbox.decision.samples', decisionSamples
+    }
+    def decisionRounds = System.getProperty('sandbox.decision.rounds') ?: System.getenv('SANDBOX_DECISION_ROUNDS')
+    if (decisionRounds) {
+        systemProperty 'sandbox.decision.rounds', decisionRounds
+    }
+    def decisionScenarios = System.getProperty('sandbox.decision.scenarios') ?: System.getenv('SANDBOX_DECISION_SCENARIOS')
+    if (decisionScenarios) {
+        systemProperty 'sandbox.decision.scenarios', decisionScenarios
+    }
+    def decisionTemperature = System.getProperty('sandbox.decision.temperature') ?: System.getenv('SANDBOX_DECISION_TEMPERATURE')
+    if (decisionTemperature) {
+        systemProperty 'sandbox.decision.temperature', decisionTemperature
+    }
+    def decisionSingleMetric = System.getProperty('sandbox.decision.single-metric') ?: System.getenv('SANDBOX_DECISION_SINGLE_METRIC')
+    if (decisionSingleMetric) {
+        systemProperty 'sandbox.decision.single-metric', decisionSingleMetric
+    }
+    def officialSubmissionRefresh = System.getProperty('sandbox.official.submission.refresh') ?: System.getenv('SANDBOX_OFFICIAL_SUBMISSION_REFRESH')
+    if (officialSubmissionRefresh) {
+        systemProperty 'sandbox.official.submission.refresh', officialSubmissionRefresh
+    }
 }
 
 tasks.named('processResources') {

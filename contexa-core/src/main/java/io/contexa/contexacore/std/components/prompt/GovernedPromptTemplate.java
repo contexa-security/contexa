@@ -18,4 +18,25 @@ public interface GovernedPromptTemplate extends PromptTemplate {
     default PromptExecutionMetadata buildPromptExecutionMetadata(String systemPrompt, String userPrompt) {
         return PromptGovernanceSupport.buildExecutionMetadata(getPromptGovernanceDescriptor(), systemPrompt, userPrompt);
     }
+
+    default PromptExecutionMetadata buildPromptExecutionMetadata(
+            AIRequest<? extends DomainContext> request,
+            PromptViewComposition promptViewComposition) {
+        PromptExecutionMetadata baseMetadata = buildPromptExecutionMetadata(
+                request,
+                promptViewComposition.llmSystemPrompt(),
+                promptViewComposition.llmUserPrompt());
+        return PromptGovernanceSupport.buildExecutionMetadata(
+                baseMetadata.governanceDescriptor(),
+                baseMetadata.budgetProfile(),
+                baseMetadata.sectionSet(),
+                baseMetadata.omittedSections(),
+                baseMetadata.omissionLedger(),
+                baseMetadata.promptEvidenceCompleteness(),
+                promptViewComposition.llmSystemPrompt(),
+                promptViewComposition.llmUserPrompt(),
+                promptViewComposition.rawSystemPrompt(),
+                promptViewComposition.rawUserPrompt(),
+                promptViewComposition.compressionLedger());
+    }
 }

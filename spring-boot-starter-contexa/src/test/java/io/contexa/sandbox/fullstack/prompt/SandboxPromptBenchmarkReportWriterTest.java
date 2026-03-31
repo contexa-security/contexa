@@ -49,8 +49,10 @@ class SandboxPromptBenchmarkReportWriterTest {
 
         String defectsLedger = Files.readString(reportDir.resolve("defects.ndjson"));
         String summaryJson = Files.readString(reportDir.resolve("summary.json"));
+        String summaryHtml = Files.readString(reportDir.resolve("summary.html"));
         String scenarioLedger = Files.readString(reportDir.resolve("scenarios.ndjson"));
         String experimentLedger = Files.readString(reportDir.resolve("experiment-groups.ndjson"));
+        String compressionSummaryJson = Files.readString(reportDir.resolve("compression").resolve("compression-summary.json"));
 
         assertThat(defectsLedger).isBlank();
         assertThat(summaryJson).contains("scenarioSummaries");
@@ -60,8 +62,15 @@ class SandboxPromptBenchmarkReportWriterTest {
         assertThat(summaryJson).contains("officialMetricCoverage");
         assertThat(summaryJson).contains("metricCatalog");
         assertThat(summaryJson).contains("responsibilityBoundarySummary");
+        assertThat(summaryHtml).contains("compression/compression-summary.html");
+        assertThat(summaryHtml).contains("compression-impact/compression-impact-summary.html");
+        assertThat(summaryHtml).contains("decision-summary.html");
+        assertThat(summaryHtml).contains("decision-index.html");
         assertThat(scenarioLedger).contains("MFA_SENSITIVE_RESOURCE_REPEAT");
         assertThat(experimentLedger).contains("WEBCLIENT_FULLSTACK_CONTEXT_PROMPT");
+        assertThat(compressionSummaryJson).contains("averageSavedEstimatedTokens");
+        assertThat(reportDir.resolve("compression").resolve("compression-summary.html")).exists();
+        assertThat(reportDir.resolve("compression").resolve("prompt-profile-ledger.ndjson")).exists();
     }
 
     @Test
@@ -98,6 +107,44 @@ class SandboxPromptBenchmarkReportWriterTest {
 
         assertThat(drift.get("previousRunAvailable")).isEqualTo(Boolean.TRUE);
         assertThat(((Number) drift.get("improvedMetricCount")).intValue()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("prompt report writer는 외부 decision summary가 있으면 공식 metric coverage에 반영해야 한다")
+    void shouldMergeExternalDecisionCoverageIntoOfficialMetricCoverage() throws Exception {
+        Path reportDir = tempDir.resolve("decision-linked-report");
+        Files.createDirectories(reportDir);
+        Files.writeString(reportDir.resolve("decision-summary.json"), """
+                {
+                  "metrics": {
+                    "Context-to-Decision Calibration": {},
+                    "Evidence-Reason Alignment": {},
+                    "Safe-Uncertainty Handling Rate": {}
+                  }
+                }
+                """);
+
+        SandboxPromptBenchmarkReportWriter writer = new SandboxPromptBenchmarkReportWriter(objectMapper, reportDir);
+        writer.writeReport("Sandbox Full-Stack Context Prompt Benchmark", List.of(
+                buildRunResult(
+                        "benchmark-run-3",
+                        "writer-admin-004@example.com",
+                        "MFA_NORMAL_RESOURCE_REPEAT",
+                        "WEBCLIENT_FULLSTACK_STABILITY",
+                        99.0d,
+                        98.0d,
+                        List.of())));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> summary = objectMapper.readValue(Files.readString(reportDir.resolve("summary.json")), Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> officialCoverage = (Map<String, Object>) summary.get("officialMetricCoverage");
+
+        assertThat(officialCoverage.get("externalDecisionSummaryAvailable")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(officialCoverage.get("externalDecisionMetricNames")))
+                .contains("Context-to-Decision Calibration")
+                .contains("Evidence-Reason Alignment")
+                .contains("Safe-Uncertainty Handling Rate");
     }
 
     private SandboxPromptBenchmarkRunResult buildRunResult(

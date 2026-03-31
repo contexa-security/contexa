@@ -15,6 +15,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class UnifiedVectorService implements VectorOperations {
@@ -39,7 +43,13 @@ public class UnifiedVectorService implements VectorOperations {
     public void storeDocument(Document document) {
         validateDocument(document);
         enrichStandardMetadata(document);
-        vectorStore.add(List.of(document));
+        executeWithinTimeout(
+                () -> {
+                    vectorStore.add(List.of(document));
+                    return null;
+                },
+                properties.getStoreTimeoutMs(),
+                "store document");
         cacheLayer.invalidateAll();
     }
 
@@ -59,7 +69,14 @@ public class UnifiedVectorService implements VectorOperations {
         for (int i = 0; i < documents.size(); i += batchSize) {
             int end = Math.min(i + batchSize, documents.size());
             List<Document> batch = documents.subList(i, end);
-            vectorStore.add(batch);
+            List<Document> immutableBatch = List.copyOf(batch);
+            executeWithinTimeout(
+                    () -> {
+                        vectorStore.add(immutableBatch);
+                        return null;
+                    },
+                    properties.getStoreTimeoutMs(),
+                    "store document batch");
         }
 
         cacheLayer.invalidateAll();
@@ -107,7 +124,10 @@ public class UnifiedVectorService implements VectorOperations {
                 return cachedResults;
             }
 
-            return vectorStore.similaritySearch(searchRequest);
+            return executeWithinTimeout(
+                    () -> vectorStore.similaritySearch(searchRequest),
+                    properties.getSearchTimeoutMs(),
+                    "similarity search");
 
         } catch (Exception e) {
             log.error("[UnifiedVectorService] Error during similarity search", e);
@@ -158,6 +178,45 @@ public class UnifiedVectorService implements VectorOperations {
 
         if (!metadata.containsKey("version")) {
             metadata.put("version", "1.0");
+        }
+    }
+
+    private <T> T executeWithinTimeout(
+            java.util.concurrent.Callable<T> operation,
+            long timeoutMs,
+            String operationLabel) {
+        var executor = Executors.newVirtualThreadPerTaskExecutor();
+        CompletableFuture<T> future = null;
+        long effectiveTimeoutMs = Math.max(100L, timeoutMs);
+        try {
+            future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return operation.call();
+                } catch (RuntimeException runtimeException) {
+                    throw runtimeException;
+                } catch (Exception checkedException) {
+                    throw new RuntimeException(checkedException);
+                }
+            }, executor);
+            return future.get(effectiveTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException timeoutException) {
+            if (future != null) {
+                future.cancel(true);
+            }
+            throw new VectorStoreException(
+                    String.format("Vector store %s timed out after %dms", operationLabel, effectiveTimeoutMs),
+                    timeoutException);
+        } catch (ExecutionException executionException) {
+            Throwable cause = executionException.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new VectorStoreException("Vector store " + operationLabel + " failed", cause);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new VectorStoreException("Vector store " + operationLabel + " interrupted", interruptedException);
+        } finally {
+            executor.shutdownNow();
         }
     }
 }

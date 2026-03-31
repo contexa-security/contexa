@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -378,6 +379,23 @@ class AbstractTieredStrategyTest {
                 .containsEntry("preserveKey", "preserveValue");
     }
 
+    @Test
+    @DisplayName("event metadata에 prompt budget profile이 있으면 layer 기본값보다 우선되어 compact replay request를 만든다")
+    void buildSecurityDecisionRequest_shouldPreferExplicitPromptBudgetProfileFromEventMetadata() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-budget-profile")
+                .metadata(new LinkedHashMap<>(Map.of("promptBudgetProfile", "CORTEX_L1_COMPACT")))
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("promptBudgetProfile", String.class)).isEqualTo("CORTEX_L1_COMPACT");
+    }
+
     // -- Concrete test implementation of the abstract class --
 
     private static class ConcreteStrategy extends AbstractTieredStrategy {
@@ -439,6 +457,14 @@ class AbstractTieredStrategyTest {
 
         List<Document> callSearchRelatedContextBase(SecurityEvent event, int topK, double similarityThreshold) {
             return searchRelatedContextBase(event, topK, similarityThreshold);
+        }
+
+        SecurityDecisionRequest buildSecurityDecisionRequestForTest(
+                SecurityEvent event,
+                SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+                SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                List<Document> relatedDocuments) {
+            return buildSecurityDecisionRequest(event, sessionContext, behaviorAnalysis, relatedDocuments);
         }
     }
 }

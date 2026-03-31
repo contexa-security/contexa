@@ -155,6 +155,31 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getEventTimestamp()).isEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
     }
 
+    @Test
+    @DisplayName("prompt budget profile 헤더는 authorization event payload까지 유지되어 compact replay와 standard replay를 구분한다")
+    void shouldPropagatePromptBudgetProfileIntoAuthorizationEventPayload() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRequestedSessionId("session-budget");
+        request.addHeader("User-Agent", "JUnit");
+        request.addHeader("X-Contexa-Prompt-Budget-Profile", "CORTEX_L1_COMPACT");
+        request.setRemoteAddr("203.0.113.10");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        assertThat(event.getPayload()).containsEntry("promptBudgetProfile", "CORTEX_L1_COMPACT");
+    }
+
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),

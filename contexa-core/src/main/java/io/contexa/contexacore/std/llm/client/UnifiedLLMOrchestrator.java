@@ -32,6 +32,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private final AdvisorRegistry advisorRegistry;
 
     private final ConcurrentHashMap<ChatModel, ChatClient> chatClientCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ChatModel, ChatClient> chatClientNoAdvisorCache = new ConcurrentHashMap<>();
     private volatile List<Advisor> cachedAdvisorSnapshot = List.of();
 
     @Override
@@ -44,7 +45,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return Mono.error(new IllegalArgumentException("Prompt cannot be null"));
         }
 
-        return Mono.fromCallable(() -> {
+        Mono<String> execution = Mono.fromCallable(() -> {
 
                     ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
 
@@ -54,13 +55,14 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                         "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
                     }
 
-                    ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
+                    ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
 
                     ChatClient.ChatClientRequestSpec promptSpec = chatClient.prompt(context.getPrompt());
 
                     String eventUserId = context.getUserId();
                     String eventSessionId = context.getSessionId();
-                    if ((eventUserId != null && !eventUserId.isEmpty()) || (eventSessionId != null && !eventSessionId.isEmpty())) {
+                    if (isAdvisorEnabled(context)
+                            && ((eventUserId != null && !eventUserId.isEmpty()) || (eventSessionId != null && !eventSessionId.isEmpty()))) {
                         promptSpec = promptSpec.advisors(spec -> {
                             if (eventUserId != null && !eventUserId.isEmpty()) {
                                 spec.param("event.userId", eventUserId);
@@ -91,13 +93,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
                     return response;
                 })
-
-                .retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
-                        .filter(throwable -> throwable instanceof java.io.IOException)
-                        .doBeforeRetry(retrySignal -> log.error("LLM Retry #{} - RequestId: {}, Error: {}",
-                                retrySignal.totalRetries() + 1, context.getRequestId(),
-                                retrySignal.failure().getMessage())))
                 .doOnError(error -> log.error("LLM execution failed - RequestId: {}", context.getRequestId(), error));
+
+        if (isRetryDisabled(context)) {
+            return execution;
+        }
+
+        return execution.retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
+                .filter(throwable -> throwable instanceof java.io.IOException)
+                .doBeforeRetry(retrySignal -> log.error("LLM Retry #{} - RequestId: {}, Error: {}",
+                        retrySignal.totalRetries() + 1, context.getRequestId(),
+                        retrySignal.failure().getMessage())));
     }
 
     @Override
@@ -114,7 +120,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                     "Check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings."));
                 }
 
-                ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
+                ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
 
                 return streamingHandler.handleStreaming(chatClient, context, selectedModel);
             } catch (Exception e) {
@@ -144,13 +150,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                         "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
                     }
 
-                    ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
+                    ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
 
                     var promptSpec = chatClient.prompt(context.getPrompt());
 
                     String eventUserId = context.getUserId();
                     String eventSessionId = context.getSessionId();
-                    if ((eventUserId != null && !eventUserId.isEmpty()) || (eventSessionId != null && !eventSessionId.isEmpty())) {
+                    if (isAdvisorEnabled(context)
+                            && ((eventUserId != null && !eventUserId.isEmpty())
+                            || (eventSessionId != null && !eventSessionId.isEmpty()))) {
                         promptSpec = promptSpec.advisors(spec -> {
                             if (eventUserId != null && !eventUserId.isEmpty()) {
                                 spec.param("event.userId", eventUserId);
@@ -166,7 +174,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     return (T) promptSpec.call().entity(targetType);
                 })
                 .doOnError(error -> log.error("LLM Entity execution failed - RequestId: {}", context.getRequestId(),
-                        error));
+                        error))
+                .transform(entityExecution -> isRetryDisabled(context)
+                        ? entityExecution
+                        : entityExecution.retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
+                        .filter(throwable -> throwable instanceof java.io.IOException)
+                        .doBeforeRetry(retrySignal -> log.error("LLM Entity Retry #{} - RequestId: {}, Error: {}",
+                                retrySignal.totalRetries() + 1,
+                                context.getRequestId(),
+                                retrySignal.failure().getMessage()))));
     }
 
     private String determineOllamaModelName(ExecutionContext context) {
@@ -327,7 +343,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
-            ChatClient client = buildChatClientWithAdvisors(model);
+            ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
 
             var promptSpec = client.prompt(prompt);
             if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
@@ -359,7 +375,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
-            ChatClient client = buildChatClientWithAdvisors(model);
+            ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
 
             var promptSpec = client.prompt(prompt);
             if (toolCallbacks != null && toolCallbacks.length > 0) {
@@ -399,7 +415,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return stream(context);
     }
 
-    private ChatClient buildChatClientWithAdvisors(ChatModel model) {
+    private ChatClient buildChatClient(ChatModel model, Boolean advisorEnabled) {
+        if (!isAdvisorEnabled(advisorEnabled)) {
+            return chatClientNoAdvisorCache.computeIfAbsent(model, m -> ChatClient.builder(m).build());
+        }
+
         List<Advisor> currentAdvisors = advisorRegistry.getEnabled();
 
         if (!currentAdvisors.equals(cachedAdvisorSnapshot)) {
@@ -414,5 +434,27 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             }
             return builder.build();
         });
+    }
+
+    private boolean isAdvisorEnabled(ExecutionContext context) {
+        return context == null || isAdvisorEnabled(context.getAdvisorEnabled());
+    }
+
+    private boolean isAdvisorEnabled(Boolean advisorEnabled) {
+        return !Boolean.FALSE.equals(advisorEnabled);
+    }
+
+    private boolean isRetryDisabled(ExecutionContext context) {
+        if (context == null || context.getMetadata() == null) {
+            return false;
+        }
+        Object value = context.getMetadata().get("disableRetries");
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text) {
+            return Boolean.parseBoolean(text);
+        }
+        return false;
     }
 }

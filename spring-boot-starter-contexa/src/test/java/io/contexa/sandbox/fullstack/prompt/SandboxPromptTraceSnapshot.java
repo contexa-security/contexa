@@ -29,6 +29,8 @@ public record SandboxPromptTraceSnapshot(
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
         List<Document> relatedDocuments,
         SandboxRetrievalAuditSnapshot retrievalAudit,
+        String rawSystemPrompt,
+        String rawUserPrompt,
         String systemPrompt,
         String userPrompt,
         Map<String, Object> metadata,
@@ -37,6 +39,34 @@ public record SandboxPromptTraceSnapshot(
     public SandboxPromptTraceSnapshot {
         relatedDocuments = relatedDocuments == null ? List.of() : List.copyOf(relatedDocuments);
         metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+    }
+
+    public SandboxPromptTraceSnapshot(
+            String requestId,
+            Instant capturedAt,
+            SecurityEvent event,
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            List<Document> relatedDocuments,
+            SandboxRetrievalAuditSnapshot retrievalAudit,
+            String systemPrompt,
+            String userPrompt,
+            Map<String, Object> metadata,
+            PromptExecutionMetadata promptExecutionMetadata) {
+        this(
+                requestId,
+                capturedAt,
+                event,
+                sessionContext,
+                behaviorAnalysis,
+                relatedDocuments,
+                retrievalAudit,
+                systemPrompt,
+                userPrompt,
+                systemPrompt,
+                userPrompt,
+                metadata,
+                promptExecutionMetadata);
     }
 
     public Map<String, Object> toDiagnosticMap(ObjectMapper objectMapper) {
@@ -51,6 +81,8 @@ public record SandboxPromptTraceSnapshot(
                 .toList());
         diagnostic.put("retrievalAudit",
                 retrievalAudit != null ? objectMapper.convertValue(retrievalAudit, Map.class) : Map.of());
+        diagnostic.put("rawSystemPrompt", rawSystemPrompt);
+        diagnostic.put("rawUserPrompt", rawUserPrompt);
         diagnostic.put("systemPrompt", systemPrompt);
         diagnostic.put("userPrompt", userPrompt);
         diagnostic.put("metadata", metadata);

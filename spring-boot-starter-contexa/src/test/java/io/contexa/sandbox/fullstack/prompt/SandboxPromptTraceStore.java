@@ -37,6 +37,7 @@ public class SandboxPromptTraceStore {
     private final ConcurrentMap<String, SandboxPromptTraceSnapshot> pendingSnapshotsByEventId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, SandboxPromptTraceSnapshot> completedSnapshotsByRequestId = new ConcurrentHashMap<>();
     private final AtomicReference<SandboxPromptTraceSnapshot> latestCompletedSnapshot = new AtomicReference<>();
+    private final AtomicReference<SandboxPromptTraceSnapshot> latestPendingSnapshot = new AtomicReference<>();
     private final Deque<SandboxPromptTraceSnapshot> recentCompletedSnapshots = new ArrayDeque<>();
 
     public SandboxPromptTraceStore(SandboxRetrievalAuditStore sandboxRetrievalAuditStore) {
@@ -61,6 +62,8 @@ public class SandboxPromptTraceStore {
                 context.getBehaviorAnalysis(),
                 context.getRelatedDocuments(),
                 sandboxRetrievalAuditStore.snapshot(securityEvent),
+                promptGenerationResult.getRawSystemPrompt(),
+                promptGenerationResult.getRawUserPrompt(),
                 promptGenerationResult.getSystemPrompt(),
                 promptGenerationResult.getUserPrompt(),
                 promptGenerationResult.getMetadata(),
@@ -68,6 +71,7 @@ public class SandboxPromptTraceStore {
         );
 
         pendingSnapshotsByEventId.put(securityEvent.getEventId(), snapshot);
+        latestPendingSnapshot.set(snapshot);
         log.info("[SandboxPromptTrace] Captured pending prompt trace requestId={}, eventId={}, relatedDocuments={}",
                 requestId,
                 securityEvent.getEventId(),
@@ -84,6 +88,7 @@ public class SandboxPromptTraceStore {
         if (pendingSnapshot == null) {
             return;
         }
+        latestPendingSnapshot.compareAndSet(pendingSnapshot, null);
 
         String completedRequestId = extractRequestId(event, pendingSnapshot.requestId());
         SandboxPromptTraceSnapshot completedSnapshot = new SandboxPromptTraceSnapshot(
@@ -94,6 +99,8 @@ public class SandboxPromptTraceStore {
                 pendingSnapshot.behaviorAnalysis(),
                 pendingSnapshot.relatedDocuments(),
                 sandboxRetrievalAuditStore.snapshot(event),
+                pendingSnapshot.rawSystemPrompt(),
+                pendingSnapshot.rawUserPrompt(),
                 pendingSnapshot.systemPrompt(),
                 pendingSnapshot.userPrompt(),
                 pendingSnapshot.metadata(),
@@ -121,6 +128,15 @@ public class SandboxPromptTraceStore {
             return Optional.empty();
         }
         return Optional.ofNullable(completedSnapshotsByRequestId.get(requestId));
+    }
+
+    public Optional<SandboxPromptTraceSnapshot> findPending(String requestId) {
+        if (!StringUtils.hasText(requestId)) {
+            return Optional.empty();
+        }
+        return pendingSnapshotsByEventId.values().stream()
+                .filter(snapshot -> requestId.equals(snapshot.requestId()))
+                .findFirst();
     }
 
     public SandboxPromptTraceSnapshot await(String requestId, Duration timeout) {
@@ -166,6 +182,10 @@ public class SandboxPromptTraceStore {
         return Optional.ofNullable(latestCompletedSnapshot.get());
     }
 
+    public Optional<SandboxPromptTraceSnapshot> findLatestPending() {
+        return Optional.ofNullable(latestPendingSnapshot.get());
+    }
+
     public void clear(String requestId) {
         if (StringUtils.hasText(requestId)) {
             completedSnapshotsByRequestId.remove(requestId);
@@ -176,6 +196,7 @@ public class SandboxPromptTraceStore {
         pendingSnapshotsByEventId.clear();
         completedSnapshotsByRequestId.clear();
         latestCompletedSnapshot.set(null);
+        latestPendingSnapshot.set(null);
         sandboxRetrievalAuditStore.clearAll();
         synchronized (recentCompletedSnapshots) {
             recentCompletedSnapshots.clear();

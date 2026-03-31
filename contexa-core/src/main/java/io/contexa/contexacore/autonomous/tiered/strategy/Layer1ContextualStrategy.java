@@ -34,7 +34,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
@@ -97,7 +101,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
                 .action(action)
-                .autonomousAction(autonomousAction != null ? autonomousAction.name() : null)
+                .autonomousAction(autonomousAction.name())
                 .reasoning(decision.getReasoning())
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
@@ -121,8 +125,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             sessionContextMs = System.currentTimeMillis() - sessionContextStart;
 
             long ragSearchStart = System.currentTimeMillis();
-            List<Document> relatedDocuments = searchRelatedContext(event);
-            List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
+            RagRetrievalOutcome ragOutcome = retrieveRelatedContextWithinBudget(event);
+            List<Document> relatedDocuments = ragOutcome.relatedDocuments();
+            List<String> similarEvents = ragOutcome.similarEvents();
             ragSearchMs = System.currentTimeMillis() - ragSearchStart;
 
 
@@ -274,6 +279,53 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return searchRelatedContextBase(event, topK, similarityThreshold);
     }
 
+    private RagRetrievalOutcome retrieveRelatedContextWithinBudget(SecurityEvent event) {
+        long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());
+        var executor = Executors.newVirtualThreadPerTaskExecutor();
+        CompletableFuture<RagRetrievalOutcome> future = null;
+        try {
+            future = CompletableFuture.supplyAsync(() -> {
+                List<Document> relatedDocuments = searchRelatedContext(event);
+                List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
+                return new RagRetrievalOutcome(relatedDocuments, similarEvents);
+            }, executor);
+
+            RagRetrievalOutcome outcome = future.get(ragTimeoutMs, TimeUnit.MILLISECONDS);
+            annotateRagRetrievalResult(event, outcome.relatedDocuments(), false, null, false);
+            return outcome;
+        } catch (TimeoutException timeoutException) {
+            if (future != null) {
+                future.cancel(true);
+            }
+            annotateRagRetrievalResult(event, List.of(), true, timeoutException, true);
+            log.error("[Layer1] RAG retrieval timed out after {}ms for event {}. Continuing with empty relatedDocuments.",
+                    ragTimeoutMs,
+                    event != null ? event.getEventId() : "unknown",
+                    timeoutException);
+            return RagRetrievalOutcome.empty();
+        } catch (ExecutionException executionException) {
+            Throwable cause = executionException.getCause() instanceof Exception
+                    ? executionException.getCause()
+                    : executionException;
+            Exception ragFailure = cause instanceof Exception
+                    ? (Exception) cause
+                    : new RuntimeException(cause);
+            annotateRagRetrievalResult(event, List.of(), true, ragFailure, false);
+            log.error("[Layer1] RAG retrieval failed for event {}. Continuing with empty relatedDocuments.",
+                    event != null ? event.getEventId() : "unknown",
+                    ragFailure);
+            return RagRetrievalOutcome.empty();
+        } catch (Exception ragFailure) {
+            annotateRagRetrievalResult(event, List.of(), true, ragFailure, false);
+            log.error("[Layer1] RAG retrieval failed for event {}. Continuing with empty relatedDocuments.",
+                    event != null ? event.getEventId() : "unknown",
+                    ragFailure);
+            return RagRetrievalOutcome.empty();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private SecurityDecisionStandardPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
         SecurityDecisionStandardPromptTemplate.SessionContext ctx = new SecurityDecisionStandardPromptTemplate.SessionContext();
         ctx.setSessionId(sessionContext.getSessionId());
@@ -404,6 +456,44 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return convertToSecurityDecisionBase(response, event);
     }
 
+    private void annotateRagRetrievalResult(
+            SecurityEvent event,
+            List<Document> relatedDocuments,
+            boolean ragUnavailable,
+            Exception ragFailure,
+            boolean ragTimedOut) {
+        if (event == null) {
+            return;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null) {
+            metadata = new java.util.LinkedHashMap<>();
+            event.setMetadata(metadata);
+        } else if (!(metadata instanceof HashMap) && !(metadata instanceof java.util.LinkedHashMap)) {
+            metadata = new java.util.LinkedHashMap<>(metadata);
+            event.setMetadata(metadata);
+        }
+
+        metadata.put("ragUnavailable", ragUnavailable);
+        metadata.put("ragTimedOut", ragTimedOut);
+        metadata.put("relatedDocumentsCount", relatedDocuments != null ? relatedDocuments.size() : 0);
+        if (!ragUnavailable) {
+            metadata.remove("ragFailureType");
+            metadata.remove("ragFailureMessage");
+            metadata.remove("ragTimeoutMs");
+            return;
+        }
+
+        metadata.put("ragFailureType", ragFailure != null ? ragFailure.getClass().getName() : "unknown");
+        metadata.put("ragFailureMessage",
+                ragFailure != null && ragFailure.getMessage() != null ? ragFailure.getMessage() : "RAG retrieval unavailable");
+        if (ragTimedOut) {
+            metadata.put("ragTimeoutMs", Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs()));
+        } else {
+            metadata.remove("ragTimeoutMs");
+        }
+    }
+
     private void enrichDecisionWithContext(SecurityDecision decision,
                                            SessionContext sessionContext,
                                            BaseBehaviorAnalysis behaviorAnalysis,
@@ -519,6 +609,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 requestPath = event.getMetadata().get("targetResource");
             }
             return requestPath != null ? requestPath.toString() : null;
+        }
+    }
+
+    private record RagRetrievalOutcome(
+            List<Document> relatedDocuments,
+            List<String> similarEvents) {
+
+        private static RagRetrievalOutcome empty() {
+            return new RagRetrievalOutcome(List.of(), List.of());
         }
     }
 

@@ -285,6 +285,65 @@ public final class SandboxPromptMetricReportWriter {
                     row.put("workProfileSummaryPresent", contains(snapshot.userPrompt(), "WorkProfileSummary:"));
                     row.put("baselineMaturityExpectationMet",
                             index == 0 ? provisionalOrEmptyBaseline : baselineContextPresent);
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.USER_SPECIFIC_NOVELTY_SENSITIVITY) {
+                    SandboxPromptReplayRound previousRound = index == 0 ? null : result.replayRun().rounds().get(index - 1);
+                    boolean anomalyExpected = round.roundPlan().anomalyExpected();
+                    boolean requestPathPresent = contains(snapshot.userPrompt(), round.requestPath());
+                    boolean previousPathReferenced = previousRound != null
+                            && (contains(snapshot.userPrompt(), previousRound.requestPath())
+                            || contains(snapshot.userPrompt(), "PreviousPath: " + previousRound.requestPath()));
+                    boolean observedWorkPatternPresent = contains(snapshot.userPrompt(), "=== OBSERVED WORK PATTERN CONTEXT ===");
+                    boolean sufficientRelatedDocuments = safeRelatedDocumentCount(snapshot) >= Math.min(index, 12);
+                    boolean signalSpecificEvidencePresent = signalSpecificPromptEvidence(round, snapshot.userPrompt());
+
+                    row.put("noveltyExpected", anomalyExpected);
+                    row.put("requestPathPresent", requestPathPresent);
+                    row.put("previousPathReferenced", previousPathReferenced);
+                    row.put("observedWorkPatternPresent", observedWorkPatternPresent);
+                    row.put("sufficientRelatedDocuments", sufficientRelatedDocuments);
+                    row.put("signalSpecificEvidencePresent", signalSpecificEvidencePresent);
+                    row.put("noveltyExpectationMet",
+                            requestPathPresent
+                                    && (!anomalyExpected || previousPathReferenced)
+                                    && (!anomalyExpected || observedWorkPatternPresent || sufficientRelatedDocuments)
+                                    && (!anomalyExpected || signalSpecificEvidencePresent));
+                } else if (metric == SandboxPromptBenchmarkMetricCatalog.BEHAVIORAL_SURPRISE_RESOLUTION) {
+                    SandboxPromptReplayRound previousRound = index == 0 ? null : result.replayRun().rounds().get(index - 1);
+                    boolean anomalyRound = round.roundPlan().anomalyExpected();
+                    boolean recoveryRound = round.roundPlan().semanticMarkers().contains("EXPECT_RECOVERY_AFTER_ANOMALY");
+                    boolean previousPathExpected = round.roundPlan().semanticMarkers().contains("EXPECT_PREVIOUS_PATH");
+                    int expectedDocs = Math.min(index, 12);
+                    boolean sessionNarrativePresent = contains(snapshot.userPrompt(), "=== SESSION NARRATIVE CONTEXT ===");
+                    boolean previousPathResolved = !previousPathExpected
+                            || previousRound == null
+                            || contains(snapshot.userPrompt(), "PreviousPath: " + previousRound.requestPath())
+                            || contains(snapshot.userPrompt(), "SessionTimelineSupport:");
+                    boolean signalSpecificEvidencePresent = signalSpecificPromptEvidence(round, snapshot.userPrompt())
+                            || contains(snapshot.userPrompt(), "Sensitivity: " + expectedSensitivity(round.requestPath()));
+                    boolean surpriseContextPresent = safeRelatedDocumentCount(snapshot) >= expectedDocs
+                            || contains(snapshot.userPrompt(), "=== OBSERVED WORK PATTERN CONTEXT ===")
+                            || contains(snapshot.userPrompt(), "HistoricalComparableEvents:");
+                    boolean recoverySupportPresent = !recoveryRound
+                            || contains(snapshot.userPrompt(), "=== OBSERVED WORK PATTERN CONTEXT ===")
+                            || contains(snapshot.userPrompt(), "WorkProfileSummary:")
+                            || safeRelatedDocumentCount(snapshot) >= expectedDocs;
+
+                    row.put("anomalyRound", anomalyRound);
+                    row.put("recoveryRound", recoveryRound);
+                    row.put("previousPathExpected", previousPathExpected);
+                    row.put("expectedMinimumRelatedDocuments", expectedDocs);
+                    row.put("sessionNarrativePresent", sessionNarrativePresent);
+                    row.put("previousPathResolved", previousPathResolved);
+                    row.put("signalSpecificEvidencePresent", signalSpecificEvidencePresent);
+                    row.put("surpriseContextPresent", surpriseContextPresent);
+                    row.put("recoverySupportPresent", recoverySupportPresent);
+                    row.put("behavioralSurpriseExpectationMet",
+                            (!anomalyRound && !recoveryRound)
+                                    || (sessionNarrativePresent
+                                    && previousPathResolved
+                                    && signalSpecificEvidencePresent
+                                    && surpriseContextPresent
+                                    && recoverySupportPresent));
                 }
                 rows.add(row);
             }
@@ -388,6 +447,66 @@ public final class SandboxPromptMetricReportWriter {
         return hasText(text) && hasText(expected) && String.valueOf(text).contains(expected);
     }
 
+    private static boolean signalSpecificPromptEvidence(
+            SandboxPromptReplayRound round,
+            String userPrompt) {
+        String anomalySignal = round.roundPlan().anomalySignal();
+        if (!hasText(anomalySignal) || "NONE".equalsIgnoreCase(anomalySignal)) {
+            return true;
+        }
+        if (anomalySignal.contains("DEVICE")) {
+            return containsUserAgentEvidence(userPrompt, round.roundPlan().browserUserAgent(), round.userAgentLabel());
+        }
+        if (anomalySignal.contains("NETWORK")) {
+            return contains(userPrompt, round.clientIp());
+        }
+        if (anomalySignal.contains("CADENCE")) {
+            return contains(userPrompt, "PreviousPath:") || contains(userPrompt, "SessionTimelineSupport:");
+        }
+        if (anomalySignal.contains("RESOURCE")
+                || anomalySignal.contains("CRITICAL")
+                || anomalySignal.contains("NORMALIZATION")) {
+            return contains(userPrompt, round.requestPath())
+                    && contains(userPrompt, "Sensitivity: " + expectedSensitivity(round.requestPath()));
+        }
+        if (anomalySignal.contains("SEQUENCE")) {
+            return contains(userPrompt, "PreviousPath:")
+                    && contains(userPrompt, "=== OBSERVED WORK PATTERN CONTEXT ===");
+        }
+        return contains(userPrompt, round.requestPath());
+    }
+
+    private static boolean containsUserAgentEvidence(String userPrompt, String rawUserAgent, String fallbackLabel) {
+        if (!hasText(userPrompt)) {
+            return false;
+        }
+        if (hasText(fallbackLabel) && contains(userPrompt, fallbackLabel)) {
+            return true;
+        }
+        if (!hasText(rawUserAgent)) {
+            return false;
+        }
+        String browser = io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher.extractBrowserSignature(rawUserAgent);
+        String os = io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher.extractOSFromUserAgent(rawUserAgent);
+        return contains(userPrompt, rawUserAgent)
+                || (hasText(browser) && contains(userPrompt, browser))
+                || (hasText(browser) && hasText(os) && contains(userPrompt, browser + " on " + os))
+                || (hasText(os) && contains(userPrompt, os));
+    }
+
+    private static String expectedSensitivity(String requestPath) {
+        if (requestPath != null && requestPath.contains("/critical/")) {
+            return "CRITICAL";
+        }
+        if (requestPath != null && requestPath.contains("/sensitive/")) {
+            return "HIGH";
+        }
+        if (requestPath != null && requestPath.contains("/normal/")) {
+            return "STANDARD";
+        }
+        return "UNKNOWN";
+    }
+
     private static Boolean asBoolean(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
@@ -489,6 +608,27 @@ public final class SandboxPromptMetricReportWriter {
                     "OBSERVED WORK PATTERN",
                     "OBSERVATIONS",
                     "BASELINE");
+            case USER_SPECIFIC_NOVELTY_SENSITIVITY -> containsAny(corpus,
+                    "NOVELTY",
+                    "PREVIOUSPATH",
+                    "OBSERVED WORK PATTERN",
+                    "RELATEDDOCUMENTS",
+                    "DEVICE",
+                    "NETWORK",
+                    "RESOURCE",
+                    "SEQUENCE");
+            case BEHAVIORAL_SURPRISE_RESOLUTION -> containsAny(corpus,
+                    "SESSION NARRATIVE",
+                    "PREVIOUSPATH",
+                    "OBSERVED WORK PATTERN",
+                    "WORKPROFILESUMMARY",
+                    "HISTORICALCOMPARABLEEVENTS",
+                    "DEVICE",
+                    "NETWORK",
+                    "RESOURCE",
+                    "SEQUENCE",
+                    "RECOVERY",
+                    "SURPRISE");
             default -> true;
         };
     }

@@ -15,5 +15,31 @@ public record SandboxPromptReplayRound(
         String userAgentLabel,
         String deviceId,
         Map<String, Object> responseBody,
-        SandboxPromptTraceSnapshot snapshot) {
+        SandboxPromptTraceSnapshot snapshot,
+        SandboxDecisionTraceSnapshot decisionSnapshot) {
+
+    public SandboxPromptReplayRound(
+            String phase,
+            int roundNumber,
+            SandboxPromptRoundPlan roundPlan,
+            String requestId,
+            String requestPath,
+            String clientIp,
+            String userAgentLabel,
+            String deviceId,
+            Map<String, Object> responseBody,
+            SandboxPromptTraceSnapshot snapshot) {
+        this(
+                phase,
+                roundNumber,
+                roundPlan,
+                requestId,
+                requestPath,
+                clientIp,
+                userAgentLabel,
+                deviceId,
+                responseBody,
+                snapshot,
+                null);
+    }
 }

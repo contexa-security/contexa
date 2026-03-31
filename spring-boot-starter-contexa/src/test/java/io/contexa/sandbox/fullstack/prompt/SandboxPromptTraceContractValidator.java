@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * requestId 기준 trace 계약 준수 검사기.
+ * requestId 기반 trace 계약 검증기.
  *
  * 여기서 실패하는 항목은 LLM 판단 영역이 아니라 replay/trace 수집 계약 결함으로 본다.
- * 즉 이 감사에서 깨지면 benchmark 입력 자체가 성립하지 않는다.
+ * 즉 이 검사가 깨지면 benchmark 입력 자체가 성립하지 않는다.
  */
 public final class SandboxPromptTraceContractValidator {
 
@@ -27,7 +27,7 @@ public final class SandboxPromptTraceContractValidator {
             String source,
             SandboxPromptTraceSnapshot snapshot) {
         List<SandboxPromptDefectFinding> findings = new ArrayList<>();
-        int total = 23;
+        int total = 40;
         int passed = 0;
 
         passed += required(findings, benchmarkRunId, username, source, "TRACE_REQUEST_ID",
@@ -76,7 +76,7 @@ public final class SandboxPromptTraceContractValidator {
                 StringUtils.hasText(text(eventMetadata.get("requestId"))),
                 "event.metadata.requestId=" + text(eventMetadata.get("requestId")));
         passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_VERSION",
-                "metadata.promptVersion이 비어 있으면 안 된다",
+                "metadata.promptVersion은 비어 있으면 안 된다",
                 StringUtils.hasText(text(metadata.get("promptVersion"))),
                 "metadata.promptVersion=" + text(metadata.get("promptVersion")));
         passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_HASH",
@@ -105,14 +105,14 @@ public final class SandboxPromptTraceContractValidator {
                 "metadata.omissionLedger=" + metadata.get("omissionLedger"));
         passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_SECTION_SET_MATCH",
                 "metadata.promptSectionSet과 promptExecutionMetadata.sectionSet이 일치해야 한다",
-                castStringList(metadata.get("promptSectionSet"))
-                        .equals(promptExecutionMetadata != null ? promptExecutionMetadata.sectionSet() : List.of()),
+                castStringList(metadata.get("promptSectionSet")).equals(
+                        promptExecutionMetadata != null ? promptExecutionMetadata.sectionSet() : List.of()),
                 "metadata.promptSectionSet=" + metadata.get("promptSectionSet")
                         + ", promptExecutionMetadata.sectionSet=" + (promptExecutionMetadata != null ? promptExecutionMetadata.sectionSet() : null));
         passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_OMITTED_SECTIONS_MATCH",
                 "metadata.omittedSections와 promptExecutionMetadata.omittedSections가 일치해야 한다",
-                castStringList(metadata.get("omittedSections"))
-                        .equals(promptExecutionMetadata != null ? promptExecutionMetadata.omittedSections() : List.of()),
+                castStringList(metadata.get("omittedSections")).equals(
+                        promptExecutionMetadata != null ? promptExecutionMetadata.omittedSections() : List.of()),
                 "metadata.omittedSections=" + metadata.get("omittedSections")
                         + ", promptExecutionMetadata.omittedSections=" + (promptExecutionMetadata != null ? promptExecutionMetadata.omittedSections() : null));
         passed += required(findings, benchmarkRunId, username, source, "TRACE_GOVERNANCE_TEMPLATE",
@@ -136,6 +136,82 @@ public final class SandboxPromptTraceContractValidator {
                 "metadata.lengths=[system=" + metadata.get("systemPromptLength")
                         + ", user=" + metadata.get("userPromptLength")
                         + ", total=" + metadata.get("totalPromptLength") + "]");
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_TOKEN_ESTIMATOR",
+                "metadata.promptTokenEstimator가 비어 있으면 안 된다",
+                StringUtils.hasText(text(metadata.get("promptTokenEstimator"))),
+                "metadata.promptTokenEstimator=" + text(metadata.get("promptTokenEstimator")));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_ESTIMATED_SYSTEM_TOKENS",
+                "metadata.estimatedSystemTokens가 비어 있으면 안 된다",
+                metadata.containsKey("estimatedSystemTokens"),
+                "metadata.estimatedSystemTokens=" + metadata.get("estimatedSystemTokens"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_ESTIMATED_USER_TOKENS",
+                "metadata.estimatedUserTokens가 비어 있으면 안 된다",
+                metadata.containsKey("estimatedUserTokens"),
+                "metadata.estimatedUserTokens=" + metadata.get("estimatedUserTokens"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_ESTIMATED_TOTAL_TOKENS",
+                "metadata.estimatedTotalTokens가 비어 있으면 안 된다",
+                metadata.containsKey("estimatedTotalTokens"),
+                "metadata.estimatedTotalTokens=" + metadata.get("estimatedTotalTokens"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_BUDGET_REMAINING",
+                "metadata.promptBudgetRemainingTokens가 비어 있으면 안 된다",
+                metadata.containsKey("promptBudgetRemainingTokens"),
+                "metadata.promptBudgetRemainingTokens=" + metadata.get("promptBudgetRemainingTokens"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_BUDGET_UTILIZATION",
+                "metadata.promptBudgetUtilizationRate가 비어 있으면 안 된다",
+                metadata.containsKey("promptBudgetUtilizationRate"),
+                "metadata.promptBudgetUtilizationRate=" + metadata.get("promptBudgetUtilizationRate"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_BUDGET_EXCEEDED",
+                "metadata.promptBudgetExceeded가 비어 있으면 안 된다",
+                metadata.containsKey("promptBudgetExceeded"),
+                "metadata.promptBudgetExceeded=" + metadata.get("promptBudgetExceeded"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_BUDGET_MODE",
+                "metadata.promptBudgetEnforcementMode가 비어 있으면 안 된다",
+                StringUtils.hasText(text(metadata.get("promptBudgetEnforcementMode"))),
+                "metadata.promptBudgetEnforcementMode=" + text(metadata.get("promptBudgetEnforcementMode")));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_COMPRESSION_APPLIED",
+                "metadata.promptCompressionApplied가 비어 있으면 안 된다",
+                metadata.containsKey("promptCompressionApplied"),
+                "metadata.promptCompressionApplied=" + metadata.get("promptCompressionApplied"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_TRANSFORMATION_MODE",
+                "metadata.promptTransformationMode가 비어 있으면 안 된다",
+                StringUtils.hasText(text(metadata.get("promptTransformationMode"))),
+                "metadata.promptTransformationMode=" + text(metadata.get("promptTransformationMode")));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_RAW_TRUTH_PARITY",
+                "metadata.promptRawTruthParity가 비어 있으면 안 된다",
+                metadata.containsKey("promptRawTruthParity"),
+                "metadata.promptRawTruthParity=" + metadata.get("promptRawTruthParity"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_PROMPT_COMPRESSION_LEDGER",
+                "metadata.promptCompressionLedger는 반드시 존재해야 한다",
+                metadata.containsKey("promptCompressionLedger"),
+                "metadata.promptCompressionLedger=" + metadata.get("promptCompressionLedger"));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_RAW_PROMPT_HASH",
+                "metadata.rawPromptHash가 비어 있으면 안 된다",
+                StringUtils.hasText(text(metadata.get("rawPromptHash"))),
+                "metadata.rawPromptHash=" + text(metadata.get("rawPromptHash")));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_RAW_SYSTEM_PROMPT_HASH",
+                "metadata.rawSystemPromptHash가 비어 있으면 안 된다",
+                StringUtils.hasText(text(metadata.get("rawSystemPromptHash"))),
+                "metadata.rawSystemPromptHash=" + text(metadata.get("rawSystemPromptHash")));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_RAW_USER_PROMPT_HASH",
+                "metadata.rawUserPromptHash가 비어 있으면 안 된다",
+                StringUtils.hasText(text(metadata.get("rawUserPromptHash"))),
+                "metadata.rawUserPromptHash=" + text(metadata.get("rawUserPromptHash")));
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_RAW_PROMPT_LENGTH_FIELDS",
+                "raw prompt 길이 메타데이터가 비어 있으면 안 된다",
+                metadata.containsKey("rawSystemPromptLength")
+                        && metadata.containsKey("rawUserPromptLength")
+                        && metadata.containsKey("rawTotalPromptLength"),
+                "metadata.rawLengths=[system=" + metadata.get("rawSystemPromptLength")
+                        + ", user=" + metadata.get("rawUserPromptLength")
+                        + ", total=" + metadata.get("rawTotalPromptLength") + "]");
+        passed += required(findings, benchmarkRunId, username, source, "TRACE_LLM_PROMPT_LENGTH_FIELDS",
+                "llm prompt 길이 메타데이터가 비어 있으면 안 된다",
+                metadata.containsKey("llmSystemPromptLength")
+                        && metadata.containsKey("llmUserPromptLength")
+                        && metadata.containsKey("llmTotalPromptLength"),
+                "metadata.llmLengths=[system=" + metadata.get("llmSystemPromptLength")
+                        + ", user=" + metadata.get("llmUserPromptLength")
+                        + ", total=" + metadata.get("llmTotalPromptLength") + "]");
 
         return new SandboxPromptTraceContractAssessment(source, ratio(passed, total), findings);
     }
