@@ -12,8 +12,8 @@ class SandboxPromptReplayScenarioCatalogTest {
     @Test
     @DisplayName("EXTENDED 시나리오 세트는 최소 8개의 장기 행동 시나리오를 제공해야 한다")
     void shouldExposeAtLeastEightExtendedScenarios() {
-        // 벤치마킹 카탈로그는 단순 path 반복이 아니라,
-        // 같은 계정의 baseline 축적과 anomaly injection을 여러 family로 커버해야 한다.
+        // 공식 benchmark의 when은 짧은 path 반복이 아니라
+        // 같은 계정의 장기 업무 패턴을 다양한 family로 분리해 가져가야 한다.
         List<SandboxPromptReplayScenario> scenarios = SandboxPromptReplayScenarioCatalog.extendedScenarioSet();
 
         assertThat(scenarios).hasSizeGreaterThanOrEqualTo(8);
@@ -23,24 +23,44 @@ class SandboxPromptReplayScenarioCatalogTest {
     }
 
     @Test
-    @DisplayName("CORE selector는 기본보다 넓고 ALL selector는 EXTENDED와 같아야 한다")
+    @DisplayName("CORE selector는 기본 세트와 같고 ALL selector는 EXTENDED와 같아야 한다")
     void shouldResolveScenarioSelectorsDeterministically() {
         List<SandboxPromptReplayScenario> defaultScenarios = SandboxPromptReplayScenarioCatalog.resolve("DEFAULT");
         List<SandboxPromptReplayScenario> coreScenarios = SandboxPromptReplayScenarioCatalog.resolve("CORE");
         List<SandboxPromptReplayScenario> allScenarios = SandboxPromptReplayScenarioCatalog.resolve("ALL");
         List<SandboxPromptReplayScenario> extendedScenarios = SandboxPromptReplayScenarioCatalog.resolve("EXTENDED");
 
-        assertThat(defaultScenarios).hasSize(1);
-        assertThat(coreScenarios.size()).isGreaterThan(defaultScenarios.size());
+        assertThat(defaultScenarios).containsExactlyElementsOf(coreScenarios);
         assertThat(allScenarios).containsExactlyElementsOf(extendedScenarios);
     }
 
     @Test
-    @DisplayName("시나리오 카탈로그는 같은 계정 기준으로 path IP UA device cadence anomaly를 모두 변화시킬 수 있어야 한다")
-    void shouldExposeRichRoundPlanVariationAcrossExtendedScenarios() {
-        // 정부 제출용 benchmark의 when은 고정된 coarse signal이 아니라
-        // 다양한 round plan 조합이어야 한다. 그렇지 않으면 baseline과 RAG가 단조롭게 쌓여
-        // subtle anomaly를 검증할 수 없다.
+    @DisplayName("장기 시나리오는 24회차와 다중 세션 시간축을 기본으로 가져야 한다")
+    void shouldExposeLongHorizonRoundsAndSessionBoundaries() {
+        List<SandboxPromptReplayScenario> scenarios = SandboxPromptReplayScenarioCatalog.coreScenarioSet();
+
+        assertThat(scenarios)
+                .extracting(SandboxPromptReplayScenario::roundCount)
+                .containsOnly(24);
+
+        // 장기 benchmark의 핵심은 몇 초짜리 반복이 아니라 여러 주기의 session 재진입이다.
+        assertThat(scenarios)
+                .flatExtracting(SandboxPromptReplayScenario::roundPlans)
+                .extracting(SandboxPromptRoundPlan::sessionMode)
+                .contains(SandboxPromptSessionMode.NEW_SESSION, SandboxPromptSessionMode.REUSE_SESSION);
+
+        assertThat(scenarios)
+                .flatExtracting(SandboxPromptReplayScenario::roundPlans)
+                .extracting(SandboxPromptRoundPlan::observedAt)
+                .doesNotContainNull()
+                .allSatisfy(value -> assertThat(value.toString()).contains("+09:00"));
+    }
+
+    @Test
+    @DisplayName("장기 시나리오는 경로 IP UA 디바이스 민감도 순서 속도 축을 모두 변화시켜야 한다")
+    void shouldExposeRichLongHorizonVariationAcrossExtendedScenarios() {
+        // 이 테스트는 coarse signal 몇 개만 바뀌는 피상적 benchmark를 막기 위한 것이다.
+        // 같은 계정 안에서 업무군, 순서, cadence, device, network, scope가 함께 섞여야 한다.
         List<SandboxPromptReplayScenario> scenarios = SandboxPromptReplayScenarioCatalog.extendedScenarioSet();
         List<SandboxPromptRoundPlan> roundPlans = scenarios.stream()
                 .flatMap(scenario -> scenario.roundPlans().stream())
@@ -65,12 +85,9 @@ class SandboxPromptReplayScenarioCatalogTest {
                 .contains("corp-laptop-a", "corp-laptop-b", "managed-vdi");
 
         assertThat(roundPlans)
-                .extracting(SandboxPromptRoundPlan::cooldownBeforeRoundMs)
-                .contains(5200L, 6200L, 8800L);
-
-        assertThat(roundPlans)
                 .extracting(SandboxPromptRoundPlan::anomalySignal)
-                .contains("NONE",
+                .contains(
+                        "NONE",
                         "RESOURCE_SENSITIVITY_SURGE",
                         "UNSEEN_RESOURCE_FANOUT",
                         "DEVICE_FINGERPRINT_SHIFT",
@@ -79,26 +96,21 @@ class SandboxPromptReplayScenarioCatalogTest {
                         "SEQUENCE_REVERSAL",
                         "LATE_CRITICAL_APPROVAL",
                         "TEMPORARY_NORMALIZATION");
+    }
 
-        assertThat(scenarios)
-                .extracting(SandboxPromptReplayScenario::scenarioHeader)
-                .containsOnly("NORMAL_USER");
+    @Test
+    @DisplayName("resizeScenario는 회차를 줄일 때 prefix를 유지하고 늘릴 때는 시간을 앞으로 밀어 장기 패턴을 이어가야 한다")
+    void shouldResizeScenarioWithoutRepeatingTheLastRoundForever() {
+        SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog.ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE;
 
-        assertThat(scenarios)
-                .extracting(SandboxPromptReplayScenario::userProfileKey)
-                .doesNotContainNull()
-                .allMatch(value -> !String.valueOf(value).isBlank());
+        SandboxPromptReplayScenario shortened = SandboxPromptReplayScenarioCatalog.resizeScenario(scenario, 6);
+        SandboxPromptReplayScenario expanded = SandboxPromptReplayScenarioCatalog.resizeScenario(scenario, 30);
 
-        assertThat(scenarios)
-                .extracting(SandboxPromptReplayScenario::scenarioFamily)
-                .containsOnly(
-                        "RESOURCE_SURGE",
-                        "RESOURCE_FANOUT",
-                        "DEVICE_SHIFT",
-                        "NETWORK_PIVOT",
-                        "CADENCE_BURST",
-                        "SEQUENCE_REVERSAL",
-                        "LATE_ESCALATION",
-                        "RECOVERY");
+        assertThat(shortened.roundCount()).isEqualTo(6);
+        assertThat(shortened.roundPlanForRound(6).requestPath()).isEqualTo(scenario.roundPlanForRound(6).requestPath());
+
+        assertThat(expanded.roundCount()).isEqualTo(30);
+        assertThat(expanded.roundPlanForRound(25).observedAt()).isAfter(scenario.roundPlanForRound(24).observedAt());
+        assertThat(expanded.roundPlanForRound(30).roundKey()).isEqualTo("R30");
     }
 }

@@ -9,6 +9,8 @@ import org.springframework.ai.document.Document;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SandboxPromptBenchmarkReportWriterTest {
+
+    private static final OffsetDateTime BASE_TIME = OffsetDateTime.of(2026, 1, 5, 9, 0, 0, 0, ZoneOffset.ofHours(9));
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -120,6 +124,8 @@ class SandboxPromptBenchmarkReportWriterTest {
                                 SandboxFullStackPromptReplayHarness.DEFAULT_BROWSER_USER_AGENT,
                                 "Chrome 120 / Windows 11",
                                 "corp-laptop-a",
+                                BASE_TIME,
+                                SandboxPromptSessionMode.NEW_SESSION,
                                 6200L,
                                 "BASELINE",
                                 "NONE",
@@ -132,6 +138,8 @@ class SandboxPromptBenchmarkReportWriterTest {
                                 SandboxFullStackPromptReplayHarness.DEFAULT_BROWSER_USER_AGENT,
                                 "Chrome 120 / Windows 11",
                                 "corp-laptop-a",
+                                BASE_TIME.plusMinutes(12),
+                                SandboxPromptSessionMode.REUSE_SESSION,
                                 6200L,
                                 "BASELINE",
                                 "NONE",
@@ -144,6 +152,8 @@ class SandboxPromptBenchmarkReportWriterTest {
                                 SandboxFullStackPromptReplayHarness.DEFAULT_BROWSER_USER_AGENT,
                                 "Chrome 120 / Windows 11",
                                 "corp-laptop-a",
+                                BASE_TIME.plusDays(7),
+                                SandboxPromptSessionMode.NEW_SESSION,
                                 6200L,
                                 "ANOMALY",
                                 "RESOURCE_SENSITIVITY_SURGE",

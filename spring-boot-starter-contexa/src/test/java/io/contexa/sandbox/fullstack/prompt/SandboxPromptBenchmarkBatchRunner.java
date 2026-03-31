@@ -66,44 +66,10 @@ public class SandboxPromptBenchmarkBatchRunner {
                         username,
                         password,
                         benchmarkRunId,
-                        expandRoundCount(scenario, roundCount));
+                        SandboxPromptReplayScenarioCatalog.resizeScenario(scenario, roundCount));
                 runResults.add(SandboxPromptBenchmarkMetricExtractor.evaluateRun(objectMapper, replayRun));
             }
         }
         return List.copyOf(runResults);
-    }
-
-    private SandboxPromptReplayScenario expandRoundCount(
-            SandboxPromptReplayScenario scenario,
-            int roundCount) {
-        if (scenario.roundCount() == roundCount) {
-            return scenario;
-        }
-        ArrayList<SandboxPromptRoundPlan> roundPlans = new ArrayList<>(roundCount);
-        for (int roundIndex = 1; roundIndex <= roundCount; roundIndex++) {
-            SandboxPromptRoundPlan sourcePlan = roundIndex <= scenario.roundCount()
-                    ? scenario.roundPlanForRound(roundIndex)
-                    : scenario.roundPlanForRound(scenario.roundCount());
-            roundPlans.add(new SandboxPromptRoundPlan(
-                    "R" + roundIndex,
-                    sourcePlan.requestPath(),
-                    sourcePlan.clientIp(),
-                    sourcePlan.browserUserAgent(),
-                    sourcePlan.simulatedUserAgentLabel(),
-                    sourcePlan.deviceAlias(),
-                    sourcePlan.cooldownBeforeRoundMs(),
-                    sourcePlan.behaviorPhase(),
-                    sourcePlan.anomalySignal(),
-                    sourcePlan.expectationNote(),
-                    sourcePlan.semanticMarkers()));
-        }
-        return new SandboxPromptReplayScenario(
-                scenario.scenarioKey(),
-                scenario.experimentGroup(),
-                scenario.scenarioHeader(),
-                scenario.expectedActionHeader(),
-                scenario.userProfileKey(),
-                scenario.scenarioFamily(),
-                roundPlans);
     }
 }

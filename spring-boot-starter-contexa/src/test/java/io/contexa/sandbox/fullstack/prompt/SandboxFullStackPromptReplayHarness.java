@@ -18,10 +18,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * sandbox full-stack replay 실행기.
+ * sandbox full-stack replay ?????덊떀??
  *
- * 이 하네스는 브라우저를 띄우지 않지만, 서버 입장에서는 브라우저와 동일한 HTTP/MFA/세션 흐름을 탄다.
- * 따라서 여기서 회수한 event/sessionCtx/behaviorCtx/relatedDocuments/prompt는 실제 웹 원본이다.
+ * ?????β뼯援㏆쭕????紐꾪닓 ???⑥ル츥??????????썹땟?????됱삩? ????? ??嶺뚮Ĳ?됭짆?????⑤㈇??????????⑥ル츥?????? ????怨뺣윞??HTTP/MFA/?癲ル슢??????????????썹땟???
+ * ????산뭐??????????????event/sessionCtx/behaviorCtx/relatedDocuments/prompt?????繹먮냱議??????雅?????
  */
 public class SandboxFullStackPromptReplayHarness {
 
@@ -74,7 +74,9 @@ public class SandboxFullStackPromptReplayHarness {
                 username,
                 password,
                 benchmarkRunId,
-                withRoundCount(SandboxPromptReplayScenarioCatalog.ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE, 3));
+                SandboxPromptReplayScenarioCatalog.resizeScenario(
+                        SandboxPromptReplayScenarioCatalog.ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE,
+                        3));
     }
 
     public SandboxPromptReplayRun replayRounds(
@@ -86,7 +88,9 @@ public class SandboxFullStackPromptReplayHarness {
                 username,
                 password,
                 benchmarkRunId,
-                withRoundCount(SandboxPromptReplayScenarioCatalog.ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE, roundCount));
+                SandboxPromptReplayScenarioCatalog.resizeScenario(
+                        SandboxPromptReplayScenarioCatalog.ADMIN_SENSITIVE_BASELINE_THEN_CRITICAL_SURGE,
+                        roundCount));
     }
 
     public SandboxPromptReplayRun replayScenario(
@@ -105,13 +109,8 @@ public class SandboxFullStackPromptReplayHarness {
         sandboxOttCodeCapture.clearAll();
         sandboxPromptTraceStore.clearAll();
 
-        SandboxWebSessionClient webSessionClient = new SandboxWebSessionClient(baseUrl, httpTimeout);
         Map<String, String> deviceIdsByAlias = new HashMap<>();
-        SandboxPromptRoundPlan initialRoundPlan = scenario.roundPlanForRound(1);
-        String initialDeviceId = deviceIdsByAlias.computeIfAbsent(
-                initialRoundPlan.deviceAlias(),
-                ignored -> UUID.randomUUID().toString());
-        authenticateUsingRealOttMfa(webSessionClient, username, password, scenario, initialRoundPlan, initialDeviceId);
+        SandboxWebSessionClient webSessionClient = null;
 
         List<SandboxPromptReplayRound> rounds = new java.util.ArrayList<>(scenario.roundCount());
         for (int roundNumber = 1; roundNumber <= scenario.roundCount(); roundNumber++) {
@@ -120,10 +119,18 @@ public class SandboxFullStackPromptReplayHarness {
             if (roundNumber > 1) {
                 waitForNextRoundWindow(roundPlan.cooldownBeforeRoundMs());
             }
+            String deviceId = deviceIdsByAlias.computeIfAbsent(
+                    roundPlan.deviceAlias(),
+                    ignored -> UUID.randomUUID().toString());
+            if (webSessionClient == null || roundPlan.startsNewSession()) {
+                preparePendingAnalysisForAuthentication(username, phase);
+                webSessionClient = new SandboxWebSessionClient(baseUrl, httpTimeout);
+                authenticateUsingRealOttMfa(webSessionClient, username, password, scenario, roundPlan, deviceId);
+            }
             rounds.add(executeProtectedRound(
                     webSessionClient,
                     username,
-                    deviceIdsByAlias,
+                    deviceId,
                     phase,
                     benchmarkRunId,
                     scenario,
@@ -161,7 +168,7 @@ public class SandboxFullStackPromptReplayHarness {
         Map<String, Object> loginBody = parseJsonBody(loginResponse);
         Assertions.assertThat(loginResponse.status()).isEqualTo(200);
         Assertions.assertThat(text(loginBody.get("status")))
-                .as("1차 인증은 반드시 MFA_REQUIRED 계열 상태를 반환해야 이후 실제 MFA 경로를 탈 수 있다.")
+                .as("1???癲ル슢???먥꼻?? ?熬곣뫖利??レ벁???MFA_REQUIRED ??影??낟??????븐뻤????熬곣뫖利??????ㅿ폑?????ш끽維?????繹먮냱議?MFA ?嚥▲굧???뚪뜮?熬곣벀嫄??????????딅젩.")
                 .isIn("MFA_REQUIRED_SELECT_FACTOR", "MFA_REQUIRED", "MFA_CONTINUE");
 
         String factorType = resolveFactorType(loginBody);
@@ -175,7 +182,7 @@ public class SandboxFullStackPromptReplayHarness {
 
         String ottRequestPageUrl = text(factorSelectionBody.get("nextStepUrl"));
         Assertions.assertThat(ottRequestPageUrl)
-                .as("factor 선택 이후 nextStepUrl이 있어야 브라우저와 동일한 다음 화면 이동을 재현할 수 있다.")
+                .as("factor ????ｋ?????ш끽維??nextStepUrl??????⑥ろ맖?????⑥ル츥?????? ????怨뺣윞?????繹먮굞?????됰Ŧ六????????????????????딅젩.")
                 .isNotBlank();
 
         SandboxHttpResponse ottRequestPageResponse = webSessionClient.get(
@@ -196,12 +203,12 @@ public class SandboxFullStackPromptReplayHarness {
                 requestCodeForm);
 
         Assertions.assertThat(requestCodeResponse.status())
-                .as("OTT code generation은 challenge 화면으로 redirect되어야 한다.")
+                .as("OTT code generation?? challenge ???됰Ŧ六?????Β??redirect??嶺뚮슣??땻????嶺뚮㉡???")
                 .isIn(302, 303);
 
         String latestOttCode = sandboxOttCodeCapture.awaitLatestCode(username, Duration.ofSeconds(10));
         Assertions.assertThat(latestOttCode)
-                .as("sandbox OTT capture가 비어 있으면 실제 HTTP MFA 흐름을 재현하지 못한 것이다.")
+                .as("sandbox OTT capture??醫딆쓧? ????猷뱀쟼????繹먮겧嫄х솾????繹먮냱議?HTTP MFA ???????????? ?꿔꺂??쭫?묒쒜????嚥▲굧?????")
                 .isNotBlank();
 
         String ottVerifyPageUrl = text(requestCodeResponse.headers().getFirst("Location"));
@@ -227,7 +234,7 @@ public class SandboxFullStackPromptReplayHarness {
         Map<String, Object> verifyBody = parseJsonBody(verifyResponse);
         Assertions.assertThat(verifyResponse.status()).isEqualTo(200);
         Assertions.assertThat(text(verifyBody.get("status")))
-                .as("MFA가 완료되어야 이후 보호 리소스 접근이 실제 인증 세션으로 진행된다.")
+                .as("MFA??醫딆쓧? ????썹땟???嶺뚮슣??땻?????ш끽維????⑤슢??????잙갭큔?딆뼇???????뗫떔??????繹먮냱議??癲ル슢???먥꼻??癲ル슢???????Β???꿔꺂????紐꾩뗄??嶺뚮㉡???")
                 .isEqualTo("MFA_COMPLETED");
 
     }
@@ -235,7 +242,7 @@ public class SandboxFullStackPromptReplayHarness {
     private SandboxPromptReplayRound executeProtectedRound(
             SandboxWebSessionClient webSessionClient,
             String username,
-            Map<String, String> deviceIdsByAlias,
+            String deviceId,
             String phase,
             String benchmarkRunId,
             SandboxPromptReplayScenario scenario,
@@ -246,7 +253,6 @@ public class SandboxFullStackPromptReplayHarness {
 
         String requestPath = roundPlan.requestPath();
         String requestId = "sandbox-req-" + phase.toLowerCase(Locale.ROOT) + "-" + UUID.randomUUID();
-        String deviceId = deviceIdsByAlias.computeIfAbsent(roundPlan.deviceAlias(), ignored -> UUID.randomUUID().toString());
         Map<String, String> requestHeaders = securityTestHeaders(
                 requestId,
                 phase,
@@ -259,12 +265,12 @@ public class SandboxFullStackPromptReplayHarness {
         Map<String, Object> responseBody = parseJsonBody(protectedResponse);
 
         Assertions.assertThat(protectedResponse.status())
-                .as("보호 리소스 접근이 200이 아니면 prompt 품질 이전에 실제 HTTP 경로가 깨진 것이다.")
+                .as("??⑤슢??????잙갭큔?딆뼇???????뗫떔???200??????썹땟????ㅷ빊?prompt ???繹먮끏堉?????ㅼ굣??????繹먮냱議?HTTP ?嚥▲굧???뚪뜮?域민쇱?? ?μ떜媛?力?????嚥▲굧?????")
                 .isEqualTo(200);
 
         String effectiveRequestId = text(responseBody.get("requestId"));
         Assertions.assertThat(effectiveRequestId)
-                .as("보호 리소스 응답에는 requestId가 있어야 event/prompt/evidence를 하나의 체인으로 추적할 수 있다.")
+                .as("??⑤슢??????잙갭큔?딆뼇??????????????requestId??醫딆쓧? ????⑥ろ맖??event/prompt/evidence?????β뼯援η뙴???꿔꺂????????Β?????ㅻ쿋驪??????????딅젩.")
                 .isNotBlank();
 
         SandboxPromptTraceSnapshot snapshot = resolvePromptTrace(effectiveRequestId);
@@ -282,12 +288,17 @@ public class SandboxFullStackPromptReplayHarness {
     }
 
     private void rearmPendingAnalysisForReplayRound(String username, String phase) {
-        // 제품 정책상 LLM 분석은 PENDING_ANALYSIS 상태일 때만 진입한다.
-        // 따라서 replay 테스트는 이전 round의 memory는 유지하되 현재 사용자 action만 PENDING으로 되돌린다.
+        // ???? ?癲ル슢캉????LLM ???곗뒩泳??? PENDING_ANALYSIS ????븐뻤?????????꿔꺂??????嶺뚮㉡???
+        // ????산뭐???replay ?????癲ル슢??蹂?쭍?????ㅼ굣??round??memory????????β뼯源닻?????썹땟???????action??PENDING????Β?????β뼯爰??濚밸Þ????
         zeroTrustActionRepository.saveActionWithPrevious(username, ZeroTrustAction.PENDING_ANALYSIS);
         Assertions.assertThat(zeroTrustActionRepository.getCurrentAction(username))
-                .as("%s 회차 실행 전 현재 action은 반드시 PENDING_ANALYSIS여야 한다.", phase)
+                .as("%s ??????????덊떀 ??????썹땟??action?? ?熬곣뫖利??レ벁???PENDING_ANALYSIS??????嶺뚮㉡???", phase)
                 .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    private void preparePendingAnalysisForAuthentication(String username, String phase) {
+        zeroTrustActionRepository.removeAllUserData(username);
+        rearmPendingAnalysisForReplayRound(username, phase + "_AUTH");
     }
 
     private SandboxPromptTraceSnapshot resolvePromptTrace(String requestId) {
@@ -297,7 +308,7 @@ public class SandboxFullStackPromptReplayHarness {
             SandboxPromptTraceSnapshot latestSnapshot = sandboxPromptTraceStore.awaitAny(traceTimeout);
             String traceRequestId = extractTraceRequestId(latestSnapshot);
             Assertions.assertThat(traceRequestId)
-                    .as("Layer1 전체 완료 뒤 확정된 trace의 requestId는 보호 리소스 응답 requestId와 일치해야 한다.")
+                    .as("Layer1 ????썹땟??????썹땟?????癲ル슢캉????trace??requestId????⑤슢??????잙갭큔?딆뼇??????????requestId?? ??濚밸Ŧ遊얕맱????ㅿ폑????嶺뚮㉡???")
                     .isEqualTo(requestId);
             return latestSnapshot;
         }
@@ -350,11 +361,13 @@ public class SandboxFullStackPromptReplayHarness {
         headers.put("X-Contexa-Authorization-Present", "false");
         headers.put("X-Request-ID", requestId);
         headers.put("X-Forwarded-For", roundPlan.clientIp());
-        // 브라우저 정적 페이지도 X-Simulated-User-Agent에 raw UA를 보낸다.
-        // benchmark harness도 동일 계약을 따라야 currentUserAgentBrowser/OS가
-        // 실제 웹 경로와 같은 방식으로 계산된다.
+        // ???⑥ル츥???? ?癲ル슢캉???????볥궙?袁р뵾??????X-Simulated-User-Agent??raw UA????⑤슢?????
+        // benchmark harness??????怨뺣윞 ??影??낟???????산뭐???currentUserAgentBrowser/OS??醫딆쓧?
+        // ???繹먮냱議????嚥▲굧???뚪뜮?? ??醫딆┻?? ?熬곣뫖?삥납?????Β????影??낟???嶺뚮㉡???
         headers.put("X-Simulated-User-Agent", roundPlan.browserUserAgent());
+        headers.put("X-Simulated-User-Agent-Label", roundPlan.simulatedUserAgentLabel());
         headers.put("X-Device-Id", deviceId);
+        headers.put("X-Contexa-Observed-At", roundPlan.observedAt().toString());
         headers.put("X-Contexa-Scenario", scenario.scenarioHeader());
         headers.put("X-Contexa-Expected-Action", scenario.expectedActionHeader());
         headers.put("X-Contexa-Demo-Run-Id", benchmarkRunId);
@@ -512,44 +525,6 @@ public class SandboxFullStackPromptReplayHarness {
     private String text(Object value) {
         return value == null ? null : String.valueOf(value);
     }
-
-    private SandboxPromptReplayScenario withRoundCount(
-            SandboxPromptReplayScenario scenario,
-            int roundCount) {
-        if (roundCount < 3) {
-            throw new IllegalArgumentException("roundCount must be at least 3");
-        }
-        if (scenario.roundCount() == roundCount) {
-            return scenario;
-        }
-        java.util.ArrayList<SandboxPromptRoundPlan> roundPlans = new java.util.ArrayList<>(roundCount);
-        for (int roundIndex = 1; roundIndex <= roundCount; roundIndex++) {
-            SandboxPromptRoundPlan sourcePlan = roundIndex <= scenario.roundCount()
-                    ? scenario.roundPlanForRound(roundIndex)
-                    : scenario.roundPlanForRound(scenario.roundCount());
-            roundPlans.add(new SandboxPromptRoundPlan(
-                    "R" + roundIndex,
-                    sourcePlan.requestPath(),
-                    sourcePlan.clientIp(),
-                    sourcePlan.browserUserAgent(),
-                    sourcePlan.simulatedUserAgentLabel(),
-                    sourcePlan.deviceAlias(),
-                    sourcePlan.cooldownBeforeRoundMs(),
-                    sourcePlan.behaviorPhase(),
-                    sourcePlan.anomalySignal(),
-                    sourcePlan.expectationNote(),
-                    sourcePlan.semanticMarkers()));
-        }
-        return new SandboxPromptReplayScenario(
-                scenario.scenarioKey(),
-                scenario.experimentGroup(),
-                scenario.scenarioHeader(),
-                scenario.expectedActionHeader(),
-                scenario.userProfileKey(),
-                scenario.scenarioFamily(),
-                roundPlans);
-    }
-
     private record FormSlice(int formStart, int formEnd) {
     }
 }

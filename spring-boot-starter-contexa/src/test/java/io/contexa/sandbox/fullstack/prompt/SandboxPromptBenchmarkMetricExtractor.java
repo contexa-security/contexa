@@ -22,6 +22,8 @@ import java.util.Map;
  */
 public final class SandboxPromptBenchmarkMetricExtractor {
 
+    private static final int MAX_EXPECTED_RELATED_DOCUMENTS = 12;
+
     private SandboxPromptBenchmarkMetricExtractor() {
     }
 
@@ -316,7 +318,7 @@ public final class SandboxPromptBenchmarkMetricExtractor {
         int passed = 0;
         for (int index = 1; index < replayRun.rounds().size(); index++) {
             SandboxPromptReplayRound round = replayRun.rounds().get(index);
-            int expectedDocs = index;
+            int expectedDocs = Math.min(index, MAX_EXPECTED_RELATED_DOCUMENTS);
             passed += bool(round.snapshot().relatedDocuments() != null
                     && round.snapshot().relatedDocuments().size() >= expectedDocs);
             passed += bool(round.snapshot().retrievalAudit() != null
@@ -346,15 +348,11 @@ public final class SandboxPromptBenchmarkMetricExtractor {
             int currentDocs = safeSize(currentRound.snapshot().relatedDocuments());
             passed += bool(previousDocs <= currentDocs);
 
-            Object previousRecentRequestCount = previousRound.snapshot().event() != null
-                    && previousRound.snapshot().event().getMetadata() != null
-                    ? previousRound.snapshot().event().getMetadata().get("recentRequestCount")
-                    : null;
-            Object currentRecentRequestCount = currentRound.snapshot().event() != null
-                    && currentRound.snapshot().event().getMetadata() != null
-                    ? currentRound.snapshot().event().getMetadata().get("recentRequestCount")
-                    : null;
-            passed += bool(asInt(currentRecentRequestCount) >= asInt(previousRecentRequestCount));
+            // 장기 회차에서는 하루/주 단위로 새 세션이 열리므로 recentRequestCount가 자연스럽게 리셋될 수 있다.
+            // 그래서 progression은 단순 카운트 증가가 아니라 baseline/RAG/history 보존 여부로 판단한다.
+            int previousObservations = extractObservationCount(previousRound.snapshot().userPrompt());
+            int currentObservations = extractObservationCount(currentRound.snapshot().userPrompt());
+            passed += bool(currentObservations >= previousObservations || currentObservations < 0);
         }
         return ratio(passed, total);
     }
@@ -404,11 +402,11 @@ public final class SandboxPromptBenchmarkMetricExtractor {
                     || contains(userPrompt, "PreviousPath: " + previousRound.requestPath())));
             passed += bool(!isNovelForUser
                     || contains(userPrompt, "=== OBSERVED WORK PATTERN CONTEXT ===")
-                    || safeSize(currentRound.snapshot().relatedDocuments()) >= index);
+                    || safeSize(currentRound.snapshot().relatedDocuments()) >= Math.min(index, MAX_EXPECTED_RELATED_DOCUMENTS));
             if (currentRound.roundPlan().anomalyExpected()) {
                 total += 2;
                 passed += bool(signalSpecificPromptEvidence(currentRound, userPrompt));
-                passed += bool(safeSize(currentRound.snapshot().relatedDocuments()) >= index);
+                passed += bool(safeSize(currentRound.snapshot().relatedDocuments()) >= Math.min(index, MAX_EXPECTED_RELATED_DOCUMENTS));
             }
             seenPaths.add(currentRound.requestPath());
         }

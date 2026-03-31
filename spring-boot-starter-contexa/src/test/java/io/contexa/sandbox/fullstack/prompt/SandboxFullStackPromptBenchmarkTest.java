@@ -46,7 +46,7 @@ class SandboxFullStackPromptBenchmarkTest {
     private static final Duration TRACE_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration ROUND_COOLDOWN = Duration.ofMillis(5_200);
     private static final int DEFAULT_SAMPLE_COUNT = 1;
-    private static final int DEFAULT_ROUND_COUNT = 8;
+    private static final int DEFAULT_ROUND_COUNT = 24;
     private static final SandboxPostgresqlSchemaSupport POSTGRESQL_SCHEMA_SUPPORT =
             SandboxPostgresqlSchemaSupport.create();
 
