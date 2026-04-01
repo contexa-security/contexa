@@ -45,7 +45,12 @@ class SandboxFullStackRealLlmDecisionTraceCaptureTest extends AbstractSandboxFul
             assertThat(decisionSnapshot.pipelineMetadata()).containsKeys(
                     "boundaryMode",
                     "modelId",
-                    "llmLatencyMs");
+                    "llmStartedAtEpochMs",
+                    "llmFirstResponseAtEpochMs",
+                    "llmCompletedAtEpochMs",
+                    "llmLatencyMs",
+                    "estimatedOutputTokens",
+                    "tokensPerSecond");
             assertThat(decisionSnapshot.llmRawRequest()).isNotNull();
             assertThat(decisionSnapshot.llmRawResponse()).isNotNull();
         }

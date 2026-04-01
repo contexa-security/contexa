@@ -45,24 +45,34 @@ class SandboxDecisionAggregateReportWriterTest {
 
         assertThat(tempDir.resolve("decision-summary.json")).exists();
         assertThat(tempDir.resolve("decision-summary.html")).exists();
+        assertThat(tempDir.resolve("decision-performance-summary.json")).exists();
+        assertThat(tempDir.resolve("decision-performance-summary.html")).exists();
         assertThat(tempDir.resolve("decision-metrics.ndjson")).exists();
         assertThat(tempDir.resolve("decision-runs.ndjson")).exists();
         assertThat(tempDir.resolve("decision-rounds.ndjson")).exists();
         assertThat(tempDir.resolve("decision-defects.ndjson")).exists();
+        assertThat(tempDir.resolve("decision-performance-rounds.ndjson")).exists();
 
         String summaryJson = Files.readString(tempDir.resolve("decision-summary.json"));
         String summaryHtml = Files.readString(tempDir.resolve("decision-summary.html"));
+        String performanceSummaryJson = Files.readString(tempDir.resolve("decision-performance-summary.json"));
 
         assertThat(summaryJson)
                 .contains("Context-to-Decision Calibration")
                 .contains("Evidence-Reason Alignment")
                 .contains("Safe-Uncertainty Handling Rate")
                 .contains("\"runCount\"")
-                .contains("\"roundCount\"");
+                .contains("\"roundCount\"")
+                .contains("decision-performance-summary.json");
+        assertThat(performanceSummaryJson)
+                .contains("\"promptPrefillLatencyMs\"")
+                .contains("\"promptEndToEndLatencyMs\"")
+                .contains("\"estimatedVendorCostSavings\"");
         assertThat(summaryHtml)
                 .contains("CDC/CDC-summary.html")
                 .contains("ERA/ERA-summary.html")
                 .contains("SUHR/SUHR-summary.html")
+                .contains("decision-performance-summary.html")
                 .contains("decision-index.html");
     }
 
@@ -143,7 +153,15 @@ class SandboxDecisionAggregateReportWriterTest {
                 userPrompt,
                 Map.of("promptVersion", "2026.03.31"),
                 null,
-                Map.of("boundaryMode", "STABLE_MOCK", "modelId", "SANDBOX_STABLE"));
+                Map.of(
+                        "boundaryMode", "STABLE_MOCK",
+                        "modelId", "SANDBOX_STABLE",
+                        "llmStartedAtEpochMs", 1711940400000L,
+                        "llmFirstResponseAtEpochMs", 1711940400125L,
+                        "llmCompletedAtEpochMs", 1711940400480L,
+                        "llmLatencyMs", 480.0d,
+                        "estimatedOutputTokens", 28,
+                        "tokensPerSecond", 58.333d));
 
         return new SandboxPromptReplayRound(
                 roundNumber == 1 ? "INITIAL" : "FOLLOW_UP",

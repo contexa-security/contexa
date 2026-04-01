@@ -19,5 +19,6 @@ public record SandboxDecisionRoundResult(
         double cdcScore,
         double eraScore,
         double suhrScore,
+        SandboxDecisionPerformanceTelemetry performanceTelemetry,
         SandboxPromptReplayRound replayRound) {
 }

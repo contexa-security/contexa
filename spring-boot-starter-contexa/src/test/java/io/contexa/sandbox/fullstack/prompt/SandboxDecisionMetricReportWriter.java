@@ -389,6 +389,12 @@ public final class SandboxDecisionMetricReportWriter {
                 .append(" | modelId=").append(escapeHtml(SandboxDecisionBenchmarkSettings.pinnedModelId()))
                 .append(" | scenarioSelector=").append(escapeHtml(SandboxDecisionBenchmarkSettings.scenarioSelector()))
                 .append("</p>");
+        builder.append("<p><a href=\"decision-summary.html\">decision-summary.html</a> | ")
+                .append("<a href=\"decision-performance-summary.html\">decision-performance-summary.html</a>");
+        if (Files.exists(reportDirectory.resolve("compression-impact").resolve("compression-impact-summary.html"))) {
+            builder.append(" | <a href=\"compression-impact/compression-impact-summary.html\">compression-impact/compression-impact-summary.html</a>");
+        }
+        builder.append("</p>");
         builder.append("<table><thead><tr><th>Metric</th><th>Summary</th><th>Calibration</th><th>Runs</th><th>Rounds</th><th>Defects</th><th>Adjudication</th><th>Reviewer Agreement</th></tr></thead><tbody>");
         for (SandboxDecisionMetric metric : SandboxDecisionMetric.values()) {
             String key = metric.key();

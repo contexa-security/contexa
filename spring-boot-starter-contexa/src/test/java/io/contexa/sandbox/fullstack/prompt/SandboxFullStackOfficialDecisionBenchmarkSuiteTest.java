@@ -28,6 +28,9 @@ class SandboxFullStackOfficialDecisionBenchmarkSuiteTest extends AbstractSandbox
 
         assertThat(Files.exists(REPORT_DIRECTORY.resolve("decision-summary.json"))).isTrue();
         assertThat(Files.exists(REPORT_DIRECTORY.resolve("decision-summary.html"))).isTrue();
+        assertThat(Files.exists(REPORT_DIRECTORY.resolve("decision-performance-summary.json"))).isTrue();
+        assertThat(Files.exists(REPORT_DIRECTORY.resolve("decision-performance-summary.html"))).isTrue();
+        assertThat(Files.exists(REPORT_DIRECTORY.resolve("decision-performance-rounds.ndjson"))).isTrue();
         assertThat(Files.exists(REPORT_DIRECTORY.resolve("decision-index.html"))).isTrue();
         assertThat(Files.exists(REPORT_DIRECTORY.resolve("CDC").resolve("CDC-summary.html"))).isTrue();
         assertThat(Files.exists(REPORT_DIRECTORY.resolve("ERA").resolve("ERA-summary.html"))).isTrue();

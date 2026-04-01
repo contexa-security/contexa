@@ -141,9 +141,16 @@ class SandboxPromptCompressionImpactRegressionTest {
         assertThat(reportDirectory.resolve("compression-impact-summary.json")).exists();
         assertThat(reportDirectory.resolve("compression-impact-summary.html")).exists();
         assertThat(reportDirectory.resolve("compression-impact-profiles.ndjson")).exists();
+        assertThat(reportDirectory.resolve("compression-impact-runs.ndjson")).exists();
+        assertThat(reportDirectory.resolve("compression-impact-rounds.ndjson")).exists();
         assertThat(Files.readString(reportDirectory.resolve("compression-impact-summary.json")))
                 .contains("decisionRegressionPass")
-                .contains("compressionGainPass");
+                .contains("compressionGainPass")
+                .contains("latencyGainPass")
+                .contains("costGainPass")
+                .contains("promptEndToEndLatencyDelta")
+                .contains("estimatedVendorCostLlmDelta")
+                .contains("profileReportDirectory");
     }
 
     private SandboxPromptCompressionImpactComparison executeComparison(String budgetProfile) {

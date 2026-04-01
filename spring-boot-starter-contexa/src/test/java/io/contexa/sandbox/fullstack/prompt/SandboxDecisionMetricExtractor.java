@@ -19,6 +19,8 @@ public final class SandboxDecisionMetricExtractor {
         for (SandboxPromptReplayRound round : replayRun.rounds()) {
             SandboxDecisionTraceSnapshot decisionSnapshot = round.decisionSnapshot();
             SandboxDecisionGoldCase goldCase = SandboxDecisionGoldCaseCatalog.resolve(replayRun.scenario(), round);
+            SandboxDecisionPerformanceTelemetry performanceTelemetry =
+                    SandboxDecisionPerformanceTelemetryExtractor.extract(decisionSnapshot);
 
             String action = extractString(objectMapper, decisionSnapshot, "action");
             Double confidence = extractDouble(objectMapper, decisionSnapshot, "confidence");
@@ -77,6 +79,7 @@ public final class SandboxDecisionMetricExtractor {
                     round(cdcScore),
                     round(eraScore),
                     round(suhrScore),
+                    performanceTelemetry,
                     round));
         }
 

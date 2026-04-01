@@ -36,10 +36,21 @@ final class SandboxDecisionAggregateReportWriter {
             Files.writeString(
                     reportDirectory.resolve("decision-summary.html"),
                     buildHtml(summary));
+            Map<String, Object> performanceSummary = buildPerformanceSummary(runResults);
+            Files.writeString(
+                    reportDirectory.resolve("decision-performance-summary.json"),
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(performanceSummary));
+            Files.writeString(
+                    reportDirectory.resolve("decision-performance-summary.md"),
+                    buildPerformanceMarkdown(performanceSummary));
+            Files.writeString(
+                    reportDirectory.resolve("decision-performance-summary.html"),
+                    buildPerformanceHtml(performanceSummary));
             writeNdjson(reportDirectory.resolve("decision-metrics.ndjson"), metricRows(runResults));
             writeNdjson(reportDirectory.resolve("decision-runs.ndjson"), runRows(runResults));
             writeNdjson(reportDirectory.resolve("decision-rounds.ndjson"), roundRows(runResults));
             writeNdjson(reportDirectory.resolve("decision-defects.ndjson"), defectRows(runResults));
+            writeNdjson(reportDirectory.resolve("decision-performance-rounds.ndjson"), performanceRoundRows(runResults));
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to write aggregate decision benchmark report", exception);
         }
@@ -75,15 +86,20 @@ final class SandboxDecisionAggregateReportWriter {
                 .toList());
         summary.put("officialDecisionMetricCount", SandboxDecisionMetric.values().length);
         summary.put("metrics", metricSummary(runResults));
-        summary.put("reportFiles", Map.of(
-                "decisionSummaryJson", "decision-summary.json",
-                "decisionSummaryMd", "decision-summary.md",
-                "decisionSummaryHtml", "decision-summary.html",
-                "decisionIndexHtml", "decision-index.html",
-                "decisionMetricsNdjson", "decision-metrics.ndjson",
-                "decisionRunsNdjson", "decision-runs.ndjson",
-                "decisionRoundsNdjson", "decision-rounds.ndjson",
-                "decisionDefectsNdjson", "decision-defects.ndjson"));
+        summary.put("performance", buildPerformanceSummary(runResults));
+        summary.put("reportFiles", Map.ofEntries(
+                Map.entry("decisionSummaryJson", "decision-summary.json"),
+                Map.entry("decisionSummaryMd", "decision-summary.md"),
+                Map.entry("decisionSummaryHtml", "decision-summary.html"),
+                Map.entry("decisionPerformanceSummaryJson", "decision-performance-summary.json"),
+                Map.entry("decisionPerformanceSummaryMd", "decision-performance-summary.md"),
+                Map.entry("decisionPerformanceSummaryHtml", "decision-performance-summary.html"),
+                Map.entry("decisionIndexHtml", "decision-index.html"),
+                Map.entry("decisionMetricsNdjson", "decision-metrics.ndjson"),
+                Map.entry("decisionRunsNdjson", "decision-runs.ndjson"),
+                Map.entry("decisionRoundsNdjson", "decision-rounds.ndjson"),
+                Map.entry("decisionDefectsNdjson", "decision-defects.ndjson"),
+                Map.entry("decisionPerformanceRoundsNdjson", "decision-performance-rounds.ndjson")));
         return summary;
     }
 
@@ -118,6 +134,81 @@ final class SandboxDecisionAggregateReportWriter {
             metrics.put(metric.displayName(), row);
         }
         return metrics;
+    }
+
+    private Map<String, Object> buildPerformanceSummary(List<SandboxDecisionBenchmarkRunResult> runResults) {
+        List<SandboxDecisionPerformanceTelemetry> telemetryRows = runResults.stream()
+                .flatMap(result -> result.roundResults().stream())
+                .map(SandboxDecisionRoundResult::performanceTelemetry)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("generatedAt", Instant.now().toString());
+        summary.put("boundaryMode", SandboxDecisionBenchmarkSettings.boundaryMode());
+        summary.put("realLlmMode", SandboxDecisionBenchmarkSettings.useRealLlm());
+        summary.put("modelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
+        summary.put("runCount", runResults.size());
+        summary.put("roundCount", telemetryRows.size());
+        summary.put("costProfile", telemetryRows.stream()
+                .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                .map(SandboxDecisionCostEstimate::costProfile)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .map(profile -> Map.of(
+                        "profileKey", profile.profileKey(),
+                        "displayName", profile.displayName(),
+                        "currencyCode", profile.currencyCode(),
+                        "configured", profile.configured(),
+                        "inputCostPer1kTokens", profile.inputCostPer1kTokens(),
+                        "outputCostPer1kTokens", profile.outputCostPer1kTokens()))
+                .orElse(Map.of(
+                        "profileKey", "UNCONFIGURED",
+                        "displayName", "Unconfigured reference pricing",
+                        "currencyCode", "USD",
+                        "configured", false,
+                        "inputCostPer1kTokens", 0.0d,
+                        "outputCostPer1kTokens", 0.0d)));
+        summary.put("metrics", Map.of(
+                "promptPrefillLatencyMs", summarizePerformanceMetric(telemetryRows.stream()
+                        .mapToDouble(SandboxDecisionPerformanceTelemetry::promptPrefillLatencyMs)
+                        .toArray()),
+                "promptEndToEndLatencyMs", summarizePerformanceMetric(telemetryRows.stream()
+                        .mapToDouble(SandboxDecisionPerformanceTelemetry::promptEndToEndLatencyMs)
+                        .toArray()),
+                "estimatedRawInputTokens", summarizePerformanceMetric(telemetryRows.stream()
+                        .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedRawInputTokens)
+                        .toArray()),
+                "estimatedLlmInputTokens", summarizePerformanceMetric(telemetryRows.stream()
+                        .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedLlmInputTokens)
+                        .toArray()),
+                "estimatedOutputTokens", summarizePerformanceMetric(telemetryRows.stream()
+                        .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedOutputTokens)
+                        .toArray()),
+                "tokensPerSecond", summarizePerformanceMetric(telemetryRows.stream()
+                        .mapToDouble(SandboxDecisionPerformanceTelemetry::tokensPerSecond)
+                        .toArray()),
+                "estimatedVendorCostRaw", summarizePerformanceMetric(telemetryRows.stream()
+                        .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                        .filter(java.util.Objects::nonNull)
+                        .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostRaw)
+                        .toArray()),
+                "estimatedVendorCostLlm", summarizePerformanceMetric(telemetryRows.stream()
+                        .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                        .filter(java.util.Objects::nonNull)
+                        .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostLlm)
+                        .toArray()),
+                "estimatedVendorCostSavings", summarizePerformanceMetric(telemetryRows.stream()
+                        .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                        .filter(java.util.Objects::nonNull)
+                        .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostSavings)
+                        .toArray())));
+        summary.put("reportFiles", Map.of(
+                "decisionPerformanceSummaryJson", "decision-performance-summary.json",
+                "decisionPerformanceSummaryMd", "decision-performance-summary.md",
+                "decisionPerformanceSummaryHtml", "decision-performance-summary.html",
+                "decisionPerformanceRoundsNdjson", "decision-performance-rounds.ndjson"));
+        return summary;
     }
 
     private List<Map<String, Object>> metricRows(List<SandboxDecisionBenchmarkRunResult> runResults) {
@@ -189,6 +280,27 @@ final class SandboxDecisionAggregateReportWriter {
                     row.put("CDC", round.cdcScore());
                     row.put("ERA", round.eraScore());
                     row.put("SUHR", round.suhrScore());
+                    appendPerformanceTelemetry(row, round.performanceTelemetry());
+                    return row;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> performanceRoundRows(List<SandboxDecisionBenchmarkRunResult> runResults) {
+        return runResults.stream()
+                .flatMap(result -> result.roundResults().stream())
+                .map(round -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("benchmarkRunId", round.benchmarkRunId());
+                    row.put("username", round.username());
+                    row.put("scenarioKey", round.scenarioKey());
+                    row.put("scenarioFamily", round.scenarioFamily());
+                    row.put("roundNumber", round.roundNumber());
+                    row.put("roundKey", round.roundKey());
+                    row.put("CDC", round.cdcScore());
+                    row.put("ERA", round.eraScore());
+                    row.put("SUHR", round.suhrScore());
+                    appendPerformanceTelemetry(row, round.performanceTelemetry());
                     return row;
                 })
                 .toList();
@@ -289,11 +401,13 @@ final class SandboxDecisionAggregateReportWriter {
         builder.append("<p>")
                 .append("<a href=\"decision-summary.json\">decision-summary.json</a> | ")
                 .append("<a href=\"decision-summary.md\">decision-summary.md</a> | ")
+                .append("<a href=\"decision-performance-summary.html\">decision-performance-summary.html</a> | ")
                 .append("<a href=\"decision-index.html\">decision-index.html</a> | ")
                 .append("<a href=\"decision-metrics.ndjson\">decision-metrics.ndjson</a> | ")
                 .append("<a href=\"decision-runs.ndjson\">decision-runs.ndjson</a> | ")
                 .append("<a href=\"decision-rounds.ndjson\">decision-rounds.ndjson</a> | ")
-                .append("<a href=\"decision-defects.ndjson\">decision-defects.ndjson</a>")
+                .append("<a href=\"decision-defects.ndjson\">decision-defects.ndjson</a> | ")
+                .append("<a href=\"decision-performance-rounds.ndjson\">decision-performance-rounds.ndjson</a>")
                 .append("</p>");
         builder.append("<h2>Metric Summary</h2><table><thead><tr>")
                 .append("<th>Metric</th><th>Mean</th><th>Failure Rate</th><th>95% CI</th><th>Stability</th><th>Artifacts</th>")
@@ -365,6 +479,134 @@ final class SandboxDecisionAggregateReportWriter {
             case SUHR -> "uncertaintyRequired=%s, safeUncertaintyPass=%s, unsafeOverconfidence=%s"
                     .formatted(round.goldCase().uncertaintyRequired(), round.safeUncertaintyPass(), round.unsafeOverconfidence());
         };
+    }
+
+    private void appendPerformanceTelemetry(Map<String, Object> row, SandboxDecisionPerformanceTelemetry telemetry) {
+        if (telemetry == null) {
+            return;
+        }
+        row.put("promptStartAtEpochMs", telemetry.promptStartAtEpochMs());
+        row.put("firstResponseAtEpochMs", telemetry.firstResponseAtEpochMs());
+        row.put("completedAtEpochMs", telemetry.completedAtEpochMs());
+        row.put("promptPrefillLatencyMs", telemetry.promptPrefillLatencyMs());
+        row.put("promptEndToEndLatencyMs", telemetry.promptEndToEndLatencyMs());
+        row.put("estimatedRawInputTokens", telemetry.estimatedRawInputTokens());
+        row.put("estimatedLlmInputTokens", telemetry.estimatedLlmInputTokens());
+        row.put("estimatedOutputTokens", telemetry.estimatedOutputTokens());
+        row.put("tokensPerSecond", telemetry.tokensPerSecond());
+        SandboxDecisionCostEstimate costEstimate = telemetry.costEstimate();
+        if (costEstimate != null) {
+            SandboxDecisionCostProfile costProfile = costEstimate.costProfile();
+            if (costProfile != null) {
+                row.put("costProfileKey", costProfile.profileKey());
+                row.put("costCurrencyCode", costProfile.currencyCode());
+                row.put("costProfileConfigured", costProfile.configured());
+            }
+            row.put("estimatedVendorCostRaw", costEstimate.estimatedVendorCostRaw());
+            row.put("estimatedVendorCostLlm", costEstimate.estimatedVendorCostLlm());
+            row.put("estimatedVendorCostSavings", costEstimate.estimatedVendorCostSavings());
+        }
+    }
+
+    private Map<String, Object> summarizePerformanceMetric(double[] values) {
+        List<Double> samples = java.util.Arrays.stream(values)
+                .boxed()
+                .toList();
+        SandboxPromptBenchmarkStatistics.Summary summary =
+                SandboxPromptBenchmarkStatistics.summarize(samples, 0.0d, true);
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("sampleCount", summary.sampleCount());
+        row.put("mean", summary.mean());
+        row.put("median", summary.median());
+        row.put("stdDev", summary.stdDev());
+        row.put("min", summary.min());
+        row.put("max", summary.max());
+        row.put("ci95Low", summary.ci95Low());
+        row.put("ci95High", summary.ci95High());
+        return row;
+    }
+
+    private String buildPerformanceMarkdown(Map<String, Object> performanceSummary) {
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> metrics = (Map<String, Map<String, Object>>) performanceSummary.get("metrics");
+        return String.format(Locale.ROOT, """
+                # Decision Performance Summary
+
+                - boundaryMode: `%s`
+                - realLlmMode: `%s`
+                - modelId: `%s`
+                - runCount: `%s`
+                - roundCount: `%s`
+
+                ## Performance Metrics
+                %s
+                """,
+                performanceSummary.get("boundaryMode"),
+                performanceSummary.get("realLlmMode"),
+                performanceSummary.get("modelId"),
+                performanceSummary.get("runCount"),
+                performanceSummary.get("roundCount"),
+                metrics.entrySet().stream()
+                        .map(entry -> {
+                            Map<String, Object> metric = entry.getValue();
+                            return String.format(
+                                    Locale.ROOT,
+                                    "- `%s` mean=`%.3f`, median=`%.3f`, min/max=`%.3f / %.3f`, ci95=`[%.3f, %.3f]`",
+                                    entry.getKey(),
+                                    asDouble(metric.get("mean")),
+                                    asDouble(metric.get("median")),
+                                    asDouble(metric.get("min")),
+                                    asDouble(metric.get("max")),
+                                    asDouble(metric.get("ci95Low")),
+                                    asDouble(metric.get("ci95High")));
+                        })
+                        .collect(Collectors.joining(System.lineSeparator())));
+    }
+
+    private String buildPerformanceHtml(Map<String, Object> performanceSummary) {
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> metrics = (Map<String, Map<String, Object>>) performanceSummary.get("metrics");
+        StringBuilder builder = new StringBuilder();
+        builder.append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
+                .append("<title>Decision Performance Summary</title>")
+                .append("<style>")
+                .append("body{font-family:'Segoe UI',sans-serif;margin:32px;color:#111827;background:#f9fafb;}")
+                .append("table{border-collapse:collapse;width:100%;margin-top:16px;}")
+                .append("th,td{border:1px solid #d1d5db;padding:8px;text-align:left;font-size:14px;}")
+                .append("th{background:#eef2ff;}a{color:#2563eb;text-decoration:none;}code{background:#e5e7eb;padding:2px 4px;border-radius:4px;}")
+                .append("</style></head><body>");
+        builder.append("<h1>Decision Performance Summary</h1>");
+        builder.append("<ul>")
+                .append("<li>boundaryMode: <code>").append(escapeHtml(String.valueOf(performanceSummary.get("boundaryMode")))).append("</code></li>")
+                .append("<li>realLlmMode: ").append(escapeHtml(String.valueOf(performanceSummary.get("realLlmMode")))).append("</li>")
+                .append("<li>modelId: <code>").append(escapeHtml(String.valueOf(performanceSummary.get("modelId")))).append("</code></li>")
+                .append("<li>runCount: ").append(escapeHtml(String.valueOf(performanceSummary.get("runCount")))).append("</li>")
+                .append("<li>roundCount: ").append(escapeHtml(String.valueOf(performanceSummary.get("roundCount")))).append("</li>")
+                .append("</ul>");
+        builder.append("<p>")
+                .append("<a href=\"decision-performance-summary.json\">decision-performance-summary.json</a> | ")
+                .append("<a href=\"decision-performance-summary.md\">decision-performance-summary.md</a> | ")
+                .append("<a href=\"decision-performance-rounds.ndjson\">decision-performance-rounds.ndjson</a> | ")
+                .append("<a href=\"decision-summary.html\">decision-summary.html</a>")
+                .append("</p>");
+        builder.append("<h2>Metric Summary</h2><table><thead><tr>")
+                .append("<th>Metric</th><th>Mean</th><th>Median</th><th>Min</th><th>Max</th><th>95% CI</th>")
+                .append("</tr></thead><tbody>");
+        for (Map.Entry<String, Map<String, Object>> entry : metrics.entrySet()) {
+            Map<String, Object> metric = entry.getValue();
+            builder.append("<tr><td>").append(escapeHtml(entry.getKey())).append("</td>")
+                    .append("<td>").append(formatNumber(metric.get("mean"))).append("</td>")
+                    .append("<td>").append(formatNumber(metric.get("median"))).append("</td>")
+                    .append("<td>").append(formatNumber(metric.get("min"))).append("</td>")
+                    .append("<td>").append(formatNumber(metric.get("max"))).append("</td>")
+                    .append("<td>[")
+                    .append(formatNumber(metric.get("ci95Low")))
+                    .append(", ")
+                    .append(formatNumber(metric.get("ci95High")))
+                    .append("]</td></tr>");
+        }
+        builder.append("</tbody></table></body></html>");
+        return builder.toString();
     }
 
     private void writeNdjson(Path path, List<Map<String, Object>> rows) throws IOException {

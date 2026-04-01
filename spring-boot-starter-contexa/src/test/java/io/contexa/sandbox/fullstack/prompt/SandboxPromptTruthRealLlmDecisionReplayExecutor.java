@@ -106,10 +106,17 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         Object finalResponse = null;
         Map<String, Object> pipelineMetadata = new LinkedHashMap<>();
         long startedAt = System.currentTimeMillis();
+        long firstResponseAt = 0L;
+        long completedAt = 0L;
+        int estimatedOutputTokens = 0;
+        pipelineContext.addMetadata("llmStartedAtEpochMs", startedAt);
+        pipelineContext.addMetadata("sandboxLlmStartedAtEpochMs", startedAt);
 
         try {
             DecisionReplayCallResult callResult = executeRealDecisionCallWithQuickRetry(promptGenerationResult, round);
+            firstResponseAt = System.currentTimeMillis();
             rawResponseText = callResult.rawResponseText();
+            estimatedOutputTokens = estimateTokens(rawResponseText);
 
             pipelineContext.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, callResult.llmExecutionResult());
             pipelineContext.addMetadata("structuredOutputComplete", callResult.structuredOutputComplete());
@@ -117,7 +124,21 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             pipelineContext.addMetadata("sandboxPinnedModelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
             pipelineContext.addMetadata("sandboxLlmRetryCount", callResult.retryCount());
             pipelineContext.addMetadata("sandboxLlmFallbackApplied", callResult.fallbackApplied());
-            pipelineContext.addMetadata("sandboxLlmLatencyMs", System.currentTimeMillis() - startedAt);
+            completedAt = System.currentTimeMillis();
+            double latencyMs = completedAt - startedAt;
+            double tokensPerSecond = latencyMs > 0.0d
+                    ? round((estimatedOutputTokens * 1000.0d) / latencyMs)
+                    : 0.0d;
+            pipelineContext.addMetadata("llmFirstResponseAtEpochMs", firstResponseAt);
+            pipelineContext.addMetadata("llmCompletedAtEpochMs", completedAt);
+            pipelineContext.addMetadata("sandboxLlmFirstResponseAtEpochMs", firstResponseAt);
+            pipelineContext.addMetadata("sandboxLlmCompletedAtEpochMs", completedAt);
+            pipelineContext.addMetadata("llmLatencyMs", latencyMs);
+            pipelineContext.addMetadata("sandboxLlmLatencyMs", latencyMs);
+            pipelineContext.addMetadata("estimatedOutputTokens", estimatedOutputTokens);
+            pipelineContext.addMetadata("sandboxEstimatedOutputTokens", estimatedOutputTokens);
+            pipelineContext.addMetadata("tokensPerSecond", tokensPerSecond);
+            pipelineContext.addMetadata("sandboxTokensPerSecond", tokensPerSecond);
 
             parsedResponse = responseParsingStep.execute(request, pipelineContext).block();
             finalResponse = postprocessingStep.execute(request, pipelineContext).block();
@@ -127,11 +148,31 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             errorPayload.put("errorType", exception.getClass().getName());
             errorPayload.put("message", safeErrorMessage(exception));
             rawResponseText = rawResponseText != null ? rawResponseText : objectToJson(errorPayload);
+            estimatedOutputTokens = estimateTokens(rawResponseText);
+            if (completedAt <= 0L) {
+                completedAt = System.currentTimeMillis();
+            }
+            if (firstResponseAt <= 0L && rawResponseText != null && !rawResponseText.isBlank()) {
+                firstResponseAt = completedAt;
+            }
+            double latencyMs = completedAt - startedAt;
+            double tokensPerSecond = latencyMs > 0.0d
+                    ? round((estimatedOutputTokens * 1000.0d) / latencyMs)
+                    : 0.0d;
             pipelineContext.addMetadata("sandboxDecisionBoundaryMode", "REAL_LLM_PROMPT_REPLAY");
             pipelineContext.addMetadata("sandboxPinnedModelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
             pipelineContext.addMetadata("sandboxLlmRetryCount", 0);
             pipelineContext.addMetadata("sandboxLlmFallbackApplied", true);
-            pipelineContext.addMetadata("sandboxLlmLatencyMs", System.currentTimeMillis() - startedAt);
+            pipelineContext.addMetadata("llmFirstResponseAtEpochMs", firstResponseAt);
+            pipelineContext.addMetadata("llmCompletedAtEpochMs", completedAt);
+            pipelineContext.addMetadata("sandboxLlmFirstResponseAtEpochMs", firstResponseAt);
+            pipelineContext.addMetadata("sandboxLlmCompletedAtEpochMs", completedAt);
+            pipelineContext.addMetadata("llmLatencyMs", latencyMs);
+            pipelineContext.addMetadata("sandboxLlmLatencyMs", latencyMs);
+            pipelineContext.addMetadata("estimatedOutputTokens", estimatedOutputTokens);
+            pipelineContext.addMetadata("sandboxEstimatedOutputTokens", estimatedOutputTokens);
+            pipelineContext.addMetadata("tokensPerSecond", tokensPerSecond);
+            pipelineContext.addMetadata("sandboxTokensPerSecond", tokensPerSecond);
             pipelineContext.addMetadata("status", "FAILED");
             pipelineMetadata.put("status", "FAILED");
             pipelineMetadata.put("errorType", exception.getClass().getName());
@@ -140,7 +181,12 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
 
         pipelineMetadata.put("boundaryMode", "REAL_LLM_PROMPT_REPLAY");
         pipelineMetadata.put("modelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
+        putIfPresent(pipelineMetadata, "llmStartedAtEpochMs", pipelineContext.getMetadata("llmStartedAtEpochMs", Object.class));
+        putIfPresent(pipelineMetadata, "llmFirstResponseAtEpochMs", pipelineContext.getMetadata("llmFirstResponseAtEpochMs", Object.class));
+        putIfPresent(pipelineMetadata, "llmCompletedAtEpochMs", pipelineContext.getMetadata("llmCompletedAtEpochMs", Object.class));
         putIfPresent(pipelineMetadata, "llmLatencyMs", pipelineContext.getMetadata("sandboxLlmLatencyMs", Object.class));
+        putIfPresent(pipelineMetadata, "estimatedOutputTokens", pipelineContext.getMetadata("estimatedOutputTokens", Object.class));
+        putIfPresent(pipelineMetadata, "tokensPerSecond", pipelineContext.getMetadata("tokensPerSecond", Object.class));
         putIfPresent(pipelineMetadata, "structuredOutputComplete", pipelineContext.getMetadata("structuredOutputComplete", Object.class));
         putIfPresent(pipelineMetadata, "parsedResponseClass", parsedResponse != null ? parsedResponse.getClass().getName() : null);
         putIfPresent(pipelineMetadata, "finalResponseClass", finalResponse != null ? finalResponse.getClass().getName() : null);
@@ -591,6 +637,17 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         } catch (Exception ignored) {
             return String.valueOf(value);
         }
+    }
+
+    private int estimateTokens(String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        return Math.max(1, (int) Math.ceil(text.length() / 4.0d));
+    }
+
+    private double round(double value) {
+        return Math.round(value * 1000.0d) / 1000.0d;
     }
 
     private OllamaChatOptions buildBenchmarkChatOptions(int maxTokens) {

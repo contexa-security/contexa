@@ -132,6 +132,21 @@ abstract class AbstractSandboxFullStackRealLlmDecisionBenchmarkTest {
         return runResults;
     }
 
+    protected SandboxPromptCompressionImpactBenchmarkResult executeOfficialCompressionImpactSuite() throws Exception {
+        SandboxPromptCompressionImpactBenchmarkRunner runner = new SandboxPromptCompressionImpactBenchmarkRunner(
+                objectMapper,
+                new SandboxDecisionBenchmarkBatchRunner(
+                        replayHarness,
+                        objectMapper,
+                        sandboxPromptTruthRealLlmDecisionReplayExecutor),
+                REPORT_DIRECTORY.resolve("compression-impact"));
+        return runner.execute(
+                SandboxPromptReplayScenarioCatalog.resolve(SandboxDecisionBenchmarkSettings.scenarioSelector()),
+                SandboxDecisionBenchmarkSettings.sampleCount(),
+                SandboxDecisionBenchmarkSettings.roundCount(),
+                DEFAULT_PASSWORD);
+    }
+
     protected List<SandboxDecisionBenchmarkRunResult> executeReplayBatch() {
         SandboxDecisionBenchmarkBatchRunner batchRunner =
                 new SandboxDecisionBenchmarkBatchRunner(
