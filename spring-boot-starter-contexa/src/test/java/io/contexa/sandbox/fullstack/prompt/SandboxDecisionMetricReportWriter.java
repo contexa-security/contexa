@@ -484,8 +484,15 @@ public final class SandboxDecisionMetricReportWriter {
 
     private String defectReason(SandboxDecisionMetric metric, SandboxDecisionRoundResult round) {
         return switch (metric) {
-            case CDC -> "actionAllowed=%s, confidenceWithinBand=%s, unsafeOverconfidence=%s"
-                    .formatted(round.actionAllowedByGoldCase(), round.confidenceWithinBand(), round.unsafeOverconfidence());
+            case CDC -> "actionAllowed=%s, confidenceWithinBand=%s, unsafeOverconfidence=%s, groundedClaimPrecision=%s, contradictedClaimRate=%s, requiredEvidenceCovered=%s, safeUncertaintyPass=%s"
+                    .formatted(
+                            round.actionAllowedByGoldCase(),
+                            round.confidenceWithinBand(),
+                            round.unsafeOverconfidence(),
+                            format(round.adjudication().groundedClaimPrecision()),
+                            format(round.adjudication().contradictedClaimRate()),
+                            round.adjudication().requiredEvidenceCovered(),
+                            round.safeUncertaintyPass());
             case ERA -> "groundedClaimPrecision=%s, unsupportedClaimRate=%s, contradictedClaimRate=%s, requiredEvidenceCovered=%s"
                     .formatted(
                             format(round.adjudication().groundedClaimPrecision()),
@@ -503,9 +510,9 @@ public final class SandboxDecisionMetricReportWriter {
 
     private String automatedAgreementNotes(SandboxDecisionMetric metric, SandboxDecisionRoundResult round) {
         return switch (metric) {
-            case CDC -> round.actionAllowedByGoldCase() && round.confidenceWithinBand() && !round.unsafeOverconfidence()
-                    ? "Predicted action and confidence stayed within gold policy bounds."
-                    : "Calibration drift detected against gold policy bounds.";
+            case CDC -> round.cdcScore() >= SandboxDecisionMetric.CDC.successThreshold()
+                    ? "Predicted action, confidence, grounded reasoning, and uncertainty handling stayed within gold policy bounds."
+                    : "Calibration drift detected in action/confidence or reasoning-grounding/uncertainty alignment.";
             case ERA -> round.adjudication().requiredEvidenceCovered()
                     && round.adjudication().contradictedClaimRate() == 0.0d
                     && round.adjudication().unsupportedClaimRate() <= 25.0d

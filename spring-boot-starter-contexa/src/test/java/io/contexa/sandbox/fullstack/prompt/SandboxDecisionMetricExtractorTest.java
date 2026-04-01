@@ -153,6 +153,32 @@ class SandboxDecisionMetricExtractorTest {
     }
 
     @Test
+    @DisplayName("CDC는 action과 confidence만 맞아도 통과하면 안 되고 contradicted reasoning과 uncertainty 실패를 함께 감점해야 한다")
+    void cdcShouldPenalizeContradictedReasoningAndMissingUncertainty() {
+        SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog
+                .resizeScenario(SandboxPromptReplayScenarioCatalog.ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY, 3);
+        SandboxPromptReplayRun replayRun = new SandboxPromptReplayRun(
+                "decision-run-004",
+                "decision-user@example.com",
+                scenario.scenarioKey(),
+                scenario.experimentGroup(),
+                scenario,
+                List.of(
+                        round(scenario, 1, "CHALLENGE", 0.45d, "New user, new device, new session, and lack of role-scope evidence."),
+                        round(scenario, 2, "CHALLENGE", 0.75d, "New user lacks established baseline and historical context for sensitive access."),
+                        round(scenario, 3, "CHALLENGE", 0.75d, "New user lacks established baseline and historical context for sensitive access.")));
+
+        SandboxDecisionBenchmarkRunResult runResult = SandboxDecisionMetricExtractor.evaluateRun(objectMapper, replayRun);
+
+        assertThat(runResult.roundResults().get(0).cdcScore()).isEqualTo(100.0d);
+        assertThat(runResult.roundResults().get(1).cdcScore()).isLessThan(95.0d);
+        assertThat(runResult.roundResults().get(2).cdcScore()).isLessThan(95.0d);
+        assertThat(runResult.roundResults().get(1).safeUncertaintyPass()).isFalse();
+        assertThat(runResult.roundResults().get(1).adjudication().contradictedClaimRate()).isEqualTo(100.0d);
+        assertThat(runResult.metrics().get("CDC")).isLessThan(95.0d);
+    }
+
+    @Test
     @DisplayName("같은 replay run을 두 번 평가하면 CDC ERA SUHR와 round metric이 동일해야 한다")
     void metricExtractorShouldBeDeterministicForSameReplayRun() {
         SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog

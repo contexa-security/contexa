@@ -347,8 +347,15 @@ final class SandboxDecisionAggregateReportWriter {
 
     private String defectReason(SandboxDecisionMetric metric, SandboxDecisionRoundResult round) {
         return switch (metric) {
-            case CDC -> "actionAllowed=%s, confidenceWithinBand=%s, unsafeOverconfidence=%s"
-                    .formatted(round.actionAllowedByGoldCase(), round.confidenceWithinBand(), round.unsafeOverconfidence());
+            case CDC -> "actionAllowed=%s, confidenceWithinBand=%s, unsafeOverconfidence=%s, groundedClaimPrecision=%s, contradictedClaimRate=%s, requiredEvidenceCovered=%s, safeUncertaintyPass=%s"
+                    .formatted(
+                            round.actionAllowedByGoldCase(),
+                            round.confidenceWithinBand(),
+                            round.unsafeOverconfidence(),
+                            formatNumber(round.adjudication().groundedClaimPrecision()),
+                            formatNumber(round.adjudication().contradictedClaimRate()),
+                            round.adjudication().requiredEvidenceCovered(),
+                            round.safeUncertaintyPass());
             case ERA -> "groundedClaimPrecision=%s, unsupportedClaimRate=%s, contradictedClaimRate=%s, requiredEvidenceCovered=%s"
                     .formatted(
                             formatNumber(round.adjudication().groundedClaimPrecision()),

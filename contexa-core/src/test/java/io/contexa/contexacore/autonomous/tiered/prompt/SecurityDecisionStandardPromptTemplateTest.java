@@ -66,6 +66,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("The reasoning field must be exactly one short sentence, no more than 24 words.");
         assertThat(systemPrompt).contains("Do not repeat the same factor in different wording.");
+        assertThat(systemPrompt).contains("If any of those labels is false, you must not claim the opposite.");
+        assertThat(systemPrompt).contains("If NewUser is false, do not say \"new user\".");
+        assertThat(systemPrompt).contains("If uncertainty is required");
+        assertThat(systemPrompt).contains("limited, provisional,");
         assertThat(template.getAIGenerationType()).isEqualTo(SecurityDecisionResponseLite.class);
         assertThat(systemPrompt)
                 .doesNotContain("errorMessage")

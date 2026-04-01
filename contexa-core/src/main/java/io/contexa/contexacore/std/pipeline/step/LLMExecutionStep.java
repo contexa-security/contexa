@@ -35,18 +35,23 @@ public class LLMExecutionStep implements PipelineStep {
 
         if (finalTargetType != null) {
             return preparePrompt(context)
-                    .flatMap(prompt -> llmClient.entity(prompt, finalTargetType))
-                    .doOnSuccess(response -> {
-                        context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
-                        context.addMetadata("structuredOutputComplete", true);
-                    })
-                    .cast(Object.class)
+                    .flatMap(prompt -> llmClient.entity(prompt, finalTargetType)
+                            .doOnSuccess(response -> {
+                                context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
+                                context.addMetadata("structuredOutputComplete", true);
+                            })
+                            .cast(Object.class)
+                            .onErrorResume(error -> {
+                                log.error("[PIPELINE-STEP] Structured output execution failed. Attempting raw String fallback. Request: {}", request.getRequestId(), error);
+                                context.addMetadata("structuredOutputComplete", false);
+                                return llmClient.call(prompt)
+                                        .switchIfEmpty(Mono.error(new IllegalStateException("LLM raw fallback returned empty Mono")))
+                                        .doOnSuccess(rawResponse ->
+                                                context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponse))
+                                        .cast(Object.class);
+                            }))
                     .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
-                    .onErrorResume(error -> {
-                        log.error("[PIPELINE-STEP] Structured output execution failed. Attempting String fallback. Request: {}", request.getRequestId());
-
-                        return Mono.just(error.getMessage());
-                    });
+                    .onErrorResume(Mono::error);
         }
 
         return preparePrompt(context)

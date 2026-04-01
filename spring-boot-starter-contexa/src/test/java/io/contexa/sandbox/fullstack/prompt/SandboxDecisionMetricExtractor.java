@@ -39,7 +39,13 @@ public final class SandboxDecisionMetricExtractor {
             double cdcScore = average(
                     actionAllowed ? 100.0d : 0.0d,
                     confidenceWithinBand ? 100.0d : 0.0d,
-                    unsafeOverconfidence ? 0.0d : 100.0d);
+                    unsafeOverconfidence ? 0.0d : 100.0d,
+                    adjudication.groundedClaimPrecision(),
+                    100.0d - adjudication.contradictedClaimRate(),
+                    adjudication.requiredEvidenceCovered() ? 100.0d : 0.0d,
+                    goldCase.uncertaintyRequired()
+                            ? (safeUncertaintyPass ? 100.0d : 0.0d)
+                            : 100.0d);
             double eraScore = average(
                     adjudication.groundedClaimPrecision(),
                     100.0d - adjudication.unsupportedClaimRate(),

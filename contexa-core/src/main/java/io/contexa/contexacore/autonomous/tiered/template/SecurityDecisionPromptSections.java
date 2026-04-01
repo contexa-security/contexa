@@ -363,6 +363,13 @@ public class SecurityDecisionPromptSections {
                 If critical context is missing, do not invent role scope,
                 approval facts, work history, or delegated intent that are
                 not explicitly present in the prompt.
+                Treat explicit boolean labels such as NewUser, NewSession,
+                NewDevice, and MfaVerified as authoritative facts.
+                If any of those labels is false, you must not claim the opposite.
+                Do not rewrite sparse history, provisional baseline, or missing
+                similar events into "new user" unless NewUser is explicitly true.
+                If similar past events are absent, describe that as limited
+                or sparse comparable history, not as proof that the subject is new.
                 If delegated objective comparison shows mismatch or remains incomplete,
                 reflect that explicitly in the reasoning before returning ALLOW.
 
@@ -1043,6 +1050,12 @@ public class SecurityDecisionPromptSections {
                 Prefer one decisive clause over multiple clauses.
                 Name only the strongest 2-3 contextual facts.
                 Do not restate the same fact twice.
+                Use only facts explicitly shown in the prompt.
+                Prefer the literal prompt labels and their exact meanings.
+                If NewUser is false, do not say "new user".
+                If uncertainty is required, the reasoning sentence must make that
+                limitation explicit with terms such as limited, provisional,
+                sparse, or insufficient.
 
                 RESPOND WITH JSON ONLY:
                 {

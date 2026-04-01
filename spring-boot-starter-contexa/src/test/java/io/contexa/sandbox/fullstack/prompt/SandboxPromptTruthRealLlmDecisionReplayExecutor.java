@@ -13,13 +13,17 @@ import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.step.PostprocessingStep;
 import io.contexa.contexacore.std.pipeline.step.ResponseParsingStep;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.ollama.api.ThinkOption;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -104,14 +108,15 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         long startedAt = System.currentTimeMillis();
 
         try {
-            rawResponseText = executeRealDecisionCallWithQuickRetry(promptGenerationResult, round);
+            DecisionReplayCallResult callResult = executeRealDecisionCallWithQuickRetry(promptGenerationResult, round);
+            rawResponseText = callResult.rawResponseText();
 
-            pipelineContext.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponseText);
-            pipelineContext.addMetadata("structuredOutputComplete", false);
+            pipelineContext.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, callResult.llmExecutionResult());
+            pipelineContext.addMetadata("structuredOutputComplete", callResult.structuredOutputComplete());
             pipelineContext.addMetadata("sandboxDecisionBoundaryMode", "REAL_LLM_PROMPT_REPLAY");
             pipelineContext.addMetadata("sandboxPinnedModelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
-            pipelineContext.addMetadata("sandboxLlmRetryCount", 0);
-            pipelineContext.addMetadata("sandboxLlmFallbackApplied", false);
+            pipelineContext.addMetadata("sandboxLlmRetryCount", callResult.retryCount());
+            pipelineContext.addMetadata("sandboxLlmFallbackApplied", callResult.fallbackApplied());
             pipelineContext.addMetadata("sandboxLlmLatencyMs", System.currentTimeMillis() - startedAt);
 
             parsedResponse = responseParsingStep.execute(request, pipelineContext).block();
@@ -148,10 +153,10 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
                 SandboxDecisionBenchmarkSettings.pinnedModelId(),
                 SecurityDecisionResponseLite.class.getName(),
                 SecurityDecisionResponseLite.class.getName(),
-                false,
+                pipelineContext.getMetadata("structuredOutputComplete", Boolean.class),
                 buildRawRequest(round, promptSnapshot),
                 rawResponseText,
-                rawResponseText,
+                pipelineContext.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, Object.class),
                 parsedResponse,
                 finalResponse,
                 promptSnapshot.rawSystemPrompt(),
@@ -229,17 +234,93 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
                     .preferredModel(SandboxDecisionBenchmarkSettings.pinnedModelId())
                     .temperature(SandboxDecisionBenchmarkSettings.temperature())
                     .maxTokens(SandboxDecisionBenchmarkSettings.maxOutputTokens())
+                    .chatOptions(buildBenchmarkChatOptions(SandboxDecisionBenchmarkSettings.maxOutputTokens()))
                     .streamingMode(false)
                     .toolExecutionEnabled(false)
                     .advisorEnabled(false)
                     .build();
             executionContext.addMetadata("disableRetries", true);
+            executionContext.addMetadata("disableOllamaThinking", true);
             return orchestrator.execute(executionContext);
         }
         return llmClient.call(promptGenerationResult.getPrompt());
     }
 
-    private String executeRealDecisionCallWithQuickRetry(
+    private reactor.core.publisher.Mono<SecurityDecisionResponseLite> executeStructuredDecisionCall(
+            PromptGenerationResult promptGenerationResult,
+            SandboxPromptReplayRound round) {
+        if (llmClient instanceof UnifiedLLMOrchestrator orchestrator) {
+            ExecutionContext executionContext = ExecutionContext.builder()
+                    .prompt(promptGenerationResult.getPrompt())
+                    .requestId(round.requestId())
+                    .userId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getUserId()
+                            : null)
+                    .sessionId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getSessionId()
+                            : null)
+                    .preferredModel(SandboxDecisionBenchmarkSettings.pinnedModelId())
+                    .temperature(SandboxDecisionBenchmarkSettings.temperature())
+                    .maxTokens(SandboxDecisionBenchmarkSettings.maxOutputTokens())
+                    .chatOptions(buildBenchmarkChatOptions(SandboxDecisionBenchmarkSettings.maxOutputTokens()))
+                    .streamingMode(false)
+                    .toolExecutionEnabled(false)
+                    .advisorEnabled(false)
+                    .build();
+            executionContext.addMetadata("disableRetries", true);
+            executionContext.addMetadata("disableOllamaThinking", true);
+            return orchestrator.executeEntity(executionContext, SecurityDecisionResponseLite.class);
+        }
+        return llmClient.entity(promptGenerationResult.getPrompt(), SecurityDecisionResponseLite.class);
+    }
+
+    private Mono<String> executeRepairDecisionCall(
+            SandboxPromptReplayRound round,
+            String previousResponse) {
+        Prompt repairPrompt = new Prompt(List.of(
+                SystemMessage.builder()
+                        .text("""
+                                You are a strict JSON normalizer for security decisions.
+                                Rewrite the supplied content into exactly one JSON object.
+                                Required keys: action, reasoning, riskScore, confidence, mitre.
+                                action must be one of ALLOW, CHALLENGE, BLOCK, ESCALATE.
+                                reasoning must be exactly one short sentence and no more than 24 words.
+                                riskScore and confidence must be numeric values between 0.0 and 1.0.
+                                mitre must be a string value or UNKNOWN.
+                                Output JSON only.
+                                """)
+                        .build(),
+                UserMessage.builder()
+                        .text(buildRepairSuffix(previousResponse))
+                        .build()));
+
+        if (llmClient instanceof UnifiedLLMOrchestrator orchestrator) {
+            ExecutionContext executionContext = ExecutionContext.builder()
+                    .prompt(repairPrompt)
+                    .requestId(round.requestId() + "-repair")
+                    .userId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getUserId()
+                            : null)
+                    .sessionId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getSessionId()
+                            : null)
+                    .preferredModel(SandboxDecisionBenchmarkSettings.pinnedModelId())
+                    .temperature(SandboxDecisionBenchmarkSettings.temperature())
+                    .maxTokens(Math.max(128, SandboxDecisionBenchmarkSettings.maxOutputTokens()))
+                    .chatOptions(buildBenchmarkChatOptions(Math.max(128, SandboxDecisionBenchmarkSettings.maxOutputTokens())))
+                    .streamingMode(false)
+                    .toolExecutionEnabled(false)
+                    .advisorEnabled(false)
+                    .build();
+            executionContext.addMetadata("disableRetries", true);
+            executionContext.addMetadata("sandboxDecisionRepairAttempt", true);
+            executionContext.addMetadata("disableOllamaThinking", true);
+            return orchestrator.execute(executionContext);
+        }
+        return llmClient.call(repairPrompt);
+    }
+
+    private DecisionReplayCallResult executeRealDecisionCallWithQuickRetry(
             PromptGenerationResult promptGenerationResult,
             SandboxPromptReplayRound round) {
         int attempts = 0;
@@ -247,9 +328,57 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         while (attempts < 3) {
             attempts++;
             try {
-                return executeRealDecisionCall(promptGenerationResult, round)
+                try {
+                    SecurityDecisionResponseLite structuredResponse = executeStructuredDecisionCall(promptGenerationResult, round)
+                            .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
+                            .block();
+                     if (structuredResponse != null && hasStructuredDecisionFields(structuredResponse)) {
+                         return new DecisionReplayCallResult(
+                                 objectToJson(structuredResponse),
+                                 structuredResponse,
+                                true,
+                                Math.max(0, attempts - 1),
+                                false);
+                    }
+                } catch (Exception structuredFailure) {
+                    lastFailure = structuredFailure;
+                    if (isRetryableBusyFailure(structuredFailure)) {
+                        if (attempts >= 3) {
+                            break;
+                        }
+                        sleepQuietly(attempts == 1 ? 1500L : 3000L);
+                        continue;
+                    }
+                }
+
+                String rawResponse = executeRealDecisionCall(promptGenerationResult, round)
                         .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
                         .block();
+                if (!hasCanonicalDecisionPayload(rawResponse)) {
+                    String repairedRawResponse = executeRepairDecisionCall(round, rawResponse)
+                            .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
+                            .block();
+                    if (hasCanonicalDecisionPayload(repairedRawResponse)) {
+                        return new DecisionReplayCallResult(
+                                repairedRawResponse,
+                                repairedRawResponse,
+                                false,
+                                Math.max(0, attempts - 1),
+                                true);
+                    }
+                    lastFailure = new IllegalStateException("LLM returned a non-canonical decision payload: " + rawResponse);
+                    if (attempts >= 3) {
+                        break;
+                    }
+                    sleepQuietly(attempts == 1 ? 1500L : 3000L);
+                    continue;
+                }
+                return new DecisionReplayCallResult(
+                        rawResponse,
+                        rawResponse,
+                        false,
+                        Math.max(0, attempts - 1),
+                        true);
             } catch (Exception exception) {
                 lastFailure = exception;
                 if (!isRetryableBusyFailure(exception) || attempts >= 3) {
@@ -262,6 +391,108 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             throw runtimeException;
         }
         throw new IllegalStateException("Real LLM decision replay failed", lastFailure);
+    }
+
+    private boolean hasStructuredDecisionFields(SecurityDecisionResponseLite response) {
+        if (response == null) {
+            return false;
+        }
+        return isAllowedAction(response.getAction())
+                && isCanonicalScore(response.getConfidence())
+                && response.getReasoning() != null
+                && !response.getReasoning().isBlank()
+                && isCanonicalScore(response.getRiskScore())
+                && response.getMitre() != null
+                && !response.getMitre().isBlank();
+    }
+
+    private boolean hasCanonicalDecisionPayload(String rawResponse) {
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return false;
+        }
+        try {
+            Map<?, ?> payload = objectMapper.readValue(rawResponse, Map.class);
+            return isCanonicalDecisionMap(payload);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean isIncompleteDecisionPayload(String rawResponse) {
+        return !hasCanonicalDecisionPayload(rawResponse);
+    }
+
+    private boolean isMissingDecisionFields(Map<?, ?> payload) {
+        return !isCanonicalDecisionMap(payload);
+    }
+
+    private boolean isMissingField(Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof String text) {
+            return text.isBlank();
+        }
+        return false;
+    }
+
+    private boolean isCanonicalDecisionMap(Map<?, ?> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return false;
+        }
+        return isAllowedAction(extractStringValue(payload.get("action")))
+                && isCanonicalScore(payload.get("confidence"))
+                && isCanonicalScore(payload.get("riskScore"))
+                && hasNonBlankText(payload.get("reasoning"))
+                && hasNonBlankText(payload.get("mitre"));
+    }
+
+    private boolean hasNonBlankText(Object value) {
+        return value instanceof String text && !text.isBlank();
+    }
+
+    private String extractStringValue(Object value) {
+        if (value instanceof String text) {
+            return text.trim();
+        }
+        return null;
+    }
+
+    private boolean isAllowedAction(String action) {
+        if (action == null || action.isBlank()) {
+            return false;
+        }
+        return Arrays.asList("ALLOW", "CHALLENGE", "BLOCK", "ESCALATE").contains(action.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private boolean isCanonicalScore(Object value) {
+        if (value == null) {
+            return false;
+        }
+        Double numericValue = null;
+        if (value instanceof Number number) {
+            numericValue = number.doubleValue();
+        } else if (value instanceof String text && !text.isBlank()) {
+            try {
+                numericValue = Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return numericValue != null && numericValue >= 0.0d && numericValue <= 1.0d;
+    }
+
+    private String buildRepairSuffix(String previousResponse) {
+        String previous = previousResponse == null ? "null" : previousResponse.trim();
+        if (previous.length() > 1200) {
+            previous = previous.substring(0, 1200);
+        }
+        return """
+                Normalize the following invalid security decision into the required schema.
+                If the content signals missing baseline, ambiguity, or lack of trusted scope evidence for sensitive access, prefer CHALLENGE or ESCALATE over ALLOW.
+                Invalid response:
+                %s
+                """.formatted(previous);
     }
 
     private void warmUpRealLlmOnce() {
@@ -288,11 +519,13 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
                     .preferredModel(SandboxDecisionBenchmarkSettings.pinnedModelId())
                     .temperature(0.0d)
                     .maxTokens(24)
+                    .chatOptions(buildBenchmarkChatOptions(24))
                     .streamingMode(false)
                     .toolExecutionEnabled(false)
                     .advisorEnabled(false)
                     .build();
             executionContext.addMetadata("disableRetries", true);
+            executionContext.addMetadata("disableOllamaThinking", true);
             return orchestrator.execute(executionContext);
         }
         return llmClient.call(warmupPrompt);
@@ -358,5 +591,23 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         } catch (Exception ignored) {
             return String.valueOf(value);
         }
+    }
+
+    private OllamaChatOptions buildBenchmarkChatOptions(int maxTokens) {
+        OllamaChatOptions options = new OllamaChatOptions();
+        options.setModel(SandboxDecisionBenchmarkSettings.pinnedModelId());
+        options.setTemperature(SandboxDecisionBenchmarkSettings.temperature());
+        options.setNumPredict(maxTokens);
+        options.setFormat("json");
+        options.setThinkOption(ThinkOption.ThinkBoolean.DISABLED);
+        return options;
+    }
+
+    private record DecisionReplayCallResult(
+            String rawResponseText,
+            Object llmExecutionResult,
+            boolean structuredOutputComplete,
+            int retryCount,
+            boolean fallbackApplied) {
     }
 }

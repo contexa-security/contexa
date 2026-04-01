@@ -15,6 +15,7 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.ollama.api.ThinkOption;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -87,8 +88,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     String response = promptSpec.call().content();
 
                     if (response == null || response.isBlank()) {
-                        log.error("LLM response is null or empty - RequestId: {}", context.getRequestId());
-                        return "{}";
+                        String requestId = context.getRequestId();
+                        log.error("LLM response is null or empty - RequestId: {}", requestId);
+                        throw new IllegalStateException("LLM response is null or empty"
+                                + (requestId != null && !requestId.isBlank() ? " - RequestId: " + requestId : ""));
                     }
 
                     return response;
@@ -257,6 +260,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         if (context.getMaxTokens() != null) {
             options.setNumPredict(context.getMaxTokens());
+        }
+        if (shouldDisableOllamaThinking(context, modelName)) {
+            options.setThinkOption(ThinkOption.ThinkBoolean.DISABLED);
         }
 
         return options;
@@ -456,5 +462,19 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return Boolean.parseBoolean(text);
         }
         return false;
+    }
+
+    private boolean shouldDisableOllamaThinking(ExecutionContext context, String modelName) {
+        if (context == null) {
+            return false;
+        }
+        Object metadataValue = context.getMetadata() != null ? context.getMetadata().get("disableOllamaThinking") : null;
+        if (metadataValue instanceof Boolean bool) {
+            return bool;
+        }
+        if (metadataValue instanceof String text) {
+            return Boolean.parseBoolean(text);
+        }
+        return modelName != null && modelName.toLowerCase().startsWith("qwen3");
     }
 }
