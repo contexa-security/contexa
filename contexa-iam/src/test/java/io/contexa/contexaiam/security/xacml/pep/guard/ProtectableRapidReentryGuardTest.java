@@ -56,6 +56,7 @@ class ProtectableRapidReentryGuardTest {
 
         Method method = TestController.class.getMethod("doAction");
         when(methodInvocation.getMethod()).thenReturn(method);
+        when(methodInvocation.getArguments()).thenReturn(new Object[0]);
 
         when(request.getMethod()).thenReturn("POST");
         when(request.getRequestURI()).thenReturn("/api/resource");

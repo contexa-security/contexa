@@ -13,9 +13,17 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
+import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -57,10 +65,28 @@ class DefaultPolicyServiceTest {
     private PermissionRepository permissionRepository;
 
     @Mock
-    private io.contexa.contexaiam.repository.ManagedResourceRepository managedResourceRepository;
+    private ManagedResourceRepository managedResourceRepository;
 
     @Mock
-    private io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade;
+    private CentralAuditFacade centralAuditFacade;
+
+    @Mock
+    private PolicyConflictAnalyzer policyConflictAnalyzer;
+
+    @Mock
+    private PolicyValidationService policyValidationService;
+
+    @Mock
+    private PolicyVersionService policyVersionService;
+
+    @Mock
+    private PolicyImpactAnalyzer policyImpactAnalyzer;
+
+    @Mock
+    private PolicySimulator policySimulator;
+
+    @Mock
+    private AIPolicyValidator aiPolicyValidator;
 
     @InjectMocks
     private DefaultPolicyService policyService;
@@ -508,6 +534,8 @@ class DefaultPolicyServiceTest {
             policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
             when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
             when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(aiPolicyValidator.validate(any(Policy.class))).thenReturn(
+                    new AIPolicyValidationReport(List.of(), true, null));
 
             policyService.approvePolicy(1L, "admin");
 

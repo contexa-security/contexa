@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.entity.business.BusinessResource;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -8,6 +9,7 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.EnvironmentDetails;
 import io.contexa.contexaiam.security.xacml.pip.context.ResourceDetails;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -39,8 +41,20 @@ class DatabaseAttributePIPTest {
     @Mock
     private BusinessResourceActionRepository resourceActionRepository;
 
+    @Mock
+    private ContexaCacheService cacheService;
+
     @InjectMocks
     private DatabaseAttributePIP databaseAttributePIP;
+
+    @BeforeEach
+    void setUpCacheService() {
+        when(cacheService.get(anyString(), any(), any(), anyString()))
+                .thenAnswer(inv -> {
+                    java.util.function.Supplier<?> supplier = inv.getArgument(1);
+                    return supplier.get();
+                });
+    }
 
     @Nested
     @DisplayName("Basic user attribute enrichment")

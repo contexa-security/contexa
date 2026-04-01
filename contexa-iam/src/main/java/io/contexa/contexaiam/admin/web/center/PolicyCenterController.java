@@ -20,10 +20,22 @@ import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.SimulationRequest;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -62,6 +74,10 @@ public class PolicyCenterController {
     private final ManagedResourceRepository managedResourceRepository;
     private final SecuritySpelRepository securitySpelRepository;
     private final MessageSource messageSource;
+    private final PolicyValidationService policyValidationService;
+    private final PermissionRepository permissionRepository;
+    private final PolicyVersionService policyVersionService;
+    private final PolicyMatrixService policyMatrixService;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -410,5 +426,199 @@ public class PolicyCenterController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
         }
         return "redirect:/admin/policy-center?tab=list";
+    }
+
+    // ==================== Policy Validation API ====================
+
+    @GetMapping("/api/validation-report")
+    @ResponseBody
+    public ResponseEntity<FullValidationReport> getValidationReport() {
+        try {
+            FullValidationReport report = policyValidationService.validateAll();
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            log.error("Failed to generate validation report", e);
+            return ResponseEntity.ok(new FullValidationReport(
+                    0, "UNKNOWN", List.of(), List.of()));
+        }
+    }
+
+    @PostMapping("/api/validate")
+    @ResponseBody
+    public ResponseEntity<PolicyValidationReport> validatePolicy(@RequestBody PolicyDto policyDto) {
+        try {
+            PolicyValidationReport report = policyService.validateBeforeCreate(policyDto);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            log.error("Failed to validate policy", e);
+            return ResponseEntity.badRequest().body(new PolicyValidationReport(
+                    List.of(), List.of(), false, e.getMessage()));
+        }
+    }
+
+    @PostMapping("/api/validate-quick")
+    @ResponseBody
+    public ResponseEntity<PolicyValidationReport> validateQuickPolicy(
+            @RequestBody QuickPolicyRequest request) {
+        try {
+            PolicyDto policyDto = PolicyDto.builder()
+                    .name(request.getPolicyName())
+                    .description(request.getDescription())
+                    .effect(request.getEffect())
+                    .priority(100)
+                    .build();
+
+            if ("MANUAL".equals(request.getSourceType())
+                    && request.getManualTargetIdentifier() != null) {
+                policyDto.setTargets(List.of(TargetDto.builder()
+                        .targetType(request.getManualTargetType())
+                        .targetIdentifier(request.getManualTargetIdentifier())
+                        .httpMethod(request.getManualHttpMethod())
+                        .targetOrder(request.getManualTargetOrder())
+                        .build()));
+            } else if (request.getPermissionIds() != null) {
+                List<TargetDto> targets = new ArrayList<>();
+                for (Long permId : request.getPermissionIds()) {
+                    permissionRepository.findById(permId).ifPresent(perm -> {
+                        ManagedResource mr = perm.getManagedResource();
+                        if (mr != null) {
+                            targets.add(TargetDto.builder()
+                                    .targetType(mr.getResourceType().name())
+                                    .targetIdentifier(mr.getResourceIdentifier())
+                                    .httpMethod(mr.getHttpMethod() != null
+                                            ? mr.getHttpMethod().name() : "ANY")
+                                    .build());
+                        }
+                    });
+                }
+                policyDto.setTargets(targets);
+            }
+
+            PolicyValidationReport report = policyService.validateBeforeCreate(policyDto);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            log.error("Failed to validate quick policy", e);
+            return ResponseEntity.badRequest().body(new PolicyValidationReport(
+                    List.of(), List.of(), false, e.getMessage()));
+        }
+    }
+
+    // ==================== AI Policy Validation API ====================
+
+    @GetMapping("/api/{policyId}/ai-validation")
+    @ResponseBody
+    public ResponseEntity<AIPolicyValidationReport> validateAIPolicy(@PathVariable Long policyId) {
+        try {
+            return ResponseEntity.ok(policyService.validateAIPolicy(policyId));
+        } catch (Exception e) {
+            log.error("Failed to validate AI policy {}", policyId, e);
+            return ResponseEntity.ok(new AIPolicyValidationReport(
+                    List.of(), false, e.getMessage()));
+        }
+    }
+
+    // ==================== Policy Simulation API ====================
+
+    @PostMapping("/api/simulate")
+    @ResponseBody
+    public ResponseEntity<SimulationReport> simulate(@RequestBody SimulationRequest request) {
+        try {
+            return ResponseEntity.ok(policyService.simulate(
+                    request.candidatePolicy(), request.testCases()));
+        } catch (Exception e) {
+            log.error("Failed to simulate policy", e);
+            return ResponseEntity.ok(new SimulationReport(
+                    List.of(), new SimulationReport.SimulationSummary(0, 0, 0, 0)));
+        }
+    }
+
+    // ==================== Impact Analysis API ====================
+
+    @PostMapping("/api/impact-analysis")
+    @ResponseBody
+    public ResponseEntity<PolicyImpactReport> analyzeImpact(
+            @RequestBody PolicyDto policyDto) {
+        try {
+            return ResponseEntity.ok(policyService.analyzeImpact(policyDto));
+        } catch (Exception e) {
+            log.error("Failed to analyze policy impact", e);
+            return ResponseEntity.ok(new PolicyImpactReport(
+                    0, List.of(), List.of(),
+                    new PolicyImpactReport.AccessChangeSummary(0, 0, 0)));
+        }
+    }
+
+    // ==================== Policy Version API ====================
+
+    @GetMapping("/api/{policyId}/versions")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getVersions(@PathVariable Long policyId) {
+        try {
+            List<Map<String, Object>> versions = policyService.getVersions(policyId).stream()
+                    .map(v -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("versionNumber", v.getVersionNumber());
+                        m.put("changeType", v.getChangeType().name());
+                        m.put("changedBy", v.getChangedBy());
+                        m.put("changeReason", v.getChangeReason());
+                        m.put("changedAt", v.getChangedAt() != null ? v.getChangedAt().toString() : null);
+                        return m;
+                    }).toList();
+            return ResponseEntity.ok(versions);
+        } catch (Exception e) {
+            log.error("Failed to load versions for policy {}", policyId, e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    @PostMapping("/api/{policyId}/rollback/{versionNumber}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> rollbackPolicy(
+            @PathVariable Long policyId,
+            @PathVariable int versionNumber,
+            @RequestBody(required = false) Map<String, String> body) {
+        try {
+            String reason = body != null ? body.get("reason") : null;
+            policyService.rollbackPolicy(policyId, versionNumber, reason);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", msg("msg.policy.rollback.success")));
+        } catch (Exception e) {
+            log.error("Failed to rollback policy {} to version {}", policyId, versionNumber, e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/api/{policyId}/versions/compare")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, String>>> compareVersions(
+            @PathVariable Long policyId,
+            @RequestParam int v1,
+            @RequestParam int v2) {
+        try {
+            List<Map<String, String>> changes = policyVersionService.compareVersions(policyId, v1, v2);
+            return ResponseEntity.ok(changes);
+        } catch (Exception e) {
+            log.error("Failed to compare versions for policy {}", policyId, e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    // ==================== Policy Matrix API ====================
+
+    @GetMapping("/api/matrix")
+    @ResponseBody
+    public ResponseEntity<PolicyMatrixReport> getMatrix(
+            @RequestParam(required = false) String resourceFilter,
+            @RequestParam(required = false) String roleFilter) {
+        try {
+            return ResponseEntity.ok(policyMatrixService.generateMatrix(resourceFilter, roleFilter));
+        } catch (Exception e) {
+            log.error("Failed to generate policy matrix", e);
+            return ResponseEntity.ok(new PolicyMatrixReport(
+                    List.of(), List.of(), List.of(), List.of()));
+        }
     }
 }

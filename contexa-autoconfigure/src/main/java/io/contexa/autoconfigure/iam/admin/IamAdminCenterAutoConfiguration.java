@@ -7,8 +7,12 @@ import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -33,10 +37,16 @@ public class IamAdminCenterAutoConfiguration {
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
             io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
-            MessageSource messageSource) {
+            MessageSource messageSource,
+            PolicyValidationService policyValidationService,
+            PermissionRepository permissionRepository,
+            PolicyVersionService policyVersionService,
+            PolicyMatrixService policyMatrixService) {
         return new PolicyCenterController(
                 resourceRegistryService, policyService, policyRepository, roleService,
                 permissionCatalogService, businessPolicyService, conditionTemplateRepository,
-                managedResourceRepository, securitySpelRepository, messageSource);
+                managedResourceRepository, securitySpelRepository, messageSource,
+                policyValidationService, permissionRepository, policyVersionService,
+                policyMatrixService);
     }
 }

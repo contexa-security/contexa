@@ -86,18 +86,20 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should proceed and return result when authorization passes")
         void shouldProceedWhenAuthorized() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("success");
 
             Object result = interceptor.invoke(methodInvocation);
 
             assertThat(result).isEqualTo("success");
-            verify(rapidReentryGuard).check(authentication, methodInvocation);
+            verify(rapidReentryGuard).tryAcquire(authentication, methodInvocation);
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
         }
 
         @Test
         @DisplayName("Should publish authorization event on successful invocation")
         void shouldPublishEventOnSuccess() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("ok");
 
             interceptor.invoke(methodInvocation);
@@ -161,6 +163,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should handle AuthorizationDeniedException via handler and publish event")
         void shouldHandleAuthorizationDenied() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
             AuthorizationDeniedException denied = new AuthorizationDeniedException("denied");
             doThrow(denied).when(authorizationManager).protectable(any(), eq(methodInvocation));
 
@@ -193,6 +196,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should record metrics when event is published")
         void shouldRecordMetrics() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("ok");
 
             interceptor.invoke(methodInvocation);

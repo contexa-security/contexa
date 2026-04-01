@@ -624,9 +624,29 @@
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-list-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.policy.center.tab.list}">Policy List</span>
                     </h2>
-                    <a th:href="@{/admin/policies/register}" class="modern-btn-primary mt-4 sm:mt-0">
-                        <i class="fas fa-plus"></i> <span th:text="#{admin.policy.center.list.new}">New Policy</span>
-                    </a>
+                    <div class="flex gap-3 mt-4 sm:mt-0">
+                        <button type="button" id="policy-health-check-btn" onclick="PolicyCenter.Validation.checkHealth()" class="modern-btn-secondary">
+                            <i class="fas fa-heartbeat"></i> <span th:text="#{msg.policy.validation.health.check}">Check Health</span>
+                        </button>
+                        <a th:href="@{/admin/policies/register}" class="modern-btn-primary">
+                            <i class="fas fa-plus"></i> <span th:text="#{admin.policy.center.list.new}">New Policy</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Policy Health Banner -->
+                <div id="policy-health-banner" class="hidden mb-6 p-4 rounded-lg border" style="background: rgba(30,41,59,0.8);">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span id="health-status-icon"></span>
+                            <span id="health-status-text" class="text-sm font-semibold"></span>
+                        </div>
+                        <div class="flex gap-4 text-sm" style="color: #94a3b8;">
+                            <span id="health-conflict-count"></span>
+                            <span id="health-duplicate-count"></span>
+                        </div>
+                    </div>
+                    <div id="health-details" class="mt-3 hidden"></div>
                 </div>
 
                 <!-- Search Filter -->
@@ -653,6 +673,7 @@
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.list.th.source}">Source</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.list.th.approval}">Approval</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.list.th.priority}">Priority</th>
+                            <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold" th:text="#{msg.policy.validation.health.title}">Health</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold" th:text="#{common.table.actions}">Actions</th>
                         </tr>
                         </thead>
@@ -693,6 +714,11 @@
                                 </td>
                                 <td class="table-cell-top" th:text="${policy.priority}"></td>
                                 <td class="table-cell-top">
+                                    <div th:id="'policy-health-' + ${policy.id}" class="policy-health-cell">
+                                        <span class="text-xs" style="color: #475569;">-</span>
+                                    </div>
+                                </td>
+                                <td class="table-cell-top">
                                     <div class="flex gap-2">
                                         <a th:href="@{/admin/policies/{id}(id=${policy.id})}" class="action-badge-primary"><i class="fas fa-edit"></i> <span th:text="#{common.edit}">Edit</span></a>
                                         <!-- Approve button (not shown if already APPROVED) -->
@@ -715,7 +741,7 @@
                             </tr>
                         </th:block>
                         <tr th:if="${policyPage == null or policyPage.empty}">
-                            <td colspan="8" class="pc-empty"><i class="fas fa-shield-alt"></i><p th:text="#{admin.policy.center.list.empty}">No policies registered.</p></td>
+                            <td colspan="9" class="pc-empty"><i class="fas fa-shield-alt"></i><p th:text="#{admin.policy.center.list.empty}">No policies registered.</p></td>
                         </tr>
                         </tbody>
                     </table>
@@ -1010,7 +1036,15 @@
      th:data-sim-warning-sensitive="#{policy.center.js.sim.warning.sensitive}"
      th:data-mt-identifier-required="#{policy.center.manual.target.identifier.required}"
      th:data-mt-order-invalid="#{policy.center.manual.target.order.invalid}"
-     th:data-mt-source="#{policy.center.js.manual.target.source}">
+     th:data-mt-source="#{policy.center.js.manual.target.source}"
+     th:data-validation-conflict="#{msg.policy.validation.conflict}"
+     th:data-validation-duplicate="#{msg.policy.validation.duplicate}"
+     th:data-validation-blocked="#{msg.policy.validation.blocked}"
+     th:data-validation-confirm="#{msg.policy.validation.confirm}"
+     th:data-validation-checking="#{msg.policy.validation.checking}"
+     th:data-validation-no-issues="#{msg.policy.validation.no.issues}"
+     th:data-validation-critical="#{msg.policy.validation.critical}"
+     th:data-validation-warning="#{msg.policy.validation.warning}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>

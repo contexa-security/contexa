@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
@@ -47,6 +48,9 @@ class BlockedUserServiceTest {
 
     @Mock
     private CentralAuditFacade centralAuditFacade;
+
+    @Mock
+    private BlockingSignalBroadcaster blockingDecisionRegistry;
 
     @InjectMocks
     private BlockedUserService service;
@@ -109,7 +113,7 @@ class BlockedUserServiceTest {
             verify(blockedUserJpaRepository).save(existing);
             assertThat(existing.getRequestId()).isEqualTo("req-2");
             assertThat(existing.getBlockCount()).isEqualTo(3);
-            assertThat(existing.getRiskScore()).isEqualTo(0.95);
+            assertThat(existing.getRiskScore()).isNull();
         }
 
         @Test

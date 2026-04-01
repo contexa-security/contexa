@@ -8,6 +8,8 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +51,8 @@ class CustomDynamicAuthorizationManagerPriorityTest {
     void setUp() {
         manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
-                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade);
+                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
+                new PolicyCombiningEvaluator(), CombiningAlgorithm.FIRST_APPLICABLE);
 
         resolvedExpressions = new ArrayList<>();
         AuthorizationManager<RequestAuthorizationContext> dummyManager = mock(AuthorizationManager.class);

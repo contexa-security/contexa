@@ -11,6 +11,8 @@ import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -52,6 +54,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final AuthorizationMetrics metricsCollector;
     private final CentralAuditFacade centralAuditFacade;
+    private final PolicyCombiningEvaluator combiningEvaluator;
+    private final CombiningAlgorithm combiningAlgorithm;
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -95,13 +99,44 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         final Authentication authentication = authenticationSupplier.get();
 
         AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+
+        if (combiningAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE) {
+            return checkFirstApplicable(authenticationSupplier, context, authentication, authorizationContext, request);
+        }
+
+        // Collect all matching policy decisions
+        List<AuthorizationDecision> matchedDecisions = new ArrayList<>();
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
-            RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(context.getRequest());
+            RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(request);
             if (matchResult.isMatch()) {
                 AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
                 RequestAuthorizationContext enrichedContext =
-                        new RequestAuthorizationContext(context.getRequest(), matchResult.getVariables());
+                        new RequestAuthorizationContext(request, matchResult.getVariables());
+                matchedDecisions.add(manager.check(authenticationSupplier, enrichedContext));
+            }
+        }
+
+        if (matchedDecisions.isEmpty()) {
+            return new AuthorizationDecision(true);
+        }
+
+        AuthorizationDecision finalDecision = combiningEvaluator.evaluate(matchedDecisions, combiningAlgorithm);
+        if (!finalDecision.isGranted()) {
+            logAuthorizationAttempt(authentication, authorizationContext, finalDecision, request);
+        }
+        return finalDecision;
+    }
+
+    private AuthorizationDecision checkFirstApplicable(
+            Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context,
+            Authentication authentication, AuthorizationContext authorizationContext, HttpServletRequest request) {
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+        for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
+            RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(request);
+            if (matchResult.isMatch()) {
+                AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
+                RequestAuthorizationContext enrichedContext =
+                        new RequestAuthorizationContext(request, matchResult.getVariables());
                 authorizationDecision = manager.check(authenticationSupplier, enrichedContext);
 
                 if (!authorizationDecision.isGranted()) {

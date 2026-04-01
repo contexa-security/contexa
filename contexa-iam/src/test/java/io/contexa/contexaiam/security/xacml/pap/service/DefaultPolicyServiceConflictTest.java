@@ -8,10 +8,16 @@ import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto.Severity;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -35,7 +41,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,6 +57,11 @@ class DefaultPolicyServiceConflictTest {
     @Mock private ManagedResourceRepository managedResourceRepository;
     @Mock private CentralAuditFacade centralAuditFacade;
     @Mock private PolicyConflictAnalyzer policyConflictAnalyzer;
+    @Mock private PolicyValidationService policyValidationService;
+    @Mock private PolicyVersionService policyVersionService;
+    @Mock private PolicyImpactAnalyzer policyImpactAnalyzer;
+    @Mock private PolicySimulator policySimulator;
+    @Mock private AIPolicyValidator aiPolicyValidator;
     @Mock private PolicyReloadBroadcaster policyReloadBroadcaster;
 
     private DefaultPolicyService service;
@@ -60,7 +71,9 @@ class DefaultPolicyServiceConflictTest {
         service = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
                 policyEnrichmentService, eventBus, permissionRepository,
-                managedResourceRepository, centralAuditFacade, policyConflictAnalyzer);
+                managedResourceRepository, centralAuditFacade, policyConflictAnalyzer,
+                policyValidationService, policyVersionService, policyImpactAnalyzer,
+                policySimulator, aiPolicyValidator);
         service.setPolicyReloadBroadcaster(policyReloadBroadcaster);
     }
 
@@ -284,7 +297,9 @@ class DefaultPolicyServiceConflictTest {
             DefaultPolicyService serviceWithoutBroadcast = new DefaultPolicyService(
                     policyRepository, policyRetrievalPoint, authorizationManager,
                     policyEnrichmentService, eventBus, permissionRepository,
-                    managedResourceRepository, centralAuditFacade, policyConflictAnalyzer);
+                    managedResourceRepository, centralAuditFacade, policyConflictAnalyzer,
+                    policyValidationService, policyVersionService, policyImpactAnalyzer,
+                policySimulator, aiPolicyValidator);
 
             PolicyDto dto = buildPolicyDto("no-broadcast", Policy.Effect.ALLOW);
             when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(List.of());
@@ -309,6 +324,8 @@ class DefaultPolicyServiceConflictTest {
                     .approvalStatus(Policy.ApprovalStatus.PENDING).build();
             when(policyRepository.findByIdWithDetails(3L)).thenReturn(java.util.Optional.of(policy));
             when(policyRepository.save(any(Policy.class))).thenReturn(policy);
+            when(aiPolicyValidator.validate(any(Policy.class))).thenReturn(
+                    new AIPolicyValidationReport(List.of(), true, null));
 
             service.approvePolicy(3L, "admin");
 
@@ -365,6 +382,131 @@ class DefaultPolicyServiceConflictTest {
             Policy result = service.createPolicy(dto);
 
             assertThat(result).isNotNull();
+        }
+    }
+
+    // ── 7. 버전 자동 생성 ───────────────────────────────────────
+
+    @Nested
+    @DisplayName("정책 변경 시 버전 자동 생성")
+    class VersionAutoCreation {
+
+        @Test
+        @DisplayName("정책 생성 시 CREATED 버전이 저장됨")
+        void createPolicyCreatesVersion() {
+            PolicyDto dto = buildPolicyDto("versioned", Policy.Effect.ALLOW);
+            dto.setChangeReason("initial creation");
+
+            when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(List.of());
+            when(policyRepository.save(any(Policy.class)))
+                    .thenAnswer(inv -> { Policy p = inv.getArgument(0); p.setId(1L); return p; });
+
+            service.createPolicy(dto);
+
+            verify(policyVersionService).createVersion(
+                    any(Policy.class),
+                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.CREATED),
+                    eq("initial creation"));
+        }
+
+        @Test
+        @DisplayName("정책 수정 시 변경 전 상태가 UPDATED 버전으로 저장됨")
+        void updatePolicyCreatesVersion() {
+            PolicyDto dto = buildPolicyDto("update-ver", Policy.Effect.ALLOW);
+            dto.setId(10L);
+            dto.setChangeReason("changed effect");
+
+            Policy existing = Policy.builder()
+                    .id(10L).name("update-ver").effect(Policy.Effect.ALLOW).priority(100).build();
+            when(policyRepository.findByIdWithDetails(10L)).thenReturn(java.util.Optional.of(existing));
+            when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(List.of());
+            when(policyRepository.save(any(Policy.class))).thenReturn(existing);
+
+            service.updatePolicy(dto);
+
+            verify(policyVersionService).createVersion(
+                    eq(existing),
+                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.UPDATED),
+                    eq("changed effect"));
+        }
+
+        @Test
+        @DisplayName("정책 삭제 시 삭제 전 상태가 DELETED 버전으로 저장됨")
+        void deletePolicyCreatesVersion() {
+            Policy existing = Policy.builder()
+                    .id(5L).name("to-delete").effect(Policy.Effect.ALLOW).priority(100).build();
+            when(policyRepository.findByIdWithDetails(5L)).thenReturn(java.util.Optional.of(existing));
+            when(policyRepository.findById(5L)).thenReturn(java.util.Optional.of(existing));
+
+            service.deletePolicy(5L, "no longer needed");
+
+            verify(policyVersionService).createVersion(
+                    eq(existing),
+                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.DELETED),
+                    eq("no longer needed"));
+        }
+
+        @Test
+        @DisplayName("changeReason 없이 삭제해도 버전이 생성됨")
+        void deletePolicyWithoutReasonCreatesVersion() {
+            Policy existing = Policy.builder()
+                    .id(6L).name("to-delete").effect(Policy.Effect.ALLOW).priority(100).build();
+            when(policyRepository.findByIdWithDetails(6L)).thenReturn(java.util.Optional.of(existing));
+            when(policyRepository.findById(6L)).thenReturn(java.util.Optional.of(existing));
+
+            service.deletePolicy(6L);
+
+            verify(policyVersionService).createVersion(
+                    eq(existing),
+                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.DELETED),
+                    isNull());
+        }
+    }
+
+    // ── 8. 롤백 ─────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("정책 롤백")
+    class Rollback {
+
+        @Test
+        @DisplayName("롤백 시 ROLLBACK 버전 1건만 생성됨 (UPDATED 중복 생성 안 됨)")
+        void rollbackCreatesOnlyRollbackVersion() {
+            PolicyDto snapshotDto = buildPolicyDto("rollback-target", Policy.Effect.ALLOW);
+            PolicyVersion version = PolicyVersion.builder()
+                    .policyId(10L).versionNumber(1).snapshotJson("{}").build();
+
+            Policy existing = Policy.builder()
+                    .id(10L).name("rollback-target").effect(Policy.Effect.DENY).priority(100).build();
+
+            when(policyVersionService.getVersion(10L, 1)).thenReturn(java.util.Optional.of(version));
+            when(policyVersionService.deserializeSnapshot(version)).thenReturn(java.util.Optional.of(snapshotDto));
+            when(policyRepository.findByIdWithDetails(10L)).thenReturn(java.util.Optional.of(existing));
+            when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(List.of());
+            when(policyRepository.save(any(Policy.class))).thenReturn(existing);
+
+            service.rollbackPolicy(10L, 1, "revert mistake");
+
+            // ROLLBACK 1건만 생성되어야 함 (UPDATED 중복 없음)
+            verify(policyVersionService, times(1)).createVersion(
+                    any(Policy.class),
+                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.ROLLBACK),
+                    contains("Rollback to version 1"));
+            // UPDATED 버전은 생성되지 않아야 함
+            verify(policyVersionService, never()).createVersion(
+                    any(Policy.class),
+                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.UPDATED),
+                    any());
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 버전으로 롤백 시 예외 발생")
+        void rollbackNonExistentVersion() {
+            when(policyVersionService.getVersion(10L, 99)).thenReturn(java.util.Optional.empty());
+
+            assertThatThrownBy(() -> service.rollbackPolicy(10L, 99, "reason"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Version 99 not found");
         }
     }
 }

@@ -15,6 +15,9 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.SecuritySpelRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
@@ -46,6 +49,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final CustomDynamicAuthorizationManager authorizationManager;
     private final SecuritySpelRepository securitySpelRepository;
     private final CentralAuditFacade centralAuditFacade;
+    private final PolicyConflictAnalyzer policyConflictAnalyzer;
 
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
                                      @Lazy RoleService roleService,
@@ -55,7 +59,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                                      PolicyEnrichmentService policyEnrichmentService,
                                      CustomDynamicAuthorizationManager authorizationManager,
                                      SecuritySpelRepository securitySpelRepository,
-                                     CentralAuditFacade centralAuditFacade) {
+                                     CentralAuditFacade centralAuditFacade,
+                                     PolicyConflictAnalyzer policyConflictAnalyzer) {
         this.policyRepository = policyRepository;
         this.roleService = roleService;
         this.roleRepository = roleRepository;
@@ -65,6 +70,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         this.authorizationManager = authorizationManager;
         this.securitySpelRepository = securitySpelRepository;
         this.centralAuditFacade = centralAuditFacade;
+        this.policyConflictAnalyzer = policyConflictAnalyzer;
     }
 
     @Override
@@ -76,6 +82,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Policy policy = new Policy();
         translateAndApplyDtoToPolicy(policy, dto);
 
+        validateConflicts(policy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
 
         Policy savedPolicy = policyRepository.save(policy);
@@ -96,6 +103,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
+        validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
 
         Policy updatedPolicy = policyRepository.save(existingPolicy);
@@ -527,6 +535,24 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     .build());
         } catch (Exception e) {
             log.error("Failed to audit business policy change: {}", policy.getName(), e);
+        }
+    }
+
+    private void validateConflicts(Policy policy) {
+        List<PolicyConflictDto> conflicts = policyConflictAnalyzer.analyze(policy);
+        List<PolicyConflictDto> criticalConflicts = conflicts.stream()
+                .filter(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL)
+                .toList();
+        if (!criticalConflicts.isEmpty()) {
+            String details = criticalConflicts.stream()
+                    .map(c -> String.format("[%s] %s", c.existingPolicyName(), c.conflictDescription()))
+                    .collect(Collectors.joining("; "));
+            throw new PolicyConflictException(
+                    "Critical policy conflicts detected: " + details, conflicts);
+        }
+        if (!conflicts.isEmpty()) {
+            log.error("Policy conflicts detected for '{}': {}", policy.getName(),
+                    conflicts.stream().map(PolicyConflictDto::conflictDescription).collect(Collectors.joining("; ")));
         }
     }
 }

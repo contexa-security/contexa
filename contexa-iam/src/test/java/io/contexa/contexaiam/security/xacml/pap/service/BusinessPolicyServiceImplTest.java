@@ -8,7 +8,10 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.SecuritySpelRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
@@ -60,10 +63,13 @@ class BusinessPolicyServiceImplTest {
     private CustomDynamicAuthorizationManager authorizationManager;
 
     @Mock
-    private io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade;
+    private CentralAuditFacade centralAuditFacade;
 
     @Mock
-    private io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository;
+    private SecuritySpelRepository securitySpelRepository;
+
+    @Mock
+    private PolicyConflictAnalyzer policyConflictAnalyzer;
 
     private BusinessPolicyServiceImpl service;
 
@@ -72,7 +78,8 @@ class BusinessPolicyServiceImplTest {
         service = new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository,
                 permissionRepository, conditionTemplateRepository,
-                policyEnrichmentService, authorizationManager, securitySpelRepository, centralAuditFacade);
+                policyEnrichmentService, authorizationManager, securitySpelRepository,
+                centralAuditFacade, policyConflictAnalyzer);
     }
 
     @Nested
@@ -171,7 +178,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("At least one role or one permission");
+                    .hasMessageContaining("At least one role, permission, or expression");
         }
 
         @Test

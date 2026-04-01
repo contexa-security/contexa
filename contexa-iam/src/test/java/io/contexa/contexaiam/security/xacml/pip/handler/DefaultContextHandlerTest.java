@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pip.handler;
 
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;
@@ -10,6 +11,7 @@ import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.DefaultContextHandler;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aopalliance.intercept.MethodInvocation;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -37,8 +39,20 @@ class DefaultContextHandlerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ContexaCacheService cacheService;
+
     @InjectMocks
     private DefaultContextHandler contextHandler;
+
+    @BeforeEach
+    void setUpCacheService() {
+        when(cacheService.get(anyString(), any(), any(), anyString()))
+                .thenAnswer(inv -> {
+                    java.util.function.Supplier<?> supplier = inv.getArgument(1);
+                    return supplier.get();
+                });
+    }
 
     @Nested
     @DisplayName("HTTP request context creation")

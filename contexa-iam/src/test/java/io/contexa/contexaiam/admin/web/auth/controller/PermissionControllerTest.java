@@ -6,6 +6,7 @@ import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,11 +27,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,8 +51,25 @@ class PermissionControllerTest {
     @Mock
     private PermissionRepository permissionRepository;
 
+    @Mock
+    private MessageSource messageSource;
+
     @InjectMocks
     private PermissionController controller;
+
+    @BeforeEach
+    void setUpMessageSource() {
+        when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
+    }
 
     @Nested
     @DisplayName("getPermissions")

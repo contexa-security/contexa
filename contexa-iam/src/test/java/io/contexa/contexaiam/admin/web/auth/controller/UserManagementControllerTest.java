@@ -8,7 +8,9 @@ import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexacommon.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,8 +30,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,8 +53,28 @@ class UserManagementControllerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private PasswordPolicyService passwordPolicyService;
+
+    @Mock
+    private MessageSource messageSource;
+
     @InjectMocks
     private UserManagementController controller;
+
+    @BeforeEach
+    void setUpMessageSource() {
+        when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
+    }
 
     @Nested
     @DisplayName("getUsers")

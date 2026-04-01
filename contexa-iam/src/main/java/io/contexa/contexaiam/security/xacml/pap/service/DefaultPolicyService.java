@@ -10,14 +10,24 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.SimulationTestCase;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -27,13 +37,14 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -53,6 +64,11 @@ public class DefaultPolicyService implements PolicyService {
     private final ManagedResourceRepository managedResourceRepository;
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyConflictAnalyzer policyConflictAnalyzer;
+    private final PolicyValidationService policyValidationService;
+    private final PolicyVersionService policyVersionService;
+    private final PolicyImpactAnalyzer policyImpactAnalyzer;
+    private final PolicySimulator policySimulator;
+    private final AIPolicyValidator aiPolicyValidator;
 
     @Setter
     private PolicyReloadBroadcaster policyReloadBroadcaster;
@@ -85,6 +101,9 @@ public class DefaultPolicyService implements PolicyService {
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
         Policy savedPolicy = policyRepository.save(policy);
 
+        policyVersionService.createVersion(savedPolicy,
+                PolicyVersion.ChangeType.CREATED, policyDto.getChangeReason());
+
         publishPolicyChangedEvent(savedPolicy);
         auditPolicyChange(AuditEventCategory.POLICY_CREATED, savedPolicy);
 
@@ -95,6 +114,9 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     public void updatePolicy(PolicyDto policyDto) {
         Policy existingPolicy = findById(policyDto.getId());
+        policyVersionService.createVersion(existingPolicy,
+                PolicyVersion.ChangeType.UPDATED, policyDto.getChangeReason());
+
         updateEntityFromDto(existingPolicy, policyDto);
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
@@ -155,15 +177,40 @@ public class DefaultPolicyService implements PolicyService {
 
         policyRepository.findByName(policyName).ifPresent(p -> policyDto.setId(p.getId()));
 
-        if (policyDto.getId() != null) {
-            this.updatePolicy(policyDto);
-        } else {
-            this.createPolicy(policyDto);
+        try {
+            if (policyDto.getId() != null) {
+                this.updatePolicy(policyDto);
+            } else {
+                this.createPolicy(policyDto);
+            }
+        } catch (PolicyConflictException e) {
+            log.error("Auto-policy sync blocked by conflict for permission '{}': {}",
+                    permission.getName(), e.getMessage());
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.POLICY_CREATED)
+                    .principalName("SYSTEM")
+                    .resourceIdentifier(policyName)
+                    .eventSource("IAM")
+                    .action("AUTO_POLICY_SYNC_BLOCKED")
+                    .decision("BLOCKED")
+                    .outcome("CONFLICT")
+                    .reason(e.getMessage())
+                    .build());
         }
     }
 
     @Override
     public void deletePolicy(Long id) {
+        deletePolicy(id, null);
+    }
+
+    @Override
+    public void deletePolicy(Long id, String changeReason) {
+        // Version snapshot before delete
+        policyRepository.findByIdWithDetails(id).ifPresent(policy ->
+                policyVersionService.createVersion(policy,
+                        PolicyVersion.ChangeType.DELETED, changeReason));
+
         // Revert connected resources to PERMISSION_CREATED before deleting
         policyRepository.findByIdWithDetails(id).ifPresent(policy -> {
             Set<String> permNames = new HashSet<>();
@@ -207,6 +254,15 @@ public class DefaultPolicyService implements PolicyService {
         if (policy.getApprovalStatus() == Policy.ApprovalStatus.APPROVED) {
             throw new IllegalStateException("Policy is already approved.");
         }
+
+        if (policy.isAIGenerated()) {
+            AIPolicyValidationReport validationReport = aiPolicyValidator.validate(policy);
+            if (!validationReport.canApprove()) {
+                throw new IllegalStateException(
+                        "AI policy validation failed: " + validationReport.blockedReason());
+            }
+        }
+
         policy.approve(approver);
         policyRepository.save(policy);
         auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy);
@@ -235,6 +291,81 @@ public class DefaultPolicyService implements PolicyService {
         return policyConflictAnalyzer.analyze(policy);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<PolicyVersion> getVersions(Long policyId) {
+        return policyVersionService.getVersions(policyId);
+    }
+
+    @Override
+    public Policy rollbackPolicy(Long policyId, int versionNumber, String reason) {
+        PolicyVersion version = policyVersionService.getVersion(policyId, versionNumber)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Version " + versionNumber + " not found for policy " + policyId));
+
+        PolicyDto snapshotDto = policyVersionService.deserializeSnapshot(version)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Failed to deserialize snapshot for version " + versionNumber));
+
+        String rollbackReason = "Rollback to version " + versionNumber
+                + (reason != null ? ": " + reason : "");
+
+        Policy existingPolicy = findById(policyId);
+        updateEntityFromDto(existingPolicy, snapshotDto);
+        validateConflicts(existingPolicy);
+        policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
+        Policy savedPolicy = policyRepository.save(existingPolicy);
+
+        policyVersionService.createVersion(savedPolicy,
+                PolicyVersion.ChangeType.ROLLBACK, rollbackReason);
+
+        publishPolicyChangedEvent(savedPolicy);
+        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, savedPolicy);
+        reloadAuthorizationSystem();
+
+        return savedPolicy;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PolicyValidationReport validateBeforeCreate(PolicyDto policyDto) {
+        Policy policy = convertDtoToEntity(policyDto);
+        if (policyDto.getId() != null) {
+            policy.setId(policyDto.getId());
+        }
+        return policyValidationService.validate(policy);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PolicyImpactReport analyzeImpact(PolicyDto policyDto) {
+        Policy policy = convertDtoToEntity(policyDto);
+        if (policyDto.getId() != null) {
+            policy.setId(policyDto.getId());
+        }
+        return policyImpactAnalyzer.analyze(policy);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AIPolicyValidationReport validateAIPolicy(Long policyId) {
+        Policy policy = findById(policyId);
+        return aiPolicyValidator.validate(policy);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SimulationReport simulate(PolicyDto candidatePolicy, List<SimulationTestCase> testCases) {
+        Policy candidate = null;
+        if (candidatePolicy != null) {
+            candidate = convertDtoToEntity(candidatePolicy);
+            if (candidatePolicy.getId() != null) {
+                candidate.setId(candidatePolicy.getId());
+            }
+        }
+        return policySimulator.simulate(candidate, testCases);
+    }
+
     private void validateConflicts(Policy policy) {
         List<PolicyConflictDto> conflicts = policyConflictAnalyzer.analyze(policy);
         List<PolicyConflictDto> criticalConflicts = conflicts.stream()
@@ -256,7 +387,7 @@ public class DefaultPolicyService implements PolicyService {
     private void auditPolicyChange(AuditEventCategory category, Policy policy) {
         try {
             String principal = "SYSTEM";
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) principal = auth.getName();
 
             centralAuditFacade.recordAsync(AuditRecord.builder()
@@ -267,7 +398,7 @@ public class DefaultPolicyService implements PolicyService {
                     .action(category.name())
                     .decision("SUCCESS")
                     .outcome("SUCCESS")
-                    .details(java.util.Map.of(
+                    .details(Map.of(
                             "policyId", policy.getId() != null ? policy.getId() : 0L,
                             "policyName", policy.getName() != null ? policy.getName() : "",
                             "effect", policy.getEffect() != null ? policy.getEffect().name() : "",

@@ -9,11 +9,17 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.SecuritySpelRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -68,8 +75,40 @@ class PolicyCenterControllerTest {
     @Mock
     private ManagedResourceRepository managedResourceRepository;
 
+    @Mock
+    private SecuritySpelRepository securitySpelRepository;
+
+    @Mock
+    private MessageSource messageSource;
+
+    @Mock
+    private PolicyValidationService policyValidationService;
+
+    @Mock
+    private PermissionRepository permissionRepository;
+
+    @Mock
+    private PolicyVersionService policyVersionService;
+
+    @Mock
+    private PolicyMatrixService policyMatrixService;
+
     @InjectMocks
     private PolicyCenterController controller;
+
+    @BeforeEach
+    void setUpMessageSource() {
+        when(messageSource.getMessage(anyString(), any(), any(java.util.Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
+    }
 
     @Nested
     @DisplayName("policyCenter")
@@ -110,7 +149,7 @@ class PolicyCenterControllerTest {
             String view = controller.policyCenter("resources", criteria, pageable, null, 0, model);
 
             assertThat(view).isEqualTo("admin/policy-center");
-            assertThat(model.getAttribute("errorMessage")).asString().contains("Failed to load data");
+            assertThat(model.getAttribute("errorMessage")).asString().contains("msg.policy.load.error");
             assertThat(model.getAttribute("resourcePage")).isEqualTo(Page.empty());
             assertThat(model.getAttribute("serviceOwners")).isEqualTo(Collections.emptySet());
         }
@@ -163,7 +202,7 @@ class PolicyCenterControllerTest {
             String view = controller.createPolicyFromCenter(policyDto, ra);
 
             assertThat(view).isEqualTo("redirect:/admin/policy-center?tab=list");
-            assertThat(ra.getFlashAttributes().get("message")).asString().contains("created successfully");
+            assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.policy.created");
         }
 
         @Test

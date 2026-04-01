@@ -35,6 +35,7 @@ class CustomAuthenticationProviderTest {
                 .build();
         UnifiedCustomUserDetails userDetails = new UnifiedCustomUserDetails(account, Set.of());
         when(userDetailsService.loadUserByUsername("brg_sync_user")).thenReturn(userDetails);
+        when(passwordEncoder.matches("pw", "{noop}BRIDGE_EXTERNAL_ONLY::seed")).thenReturn(true);
 
         assertThatThrownBy(() -> provider.authenticate(new UsernamePasswordAuthenticationToken("brg_sync_user", "pw")))
                 .isInstanceOf(BadCredentialsException.class)

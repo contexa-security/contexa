@@ -9,6 +9,7 @@ import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.repository.GroupRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageImpl;
+
+import java.util.Locale;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
@@ -33,8 +37,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,8 +57,25 @@ class GroupControllerTest {
     @Mock
     private GroupRepository groupRepository;
 
+    @Mock
+    private MessageSource messageSource;
+
     @InjectMocks
     private GroupController controller;
+
+    @BeforeEach
+    void setUpMessageSource() {
+        when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
+    }
 
     @Nested
     @DisplayName("getGroups")

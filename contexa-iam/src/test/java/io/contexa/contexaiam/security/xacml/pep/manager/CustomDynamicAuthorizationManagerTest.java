@@ -8,6 +8,8 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ExpressionAuthorizationManagerResolver;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
@@ -77,7 +79,8 @@ class CustomDynamicAuthorizationManagerTest {
     void setUp() {
         authorizationManager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
-                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade);
+                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
+                new PolicyCombiningEvaluator(), CombiningAlgorithm.FIRST_APPLICABLE);
     }
 
     @Nested
@@ -289,9 +292,10 @@ class CustomDynamicAuthorizationManagerTest {
             when(contextHandler.create(authentication, request)).thenReturn(ctx);
 
             RequestAuthorizationContext rac = new RequestAuthorizationContext(request);
-            authorizationManager.check(() -> authentication, rac);
+            AuthorizationDecision decision = authorizationManager.check(() -> authentication, rac);
 
-            verify(centralAuditFacade).recordAsync(any());
+            assertThat(decision.isGranted()).isTrue();
+            verify(centralAuditFacade, never()).recordAsync(any());
         }
     }
 

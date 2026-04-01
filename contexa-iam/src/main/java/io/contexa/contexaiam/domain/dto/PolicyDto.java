@@ -39,6 +39,7 @@ public class PolicyDto {
     private String reasoning;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String changeReason;
 
     public boolean isAIGenerated() {
         return source == Policy.PolicySource.AI_GENERATED || source == Policy.PolicySource.AI_EVOLVED;

@@ -207,12 +207,42 @@
                     </button>
                 </div>
 
+                <!-- Change Reason (required for updates) -->
+                <div th:if="${policy.id != null}" class="modern-card p-4">
+                    <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                        <i class="fas fa-comment-alt mr-1"></i>
+                        <span th:text="#{msg.policy.version.change.reason}">Change Reason</span>
+                        <span style="color: #f87171;">*</span>
+                    </label>
+                    <textarea th:field="*{changeReason}" rows="2" class="modern-input w-full"
+                              th:placeholder="#{msg.policy.version.change.reason.required}"
+                              required></textarea>
+                </div>
+
                 <!-- Submit -->
                 <button type="submit" class="modern-btn-primary w-full justify-center py-3">
                     <i class="fas fa-save mr-2"></i>
                     <span th:text="${policy.id != null} ? #{admin.policy.detail.save} : #{admin.policy.detail.register}">Save</span>
                 </button>
             </form>
+
+            <!-- Version History (only for existing policies) -->
+            <div th:if="${policy.id != null}" class="modern-card p-6 mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold" style="color: #e2e8f0;">
+                        <i class="fas fa-history mr-2" style="color: #818cf8;"></i>
+                        <span th:text="#{msg.policy.version.title}">Version History</span>
+                    </h3>
+                    <button type="button" onclick="PolicyVersionUI.load()" class="modern-btn-secondary text-sm">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div id="version-history-container">
+                    <p class="text-sm" style="color: #64748b;">
+                        <i class="fas fa-spinner fa-spin mr-1"></i> Loading...
+                    </p>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -267,10 +297,90 @@ function updateIndices() {
         rb.querySelectorAll('.condition-block').forEach(function(cb,ci) { cb.querySelectorAll('[name]').forEach(function(e) { e.name = e.name.replace(/conditions\[\d+\]/,'conditions['+ci+']'); }); });
     });
 }
+var PolicyVersionUI = {
+    policyId: /*[[${policy.id}]]*/ null,
+    csrfToken: function() { return document.querySelector('meta[name="_csrf"]')?.content; },
+    csrfHeader: function() { return document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN'; },
+
+    load: function() {
+        if (!this.policyId) return;
+        var container = document.getElementById('version-history-container');
+        if (!container) return;
+        var loadingText = /*[[#{common.loading}]]*/ 'Loading...';
+        var noHistoryText = /*[[#{msg.policy.version.empty}]]*/ 'No version history.';
+        container.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + loadingText + '</p>';
+
+        fetch('/admin/policy-center/api/' + this.policyId + '/versions', {
+            headers: { [this.csrfHeader()]: this.csrfToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(versions) {
+            if (!versions.length) {
+                container.innerHTML = '<p class="text-sm" style="color:#64748b;">' + noHistoryText + '</p>';
+                return;
+            }
+            var html = '<div class="space-y-3">';
+            versions.forEach(function(v) {
+                var typeColor = v.changeType === 'CREATED' ? '#4ade80' :
+                    v.changeType === 'DELETED' ? '#f87171' :
+                    v.changeType === 'ROLLBACK' ? '#c084fc' : '#fbbf24';
+                html += '<div class="flex items-center justify-between p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">';
+                html += '<div class="flex items-center gap-3">';
+                html += '<span class="text-xs font-mono px-2 py-0.5 rounded" style="background:' + typeColor + '20;color:' + typeColor + ';border:1px solid ' + typeColor + '50;">v' + v.versionNumber + '</span>';
+                html += '<span class="status-badge text-xs" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.3);">' + v.changeType + '</span>';
+                html += '<span class="text-xs" style="color:#94a3b8;">' + v.changedBy + '</span>';
+                html += '<span class="text-xs" style="color:#475569;">' + (v.changedAt || '') + '</span>';
+                if (v.changeReason) html += '<span class="text-xs" style="color:#cbd5e1;">' + PolicyVersionUI.escapeHtml(v.changeReason) + '</span>';
+                html += '</div>';
+                var rollbackLabel = /*[[#{msg.policy.version.rollback}]]*/ 'Rollback';
+                html += '<button type="button" onclick="PolicyVersionUI.rollback(' + v.versionNumber + ')" class="action-badge-secondary text-xs"><i class="fas fa-undo"></i> ' + rollbackLabel + '</button>';
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        })
+        .catch(function(err) {
+            var failText = /*[[#{msg.policy.version.load.error}]]*/ 'Failed to load versions.';
+            container.innerHTML = '<p class="text-sm" style="color:#f87171;">' + failText + '</p>';
+        });
+    },
+
+    escapeHtml: function(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    },
+
+    rollback: function(versionNumber) {
+        var promptText = /*[[#{msg.policy.version.change.reason}]]*/ 'Change Reason';
+        var reason = prompt(promptText + ':');
+        if (reason === null) return;
+        fetch('/admin/policy-center/api/' + this.policyId + '/rollback/' + versionNumber, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', [this.csrfHeader()]: this.csrfToken() },
+            body: JSON.stringify({ reason: reason })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) {
+                showToast(result.message, 'success');
+                setTimeout(function() { location.reload(); }, 1500);
+            } else {
+                showToast(result.message, 'error');
+            }
+        })
+        .catch(function(err) {
+            var rollbackFailText = /*[[#{msg.policy.version.rollback.error}]]*/ 'Rollback failed';
+            showToast(rollbackFailText + ': ' + err.message, 'error');
+        });
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.target-block select[name*="targetType"]').forEach(toggleHttpMethod);
     var m = /*[[${message}]]*/ null; if (m) showToast(m, 'success');
     var e = /*[[${errorMessage}]]*/ null; if (e) showToast(e, 'error');
+    PolicyVersionUI.load();
 });
 </script>
 </body>

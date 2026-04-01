@@ -853,6 +853,38 @@ const PolicyCenter = {
             }
             const btn = document.getElementById('qp-create-btn');
             PolicyCenter.setLoading(btn, true);
+
+            // Pre-creation validation
+            try {
+                const quickRequest = {
+                    policyName: name,
+                    description: document.getElementById('qp-policy-desc').value,
+                    effect: document.getElementById('qp-policy-effect').value,
+                    roleIds: this.selectedSpel ? [] : Array.from(this.selectedRoles.keys()),
+                    permissionIds: this.selectedSpel ? [] : Array.from(this.selectedPerms.keys()),
+                    spelId: this.selectedSpel ? this.selectedSpel.id : null,
+                    sourceType: PolicyCenter.ManualTarget._context ? 'MANUAL' : 'RESOURCE',
+                    manualTargetType: PolicyCenter.ManualTarget._context?.manualTargetType || null,
+                    manualTargetIdentifier: PolicyCenter.ManualTarget._context?.manualTargetIdentifier || null,
+                    manualHttpMethod: PolicyCenter.ManualTarget._context?.manualHttpMethod || null,
+                    manualTargetOrder: PolicyCenter.ManualTarget._context?.manualTargetOrder || 0
+                };
+                const validation = await PolicyCenter.Validation.validateQuickPolicy(quickRequest);
+                if (!validation.canCreate) {
+                    showToast(PolicyCenter._i18n('validationBlocked', 'Creation blocked: critical conflict detected') + ' - ' + validation.blockedReason, 'error');
+                    PolicyCenter.setLoading(btn, false);
+                    return;
+                }
+                if (validation.conflicts.length > 0 || validation.duplicates.length > 0) {
+                    if (!confirm(PolicyCenter._i18n('validationConfirm', 'Conflicts detected. Proceed anyway?'))) {
+                        PolicyCenter.setLoading(btn, false);
+                        return;
+                    }
+                }
+            } catch (valErr) {
+                console.error('Pre-creation validation error', valErr);
+            }
+
             try {
                 const resp = await fetch('/admin/policy-center/api/quick-create', {
                     method: 'POST',
@@ -2075,6 +2107,238 @@ PolicyCenter.MultiSelect = {
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+};
+
+// ================================================================
+// POLICY VALIDATION MODULE
+// ================================================================
+
+PolicyCenter.Validation = {
+
+    checkHealth() {
+        const btn = document.getElementById('policy-health-check-btn');
+        if (btn) PolicyCenter.setLoading(btn, true);
+
+        fetch('/admin/policy-center/api/validation-report', {
+            headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
+        })
+        .then(r => r.json())
+        .then(report => {
+            this.renderHealthBanner(report);
+            this.renderPolicyBadges(report);
+            if (btn) PolicyCenter.setLoading(btn, false);
+        })
+        .catch(err => {
+            console.error('Health check failed', err);
+            if (btn) PolicyCenter.setLoading(btn, false);
+        });
+    },
+
+    renderHealthBanner(report) {
+        const banner = document.getElementById('policy-health-banner');
+        if (!banner) return;
+        banner.classList.remove('hidden');
+
+        const icon = document.getElementById('health-status-icon');
+        const text = document.getElementById('health-status-text');
+        const conflictCount = document.getElementById('health-conflict-count');
+        const duplicateCount = document.getElementById('health-duplicate-count');
+
+        if (report.healthStatus === 'HEALTHY') {
+            banner.style.borderColor = 'rgba(34,197,94,0.4)';
+            icon.innerHTML = '<i class="fas fa-check-circle" style="color:#4ade80;font-size:1.2rem;"></i>';
+            text.textContent = PolicyCenter._i18n('validationNoIssues', 'No conflicts or duplicates detected');
+            text.style.color = '#4ade80';
+        } else if (report.healthStatus === 'CRITICAL') {
+            banner.style.borderColor = 'rgba(239,68,68,0.4)';
+            icon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#f87171;font-size:1.2rem;"></i>';
+            text.textContent = PolicyCenter._i18n('validationCritical', 'CRITICAL');
+            text.style.color = '#f87171';
+        } else {
+            banner.style.borderColor = 'rgba(251,191,36,0.4)';
+            icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#fbbf24;font-size:1.2rem;"></i>';
+            text.textContent = PolicyCenter._i18n('validationWarning', 'WARNING');
+            text.style.color = '#fbbf24';
+        }
+
+        conflictCount.innerHTML = '<i class="fas fa-bolt"></i> ' +
+            PolicyCenter._i18n('validationConflict', 'Conflict') + ': ' + report.conflicts.length;
+        duplicateCount.innerHTML = '<i class="fas fa-copy"></i> ' +
+            PolicyCenter._i18n('validationDuplicate', 'Duplicate') + ': ' + report.duplicates.length;
+
+        // Render conflict details
+        const details = document.getElementById('health-details');
+        if (report.conflicts.length > 0 || report.duplicates.length > 0) {
+            details.classList.remove('hidden');
+            let html = '';
+            report.conflicts.forEach(c => {
+                const severityColor = c.severity === 'CRITICAL' ? '#f87171' :
+                    c.severity === 'HIGH' ? '#fb923c' :
+                    c.severity === 'MEDIUM' ? '#fbbf24' : '#94a3b8';
+                html += '<div class="flex items-center gap-2 py-1 text-xs" style="color:#cbd5e1;">' +
+                    '<span class="status-badge" style="background:' + severityColor + '20;color:' + severityColor +
+                    ';border-color:' + severityColor + '50;font-size:0.65rem;">' + c.severity + '</span>' +
+                    '<span>' + PolicyCenter.escapeHtml(c.conflictDescription) + '</span>' +
+                    '</div>';
+            });
+            report.duplicates.forEach(d => {
+                html += '<div class="flex items-center gap-2 py-1 text-xs" style="color:#cbd5e1;">' +
+                    '<span class="status-badge" style="background:rgba(168,85,247,0.2);color:#c084fc;border-color:rgba(168,85,247,0.3);font-size:0.65rem;">DUP</span>' +
+                    '<span>' + PolicyCenter.escapeHtml(d.reason) + '</span>' +
+                    '</div>';
+            });
+            details.innerHTML = html;
+        } else {
+            details.classList.add('hidden');
+        }
+    },
+
+    renderPolicyBadges(report) {
+        // Build conflict map: policyId -> list of conflicts
+        const conflictMap = {};
+        report.conflicts.forEach(c => {
+            if (c.newPolicyId) {
+                if (!conflictMap[c.newPolicyId]) conflictMap[c.newPolicyId] = [];
+                conflictMap[c.newPolicyId].push(c);
+            }
+            if (c.existingPolicyId) {
+                if (!conflictMap[c.existingPolicyId]) conflictMap[c.existingPolicyId] = [];
+                conflictMap[c.existingPolicyId].push(c);
+            }
+        });
+
+        // Build duplicate map
+        const dupMap = {};
+        report.duplicates.forEach(d => {
+            d.policyIds.forEach(pid => {
+                if (!dupMap[pid]) dupMap[pid] = [];
+                dupMap[pid].push(d);
+            });
+        });
+
+        // Update each policy row badge
+        document.querySelectorAll('.policy-health-cell').forEach(cell => {
+            const policyId = cell.id.replace('policy-health-', '');
+            const conflicts = conflictMap[policyId] || [];
+            const dups = dupMap[policyId] || [];
+
+            let html = '';
+            if (conflicts.length > 0) {
+                const maxSeverity = this.maxSeverity(conflicts);
+                const color = maxSeverity === 'CRITICAL' ? '#f87171' :
+                    maxSeverity === 'HIGH' ? '#fb923c' : '#fbbf24';
+                html += '<span class="status-badge" style="background:' + color + '20;color:' + color +
+                    ';border-color:' + color + '50;font-size:0.65rem;cursor:pointer;" ' +
+                    'title="' + conflicts.length + ' conflict(s)">' +
+                    '<i class="fas fa-bolt"></i> ' + conflicts.length + '</span> ';
+            }
+            if (dups.length > 0) {
+                html += '<span class="status-badge" style="background:rgba(168,85,247,0.2);color:#c084fc;border-color:rgba(168,85,247,0.3);font-size:0.65rem;cursor:pointer;" ' +
+                    'title="' + dups.length + ' duplicate(s)">' +
+                    '<i class="fas fa-copy"></i> ' + dups.length + '</span>';
+            }
+            if (!html) {
+                html = '<span class="text-xs" style="color:#4ade80;"><i class="fas fa-check"></i></span>';
+            }
+            cell.innerHTML = html;
+        });
+    },
+
+    maxSeverity(conflicts) {
+        const order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+        for (const s of order) {
+            if (conflicts.some(c => c.severity === s)) return s;
+        }
+        return 'LOW';
+    },
+
+    // Pre-creation validation for Quick mode
+    async validateQuickPolicy(quickRequest) {
+        try {
+            const response = await fetch('/admin/policy-center/api/validate-quick', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+                },
+                body: JSON.stringify(quickRequest)
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Quick validation failed', err);
+            return { conflicts: [], duplicates: [], canCreate: true, blockedReason: null };
+        }
+    },
+
+    // Impact analysis
+    async analyzeImpact(policyDto) {
+        try {
+            const response = await fetch('/admin/policy-center/api/impact-analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+                },
+                body: JSON.stringify(policyDto)
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Impact analysis failed', err);
+            return { affectedUserCount: 0, affectedUsers: [], affectedResources: [], accessChangeSummary: { gained: 0, lost: 0, unchanged: 0 } };
+        }
+    },
+
+    // Policy simulation
+    async simulate(candidatePolicy, testCases) {
+        try {
+            const response = await fetch('/admin/policy-center/api/simulate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+                },
+                body: JSON.stringify({ candidatePolicy: candidatePolicy, testCases: testCases })
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Simulation failed', err);
+            return { results: [], summary: { unchanged: 0, allowToDeny: 0, denyToAllow: 0, otherChanges: 0 } };
+        }
+    },
+
+    // Policy matrix
+    async getMatrix(resourceFilter, roleFilter) {
+        try {
+            const params = new URLSearchParams();
+            if (resourceFilter) params.append('resourceFilter', resourceFilter);
+            if (roleFilter) params.append('roleFilter', roleFilter);
+            const response = await fetch('/admin/policy-center/api/matrix?' + params.toString(), {
+                headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Matrix load failed', err);
+            return { resources: [], roles: [], cells: [], conflictCells: [] };
+        }
+    },
+
+    // Pre-creation validation for Manual mode
+    async validateBeforeCreate(policyDto) {
+        try {
+            const response = await fetch('/admin/policy-center/api/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+                },
+                body: JSON.stringify(policyDto)
+            });
+            return await response.json();
+        } catch (err) {
+            console.error('Validation failed', err);
+            return { conflicts: [], duplicates: [], canCreate: true, blockedReason: null };
+        }
     }
 };
 

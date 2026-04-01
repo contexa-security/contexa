@@ -19,7 +19,14 @@ import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
+import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyDuplicateDetector;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.repository.PolicyVersionRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.*;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -27,6 +34,7 @@ import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.modelmapper.ModelMapper;
 import org.redisson.api.RedissonClient;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -62,6 +70,68 @@ public class IamXacmlPapAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public PolicyDuplicateDetector policyDuplicateDetector(PolicyRepository policyRepository) {
+        return new PolicyDuplicateDetector(policyRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyValidationService policyValidationService(
+            PolicyConflictAnalyzer policyConflictAnalyzer,
+            PolicyDuplicateDetector policyDuplicateDetector,
+            PolicyRepository policyRepository) {
+        return new PolicyValidationService(policyConflictAnalyzer, policyDuplicateDetector, policyRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyImpactAnalyzer policyImpactAnalyzer(
+            UserRepository userRepository,
+            PolicyRepository policyRepository,
+            RoleHierarchy roleHierarchy) {
+        return new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicySimulator policySimulator(
+            UserRepository userRepository,
+            PolicyRepository policyRepository,
+            RoleHierarchy roleHierarchy) {
+        return new PolicySimulator(userRepository, policyRepository, roleHierarchy);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyMatrixService policyMatrixService(
+            PolicyRepository policyRepository,
+            RoleRepository roleRepository,
+            RoleHierarchy roleHierarchy) {
+        return new PolicyMatrixService(policyRepository, roleRepository, roleHierarchy);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AIPolicyValidator aiPolicyValidator(
+            RoleRepository roleRepository,
+            PermissionRepository permissionRepository,
+            PolicyConflictAnalyzer policyConflictAnalyzer,
+            PolicyDuplicateDetector policyDuplicateDetector) {
+        return new AIPolicyValidator(roleRepository, permissionRepository,
+                policyConflictAnalyzer, policyDuplicateDetector);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyVersionService policyVersionService(
+            PolicyVersionRepository policyVersionRepository,
+            ObjectMapper objectMapper,
+            ModelMapper modelMapper) {
+        return new PolicyVersionService(policyVersionRepository, objectMapper, modelMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(RedissonClient.class)
     public PolicyReloadBroadcaster policyReloadBroadcaster(
             RedissonClient redissonClient,
@@ -86,11 +156,17 @@ public class IamXacmlPapAutoConfiguration {
             ManagedResourceRepository managedResourceRepository,
             io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
             PolicyConflictAnalyzer policyConflictAnalyzer,
+            PolicyValidationService policyValidationService,
+            PolicyVersionService policyVersionService,
+            PolicyImpactAnalyzer policyImpactAnalyzer,
+            PolicySimulator policySimulator,
+            AIPolicyValidator aiPolicyValidator,
             ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
         DefaultPolicyService service = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
                 policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository,
-                centralAuditFacade, policyConflictAnalyzer);
+                centralAuditFacade, policyConflictAnalyzer, policyValidationService,
+                policyVersionService, policyImpactAnalyzer, policySimulator, aiPolicyValidator);
         policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
         return service;
     }
@@ -123,11 +199,12 @@ public class IamXacmlPapAutoConfiguration {
             PolicyEnrichmentService policyEnrichmentService,
             CustomDynamicAuthorizationManager authorizationManager,
             io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
+            PolicyConflictAnalyzer policyConflictAnalyzer) {
         return new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository, permissionRepository,
                 conditionTemplateRepository, policyEnrichmentService, authorizationManager,
-                securitySpelRepository, centralAuditFacade);
+                securitySpelRepository, centralAuditFacade, policyConflictAnalyzer);
     }
 
     @Bean

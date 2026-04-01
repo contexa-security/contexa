@@ -8,6 +8,7 @@ import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.RoleRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,11 +30,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,8 +54,25 @@ class RoleControllerTest {
     @Mock
     private RoleRepository roleRepository;
 
+    @Mock
+    private MessageSource messageSource;
+
     @InjectMocks
     private RoleController controller;
+
+    @BeforeEach
+    void setUpMessageSource() {
+        when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
+    }
 
     @Nested
     @DisplayName("getRoles")
@@ -131,7 +150,7 @@ class RoleControllerTest {
             String view = controller.createRole(roleDto, ra);
 
             assertThat(view).isEqualTo("redirect:/admin/roles");
-            assertThat(ra.getFlashAttributes().get("message")).asString().contains("successfully created");
+            assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.created");
             verify(roleService).createRole(role, List.of(1L));
         }
     }
@@ -183,7 +202,7 @@ class RoleControllerTest {
             String view = controller.updateRole(1L, roleDto, ra);
 
             assertThat(view).isEqualTo("redirect:/admin/roles");
-            assertThat(ra.getFlashAttributes().get("message")).asString().contains("successfully updated");
+            assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.updated");
             assertThat(roleDto.getId()).isEqualTo(1L);
             verify(roleService).updateRole(role, List.of(2L));
         }
@@ -201,7 +220,7 @@ class RoleControllerTest {
             String view = controller.deleteRole(1L, ra);
 
             assertThat(view).isEqualTo("redirect:/admin/roles");
-            assertThat(ra.getFlashAttributes().get("message")).asString().contains("successfully deleted");
+            assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.deleted");
             verify(roleService).deleteRole(1L);
         }
     }

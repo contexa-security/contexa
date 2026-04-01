@@ -202,7 +202,7 @@ class RoleServiceImplTest {
             Role role = buildRole(null, "ROLE_NEW");
             Permission perm = buildPermission(1L, "READ");
             when(roleRepository.findByRoleName("ROLE_NEW")).thenReturn(Optional.empty());
-            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.findAllById(List.of(1L))).thenReturn(List.of(perm));
             when(roleRepository.save(any(Role.class))).thenAnswer(inv -> {
                 Role r = inv.getArgument(0);
                 r.setId(1L);
@@ -249,11 +249,11 @@ class RoleServiceImplTest {
         void shouldThrowWhenPermNotFound() {
             Role role = buildRole(null, "ROLE_NEW");
             when(roleRepository.findByRoleName("ROLE_NEW")).thenReturn(Optional.empty());
-            when(permissionRepository.findById(999L)).thenReturn(Optional.empty());
+            when(permissionRepository.findAllById(List.of(999L))).thenReturn(Collections.emptyList());
 
             assertThatThrownBy(() -> service.createRole(role, List.of(999L)))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Permission not found");
+                    .hasMessageContaining("permissions not found");
         }
     }
 
