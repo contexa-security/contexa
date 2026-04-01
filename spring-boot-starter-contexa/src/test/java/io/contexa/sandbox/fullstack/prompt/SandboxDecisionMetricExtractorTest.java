@@ -199,6 +199,30 @@ class SandboxDecisionMetricExtractorTest {
     }
 
     @Test
+    @DisplayName("no MFA verification이 포함된 복합 reasoning은 mfaVerified=true와 모순되면 CONTRADICTED로 평가되어야 한다")
+    void adjudicationShouldMarkNoMfaVerificationAsContradictedWhenMfaIsTrue() {
+        SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog
+                .resizeScenario(SandboxPromptReplayScenarioCatalog.ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY, 3);
+        SandboxPromptReplayRound round = round(
+                scenario,
+                1,
+                "CHALLENGE",
+                0.45d,
+                "New user, new session, and new device with no MFA verification and thin role scope evidence.");
+
+        SandboxDecisionAdjudication adjudication = new SandboxDecisionAdjudicationService().adjudicate(
+                round,
+                SandboxDecisionGoldCaseCatalog.resolve(scenario, round),
+                "New user, new session, and new device with no MFA verification and thin role scope evidence.");
+
+        assertThat(adjudication.contradictedClaimCount()).isGreaterThanOrEqualTo(1);
+        assertThat(adjudication.contradictedClaimRate()).isEqualTo(100.0d);
+        assertThat(adjudication.claimAssessments())
+                .extracting(SandboxDecisionClaimAssessment::verdict)
+                .contains(SandboxDecisionClaimVerdict.CONTRADICTED);
+    }
+
+    @Test
     @DisplayName("thin role scope evidence 표현은 uncertainty language로 인정해야 한다")
     void adjudicationShouldTreatThinRoleScopeEvidenceAsSafeUncertainty() {
         SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog

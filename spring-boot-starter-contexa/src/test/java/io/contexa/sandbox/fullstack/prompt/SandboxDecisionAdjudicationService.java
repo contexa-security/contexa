@@ -61,19 +61,21 @@ public final class SandboxDecisionAdjudicationService {
             Map<String, Object> eventMetadata,
             String prompt) {
         String normalized = claim.toLowerCase(Locale.ROOT);
+        String normalizedPrompt = prompt == null ? "" : prompt.toLowerCase(Locale.ROOT);
+        List<SandboxDecisionClaimAssessment> matchedAssessments = new ArrayList<>();
 
         if (normalized.contains("new user")) {
-            return booleanFactClaim(claim, eventMetadata.get("isNewUser"), true, "event.isNewUser");
+            matchedAssessments.add(booleanFactClaim(claim, eventMetadata.get("isNewUser"), true, "event.isNewUser"));
         }
         if (normalized.contains("new device")) {
-            return booleanFactClaim(claim, eventMetadata.get("isNewDevice"), true, "event.isNewDevice");
+            matchedAssessments.add(booleanFactClaim(claim, eventMetadata.get("isNewDevice"), true, "event.isNewDevice"));
         }
         if (normalized.contains("new session")) {
-            return booleanFactClaim(claim, eventMetadata.get("isNewSession"), true, "event.isNewSession");
+            matchedAssessments.add(booleanFactClaim(claim, eventMetadata.get("isNewSession"), true, "event.isNewSession"));
         }
         if (normalized.contains("mfa")) {
-            boolean expectTrue = !normalized.contains("not verified") && !normalized.contains("without mfa");
-            return booleanFactClaim(claim, eventMetadata.get("mfaVerified"), expectTrue, "event.mfaVerified");
+            boolean expectTrue = !containsNegativeMfaPhrase(normalized);
+            matchedAssessments.add(booleanFactClaim(claim, eventMetadata.get("mfaVerified"), expectTrue, "event.mfaVerified"));
         }
         if (normalized.contains("high sensitivity")) {
             String actualSensitivity = eventMetadata.get("resourceSensitivity") == null
@@ -84,62 +86,81 @@ public final class SandboxDecisionAdjudicationService {
                     || actualSensitivity.equalsIgnoreCase("CRITICAL")
                     || actualSensitivity.equalsIgnoreCase("SECRET")
                     || actualSensitivity.equalsIgnoreCase("RESTRICTED"));
-            return grounded
+            matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "event.resourceSensitivity matched high-sensitivity band")
-                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.CONTRADICTED, "event.resourceSensitivity contradicted");
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.CONTRADICTED, "event.resourceSensitivity contradicted"));
         }
         if (normalized.contains("allow")) {
-            return stringFactClaim(claim, eventMetadata.get("authorizationEffect"), "ALLOW", "event.authorizationEffect");
+            matchedAssessments.add(stringFactClaim(claim, eventMetadata.get("authorizationEffect"), "ALLOW", "event.authorizationEffect"));
         }
         if (normalized.contains("baseline")) {
-            boolean grounded = prompt.toLowerCase(Locale.ROOT).contains("baseline")
-                    || prompt.toLowerCase(Locale.ROOT).contains("work profile");
-            return grounded
+            boolean grounded = normalizedPrompt.contains("baseline")
+                    || normalizedPrompt.contains("work profile");
+            matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt contains baseline/work-profile evidence.")
-                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose baseline evidence.");
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose baseline evidence."));
         }
         if (normalized.contains("history")) {
             boolean grounded = containsAny(
-                    prompt.toLowerCase(Locale.ROOT),
-                    prompt.toLowerCase(Locale.ROOT),
+                    normalizedPrompt,
+                    normalizedPrompt,
                     "history",
                     "historical",
                     "similar past events",
                     "observed work pattern",
                     "work profile");
-            return grounded
+            matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes history evidence.")
-                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose history evidence.");
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose history evidence."));
         }
         if (normalized.contains("session")) {
             boolean grounded = containsAny(
-                    prompt.toLowerCase(Locale.ROOT),
-                    prompt.toLowerCase(Locale.ROOT),
+                    normalizedPrompt,
+                    normalizedPrompt,
                     "session narrative",
                     "session age",
                     "previous path",
                     "session");
-            return grounded
+            matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes session evidence.")
-                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose session evidence.");
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose session evidence."));
         }
         if (normalized.contains("scope")) {
-            boolean grounded = prompt.toLowerCase(Locale.ROOT).contains("scope");
-            return grounded
+            boolean grounded = normalizedPrompt.contains("scope");
+            matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes scope evidence.")
-                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose scope evidence.");
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose scope evidence."));
         }
         if (normalized.contains("previous")) {
-            boolean grounded = prompt.toLowerCase(Locale.ROOT).contains("previouspath:");
-            return grounded
+            boolean grounded = normalizedPrompt.contains("previouspath:");
+            matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes previous-path evidence.")
-                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose previous-path evidence.");
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose previous-path evidence."));
+        }
+
+        if (matchedAssessments.isEmpty()) {
+            return new SandboxDecisionClaimAssessment(
+                    claim,
+                    SandboxDecisionClaimVerdict.UNSUPPORTED,
+                    "No explicit grounding rule matched this claim.");
+        }
+
+        SandboxDecisionClaimVerdict verdict = SandboxDecisionClaimVerdict.GROUNDED;
+        List<String> notes = new ArrayList<>();
+        for (SandboxDecisionClaimAssessment assessment : matchedAssessments) {
+            notes.add(assessment.rationale());
+            if (assessment.verdict() == SandboxDecisionClaimVerdict.CONTRADICTED) {
+                verdict = SandboxDecisionClaimVerdict.CONTRADICTED;
+            } else if (assessment.verdict() == SandboxDecisionClaimVerdict.UNSUPPORTED
+                    && verdict != SandboxDecisionClaimVerdict.CONTRADICTED) {
+                verdict = SandboxDecisionClaimVerdict.UNSUPPORTED;
+            }
         }
 
         return new SandboxDecisionClaimAssessment(
                 claim,
-                SandboxDecisionClaimVerdict.UNSUPPORTED,
-                "No explicit grounding rule matched this claim.");
+                verdict,
+                String.join("; ", notes));
     }
 
     private SandboxDecisionClaimAssessment booleanFactClaim(
@@ -206,6 +227,23 @@ public final class SandboxDecisionAdjudicationService {
             }
         }
         return false;
+    }
+
+    private boolean containsNegativeMfaPhrase(String normalizedClaim) {
+        return containsAny(
+                normalizedClaim,
+                null,
+                "not verified",
+                "without mfa",
+                "no mfa",
+                "lack of mfa",
+                "missing mfa",
+                "mfa missing",
+                "mfa absent",
+                "no mfa verification",
+                "without mfa verification",
+                "mfa was not verified",
+                "mfa not verified");
     }
 
     private String normalizeEvidenceText(String text) {

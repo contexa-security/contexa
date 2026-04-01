@@ -65,6 +65,17 @@ final class SandboxOfficialBenchmarkSubmissionReportWriter {
                 .map(SandboxPromptBenchmarkMetricCatalog::metricName)
                 .filter(metricName -> !combinedMetrics.containsKey(metricName))
                 .toList();
+        List<String> failingImplementedOfficialMetrics = SandboxPromptBenchmarkMetricCatalog.implementedOfficialMetrics().stream()
+                .filter(metric -> !metricPasses(metric.metricName(), combinedMetrics.get(metric.metricName()), metric.successThreshold()))
+                .map(SandboxPromptBenchmarkMetricCatalog::metricName)
+                .toList();
+        List<String> passedImplementedOfficialMetrics = SandboxPromptBenchmarkMetricCatalog.implementedOfficialMetrics().stream()
+                .filter(metric -> metricPasses(metric.metricName(), combinedMetrics.get(metric.metricName()), metric.successThreshold()))
+                .map(SandboxPromptBenchmarkMetricCatalog::metricName)
+                .toList();
+        String officialMetricPassState = missingImplementedOfficialMetrics.isEmpty() && failingImplementedOfficialMetrics.isEmpty()
+                ? "COMPLETE"
+                : "INCOMPLETE";
 
         summary.put("generatedAt", Instant.now().toString());
         summary.put("submissionType", "CONTEXA_OFFICIAL_14_METRIC_SUBMISSION");
@@ -78,7 +89,9 @@ final class SandboxOfficialBenchmarkSubmissionReportWriter {
         summary.put("officialMetricTargetCount", SandboxPromptBenchmarkMetricCatalog.officialMetrics().size());
         summary.put("implementedOfficialMetricCount", implementedOfficialMetrics.size());
         summary.put("missingImplementedOfficialMetrics", missingImplementedOfficialMetrics);
-        summary.put("officialMetricPassState", missingImplementedOfficialMetrics.isEmpty() ? "COMPLETE" : "INCOMPLETE");
+        summary.put("passedImplementedOfficialMetrics", passedImplementedOfficialMetrics);
+        summary.put("failingImplementedOfficialMetrics", failingImplementedOfficialMetrics);
+        summary.put("officialMetricPassState", officialMetricPassState);
         summary.put("implementedOfficialMetrics", implementedOfficialMetrics);
         summary.put("combinedMetricSummaries", combinedMetrics);
         summary.put("sourceReports", Map.of(
@@ -88,6 +101,14 @@ final class SandboxOfficialBenchmarkSubmissionReportWriter {
                 "decisionSummaryHtml", "decision-summary.html",
                 "decisionIndexHtml", "decision-index.html"));
         return summary;
+    }
+
+    private boolean metricPasses(String metricName, Object metricSummary, double successThreshold) {
+        if (!(metricSummary instanceof Map<?, ?> rawMetricSummary)) {
+            return false;
+        }
+        Object meanValue = rawMetricSummary.get("mean");
+        return asDouble(meanValue) >= successThreshold;
     }
 
     private String buildMarkdown(Map<String, Object> summary) {

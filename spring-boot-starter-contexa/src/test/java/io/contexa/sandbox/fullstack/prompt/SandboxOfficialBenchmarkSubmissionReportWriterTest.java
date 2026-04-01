@@ -86,7 +86,9 @@ class SandboxOfficialBenchmarkSubmissionReportWriterTest {
         assertThat(summaryJson)
                 .contains("CONTEXA_OFFICIAL_14_METRIC_SUBMISSION")
                 .contains("Context-to-Decision Calibration")
-                .contains("Prompt Fidelity Rate");
+                .contains("Prompt Fidelity Rate")
+                .contains("\"officialMetricPassState\" : \"INCOMPLETE\"")
+                .contains("failingImplementedOfficialMetrics");
         assertThat(summaryHtml)
                 .contains("prompt summary")
                 .contains("decision summary")
