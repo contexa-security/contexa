@@ -6,7 +6,15 @@ public record PolicyMatrixReport(
         List<ResourceEntry> resources,
         List<String> roles,
         List<List<MatrixCell>> cells,
-        List<ConflictCell> conflictCells) {
+        List<ConflictCell> conflictCells,
+        int totalRoles,
+        int totalPages,
+        int currentPage) {
+
+    public PolicyMatrixReport(List<ResourceEntry> resources, List<String> roles,
+                               List<List<MatrixCell>> cells, List<ConflictCell> conflictCells) {
+        this(resources, roles, cells, conflictCells, roles.size(), 1, 0);
+    }
 
     public record ResourceEntry(
             String identifier,

@@ -785,11 +785,12 @@
 
             <!-- ==================== TAB 3: SIMULATOR ==================== -->
             <div id="tab-simulator" class="pc-tab-content">
-                <div class="flex items-center justify-between mb-6">
+                <div class="mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-flask mr-2" style="color: #a78bfa;"></i>
                         <span th:text="#{admin.policy.center.tab.simulator}">Simulator</span>
                     </h2>
+                    <p class="mt-2 text-sm" style="color:#94a3b8;" th:text="#{admin.policy.center.simulator.desc}">Test whether a specific user is allowed or denied access to a given URL under the current policy set. Enter user, path, and HTTP method to see which policy matches and what decision is made.</p>
                 </div>
 
                 <!-- Test Case Input -->
@@ -797,13 +798,18 @@
                     <h3 class="text-base font-semibold mb-4" style="color: #cbd5e1;" th:text="#{admin.policy.center.simulator.test.cases}">Test Cases</h3>
                     <div id="sim-test-cases">
                         <div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">
-                            <div class="col-span-3" style="position:relative;">
-                                <input type="text" class="modern-input sim-userSearch" placeholder="Search user..." oninput="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.searchUser(this)" autocomplete="off" />
+                            <div class="col-span-2" style="position:relative;">
+                                <input type="text" class="modern-input sim-userSearch" placeholder="Search user..." oninput="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.searchUser(this)" onkeydown="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.handleKeydown(event,this)" autocomplete="off" />
                                 <input type="hidden" class="sim-userId" />
                                 <div class="sim-userDropdown hidden" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#1e293b;border:1px solid rgba(71,85,105,0.5);border-radius:0.5rem;max-height:12rem;overflow-y:auto;"></div>
                             </div>
-                            <div class="col-span-5"><input type="text" class="modern-input sim-path" placeholder="/api/path" /></div>
-                            <div class="col-span-3">
+                            <div class="col-span-2">
+                                <select class="modern-select sim-targetType" onchange="PolicyCenter.SimulatorUI.toggleTargetType(this)">
+                                    <option value="URL">URL</option><option value="METHOD">METHOD</option>
+                                </select>
+                            </div>
+                            <div class="col-span-4"><input type="text" class="modern-input sim-path" placeholder="/admin/dashboard" /></div>
+                            <div class="col-span-3 sim-method-wrap">
                                 <select class="modern-select sim-method">
                                     <option value="GET">GET</option><option value="POST">POST</option>
                                     <option value="PUT">PUT</option><option value="DELETE">DELETE</option>
@@ -871,11 +877,11 @@
                 </div>
 
                 <!-- Legend -->
-                <div class="flex gap-6 mt-4 text-xs" style="color: #94a3b8;">
-                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> ALLOW</span>
-                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(239,68,68,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> DENY</span>
-                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.15);border-radius:2px;margin-right:4px;vertical-align:middle;border:1px dashed rgba(34,197,94,0.4);"></span> <span th:text="#{admin.policy.center.matrix.inherited}">Inherited</span></span>
-                    <span><span style="display:inline-block;width:12px;height:12px;border:2px solid #f87171;border-radius:2px;margin-right:4px;vertical-align:middle;"></span> <span th:text="#{admin.policy.center.matrix.conflict}">Conflict</span></span>
+                <div class="flex flex-wrap gap-x-8 gap-y-2 mt-4 text-xs" style="color: #94a3b8;">
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> ALLOW — <span th:text="#{admin.policy.center.matrix.legend.allow}">Policy directly grants access to this role</span></span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(239,68,68,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> DENY — <span th:text="#{admin.policy.center.matrix.legend.deny}">Policy explicitly denies access to this role</span></span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.15);border-radius:2px;margin-right:4px;vertical-align:middle;border:1px dashed rgba(34,197,94,0.4);"></span> * <span th:text="#{admin.policy.center.matrix.legend.inherited}">Inherited via role hierarchy (not directly assigned)</span></span>
+                    <span><span style="display:inline-block;width:12px;height:12px;border:2px solid #f87171;border-radius:2px;margin-right:4px;vertical-align:middle;"></span> <span th:text="#{admin.policy.center.matrix.legend.conflict}">Same resource has both ALLOW and DENY policies for this role</span></span>
                 </div>
             </div>
 

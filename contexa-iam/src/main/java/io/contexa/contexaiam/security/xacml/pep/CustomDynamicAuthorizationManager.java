@@ -2,29 +2,27 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.TrustAssessment;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
-import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConverter;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.contexa.contexacommon.domain.TrustAssessment;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpMethod;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.core.Authentication;
@@ -37,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -47,8 +43,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ExpressionAuthorizationManagerResolver managerResolver;
     private List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings;
-    private static final Pattern AUTHORITY_PATTERN = Pattern.compile("^[A-Z_]+$");
-    private static final Pattern HAS_PERMISSION_PATTERN = Pattern.compile("\\s*(?:and\\s+)?hasPermission\\([^)]*\\)(?:\\s*and)?\\s*");
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
@@ -56,6 +50,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyCombiningEvaluator combiningEvaluator;
     private final CombiningAlgorithm combiningAlgorithm;
+
+    private final PolicyExpressionConverter expressionConverter = new PolicyExpressionConverter();
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -67,7 +63,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies().stream()
                 .sorted(Comparator.comparingInt(Policy::getPriority))
-                .collect(Collectors.toList());
+                .toList();
 
         for (Policy policy : urlPolicies) {
             if (policy.isAIGenerated() && (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {
@@ -148,49 +144,10 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return authorizationDecision;
     }
 
+
+
     public String getExpressionFromPolicy(Policy policy) {
-        List<String> conditionExpressions = policy.getRules().stream()
-                .flatMap(rule -> rule.getConditions().stream())
-                .map(PolicyCondition::getExpression)
-                .toList();
-
-        if (conditionExpressions.isEmpty()) {
-            return (policy.getEffect() == Policy.Effect.ALLOW) ? "permitAll" : "denyAll";
-        }
-
-        String finalExpression;
-
-        if (conditionExpressions.size() == 1) {
-            finalExpression = conditionExpressions.getFirst();
-
-        } else {
-            boolean allAreSimpleAuthorities = conditionExpressions.stream().allMatch(expr -> AUTHORITY_PATTERN.matcher(expr).matches());
-
-            if (allAreSimpleAuthorities) {
-                finalExpression = "hasAnyAuthority(" +
-                        conditionExpressions.stream().map(auth -> "'" + auth + "'").collect(Collectors.joining(",")) +
-                        ")";
-
-            } else {
-                finalExpression = conditionExpressions.stream()
-                        .map(expr -> "(" + expr + ")")
-                        .collect(Collectors.joining(" or "));
-            }
-        }
-
-        if (policy.getEffect() == Policy.Effect.DENY) {
-            finalExpression = "!(" + finalExpression + ")";
-        }
-        return stripHasPermissionForUrl(finalExpression);
-    }
-
-    private String stripHasPermissionForUrl(String expression) {
-        String cleaned = HAS_PERMISSION_PATTERN.matcher(expression).replaceAll(" ");
-        cleaned = cleaned.replaceAll("\\s+and\\s+and\\s+", " and ");
-        cleaned = cleaned.replaceAll("^\\s*and\\s+", "");
-        cleaned = cleaned.replaceAll("\\s+and\\s*$", "");
-        cleaned = cleaned.trim();
-        return cleaned.isEmpty() ? "denyAll" : cleaned;
+        return expressionConverter.toExpression(policy);
     }
 
     private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context,

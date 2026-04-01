@@ -30,7 +30,7 @@
             </div>
 
             <!-- ============ EDIT FORM ============ -->
-            <form id="policy-edit-form" th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)"
+            <form id="policy-edit-form" th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)">
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
                 <!-- Policy Info -->

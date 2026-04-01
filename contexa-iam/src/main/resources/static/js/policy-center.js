@@ -2434,24 +2434,81 @@ PolicyCenter.switchTab = function(tabName) {
 
 PolicyCenter.SimulatorUI = {
     _searchTimeout: null,
+    _activeIndex: -1,
+
+    _buildUserInput: function() {
+        return '<div class="col-span-2" style="position:relative;">'
+            + '<input type="text" class="modern-input sim-userSearch" placeholder="Search user..." '
+            + 'oninput="if(typeof PolicyCenter!==\'undefined\')PolicyCenter.SimulatorUI.searchUser(this)" '
+            + 'onkeydown="if(typeof PolicyCenter!==\'undefined\')PolicyCenter.SimulatorUI.handleKeydown(event,this)" '
+            + 'autocomplete="off" />'
+            + '<input type="hidden" class="sim-userId" />'
+            + '<div class="sim-userDropdown hidden" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#1e293b;border:1px solid rgba(71,85,105,0.5);border-radius:0.5rem;max-height:12rem;overflow-y:auto;"></div>'
+            + '</div>';
+    },
 
     addTestCase: function() {
         var container = document.getElementById('sim-test-cases');
         container.insertAdjacentHTML('beforeend',
             '<div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">'
-            + '<div class="col-span-3" style="position:relative;">'
-            + '<input type="text" class="modern-input sim-userSearch" placeholder="Search user..." oninput="if(typeof PolicyCenter!==\'undefined\')PolicyCenter.SimulatorUI.searchUser(this)" autocomplete="off" />'
-            + '<input type="hidden" class="sim-userId" />'
-            + '<div class="sim-userDropdown hidden" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#1e293b;border:1px solid rgba(71,85,105,0.5);border-radius:0.5rem;max-height:12rem;overflow-y:auto;"></div>'
-            + '</div>'
-            + '<div class="col-span-5"><input type="text" class="modern-input sim-path" placeholder="/api/path" /></div>'
-            + '<div class="col-span-3"><select class="modern-select sim-method"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
+            + this._buildUserInput()
+            + '<div class="col-span-2"><select class="modern-select sim-targetType" onchange="PolicyCenter.SimulatorUI.toggleTargetType(this)"><option value="URL">URL</option><option value="METHOD">METHOD</option></select></div>'
+            + '<div class="col-span-4"><input type="text" class="modern-input sim-path" placeholder="/admin/dashboard" /></div>'
+            + '<div class="col-span-3 sim-method-wrap"><select class="modern-select sim-method"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
             + '<div class="col-span-1"><button type="button" onclick="this.closest(\'.sim-case\').remove()" class="remove-btn">&times;</button></div></div>');
+    },
+
+    toggleTargetType: function(selectEl) {
+        var row = selectEl.closest('.sim-case');
+        var methodWrap = row.querySelector('.sim-method-wrap');
+        var pathInput = row.querySelector('.sim-path');
+        if (selectEl.value === 'METHOD') {
+            methodWrap.style.display = 'none';
+            pathInput.placeholder = 'com.example.Service.method';
+        } else {
+            methodWrap.style.display = '';
+            pathInput.placeholder = '/admin/dashboard';
+        }
+    },
+
+    handleKeydown: function(event, input) {
+        var dropdown = input.parentElement.querySelector('.sim-userDropdown');
+        if (!dropdown || dropdown.classList.contains('hidden')) return;
+        var items = dropdown.querySelectorAll('.sim-dropdown-item');
+        if (!items.length) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            this._activeIndex = Math.min(this._activeIndex + 1, items.length - 1);
+            this._highlightItem(items);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            this._activeIndex = Math.max(this._activeIndex - 1, 0);
+            this._highlightItem(items);
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (this._activeIndex >= 0 && this._activeIndex < items.length) {
+                items[this._activeIndex].click();
+            }
+        } else if (event.key === 'Escape') {
+            dropdown.classList.add('hidden');
+            this._activeIndex = -1;
+        }
+    },
+
+    _highlightItem: function(items) {
+        items.forEach(function(el, i) {
+            el.style.background = (i === PolicyCenter.SimulatorUI._activeIndex) ? 'rgba(99,102,241,0.3)' : 'transparent';
+        });
+        if (this._activeIndex >= 0 && items[this._activeIndex]) {
+            items[this._activeIndex].scrollIntoView({ block: 'nearest' });
+        }
     },
 
     searchUser: function(input) {
         var self = this;
         clearTimeout(this._searchTimeout);
+        this._activeIndex = -1;
         var keyword = input.value.trim();
         var dropdown = input.closest('.sim-case') ? input.parentElement.querySelector('.sim-userDropdown') : null;
         if (!dropdown) return;
@@ -2467,7 +2524,8 @@ PolicyCenter.SimulatorUI = {
                 if (!users.length) { dropdown.innerHTML = '<div class="p-3 text-xs" style="color:#64748b;">' + PolicyCenter._i18n('simNoUsers', 'No users found') + '</div>'; dropdown.classList.remove('hidden'); return; }
                 var html = '';
                 users.forEach(function(u) {
-                    html += '<div class="p-2 cursor-pointer text-sm" style="color:#e2e8f0;" onmouseover="this.style.background=\'rgba(99,102,241,0.2)\'" onmouseout="this.style.background=\'transparent\'" '
+                    html += '<div class="sim-dropdown-item p-2 cursor-pointer text-sm" style="color:#e2e8f0;" '
+                        + 'onmouseover="this.style.background=\'rgba(99,102,241,0.2)\'" onmouseout="if(this!==document.querySelector(\'.sim-dropdown-item:nth-child(\'+(PolicyCenter.SimulatorUI._activeIndex+1)+\')\'))this.style.background=\'transparent\'" '
                         + 'onclick="PolicyCenter.SimulatorUI.selectUser(this,' + u.id + ',\'' + PolicyCenter.escapeHtml(u.username || u.name || String(u.id)) + '\')">'
                         + '<span class="font-mono text-xs" style="color:#94a3b8;">ID:' + u.id + '</span> '
                         + '<span>' + PolicyCenter.escapeHtml(u.username || u.name || '') + '</span></div>';
@@ -2488,6 +2546,7 @@ PolicyCenter.SimulatorUI = {
         if (searchInput) searchInput.value = username + ' (ID:' + userId + ')';
         if (hiddenInput) hiddenInput.value = userId;
         if (dropdown) dropdown.classList.add('hidden');
+        this._activeIndex = -1;
     },
 
     run: async function() {
@@ -2496,8 +2555,9 @@ PolicyCenter.SimulatorUI = {
             var hiddenUserId = row.querySelector('.sim-userId');
             var userId = hiddenUserId ? hiddenUserId.value : null;
             var path = row.querySelector('.sim-path')?.value;
+            var targetType = row.querySelector('.sim-targetType')?.value || 'URL';
             var method = row.querySelector('.sim-method')?.value;
-            if (userId && path) cases.push({ userId: parseInt(userId), path: path, httpMethod: method || 'GET' });
+            if (userId && path) cases.push({ userId: parseInt(userId), targetType: targetType, path: path, httpMethod: targetType === 'METHOD' ? null : (method || 'GET') });
         });
         var hasUnselectedUser = false;
         document.querySelectorAll('.sim-case').forEach(function(row) {
@@ -2544,7 +2604,7 @@ PolicyCenter.SimulatorUI = {
             html += '<tr style="border-color:rgba(71,85,105,0.3);' + bgStyle + '">'
                 + '<td class="py-3 px-4" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(r.username || String(r.testCase.userId)) + '</td>'
                 + '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">' + PolicyCenter.escapeHtml(r.testCase.path) + '</td>'
-                + '<td class="py-3 px-4"><span class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">' + r.testCase.httpMethod + '</span></td>'
+                + '<td class="py-3 px-4"><span class="status-badge ' + (r.testCase.httpMethod ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border-purple-500/30') + ' text-xs">' + (r.testCase.httpMethod || 'METHOD') + '</span></td>'
                 + '<td class="py-3 px-4"><span style="color:' + decColor + ';font-weight:600;">' + dec + '</span></td>'
                 + '<td class="py-3 px-4 text-xs" style="color:#c4b5fd;">' + PolicyCenter.escapeHtml(matchedPolicy) + '</td>'
                 + '<td class="py-3 px-4 font-mono text-xs" style="color:#94a3b8;max-width:300px;overflow:hidden;text-overflow:ellipsis;" title="' + PolicyCenter.escapeHtml(matchedExpr) + '">' + PolicyCenter.escapeHtml(matchedExpr || '-') + '</td>'
@@ -2586,8 +2646,10 @@ PolicyCenter.MatrixUI = {
         report.resources.forEach(function(res, rowIdx) {
             if (!report.cells[rowIdx]) return;
             html += '<tr style="border-color:rgba(71,85,105,0.3);">';
+            var isMethod = res.httpMethod === 'METHOD';
+            var badgeClass = isMethod ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
             html += '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">'
-                + '<span class="status-badge bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-xs mr-1">' + res.httpMethod + '</span>'
+                + '<span class="status-badge ' + badgeClass + ' text-xs mr-1">' + res.httpMethod + '</span>'
                 + PolicyCenter.escapeHtml(res.identifier) + '</td>';
 
             report.cells[rowIdx].forEach(function(cell, colIdx) {
@@ -2609,6 +2671,10 @@ PolicyCenter.MatrixUI = {
         });
 
         html += '</tbody></table>';
+        html += '<div class="mt-3 text-xs" style="color:#64748b;">'
+            + report.resources.length + ' resources x ' + report.roles.length + ' roles'
+            + (report.totalRoles > report.roles.length ? ' (total ' + report.totalRoles + ' roles)' : '')
+            + '</div>';
         container.innerHTML = html;
     }
 };

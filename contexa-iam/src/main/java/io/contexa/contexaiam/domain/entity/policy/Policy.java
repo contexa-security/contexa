@@ -133,6 +133,7 @@ public class Policy implements Serializable {
         this.approvalStatus = ApprovalStatus.APPROVED;
         this.approvedBy = approver;
         this.approvedAt = LocalDateTime.now();
+        this.setIsActive(true);
         this.updatedAt = LocalDateTime.now();
     }
 

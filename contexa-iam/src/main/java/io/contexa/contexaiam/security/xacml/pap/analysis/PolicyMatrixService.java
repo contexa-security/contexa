@@ -16,13 +16,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -40,38 +34,42 @@ public class PolicyMatrixService {
     private final RoleHierarchy roleHierarchy;
 
     private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern HAS_ANY_AUTHORITY_PATTERN = Pattern.compile("hasAnyAuthority\\(([^)]+)\\)");
+    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\('([^']*)'\\)");
+    private static final Pattern HAS_ANY_ROLE_PATTERN = Pattern.compile("hasAnyRole\\(([^)]+)\\)");
+    private static final Pattern QUOTED_ARG_PATTERN = Pattern.compile("'([^']*)'");
 
-    /**
-     * Generate a resource x role access matrix.
-     */
     public PolicyMatrixReport generateMatrix(String resourceFilter, String roleFilter) {
         List<Policy> policies = policyRepository.findAllWithDetails().stream()
                 .filter(Policy::getIsActive)
                 .toList();
 
-        // Collect all URL resources from policies
+        // Collect all resources (URL + METHOD) from policies
         Set<ResourceEntry> resourceEntries = new LinkedHashSet<>();
         for (Policy policy : policies) {
             for (PolicyTarget target : policy.getTargets()) {
-                if (!"URL".equals(target.getTargetType())) continue;
                 if (resourceFilter != null && !resourceFilter.isBlank()
                         && !target.getTargetIdentifier().contains(resourceFilter)) continue;
+                String method = "METHOD".equals(target.getTargetType()) ? "METHOD"
+                        : (target.getHttpMethod() != null ? target.getHttpMethod() : "ANY");
                 resourceEntries.add(new ResourceEntry(
                         target.getTargetIdentifier(),
-                        target.getHttpMethod() != null ? target.getHttpMethod() : "ANY",
+                        method,
                         target.getTargetIdentifier()));
             }
         }
 
-        // Collect all roles
-        List<Role> allRoles = roleRepository.findAll().stream()
+        // Collect all roles with pagination
+        List<Role> filteredRoles = roleRepository.findAll().stream()
                 .filter(Role::isEnabled)
                 .filter(r -> roleFilter == null || roleFilter.isBlank()
                         || r.getRoleName().contains(roleFilter))
                 .toList();
-        List<String> roleNames = allRoles.stream().map(Role::getRoleName).toList();
+        int totalRoles = filteredRoles.size();
+        List<String> roleNames = filteredRoles.stream()
+                .map(Role::getRoleName).toList();
 
-        // Build hierarchy map: role -> all reachable roles (including itself)
+        // Build hierarchy map
         Map<String, Set<String>> hierarchyMap = buildHierarchyMap(roleNames);
 
         // Build matrix
@@ -88,7 +86,6 @@ public class PolicyMatrixService {
                 MatrixCell cell = evaluateCell(resource, roleName, hierarchyMap, policies);
                 rowCells.add(cell);
 
-                // Detect conflicts: same resource, opposing effects for same role
                 if (cell != null && hasConflictForCell(resource, roleName, hierarchyMap, policies)) {
                     conflictCells.add(new ConflictCell(row, col, "HIGH"));
                 }
@@ -96,7 +93,7 @@ public class PolicyMatrixService {
             cells.add(rowCells);
         }
 
-        return new PolicyMatrixReport(resourceList, roleNames, cells, conflictCells);
+        return new PolicyMatrixReport(resourceList, roleNames, cells, conflictCells, totalRoles, 1, 0);
     }
 
     private MatrixCell evaluateCell(ResourceEntry resource, String roleName,
@@ -104,7 +101,7 @@ public class PolicyMatrixService {
         // Direct match first
         for (Policy policy : policies) {
             if (policyMatchesResource(policy, resource)
-                    && policyConditionReferencesRole(policy, roleName)) {
+                    && policyConditionMatchesRole(policy, roleName)) {
                 return new MatrixCell(policy.getEffect().name(),
                         policy.getId(), policy.getName(), false);
             }
@@ -117,7 +114,7 @@ public class PolicyMatrixService {
                 if (parentRole.equals(roleName)) continue;
                 for (Policy policy : policies) {
                     if (policyMatchesResource(policy, resource)
-                            && policyConditionReferencesRole(policy, parentRole)) {
+                            && policyConditionMatchesRole(policy, parentRole)) {
                         return new MatrixCell(policy.getEffect().name(),
                                 policy.getId(), policy.getName(), true);
                     }
@@ -140,7 +137,7 @@ public class PolicyMatrixService {
         for (String role : allRoles) {
             for (Policy policy : policies) {
                 if (policyMatchesResource(policy, resource)
-                        && policyConditionReferencesRole(policy, role)) {
+                        && policyConditionMatchesRole(policy, role)) {
                     effects.add(policy.getEffect().name());
                 }
             }
@@ -150,22 +147,105 @@ public class PolicyMatrixService {
 
     private boolean policyMatchesResource(Policy policy, ResourceEntry resource) {
         return policy.getTargets().stream()
-                .filter(t -> "URL".equals(t.getTargetType()))
                 .anyMatch(t -> t.getTargetIdentifier().equals(resource.identifier()));
     }
 
-    private boolean policyConditionReferencesRole(Policy policy, String roleName) {
+    /**
+     * Checks if a policy's conditions reference or include a specific role.
+     * Supports: hasAuthority, hasAnyAuthority, hasRole, hasAnyRole,
+     * permitAll, isAuthenticated, and no-condition policies.
+     */
+    private boolean policyConditionMatchesRole(Policy policy, String roleName) {
+        // No rules or all rules have no conditions = unconditional (applies to all roles)
+        if (policy.getRules() == null || policy.getRules().isEmpty()) {
+            return true;
+        }
+        boolean hasAnyCondition = false;
         for (var rule : policy.getRules()) {
+            if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
+                continue;
+            }
             for (PolicyCondition condition : rule.getConditions()) {
-                Matcher matcher = HAS_AUTHORITY_PATTERN.matcher(condition.getExpression());
-                while (matcher.find()) {
-                    if (matcher.group(1).equals(roleName)) return true;
+                hasAnyCondition = true;
+                if (expressionMatchesRole(condition.getExpression(), roleName)) {
+                    return true;
                 }
-                if (condition.getExpression().contains("permitAll")) return true;
             }
         }
-        return policy.getRules().isEmpty() || policy.getRules().stream()
-                .allMatch(r -> r.getConditions().isEmpty());
+        return !hasAnyCondition;
+    }
+
+    private boolean expressionMatchesRole(String expression, String roleName) {
+        if (expression == null || expression.isBlank()) return true;
+
+        // permitAll / isAuthenticated = applies to all roles
+        if (expression.contains("permitAll") || expression.contains("isAuthenticated")) return true;
+
+        // AI expressions
+        if (expression.contains("#ai.")) return true;
+
+        String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+
+        // hasAuthority('X')
+        Matcher authMatcher = HAS_AUTHORITY_PATTERN.matcher(expression);
+        while (authMatcher.find()) {
+            String value = authMatcher.group(1);
+            if (value.equals(roleName) || value.equals(roleAuthority)) return true;
+        }
+
+        // hasAnyAuthority('A', 'B')
+        Matcher anyAuthMatcher = HAS_ANY_AUTHORITY_PATTERN.matcher(expression);
+        if (anyAuthMatcher.find()) {
+            if (matchesAnyQuotedArg(anyAuthMatcher.group(1), roleName)) return true;
+        }
+
+        // hasRole('X')
+        Matcher roleMatcher = HAS_ROLE_PATTERN.matcher(expression);
+        while (roleMatcher.find()) {
+            String value = roleMatcher.group(1);
+            String fullRole = value.startsWith("ROLE_") ? value : "ROLE_" + value;
+            if (fullRole.equals(roleAuthority)) return true;
+        }
+
+        // hasAnyRole('A', 'B')
+        Matcher anyRoleMatcher = HAS_ANY_ROLE_PATTERN.matcher(expression);
+        if (anyRoleMatcher.find()) {
+            if (matchesAnyQuotedArgRole(anyRoleMatcher.group(1), roleName)) return true;
+        }
+
+        // Plain authority name (e.g. "ROLE_ADMIN" without hasAuthority wrapper)
+        if (!expression.contains("(") && !expression.contains(" ")) {
+            String trimmed = expression.trim();
+            if (trimmed.equals(roleName) || trimmed.equals(roleAuthority)) return true;
+        }
+
+        // Compound expression containing role name directly
+        if (expression.contains("'" + roleName + "'") || expression.contains("'" + roleAuthority + "'")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean matchesAnyQuotedArg(String argsString, String roleName) {
+        String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+        Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
+        while (argMatcher.find()) {
+            String value = argMatcher.group(1);
+            if (value.equals(roleName) || value.equals(roleAuthority)) return true;
+        }
+        return false;
+    }
+
+    private boolean matchesAnyQuotedArgRole(String argsString, String roleName) {
+        String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+        Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
+        while (argMatcher.find()) {
+            String value = argMatcher.group(1);
+            String fullRole = value.startsWith("ROLE_") ? value : "ROLE_" + value;
+            if (fullRole.equals(roleAuthority)) return true;
+        }
+        return false;
     }
 
     private Map<String, Set<String>> buildHierarchyMap(List<String> roleNames) {

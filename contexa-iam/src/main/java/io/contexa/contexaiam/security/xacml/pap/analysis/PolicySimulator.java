@@ -56,7 +56,7 @@ public class PolicySimulator {
         int otherChanges = 0;
 
         for (SimulationTestCase testCase : testCases) {
-            Users user = userRepository.findById(testCase.userId()).orElse(null);
+            Users user = userRepository.findByIdWithGroupsRolesAndPermissions(testCase.userId()).orElse(null);
             if (user == null) {
                 continue;
             }
@@ -67,16 +67,17 @@ public class PolicySimulator {
             List<String> authorityNames = expanded.stream()
                     .map(GrantedAuthority::getAuthority).toList();
 
-            DecisionDetail currentResult = evaluateForPath(
-                    testCase.path(), testCase.httpMethod(), expanded, existingPolicies);
+            String targetType = testCase.resolvedTargetType();
+            DecisionDetail currentResult = evaluate(
+                    targetType, testCase.path(), testCase.httpMethod(), expanded, existingPolicies);
 
             DecisionDetail newResult;
             if (candidatePolicy != null) {
                 List<Policy> withCandidate = new ArrayList<>();
                 withCandidate.add(candidatePolicy);
                 withCandidate.addAll(existingPolicies);
-                newResult = evaluateForPath(
-                        testCase.path(), testCase.httpMethod(), expanded, withCandidate);
+                newResult = evaluate(
+                        targetType, testCase.path(), testCase.httpMethod(), expanded, withCandidate);
             } else {
                 newResult = currentResult;
             }
@@ -111,36 +112,52 @@ public class PolicySimulator {
                 new SimulationSummary(unchanged, allowToDeny, denyToAllow, otherChanges));
     }
 
-    private DecisionDetail evaluateForPath(String path, String httpMethod,
-                                            Collection<? extends GrantedAuthority> authorities,
-                                            List<Policy> policies) {
+    private DecisionDetail evaluate(String targetType, String identifier, String httpMethod,
+                                      Collection<? extends GrantedAuthority> authorities,
+                                      List<Policy> policies) {
         Set<String> authorityNames = authorities.stream()
                 .map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
 
+        DecisionDetail firstTargetMatch = null;
+
         for (Policy policy : policies) {
-            boolean targetMatches = policy.getTargets().stream()
-                    .filter(t -> "URL".equals(t.getTargetType()))
-                    .anyMatch(t -> pathMatches(t.getTargetIdentifier(), path)
-                            && methodMatches(t.getHttpMethod(), httpMethod));
+            boolean targetMatches;
+            if ("METHOD".equals(targetType)) {
+                targetMatches = policy.getTargets().stream()
+                        .filter(t -> "METHOD".equals(t.getTargetType()))
+                        .anyMatch(t -> t.getTargetIdentifier().equals(identifier));
+            } else {
+                targetMatches = policy.getTargets().stream()
+                        .filter(t -> "URL".equals(t.getTargetType()))
+                        .anyMatch(t -> pathMatches(t.getTargetIdentifier(), identifier)
+                                && methodMatches(t.getHttpMethod(), httpMethod));
+            }
 
             if (!targetMatches) continue;
 
+            String expression = policy.getRules().stream()
+                    .flatMap(r -> r.getConditions().stream())
+                    .map(PolicyCondition::getExpression)
+                    .collect(Collectors.joining(" AND "));
+            if (expression.isEmpty()) expression = "permitAll";
+
             boolean conditionMatches = evaluateConditions(policy, authorityNames);
             if (conditionMatches) {
-                String expression = policy.getRules().stream()
-                        .flatMap(r -> r.getConditions().stream())
-                        .map(PolicyCondition::getExpression)
-                        .collect(Collectors.joining(" AND "));
-
                 return new DecisionDetail(
                         policy.getEffect().name(),
                         policy.getId(), policy.getName(),
-                        expression.isEmpty() ? "permitAll" : expression,
-                        List.of());
+                        expression, List.of());
+            }
+
+            if (firstTargetMatch == null) {
+                firstTargetMatch = new DecisionDetail(
+                        "DENY", policy.getId(), policy.getName(),
+                        expression, List.of());
             }
         }
 
-        return new DecisionDetail("NONE", null, null, null, List.of());
+        return firstTargetMatch != null ? firstTargetMatch
+                : new DecisionDetail("NONE", null, null, null, List.of());
     }
 
     private boolean pathMatches(String pattern, String path) {
