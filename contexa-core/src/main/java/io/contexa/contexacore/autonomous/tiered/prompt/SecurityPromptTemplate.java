@@ -1,9 +1,8 @@
-package io.contexa.contexacore.autonomous.tiered.template;
+package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.PromptContextComposer;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 

@@ -1,8 +1,7 @@
-package io.contexa.contexacore.autonomous.tiered.template;
+package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import lombok.Getter;
 import org.springframework.ai.document.Document;
 

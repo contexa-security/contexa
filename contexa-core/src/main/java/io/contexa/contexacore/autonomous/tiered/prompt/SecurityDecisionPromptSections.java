@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.tiered.template;
+package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -9,7 +9,6 @@ import io.contexa.contexacore.autonomous.context.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.BehaviorAnalysis;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.DetectedPatterns;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.SessionContext;

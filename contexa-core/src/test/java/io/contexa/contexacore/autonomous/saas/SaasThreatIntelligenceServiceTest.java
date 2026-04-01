@@ -4,7 +4,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.client.SaasThreatIntelligenceHttpClient;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityPromptTemplate;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

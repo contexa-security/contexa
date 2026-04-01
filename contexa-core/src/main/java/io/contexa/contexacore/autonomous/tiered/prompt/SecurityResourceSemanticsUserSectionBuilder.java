@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.tiered.template;
+package io.contexa.contexacore.autonomous.tiered.prompt;
 
 public class SecurityResourceSemanticsUserSectionBuilder implements SecurityPromptSectionBuilder {
 

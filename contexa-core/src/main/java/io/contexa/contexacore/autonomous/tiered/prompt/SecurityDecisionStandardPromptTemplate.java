@@ -13,7 +13,6 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.AbstractStandardPromptTemplate;
