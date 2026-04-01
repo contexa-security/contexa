@@ -351,7 +351,20 @@ var PolicyDetailUI = {
 
         var panel = document.getElementById('impact-panel');
         panel.classList.remove('hidden');
-        document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Analyzing...</p>';
+        var _impI18n = {
+            analyzing: /*[[#{msg.policy.impact.analyzing}]]*/ 'Analyzing...',
+            gained: /*[[#{msg.policy.impact.gained}]]*/ 'Gained',
+            lost: /*[[#{msg.policy.impact.lost}]]*/ 'Lost',
+            unchanged: /*[[#{msg.policy.impact.unchanged}]]*/ 'Unchanged',
+            thUser: /*[[#{msg.policy.impact.th.user}]]*/ 'User',
+            thRoles: /*[[#{msg.policy.impact.th.roles}]]*/ 'Roles',
+            thCurrent: /*[[#{msg.policy.impact.th.current}]]*/ 'Current',
+            thNew: /*[[#{msg.policy.impact.th.new}]]*/ 'New',
+            thChange: /*[[#{msg.policy.impact.th.change}]]*/ 'Change',
+            noUsers: /*[[#{msg.policy.impact.no.users}]]*/ 'No users affected.',
+            failed: /*[[#{msg.policy.impact.failed}]]*/ 'Analysis failed: '
+        };
+        document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + _impI18n.analyzing + '</p>';
 
         fetch('/admin/policy-center/api/impact-analysis', {
             method: 'POST',
@@ -362,17 +375,17 @@ var PolicyDetailUI = {
         .then(function(report) {
             var s = report.accessChangeSummary;
             document.getElementById('impact-summary').innerHTML =
-                '<div class="rounded-lg p-3 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-xl font-bold" style="color:#4ade80;">' + s.gained + '</div><div class="text-xs" style="color:#64748b;">Gained</div></div>'
-                + '<div class="rounded-lg p-3 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-xl font-bold" style="color:#f87171;">' + s.lost + '</div><div class="text-xs" style="color:#64748b;">Lost</div></div>'
-                + '<div class="rounded-lg p-3 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-xl font-bold" style="color:#94a3b8;">' + s.unchanged + '</div><div class="text-xs" style="color:#64748b;">Unchanged</div></div>';
+                '<div class="rounded-lg p-3 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-xl font-bold" style="color:#4ade80;">' + s.gained + '</div><div class="text-xs" style="color:#64748b;">' + _impI18n.gained + '</div></div>'
+                + '<div class="rounded-lg p-3 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-xl font-bold" style="color:#f87171;">' + s.lost + '</div><div class="text-xs" style="color:#64748b;">' + _impI18n.lost + '</div></div>'
+                + '<div class="rounded-lg p-3 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-xl font-bold" style="color:#94a3b8;">' + s.unchanged + '</div><div class="text-xs" style="color:#64748b;">' + _impI18n.unchanged + '</div></div>';
 
             if (report.affectedUsers.length) {
                 var html = '<table class="min-w-full text-sm mt-3"><thead><tr>'
-                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">User</th>'
-                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Roles</th>'
-                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Current</th>'
-                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">New</th>'
-                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Change</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _impI18n.thUser + '</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _impI18n.thRoles + '</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _impI18n.thCurrent + '</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _impI18n.thNew + '</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _impI18n.thChange + '</th>'
                     + '</tr></thead><tbody>';
                 report.affectedUsers.forEach(function(u) {
                     var bg = u.changeType === 'ACCESS_LOST' ? 'rgba(239,68,68,0.05)' : u.changeType === 'ACCESS_GAINED' ? 'rgba(34,197,94,0.05)' : '';
@@ -387,11 +400,11 @@ var PolicyDetailUI = {
                 html += '</tbody></table>';
                 document.getElementById('impact-users').innerHTML = html;
             } else {
-                document.getElementById('impact-users').innerHTML = '<p class="text-sm mt-2" style="color:#64748b;">No users affected.</p>';
+                document.getElementById('impact-users').innerHTML = '<p class="text-sm mt-2" style="color:#64748b;">' + _impI18n.noUsers + '</p>';
             }
         })
         .catch(function(err) {
-            document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#f87171;">Analysis failed: ' + err.message + '</p>';
+            document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#f87171;">' + _impI18n.failed + err.message + '</p>';
         });
     }
 };
@@ -465,7 +478,15 @@ var PolicyVersionUI = {
 
         var resultDiv = document.getElementById('version-compare-result');
         resultDiv.classList.remove('hidden');
-        resultDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Comparing...</p>';
+        var _verI18n = {
+            comparing: /*[[#{msg.policy.version.comparing}]]*/ 'Comparing...',
+            noDiff: /*[[#{msg.policy.version.no.diff}]]*/ 'No differences found.',
+            thField: /*[[#{msg.policy.version.th.field}]]*/ 'Field',
+            thBefore: /*[[#{msg.policy.version.th.before}]]*/ 'Before',
+            thAfter: /*[[#{msg.policy.version.th.after}]]*/ 'After',
+            failed: /*[[#{msg.policy.version.compare.failed}]]*/ 'Compare failed.'
+        };
+        resultDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + _verI18n.comparing + '</p>';
 
         fetch('/admin/policy-center/api/' + this.policyId + '/versions/compare?v1=' + v1 + '&v2=' + v2, {
             headers: { [this.csrfHeader()]: this.csrfToken() }
@@ -473,11 +494,11 @@ var PolicyVersionUI = {
         .then(function(r) { return r.json(); })
         .then(function(changes) {
             if (!changes.length) {
-                resultDiv.innerHTML = '<p class="text-sm" style="color:#4ade80;"><i class="fas fa-check mr-1"></i> No differences found.</p>';
+                resultDiv.innerHTML = '<p class="text-sm" style="color:#4ade80;"><i class="fas fa-check mr-1"></i> ' + _verI18n.noDiff + '</p>';
                 return;
             }
             var html = '<h4 class="text-sm font-bold mb-3" style="color:#818cf8;"><i class="fas fa-columns mr-1"></i> v' + v1 + ' vs v' + v2 + '</h4>';
-            html += '<table class="min-w-full text-sm"><thead><tr><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Field</th><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Before (v' + v1 + ')</th><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">After (v' + v2 + ')</th></tr></thead><tbody>';
+            html += '<table class="min-w-full text-sm"><thead><tr><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _verI18n.thField + '</th><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _verI18n.thBefore + ' (v' + v1 + ')</th><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">' + _verI18n.thAfter + ' (v' + v2 + ')</th></tr></thead><tbody>';
             changes.forEach(function(c) {
                 html += '<tr style="border-color:rgba(71,85,105,0.3);">'
                     + '<td class="py-2 px-3 font-mono text-xs" style="color:#a5b4fc;">' + PolicyVersionUI.escapeHtml(c.field) + '</td>'
@@ -487,7 +508,7 @@ var PolicyVersionUI = {
             html += '</tbody></table>';
             resultDiv.innerHTML = html;
         })
-        .catch(function(err) { resultDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">Compare failed.</p>'; });
+        .catch(function(err) { resultDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">' + _verI18n.failed + '</p>'; });
     },
 
     rollback: function(versionNumber) {

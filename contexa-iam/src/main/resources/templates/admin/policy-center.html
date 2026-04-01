@@ -784,7 +784,7 @@
             </div>
 
             <!-- ==================== TAB 3: SIMULATOR ==================== -->
-            <div id="tab-simulator" class="pc-tab-content" style="display:none;">
+            <div id="tab-simulator" class="pc-tab-content">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-flask mr-2" style="color: #a78bfa;"></i>
@@ -843,7 +843,7 @@
             </div>
 
             <!-- ==================== TAB 4: MATRIX ==================== -->
-            <div id="tab-matrix" class="pc-tab-content" style="display:none;">
+            <div id="tab-matrix" class="pc-tab-content">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-th mr-2" style="color: #38bdf8;"></i>
@@ -1231,7 +1231,21 @@
      th:data-matrix-no-data="#{admin.policy.center.matrix.no.data}"
      th:data-delete-reason-required="#{msg.policy.version.change.reason.required}"
      th:data-sim-select-user="#{admin.policy.center.simulator.select.user}"
-     th:data-ai-validate-error="#{admin.policy.center.ai.validation.error}">
+     th:data-ai-validate-error="#{admin.policy.center.ai.validation.error}"
+     th:data-confirm-conflict-warning="#{policy.center.js.confirm.conflict.warning}"
+     th:data-confirm-effect="#{policy.center.js.confirm.effect}"
+     th:data-confirm-permissions="#{policy.center.js.confirm.permissions}"
+     th:data-confirm-policy-name="#{policy.center.js.confirm.policy.name}"
+     th:data-confirm-roles="#{policy.center.js.confirm.roles}"
+     th:data-conflict-duplicate="#{policy.center.js.conflict.duplicate}"
+     th:data-conflict-similar="#{policy.center.js.conflict.similar}"
+     th:data-load-failed="#{policy.center.js.load.failed}"
+     th:data-no-items-available="#{policy.center.js.no.items.available}"
+     th:data-none="#{policy.center.js.none}"
+     th:data-picker-title-condition="#{policy.center.js.picker.title.condition}"
+     th:data-picker-title-permission="#{policy.center.js.picker.title.permission}"
+     th:data-picker-title-role="#{policy.center.js.picker.title.role}"
+     th:data-sim-add-case="#{policy.center.js.sim.add.case}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>

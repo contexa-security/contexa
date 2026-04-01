@@ -2112,6 +2112,11 @@ PolicyCenter.MultiSelect = {
     }
 };
 
+PolicyCenter.escapeHtml = function(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+};
+
 // ================================================================
 // POLICY VALIDATION MODULE
 // ================================================================
@@ -2357,19 +2362,17 @@ PolicyCenter.Validation = {
 // ================================================================
 
 PolicyCenter.switchTab = function(tabName) {
-    // Hide all client-side tabs
-    ['simulator', 'matrix'].forEach(t => {
-        var el = document.getElementById('tab-' + t);
-        if (el) el.style.display = 'none';
-        var btn = document.getElementById('tab-btn-' + t);
-        if (btn) btn.classList.remove('active');
+    // Hide ALL tabs (both server-side and client-side use active class)
+    document.querySelectorAll('.pc-tab-content').forEach(function(c) {
+        c.classList.remove('active');
+        c.style.display = '';
     });
-    // Hide server-side tabs
-    document.querySelectorAll('.pc-tab-content.active').forEach(c => c.classList.remove('active'));
-    document.querySelectorAll('.pc-tab-nav .pc-tab-btn.active').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.pc-tab-btn').forEach(function(b) {
+        b.classList.remove('active');
+    });
 
     var target = document.getElementById('tab-' + tabName);
-    if (target) { target.style.display = ''; }
+    if (target) { target.classList.add('active'); }
     var btn = document.getElementById('tab-btn-' + tabName);
     if (btn) btn.classList.add('active');
 
