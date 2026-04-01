@@ -339,7 +339,7 @@
                         <p class="text-sm" style="color: #94a3b8;" th:text="#{admin.policy.center.create.manual.subtitle}">Create precise access control policies by directly setting Target, Rule, and Condition.</p>
                     </div>
 
-                    <form id="manual-create-form" th:action="@{/admin/policy-center/create-policy}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyCenter.Manual.validateAndSubmit(event)"
+                    <form id="manual-create-form" th:action="@{/admin/policy-center/create-policy}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyCenter.Manual.validateAndSubmit(event)">
                         <div class="manual-form-section">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
