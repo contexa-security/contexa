@@ -171,6 +171,13 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:processed:%s", NAMESPACE, eventId);
     }
 
+    public static String eventProcessing(String eventId) {
+        if (eventId == null || eventId.isBlank()) {
+            throw new IllegalArgumentException("Event ID cannot be null or empty");
+        }
+        return String.format("%s:processing:%s", NAMESPACE, eventId);
+    }
+
     private static void validateUserId(String userId) {
         if (userId == null || userId.trim().isEmpty()) {
             throw new IllegalArgumentException("UserId is required for Zero Trust architecture");

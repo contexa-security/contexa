@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -103,9 +104,7 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         long startedAt = System.currentTimeMillis();
 
         try {
-            rawResponseText = executeRealDecisionCall(promptGenerationResult, round)
-                    .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
-                    .block();
+            rawResponseText = executeRealDecisionCallWithQuickRetry(promptGenerationResult, round);
 
             pipelineContext.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponseText);
             pipelineContext.addMetadata("structuredOutputComplete", false);
@@ -240,6 +239,31 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         return llmClient.call(promptGenerationResult.getPrompt());
     }
 
+    private String executeRealDecisionCallWithQuickRetry(
+            PromptGenerationResult promptGenerationResult,
+            SandboxPromptReplayRound round) {
+        int attempts = 0;
+        Exception lastFailure = null;
+        while (attempts < 3) {
+            attempts++;
+            try {
+                return executeRealDecisionCall(promptGenerationResult, round)
+                        .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
+                        .block();
+            } catch (Exception exception) {
+                lastFailure = exception;
+                if (!isRetryableBusyFailure(exception) || attempts >= 3) {
+                    break;
+                }
+                sleepQuietly(attempts == 1 ? 1500L : 3000L);
+            }
+        }
+        if (lastFailure instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+        throw new IllegalStateException("Real LLM decision replay failed", lastFailure);
+    }
+
     private void warmUpRealLlmOnce() {
         if (!REAL_LLM_WARMED_UP.compareAndSet(false, true)) {
             return;
@@ -302,6 +326,30 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             return exception.getMessage();
         }
         return exception.getClass().getSimpleName();
+    }
+
+    private boolean isRetryableBusyFailure(Throwable throwable) {
+        if (throwable == null) {
+            return false;
+        }
+        String message = throwable.getMessage();
+        if (message != null) {
+            String normalized = message.toLowerCase(Locale.ROOT);
+            if (normalized.contains("maximum pending requests exceeded")
+                    || normalized.contains("server busy, please try again")
+                    || normalized.contains("transientaiexception")) {
+                return true;
+            }
+        }
+        return isRetryableBusyFailure(throwable.getCause());
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private String objectToJson(Object value) {

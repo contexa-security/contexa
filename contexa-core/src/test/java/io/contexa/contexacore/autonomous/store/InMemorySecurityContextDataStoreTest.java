@@ -158,6 +158,32 @@ class InMemorySecurityContextDataStoreTest {
     }
 
     @Test
+    @DisplayName("claimEventProcessing 는 acquired -> in-flight -> processed 순으로 상태를 구분해야 한다")
+    void claimEventProcessing_shouldDistinguishInflightAndProcessedStates() {
+        assertThat(store.claimEventProcessing("event-claim"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+        assertThat(store.claimEventProcessing("event-claim"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT);
+
+        store.markEventProcessed("event-claim");
+
+        assertThat(store.claimEventProcessing("event-claim"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.PROCESSED);
+    }
+
+    @Test
+    @DisplayName("releaseEventProcessing 후에는 같은 이벤트를 다시 acquire 할 수 있어야 한다")
+    void releaseEventProcessing_shouldAllowReacquire() {
+        assertThat(store.claimEventProcessing("event-release"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+
+        store.releaseEventProcessing("event-release");
+
+        assertThat(store.claimEventProcessing("event-release"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+    }
+
+    @Test
     @DisplayName("setLastRequestTime and getLastRequestTime work correctly")
     void setLastRequestTime_getLastRequestTime_returnsTimestamp() {
         long timestamp = System.currentTimeMillis();

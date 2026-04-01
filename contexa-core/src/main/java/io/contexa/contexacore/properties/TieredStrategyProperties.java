@@ -84,7 +84,7 @@ public class TieredStrategyProperties {
 
             private long llmMs = 300000;
 
-            private long ragMs = 10000;
+            private long ragMs = 100000;
         }
 
         @Data

@@ -10,18 +10,25 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,9 +59,11 @@ class SecurityPlaneAgentTest {
     @BeforeEach
     void setUp() {
         SecurityPlaneProperties.AgentSettings agentSettings = new SecurityPlaneProperties.AgentSettings();
+        SecurityPlaneProperties.LlmExecutorSettings llmExecutorSettings = new SecurityPlaneProperties.LlmExecutorSettings();
         agentSettings.setName("TestAgent");
         agentSettings.setAutoStart(false);
         when(securityPlaneProperties.getAgent()).thenReturn(agentSettings);
+        when(securityPlaneProperties.getLlmExecutor()).thenReturn(llmExecutorSettings);
 
         agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
@@ -65,8 +74,8 @@ class SecurityPlaneAgentTest {
     @Test
     @DisplayName("processSecurityEvent should process event normally")
     void processSecurityEvent_shouldProcessNormally() {
-        // given
         SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-normal")
                 .userId("user-1")
                 .sourceIp("10.0.0.1")
                 .build();
@@ -76,68 +85,162 @@ class SecurityPlaneAgentTest {
                 .processingStatus(SecurityEventContext.ProcessingStatus.COMPLETED)
                 .build();
 
-        when(dataStore.tryMarkEventAsProcessed(anyString())).thenReturn(true);
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
         when(securityEventProcessor.process(any(SecurityEvent.class))).thenReturn(expectedContext);
 
-        // when
         SecurityEventContext result = agent.processSecurityEvent(event);
 
-        // then
         assertThat(result).isEqualTo(expectedContext);
         verify(securityEventProcessor).process(event);
+        verify(dataStore).markEventProcessed(anyString());
     }
 
     @Test
-    @DisplayName("Duplicate event should be skipped when tryMarkEventAsProcessed returns false")
+    @DisplayName("이미 처리 완료된 이벤트는 duplicate 로 skip 되어야 한다")
     void duplicateEvent_shouldBeSkipped() {
-        // given
         SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-duplicate")
                 .userId("user-2")
                 .build();
 
-        when(dataStore.tryMarkEventAsProcessed(anyString())).thenReturn(false);
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.PROCESSED);
 
-        // when
         SecurityEventContext result = agent.processSecurityEvent(event);
 
-        // then
         assertThat(result.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.SKIPPED);
         assertThat(result.getMetadata()).containsEntry("skipReason", "duplicate_event");
         verify(securityEventProcessor, never()).process(any(SecurityEvent.class));
     }
 
     @Test
+    @DisplayName("다른 스레드에서 처리 중인 이벤트는 in-flight skip 으로 반환되어야 한다")
+    void inflightEvent_shouldBeMarkedAsInflightSkip() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-inflight-skip")
+                .userId("user-2")
+                .build();
+
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT);
+
+        SecurityEventContext result = agent.processSecurityEvent(event);
+
+        assertThat(result.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.SKIPPED);
+        assertThat(result.getMetadata()).containsEntry("skipReason", "event_processing_in_flight");
+        verify(securityEventProcessor, never()).process(any(SecurityEvent.class));
+    }
+
+    @Test
     @DisplayName("start/stop should transition agent state correctly")
     void startStop_shouldTransitionState() {
-        // when - start
         agent.start();
-
-        // then - can stop after start
         agent.stop();
-
-        // start again should work
         agent.start();
-
-        // second start should not throw (already running)
         agent.start();
     }
 
     @Test
     @DisplayName("processSecurityEvent exception should propagate as RuntimeException")
     void processSecurityEvent_exception_shouldPropagate() {
-        // given
         SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-error")
                 .userId("user-4")
                 .sourceIp("10.0.0.4")
                 .build();
 
-        when(dataStore.tryMarkEventAsProcessed(anyString())).thenReturn(true);
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
         when(securityEventProcessor.process(any(SecurityEvent.class)))
                 .thenThrow(new RuntimeException("Processing error"));
 
-        // when/then
         assertThatThrownBy(() -> agent.processSecurityEvent(event))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Event processing failed");
+        verify(dataStore).releaseEventProcessing(anyString());
+    }
+
+    @Test
+    @DisplayName("배치 처리 중 event whole-budget timeout이 발생하면 defer 경로로 되돌려야 한다")
+    void batchProcessingTimeout_shouldDeferEvent() throws Exception {
+        SecurityPlaneProperties properties = new SecurityPlaneProperties();
+        properties.getAgent().setAutoStart(false);
+        properties.getAgent().setName("TimeoutAgent");
+        properties.getAgent().setEventTimeoutMs(1001L);
+        properties.getAgent().setMaxDeferredRetries(1);
+
+        when(securityPlaneProperties.getAgent()).thenReturn(properties.getAgent());
+        when(securityPlaneProperties.getLlmExecutor()).thenReturn(properties.getLlmExecutor());
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+        clearInvocations(securityMonitor);
+
+        ExecutorService actualLlmExecutor = Executors.newSingleThreadExecutor();
+        SecurityPlaneAgent timedAgent = new SecurityPlaneAgent(
+                securityMonitor, dataStore, centralAuditFacade,
+                securityEventProcessor, securityPlaneProperties, actualLlmExecutor);
+        timedAgent.initialize();
+        timedAgent.start();
+
+        ArgumentCaptor<SecurityMonitoringService.SecurityEventBatchProcessor> processorCaptor =
+                ArgumentCaptor.forClass(SecurityMonitoringService.SecurityEventBatchProcessor.class);
+        verify(securityMonitor, timeout(1000)).setBatchProcessor(processorCaptor.capture());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-timeout")
+                .userId("user-timeout")
+                .sessionId("session-timeout")
+                .build();
+
+        when(securityEventProcessor.process(any(SecurityEvent.class))).thenAnswer(invocation -> {
+            Thread.sleep(1500L);
+            return SecurityEventContext.builder()
+                    .securityEvent(invocation.getArgument(0))
+                    .processingStatus(SecurityEventContext.ProcessingStatus.COMPLETED)
+                    .build();
+        });
+
+        processorCaptor.getValue().processBatch(List.of(event));
+
+        verify(securityMonitor, timeout(4000)).deferEvent(eq(event), anyString());
+        assertThat(event.getMetadata()).containsEntry("processingTimedOut", true);
+
+        timedAgent.shutdown();
+        actualLlmExecutor.shutdownNow();
+    }
+
+    @Test
+    @DisplayName("배치 처리 중 동일 eventId 가 아직 in-flight 이면 defer 경로로 되돌려야 한다")
+    void inflightEventDuringBatch_shouldDeferEvent() throws Exception {
+        SecurityPlaneProperties properties = new SecurityPlaneProperties();
+        properties.getAgent().setAutoStart(false);
+        properties.getAgent().setName("InflightAgent");
+        properties.getAgent().setEventTimeoutMs(5000L);
+        properties.getAgent().setMaxDeferredRetries(1);
+
+        when(securityPlaneProperties.getAgent()).thenReturn(properties.getAgent());
+        when(securityPlaneProperties.getLlmExecutor()).thenReturn(properties.getLlmExecutor());
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT);
+        clearInvocations(securityMonitor);
+
+        ExecutorService actualLlmExecutor = Executors.newSingleThreadExecutor();
+        SecurityPlaneAgent inflightAgent = new SecurityPlaneAgent(
+                securityMonitor, dataStore, centralAuditFacade,
+                securityEventProcessor, securityPlaneProperties, actualLlmExecutor);
+        inflightAgent.initialize();
+        inflightAgent.start();
+
+        ArgumentCaptor<SecurityMonitoringService.SecurityEventBatchProcessor> processorCaptor =
+                ArgumentCaptor.forClass(SecurityMonitoringService.SecurityEventBatchProcessor.class);
+        verify(securityMonitor, timeout(1000)).setBatchProcessor(processorCaptor.capture());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-inflight")
+                .userId("user-inflight")
+                .sessionId("session-inflight")
+                .build();
+
+        processorCaptor.getValue().processBatch(List.of(event));
+
+        verify(securityMonitor, timeout(4000)).deferEvent(eq(event), eq("event_processing_in_flight"));
+
+        inflightAgent.shutdown();
+        actualLlmExecutor.shutdownNow();
     }
 }

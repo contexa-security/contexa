@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,7 @@ public class InMemorySecurityEventCollector implements SecurityEventCollector {
             return;
         }
 
+        event.addMetadata("ingestAt", System.currentTimeMillis());
         eventCount.incrementAndGet();
 
         if (event.getEventId() != null) {
@@ -69,6 +71,7 @@ public class InMemorySecurityEventCollector implements SecurityEventCollector {
             eventCache.put(event.getEventId(), event);
         }
 
+        RuntimeException listenerFailure = null;
         for (SecurityEventListener listener : listeners) {
             try {
                 if (listener.isActive()) {
@@ -77,13 +80,24 @@ public class InMemorySecurityEventCollector implements SecurityEventCollector {
             } catch (Exception e) {
                 errorCount.incrementAndGet();
                 log.error("Failed to dispatch event to listener: {}", listener.getListenerName(), e);
+                if (listenerFailure == null) {
+                    listenerFailure = new IllegalStateException(
+                            "Listener dispatch failed for event " + event.getEventId(), e);
+                }
             }
+        }
+
+        if (listenerFailure != null) {
+            throw listenerFailure;
         }
     }
 
     private void evictOldEntries() {
-        eventCache.keySet().stream()
+        eventCache.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(
+                        Comparator.comparing(SecurityEvent::getTimestamp, Comparator.nullsFirst(Comparator.naturalOrder()))))
                 .limit(EVICTION_BATCH)
+                .map(Map.Entry::getKey)
                 .toList()
                 .forEach(eventCache::remove);
     }

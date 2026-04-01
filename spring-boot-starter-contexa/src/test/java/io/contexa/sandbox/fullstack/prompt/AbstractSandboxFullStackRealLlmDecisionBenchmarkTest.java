@@ -79,6 +79,10 @@ abstract class AbstractSandboxFullStackRealLlmDecisionBenchmarkTest {
         registry.add("sandbox.prompt.username", () -> "sandbox-decision-real-" + UUID.randomUUID() + "@example.com");
         registry.add("sandbox.prompt.password", () -> DEFAULT_PASSWORD);
         registry.add("contexa.opentelemetry.enabled", () -> false);
+        registry.add("spring.ai.retry.max-attempts", () -> 1);
+        registry.add("spring.ai.retry.backoff.initial-interval", () -> "10ms");
+        registry.add("spring.ai.retry.backoff.multiplier", () -> 1.1d);
+        registry.add("spring.ai.retry.backoff.max-interval", () -> "10ms");
         registry.add("spring.ai.ollama.chat.options.model", SandboxDecisionBenchmarkSettings::pinnedModelId);
         registry.add("spring.ai.ollama.chat.options.temperature", SandboxDecisionBenchmarkSettings::temperature);
         registry.add("spring.ai.ollama.chat.options.num-predict", SandboxDecisionBenchmarkSettings::maxOutputTokens);

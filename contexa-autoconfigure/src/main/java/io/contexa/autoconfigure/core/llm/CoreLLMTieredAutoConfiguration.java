@@ -2,7 +2,11 @@ package io.contexa.autoconfigure.core.llm;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.properties.LlmProviderProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
+import io.contexa.contexacore.std.llm.bulkhead.OllamaBulkheadSettings;
+import io.contexa.contexacore.std.llm.bulkhead.OllamaChatBulkheadModel;
+import io.contexa.contexacore.std.llm.bulkhead.OllamaEmbeddingBulkheadModel;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
@@ -62,6 +66,9 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
 
+    @Autowired
+    private LlmProviderProperties llmProviderProperties;
+
     @Bean
     @Primary
     public ChatModel primaryChatModel(
@@ -91,14 +98,14 @@ public class CoreLLMTieredAutoConfiguration {
             String trimmedName = modelName.trim().toLowerCase();
             ChatModel model = availableModels.get(trimmedName);
             if (model != null) {
-                return model;
+                return wrapChatModel(trimmedName, model);
             }
         }
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
             log.error("No priority model found. Using {} (fallback)", firstEntry.getKey());
-            return firstEntry.getValue();
+            return wrapChatModel(firstEntry.getKey(), firstEntry.getValue());
         }
 
         log.error("No ChatModel available. LLM features will be disabled. " +
@@ -171,14 +178,14 @@ public class CoreLLMTieredAutoConfiguration {
             String trimmedName = modelName.trim().toLowerCase();
             EmbeddingModel model = availableModels.get(trimmedName);
             if (model != null) {
-                return model;
+                return wrapEmbeddingModel(trimmedName, model);
             }
         }
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
             log.error("No priority model found. Using {} (fallback)", firstEntry.getKey());
-            return firstEntry.getValue();
+            return wrapEmbeddingModel(firstEntry.getKey(), firstEntry.getValue());
         }
 
         log.error("No EmbeddingModel available. Embedding features will be disabled. " +
@@ -188,5 +195,52 @@ public class CoreLLMTieredAutoConfiguration {
 
     @PostConstruct
     public void init() {
+    }
+
+    private ChatModel wrapChatModel(String providerName, ChatModel model) {
+        if (model == null || !"ollama".equalsIgnoreCase(providerName) || model instanceof OllamaChatBulkheadModel) {
+            return model;
+        }
+
+        LlmProviderProperties.Ollama ollama = llmProviderProperties.getOllama();
+        return new OllamaChatBulkheadModel(
+                model,
+                resolveChatModelName(model),
+                new OllamaBulkheadSettings(
+                        ollama.getChatMaxConcurrent(),
+                        ollama.getChatAcquireTimeoutMs(),
+                        ollama.getChatRetryAttempts(),
+                        ollama.getChatRetryDelayMs(),
+                        ollama.getChatBusyTripThreshold(),
+                        ollama.getChatCircuitOpenMs()
+                )
+        );
+    }
+
+    private EmbeddingModel wrapEmbeddingModel(String providerName, EmbeddingModel model) {
+        if (model == null || !"ollama".equalsIgnoreCase(providerName) || model instanceof OllamaEmbeddingBulkheadModel) {
+            return model;
+        }
+
+        LlmProviderProperties.Ollama ollama = llmProviderProperties.getOllama();
+        return new OllamaEmbeddingBulkheadModel(
+                model,
+                "ollama-embedding",
+                new OllamaBulkheadSettings(
+                        ollama.getEmbeddingMaxConcurrent(),
+                        ollama.getEmbeddingAcquireTimeoutMs(),
+                        ollama.getEmbeddingRetryAttempts(),
+                        ollama.getEmbeddingRetryDelayMs(),
+                        ollama.getEmbeddingBusyTripThreshold(),
+                        ollama.getEmbeddingCircuitOpenMs()
+                )
+        );
+    }
+
+    private String resolveChatModelName(ChatModel model) {
+        if (model == null || model.getDefaultOptions() == null || model.getDefaultOptions().getModel() == null) {
+            return model != null ? model.getClass().getSimpleName() : "ollama";
+        }
+        return model.getDefaultOptions().getModel();
     }
 }

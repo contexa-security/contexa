@@ -129,6 +129,18 @@ public final class SandboxDecisionMetricExtractor {
         if (candidate instanceof Map<?, ?> map) {
             return map.get(key);
         }
+        if (candidate instanceof String text) {
+            String trimmed = text.trim();
+            if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                try {
+                    Map<?, ?> parsed = objectMapper.readValue(trimmed, Map.class);
+                    return parsed.get(key);
+                } catch (Exception ignored) {
+                    return null;
+                }
+            }
+            return null;
+        }
         Map<?, ?> converted = objectMapper.convertValue(candidate, Map.class);
         return converted.get(key);
     }

@@ -11,7 +11,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -19,10 +22,17 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
+    private final AtomicLong publishRequestedCount = new AtomicLong(0);
+    private final AtomicLong publishConfirmedCount = new AtomicLong(0);
+    private final AtomicLong publishFailedCount = new AtomicLong(0);
+    private final AtomicLong dlqDispatchRequestedCount = new AtomicLong(0);
+    private final AtomicLong dlqDispatchConfirmedCount = new AtomicLong(0);
+    private final AtomicLong dlqDispatchFailedCount = new AtomicLong(0);
 
     @Override
     public void publishGenericSecurityEvent(ZeroTrustSpringEvent event) {
         long startTime = System.currentTimeMillis();
+        publishRequestedCount.incrementAndGet();
 
             String topic = String.format("security.events.%s.%s",
                     event.getCategory().name().toLowerCase(),
@@ -32,11 +42,14 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
             CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(topic, key, event);
             future.whenComplete((result, ex) -> {
                 if(ex != null) {
+                    publishFailedCount.incrementAndGet();
                     long duration = System.currentTimeMillis() - startTime;
                     log.error("[KafkaPublisher] Failed to publish ZeroTrust event - category={}, type={}, error: {}, duration={}ms",
                             event.getCategory(), event.getEventType(), ex.getMessage(), duration, ex);
-                    sendToDeadLetterQueue(event, ex);
+                    sendToDeadLetterQueueAsync(event, ex);
+                    return;
                 }
+                publishConfirmedCount.incrementAndGet();
             });
     }
 
@@ -50,7 +63,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         return "unknown-" + System.currentTimeMillis();
     }
 
-    private void sendToDeadLetterQueue(Object event, Throwable exception) {
+    private void sendToDeadLetterQueueAsync(Object event, Throwable exception) {
         try {
             DeadLetterEvent dlqEvent = DeadLetterEvent.builder()
                     .originalEvent(event)
@@ -58,11 +71,32 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
                     .errorType(exception.getClass().getName())
                     .build();
 
-            kafkaTemplate.send(securityKafkaProperties.getTopic().getDlq(), dlqEvent);
-            log.error("Event sent to Dead Letter Queue: {}", event);
+            dlqDispatchRequestedCount.incrementAndGet();
+            kafkaTemplate.send(securityKafkaProperties.getTopic().getDlq(), dlqEvent)
+                    .whenComplete((result, dlqError) -> {
+                        if (dlqError == null) {
+                            dlqDispatchConfirmedCount.incrementAndGet();
+                            log.error("Event sent to Dead Letter Queue: {}", event);
+                            return;
+                        }
+                        dlqDispatchFailedCount.incrementAndGet();
+                        log.error("Failed to dispatch event to Dead Letter Queue", dlqError);
+                    });
         } catch (Exception e) {
+            dlqDispatchFailedCount.incrementAndGet();
             log.error("Failed to send event to Dead Letter Queue", e);
         }
+    }
+
+    Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("publish_requested_count", publishRequestedCount.get());
+        stats.put("publish_confirmed_count", publishConfirmedCount.get());
+        stats.put("publish_failed_count", publishFailedCount.get());
+        stats.put("dlq_dispatch_requested_count", dlqDispatchRequestedCount.get());
+        stats.put("dlq_dispatch_confirmed_count", dlqDispatchConfirmedCount.get());
+        stats.put("dlq_dispatch_failed_count", dlqDispatchFailedCount.get());
+        return stats;
     }
 
     @Data

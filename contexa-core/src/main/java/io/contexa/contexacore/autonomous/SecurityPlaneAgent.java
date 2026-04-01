@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -17,7 +18,13 @@ import org.springframework.boot.CommandLineRunner;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,37 +42,81 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
+    private ExecutorService[] stripeExecutors = new ExecutorService[0];
 
 
     @PostConstruct
     public void initialize() {
         currentState = AgentState.INITIALIZING;
         securityMonitor.setBatchProcessor(this::processBatch);
+        initializeStripedExecutors();
     }
 
     private void processBatch(List<SecurityEvent> events) {
-        if (!running.get()) {
-            log.error("[SecurityPlaneAgent] Agent not running, dropping {} events", events.size());
+        if (events == null || events.isEmpty()) {
             return;
         }
 
+        if (!running.get()) {
+            throw new IllegalStateException("SecurityPlaneAgent is not running");
+        }
+
         for (SecurityEvent event : events) {
-            llmAnalysisExecutor.execute(() -> {
+            String analysisKey = resolveAnalysisKey(event);
+            int stripeId = resolveStripeId(analysisKey);
+            event.addMetadata("analysisKey", analysisKey);
+            event.addMetadata("stripeId", stripeId);
+            event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
+
+            stripeExecutors[stripeId].execute(() -> {
                 try {
-                    processSecurityEvent(event);
+                    event.addMetadata("analysisStartedAt", System.currentTimeMillis());
+                    processSecurityEventWithinBudget(event);
                     processedEvents.incrementAndGet();
+                    event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
                 } catch (Exception e) {
+                    event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
+                    if (deferForRetry(event, classifyDeferReason(e), e)) {
+                        log.warn("[SecurityPlaneAgent] Deferred event {} after transient processing failure: {}",
+                                event.getEventId(), e.getMessage());
+                        return;
+                    }
                     log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
                     if (centralAuditFacade != null) {
                         auditError("SecurityPlaneAgent", "processBatch", e, Map.of(
                                 "eventId", event.getEventId(),
                                 "userId", event.getUserId() != null ? event.getUserId() : "unknown",
-                                "phase", "async_batch_processing"
+                                "phase", "async_batch_processing",
+                                "analysisKey", analysisKey,
+                                "stripeId", stripeId
                         ));
                     }
                 }
             });
         }
+    }
+
+    private String classifyDeferReason(Exception exception) {
+        if (exception instanceof TimeoutException) {
+            return "event_processing_timeout";
+        }
+        if (exception instanceof EventProcessingInFlightException) {
+            return "event_processing_in_flight";
+        }
+        if (exception instanceof java.util.concurrent.RejectedExecutionException) {
+            return "llm_executor_rejected";
+        }
+        Throwable cause = exception.getCause();
+        if (cause instanceof java.util.concurrent.RejectedExecutionException) {
+            return "llm_executor_rejected";
+        }
+        if (cause instanceof TimeoutException) {
+            return "event_processing_timeout";
+        }
+        if (cause instanceof EventProcessingInFlightException) {
+            return "event_processing_in_flight";
+        }
+        return "processing_failure";
     }
 
     @Override
@@ -95,13 +146,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @PreDestroy
     public void shutdown() {
         stop();
+        shutdownStripedExecutors();
     }
 
     public SecurityEventContext processSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
         try {
-            if (!tryMarkEventAsProcessed(event.getEventId())) {
+            SecurityContextDataStore.EventProcessingClaim claim = claimEventProcessing(event.getEventId());
+            if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
                 log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
                 SecurityEventContext skippedContext = SecurityEventContext.builder()
                         .securityEvent(event)
@@ -110,9 +163,21 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 skippedContext.addMetadata("skipReason", "duplicate_event");
                 return skippedContext;
             }
-            return securityEventProcessor.process(event);
+            if (claim == SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT) {
+                SecurityEventContext skippedContext = SecurityEventContext.builder()
+                        .securityEvent(event)
+                        .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
+                        .build();
+                skippedContext.addMetadata("skipReason", "event_processing_in_flight");
+                return skippedContext;
+            }
+
+            SecurityEventContext context = securityEventProcessor.process(event);
+            markEventProcessed(event.getEventId());
+            return context;
 
         } catch (Exception e) {
+            releaseEventProcessing(event.getEventId());
             log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
 
             if (centralAuditFacade != null) {
@@ -164,13 +229,168 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    private boolean tryMarkEventAsProcessed(String eventId) {
-        return dataStore.tryMarkEventAsProcessed(eventId);
+    private SecurityContextDataStore.EventProcessingClaim claimEventProcessing(String eventId) {
+        return dataStore.claimEventProcessing(eventId);
+    }
+
+    private void markEventProcessed(String eventId) {
+        dataStore.markEventProcessed(eventId);
+    }
+
+    private void releaseEventProcessing(String eventId) {
+        dataStore.releaseEventProcessing(eventId);
+    }
+
+    private void initializeStripedExecutors() {
+        int stripeCount = Math.max(1, securityPlaneProperties.getLlmExecutor().getCorePoolSize());
+        stripeExecutors = new ExecutorService[stripeCount];
+        for (int i = 0; i < stripeCount; i++) {
+            stripeExecutors[i] = Executors.newSingleThreadExecutor(new StripeThreadFactory(i));
+        }
+    }
+
+    private String resolveAnalysisKey(SecurityEvent event) {
+        if (event == null) {
+            return "unknown";
+        }
+        String userId = event.getUserId();
+        String sessionId = event.getSessionId();
+        if (userId != null && !userId.isBlank() && sessionId != null && !sessionId.isBlank()) {
+            return userId + "|" + sessionId;
+        }
+        if (userId != null && !userId.isBlank()) {
+            return userId;
+        }
+        if (sessionId != null && !sessionId.isBlank()) {
+            return sessionId;
+        }
+        if (event.getSourceIp() != null && !event.getSourceIp().isBlank()) {
+            return event.getSourceIp();
+        }
+        if (event.getEventId() != null && !event.getEventId().isBlank()) {
+            return event.getEventId();
+        }
+        return "unknown";
+    }
+
+    private int resolveStripeId(String analysisKey) {
+        if (stripeExecutors.length == 0) {
+            throw new IllegalStateException("SecurityPlaneAgent stripes not initialized");
+        }
+        return Math.floorMod(analysisKey.hashCode(), stripeExecutors.length);
+    }
+
+    private void shutdownStripedExecutors() {
+        for (ExecutorService stripeExecutor : stripeExecutors) {
+            if (stripeExecutor == null) {
+                continue;
+            }
+            stripeExecutor.shutdown();
+            try {
+                if (!stripeExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    stripeExecutor.shutdownNow();
+                }
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                stripeExecutor.shutdownNow();
+            }
+        }
+    }
+
+    private SecurityEventContext processSecurityEventWithinBudget(SecurityEvent event) throws Exception {
+        long timeoutMs = Math.max(1000L, securityPlaneProperties.getAgent().getEventTimeoutMs());
+        CompletableFuture<SecurityEventContext> processingFuture = new CompletableFuture<>();
+        long submittedAt = System.currentTimeMillis();
+        event.addMetadata("analysisSubmittedAt", submittedAt);
+
+        llmAnalysisExecutor.execute(() -> {
+            try (SecurityEventTelemetryContext.Scope ignored = SecurityEventTelemetryContext.open(event)) {
+                SecurityEventTelemetryContext.putIfAbsent("chatAcquireMs", 0L);
+                SecurityEventTelemetryContext.putIfAbsent("embeddingAcquireMs", 0L);
+                SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
+                processingFuture.complete(processSecurityEvent(event));
+            } catch (Throwable throwable) {
+                processingFuture.completeExceptionally(throwable);
+            }
+        });
+
+        try {
+            SecurityEventContext context = processingFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
+            event.addMetadata("analysisCompletedAt", System.currentTimeMillis());
+            event.addMetadata("processingTimedOut", false);
+            if (context != null
+                    && context.getProcessingStatus() == SecurityEventContext.ProcessingStatus.SKIPPED
+                    && "event_processing_in_flight".equals(context.getMetadata().get("skipReason"))) {
+                throw new EventProcessingInFlightException(event.getEventId());
+            }
+            return context;
+        } catch (TimeoutException timeoutException) {
+            processingFuture.cancel(true);
+            event.addMetadata("analysisCompletedAt", System.currentTimeMillis());
+            event.addMetadata("processingTimedOut", true);
+            event.addMetadata("processingTimeoutMs", timeoutMs);
+            throw timeoutException;
+        }
+    }
+
+    private boolean deferForRetry(SecurityEvent event, String reason, Exception exception) {
+        int deferredCount = getIntegerMetadata(event, "deferredCount");
+        int maxDeferredRetries = Math.max(0, securityPlaneProperties.getAgent().getMaxDeferredRetries());
+        if (deferredCount >= maxDeferredRetries) {
+            event.addMetadata("deferExhausted", true);
+            event.addMetadata("deferExhaustedReason", reason);
+            return false;
+        }
+
+        event.addMetadata("deferRequestedAt", System.currentTimeMillis());
+        event.addMetadata("deferReason", reason);
+        if (exception != null) {
+            event.addMetadata("deferErrorClass", exception.getClass().getName());
+            event.addMetadata("deferErrorMessage", exception.getMessage());
+        }
+        securityMonitor.deferEvent(event, reason);
+        return true;
+    }
+
+    private int getIntegerMetadata(SecurityEvent event, String key) {
+        Object value = event.getMetadata() != null ? event.getMetadata().get(key) : null;
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String stringValue) {
+            try {
+                return Integer.parseInt(stringValue);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private final class StripeThreadFactory implements ThreadFactory {
+        private final int stripeId;
+
+        private StripeThreadFactory(int stripeId) {
+            this.stripeId = stripeId;
+        }
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "SecurityPlane-Stripe-" + stripeId);
+            thread.setDaemon(true);
+            return thread;
+        }
     }
 
     private enum AgentState {
         INITIALIZING,
         RUNNING,
         STOPPING
+    }
+
+    private static final class EventProcessingInFlightException extends RuntimeException {
+        private EventProcessingInFlightException(String eventId) {
+            super("Event is already being processed: " + eventId);
+        }
     }
 }

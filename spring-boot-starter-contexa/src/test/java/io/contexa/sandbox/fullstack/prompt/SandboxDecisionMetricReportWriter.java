@@ -192,6 +192,9 @@ public final class SandboxDecisionMetricReportWriter {
         return runResults.stream()
                 .flatMap(run -> run.roundResults().stream())
                 .map(round -> {
+                    SandboxDecisionTraceSnapshot decisionSnapshot = round.replayRound() != null
+                            ? round.replayRound().decisionSnapshot()
+                            : null;
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("metricKey", metric.key());
                     row.put("benchmarkRunId", round.benchmarkRunId());
@@ -216,6 +219,11 @@ public final class SandboxDecisionMetricReportWriter {
                     row.put("confidenceWithinBand", round.confidenceWithinBand());
                     row.put("unsafeOverconfidence", round.unsafeOverconfidence());
                     row.put("safeUncertaintyPass", round.safeUncertaintyPass());
+                    row.put("decisionStatus", decisionStatus(decisionSnapshot));
+                    row.put("decisionErrorType", decisionErrorType(decisionSnapshot));
+                    row.put("decisionErrorMessage", decisionErrorMessage(decisionSnapshot));
+                    row.put("rawResponsePreview", responsePreview(decisionSnapshot));
+                    row.put("structuredOutputComplete", structuredOutputComplete(decisionSnapshot));
                     row.put("metricValue", metricValue(metric, round));
                     return row;
                 }).toList();
@@ -226,6 +234,9 @@ public final class SandboxDecisionMetricReportWriter {
                 .flatMap(run -> run.roundResults().stream())
                 .filter(round -> metricFailure(metric, round))
                 .map(round -> {
+                    SandboxDecisionTraceSnapshot decisionSnapshot = round.replayRound() != null
+                            ? round.replayRound().decisionSnapshot()
+                            : null;
                     Map<String, Object> defect = new LinkedHashMap<>();
                     defect.put("metricKey", metric.key());
                     defect.put("benchmarkRunId", round.benchmarkRunId());
@@ -245,6 +256,11 @@ public final class SandboxDecisionMetricReportWriter {
                     defect.put("contradictedClaimRate", round.adjudication().contradictedClaimRate());
                     defect.put("unsafeOverconfidence", round.unsafeOverconfidence());
                     defect.put("safeUncertaintyPass", round.safeUncertaintyPass());
+                    defect.put("decisionStatus", decisionStatus(decisionSnapshot));
+                    defect.put("decisionErrorType", decisionErrorType(decisionSnapshot));
+                    defect.put("decisionErrorMessage", decisionErrorMessage(decisionSnapshot));
+                    defect.put("rawResponsePreview", responsePreview(decisionSnapshot));
+                    defect.put("structuredOutputComplete", structuredOutputComplete(decisionSnapshot));
                     defect.put("metricValue", metricValue(metric, round));
                     defect.put("defectReason", defectReason(metric, round));
                     return defect;
@@ -506,6 +522,51 @@ public final class SandboxDecisionMetricReportWriter {
             return false;
         }
         return confidence >= lowInclusive && confidence < highExclusive;
+    }
+
+    private String decisionStatus(SandboxDecisionTraceSnapshot snapshot) {
+        if (snapshot == null || snapshot.pipelineMetadata() == null) {
+            return null;
+        }
+        Object status = snapshot.pipelineMetadata().get("status");
+        return status == null ? null : String.valueOf(status);
+    }
+
+    private String decisionErrorType(SandboxDecisionTraceSnapshot snapshot) {
+        if (snapshot == null || snapshot.pipelineMetadata() == null) {
+            return null;
+        }
+        Object errorType = snapshot.pipelineMetadata().get("errorType");
+        return errorType == null ? null : String.valueOf(errorType);
+    }
+
+    private String decisionErrorMessage(SandboxDecisionTraceSnapshot snapshot) {
+        if (snapshot == null || snapshot.pipelineMetadata() == null) {
+            return null;
+        }
+        Object errorMessage = snapshot.pipelineMetadata().get("errorMessage");
+        return errorMessage == null ? null : String.valueOf(errorMessage);
+    }
+
+    private Boolean structuredOutputComplete(SandboxDecisionTraceSnapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        return snapshot.structuredOutputComplete();
+    }
+
+    private String responsePreview(SandboxDecisionTraceSnapshot snapshot) {
+        if (snapshot == null || snapshot.llmRawResponse() == null) {
+            return null;
+        }
+        String text = String.valueOf(snapshot.llmRawResponse())
+                .replace('\r', ' ')
+                .replace('\n', ' ')
+                .trim();
+        if (text.length() <= 320) {
+            return text;
+        }
+        return text.substring(0, 320) + "...";
     }
 
     private void writeJson(Path path, Object payload) throws IOException {

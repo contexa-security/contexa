@@ -5,6 +5,7 @@ import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * In-memory registry backed by Redisson RTopic for real-time cross-instance
@@ -20,9 +21,13 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
     private static final String TOPIC_NAME = "contexa:security:block-signal";
     private static final String BLOCK_PREFIX = "BLOCK:";
     private static final String UNBLOCK_PREFIX = "UNBLOCK:";
+    private static final int MAX_PUBLISH_RETRIES = 1;
 
     private final ConcurrentHashMap<String, String> blockedUsers = new ConcurrentHashMap<>();
     private final RTopic topic;
+    private final AtomicLong publishRequestedCount = new AtomicLong(0);
+    private final AtomicLong publishConfirmedCount = new AtomicLong(0);
+    private final AtomicLong publishFailedCount = new AtomicLong(0);
 
     public BlockingDecisionRegistry(RedissonClient redissonClient) {
         this.topic = redissonClient.getTopic(TOPIC_NAME);
@@ -55,11 +60,7 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
         }
         String effectiveAction = (action != null && !action.isBlank()) ? action : "BLOCK";
         blockedUsers.put(userId, effectiveAction);
-        try {
-            topic.publishAsync(BLOCK_PREFIX + userId + ":" + effectiveAction);
-        } catch (Exception e) {
-            log.error("[BlockingDecisionRegistry] Failed to publish BLOCK signal: userId={}", userId, e);
-        }
+        publishSignalAsync(BLOCK_PREFIX + userId + ":" + effectiveAction, "BLOCK", userId, 0);
     }
 
     @Override
@@ -68,11 +69,7 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
             return;
         }
         blockedUsers.remove(userId);
-        try {
-            topic.publishAsync(UNBLOCK_PREFIX + userId);
-        } catch (Exception e) {
-            log.error("[BlockingDecisionRegistry] Failed to publish UNBLOCK signal: userId={}", userId, e);
-        }
+        publishSignalAsync(UNBLOCK_PREFIX + userId, "UNBLOCK", userId, 0);
     }
 
     @Override
@@ -89,5 +86,37 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
             return null;
         }
         return blockedUsers.get(userId);
+    }
+
+    private void publishSignalAsync(String message, String signalType, String userId, int attempt) {
+        try {
+            publishRequestedCount.incrementAndGet();
+            topic.publishAsync(message).whenComplete((listeners, throwable) -> {
+                if (throwable == null) {
+                    publishConfirmedCount.incrementAndGet();
+                    return;
+                }
+
+                if (attempt < MAX_PUBLISH_RETRIES) {
+                    log.warn("[BlockingDecisionRegistry] Retry publish {} signal: userId={}, attempt={}",
+                            signalType, userId, attempt + 1, throwable);
+                    publishSignalAsync(message, signalType, userId, attempt + 1);
+                    return;
+                }
+
+                publishFailedCount.incrementAndGet();
+                log.error("[BlockingDecisionRegistry] Failed to publish {} signal after retries: userId={}",
+                        signalType, userId, throwable);
+            });
+        } catch (Exception e) {
+            if (attempt < MAX_PUBLISH_RETRIES) {
+                log.warn("[BlockingDecisionRegistry] Retry scheduling {} signal: userId={}, attempt={}",
+                        signalType, userId, attempt + 1, e);
+                publishSignalAsync(message, signalType, userId, attempt + 1);
+                return;
+            }
+            publishFailedCount.incrementAndGet();
+            log.error("[BlockingDecisionRegistry] Failed to schedule {} signal publish: userId={}", signalType, userId, e);
+        }
     }
 }

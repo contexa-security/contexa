@@ -32,6 +32,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> previousPaths = new ConcurrentHashMap<>();
+    private final Object eventProcessingLock = new Object();
+    private final Set<String> processingEvents = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<String> processedEvents = Collections.newSetFromMap(
             Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, false) {
                 @Override
@@ -214,8 +216,31 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
-    public boolean tryMarkEventAsProcessed(String eventId) {
-        return processedEvents.add(eventId);
+    public EventProcessingClaim claimEventProcessing(String eventId) {
+        synchronized (eventProcessingLock) {
+            if (processedEvents.contains(eventId)) {
+                return EventProcessingClaim.PROCESSED;
+            }
+            if (!processingEvents.add(eventId)) {
+                return EventProcessingClaim.IN_FLIGHT;
+            }
+            return EventProcessingClaim.ACQUIRED;
+        }
+    }
+
+    @Override
+    public void markEventProcessed(String eventId) {
+        synchronized (eventProcessingLock) {
+            processingEvents.remove(eventId);
+            processedEvents.add(eventId);
+        }
+    }
+
+    @Override
+    public void releaseEventProcessing(String eventId) {
+        synchronized (eventProcessingLock) {
+            processingEvents.remove(eventId);
+        }
     }
 
     @Override

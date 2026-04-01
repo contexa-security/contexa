@@ -51,7 +51,7 @@ spring:
       base-url: http://127.0.0.1:11434
       chat:
         options:
-          model: qwen3:8b
+          model: llama3.1:8b
           keep-alive: "24h"
       embedding:
         model: mxbai-embed-large

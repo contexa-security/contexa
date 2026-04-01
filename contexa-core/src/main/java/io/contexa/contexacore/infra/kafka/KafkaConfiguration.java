@@ -96,40 +96,13 @@ public class KafkaConfiguration {
             new ConcurrentKafkaListenerContainerFactory<>();
         
         factory.setConsumerFactory(consumerFactory());
-        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 3;
+        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 1;
         factory.setConcurrency(concurrency);
 
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, 3));
         factory.setCommonErrorHandler(errorHandler);
-
-        return factory;
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> batchKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory =
-            new ConcurrentKafkaListenerContainerFactory<>();
-
-        factory.setBatchListener(true);
-        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 3;
-        factory.setConcurrency(concurrency);
-
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
-        factory.getContainerProperties().setPollTimeout(3000);
-
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(2000L, 3));
-        factory.setCommonErrorHandler(errorHandler);
-
-        Map<String, Object> props = new HashMap<>(consumerConfigs());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);       
-        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);         
-        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 100);     
-
-        ConsumerFactory<String, String> batchConsumerFactory =
-            new DefaultKafkaConsumerFactory<>(props);
-        factory.setConsumerFactory(batchConsumerFactory);
 
         return factory;
     }
@@ -146,7 +119,7 @@ public class KafkaConfiguration {
             new DefaultKafkaConsumerFactory<>(props);
         
         factory.setConsumerFactory(jsonConsumerFactory);
-        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 3;
+        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 1;
         factory.setConcurrency(concurrency);
 
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);

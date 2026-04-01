@@ -11,9 +11,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -81,27 +84,33 @@ class InMemorySecurityEventCollectorTest {
     }
 
     @Test
-    @DisplayName("LRU cache should evict entries when exceeding 10K limit")
-    void shouldEvictWhenCacheExceedsMaxSize() {
-        // given - fill cache to max
+    @DisplayName("캐시 한도를 넘기면 가장 오래된 timestamp 기준 이벤트부터 제거해야 한다")
+    void shouldEvictOldestTimestampEntriesWhenCacheExceedsMaxSize() throws Exception {
         for (int i = 0; i < 10_001; i++) {
             SecurityEvent event = SecurityEvent.builder()
                     .eventId("evt-" + i)
+                    .timestamp(LocalDateTime.now().plusSeconds(i))
                     .build();
             collector.dispatchEvent(event);
         }
 
-        // then - cache size should be reduced after eviction batch
         Map<String, Object> stats = collector.getStatistics();
         int cacheSize = (int) stats.get("cache_size");
-        // After eviction of 1000 entries: 10001 - 1000 + 1 (new entry) = 9001 approx
         assertThat(cacheSize).isLessThanOrEqualTo(10_000);
+
+        Field cacheField = InMemorySecurityEventCollector.class.getDeclaredField("eventCache");
+        cacheField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, SecurityEvent> cache = (Map<String, SecurityEvent>) cacheField.get(collector);
+
+        assertThat(cache).doesNotContainKey("evt-0");
+        assertThat(cache).doesNotContainKey("evt-999");
+        assertThat(cache).containsKey("evt-10000");
     }
 
     @Test
     @DisplayName("Statistics should track eventCount and errorCount")
     void shouldTrackStatistics() {
-        // given
         collector.registerListener(listener1);
         doThrow(new RuntimeException("test error"))
                 .when(listener1).onSecurityEvent(any());
@@ -109,11 +118,13 @@ class InMemorySecurityEventCollectorTest {
         SecurityEvent event1 = SecurityEvent.builder().eventId("evt-1").build();
         SecurityEvent event2 = SecurityEvent.builder().eventId("evt-2").build();
 
-        // when
-        collector.dispatchEvent(event1);
-        collector.dispatchEvent(event2);
+        assertThatThrownBy(() -> collector.dispatchEvent(event1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Listener dispatch failed");
+        assertThatThrownBy(() -> collector.dispatchEvent(event2))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Listener dispatch failed");
 
-        // then
         Map<String, Object> stats = collector.getStatistics();
         assertThat(stats.get("total_events")).isEqualTo(2L);
         assertThat(stats.get("error_count")).isEqualTo(2L);

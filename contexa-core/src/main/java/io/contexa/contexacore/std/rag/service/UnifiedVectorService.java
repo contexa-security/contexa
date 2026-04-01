@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.rag.service;
 
+import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +15,7 @@ import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreExcept
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 @Slf4j
 public class UnifiedVectorService implements VectorOperations {
@@ -118,17 +115,14 @@ public class UnifiedVectorService implements VectorOperations {
     @Override
     public List<Document> searchSimilar(SearchRequest searchRequest) {
         try {
-            List<Document> cachedResults = cacheLayer.similaritySearch(searchRequest);
-
-            if (cachedResults != null && !cachedResults.isEmpty()) {
-                return cachedResults;
-            }
-
             return executeWithinTimeout(
-                    () -> vectorStore.similaritySearch(searchRequest),
+                    () -> cacheLayer.similaritySearch(searchRequest),
                     properties.getSearchTimeoutMs(),
                     "similarity search");
 
+        } catch (VectorStoreCacheLayer.VectorSearchException vectorSearchException) {
+            log.error("[UnifiedVectorService] Cache-backed similarity search failed", vectorSearchException);
+            throw new VectorStoreException("Similarity search failed", vectorSearchException);
         } catch (Exception e) {
             log.error("[UnifiedVectorService] Error during similarity search", e);
             throw new VectorStoreException("Similarity search failed", e);
@@ -181,10 +175,8 @@ public class UnifiedVectorService implements VectorOperations {
         }
     }
 
-    private <T> T executeWithinTimeout(
-            java.util.concurrent.Callable<T> operation,
-            long timeoutMs,
-            String operationLabel) {
+    private <T> T executeWithinTimeout(Callable<T> operation, long timeoutMs, String operationLabel) {
+        SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
         var executor = Executors.newVirtualThreadPerTaskExecutor();
         CompletableFuture<T> future = null;
         long effectiveTimeoutMs = Math.max(100L, timeoutMs);
@@ -200,9 +192,7 @@ public class UnifiedVectorService implements VectorOperations {
             }, executor);
             return future.get(effectiveTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException timeoutException) {
-            if (future != null) {
-                future.cancel(true);
-            }
+            future.cancel(true);
             throw new VectorStoreException(
                     String.format("Vector store %s timed out after %dms", operationLabel, effectiveTimeoutMs),
                     timeoutException);

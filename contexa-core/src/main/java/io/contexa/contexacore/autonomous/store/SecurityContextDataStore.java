@@ -4,6 +4,12 @@ import java.util.List;
 
 public interface SecurityContextDataStore {
 
+    enum EventProcessingClaim {
+        ACQUIRED,
+        IN_FLIGHT,
+        PROCESSED
+    }
+
     void addSessionAction(String sessionId, String action);
 
     List<String> getRecentSessionActions(String sessionId, int count);
@@ -58,7 +64,20 @@ public interface SecurityContextDataStore {
 
     String getPreviousPath(String userId);
 
-    boolean tryMarkEventAsProcessed(String eventId);
+    EventProcessingClaim claimEventProcessing(String eventId);
+
+    void markEventProcessed(String eventId);
+
+    void releaseEventProcessing(String eventId);
+
+    default boolean tryMarkEventAsProcessed(String eventId) {
+        EventProcessingClaim claim = claimEventProcessing(eventId);
+        if (claim != EventProcessingClaim.ACQUIRED) {
+            return false;
+        }
+        markEventProcessed(eventId);
+        return true;
+    }
 
     void storeSoarExecution(String eventId, Object data);
 

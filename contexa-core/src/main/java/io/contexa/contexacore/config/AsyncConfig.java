@@ -83,8 +83,8 @@ public class AsyncConfig {
         executor.setMaxPoolSize(settings.getMaxPoolSize());
         executor.setQueueCapacity(settings.getQueueCapacity());
         executor.setThreadNamePrefix("LLM-Analysis-");
-        
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.initialize();
         return executor;

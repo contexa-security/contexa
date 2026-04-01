@@ -37,6 +37,8 @@ public class SecurityPlaneProperties {
         private String organizationId = "default-org";
         private String executionMode = "ASYNC";
         private boolean autoApproveLowRisk = false;
+        private long eventTimeoutMs = 30000L;
+        private int maxDeferredRetries = 3;
     }
 
     @Data
@@ -59,7 +61,8 @@ public class SecurityPlaneProperties {
     @Data
     public static class MonitorSettings {
         private int queueSize = 10000;
-        private int workerThreads = 5;
+        private int batchSize = 8;
+        private long flushIntervalMs = 500;
         private int correlationWindowMinutes = 10;
 
         private int dedupWindowMinutes = 5;
@@ -97,11 +100,11 @@ public class SecurityPlaneProperties {
     @Data
     public static class LlmExecutorSettings {
 
-        private int corePoolSize = 4;
+        private int corePoolSize = 2;
 
-        private int maxPoolSize = 4;
+        private int maxPoolSize = 2;
 
-        private int queueCapacity = 100;
+        private int queueCapacity = 50;
     }
 
     @Data

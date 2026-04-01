@@ -17,6 +17,12 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class VectorStoreCacheLayer {
 
+    public static class VectorSearchException extends RuntimeException {
+        public VectorSearchException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     private final VectorStore vectorStore;
     private final TieredStrategyProperties tieredStrategyProperties;
 
@@ -45,7 +51,7 @@ public class VectorStoreCacheLayer {
 
     public List<Document> similaritySearch(SearchRequest request) {
         if (!tieredStrategyProperties.getVectorCache().isEnabled() || vectorStore == null) {
-            return fallbackSearch(request);
+            return searchWithoutCache(request);
         }
 
         try {
@@ -70,7 +76,7 @@ public class VectorStoreCacheLayer {
 
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Error during similarity search", e);
-            return fallbackSearch(request);
+            throw new VectorSearchException("Vector store similarity search failed", e);
         }
     }
 
@@ -94,7 +100,7 @@ public class VectorStoreCacheLayer {
         return keyBuilder.toString();
     }
 
-    private List<Document> fallbackSearch(SearchRequest request) {
+    private List<Document> searchWithoutCache(SearchRequest request) {
         if (vectorStore == null) {
             log.error("[VectorStoreCacheLayer] VectorStore not available");
             return List.of();
@@ -104,7 +110,7 @@ public class VectorStoreCacheLayer {
             return vectorStore.similaritySearch(request);
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Fallback search failed", e);
-            return List.of();
+            throw new VectorSearchException("Vector store fallback search failed", e);
         }
     }
 
@@ -298,3 +304,4 @@ public class VectorStoreCacheLayer {
         }
     }
 }
+

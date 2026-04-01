@@ -66,7 +66,7 @@ class InMemorySecurityEventPublisherTest {
         assertThat(captured.getSourceIp()).isEqualTo("192.168.1.1");
         assertThat(captured.getUserAgent()).isEqualTo("Mozilla/5.0");
         assertThat(captured.getSource()).isEqualTo(SecurityEvent.EventSource.IAM);
-        assertThat(captured.getDescription()).isEqualTo("AUTHENTICATION_SUCCESS");
+        assertThat(captured.getDescription()).isEqualTo("AUTHENTICATION event: SUCCESS");
     }
 
     @Test

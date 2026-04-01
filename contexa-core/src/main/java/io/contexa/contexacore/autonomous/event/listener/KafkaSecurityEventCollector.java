@@ -5,11 +5,11 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
@@ -17,10 +17,11 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 
-import io.contexa.contexacore.properties.SecurityKafkaProperties;
-
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,10 +35,16 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     private final List<SecurityEventListener> listeners;
     private final Map<String, SecurityEvent> eventCache;
     private final AtomicLong eventCount;
+    private final AtomicLong ackCount;
     private final AtomicLong errorCount;
+    private final AtomicLong redeliveryScheduledCount;
+    private final AtomicLong dlqDispatchRequestedCount;
+    private final AtomicLong dlqDispatchConfirmedCount;
+    private final AtomicLong dlqDispatchFailedCount;
     private volatile boolean running;
 
-    public KafkaSecurityEventCollector(ObjectMapper objectMapper, KafkaTemplate<String, Object> kafkaTemplate,
+    public KafkaSecurityEventCollector(ObjectMapper objectMapper,
+                                       KafkaTemplate<String, Object> kafkaTemplate,
                                        SecurityKafkaProperties securityKafkaProperties) {
         this.objectMapper = objectMapper;
         this.kafkaTemplate = kafkaTemplate;
@@ -45,211 +52,147 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         this.listeners = new CopyOnWriteArrayList<>();
         this.eventCache = new ConcurrentHashMap<>();
         this.eventCount = new AtomicLong(0);
+        this.ackCount = new AtomicLong(0);
         this.errorCount = new AtomicLong(0);
+        this.redeliveryScheduledCount = new AtomicLong(0);
+        this.dlqDispatchRequestedCount = new AtomicLong(0);
+        this.dlqDispatchConfirmedCount = new AtomicLong(0);
+        this.dlqDispatchFailedCount = new AtomicLong(0);
         this.running = true;
     }
 
     @PostConstruct
     public void initialize() {
-                            }
+        running = true;
+    }
 
     @PreDestroy
     public void shutdown() {
-                running = false;
+        running = false;
     }
 
     @KafkaListener(
-        topicPattern = "security\\.events\\..*",
-        groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
-        containerFactory = "kafkaListenerContainerFactory"
+            topicPattern = "security\\.events\\..*",
+            groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
+            containerFactory = "kafkaListenerContainerFactory"
     )
     public void consumeZeroTrustEvents(
-        @Payload String message,
-        @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-        @Header(KafkaHeaders.OFFSET) long offset,
-        Acknowledgment acknowledgment) {
+            @Payload String message,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset,
+            Acknowledgment acknowledgment) {
+
+        if (!running) {
+            log.warn("[KafkaCollector] Collector stopped, skipping event - topic: {}, offset: {}", topic, offset);
+            return;
+        }
 
         try {
             ZeroTrustSpringEvent zeroTrustEvent = objectMapper.readValue(message, ZeroTrustSpringEvent.class);
-            SecurityEvent event = convertZeroTrustToSecurityEvent(zeroTrustEvent);
+            SecurityEvent event = ZeroTrustSecurityEventConverter.convert(zeroTrustEvent);
 
             event.addMetadata("kafka.topic", topic);
             event.addMetadata("kafka.partition", String.valueOf(partition));
             event.addMetadata("kafka.offset", String.valueOf(offset));
             event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
             event.addMetadata("zerotrust.eventType", zeroTrustEvent.getEventType());
+            event.addMetadata("ingestAt", System.currentTimeMillis());
 
             processEvent(event);
             eventCount.incrementAndGet();
 
             if (acknowledgment != null) {
+                event.addMetadata("ackAt", System.currentTimeMillis());
                 acknowledgment.acknowledge();
+                ackCount.incrementAndGet();
             }
 
         } catch (Exception e) {
             log.error("[KafkaCollector] ERROR processing ZeroTrust event - topic: {}, offset: {}, error: {}",
-                topic, offset, e.getMessage(), e);
+                    topic, offset, e.getMessage(), e);
             errorCount.incrementAndGet();
-
-            try {
-                sendToDeadLetterQueue(message, topic, partition, offset, e);
-            } catch (Exception dlqError) {
-                log.error("[KafkaCollector] Failed to send to DLQ, message will be redelivered - offset: {}", offset, dlqError);
-                return;
-            }
-
-            if (acknowledgment != null) {
-                acknowledgment.acknowledge();
-            }
+            redeliveryScheduledCount.incrementAndGet();
+            sendToDeadLetterQueueAsync(message, topic, partition, offset, e);
+            throw new IllegalStateException("Kafka security event processing failed - redelivery scheduled", e);
         }
     }
 
+    @Override
     public void registerListener(SecurityEventListener listener) {
-        listeners.add(listener);
-            }
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+    }
 
+    @Override
     public void unregisterListener(SecurityEventListener listener) {
-        listeners.remove(listener);
-            }
+        if (listener != null) {
+            listeners.remove(listener);
+        }
+    }
 
     private void processEvent(SecurityEvent event) {
+        if (!running || event == null) {
+            return;
+        }
+
         if (event.getEventId() == null) {
             event.setEventId(UUID.randomUUID().toString());
-                    }
+        }
 
         eventCache.put(event.getEventId(), event);
 
-        if (eventCache.size() > 10000) {
+        if (eventCache.size() > 10_000) {
             eventCache.entrySet().stream()
-                .sorted(Map.Entry.comparingByValue(
-                    Comparator.comparing(SecurityEvent::getTimestamp)))
-                .limit(1000)
-                .map(Map.Entry::getKey)
-                .forEach(eventCache::remove);
+                    .sorted(Map.Entry.comparingByValue(Comparator.comparing(SecurityEvent::getTimestamp)))
+                    .limit(1_000)
+                    .map(Map.Entry::getKey)
+                    .forEach(eventCache::remove);
         }
 
-        if (!listeners.isEmpty()) {
-            for (SecurityEventListener listener : listeners) {
-                try {
+        if (listeners.isEmpty()) {
+            return;
+        }
+
+        RuntimeException listenerFailure = null;
+        for (SecurityEventListener listener : listeners) {
+            try {
+                if (listener.isActive()) {
                     listener.onSecurityEvent(event);
-                } catch (Exception e) {
-                    log.error("[KafkaCollector] Listener {} failed to process event {}: {}",
+                }
+            } catch (Exception e) {
+                log.error("[KafkaCollector] Listener {} failed to process event {}: {}",
                         listener.getListenerName(), event.getEventId(), e.getMessage(), e);
+                if (listenerFailure == null) {
+                    listenerFailure = new IllegalStateException(
+                            "Listener dispatch failed for event " + event.getEventId(), e);
                 }
             }
         }
+
+        if (listenerFailure != null) {
+            throw listenerFailure;
+        }
     }
 
+    @Override
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("total_events", eventCount.get());
+        stats.put("ack_count", ackCount.get());
         stats.put("error_count", errorCount.get());
+        stats.put("redelivery_scheduled_count", redeliveryScheduledCount.get());
+        stats.put("dlq_dispatch_requested_count", dlqDispatchRequestedCount.get());
+        stats.put("dlq_dispatch_confirmed_count", dlqDispatchConfirmedCount.get());
+        stats.put("dlq_dispatch_failed_count", dlqDispatchFailedCount.get());
         stats.put("cache_size", eventCache.size());
         stats.put("listener_count", listeners.size());
+        stats.put("running", running);
         return stats;
     }
 
-    private SecurityEvent convertZeroTrustToSecurityEvent(ZeroTrustSpringEvent zeroTrustEvent) {
-        Map<String, Object> payload = zeroTrustEvent.getPayload();
-
-        String eventId = payload != null && payload.get("eventId") != null
-            ? String.valueOf(payload.get("eventId"))
-            : UUID.randomUUID().toString();
-
-        String userName = payload != null && payload.get("userName") != null
-            ? String.valueOf(payload.get("userName"))
-            : null;
-
-        String description = payload != null && payload.get("description") != null
-            ? String.valueOf(payload.get("description"))
-            : zeroTrustEvent.getCategory() + " event: " + zeroTrustEvent.getEventType();
-
-        SecurityEvent.Severity severity = determineSeverityFromPayload(payload);
-
-        SecurityEvent event = SecurityEvent.builder()
-            .eventId(eventId)
-            .source(SecurityEvent.EventSource.IAM)
-            .severity(severity)
-            .timestamp(LocalDateTime.ofInstant(zeroTrustEvent.getEventTimestamp(), java.time.ZoneId.systemDefault()))
-            .description(description)
-            .userId(zeroTrustEvent.getUserId())
-            .userName(userName)
-            .sourceIp(zeroTrustEvent.getClientIp())
-            .sessionId(zeroTrustEvent.getSessionId())
-            .userAgent(zeroTrustEvent.getUserAgent())
-            .build();
-
-        if (payload != null) {
-            payload.forEach((key, value) -> {
-                if (value != null && !key.equals("eventId") && !key.equals("userName") && !key.equals("description")) {
-                    event.addMetadata(key, value);
-                }
-            });
-        }
-
-        if (zeroTrustEvent.getResource() != null) {
-            event.addMetadata("requestPath", zeroTrustEvent.getResource());
-        }
-
-        return event;
-    }
-
-    private SecurityEvent.Severity determineSeverityFromPayload(Map<String, Object> payload) {
-        if (payload == null) {
-            return SecurityEvent.Severity.MEDIUM;
-        }
-
-        // Primary: Action-based severity (platform core philosophy)
-        Object actionValue = payload.get("action");
-        if (actionValue != null) {
-            return mapActionToSeverity(actionValue.toString());
-        }
-
-        // Fallback: Context-based inference for events without action
-        return inferSeverityFromContext(payload);
-    }
-
-    private SecurityEvent.Severity mapActionToSeverity(String actionStr) {
-        ZeroTrustAction action = ZeroTrustAction.fromString(actionStr);
-        return switch (action) {
-            case BLOCK -> SecurityEvent.Severity.CRITICAL;
-            case ESCALATE -> SecurityEvent.Severity.HIGH;
-            case CHALLENGE -> SecurityEvent.Severity.MEDIUM;
-            case PENDING_ANALYSIS -> SecurityEvent.Severity.MEDIUM;
-            case ALLOW -> SecurityEvent.Severity.LOW;
-        };
-    }
-
-    private SecurityEvent.Severity inferSeverityFromContext(Map<String, Object> payload) {
-        Object failureCount = payload.get("failureCount");
-        if (failureCount != null) {
-            int count = parseIntSafely(failureCount);
-            if (count > 10) return SecurityEvent.Severity.HIGH;
-            if (count > 5) return SecurityEvent.Severity.MEDIUM;
-        }
-
-        if (payload.get("failureReason") != null) {
-            return SecurityEvent.Severity.MEDIUM;
-        }
-
-        Object granted = payload.get("granted");
-        if (granted != null && !Boolean.parseBoolean(granted.toString())) {
-            return SecurityEvent.Severity.MEDIUM;
-        }
-
-        return SecurityEvent.Severity.LOW;
-    }
-
-    private int parseIntSafely(Object value) {
-        try {
-            return Integer.parseInt(value.toString());
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private void sendToDeadLetterQueue(String message, String topic, int partition, long offset, Exception exception) {
+    private void sendToDeadLetterQueueAsync(String message, String topic, int partition, long offset, Exception exception) {
         try {
             Map<String, Object> dlqMessage = new HashMap<>();
             dlqMessage.put("originalMessage", message);
@@ -263,12 +206,21 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
 
             String dlqTopic = securityKafkaProperties.getTopic().getDlq();
             String dlqJson = objectMapper.writeValueAsString(dlqMessage);
-
-            kafkaTemplate.send(dlqTopic, dlqJson).get();
-
+            dlqDispatchRequestedCount.incrementAndGet();
+            kafkaTemplate.send(dlqTopic, dlqJson).whenComplete((result, dlqError) -> {
+                if (dlqError == null) {
+                    dlqDispatchConfirmedCount.incrementAndGet();
+                    log.warn("[KafkaCollector] DLQ dispatch confirmed - topic: {}, partition: {}, offset: {}",
+                            topic, partition, offset);
+                    return;
+                }
+                dlqDispatchFailedCount.incrementAndGet();
+                log.error("[KafkaCollector] DLQ dispatch failed - original topic: {}, partition: {}, offset: {}",
+                        topic, partition, offset, dlqError);
+            });
         } catch (Exception e) {
-            log.error("[KafkaCollector] Failed to send DLQ message - offset: {}", offset, e);
-            throw new RuntimeException("DLQ send failed", e);
+            dlqDispatchFailedCount.incrementAndGet();
+            log.error("[KafkaCollector] Failed to schedule DLQ message - offset: {}", offset, e);
         }
     }
 

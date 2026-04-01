@@ -263,8 +263,9 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
-            SecurityEventCollector eventCollector) {
-        return new SecurityMonitoringService(eventCollector);
+            SecurityEventCollector eventCollector,
+            SecurityPlaneProperties securityPlaneProperties) {
+        return new SecurityMonitoringService(eventCollector, securityPlaneProperties);
     }
 
     @Bean

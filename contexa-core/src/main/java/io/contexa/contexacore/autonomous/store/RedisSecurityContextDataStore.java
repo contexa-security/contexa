@@ -29,6 +29,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
     private static final Duration AUTHORIZATION_SCOPE_STATE_TTL = Duration.ofDays(30);
     private static final Duration EVENT_PROCESSED_TTL = Duration.ofHours(24);
+    private static final Duration EVENT_PROCESSING_TTL = Duration.ofMinutes(30);
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
 
@@ -350,14 +351,41 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
-    public boolean tryMarkEventAsProcessed(String eventId) {
+    public EventProcessingClaim claimEventProcessing(String eventId) {
         try {
-            String key = ZeroTrustRedisKeys.eventProcessed(eventId);
-            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key, "1", EVENT_PROCESSED_TTL);
-            return Boolean.TRUE.equals(acquired);
+            String processedKey = ZeroTrustRedisKeys.eventProcessed(eventId);
+            if (redisTemplate.opsForValue().get(processedKey) != null) {
+                return EventProcessingClaim.PROCESSED;
+            }
+
+            String processingKey = ZeroTrustRedisKeys.eventProcessing(eventId);
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(processingKey, "1", EVENT_PROCESSING_TTL);
+            if (Boolean.TRUE.equals(acquired)) {
+                return EventProcessingClaim.ACQUIRED;
+            }
+            return EventProcessingClaim.IN_FLIGHT;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to claim event processing: eventId={}", eventId, e);
+            return EventProcessingClaim.IN_FLIGHT;
+        }
+    }
+
+    @Override
+    public void markEventProcessed(String eventId) {
+        try {
+            redisTemplate.opsForValue().set(ZeroTrustRedisKeys.eventProcessed(eventId), "1", EVENT_PROCESSED_TTL);
+            redisTemplate.delete(ZeroTrustRedisKeys.eventProcessing(eventId));
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to mark event as processed: eventId={}", eventId, e);
-            return false;
+        }
+    }
+
+    @Override
+    public void releaseEventProcessing(String eventId) {
+        try {
+            redisTemplate.delete(ZeroTrustRedisKeys.eventProcessing(eventId));
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to release event processing claim: eventId={}", eventId, e);
         }
     }
 

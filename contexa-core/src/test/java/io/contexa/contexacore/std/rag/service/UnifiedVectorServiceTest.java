@@ -13,10 +13,11 @@ import org.springframework.ai.vectorstore.VectorStore;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,47 +32,49 @@ class UnifiedVectorServiceTest {
     private VectorStore vectorStore;
 
     @Test
-    @DisplayName("similarity search 가 timeout 되면 embed 응답을 기다리지 않고 VectorStoreException 으로 실패해야 한다")
-    void searchSimilar_shouldFailFastWhenTimeoutExceeded() {
+    @DisplayName("cache layer가 빈 결과를 반환한 정상 검색은 vectorStore를 다시 직접 호출하지 않아야 한다")
+    void searchSimilar_shouldNotRepeatSearchWhenCacheLayerReturnsEmptyResult() {
         PgVectorStoreProperties properties = new PgVectorStoreProperties();
-        properties.setSearchTimeoutMs(50);
-        AtomicBoolean interrupted = new AtomicBoolean(false);
         UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
+        SearchRequest request = SearchRequest.builder().query("query").topK(3).build();
 
-        when(cacheLayer.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
-        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenAnswer(invocation -> {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException interruptedException) {
-                interrupted.set(true);
-                Thread.currentThread().interrupt();
-            }
-            return List.of();
-        });
+        when(cacheLayer.similaritySearch(request)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> unifiedVectorService.searchSimilar("Path: /admin/api/security-test/sensitive/resource-001"))
-                .isInstanceOf(VectorOperations.VectorStoreException.class)
-                .hasMessageContaining("Similarity search failed");
-        verify(cacheLayer, never()).invalidateAll();
-        org.assertj.core.api.Assertions.assertThat(interrupted.get()).isTrue();
+        List<Document> result = unifiedVectorService.searchSimilar(request);
+
+        assertThat(result).isEmpty();
+        verify(cacheLayer).similaritySearch(request);
+        verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
     }
 
     @Test
-    @DisplayName("document store 가 timeout 되면 벡터 저장을 오래 기다리지 않고 VectorStoreException 으로 종료해야 한다")
+    @DisplayName("cache layer 검색 실패는 빈 결과로 숨기지 말고 동일 검색 재실행 없이 즉시 전파해야 한다")
+    void searchSimilar_shouldPropagateCacheLayerFailureWithoutRetryingSameSearch() {
+        PgVectorStoreProperties properties = new PgVectorStoreProperties();
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
+        SearchRequest request = SearchRequest.builder().query("query").topK(3).build();
+
+        doThrow(new VectorStoreCacheLayer.VectorSearchException("busy", new RuntimeException("503")))
+                .when(cacheLayer)
+                .similaritySearch(request);
+
+        assertThatThrownBy(() -> unifiedVectorService.searchSimilar(request))
+                .isInstanceOf(VectorOperations.VectorStoreException.class)
+                .hasMessageContaining("Similarity search failed");
+        verify(cacheLayer).similaritySearch(request);
+        verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
+    }
+
+    @Test
+    @DisplayName("document store가 timeout 되면 벡터 저장을 오래 기다리지 않고 VectorStoreException 으로 종료해야 한다")
     void storeDocument_shouldFailFastWhenTimeoutExceeded() {
         PgVectorStoreProperties properties = new PgVectorStoreProperties();
         properties.setStoreTimeoutMs(50);
-        AtomicBoolean interrupted = new AtomicBoolean(false);
         UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
         Document document = new Document("behavior memory", Map.of("documentType", "behavior"));
 
         org.mockito.Mockito.doAnswer(invocation -> {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException interruptedException) {
-                interrupted.set(true);
-                Thread.currentThread().interrupt();
-            }
+            Thread.sleep(500);
             return null;
         }).when(vectorStore).add(any());
 
@@ -79,6 +82,5 @@ class UnifiedVectorServiceTest {
                 .isInstanceOf(VectorOperations.VectorStoreException.class)
                 .hasMessageContaining("timed out");
         verify(cacheLayer, never()).invalidateAll();
-        org.assertj.core.api.Assertions.assertThat(interrupted.get()).isTrue();
     }
 }
