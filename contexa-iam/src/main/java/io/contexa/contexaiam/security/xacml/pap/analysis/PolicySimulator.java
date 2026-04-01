@@ -19,20 +19,14 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.AntPathMatcher;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * Simulates policy evaluation for test cases.
- * Compares current policy set results vs results with a candidate policy added.
+ * Evaluates current policies and optionally compares with a candidate policy.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -42,19 +36,17 @@ public class PolicySimulator {
     private final PolicyRepository policyRepository;
     private final RoleHierarchy roleHierarchy;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
-    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
-    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\('([^']*)'\\)");
 
-    /**
-     * Simulate policy evaluation for given test cases.
-     *
-     * @param candidatePolicy the policy to test (null = evaluate current policies only)
-     * @param testCases       list of user/path/method combinations to test
-     * @return simulation results comparing current vs new decisions
-     */
+    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern HAS_ANY_AUTHORITY_PATTERN = Pattern.compile("hasAnyAuthority\\(([^)]+)\\)");
+    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\('([^']*)'\\)");
+    private static final Pattern HAS_ANY_ROLE_PATTERN = Pattern.compile("hasAnyRole\\(([^)]+)\\)");
+    private static final Pattern QUOTED_ARG_PATTERN = Pattern.compile("'([^']*)'");
+
     public SimulationReport simulate(Policy candidatePolicy, List<SimulationTestCase> testCases) {
         List<Policy> existingPolicies = policyRepository.findAllWithDetails().stream()
                 .filter(Policy::getIsActive)
+                .sorted(Comparator.comparingInt(Policy::getPriority))
                 .toList();
 
         List<SimulationResult> results = new ArrayList<>();
@@ -143,7 +135,8 @@ public class PolicySimulator {
                 return new DecisionDetail(
                         policy.getEffect().name(),
                         policy.getId(), policy.getName(),
-                        expression, List.of());
+                        expression.isEmpty() ? "permitAll" : expression,
+                        List.of());
             }
         }
 
@@ -159,40 +152,142 @@ public class PolicySimulator {
     }
 
     private boolean methodMatches(String policyMethod, String requestMethod) {
-        if (policyMethod == null || "ANY".equalsIgnoreCase(policyMethod) || "ALL".equalsIgnoreCase(policyMethod)) {
+        if (policyMethod == null || "ANY".equalsIgnoreCase(policyMethod)
+                || "ALL".equalsIgnoreCase(policyMethod) || policyMethod.isBlank()) {
             return true;
         }
         return policyMethod.equalsIgnoreCase(requestMethod);
     }
 
+    /**
+     * Evaluates conditions of a policy against user authorities.
+     * If no rules or no conditions exist, the policy matches unconditionally
+     * (same as CustomDynamicAuthorizationManager which converts to permitAll/denyAll).
+     */
     private boolean evaluateConditions(Policy policy, Set<String> authorities) {
+        if (policy.getRules() == null || policy.getRules().isEmpty()) {
+            return true;
+        }
+
+        boolean hasAnyCondition = false;
         for (var rule : policy.getRules()) {
+            if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
+                continue;
+            }
+            hasAnyCondition = true;
             boolean allMet = true;
             for (PolicyCondition condition : rule.getConditions()) {
-                if (!evaluateSimpleCondition(condition.getExpression(), authorities)) {
+                if (!evaluateExpression(condition.getExpression(), authorities)) {
                     allMet = false;
                     break;
                 }
             }
             if (allMet) return true;
         }
-        return policy.getRules().isEmpty() || policy.getRules().stream()
-                .allMatch(r -> r.getConditions().isEmpty());
+
+        // No conditions found in any rule = unconditional match (permitAll equivalent)
+        return !hasAnyCondition;
     }
 
-    private boolean evaluateSimpleCondition(String expression, Set<String> authorities) {
-        var matcher = HAS_AUTHORITY_PATTERN.matcher(expression);
-        while (matcher.find()) {
-            if (authorities.contains(matcher.group(1))) return true;
+    /**
+     * Evaluates a SpEL-like expression against user authorities.
+     * Supports all patterns used in the real authorization system.
+     */
+    private boolean evaluateExpression(String expression, Set<String> authorities) {
+        if (expression == null || expression.isBlank()) return true;
+
+        String trimmed = expression.trim();
+
+        // permitAll / isAuthenticated - always true in simulation context
+        if (trimmed.contains("permitAll") || trimmed.contains("isAuthenticated")) return true;
+
+        // denyAll - always false
+        if (trimmed.equals("denyAll")) return false;
+
+        // AI expressions - treated as true
+        if (trimmed.contains("#ai.")) return true;
+
+        // Handle negation: !(expression)
+        if (trimmed.startsWith("!(") && trimmed.endsWith(")")) {
+            return !evaluateExpression(trimmed.substring(2, trimmed.length() - 1), authorities);
         }
-        var roleMatcher = HAS_ROLE_PATTERN.matcher(expression);
-        while (roleMatcher.find()) {
+
+        // Handle OR: (expr1) or (expr2)
+        if (trimmed.contains(" or ")) {
+            String[] parts = trimmed.split("\\s+or\\s+");
+            for (String part : parts) {
+                String cleaned = part.trim();
+                if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
+                    cleaned = cleaned.substring(1, cleaned.length() - 1);
+                }
+                if (evaluateExpression(cleaned, authorities)) return true;
+            }
+            return false;
+        }
+
+        // Handle AND: expr1 and expr2
+        if (trimmed.contains(" and ")) {
+            String[] parts = trimmed.split("\\s+and\\s+");
+            for (String part : parts) {
+                String cleaned = part.trim();
+                if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
+                    cleaned = cleaned.substring(1, cleaned.length() - 1);
+                }
+                if (!evaluateExpression(cleaned, authorities)) return false;
+            }
+            return true;
+        }
+
+        // hasAnyAuthority('A', 'B', ...)
+        Matcher anyAuthMatcher = HAS_ANY_AUTHORITY_PATTERN.matcher(trimmed);
+        if (anyAuthMatcher.find()) {
+            return matchesAnyQuotedArg(anyAuthMatcher.group(1), authorities, false);
+        }
+
+        // hasAuthority('X')
+        Matcher authMatcher = HAS_AUTHORITY_PATTERN.matcher(trimmed);
+        if (authMatcher.find()) {
+            return authorities.contains(authMatcher.group(1));
+        }
+
+        // hasAnyRole('A', 'B', ...)
+        Matcher anyRoleMatcher = HAS_ANY_ROLE_PATTERN.matcher(trimmed);
+        if (anyRoleMatcher.find()) {
+            return matchesAnyQuotedArg(anyRoleMatcher.group(1), authorities, true);
+        }
+
+        // hasRole('X')
+        Matcher roleMatcher = HAS_ROLE_PATTERN.matcher(trimmed);
+        if (roleMatcher.find()) {
             String role = roleMatcher.group(1);
             String fullRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
-            if (authorities.contains(fullRole)) return true;
+            return authorities.contains(fullRole);
         }
-        if (expression.contains("permitAll")) return true;
-        if (expression.contains("#ai.")) return true;
+
+        // Plain authority name (used when conditions are just authority names like "ADMIN")
+        if (!trimmed.contains("(") && !trimmed.contains(" ")) {
+            return authorities.contains(trimmed)
+                    || authorities.contains("ROLE_" + trimmed);
+        }
+
+        // Unknown expression - cannot evaluate, treat as not matched
+        return false;
+    }
+
+    /**
+     * Extracts quoted arguments and checks if any matches user authorities.
+     */
+    private boolean matchesAnyQuotedArg(String argsString, Set<String> authorities, boolean isRole) {
+        Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
+        while (argMatcher.find()) {
+            String value = argMatcher.group(1);
+            if (isRole) {
+                String fullRole = value.startsWith("ROLE_") ? value : "ROLE_" + value;
+                if (authorities.contains(fullRole)) return true;
+            } else {
+                if (authorities.contains(value)) return true;
+            }
+        }
         return false;
     }
 

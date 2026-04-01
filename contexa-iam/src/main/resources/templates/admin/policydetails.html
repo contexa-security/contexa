@@ -30,7 +30,7 @@
             </div>
 
             <!-- ============ EDIT FORM ============ -->
-            <form th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6">
+            <form id="policy-edit-form" th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)"
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
                 <!-- Policy Info -->
@@ -265,9 +265,21 @@
         </div>
     </main>
 
+<!-- Validation Result Modal -->
+<div id="validation-result-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
+    <div class="rounded-2xl p-6 space-y-4" style="background:#1e293b;border:1px solid rgba(99,102,241,0.3);width:36rem;max-height:80vh;overflow-y:auto;">
+        <h3 class="text-lg font-bold" style="color:#e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color:#818cf8;"></i> <span th:text="#{msg.policy.validation.title}">Validation Result</span></h3>
+        <div id="validation-result-content" class="space-y-3"></div>
+        <div class="flex justify-end gap-3 mt-4">
+            <button type="button" onclick="PolicyDetailValidation.closeModal()" class="dark-btn-secondary px-4 py-2" th:text="#{common.close}">Close</button>
+            <button type="button" id="validation-proceed-btn" onclick="PolicyDetailValidation.proceed()" class="modern-btn-primary px-4 py-2 hidden"><i class="fas fa-check mr-1"></i> <span th:text="#{msg.policy.validation.confirm}">Proceed</span></button>
+        </div>
+    </div>
+</div>
+
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
-<script>
+<script th:inline="javascript">
 function addTarget() {
     var c = document.getElementById('targets-container');
     var idx = c.querySelectorAll('.target-block').length;
@@ -533,6 +545,134 @@ var PolicyVersionUI = {
             var rollbackFailText = /*[[#{msg.policy.version.rollback.error}]]*/ 'Rollback failed';
             showToast(rollbackFailText + ': ' + err.message, 'error');
         });
+    }
+};
+
+var PolicyDetailValidation = {
+    _resolve: null,
+
+    extractPolicyDto: function() {
+        var form = document.getElementById('policy-edit-form');
+        var formData = new FormData(form);
+        var dto = {
+            id: formData.get('id') ? parseInt(formData.get('id')) : null,
+            name: formData.get('name'),
+            description: formData.get('description'),
+            effect: formData.get('effect'),
+            priority: parseInt(formData.get('priority')) || 100,
+            targets: [],
+            rules: []
+        };
+        form.querySelectorAll('.target-block').forEach(function(tb, ti) {
+            dto.targets.push({
+                targetType: formData.get('targets[' + ti + '].targetType'),
+                targetIdentifier: formData.get('targets[' + ti + '].targetIdentifier'),
+                httpMethod: formData.get('targets[' + ti + '].httpMethod')
+            });
+        });
+        form.querySelectorAll('.rule-block').forEach(function(rb, ri) {
+            var conditions = [];
+            rb.querySelectorAll('.condition-block').forEach(function(cb, ci) {
+                conditions.push({
+                    expression: formData.get('rules[' + ri + '].conditions[' + ci + '].expression'),
+                    authorizationPhase: formData.get('rules[' + ri + '].conditions[' + ci + '].authorizationPhase')
+                });
+            });
+            dto.rules.push({ description: formData.get('rules[' + ri + '].description'), conditions: conditions });
+        });
+        return dto;
+    },
+
+    validateAndSubmit: async function(event) {
+        event.preventDefault();
+        var dto = this.extractPolicyDto();
+        try {
+            var csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+            var csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
+            var resp = await fetch('/admin/policy-center/api/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
+                body: JSON.stringify(dto)
+            });
+            var validation = await resp.json();
+            if (!validation.canCreate) {
+                this.showModal(validation, false);
+                return false;
+            }
+            if (validation.conflicts.length > 0 || validation.duplicates.length > 0) {
+                var proceed = await new Promise(function(resolve) {
+                    PolicyDetailValidation._resolve = resolve;
+                    PolicyDetailValidation.showModal(validation, true);
+                });
+                if (!proceed) return false;
+            }
+        } catch (valErr) {
+            console.error('Validation error', valErr);
+        }
+        var form = document.getElementById('policy-edit-form');
+        form.removeAttribute('onsubmit');
+        form.submit();
+        return false;
+    },
+
+    showModal: function(validation, allowProceed) {
+        var modal = document.getElementById('validation-result-modal');
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        var content = document.getElementById('validation-result-content');
+        var html = '';
+        if (!validation.canCreate && validation.blockedReason) {
+            html += '<div class="p-4 rounded-xl" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;">'
+                + '<i class="fas fa-ban mr-2"></i><strong>' + this.escapeHtml(validation.blockedReason) + '</strong></div>';
+        }
+        if (validation.conflicts && validation.conflicts.length > 0) {
+            var conflictTitle = /*[[#{msg.policy.validation.conflict}]]*/ 'Conflict';
+            html += '<h4 class="text-sm font-bold" style="color:#f87171;"><i class="fas fa-bolt mr-1"></i> ' + conflictTitle + ' (' + validation.conflicts.length + ')</h4>';
+            validation.conflicts.forEach(function(c) {
+                var sColor = c.severity === 'CRITICAL' ? '#f87171' : c.severity === 'HIGH' ? '#fb923c' : '#fbbf24';
+                html += '<div class="flex items-start gap-3 p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">'
+                    + '<span class="status-badge text-xs" style="background:' + sColor + '20;color:' + sColor + ';border-color:' + sColor + '50;">' + c.severity + '</span>'
+                    + '<div><div class="text-sm" style="color:#e2e8f0;">' + PolicyDetailValidation.escapeHtml(c.conflictDescription) + '</div>'
+                    + '<div class="text-xs mt-1" style="color:#94a3b8;">' + PolicyDetailValidation.escapeHtml(c.existingPolicyName || '') + '</div></div></div>';
+            });
+        }
+        if (validation.duplicates && validation.duplicates.length > 0) {
+            var dupTitle = /*[[#{msg.policy.validation.duplicate}]]*/ 'Duplicate';
+            html += '<h4 class="text-sm font-bold mt-3" style="color:#c084fc;"><i class="fas fa-copy mr-1"></i> ' + dupTitle + ' (' + validation.duplicates.length + ')</h4>';
+            validation.duplicates.forEach(function(d) {
+                html += '<div class="p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(168,85,247,0.3);">'
+                    + '<span class="text-xs" style="color:#c084fc;">' + PolicyDetailValidation.escapeHtml(d.type) + '</span> '
+                    + '<span class="text-sm" style="color:#e2e8f0;">' + PolicyDetailValidation.escapeHtml(d.reason) + '</span></div>';
+            });
+        }
+        if (!html) {
+            var noIssues = /*[[#{msg.policy.validation.no.issues}]]*/ 'No issues detected';
+            html = '<div class="p-4 rounded-xl" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">'
+                + '<i class="fas fa-check-circle mr-2"></i>' + noIssues + '</div>';
+        }
+        content.innerHTML = html;
+        var proceedBtn = document.getElementById('validation-proceed-btn');
+        if (allowProceed && validation.canCreate) proceedBtn.classList.remove('hidden');
+        else proceedBtn.classList.add('hidden');
+    },
+
+    proceed: function() {
+        this.closeModal();
+        if (this._resolve) this._resolve(true);
+    },
+
+    closeModal: function() {
+        var modal = document.getElementById('validation-result-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        if (this._resolve) { this._resolve(false); this._resolve = null; }
+    },
+
+    escapeHtml: function(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 };
 

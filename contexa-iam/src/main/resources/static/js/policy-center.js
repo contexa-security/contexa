@@ -1070,6 +1070,54 @@ const PolicyCenter = {
                 const typeSelect = block.querySelector('select[name*="targetType"]');
                 if (typeSelect) this.toggleHttpMethod(typeSelect);
             });
+        },
+
+        async validateAndSubmit(event) {
+            event.preventDefault();
+            var form = document.getElementById('manual-create-form');
+            var formData = new FormData(form);
+            var policyDto = {
+                name: formData.get('name'),
+                description: formData.get('description'),
+                effect: formData.get('effect'),
+                priority: parseInt(formData.get('priority')) || 100,
+                targets: [],
+                rules: []
+            };
+            form.querySelectorAll('.target-block').forEach(function(tb, ti) {
+                policyDto.targets.push({
+                    targetType: formData.get('targets[' + ti + '].targetType'),
+                    targetIdentifier: formData.get('targets[' + ti + '].targetIdentifier'),
+                    httpMethod: formData.get('targets[' + ti + '].httpMethod')
+                });
+            });
+            form.querySelectorAll('.rule-block').forEach(function(rb, ri) {
+                var conditions = [];
+                rb.querySelectorAll('.condition-block').forEach(function(cb, ci) {
+                    conditions.push({
+                        expression: formData.get('rules[' + ri + '].conditions[' + ci + '].expression'),
+                        authorizationPhase: formData.get('rules[' + ri + '].conditions[' + ci + '].authorizationPhase')
+                    });
+                });
+                policyDto.rules.push({ description: formData.get('rules[' + ri + '].description'), conditions: conditions });
+            });
+
+            try {
+                var validation = await PolicyCenter.Validation.validateBeforeCreate(policyDto);
+                if (!validation.canCreate) {
+                    await PolicyCenter.ValidationModal.show(validation, false);
+                    return false;
+                }
+                if (validation.conflicts.length > 0 || validation.duplicates.length > 0) {
+                    var proceed = await PolicyCenter.ValidationModal.show(validation, true);
+                    if (!proceed) return false;
+                }
+            } catch (valErr) {
+                console.error('Pre-creation validation error', valErr);
+            }
+            form.removeAttribute('onsubmit');
+            form.submit();
+            return false;
         }
     },
 
@@ -2469,29 +2517,37 @@ PolicyCenter.SimulatorUI = {
         var resultsDiv = document.getElementById('sim-results');
         resultsDiv.classList.remove('hidden');
 
-        // Summary cards
-        var sum = report.summary;
+        // Summary cards - current policy evaluation mode (no candidate)
+        var allowCount = 0, denyCount = 0, noneCount = 0;
+        report.results.forEach(function(r) {
+            var dec = r.currentResult.decision;
+            if (dec === 'ALLOW') allowCount++;
+            else if (dec === 'DENY') denyCount++;
+            else noneCount++;
+        });
         document.getElementById('sim-summary').innerHTML =
-            '<div class="rounded-xl p-4 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-2xl font-bold" style="color:#94a3b8;">' + sum.unchanged + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simUnchanged', 'Unchanged') + '</div></div>'
-            + '<div class="rounded-xl p-4 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-2xl font-bold" style="color:#f87171;">' + sum.allowToDeny + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simAllowToDeny', 'ALLOW → DENY') + '</div></div>'
-            + '<div class="rounded-xl p-4 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-2xl font-bold" style="color:#4ade80;">' + sum.denyToAllow + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simDenyToAllow', 'DENY → ALLOW') + '</div></div>'
-            + '<div class="rounded-xl p-4 text-center" style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);"><div class="text-2xl font-bold" style="color:#fbbf24;">' + sum.otherChanges + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simOther', 'Other') + '</div></div>';
+            '<div class="rounded-xl p-4 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-2xl font-bold" style="color:#4ade80;">' + allowCount + '</div><div class="text-xs mt-1" style="color:#64748b;">ALLOW</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-2xl font-bold" style="color:#f87171;">' + denyCount + '</div><div class="text-xs mt-1" style="color:#64748b;">DENY</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-2xl font-bold" style="color:#94a3b8;">' + noneCount + '</div><div class="text-xs mt-1" style="color:#64748b;">NONE</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);"><div class="text-2xl font-bold" style="color:#a78bfa;">' + report.results.length + '</div><div class="text-xs mt-1" style="color:#64748b;">Total</div></div>';
 
         // Results table
         var tbody = document.getElementById('sim-results-body');
         var html = '';
         report.results.forEach(function(r) {
-            var bgStyle = r.changeType === 'ALLOW_TO_DENY' ? 'background:rgba(239,68,68,0.05);' :
-                r.changeType === 'DENY_TO_ALLOW' ? 'background:rgba(34,197,94,0.05);' : '';
-            var decColor = function(d) { return d === 'ALLOW' ? '#4ade80' : d === 'DENY' ? '#f87171' : '#94a3b8'; };
+            var dec = r.currentResult.decision;
+            var bgStyle = dec === 'ALLOW' ? 'background:rgba(34,197,94,0.05);' :
+                dec === 'DENY' ? 'background:rgba(239,68,68,0.05);' : '';
+            var decColor = dec === 'ALLOW' ? '#4ade80' : dec === 'DENY' ? '#f87171' : '#94a3b8';
+            var matchedPolicy = r.currentResult.matchedPolicyName || '-';
+            var matchedExpr = r.currentResult.matchedExpression || '';
             html += '<tr style="border-color:rgba(71,85,105,0.3);' + bgStyle + '">'
                 + '<td class="py-3 px-4" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(r.username || String(r.testCase.userId)) + '</td>'
                 + '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">' + PolicyCenter.escapeHtml(r.testCase.path) + '</td>'
                 + '<td class="py-3 px-4"><span class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">' + r.testCase.httpMethod + '</span></td>'
-                + '<td class="py-3 px-4"><span style="color:' + decColor(r.currentResult.decision) + ';font-weight:600;">' + r.currentResult.decision + '</span></td>'
-                + '<td class="py-3 px-4"><span style="color:' + decColor(r.newResult.decision) + ';font-weight:600;">' + r.newResult.decision + '</span></td>'
-                + '<td class="py-3 px-4">' + (r.changed ? '<span class="status-badge text-xs" style="background:rgba(251,191,36,0.2);color:#fbbf24;border-color:rgba(251,191,36,0.3);">' + r.changeType + '</span>' : '<span class="text-xs" style="color:#475569;">-</span>') + '</td>'
-                + '<td class="py-3 px-4 text-xs" style="color:#94a3b8;">' + PolicyCenter.escapeHtml(r.newResult.matchedPolicyName || '-') + '</td>'
+                + '<td class="py-3 px-4"><span style="color:' + decColor + ';font-weight:600;">' + dec + '</span></td>'
+                + '<td class="py-3 px-4 text-xs" style="color:#c4b5fd;">' + PolicyCenter.escapeHtml(matchedPolicy) + '</td>'
+                + '<td class="py-3 px-4 font-mono text-xs" style="color:#94a3b8;max-width:300px;overflow:hidden;text-overflow:ellipsis;" title="' + PolicyCenter.escapeHtml(matchedExpr) + '">' + PolicyCenter.escapeHtml(matchedExpr || '-') + '</td>'
                 + '</tr>';
         });
         tbody.innerHTML = html;
