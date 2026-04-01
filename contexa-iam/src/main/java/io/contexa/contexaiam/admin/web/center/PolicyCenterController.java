@@ -574,6 +574,27 @@ public class PolicyCenterController {
         }
     }
 
+    @GetMapping("/api/{policyId}/versions/{versionNumber}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getVersionSnapshot(
+            @PathVariable Long policyId, @PathVariable int versionNumber) {
+        try {
+            var version = policyVersionService.getVersion(policyId, versionNumber)
+                    .orElseThrow(() -> new IllegalArgumentException("Version not found"));
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("versionNumber", version.getVersionNumber());
+            result.put("changeType", version.getChangeType().name());
+            result.put("changedBy", version.getChangedBy());
+            result.put("changeReason", version.getChangeReason());
+            result.put("changedAt", version.getChangedAt() != null ? version.getChangedAt().toString() : null);
+            result.put("snapshot", version.getSnapshotJson());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to load version snapshot for policy {}, version {}", policyId, versionNumber, e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/api/{policyId}/rollback/{versionNumber}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> rollbackPolicy(

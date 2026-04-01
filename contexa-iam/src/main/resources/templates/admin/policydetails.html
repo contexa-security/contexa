@@ -277,6 +277,48 @@
     </div>
 </div>
 
+<!-- Version Snapshot Modal -->
+<div id="version-snapshot-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);">
+    <div class="rounded-2xl" style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border:1px solid rgba(56,189,248,0.25);width:48rem;max-height:85vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid rgba(56,189,248,0.15);background:rgba(56,189,248,0.04);">
+            <div class="flex items-center gap-3">
+                <div style="width:2.5rem;height:2.5rem;border-radius:0.75rem;background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(99,102,241,0.2));display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-camera" style="color:#38bdf8;font-size:1rem;"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold" style="color:#e2e8f0;" th:text="#{msg.policy.version.snapshot.title}">Version Snapshot</h3>
+                    <span id="snapshot-title" class="text-xs font-mono" style="color:#38bdf8;"></span>
+                </div>
+            </div>
+            <button type="button" onclick="PolicyVersionUI.closeSnapshotModal()" style="width:2rem;height:2rem;border-radius:0.5rem;background:rgba(71,85,105,0.3);border:1px solid rgba(71,85,105,0.4);color:#94a3b8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(71,85,105,0.3)';this.style.color='#94a3b8'">&times;</button>
+        </div>
+        <!-- Meta -->
+        <div id="snapshot-meta" class="flex flex-wrap gap-3 px-6 py-3 text-xs" style="color:#94a3b8;border-bottom:1px solid rgba(71,85,105,0.2);"></div>
+        <!-- Content -->
+        <div id="snapshot-content" class="p-6 space-y-4"></div>
+        <!-- Footer -->
+        <div class="flex justify-end px-6 py-4" style="border-top:1px solid rgba(71,85,105,0.2);background:rgba(15,23,42,0.3);">
+            <button type="button" onclick="PolicyVersionUI.closeSnapshotModal()" class="dark-btn-secondary px-5 py-2" th:text="#{common.close}">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rollback Reason Modal -->
+<div id="rollback-reason-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
+    <div class="rounded-2xl p-6 space-y-4" style="background:#1e293b;border:1px solid rgba(139,92,246,0.3);width:28rem;">
+        <h3 class="text-lg font-bold" style="color:#e2e8f0;"><i class="fas fa-undo mr-2" style="color:#c084fc;"></i> <span th:text="#{msg.policy.version.rollback}">Rollback</span></h3>
+        <div>
+            <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{msg.policy.version.change.reason}">Change Reason</label>
+            <textarea id="rollback-reason-input" class="modern-input w-full" rows="3" th:placeholder="#{msg.policy.version.change.reason.required}"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 mt-4">
+            <button type="button" onclick="PolicyVersionUI.closeReasonModal()" class="dark-btn-secondary px-4 py-2" th:text="#{common.cancel}">Cancel</button>
+            <button type="button" onclick="PolicyVersionUI.confirmRollback()" class="modern-btn-primary px-4 py-2"><i class="fas fa-undo mr-1"></i> <span th:text="#{msg.policy.version.rollback}">Rollback</span></button>
+        </div>
+    </div>
+</div>
+
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
 <script th:inline="javascript">
@@ -457,8 +499,12 @@ var PolicyVersionUI = {
                 html += '<span class="text-xs" style="color:#475569;">' + (v.changedAt || '') + '</span>';
                 if (v.changeReason) html += '<span class="text-xs" style="color:#cbd5e1;">' + PolicyVersionUI.escapeHtml(v.changeReason) + '</span>';
                 html += '</div>';
+                var viewLabel = /*[[#{msg.policy.version.view}]]*/ 'View';
                 var rollbackLabel = /*[[#{msg.policy.version.rollback}]]*/ 'Rollback';
+                html += '<div class="flex gap-2">';
+                html += '<button type="button" onclick="PolicyVersionUI.viewSnapshot(' + v.versionNumber + ')" class="text-xs" style="padding:0.25rem 0.75rem;border-radius:0.375rem;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background=\'rgba(34,197,94,0.25)\'" onmouseout="this.style.background=\'rgba(34,197,94,0.15)\'"><i class="fas fa-eye"></i> ' + viewLabel + '</button>';
                 html += '<button type="button" onclick="PolicyVersionUI.rollback(' + v.versionNumber + ')" class="action-badge-secondary text-xs"><i class="fas fa-undo"></i> ' + rollbackLabel + '</button>';
+                html += '</div>';
                 html += '</div>';
             });
             html += '</div>';
@@ -523,10 +569,127 @@ var PolicyVersionUI = {
         .catch(function(err) { resultDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">' + _verI18n.failed + '</p>'; });
     },
 
+    viewSnapshot: function(versionNumber) {
+        var modal = document.getElementById('version-snapshot-modal');
+        document.getElementById('snapshot-title').textContent = 'v' + versionNumber;
+        document.getElementById('snapshot-meta').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        document.getElementById('snapshot-content').innerHTML = '';
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+
+        fetch('/admin/policy-center/api/' + this.policyId + '/versions/' + versionNumber, {
+            headers: { [this.csrfHeader()]: this.csrfToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            document.getElementById('snapshot-meta').innerHTML =
+                '<span class="status-badge text-xs" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.3);">' + data.changeType + '</span>'
+                + '<span>' + PolicyVersionUI.escapeHtml(data.changedBy || '') + '</span>'
+                + '<span>' + PolicyVersionUI.escapeHtml(data.changedAt || '') + '</span>'
+                + (data.changeReason ? '<span style="color:#cbd5e1;">' + PolicyVersionUI.escapeHtml(data.changeReason) + '</span>' : '');
+
+            var _snapI18n = {
+                unavailable: /*[[#{msg.policy.version.snapshot.unavailable}]]*/ 'Snapshot data unavailable',
+                loadFailed: /*[[#{msg.policy.version.snapshot.load.failed}]]*/ 'Failed to load snapshot',
+                policyName: /*[[#{admin.policy.detail.policy.name}]]*/ 'Policy Name',
+                description: /*[[#{admin.policy.detail.description}]]*/ 'Description',
+                effect: /*[[#{admin.policy.detail.effect}]]*/ 'Effect',
+                priority: /*[[#{admin.policy.detail.priority}]]*/ 'Priority',
+                targets: /*[[#{admin.policy.detail.targets}]]*/ 'Targets',
+                rules: /*[[#{admin.policy.detail.rules}]]*/ 'Rules',
+                rule: /*[[#{policy.center.js.rule.label}]]*/ 'Rule #'
+            };
+
+            var snapshot;
+            try { snapshot = JSON.parse(data.snapshot); } catch(e) { snapshot = null; }
+            if (!snapshot) {
+                document.getElementById('snapshot-content').innerHTML = '<p class="text-sm" style="color:#f87171;">' + _snapI18n.unavailable + '</p>';
+                return;
+            }
+
+            var html = '<div class="space-y-3">';
+            html += PolicyVersionUI._snapshotField(_snapI18n.policyName, snapshot.name);
+            html += PolicyVersionUI._snapshotField(_snapI18n.description, snapshot.description);
+            html += PolicyVersionUI._snapshotField(_snapI18n.effect, snapshot.effect);
+            html += PolicyVersionUI._snapshotField(_snapI18n.priority, snapshot.priority);
+
+            if (snapshot.targets && snapshot.targets.length) {
+                html += '<div class="p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">';
+                html += '<div class="flex items-center gap-2 mb-2"><span class="text-xs font-semibold" style="color:#38bdf8;">' + _snapI18n.targets + ' (' + snapshot.targets.length + ')</span> ';
+                snapshot.targets.forEach(function(t) {
+                    html += '<span class="inline-flex items-center gap-1 text-xs" style="margin-right:0.5rem;">'
+                        + '<span class="status-badge bg-cyan-500/20 text-cyan-400 border-cyan-500/30" style="font-size:0.65rem;padding:0.1rem 0.4rem;">' + (t.httpMethod || t.targetType || 'ANY') + '</span>'
+                        + '<span class="font-mono" style="color:#cbd5e1;">' + PolicyVersionUI.escapeHtml(t.targetIdentifier || '') + '</span>'
+                        + '</span>';
+                });
+                html += '</div></div>';
+            }
+
+            if (snapshot.rules && snapshot.rules.length) {
+                html += '<div class="p-4 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">';
+                html += '<div class="text-sm font-semibold mb-3" style="color:#a78bfa;">' + _snapI18n.rules + ' (' + snapshot.rules.length + ')</div>';
+                snapshot.rules.forEach(function(r, ri) {
+                    html += '<div class="p-3 rounded-lg mb-2" style="background:rgba(15,23,42,0.5);border:1px solid rgba(99,102,241,0.2);">';
+                    html += '<div class="flex items-center gap-2 mb-2"><span class="text-sm font-bold" style="color:#818cf8;">' + _snapI18n.rule + (ri + 1) + '</span>';
+                    if (r.description) html += '<span class="text-sm" style="color:#cbd5e1;">' + PolicyVersionUI.escapeHtml(r.description) + '</span>';
+                    html += '</div>';
+                    if (r.conditions && r.conditions.length) {
+                        r.conditions.forEach(function(c) {
+                            html += '<div class="font-mono py-1.5 px-3 rounded mt-1" style="font-size:0.85rem;color:#fbbf24;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);">' + PolicyVersionUI.escapeHtml(c.expression || '') + '</div>';
+                        });
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            html += '</div>';
+            document.getElementById('snapshot-content').innerHTML = html;
+        })
+        .catch(function(err) {
+            document.getElementById('snapshot-content').innerHTML = '<p class="text-sm" style="color:#f87171;">' + _snapI18n.loadFailed + '</p>';
+        });
+    },
+
+    _snapshotField: function(label, value) {
+        return '<div class="flex items-center gap-3 py-2 text-sm" style="border-bottom:1px solid rgba(71,85,105,0.15);">'
+            + '<span class="font-semibold" style="color:#64748b;min-width:7rem;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">' + label + '</span>'
+            + '<span style="color:#e2e8f0;font-weight:500;">' + PolicyVersionUI.escapeHtml(String(value != null ? value : '-')) + '</span></div>';
+    },
+
+    closeSnapshotModal: function() {
+        var modal = document.getElementById('version-snapshot-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    },
+
+    _pendingRollbackVersion: null,
+
     rollback: function(versionNumber) {
-        var promptText = /*[[#{msg.policy.version.change.reason}]]*/ 'Change Reason';
-        var reason = prompt(promptText + ':');
-        if (reason === null) return;
+        this._pendingRollbackVersion = versionNumber;
+        var modal = document.getElementById('rollback-reason-modal');
+        document.getElementById('rollback-reason-input').value = '';
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        document.getElementById('rollback-reason-input').focus();
+    },
+
+    closeReasonModal: function() {
+        var modal = document.getElementById('rollback-reason-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        this._pendingRollbackVersion = null;
+    },
+
+    confirmRollback: function() {
+        var reason = document.getElementById('rollback-reason-input').value.trim();
+        if (!reason) {
+            var reqText = /*[[#{msg.policy.version.change.reason.required}]]*/ 'Change reason is required';
+            showToast(reqText, 'error');
+            return;
+        }
+        var versionNumber = this._pendingRollbackVersion;
+        this.closeReasonModal();
         fetch('/admin/policy-center/api/' + this.policyId + '/rollback/' + versionNumber, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', [this.csrfHeader()]: this.csrfToken() },
