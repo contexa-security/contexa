@@ -35,6 +35,16 @@
                     <span th:text="#{admin.policy.center.tab.list}">Policy List (List)</span>
                     <span class="tab-count" th:text="${policyPage?.totalElements} ?: '0'"></span>
                 </a>
+                <a href="javascript:void(0)" onclick="PolicyCenter.switchTab('simulator')"
+                   class="pc-tab-btn" id="tab-btn-simulator">
+                    <i class="fas fa-flask"></i>
+                    <span th:text="#{admin.policy.center.tab.simulator}">Simulator</span>
+                </a>
+                <a href="javascript:void(0)" onclick="PolicyCenter.switchTab('matrix')"
+                   class="pc-tab-btn" id="tab-btn-matrix">
+                    <i class="fas fa-th"></i>
+                    <span th:text="#{admin.policy.center.tab.matrix}">Matrix</span>
+                </a>
             </nav>
 
             <!-- ==================== TAB 1: RESOURCES ==================== -->
@@ -721,8 +731,13 @@
                                 <td class="table-cell-top">
                                     <div class="flex gap-2">
                                         <a th:href="@{/admin/policies/{id}(id=${policy.id})}" class="action-badge-primary"><i class="fas fa-edit"></i> <span th:text="#{common.edit}">Edit</span></a>
-                                        <!-- Approve button (not shown if already APPROVED) -->
-                                        <form th:if="${policy.approvalStatus.name() != 'APPROVED'}"
+                                        <!-- Approve button - AI policies go through validation modal -->
+                                        <button th:if="${policy.approvalStatus.name() != 'APPROVED' and (policy.source.name() == 'AI_GENERATED' or policy.source.name() == 'AI_EVOLVED')}"
+                                                type="button" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"
+                                                th:onclick="'PolicyCenter.AIValidationModal.open(' + ${policy.id} + ')'">
+                                            <i class="fas fa-robot"></i> <span th:text="#{admin.policy.center.list.approve}">Approve</span>
+                                        </button>
+                                        <form th:if="${policy.approvalStatus.name() != 'APPROVED' and policy.source.name() != 'AI_GENERATED' and policy.source.name() != 'AI_EVOLVED'}"
                                               th:action="@{/admin/policies/{id}/approve(id=${policy.id})}" method="post" style="display:inline;">
                                             <button type="submit" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"><i class="fas fa-check"></i> <span th:text="#{admin.policy.center.list.approve}">Approve</span></button>
                                         </form>
@@ -762,6 +777,117 @@
                         </li>
                     </ul>
                 </nav>
+            </div>
+
+            <!-- ==================== TAB 3: SIMULATOR ==================== -->
+            <div id="tab-simulator" class="pc-tab-content" style="display:none;">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold" style="color: #e2e8f0;">
+                        <i class="fas fa-flask mr-2" style="color: #a78bfa;"></i>
+                        <span th:text="#{admin.policy.center.tab.simulator}">Simulator</span>
+                    </h2>
+                </div>
+
+                <!-- Test Case Input -->
+                <div class="modern-card p-6 mb-6">
+                    <h3 class="text-base font-semibold mb-4" style="color: #cbd5e1;" th:text="#{admin.policy.center.simulator.test.cases}">Test Cases</h3>
+                    <div id="sim-test-cases">
+                        <div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">
+                            <div class="col-span-3"><input type="number" class="modern-input sim-userId" placeholder="User ID" min="1" /></div>
+                            <div class="col-span-5"><input type="text" class="modern-input sim-path" placeholder="/api/path" /></div>
+                            <div class="col-span-3">
+                                <select class="modern-select sim-method">
+                                    <option value="GET">GET</option><option value="POST">POST</option>
+                                    <option value="PUT">PUT</option><option value="DELETE">DELETE</option>
+                                </select>
+                            </div>
+                            <div class="col-span-1"><button type="button" onclick="this.closest('.sim-case').remove()" class="remove-btn">&times;</button></div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="PolicyCenter.SimulatorUI.addTestCase()" class="add-btn mt-2">
+                        <i class="fas fa-plus mr-1"></i> <span th:text="#{admin.policy.center.simulator.add.case}">Add Test Case</span>
+                    </button>
+                </div>
+
+                <!-- Run Button -->
+                <button type="button" id="sim-run-btn" onclick="PolicyCenter.SimulatorUI.run()" class="modern-btn-primary mb-6">
+                    <i class="fas fa-play mr-2"></i> <span th:text="#{admin.policy.center.simulator.run}">Run Simulation</span>
+                </button>
+
+                <!-- Results -->
+                <div id="sim-results" class="hidden">
+                    <div id="sim-summary" class="grid grid-cols-4 gap-4 mb-6"></div>
+                    <div class="modern-table overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead><tr>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.user}">User</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.path}">Path</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold">Method</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.current}">Current</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.new}">New</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.change}">Change</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.policy}">Matched Policy</th>
+                            </tr></thead>
+                            <tbody id="sim-results-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== TAB 4: MATRIX ==================== -->
+            <div id="tab-matrix" class="pc-tab-content" style="display:none;">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold" style="color: #e2e8f0;">
+                        <i class="fas fa-th mr-2" style="color: #38bdf8;"></i>
+                        <span th:text="#{admin.policy.center.tab.matrix}">Matrix</span>
+                    </h2>
+                </div>
+
+                <!-- Matrix Filters -->
+                <div class="filter-container mb-6 flex gap-4 items-end">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.matrix.filter.resource}">Resource Filter</label>
+                        <input type="text" id="matrix-resource-filter" class="modern-input" placeholder="/api/..." />
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.matrix.filter.role}">Role Filter</label>
+                        <input type="text" id="matrix-role-filter" class="modern-input" placeholder="ROLE_..." />
+                    </div>
+                    <button type="button" onclick="PolicyCenter.MatrixUI.load()" class="modern-btn-primary">
+                        <i class="fas fa-search mr-1"></i> <span th:text="#{common.search}">Search</span>
+                    </button>
+                </div>
+
+                <!-- Matrix Table -->
+                <div id="matrix-container" class="modern-table overflow-x-auto">
+                    <p class="text-sm p-6" style="color: #64748b;" th:text="#{admin.policy.center.matrix.empty}">Click search to load the matrix.</p>
+                </div>
+
+                <!-- Legend -->
+                <div class="flex gap-6 mt-4 text-xs" style="color: #94a3b8;">
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> ALLOW</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(239,68,68,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> DENY</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.15);border-radius:2px;margin-right:4px;vertical-align:middle;border:1px dashed rgba(34,197,94,0.4);"></span> <span th:text="#{admin.policy.center.matrix.inherited}">Inherited</span></span>
+                    <span><span style="display:inline-block;width:12px;height:12px;border:2px solid #f87171;border-radius:2px;margin-right:4px;vertical-align:middle;"></span> <span th:text="#{admin.policy.center.matrix.conflict}">Conflict</span></span>
+                </div>
+            </div>
+
+            <!-- ==================== AI VALIDATION MODAL ==================== -->
+            <div id="ai-validation-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
+                <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:36rem;width:100%;">
+                    <h3 class="text-lg font-bold mb-6" style="color:#e2e8f0;">
+                        <i class="fas fa-robot mr-2" style="color:#a78bfa;"></i> <span th:text="#{admin.policy.center.ai.validation.title}">AI Policy Validation</span>
+                    </h3>
+                    <div id="ai-validation-items" class="space-y-3 mb-6"></div>
+                    <div id="ai-validation-blocked" class="hidden p-4 rounded-xl mb-4" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;"></div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="PolicyCenter.AIValidationModal.close()" class="modern-btn-secondary" th:text="#{common.close}">Close</button>
+                        <form id="ai-validation-approve-form" method="post" style="display:inline;">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                            <button type="submit" id="ai-validation-approve-btn" class="modern-btn-primary" th:text="#{admin.policy.center.list.approve}">Approve</button>
+                        </form>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -1044,7 +1170,11 @@
      th:data-validation-checking="#{msg.policy.validation.checking}"
      th:data-validation-no-issues="#{msg.policy.validation.no.issues}"
      th:data-validation-critical="#{msg.policy.validation.critical}"
-     th:data-validation-warning="#{msg.policy.validation.warning}">
+     th:data-validation-warning="#{msg.policy.validation.warning}"
+     th:data-sim-unchanged="#{admin.policy.center.simulator.unchanged}"
+     th:data-sim-allow-to-deny="#{admin.policy.center.simulator.allow.to.deny}"
+     th:data-sim-deny-to-allow="#{admin.policy.center.simulator.deny.to.allow}"
+     th:data-sim-other="#{admin.policy.center.simulator.other.changes}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>

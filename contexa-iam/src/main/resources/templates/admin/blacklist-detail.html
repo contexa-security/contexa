@@ -9,223 +9,284 @@
 <div class="flex flex-1">
     <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
 
-    <main class="flex-1 p-6 md:p-10">
-        <div class="mx-auto max-w-4xl">
+    <main class="flex-1 p-8 md:p-12">
+        <div class="mx-auto" style="max-width: 72rem;">
 
-            <div class="mb-6">
-                <a th:href="@{/admin/blacklist}" class="text-sm transition-all duration-300"
-                   style="color: #818cf8;">&larr; <span th:text="#{admin.blacklist.detail.back}">Back to Blocked Users List</span></a>
+            <div class="mb-8">
+                <a th:href="@{/admin/blacklist}" class="text-sm transition-all duration-300 inline-flex items-center gap-2"
+                   style="color: #818cf8;"><i class="fas fa-arrow-left"></i> <span th:text="#{admin.blacklist.detail.back}">Back to Blocked Users List</span></a>
             </div>
 
-            <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h1 class="text-2xl font-bold text-gradient mb-6" th:text="#{admin.blacklist.detail.title}">Blocked User Details</h1>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Header Banner -->
+            <div class="rounded-2xl p-8 mb-8" style="background: linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(139,92,246,0.1) 100%); border: 1px solid rgba(239,68,68,0.2);">
+                <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.user.info}">User Information</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.user.id}">User ID</span>
-                                <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.userId}"></p>
-                            </div>
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.username}">Username</span>
-                                <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.username ?: 'N/A'}"></p>
-                            </div>
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.source.ip}">Source IP</span>
-                                <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.sourceIp ?: 'N/A'}"></p>
-                            </div>
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.user.agent}">User Agent</span>
-                                <p class="text-xs break-all" style="color: #e2e8f0;" th:text="${blocked.userAgent ?: 'N/A'}"></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.ai.analysis}">AI Analysis Results</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.risk.score}">Risk Score</span>
-                                <p class="text-sm font-mono"
-                                   th:text="${blocked.riskScore != null} ? ${#numbers.formatDecimal(blocked.riskScore, 1, 4)} : 'N/A'"
-                                   th:style="${blocked.riskScore != null and blocked.riskScore >= 0.8} ? 'color: #f87171;' : (${blocked.riskScore != null AND blocked.riskScore >= 0.5} ? 'color: #fbbf24;' : 'color: #4ade80;')"></p>
-                            </div>
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.confidence}">Confidence</span>
-                                <p class="text-sm font-mono" style="color: #e2e8f0;"
-                                   th:text="${blocked.confidence != null} ? ${#numbers.formatDecimal(blocked.confidence, 1, 4)} : 'N/A'"></p>
-                            </div>
-                            <div>
-                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.request.id}">Request ID</span>
-                                <p class="text-xs font-mono break-all" style="color: #e2e8f0;" th:text="${blocked.requestId}"></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.threat.analysis}">Threat Analysis Rationale</h3>
-                <div class="p-4 rounded-lg" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(71, 85, 105, 0.3);">
-                    <p class="text-sm whitespace-pre-wrap" style="color: #e2e8f0;" th:text="${blocked.reasoning} ?: #{admin.blacklist.detail.no.reasoning}"></p>
-                </div>
-            </div>
-
-            <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.block.history}">Block History</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.blocked.at}">Blocked At</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.blockedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.block.count}">Cumulative Block Count</span>
-                        <p class="text-sm font-semibold" style="color: #f87171;" th:text="${blocked.blockCount}"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.status}">Status</span>
-                        <p>
+                        <h1 class="text-2xl font-bold mb-3" style="color: #e2e8f0;">
+                            <i class="fas fa-ban mr-3" style="color: #f87171; font-size: 1.5rem;"></i>
+                            <span th:text="#{admin.blacklist.detail.title}">Blocked User Details</span>
+                        </h1>
+                        <div class="flex items-center gap-4">
+                            <span class="text-lg font-bold font-mono" style="color: #e2e8f0;" th:text="${blocked.username ?: blocked.userId}"></span>
                             <span th:if="${blocked.status.name() == 'BLOCKED'}"
-                                  class="px-3 py-1 rounded-full text-xs font-semibold"
-                                  style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">BLOCKED</span>
+                                  class="px-4 py-1.5 rounded-full text-sm font-bold"
+                                  style="background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.4);">
+                                <i class="fas fa-lock mr-1"></i> BLOCKED</span>
                             <span th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}"
-                                  class="px-3 py-1 rounded-full text-xs font-semibold"
-                                  style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);">UNBLOCK REQUESTED</span>
+                                  class="px-4 py-1.5 rounded-full text-sm font-bold"
+                                  style="background: rgba(251,191,36,0.2); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4);">
+                                <i class="fas fa-hourglass-half mr-1"></i> UNBLOCK REQUESTED</span>
                             <span th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}"
-                                  class="px-3 py-1 rounded-full text-xs font-semibold"
-                                  style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">TIMEOUT RESPONDED</span>
+                                  class="px-4 py-1.5 rounded-full text-sm font-bold"
+                                  style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4);">
+                                <i class="fas fa-robot mr-1"></i> TIMEOUT RESPONDED</span>
                             <span th:if="${blocked.status.name() == 'RESOLVED'}"
-                                  class="px-3 py-1 rounded-full text-xs font-semibold"
-                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">RESOLVED</span>
+                                  class="px-4 py-1.5 rounded-full text-sm font-bold"
+                                  style="background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4);">
+                                <i class="fas fa-check-circle mr-1"></i> RESOLVED</span>
+                        </div>
+                    </div>
+                    <div th:if="${blocked.blockCount != null}" class="text-center" style="min-width: 5rem;">
+                        <div class="text-3xl font-bold" style="color: #f87171;" th:text="${blocked.blockCount}"></div>
+                        <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.block.count}">Block Count</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2-Column Info Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+
+                <!-- User Info Card -->
+                <div class="rounded-2xl p-7" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(99,102,241,0.3);">
+                    <h3 class="text-base font-bold mb-5" style="color: #818cf8; letter-spacing: 0.05em;">
+                        <i class="fas fa-user-circle mr-2"></i> <span th:text="#{admin.blacklist.detail.user.info}">User Information</span>
+                    </h3>
+                    <div class="space-y-5">
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.table.user.id}">User ID</span>
+                            <p class="text-base font-mono mt-1" style="color: #e2e8f0;" th:text="${blocked.userId}"></p>
+                        </div>
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.table.username}">Username</span>
+                            <p class="text-base font-semibold mt-1" style="color: #e2e8f0;" th:text="${blocked.username ?: 'N/A'}"></p>
+                        </div>
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.source.ip}">Source IP</span>
+                            <p class="text-base font-mono mt-1" style="color: #e2e8f0;" th:text="${blocked.sourceIp ?: 'N/A'}"></p>
+                        </div>
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.user.agent}">User Agent</span>
+                            <p class="text-sm font-mono break-all mt-1" style="color: #94a3b8;" th:text="${blocked.userAgent ?: 'N/A'}"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Card -->
+                <div class="rounded-2xl p-7" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(139,92,246,0.3);">
+                    <h3 class="text-base font-bold mb-5" style="color: #a78bfa; letter-spacing: 0.05em;">
+                        <i class="fas fa-brain mr-2"></i> <span th:text="#{admin.blacklist.detail.ai.analysis}">AI Analysis Results</span>
+                    </h3>
+                    <div class="space-y-5">
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.table.risk.score}">Risk Score</span>
+                            <div class="flex items-center gap-4 mt-2">
+                                <span class="text-2xl font-bold font-mono"
+                                      th:text="${blocked.riskScore != null} ? ${#numbers.formatDecimal(blocked.riskScore, 1, 4)} : 'N/A'"
+                                      th:style="${blocked.riskScore != null and blocked.riskScore >= 0.8} ? 'color: #f87171;' : (${blocked.riskScore != null AND blocked.riskScore >= 0.5} ? 'color: #fbbf24;' : 'color: #4ade80;')"></span>
+                                <div th:if="${blocked.riskScore != null}" style="flex:1; max-width: 10rem;">
+                                    <div style="height: 0.5rem; background: rgba(71,85,105,0.3); border-radius: 0.25rem; overflow: hidden;">
+                                        <div th:style="${'width: ' + (blocked.riskScore * 100) + '%; height: 100%; border-radius: 0.25rem; background: ' + (blocked.riskScore >= 0.8 ? '#f87171' : (blocked.riskScore >= 0.5 ? '#fbbf24' : '#4ade80')) + ';'}"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.table.confidence}">Confidence</span>
+                            <p class="text-xl font-bold font-mono mt-1" style="color: #e2e8f0;"
+                               th:text="${blocked.confidence != null} ? ${#numbers.formatDecimal(blocked.confidence, 1, 4)} : 'N/A'"></p>
+                        </div>
+                        <div>
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.request.id}">Request ID</span>
+                            <p class="text-sm font-mono break-all mt-1" style="color: #94a3b8;" th:text="${blocked.requestId}"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Threat Analysis -->
+            <div class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(248,113,113,0.3);">
+                <h3 class="text-base font-bold mb-4" style="color: #f87171; letter-spacing: 0.05em;">
+                    <i class="fas fa-exclamation-triangle mr-2"></i> <span th:text="#{admin.blacklist.detail.threat.analysis}">Threat Analysis Rationale</span>
+                </h3>
+                <div class="p-5 rounded-xl" style="background: rgba(15,23,42,0.7); border: 1px solid rgba(71,85,105,0.3);">
+                    <p class="text-base whitespace-pre-wrap" style="color: #e2e8f0; line-height: 1.7;" th:text="${blocked.reasoning} ?: #{admin.blacklist.detail.no.reasoning}"></p>
+                </div>
+            </div>
+
+            <!-- Block History -->
+            <div class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
+                <h3 class="text-base font-bold mb-5" style="color: #94a3b8; letter-spacing: 0.05em;">
+                    <i class="fas fa-history mr-2"></i> <span th:text="#{admin.blacklist.detail.block.history}">Block History</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="rounded-xl p-5" style="background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.2);">
+                        <div class="text-sm mb-2" style="color: #64748b;"><i class="fas fa-calendar mr-1"></i> <span th:text="#{admin.blacklist.detail.blocked.at}">Blocked At</span></div>
+                        <p class="text-base font-mono" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.blockedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
+                    </div>
+                    <div class="rounded-xl p-5" style="background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.2);">
+                        <div class="text-sm mb-2" style="color: #64748b;"><i class="fas fa-ban mr-1"></i> <span th:text="#{admin.blacklist.detail.block.count}">Block Count</span></div>
+                        <p class="text-2xl font-bold" style="color: #f87171;" th:text="${blocked.blockCount}"></p>
+                    </div>
+                    <div class="rounded-xl p-5" style="background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.2);">
+                        <div class="text-sm mb-2" style="color: #64748b;"><i class="fas fa-flag mr-1"></i> <span th:text="#{admin.blacklist.detail.status}">Status</span></div>
+                        <p>
+                            <span th:if="${blocked.status.name() == 'BLOCKED'}" class="px-3 py-1.5 rounded-full text-sm font-bold" style="background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3);"><i class="fas fa-lock mr-1"></i> BLOCKED</span>
+                            <span th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="px-3 py-1.5 rounded-full text-sm font-bold" style="background: rgba(251,191,36,0.2); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3);"><i class="fas fa-hourglass-half mr-1"></i> UNBLOCK REQUESTED</span>
+                            <span th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}" class="px-3 py-1.5 rounded-full text-sm font-bold" style="background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.3);"><i class="fas fa-robot mr-1"></i> TIMEOUT RESPONDED</span>
+                            <span th:if="${blocked.status.name() == 'RESOLVED'}" class="px-3 py-1.5 rounded-full text-sm font-bold" style="background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);"><i class="fas fa-check-circle mr-1"></i> RESOLVED</span>
                         </p>
                     </div>
                 </div>
             </div>
 
-            <div th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #fbbf24;" th:text="#{admin.blacklist.detail.unblock.request}">Unblock Request Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Unblock Request Info -->
+            <div th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(251,191,36,0.3);">
+                <h3 class="text-base font-bold mb-5" style="color: #fbbf24; letter-spacing: 0.05em;">
+                    <i class="fas fa-unlock-alt mr-2"></i> <span th:text="#{admin.blacklist.detail.unblock.request}">Unblock Request Information</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.requested.at}">Requested At</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockRequestedAt != null} ? ${#temporals.format(blocked.unblockRequestedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.requested.at}">Requested At</span>
+                        <p class="text-base font-mono mt-1" style="color: #e2e8f0;" th:text="${blocked.unblockRequestedAt != null} ? ${#temporals.format(blocked.unblockRequestedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.request.reason}">Request Reason</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockReason ?: 'N/A'}"></p>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.request.reason}">Request Reason</span>
+                        <p class="text-base mt-1" style="color: #e2e8f0;" th:text="${blocked.unblockReason ?: 'N/A'}"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.mfa.status}">MFA Verification Status</span>
-                        <p>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.mfa.status}">MFA Verification Status</span>
+                        <p class="mt-2">
                             <span th:if="${blocked.mfaVerified != null AND blocked.mfaVerified}"
-                                  class="px-3 py-1 rounded-full text-xs font-semibold"
-                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">MFA Verified</span>
+                                  class="px-4 py-1.5 rounded-full text-sm font-bold"
+                                  style="background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);">
+                                <i class="fas fa-shield-alt mr-1"></i> MFA Verified</span>
                             <span th:if="${blocked.mfaVerified == null OR !blocked.mfaVerified}"
-                                  class="px-3 py-1 rounded-full text-xs font-semibold"
-                                  style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">MFA Not Verified</span>
+                                  class="px-4 py-1.5 rounded-full text-sm font-bold"
+                                  style="background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3);">
+                                <i class="fas fa-exclamation-circle mr-1"></i> MFA Not Verified</span>
                         </p>
                     </div>
                     <div th:if="${blocked.mfaVerified != null AND blocked.mfaVerified AND blocked.mfaVerifiedAt != null}">
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.mfa.verified.at}">MFA Verified At</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.mfaVerifiedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.mfa.verified.at}">MFA Verified At</span>
+                        <p class="text-base font-mono mt-1" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.mfaVerifiedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
                     </div>
                 </div>
 
                 <div th:if="${blocked.mfaVerified != null AND blocked.mfaVerified}"
-                     class="mt-4 p-3 rounded-lg text-sm"
-                     style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80;">
+                     class="mt-6 p-4 rounded-xl text-base flex items-center gap-3"
+                     style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #4ade80;">
+                    <i class="fas fa-info-circle text-lg"></i>
                     <span th:text="#{admin.blacklist.detail.mfa.verified.hint}">Unblock request with MFA verification completed. Likely a legitimate user.</span>
                 </div>
                 <div th:if="${blocked.mfaVerified == null OR !blocked.mfaVerified}"
-                     class="mt-4 p-3 rounded-lg text-sm"
-                     style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;">
+                     class="mt-6 p-4 rounded-xl text-base flex items-center gap-3"
+                     style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171;">
+                    <i class="fas fa-exclamation-triangle text-lg"></i>
                     <span th:text="#{admin.blacklist.detail.mfa.not.verified.hint}">Unblock request submitted without MFA verification. Please review for potential attacker.</span>
                 </div>
             </div>
 
-            <div th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #c084fc;" th:text="#{admin.blacklist.detail.soar.title}">SOAR Auto Response Complete</h3>
-                <div class="p-4 rounded-lg"
-                     style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3);">
-                    <p class="text-sm" style="color: #e2e8f0;">
+            <!-- SOAR Auto Response -->
+            <div th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}" class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(168,85,247,0.3);">
+                <h3 class="text-base font-bold mb-4" style="color: #c084fc; letter-spacing: 0.05em;">
+                    <i class="fas fa-robot mr-2"></i> <span th:text="#{admin.blacklist.detail.soar.title}">SOAR Auto Response Complete</span>
+                </h3>
+                <div class="p-5 rounded-xl flex items-start gap-4"
+                     style="background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.2);">
+                    <i class="fas fa-shield-alt text-xl mt-1" style="color: #c084fc;"></i>
+                    <div class="text-base" style="color: #e2e8f0; line-height: 1.7;">
                         <span th:text="#{admin.blacklist.detail.soar.desc1}">No unblock request within 24 hours after block - identified as attacker.</span><br/>
                         <span th:text="#{admin.blacklist.detail.soar.desc2}">Auto response executed: IP block + session invalidation</span>
-                    </p>
-                </div>
-            </div>
-
-            <div th:if="${blocked.status.name() == 'RESOLVED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.resolve.title}">Resolution Details</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.at}">Resolved At</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolvedAt != null} ? ${#temporals.format(blocked.resolvedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.by}">Resolved By</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolvedBy ?: 'N/A'}"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.action}">Resolution Action</span>
-                        <p class="text-sm font-semibold" style="color: #38bdf8;" th:text="${blocked.resolvedAction ?: 'N/A'}"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.reason}">Resolution Reason</span>
-                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolveReason ?: 'N/A'}"></p>
                     </div>
                 </div>
             </div>
 
-            <div th:if="${blocked.status.name() == 'BLOCKED' or blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;" th:text="#{admin.blacklist.detail.unblock.title}">Unblock User</h3>
+            <!-- Resolution Details -->
+            <div th:if="${blocked.status.name() == 'RESOLVED'}" class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(34,197,94,0.3);">
+                <h3 class="text-base font-bold mb-5" style="color: #4ade80; letter-spacing: 0.05em;">
+                    <i class="fas fa-check-double mr-2"></i> <span th:text="#{admin.blacklist.detail.resolve.title}">Resolution Details</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.at}">Resolved At</span>
+                        <p class="text-base font-mono mt-1" style="color: #e2e8f0;" th:text="${blocked.resolvedAt != null} ? ${#temporals.format(blocked.resolvedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
+                    </div>
+                    <div>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.by}">Resolved By</span>
+                        <p class="text-base font-semibold mt-1" style="color: #e2e8f0;" th:text="${blocked.resolvedBy ?: 'N/A'}"></p>
+                    </div>
+                    <div>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.action}">Resolution Action</span>
+                        <p class="mt-2"><span class="px-3 py-1.5 rounded-full text-sm font-bold" style="background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3);" th:text="${blocked.resolvedAction ?: 'N/A'}"></span></p>
+                    </div>
+                    <div>
+                        <span class="text-sm" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.reason}">Resolution Reason</span>
+                        <p class="text-base mt-1" style="color: #e2e8f0;" th:text="${blocked.resolveReason ?: 'N/A'}"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unblock Form -->
+            <div th:if="${blocked.status.name() == 'BLOCKED' or blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="rounded-2xl p-8 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(99,102,241,0.3);">
+                <h3 class="text-lg font-bold mb-6" style="color: #e2e8f0;">
+                    <i class="fas fa-unlock mr-2" style="color: #818cf8;"></i> <span th:text="#{admin.blacklist.detail.unblock.title}">Unblock User</span>
+                </h3>
                 <form th:action="@{/admin/blacklist/{id}/resolve(id=${blocked.id})}" method="post" id="resolveForm">
 
-                    <div class="mb-5">
-                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.unblock.action}">Resolution Action</label>
-                        <div class="flex flex-col gap-3">
-                            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
-                                   style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                    <div class="mb-6">
+                        <label class="block text-base font-medium mb-3" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.unblock.action}">Resolution Action</label>
+                        <div class="flex flex-col gap-4">
+                            <label class="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all duration-300"
+                                   style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.3);">
                                 <input type="radio" name="resolvedAction" value="ALLOW" required
-                                       class="w-4 h-4" style="accent-color: #6366f1;">
+                                       class="w-5 h-5" style="accent-color: #6366f1;">
                                 <div>
-                                    <span class="text-sm font-medium" style="color: #e2e8f0;">ALLOW</span>
-                                    <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.allow.desc}">- Immediately allow access</span>
+                                    <span class="text-base font-bold" style="color: #4ade80;"><i class="fas fa-check-circle mr-1"></i> ALLOW</span>
+                                    <span class="text-sm ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.allow.desc}">- Immediately allow access</span>
                                 </div>
                             </label>
-                            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
-                                   style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                            <label class="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all duration-300"
+                                   style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.3);">
                                 <input type="radio" name="resolvedAction" value="PENDING_ANALYSIS"
-                                       class="w-4 h-4" style="accent-color: #6366f1;">
+                                       class="w-5 h-5" style="accent-color: #6366f1;">
                                 <div>
-                                    <span class="text-sm font-medium" style="color: #e2e8f0;">PENDING_ANALYSIS</span>
-                                    <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.pending.desc}">- Re-analyze on next access</span>
+                                    <span class="text-base font-bold" style="color: #fbbf24;"><i class="fas fa-search mr-1"></i> PENDING_ANALYSIS</span>
+                                    <span class="text-sm ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.pending.desc}">- Re-analyze on next access</span>
                                 </div>
                             </label>
-                            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
-                                   style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                            <label class="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all duration-300"
+                                   style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.3);">
                                 <input type="radio" name="resolvedAction" value="CHALLENGE"
-                                       class="w-4 h-4" style="accent-color: #6366f1;">
+                                       class="w-5 h-5" style="accent-color: #6366f1;">
                                 <div>
-                                    <span class="text-sm font-medium" style="color: #e2e8f0;">CHALLENGE</span>
-                                    <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.challenge.desc}">- Require MFA verification</span>
+                                    <span class="text-base font-bold" style="color: #38bdf8;"><i class="fas fa-shield-alt mr-1"></i> CHALLENGE</span>
+                                    <span class="text-sm ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.challenge.desc}">- Require MFA verification</span>
                                 </div>
                             </label>
                         </div>
                     </div>
 
-                    <div class="mb-5">
-                        <label for="reason" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.reason.label}">Reason (Required)</label>
-                        <textarea id="reason" name="reason" rows="3" required minlength="5"
-                                  class="w-full px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2"
-                                  style="background: rgba(15, 23, 42, 0.8); color: #e2e8f0; border: 1px solid rgba(71, 85, 105, 0.3); focus-ring-color: #6366f1;"
+                    <div class="mb-6">
+                        <label for="reason" class="block text-base font-medium mb-3" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.reason.label}">Reason (Required)</label>
+                        <textarea id="reason" name="reason" rows="4" required minlength="5"
+                                  class="w-full px-5 py-4 rounded-xl text-base focus:outline-none focus:ring-2"
+                                  style="background: rgba(15,23,42,0.8); color: #e2e8f0; border: 1px solid rgba(71,85,105,0.3);"
                                   th:placeholder="#{admin.blacklist.detail.reason.placeholder}"></textarea>
                     </div>
 
                     <button type="submit"
-                            class="px-6 py-3 rounded-xl font-semibold text-white transition-all duration-300"
-                            style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                        <span th:text="#{admin.blacklist.detail.unblock.submit}">Unblock User</span>
+                            class="px-8 py-3.5 rounded-xl font-bold text-white text-base transition-all duration-300"
+                            style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99,102,241,0.4);">
+                        <i class="fas fa-unlock mr-2"></i> <span th:text="#{admin.blacklist.detail.unblock.submit}">Unblock User</span>
                     </button>
                 </form>
             </div>

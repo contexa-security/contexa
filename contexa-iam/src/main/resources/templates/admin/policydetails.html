@@ -219,11 +219,24 @@
                               required></textarea>
                 </div>
 
-                <!-- Submit -->
-                <button type="submit" class="modern-btn-primary w-full justify-center py-3">
-                    <i class="fas fa-save mr-2"></i>
-                    <span th:text="${policy.id != null} ? #{admin.policy.detail.save} : #{admin.policy.detail.register}">Save</span>
-                </button>
+                <!-- Impact Analysis + Submit -->
+                <div class="flex gap-3">
+                    <button type="button" onclick="PolicyDetailUI.runImpactAnalysis()" class="modern-btn-secondary flex-1 justify-center py-3">
+                        <i class="fas fa-chart-bar mr-2"></i>
+                        <span th:text="#{admin.policy.detail.impact.analysis}">Impact Analysis</span>
+                    </button>
+                    <button type="submit" class="modern-btn-primary flex-1 justify-center py-3">
+                        <i class="fas fa-save mr-2"></i>
+                        <span th:text="${policy.id != null} ? #{admin.policy.detail.save} : #{admin.policy.detail.register}">Save</span>
+                    </button>
+                </div>
+
+                <!-- Impact Analysis Results Panel -->
+                <div id="impact-panel" class="hidden mt-4 rounded-xl p-6" style="background:rgba(30,41,59,0.5);border:1px solid rgba(99,102,241,0.3);">
+                    <h4 class="text-base font-bold mb-4" style="color:#818cf8;"><i class="fas fa-chart-bar mr-2"></i> <span th:text="#{admin.policy.detail.impact.analysis}">Impact Analysis</span></h4>
+                    <div id="impact-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
+                    <div id="impact-users" class="modern-table overflow-x-auto"></div>
+                </div>
             </form>
 
             <!-- Version History (only for existing policies) -->
@@ -233,10 +246,16 @@
                         <i class="fas fa-history mr-2" style="color: #818cf8;"></i>
                         <span th:text="#{msg.policy.version.title}">Version History</span>
                     </h3>
-                    <button type="button" onclick="PolicyVersionUI.load()" class="modern-btn-secondary text-sm">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" id="version-compare-btn" onclick="PolicyVersionUI.compare()" class="modern-btn-secondary text-sm" disabled>
+                            <i class="fas fa-columns mr-1"></i> <span th:text="#{msg.policy.version.compare}">Compare</span>
+                        </button>
+                        <button type="button" onclick="PolicyVersionUI.load()" class="modern-btn-secondary text-sm">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                 </div>
+                <div id="version-compare-result" class="hidden mb-4 rounded-lg p-4" style="background:rgba(15,23,42,0.5);border:1px solid rgba(99,102,241,0.3);"></div>
                 <div id="version-history-container">
                     <p class="text-sm" style="color: #64748b;">
                         <i class="fas fa-spinner fa-spin mr-1"></i> Loading...
@@ -297,6 +316,86 @@ function updateIndices() {
         rb.querySelectorAll('.condition-block').forEach(function(cb,ci) { cb.querySelectorAll('[name]').forEach(function(e) { e.name = e.name.replace(/conditions\[\d+\]/,'conditions['+ci+']'); }); });
     });
 }
+var PolicyDetailUI = {
+    runImpactAnalysis: function() {
+        var form = document.querySelector('form');
+        var formData = new FormData(form);
+        var policyDto = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            effect: formData.get('effect'),
+            priority: parseInt(formData.get('priority')) || 100,
+            targets: [],
+            rules: []
+        };
+
+        document.querySelectorAll('.target-block').forEach(function(tb, i) {
+            policyDto.targets.push({
+                targetType: formData.get('targets[' + i + '].targetType'),
+                targetIdentifier: formData.get('targets[' + i + '].targetIdentifier'),
+                httpMethod: formData.get('targets[' + i + '].httpMethod'),
+                targetOrder: parseInt(formData.get('targets[' + i + '].targetOrder')) || 0
+            });
+        });
+
+        document.querySelectorAll('.rule-block').forEach(function(rb, ri) {
+            var conditions = [];
+            rb.querySelectorAll('.condition-block').forEach(function(cb, ci) {
+                conditions.push({
+                    expression: formData.get('rules[' + ri + '].conditions[' + ci + '].expression'),
+                    authorizationPhase: formData.get('rules[' + ri + '].conditions[' + ci + '].authorizationPhase')
+                });
+            });
+            policyDto.rules.push({ description: formData.get('rules[' + ri + '].description'), conditions: conditions });
+        });
+
+        var panel = document.getElementById('impact-panel');
+        panel.classList.remove('hidden');
+        document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Analyzing...</p>';
+
+        fetch('/admin/policy-center/api/impact-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', [PolicyVersionUI.csrfHeader()]: PolicyVersionUI.csrfToken() },
+            body: JSON.stringify(policyDto)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(report) {
+            var s = report.accessChangeSummary;
+            document.getElementById('impact-summary').innerHTML =
+                '<div class="rounded-lg p-3 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-xl font-bold" style="color:#4ade80;">' + s.gained + '</div><div class="text-xs" style="color:#64748b;">Gained</div></div>'
+                + '<div class="rounded-lg p-3 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-xl font-bold" style="color:#f87171;">' + s.lost + '</div><div class="text-xs" style="color:#64748b;">Lost</div></div>'
+                + '<div class="rounded-lg p-3 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-xl font-bold" style="color:#94a3b8;">' + s.unchanged + '</div><div class="text-xs" style="color:#64748b;">Unchanged</div></div>';
+
+            if (report.affectedUsers.length) {
+                var html = '<table class="min-w-full text-sm mt-3"><thead><tr>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">User</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Roles</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Current</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">New</th>'
+                    + '<th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Change</th>'
+                    + '</tr></thead><tbody>';
+                report.affectedUsers.forEach(function(u) {
+                    var bg = u.changeType === 'ACCESS_LOST' ? 'rgba(239,68,68,0.05)' : u.changeType === 'ACCESS_GAINED' ? 'rgba(34,197,94,0.05)' : '';
+                    html += '<tr style="border-color:rgba(71,85,105,0.3);background:' + bg + ';">'
+                        + '<td class="py-2 px-3" style="color:#e2e8f0;">' + u.username + '</td>'
+                        + '<td class="py-2 px-3 text-xs" style="color:#94a3b8;">' + u.roles.join(', ') + '</td>'
+                        + '<td class="py-2 px-3"><span style="color:' + (u.currentAccess === 'ALLOW' ? '#4ade80' : '#f87171') + ';">' + u.currentAccess + '</span></td>'
+                        + '<td class="py-2 px-3"><span style="color:' + (u.newAccess === 'ALLOW' ? '#4ade80' : '#f87171') + ';">' + u.newAccess + '</span></td>'
+                        + '<td class="py-2 px-3"><span class="status-badge text-xs" style="background:rgba(251,191,36,0.2);color:#fbbf24;border-color:rgba(251,191,36,0.3);">' + u.changeType + '</span></td>'
+                        + '</tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('impact-users').innerHTML = html;
+            } else {
+                document.getElementById('impact-users').innerHTML = '<p class="text-sm mt-2" style="color:#64748b;">No users affected.</p>';
+            }
+        })
+        .catch(function(err) {
+            document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#f87171;">Analysis failed: ' + err.message + '</p>';
+        });
+    }
+};
+
 var PolicyVersionUI = {
     policyId: /*[[${policy.id}]]*/ null,
     csrfToken: function() { return document.querySelector('meta[name="_csrf"]')?.content; },
@@ -326,6 +425,7 @@ var PolicyVersionUI = {
                     v.changeType === 'ROLLBACK' ? '#c084fc' : '#fbbf24';
                 html += '<div class="flex items-center justify-between p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">';
                 html += '<div class="flex items-center gap-3">';
+                html += '<input type="checkbox" class="version-compare-cb" value="' + v.versionNumber + '" onchange="PolicyVersionUI.updateCompareBtn()" style="accent-color:#6366f1;width:1rem;height:1rem;" />';
                 html += '<span class="text-xs font-mono px-2 py-0.5 rounded" style="background:' + typeColor + '20;color:' + typeColor + ';border:1px solid ' + typeColor + '50;">v' + v.versionNumber + '</span>';
                 html += '<span class="status-badge text-xs" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.3);">' + v.changeType + '</span>';
                 html += '<span class="text-xs" style="color:#94a3b8;">' + v.changedBy + '</span>';
@@ -349,6 +449,45 @@ var PolicyVersionUI = {
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    },
+
+    updateCompareBtn: function() {
+        var checked = document.querySelectorAll('.version-compare-cb:checked');
+        var btn = document.getElementById('version-compare-btn');
+        if (btn) btn.disabled = checked.length !== 2;
+    },
+
+    compare: function() {
+        var checked = document.querySelectorAll('.version-compare-cb:checked');
+        if (checked.length !== 2) return;
+        var v1 = parseInt(checked[0].value);
+        var v2 = parseInt(checked[1].value);
+
+        var resultDiv = document.getElementById('version-compare-result');
+        resultDiv.classList.remove('hidden');
+        resultDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Comparing...</p>';
+
+        fetch('/admin/policy-center/api/' + this.policyId + '/versions/compare?v1=' + v1 + '&v2=' + v2, {
+            headers: { [this.csrfHeader()]: this.csrfToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(changes) {
+            if (!changes.length) {
+                resultDiv.innerHTML = '<p class="text-sm" style="color:#4ade80;"><i class="fas fa-check mr-1"></i> No differences found.</p>';
+                return;
+            }
+            var html = '<h4 class="text-sm font-bold mb-3" style="color:#818cf8;"><i class="fas fa-columns mr-1"></i> v' + v1 + ' vs v' + v2 + '</h4>';
+            html += '<table class="min-w-full text-sm"><thead><tr><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Field</th><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">Before (v' + v1 + ')</th><th class="py-2 px-3 text-left text-xs" style="color:#94a3b8;">After (v' + v2 + ')</th></tr></thead><tbody>';
+            changes.forEach(function(c) {
+                html += '<tr style="border-color:rgba(71,85,105,0.3);">'
+                    + '<td class="py-2 px-3 font-mono text-xs" style="color:#a5b4fc;">' + PolicyVersionUI.escapeHtml(c.field) + '</td>'
+                    + '<td class="py-2 px-3 text-xs" style="color:#f87171;background:rgba(239,68,68,0.05);">' + PolicyVersionUI.escapeHtml(c.before) + '</td>'
+                    + '<td class="py-2 px-3 text-xs" style="color:#4ade80;background:rgba(34,197,94,0.05);">' + PolicyVersionUI.escapeHtml(c.after) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            resultDiv.innerHTML = html;
+        })
+        .catch(function(err) { resultDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">Compare failed.</p>'; });
     },
 
     rollback: function(versionNumber) {

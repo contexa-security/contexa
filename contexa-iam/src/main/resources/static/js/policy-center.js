@@ -2342,6 +2342,212 @@ PolicyCenter.Validation = {
     }
 };
 
+// ================================================================
+// TAB SWITCHING FOR CLIENT-SIDE TABS (Simulator, Matrix)
+// ================================================================
+
+PolicyCenter.switchTab = function(tabName) {
+    // Hide all client-side tabs
+    ['simulator', 'matrix'].forEach(t => {
+        var el = document.getElementById('tab-' + t);
+        if (el) el.style.display = 'none';
+        var btn = document.getElementById('tab-btn-' + t);
+        if (btn) btn.classList.remove('active');
+    });
+    // Hide server-side tabs
+    document.querySelectorAll('.pc-tab-content.active').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.pc-tab-nav .pc-tab-btn.active').forEach(b => b.classList.remove('active'));
+
+    var target = document.getElementById('tab-' + tabName);
+    if (target) { target.style.display = ''; }
+    var btn = document.getElementById('tab-btn-' + tabName);
+    if (btn) btn.classList.add('active');
+};
+
+// ================================================================
+// SIMULATOR UI
+// ================================================================
+
+PolicyCenter.SimulatorUI = {
+    addTestCase: function() {
+        var container = document.getElementById('sim-test-cases');
+        container.insertAdjacentHTML('beforeend',
+            '<div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">'
+            + '<div class="col-span-3"><input type="number" class="modern-input sim-userId" placeholder="User ID" min="1" /></div>'
+            + '<div class="col-span-5"><input type="text" class="modern-input sim-path" placeholder="/api/path" /></div>'
+            + '<div class="col-span-3"><select class="modern-select sim-method"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
+            + '<div class="col-span-1"><button type="button" onclick="this.closest(\'.sim-case\').remove()" class="remove-btn">&times;</button></div></div>');
+    },
+
+    run: async function() {
+        var cases = [];
+        document.querySelectorAll('.sim-case').forEach(function(row) {
+            var userId = row.querySelector('.sim-userId')?.value;
+            var path = row.querySelector('.sim-path')?.value;
+            var method = row.querySelector('.sim-method')?.value;
+            if (userId && path) cases.push({ userId: parseInt(userId), path: path, httpMethod: method || 'GET' });
+        });
+        if (!cases.length) { showToast(PolicyCenter._i18n('simAddCase', 'Add at least one test case'), 'error'); return; }
+
+        var btn = document.getElementById('sim-run-btn');
+        PolicyCenter.setLoading(btn, true);
+
+        var report = await PolicyCenter.Validation.simulate(null, cases);
+        PolicyCenter.setLoading(btn, false);
+
+        var resultsDiv = document.getElementById('sim-results');
+        resultsDiv.classList.remove('hidden');
+
+        // Summary cards
+        var sum = report.summary;
+        document.getElementById('sim-summary').innerHTML =
+            '<div class="rounded-xl p-4 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-2xl font-bold" style="color:#94a3b8;">' + sum.unchanged + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simUnchanged', 'Unchanged') + '</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-2xl font-bold" style="color:#f87171;">' + sum.allowToDeny + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simAllowToDeny', 'ALLOW → DENY') + '</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-2xl font-bold" style="color:#4ade80;">' + sum.denyToAllow + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simDenyToAllow', 'DENY → ALLOW') + '</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);"><div class="text-2xl font-bold" style="color:#fbbf24;">' + sum.otherChanges + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter._i18n('simOther', 'Other') + '</div></div>';
+
+        // Results table
+        var tbody = document.getElementById('sim-results-body');
+        var html = '';
+        report.results.forEach(function(r) {
+            var bgStyle = r.changeType === 'ALLOW_TO_DENY' ? 'background:rgba(239,68,68,0.05);' :
+                r.changeType === 'DENY_TO_ALLOW' ? 'background:rgba(34,197,94,0.05);' : '';
+            var decColor = function(d) { return d === 'ALLOW' ? '#4ade80' : d === 'DENY' ? '#f87171' : '#94a3b8'; };
+            html += '<tr style="border-color:rgba(71,85,105,0.3);' + bgStyle + '">'
+                + '<td class="py-3 px-4" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(r.username || String(r.testCase.userId)) + '</td>'
+                + '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">' + PolicyCenter.escapeHtml(r.testCase.path) + '</td>'
+                + '<td class="py-3 px-4"><span class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">' + r.testCase.httpMethod + '</span></td>'
+                + '<td class="py-3 px-4"><span style="color:' + decColor(r.currentResult.decision) + ';font-weight:600;">' + r.currentResult.decision + '</span></td>'
+                + '<td class="py-3 px-4"><span style="color:' + decColor(r.newResult.decision) + ';font-weight:600;">' + r.newResult.decision + '</span></td>'
+                + '<td class="py-3 px-4">' + (r.changed ? '<span class="status-badge text-xs" style="background:rgba(251,191,36,0.2);color:#fbbf24;border-color:rgba(251,191,36,0.3);">' + r.changeType + '</span>' : '<span class="text-xs" style="color:#475569;">-</span>') + '</td>'
+                + '<td class="py-3 px-4 text-xs" style="color:#94a3b8;">' + PolicyCenter.escapeHtml(r.newResult.matchedPolicyName || '-') + '</td>'
+                + '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+};
+
+// ================================================================
+// MATRIX UI
+// ================================================================
+
+PolicyCenter.MatrixUI = {
+    load: async function() {
+        var resourceFilter = document.getElementById('matrix-resource-filter')?.value || '';
+        var roleFilter = document.getElementById('matrix-role-filter')?.value || '';
+        var container = document.getElementById('matrix-container');
+        container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Loading...</p>';
+
+        var report = await PolicyCenter.Validation.getMatrix(resourceFilter, roleFilter);
+
+        if (!report.resources.length || !report.roles.length) {
+            container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;">No data matching the filter.</p>';
+            return;
+        }
+
+        // Build conflict map
+        var conflictMap = {};
+        report.conflictCells.forEach(function(c) { conflictMap[c.row + '_' + c.col] = c.severity; });
+
+        var html = '<table class="min-w-full text-sm"><thead><tr>';
+        html += '<th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" style="min-width:12rem;">Resource</th>';
+        report.roles.forEach(function(role) {
+            html += '<th class="py-3 px-3 text-center text-white text-xs uppercase font-semibold" style="min-width:6rem;">' + PolicyCenter.escapeHtml(role) + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        report.resources.forEach(function(res, rowIdx) {
+            html += '<tr style="border-color:rgba(71,85,105,0.3);">';
+            html += '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">'
+                + '<span class="status-badge bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-xs mr-1">' + res.httpMethod + '</span>'
+                + PolicyCenter.escapeHtml(res.identifier) + '</td>';
+
+            report.cells[rowIdx].forEach(function(cell, colIdx) {
+                var isConflict = conflictMap[rowIdx + '_' + colIdx];
+                var borderStyle = isConflict ? 'border:2px solid #f87171;' : '';
+                if (!cell) {
+                    html += '<td class="py-3 px-3 text-center" style="' + borderStyle + '"><span class="text-xs" style="color:#334155;">-</span></td>';
+                } else {
+                    var bg = cell.access === 'ALLOW' ? (cell.inherited ? 'rgba(34,197,94,0.08)' : 'rgba(34,197,94,0.15)') : 'rgba(239,68,68,0.15)';
+                    var color = cell.access === 'ALLOW' ? '#4ade80' : '#f87171';
+                    var style = 'background:' + bg + ';color:' + color + ';' + borderStyle;
+                    var label = cell.access + (cell.inherited ? ' *' : '');
+                    html += '<td class="py-3 px-3 text-center cursor-pointer" style="' + style + '" title="' + PolicyCenter.escapeHtml(cell.policyName || '') + '">'
+                        + '<span class="text-xs font-bold">' + label + '</span></td>';
+                }
+            });
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+};
+
+// ================================================================
+// AI VALIDATION MODAL
+// ================================================================
+
+PolicyCenter.AIValidationModal = {
+    currentPolicyId: null,
+
+    open: async function(policyId) {
+        this.currentPolicyId = policyId;
+        var modal = document.getElementById('ai-validation-modal');
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+
+        var itemsDiv = document.getElementById('ai-validation-items');
+        itemsDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Validating...</p>';
+        document.getElementById('ai-validation-blocked').classList.add('hidden');
+
+        try {
+            var response = await fetch('/admin/policy-center/api/' + policyId + '/ai-validation', {
+                headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
+            });
+            var report = await response.json();
+            this.render(report, policyId);
+        } catch (err) {
+            itemsDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">Validation failed: ' + err.message + '</p>';
+        }
+    },
+
+    render: function(report, policyId) {
+        var html = '';
+        report.items.forEach(function(item) {
+            var icon = item.result === 'PASS' ? '<i class="fas fa-check-circle" style="color:#4ade80;"></i>' :
+                item.result === 'WARNING' ? '<i class="fas fa-exclamation-circle" style="color:#fbbf24;"></i>' :
+                '<i class="fas fa-times-circle" style="color:#f87171;"></i>';
+            var bgColor = item.result === 'PASS' ? 'rgba(34,197,94,0.1)' :
+                item.result === 'WARNING' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)';
+            html += '<div class="flex items-center gap-3 p-3 rounded-lg" style="background:' + bgColor + ';">'
+                + icon + '<span class="text-sm font-semibold" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(item.checkName) + '</span>'
+                + '<span class="text-xs ml-auto" style="color:#94a3b8;">' + PolicyCenter.escapeHtml(item.detail) + '</span></div>';
+        });
+        document.getElementById('ai-validation-items').innerHTML = html;
+
+        var approveBtn = document.getElementById('ai-validation-approve-btn');
+        var approveForm = document.getElementById('ai-validation-approve-form');
+        var blockedDiv = document.getElementById('ai-validation-blocked');
+
+        if (report.canApprove) {
+            approveBtn.disabled = false;
+            approveForm.action = '/admin/policies/' + policyId + '/approve';
+            blockedDiv.classList.add('hidden');
+        } else {
+            approveBtn.disabled = true;
+            blockedDiv.classList.remove('hidden');
+            blockedDiv.innerHTML = '<i class="fas fa-ban mr-2"></i> ' + PolicyCenter.escapeHtml(report.blockedReason || 'Approval blocked');
+        }
+    },
+
+    close: function() {
+        var modal = document.getElementById('ai-validation-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+};
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     PolicyCenter.Manual.initHttpMethodVisibility();
