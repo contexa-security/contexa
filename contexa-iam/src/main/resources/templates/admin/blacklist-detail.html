@@ -25,19 +25,19 @@
                         <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.user.info}">User Information</h3>
                         <div class="space-y-3">
                             <div>
-                                <span class="text-xs" style="color: #64748b;">User ID</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.user.id}">User ID</span>
                                 <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.userId}"></p>
                             </div>
                             <div>
-                                <span class="text-xs" style="color: #64748b;">Username</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.username}">Username</span>
                                 <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.username ?: 'N/A'}"></p>
                             </div>
                             <div>
-                                <span class="text-xs" style="color: #64748b;">Source IP</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.source.ip}">Source IP</span>
                                 <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.sourceIp ?: 'N/A'}"></p>
                             </div>
                             <div>
-                                <span class="text-xs" style="color: #64748b;">User Agent</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.user.agent}">User Agent</span>
                                 <p class="text-xs break-all" style="color: #e2e8f0;" th:text="${blocked.userAgent ?: 'N/A'}"></p>
                             </div>
                         </div>
@@ -47,18 +47,18 @@
                         <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.ai.analysis}">AI Analysis Results</h3>
                         <div class="space-y-3">
                             <div>
-                                <span class="text-xs" style="color: #64748b;">Risk Score</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.risk.score}">Risk Score</span>
                                 <p class="text-sm font-mono"
                                    th:text="${blocked.riskScore != null} ? ${#numbers.formatDecimal(blocked.riskScore, 1, 4)} : 'N/A'"
                                    th:style="${blocked.riskScore != null and blocked.riskScore >= 0.8} ? 'color: #f87171;' : (${blocked.riskScore != null AND blocked.riskScore >= 0.5} ? 'color: #fbbf24;' : 'color: #4ade80;')"></p>
                             </div>
                             <div>
-                                <span class="text-xs" style="color: #64748b;">Confidence</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.table.confidence}">Confidence</span>
                                 <p class="text-sm font-mono" style="color: #e2e8f0;"
                                    th:text="${blocked.confidence != null} ? ${#numbers.formatDecimal(blocked.confidence, 1, 4)} : 'N/A'"></p>
                             </div>
                             <div>
-                                <span class="text-xs" style="color: #64748b;">Request ID</span>
+                                <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.request.id}">Request ID</span>
                                 <p class="text-xs font-mono break-all" style="color: #e2e8f0;" th:text="${blocked.requestId}"></p>
                             </div>
                         </div>

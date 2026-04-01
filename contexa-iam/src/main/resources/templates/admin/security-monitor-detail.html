@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='Security Event Detail')}"></th:block>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.security.monitor.detail.page.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
 </head>
@@ -21,7 +21,7 @@
                     <h1 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-search mr-2" style="color: #818cf8;"></i><span th:text="#{admin.security.monitor.detail.title}">Security Event Details</span>
                     </h1>
-                    <p class="text-xs mt-1" style="color: #64748b;">Event ID: <span th:text="${log.id}"></span></p>
+                    <p class="text-xs mt-1" style="color: #64748b;"><span th:text="#{admin.security.monitor.detail.event.id}">Event ID</span>: <span th:text="${log.id}"></span></p>
                 </div>
                 <a th:href="@{/admin/security-monitor}" class="modern-btn-secondary" style="text-decoration: none;">
                     <i class="fas fa-arrow-left mr-1"></i> <span th:text="#{admin.security.monitor.detail.back}">Back to List</span>
@@ -47,10 +47,10 @@
                 <!-- Who -->
                 <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
                     <div class="text-xs font-semibold mb-2" style="color: #818cf8;">
-                        <i class="fas fa-user mr-1"></i> WHO
+                        <i class="fas fa-user mr-1"></i> <span th:text="#{admin.security.monitor.detail.who}">WHO</span>
                     </div>
                     <div class="text-sm font-bold" style="color: #e2e8f0;" th:text="${log.principalName}">-</div>
-                    <div class="text-xs mt-1" style="color: #64748b;">IP: <span th:text="${log.clientIp ?: '-'}"></span></div>
+                    <div class="text-xs mt-1" style="color: #64748b;"><span th:text="#{admin.security.monitor.detail.ip}">IP</span>: <span th:text="${log.clientIp ?: '-'}"></span></div>
                     <div class="text-xs mt-0.5" style="color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 20rem;"
                          th:text="${'UA: ' + (log.userAgent ?: '-')}"></div>
                 </div>
@@ -58,29 +58,29 @@
                 <!-- When -->
                 <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
                     <div class="text-xs font-semibold mb-2" style="color: #f59e0b;">
-                        <i class="fas fa-clock mr-1"></i> WHEN
+                        <i class="fas fa-clock mr-1"></i> <span th:text="#{admin.security.monitor.detail.when}">WHEN</span>
                     </div>
                     <div class="text-sm font-bold" style="color: #e2e8f0;" th:text="${#temporals.format(log.timestamp, 'yyyy-MM-dd HH:mm:ss')}">-</div>
-                    <div th:if="${log.sessionId != null}" class="text-xs mt-1" style="color: #64748b;">Session: <span th:text="${log.sessionId}"></span></div>
-                    <div th:if="${log.correlationId != null}" class="text-xs mt-0.5" style="color: #64748b;">Correlation: <span th:text="${log.correlationId}"></span></div>
+                    <div th:if="${log.sessionId != null}" class="text-xs mt-1" style="color: #64748b;"><span th:text="#{admin.security.monitor.detail.session}">Session</span>: <span th:text="${log.sessionId}"></span></div>
+                    <div th:if="${log.correlationId != null}" class="text-xs mt-0.5" style="color: #64748b;"><span th:text="#{admin.security.monitor.detail.correlation}">Correlation</span>: <span th:text="${log.correlationId}"></span></div>
                 </div>
 
                 <!-- What -->
                 <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
                     <div class="text-xs font-semibold mb-2" style="color: #10b981;">
-                        <i class="fas fa-crosshairs mr-1"></i> WHAT
+                        <i class="fas fa-crosshairs mr-1"></i> <span th:text="#{admin.security.monitor.detail.what}">WHAT</span>
                     </div>
                     <div class="text-sm" style="color: #e2e8f0;">
                         <span th:if="${log.httpMethod != null}" class="font-bold mr-1" th:text="${log.httpMethod}"></span>
                         <span th:text="${log.requestUri ?: log.resourceUri ?: log.resourceIdentifier ?: '-'}"></span>
                     </div>
-                    <div th:if="${log.action != null}" class="text-xs mt-1" style="color: #64748b;">Action: <span th:text="${log.action}"></span></div>
+                    <div th:if="${log.action != null}" class="text-xs mt-1" style="color: #64748b;"><span th:text="#{admin.security.monitor.detail.action}">Action</span>: <span th:text="${log.action}"></span></div>
                 </div>
 
                 <!-- Why -->
                 <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
                     <div class="text-xs font-semibold mb-2" style="color: #f87171;">
-                        <i class="fas fa-gavel mr-1"></i> WHY
+                        <i class="fas fa-gavel mr-1"></i> <span th:text="#{admin.security.monitor.detail.why}">WHY</span>
                     </div>
                     <div class="flex items-center gap-3">
                         <div>
@@ -114,7 +114,7 @@
 
             <!-- Source -->
             <div class="flex items-center gap-4 text-xs" style="color: #64748b;">
-                <span th:if="${log.eventSource != null}"><i class="fas fa-server mr-1"></i> Source: <span th:text="${log.eventSource}"></span></span>
+                <span th:if="${log.eventSource != null}"><i class="fas fa-server mr-1"></i> <span th:text="#{admin.security.monitor.detail.source}">Source</span>: <span th:text="${log.eventSource}"></span></span>
             </div>
         </div>
     </main>
