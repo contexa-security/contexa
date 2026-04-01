@@ -39,9 +39,14 @@ public final class SandboxDecisionClaimExtractor {
         String normalized = reasoning.toLowerCase(Locale.ROOT);
         return normalized.contains("uncertain")
                 || normalized.contains("provisional")
+                || normalized.contains("sparse")
                 || normalized.contains("limited")
                 || normalized.contains("insufficient")
                 || normalized.contains("thin evidence")
+                || normalized.contains("thin role scope evidence")
+                || normalized.contains("thin scope evidence")
+                || normalized.contains("thin baseline evidence")
+                || normalized.contains("thin history")
                 || normalized.contains("no baseline")
                 || normalized.contains("lack of")
                 || normalized.contains("not enough");

@@ -193,6 +193,52 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
+    @DisplayName("기존 사용자의 sparse personal history는 new user로 과장하지 않고 sparse history로만 표현해야 한다")
+    void generateUserPromptShouldNotPromoteSparsePersonalHistoryIntoNewUser() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-003b")
+                .timestamp(LocalDateTime.of(2026, 4, 1, 15, 0))
+                .userId("alice")
+                .sessionId("session-2")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("isNewUser", false);
+        event.addMetadata("userRoles", List.of("ADMIN"));
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-2");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setBaselineContext("""
+                [NO_PERSONAL_BASELINE] This user has no personal behavioral history.
+
+                Organization Baseline (reference only - NOT this user's personal patterns):
+                Known Hours: 9, 10, 11
+                Frequent Paths: /admin/api/security-test/sensitive/resource-001
+                """);
+        behaviorAnalysis.setPersonalBaselineAvailable(false);
+        behaviorAnalysis.setPersonalBaselineEstablished(false);
+        behaviorAnalysis.setOrganizationBaselineAvailable(true);
+        behaviorAnalysis.setOrganizationBaselineEstablished(true);
+        behaviorAnalysis.setBaselineUpdateCount(1L);
+
+        String userPrompt = template.generateUserPrompt(new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())), "");
+
+        assertThat(userPrompt).contains("NewUser: false");
+        assertThat(userPrompt).contains("This user is not marked as new, but personal behavioral history is still sparse.");
+        assertThat(userPrompt).doesNotContain("This is a new user without established behavioral baseline.");
+        assertThat(userPrompt).doesNotContain("Personal behavioral baseline is not established yet.");
+    }
+
+    @Test
     @DisplayName("RAG 문서가 존재하면 historical comparable evidence가 userPrompt에 구조적으로 포함되어야 한다")
     void generateUserPromptShouldRenderHistoricalComparableEventsWhenRagDocumentsExist() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(

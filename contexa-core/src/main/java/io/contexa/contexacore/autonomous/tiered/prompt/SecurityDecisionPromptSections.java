@@ -186,7 +186,7 @@ public class SecurityDecisionPromptSections {
                                                           List<Document> relatedDocuments) {
         String userId = extractUserId(sessionContext);
         String baselineContext = extractBaselineContext(behaviorAnalysis);
-        BaselineStatus baselineStatus = determineBaselineStatus(behaviorAnalysis, baselineContext);
+        BaselineStatus baselineStatus = determineBaselineStatus(event, behaviorAnalysis, baselineContext);
         DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId);
         CanonicalSecurityContext canonicalSecurityContext = resolveCanonicalSecurityContext(event).orElse(null);
         cacheCanonicalSecurityContext(event, canonicalSecurityContext);
@@ -532,7 +532,13 @@ public class SecurityDecisionPromptSections {
 
         if (baselineStatus == BaselineStatus.NEW_USER) {
             section.append("Personal behavioral baseline is not established yet.\n");
-            section.append("Do not assume this request is normal based on user-specific history.\n");
+            section.append("No personal historical comparison is available for this user yet.\n");
+            return section.toString();
+        }
+
+        if (baselineStatus == BaselineStatus.SPARSE_PERSONAL_HISTORY) {
+            section.append("This user is not marked as new, but personal behavioral history is still sparse.\n");
+            section.append("Organization-level or shared reference evidence is not the same as an established personal norm.\n");
             return section.toString();
         }
 
@@ -998,8 +1004,9 @@ public class SecurityDecisionPromptSections {
         return section.toString();
     }
 
-    String buildNewUserBaselineSection(BaselineStatus baselineStatus, String baselineContext) {
-        if (baselineStatus != BaselineStatus.NEW_USER) {
+    String buildBaselineGapSection(BaselineStatus baselineStatus, String baselineContext) {
+        if (baselineStatus != BaselineStatus.NEW_USER
+                && baselineStatus != BaselineStatus.SPARSE_PERSONAL_HISTORY) {
             return null;
         }
 
@@ -1014,12 +1021,18 @@ public class SecurityDecisionPromptSections {
             section.append("\n");
         }
 
-        section.append("\nZERO TRUST WARNING:\n");
-        section.append("- This is a new user without established behavioral baseline.\n");
-        section.append("- There is not enough personal history to compare this request against an established user pattern.\n");
-        section.append("- Use organization baseline, session continuity, device history, and request details as the primary context.\n");
-        section.append("- Sensitive-resource access has higher impact because there is no personal history for comparison.\n");
-        section.append("- Missing personal history is uncertainty, not proof of compromise by itself.\n");
+        section.append("\nBASELINE EVIDENCE CONSTRAINTS:\n");
+        if (baselineStatus == BaselineStatus.NEW_USER) {
+            section.append("- This user is flagged as new and does not yet have personal behavioral history.\n");
+            section.append("- Personal historical comparison is not available for this request.\n");
+            section.append("- Organization baseline, session continuity, device history, and request details remain supporting evidence only.\n");
+            section.append("- Missing personal history is uncertainty, not proof of compromise or legitimacy by itself.\n");
+        } else {
+            section.append("- This user is not flagged as new, but personal behavioral history is still sparse.\n");
+            section.append("- Organization or cohort baseline is reference evidence, not an established personal baseline.\n");
+            section.append("- Sparse personal history limits user-specific comparison for this request.\n");
+            section.append("- Sparse personal history is uncertainty, not proof of compromise or legitimacy by itself.\n");
+        }
 
         return section.toString();
     }
@@ -1519,14 +1532,10 @@ public class SecurityDecisionPromptSections {
         return null;
     }
 
-      BaselineStatus determineBaselineStatus(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
+      BaselineStatus determineBaselineStatus(SecurityEvent event, BehaviorAnalysis behaviorAnalysis, String baselineContext) {
 
         if (behaviorAnalysis == null) {
             return BaselineStatus.ANALYSIS_UNAVAILABLE;
-        }
-
-        if (baselineContext != null && baselineContext.contains("[NO_PERSONAL_BASELINE]")) {
-            return BaselineStatus.NEW_USER;
         }
 
         if (behaviorAnalysis.isPersonalBaselineEstablished() && isValidBaseline(baselineContext)) {
@@ -1536,6 +1545,9 @@ public class SecurityDecisionPromptSections {
         if (behaviorAnalysis.isPersonalBaselineAvailable() && isValidBaseline(baselineContext)) {
             return BaselineStatus.PROVISIONAL;
         }
+
+        boolean explicitNewUser = isExplicitNewUser(event);
+        boolean sparsePersonalHistory = hasSparsePersonalHistory(behaviorAnalysis, baselineContext);
 
         if (baselineContext != null && baselineContext.startsWith("[")) {
             if (baselineContext.startsWith("[SERVICE_UNAVAILABLE]")) {
@@ -1547,19 +1559,54 @@ public class SecurityDecisionPromptSections {
             if (baselineContext.startsWith("[NO_DATA]")) {
                 return BaselineStatus.NOT_LOADED;
             }
-            return BaselineStatus.NEW_USER;
+            if (sparsePersonalHistory) {
+                return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.SPARSE_PERSONAL_HISTORY;
+            }
+            return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.NOT_LOADED;
         }
 
         if (baselineContext != null &&
                 (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
-            return BaselineStatus.NEW_USER;
+            return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.SPARSE_PERSONAL_HISTORY;
         }
 
         if (behaviorAnalysis.isBaselineEstablished() || behaviorAnalysis.isPersonalBaselineEstablished()) {
             return BaselineStatus.NOT_LOADED;
         }
 
-        return BaselineStatus.NEW_USER;
+        if (sparsePersonalHistory) {
+            return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.SPARSE_PERSONAL_HISTORY;
+        }
+
+        return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.NOT_LOADED;
+    }
+
+    private boolean hasSparsePersonalHistory(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
+        if (behaviorAnalysis == null) {
+            return false;
+        }
+
+        if (baselineContext != null && baselineContext.contains("[NO_PERSONAL_BASELINE]")) {
+            return true;
+        }
+        if (behaviorAnalysis.isOrganizationBaselineAvailable() || behaviorAnalysis.isOrganizationBaselineEstablished()) {
+            return true;
+        }
+        if (behaviorAnalysis.getBaselineUpdateCount() != null && behaviorAnalysis.getBaselineUpdateCount() > 0) {
+            return true;
+        }
+        if (behaviorAnalysis.getPreviousPath() != null && !behaviorAnalysis.getPreviousPath().isBlank()) {
+            return true;
+        }
+        return behaviorAnalysis.getSimilarEvents() != null && !behaviorAnalysis.getSimilarEvents().isEmpty();
+    }
+
+    private boolean isExplicitNewUser(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return false;
+        }
+        Object isNewUser = event.getMetadata().get("isNewUser");
+        return Boolean.TRUE.equals(isNewUser);
     }
 
     private boolean isValidBaseline(String baseline) {

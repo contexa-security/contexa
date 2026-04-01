@@ -6,6 +6,8 @@ public enum BaselineStatus {
 
     PROVISIONAL("PROVISIONAL", "Personal baseline evidence is forming but is not yet stable enough to prove normal behavior"),
 
+    SPARSE_PERSONAL_HISTORY("SPARSE_PERSONAL_HISTORY", "User is known but personal behavioral history remains too sparse to establish a personal baseline"),
+
     NEW_USER("[NEW_USER] No baseline established", "Cannot compare against historical patterns"),
 
     NOT_LOADED("[NO_DATA] Baseline available but not loaded", "Anomaly detection unavailable"),

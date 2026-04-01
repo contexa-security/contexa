@@ -8,7 +8,7 @@ public class SecurityContextQualityUserSectionBuilder implements SecurityPromptS
         String missingKnowledgeSection = template.buildExplicitMissingKnowledgeSection(context.getCanonicalSecurityContext());
         String baselineGapSupport = template.buildSupportingPromptBlock(
                 "BaselineGapSupport",
-                template.buildNewUserBaselineSection(
+                template.buildBaselineGapSection(
                         context.getBaselineStatus(),
                         context.getBaselineContext()
                 )

@@ -179,6 +179,46 @@ class SandboxDecisionMetricExtractorTest {
     }
 
     @Test
+    @DisplayName("sparse uncertainty language는 safe uncertainty 표현으로 인정해야 한다")
+    void adjudicationShouldTreatSparseLanguageAsSafeUncertainty() {
+        SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog
+                .resizeScenario(SandboxPromptReplayScenarioCatalog.ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY, 3);
+        SandboxPromptReplayRound round = round(
+                scenario,
+                2,
+                "CHALLENGE",
+                0.45d,
+                "Sparse personal history prevents establishing a baseline for sensitive access.");
+
+        SandboxDecisionAdjudication adjudication = new SandboxDecisionAdjudicationService().adjudicate(
+                round,
+                SandboxDecisionGoldCaseCatalog.resolve(scenario, round),
+                "Sparse personal history prevents establishing a baseline for sensitive access.");
+
+        assertThat(adjudication.uncertaintyLanguagePresent()).isTrue();
+    }
+
+    @Test
+    @DisplayName("thin role scope evidence 표현은 uncertainty language로 인정해야 한다")
+    void adjudicationShouldTreatThinRoleScopeEvidenceAsSafeUncertainty() {
+        SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog
+                .resizeScenario(SandboxPromptReplayScenarioCatalog.ADMIN_SPARSE_HISTORY_THEN_HIGH_VALUE_REENTRY, 3);
+        SandboxPromptReplayRound round = round(
+                scenario,
+                1,
+                "CHALLENGE",
+                0.45d,
+                "New user, new session, and new device with no MFA verification and thin role scope evidence.");
+
+        SandboxDecisionAdjudication adjudication = new SandboxDecisionAdjudicationService().adjudicate(
+                round,
+                SandboxDecisionGoldCaseCatalog.resolve(scenario, round),
+                "New user, new session, and new device with no MFA verification and thin role scope evidence.");
+
+        assertThat(adjudication.uncertaintyLanguagePresent()).isTrue();
+    }
+
+    @Test
     @DisplayName("같은 replay run을 두 번 평가하면 CDC ERA SUHR와 round metric이 동일해야 한다")
     void metricExtractorShouldBeDeterministicForSameReplayRun() {
         SandboxPromptReplayScenario scenario = SandboxPromptReplayScenarioCatalog
