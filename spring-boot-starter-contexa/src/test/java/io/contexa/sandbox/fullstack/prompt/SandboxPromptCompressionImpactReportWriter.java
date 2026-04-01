@@ -78,6 +78,19 @@ public final class SandboxPromptCompressionImpactReportWriter {
                 .map(SandboxDecisionRoundResult::performanceTelemetry)
                 .filter(java.util.Objects::nonNull)
                 .toList();
+        SandboxDecisionCostProfile costProfile = performanceTelemetry.stream()
+                .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                .filter(java.util.Objects::nonNull)
+                .map(SandboxDecisionCostEstimate::costProfile)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(new SandboxDecisionCostProfile(
+                        "UNCONFIGURED",
+                        "Unconfigured reference pricing",
+                        "USD",
+                        0.0d,
+                        0.0d,
+                        false));
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("budgetProfile", comparison.budgetProfile());
@@ -120,6 +133,10 @@ public final class SandboxPromptCompressionImpactReportWriter {
                 .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostSavings)
                 .average()
                 .orElse(0.0d)));
+        row.put("costProfileKey", costProfile.profileKey());
+        row.put("costProfileDisplayName", costProfile.displayName());
+        row.put("costCurrencyCode", costProfile.currencyCode());
+        row.put("costProfileConfigured", costProfile.configured());
         row.put("cdcMean", metricMean(comparison.decisionRunResults(), SandboxDecisionMetric.CDC.key()));
         row.put("eraMean", metricMean(comparison.decisionRunResults(), SandboxDecisionMetric.ERA.key()));
         row.put("suhrMean", metricMean(comparison.decisionRunResults(), SandboxDecisionMetric.SUHR.key()));

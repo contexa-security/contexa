@@ -90,6 +90,30 @@ public final class SandboxDecisionAdjudicationService {
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "event.resourceSensitivity matched high-sensitivity band")
                     : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.CONTRADICTED, "event.resourceSensitivity contradicted"));
         }
+        if (containsAny(normalized, null, "sensitive access", "sensitive resource", "sensitive request")) {
+            String actualSensitivity = eventMetadata.get("resourceSensitivity") == null
+                    ? null
+                    : String.valueOf(eventMetadata.get("resourceSensitivity")).trim();
+            boolean grounded = actualSensitivity != null
+                    && (actualSensitivity.equalsIgnoreCase("HIGH")
+                    || actualSensitivity.equalsIgnoreCase("CRITICAL")
+                    || actualSensitivity.equalsIgnoreCase("SECRET")
+                    || actualSensitivity.equalsIgnoreCase("RESTRICTED"));
+            if (!grounded) {
+                grounded = containsAny(
+                        normalizedPrompt,
+                        normalizedPrompt,
+                        "sensitivity: high",
+                        "sensitivity high",
+                        "high sensitivity",
+                        "resource sensitivity: high",
+                        "sensitivity: critical",
+                        "critical sensitivity");
+            }
+            matchedAssessments.add(grounded
+                    ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "event.resourceSensitivity matched sensitive-access band")
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "event.resourceSensitivity missing for sensitive-access claim"));
+        }
         if (normalized.contains("allow")) {
             matchedAssessments.add(stringFactClaim(claim, eventMetadata.get("authorizationEffect"), "ALLOW", "event.authorizationEffect"));
         }
@@ -130,6 +154,73 @@ public final class SandboxDecisionAdjudicationService {
             matchedAssessments.add(grounded
                     ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes scope evidence.")
                     : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose scope evidence."));
+        }
+        if (containsAny(normalized, null, "trusted scope evidence", "trusted scope", "role scope evidence")) {
+            boolean grounded = containsAny(
+                    normalizedPrompt,
+                    normalizedPrompt,
+                    "scope",
+                    "role scope",
+                    "trusted scope",
+                    "thin role scope evidence",
+                    "scope evidence");
+            matchedAssessments.add(grounded
+                    ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes trusted-scope evidence constraints.")
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose trusted-scope evidence constraints."));
+        }
+        if (containsAny(normalized, null, "provisional role profile", "provisional role profiles", "provisional profile", "provisional profiles")) {
+            boolean grounded = containsAny(
+                    normalizedPrompt,
+                    normalizedPrompt,
+                    "provisional",
+                    "role scope baseline is thin",
+                    "role scope profile",
+                    "provisional role");
+            matchedAssessments.add(grounded
+                    ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes provisional profile evidence.")
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose provisional profile evidence."));
+        }
+        if (containsAny(normalized, null, "fallback signal", "fallback signals", "fallback-heavy", "fallback")) {
+            boolean grounded = containsAny(
+                    normalizedPrompt,
+                    normalizedPrompt,
+                    "fallback",
+                    "fallback-heavy",
+                    "relies on fallback",
+                    "value derivation depends on fallback signals",
+                    "thin role scope evidence");
+            matchedAssessments.add(grounded
+                    ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes fallback-signal evidence.")
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose fallback-signal evidence."));
+        }
+        if (containsAny(
+                normalized,
+                null,
+                "missing baseline evidence",
+                "missing baseline data",
+                "missing evidence",
+                "lacks sufficient evidence",
+                "lack sufficient evidence",
+                "lacks evidence",
+                "insufficient evidence",
+                "limited evidence")) {
+            boolean grounded = containsAny(
+                    normalizedPrompt,
+                    normalizedPrompt,
+                    "limited evidence",
+                    "sparse",
+                    "thin evidence",
+                    "thin role scope evidence",
+                    "thin scope evidence",
+                    "thin baseline evidence",
+                    "unknown values remain high",
+                    "confidencewarning",
+                    "contexttrustwarning",
+                    "work profile",
+                    "baseline");
+            matchedAssessments.add(grounded
+                    ? new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.GROUNDED, "Prompt exposes evidence-limitation context.")
+                    : new SandboxDecisionClaimAssessment(claim, SandboxDecisionClaimVerdict.UNSUPPORTED, "Prompt does not expose evidence-limitation context."));
         }
         if (normalized.contains("previous")) {
             boolean grounded = normalizedPrompt.contains("previouspath:");

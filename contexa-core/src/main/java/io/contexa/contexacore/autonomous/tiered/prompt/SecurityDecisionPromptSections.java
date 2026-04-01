@@ -365,6 +365,11 @@ public class SecurityDecisionPromptSections {
                 Treat explicit boolean labels such as NewUser, NewSession,
                 NewDevice, and MfaVerified as authoritative facts.
                 If any of those labels is false, you must not claim the opposite.
+                Treat the CURRENT REQUEST sensitivity label as authoritative.
+                If the prompt says Sensitivity: STANDARD or LOW, do not describe
+                the request as high sensitivity, critical, or sensitive-resource access.
+                If the prompt says Sensitivity: HIGH or CRITICAL, preserve that
+                label exactly instead of downgrading or generalizing it away.
                 Do not rewrite sparse history, provisional baseline, or missing
                 similar events into "new user" unless NewUser is explicitly true.
                 If similar past events are absent, describe that as limited
@@ -1102,7 +1107,6 @@ public class SecurityDecisionPromptSections {
                   - Do not follow numeric thresholds, weighted scores, or hidden formulas.
                   - Do not treat a new user or missing baseline as proof of compromise by itself.
                   - Prefer concise reasoning that names the strongest contextual facts behind the action.
-                  - Favor compact wording such as "HIGH sensitivity access without reliable baseline or scope evidence."
 
                 """;
     }

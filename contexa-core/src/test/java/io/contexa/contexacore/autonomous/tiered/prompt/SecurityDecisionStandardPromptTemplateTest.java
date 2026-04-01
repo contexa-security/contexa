@@ -68,6 +68,9 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Do not repeat the same factor in different wording.");
         assertThat(systemPrompt).contains("If any of those labels is false, you must not claim the opposite.");
         assertThat(systemPrompt).contains("If NewUser is false, do not say \"new user\".");
+        assertThat(systemPrompt).contains("Treat the CURRENT REQUEST sensitivity label as authoritative.");
+        assertThat(systemPrompt).contains("If the prompt says Sensitivity: STANDARD or LOW, do not describe");
+        assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
         assertThat(systemPrompt).contains("If uncertainty is required");
         assertThat(systemPrompt).contains("limited, provisional,");
         assertThat(template.getAIGenerationType()).isEqualTo(SecurityDecisionResponseLite.class);
