@@ -28,17 +28,21 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
         long promptStartAtEpochMs = longValue(pipelineMetadata.get("llmStartedAtEpochMs"));
         long firstResponseAtEpochMs = longValue(pipelineMetadata.get("llmFirstResponseAtEpochMs"));
         long completedAtEpochMs = longValue(pipelineMetadata.get("llmCompletedAtEpochMs"));
+        boolean prefillMeasured = promptStartAtEpochMs > 0L
+                && firstResponseAtEpochMs > 0L
+                && firstResponseAtEpochMs >= promptStartAtEpochMs;
+        int llmInvocationCount = intValue(pipelineMetadata.get("llmInvocationCount"));
+        boolean structuredAttempted = booleanValue(pipelineMetadata.get("structuredAttempted"));
+        boolean structuredSucceeded = booleanValue(pipelineMetadata.get("structuredSucceeded"));
+        boolean repairAttempted = booleanValue(pipelineMetadata.get("repairAttempted"));
+        boolean repairSucceeded = booleanValue(pipelineMetadata.get("repairSucceeded"));
 
-        double promptPrefillLatencyMs = durationValue(promptStartAtEpochMs, firstResponseAtEpochMs);
+        double promptPrefillLatencyMs = prefillMeasured
+                ? durationValue(promptStartAtEpochMs, firstResponseAtEpochMs)
+                : 0.0d;
         double promptEndToEndLatencyMs = durationValue(promptStartAtEpochMs, completedAtEpochMs);
         if (promptEndToEndLatencyMs <= 0.0d) {
             promptEndToEndLatencyMs = numericValue(pipelineMetadata.get("llmLatencyMs"));
-        }
-        if (promptPrefillLatencyMs <= 0.0d) {
-            promptPrefillLatencyMs = promptEndToEndLatencyMs;
-        }
-        if (firstResponseAtEpochMs <= 0L && promptStartAtEpochMs > 0L && promptPrefillLatencyMs > 0.0d) {
-            firstResponseAtEpochMs = promptStartAtEpochMs + Math.round(promptPrefillLatencyMs);
         }
         if (completedAtEpochMs <= 0L && promptStartAtEpochMs > 0L && promptEndToEndLatencyMs > 0.0d) {
             completedAtEpochMs = promptStartAtEpochMs + Math.round(promptEndToEndLatencyMs);
@@ -51,7 +55,8 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
         SandboxDecisionCostEstimate costEstimate = estimateCosts(
                 estimatedRawInputTokens,
                 estimatedLlmInputTokens,
-                estimatedOutputTokens);
+                estimatedOutputTokens,
+                promptEndToEndLatencyMs);
 
         return new SandboxDecisionPerformanceTelemetry(
                 promptStartAtEpochMs,
@@ -63,21 +68,49 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
                 estimatedLlmInputTokens,
                 estimatedOutputTokens,
                 tokensPerSecond,
+                prefillMeasured,
+                Math.max(1, llmInvocationCount),
+                structuredAttempted,
+                structuredSucceeded,
+                repairAttempted,
+                repairSucceeded,
                 costEstimate);
     }
 
     private static SandboxDecisionPerformanceTelemetry emptyTelemetry() {
-        SandboxDecisionCostEstimate costEstimate = estimateCosts(0, 0, 0);
-        return new SandboxDecisionPerformanceTelemetry(0L, 0L, 0L, 0.0d, 0.0d, 0, 0, 0, 0.0d, costEstimate);
+        SandboxDecisionCostEstimate costEstimate = estimateCosts(0, 0, 0, 0.0d);
+        return new SandboxDecisionPerformanceTelemetry(
+                0L,
+                0L,
+                0L,
+                0.0d,
+                0.0d,
+                0,
+                0,
+                0,
+                0.0d,
+                false,
+                0,
+                false,
+                false,
+                false,
+                false,
+                costEstimate);
     }
 
     private static SandboxDecisionCostEstimate estimateCosts(
             int estimatedRawInputTokens,
             int estimatedLlmInputTokens,
-            int estimatedOutputTokens) {
+            int estimatedOutputTokens,
+            double promptEndToEndLatencyMs) {
         SandboxDecisionCostProfile costProfile = SandboxDecisionCostCatalog.resolve();
-        double estimatedVendorCostRaw = round(costOf(costProfile, estimatedRawInputTokens, estimatedOutputTokens));
-        double estimatedVendorCostLlm = round(costOf(costProfile, estimatedLlmInputTokens, estimatedOutputTokens));
+        double estimatedVendorCostRaw = roundCost(costOf(costProfile, estimatedRawInputTokens, estimatedOutputTokens));
+        double estimatedVendorCostLlm = roundCost(costOf(costProfile, estimatedLlmInputTokens, estimatedOutputTokens));
+        double estimatedInfrastructureCostLlm = roundCost(infrastructureCostOf(costProfile, promptEndToEndLatencyMs));
+        double scale = estimatedLlmInputTokens > 0
+                ? Math.max(1.0d, estimatedRawInputTokens / (double) estimatedLlmInputTokens)
+                : 1.0d;
+        double estimatedInfrastructureCostRaw = roundCost(estimatedInfrastructureCostLlm * scale);
         return new SandboxDecisionCostEstimate(
                 costProfile,
                 estimatedRawInputTokens,
@@ -85,7 +118,10 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
                 estimatedOutputTokens,
                 estimatedVendorCostRaw,
                 estimatedVendorCostLlm,
-                round(estimatedVendorCostRaw - estimatedVendorCostLlm));
+                roundCost(estimatedVendorCostRaw - estimatedVendorCostLlm),
+                estimatedInfrastructureCostRaw,
+                estimatedInfrastructureCostLlm,
+                roundCost(estimatedInfrastructureCostRaw - estimatedInfrastructureCostLlm));
     }
 
     private static double costOf(SandboxDecisionCostProfile costProfile, int inputTokens, int outputTokens) {
@@ -94,6 +130,13 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
         }
         return ((inputTokens / 1000.0d) * costProfile.inputCostPer1kTokens())
                 + ((outputTokens / 1000.0d) * costProfile.outputCostPer1kTokens());
+    }
+
+    private static double infrastructureCostOf(SandboxDecisionCostProfile costProfile, double promptEndToEndLatencyMs) {
+        if (costProfile == null || costProfile.infrastructureCostPerHour() <= 0.0d || promptEndToEndLatencyMs <= 0.0d) {
+            return 0.0d;
+        }
+        return costProfile.infrastructureCostPerHour() * (promptEndToEndLatencyMs / 3_600_000.0d);
     }
 
     private static long longValue(Object value) {
@@ -108,6 +151,20 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
             }
         }
         return 0L;
+    }
+
+    private static int intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private static double numericValue(Object value) {
@@ -142,7 +199,21 @@ final class SandboxDecisionPerformanceTelemetryExtractor {
         return value == null ? "" : String.valueOf(value);
     }
 
+    private static boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Boolean.parseBoolean(text.trim());
+        }
+        return false;
+    }
+
     private static double round(double value) {
         return Math.round(value * 1000.0d) / 1000.0d;
+    }
+
+    private static double roundCost(double value) {
+        return Math.round(value * 1_000_000.0d) / 1_000_000.0d;
     }
 }

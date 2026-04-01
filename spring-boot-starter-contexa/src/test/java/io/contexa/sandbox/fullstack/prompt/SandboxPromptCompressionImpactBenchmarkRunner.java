@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class SandboxPromptCompressionImpactBenchmarkRunner {
@@ -31,21 +32,28 @@ public final class SandboxPromptCompressionImpactBenchmarkRunner {
             String password) throws IOException {
         Files.createDirectories(reportDirectory);
 
-        SandboxPromptCompressionImpactComparison baseline = executeProfile(
-                SandboxPromptCompressionImpactBenchmarkSettings.baselineProfile(),
-                scenarios,
-                sampleCount,
-                roundCount,
-                password);
-        SandboxPromptCompressionImpactComparison candidate = executeProfile(
-                SandboxPromptCompressionImpactBenchmarkSettings.candidateProfile(),
-                scenarios,
-                sampleCount,
-                roundCount,
-                password);
+        Map<String, SandboxPromptCompressionImpactComparison> comparisonsByProfile = new LinkedHashMap<>();
+        for (String budgetProfile : SandboxPromptCompressionImpactBenchmarkSettings.profileMatrix()) {
+            comparisonsByProfile.put(
+                    budgetProfile,
+                    executeProfile(budgetProfile, scenarios, sampleCount, roundCount, password));
+        }
 
-        new SandboxPromptCompressionImpactReportWriter(objectMapper, reportDirectory)
-                .write(SandboxPromptCompressionImpactBenchmarkSettings.comparisonId(), baseline, candidate);
+        SandboxPromptCompressionImpactComparison baseline = comparisonsByProfile.get(
+                SandboxPromptCompressionImpactBenchmarkSettings.baselineProfile());
+        SandboxPromptCompressionImpactComparison candidate = comparisonsByProfile.get(
+                SandboxPromptCompressionImpactBenchmarkSettings.candidateProfile());
+        if (baseline == null || candidate == null) {
+            throw new IllegalStateException("Compression impact benchmark profiles must include configured baseline and candidate");
+        }
+
+        SandboxPromptCompressionImpactReportWriter reportWriter =
+                new SandboxPromptCompressionImpactReportWriter(objectMapper, reportDirectory);
+        reportWriter.write(SandboxPromptCompressionImpactBenchmarkSettings.comparisonId(), baseline, candidate);
+        reportWriter.writeMatrix(
+                SandboxPromptCompressionImpactBenchmarkSettings.matrixId(),
+                List.copyOf(comparisonsByProfile.values()),
+                SandboxPromptCompressionImpactBenchmarkSettings.baselineProfile());
 
         return new SandboxPromptCompressionImpactBenchmarkResult(baseline, candidate);
     }

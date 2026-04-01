@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
 
@@ -114,7 +115,7 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
 
         try {
             DecisionReplayCallResult callResult = executeRealDecisionCallWithQuickRetry(promptGenerationResult, round);
-            firstResponseAt = System.currentTimeMillis();
+            firstResponseAt = callResult.firstResponseAtEpochMs();
             rawResponseText = callResult.rawResponseText();
             estimatedOutputTokens = estimateTokens(rawResponseText);
 
@@ -124,7 +125,12 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             pipelineContext.addMetadata("sandboxPinnedModelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
             pipelineContext.addMetadata("sandboxLlmRetryCount", callResult.retryCount());
             pipelineContext.addMetadata("sandboxLlmFallbackApplied", callResult.fallbackApplied());
-            completedAt = System.currentTimeMillis();
+            pipelineContext.addMetadata("llmInvocationCount", callResult.invocationCount());
+            pipelineContext.addMetadata("structuredAttempted", callResult.structuredAttempted());
+            pipelineContext.addMetadata("structuredSucceeded", callResult.structuredSucceeded());
+            pipelineContext.addMetadata("repairAttempted", callResult.repairAttempted());
+            pipelineContext.addMetadata("repairSucceeded", callResult.repairSucceeded());
+            completedAt = callResult.completedAtEpochMs() > 0L ? callResult.completedAtEpochMs() : System.currentTimeMillis();
             double latencyMs = completedAt - startedAt;
             double tokensPerSecond = latencyMs > 0.0d
                     ? round((estimatedOutputTokens * 1000.0d) / latencyMs)
@@ -163,6 +169,11 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             pipelineContext.addMetadata("sandboxPinnedModelId", SandboxDecisionBenchmarkSettings.pinnedModelId());
             pipelineContext.addMetadata("sandboxLlmRetryCount", 0);
             pipelineContext.addMetadata("sandboxLlmFallbackApplied", true);
+            pipelineContext.addMetadata("llmInvocationCount", 0);
+            pipelineContext.addMetadata("structuredAttempted", false);
+            pipelineContext.addMetadata("structuredSucceeded", false);
+            pipelineContext.addMetadata("repairAttempted", false);
+            pipelineContext.addMetadata("repairSucceeded", false);
             pipelineContext.addMetadata("llmFirstResponseAtEpochMs", firstResponseAt);
             pipelineContext.addMetadata("llmCompletedAtEpochMs", completedAt);
             pipelineContext.addMetadata("sandboxLlmFirstResponseAtEpochMs", firstResponseAt);
@@ -187,6 +198,11 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         putIfPresent(pipelineMetadata, "llmLatencyMs", pipelineContext.getMetadata("sandboxLlmLatencyMs", Object.class));
         putIfPresent(pipelineMetadata, "estimatedOutputTokens", pipelineContext.getMetadata("estimatedOutputTokens", Object.class));
         putIfPresent(pipelineMetadata, "tokensPerSecond", pipelineContext.getMetadata("tokensPerSecond", Object.class));
+        putIfPresent(pipelineMetadata, "llmInvocationCount", pipelineContext.getMetadata("llmInvocationCount", Object.class));
+        putIfPresent(pipelineMetadata, "structuredAttempted", pipelineContext.getMetadata("structuredAttempted", Object.class));
+        putIfPresent(pipelineMetadata, "structuredSucceeded", pipelineContext.getMetadata("structuredSucceeded", Object.class));
+        putIfPresent(pipelineMetadata, "repairAttempted", pipelineContext.getMetadata("repairAttempted", Object.class));
+        putIfPresent(pipelineMetadata, "repairSucceeded", pipelineContext.getMetadata("repairSucceeded", Object.class));
         putIfPresent(pipelineMetadata, "structuredOutputComplete", pipelineContext.getMetadata("structuredOutputComplete", Object.class));
         putIfPresent(pipelineMetadata, "parsedResponseClass", parsedResponse != null ? parsedResponse.getClass().getName() : null);
         putIfPresent(pipelineMetadata, "finalResponseClass", finalResponse != null ? finalResponse.getClass().getName() : null);
@@ -292,6 +308,38 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         return llmClient.call(promptGenerationResult.getPrompt());
     }
 
+    private Mono<StreamCapture> executeRealDecisionCallStreamed(
+            PromptGenerationResult promptGenerationResult,
+            SandboxPromptReplayRound round) {
+        if (llmClient instanceof UnifiedLLMOrchestrator orchestrator) {
+            ExecutionContext executionContext = ExecutionContext.builder()
+                    .prompt(promptGenerationResult.getPrompt())
+                    .requestId(round.requestId())
+                    .userId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getUserId()
+                            : null)
+                    .sessionId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getSessionId()
+                            : null)
+                    .preferredModel(SandboxDecisionBenchmarkSettings.pinnedModelId())
+                    .temperature(SandboxDecisionBenchmarkSettings.temperature())
+                    .maxTokens(SandboxDecisionBenchmarkSettings.maxOutputTokens())
+                    .chatOptions(buildBenchmarkChatOptions(SandboxDecisionBenchmarkSettings.maxOutputTokens()))
+                    .streamingMode(true)
+                    .toolExecutionEnabled(false)
+                    .advisorEnabled(false)
+                    .build();
+            executionContext.addMetadata("disableRetries", true);
+            executionContext.addMetadata("disableOllamaThinking", true);
+            return captureStream(orchestrator.stream(executionContext));
+        }
+        return executeRealDecisionCall(promptGenerationResult, round)
+                .map(response -> {
+                    long completedAt = System.currentTimeMillis();
+                    return new StreamCapture(response, 0L, completedAt);
+                });
+    }
+
     private reactor.core.publisher.Mono<SecurityDecisionResponseLite> executeStructuredDecisionCall(
             PromptGenerationResult promptGenerationResult,
             SandboxPromptReplayRound round) {
@@ -366,6 +414,57 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         return llmClient.call(repairPrompt);
     }
 
+    private Mono<StreamCapture> executeRepairDecisionCallStreamed(
+            SandboxPromptReplayRound round,
+            String previousResponse) {
+        Prompt repairPrompt = new Prompt(List.of(
+                SystemMessage.builder()
+                        .text("""
+                                You are a strict JSON normalizer for security decisions.
+                                Rewrite the supplied content into exactly one JSON object.
+                                Required keys: action, reasoning, riskScore, confidence, mitre.
+                                action must be one of ALLOW, CHALLENGE, BLOCK, ESCALATE.
+                                reasoning must be exactly one short sentence and no more than 24 words.
+                                riskScore and confidence must be numeric values between 0.0 and 1.0.
+                                mitre must be a string value or UNKNOWN.
+                                Preserve the original decision meaning; fix schema only.
+                                Output JSON only.
+                                """)
+                        .build(),
+                UserMessage.builder()
+                        .text(buildRepairSuffix(previousResponse))
+                        .build()));
+
+        if (llmClient instanceof UnifiedLLMOrchestrator orchestrator) {
+            ExecutionContext executionContext = ExecutionContext.builder()
+                    .prompt(repairPrompt)
+                    .requestId(round.requestId() + "-repair")
+                    .userId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getUserId()
+                            : null)
+                    .sessionId(round.snapshot() != null && round.snapshot().event() != null
+                            ? round.snapshot().event().getSessionId()
+                            : null)
+                    .preferredModel(SandboxDecisionBenchmarkSettings.pinnedModelId())
+                    .temperature(SandboxDecisionBenchmarkSettings.temperature())
+                    .maxTokens(Math.max(128, SandboxDecisionBenchmarkSettings.maxOutputTokens()))
+                    .chatOptions(buildBenchmarkChatOptions(Math.max(128, SandboxDecisionBenchmarkSettings.maxOutputTokens())))
+                    .streamingMode(true)
+                    .toolExecutionEnabled(false)
+                    .advisorEnabled(false)
+                    .build();
+            executionContext.addMetadata("disableRetries", true);
+            executionContext.addMetadata("sandboxDecisionRepairAttempt", true);
+            executionContext.addMetadata("disableOllamaThinking", true);
+            return captureStream(orchestrator.stream(executionContext));
+        }
+        return executeRepairDecisionCall(round, previousResponse)
+                .map(response -> {
+                    long completedAt = System.currentTimeMillis();
+                    return new StreamCapture(response, 0L, completedAt);
+                });
+    }
+
     private DecisionReplayCallResult executeRealDecisionCallWithQuickRetry(
             PromptGenerationResult promptGenerationResult,
             SandboxPromptReplayRound round) {
@@ -374,16 +473,27 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         while (attempts < 3) {
             attempts++;
             try {
+                int invocationCount = 0;
                 try {
+                    invocationCount++;
+                    long structuredCompletedAt;
                     SecurityDecisionResponseLite structuredResponse = executeStructuredDecisionCall(promptGenerationResult, round)
                             .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
                             .block();
-                     if (structuredResponse != null && hasStructuredDecisionFields(structuredResponse)) {
-                         return new DecisionReplayCallResult(
-                                 objectToJson(structuredResponse),
-                                 structuredResponse,
+                    structuredCompletedAt = System.currentTimeMillis();
+                    if (structuredResponse != null && hasStructuredDecisionFields(structuredResponse)) {
+                        return new DecisionReplayCallResult(
+                                objectToJson(structuredResponse),
+                                structuredResponse,
                                 true,
                                 Math.max(0, attempts - 1),
+                                false,
+                                0L,
+                                structuredCompletedAt,
+                                invocationCount,
+                                true,
+                                true,
+                                false,
                                 false);
                     }
                 } catch (Exception structuredFailure) {
@@ -397,19 +507,30 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
                     }
                 }
 
-                String rawResponse = executeRealDecisionCall(promptGenerationResult, round)
+                invocationCount++;
+                StreamCapture primaryCapture = executeRealDecisionCallStreamed(promptGenerationResult, round)
                         .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
                         .block();
+                String rawResponse = primaryCapture != null ? primaryCapture.responseText() : null;
                 if (!hasCanonicalDecisionPayload(rawResponse)) {
-                    String repairedRawResponse = executeRepairDecisionCall(round, rawResponse)
+                    invocationCount++;
+                    StreamCapture repairCapture = executeRepairDecisionCallStreamed(round, rawResponse)
                             .timeout(Duration.ofSeconds(SandboxDecisionBenchmarkSettings.llmTimeoutSeconds()))
                             .block();
+                    String repairedRawResponse = repairCapture != null ? repairCapture.responseText() : null;
                     if (hasCanonicalDecisionPayload(repairedRawResponse)) {
                         return new DecisionReplayCallResult(
                                 repairedRawResponse,
                                 repairedRawResponse,
                                 false,
                                 Math.max(0, attempts - 1),
+                                true,
+                                primaryCapture != null ? primaryCapture.firstResponseAtEpochMs() : 0L,
+                                repairCapture != null ? repairCapture.completedAtEpochMs() : 0L,
+                                invocationCount,
+                                true,
+                                false,
+                                true,
                                 true);
                     }
                     lastFailure = new IllegalStateException("LLM returned a non-canonical decision payload: " + rawResponse);
@@ -424,7 +545,14 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
                         rawResponse,
                         false,
                         Math.max(0, attempts - 1),
-                        true);
+                        true,
+                        primaryCapture != null ? primaryCapture.firstResponseAtEpochMs() : 0L,
+                        primaryCapture != null ? primaryCapture.completedAtEpochMs() : 0L,
+                        invocationCount,
+                        true,
+                        false,
+                        false,
+                        false);
             } catch (Exception exception) {
                 lastFailure = exception;
                 if (!isRetryableBusyFailure(exception) || attempts >= 3) {
@@ -535,10 +663,26 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
         }
         return """
                 Normalize the following invalid security decision into the required schema.
-                If the content signals missing baseline, ambiguity, or lack of trusted scope evidence for sensitive access, prefer CHALLENGE or ESCALATE over ALLOW.
+                Preserve the original decision meaning and evidence references.
+                Do not add new facts or change the action unless the action field is missing.
                 Invalid response:
                 %s
                 """.formatted(previous);
+    }
+
+    private Mono<StreamCapture> captureStream(reactor.core.publisher.Flux<String> responseFlux) {
+        AtomicLong firstResponseAt = new AtomicLong(0L);
+        return responseFlux
+                .doOnNext(chunk -> {
+                    if (chunk != null && !chunk.isBlank()) {
+                        firstResponseAt.compareAndSet(0L, System.currentTimeMillis());
+                    }
+                })
+                .collectList()
+                .map(chunks -> new StreamCapture(
+                        String.join("", chunks),
+                        firstResponseAt.get(),
+                        System.currentTimeMillis()));
     }
 
     private void warmUpRealLlmOnce() {
@@ -665,6 +809,19 @@ public class SandboxPromptTruthRealLlmDecisionReplayExecutor {
             Object llmExecutionResult,
             boolean structuredOutputComplete,
             int retryCount,
-            boolean fallbackApplied) {
+            boolean fallbackApplied,
+            long firstResponseAtEpochMs,
+            long completedAtEpochMs,
+            int invocationCount,
+            boolean structuredAttempted,
+            boolean structuredSucceeded,
+            boolean repairAttempted,
+            boolean repairSucceeded) {
+    }
+
+    private record StreamCapture(
+            String responseText,
+            long firstResponseAtEpochMs,
+            long completedAtEpochMs) {
     }
 }

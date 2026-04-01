@@ -6,6 +6,7 @@ public record SandboxDecisionCostProfile(
         String currencyCode,
         double inputCostPer1kTokens,
         double outputCostPer1kTokens,
+        double infrastructureCostPerHour,
         boolean configured) {
 
     public SandboxDecisionCostProfile {

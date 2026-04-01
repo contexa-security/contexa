@@ -10,5 +10,11 @@ public record SandboxDecisionPerformanceTelemetry(
         int estimatedLlmInputTokens,
         int estimatedOutputTokens,
         double tokensPerSecond,
+        boolean prefillMeasured,
+        int llmInvocationCount,
+        boolean structuredAttempted,
+        boolean structuredSucceeded,
+        boolean repairAttempted,
+        boolean repairSucceeded,
         SandboxDecisionCostEstimate costEstimate) {
 }

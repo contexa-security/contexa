@@ -27,6 +27,7 @@ class SandboxDecisionPerformanceTelemetryExtractorTest {
         System.setProperty("sandbox.decision.cost.currency", "USD");
         System.setProperty("sandbox.decision.cost.input-per-1k", "0.01");
         System.setProperty("sandbox.decision.cost.output-per-1k", "0.02");
+        System.setProperty("sandbox.decision.cost.infra-per-hour", "1.80");
         try {
             SandboxDecisionTraceSnapshot snapshot = new SandboxDecisionTraceSnapshot(
                     "request-001",
@@ -51,7 +52,12 @@ class SandboxDecisionPerformanceTelemetryExtractorTest {
                             "llmStartedAtEpochMs", 1000L,
                             "llmFirstResponseAtEpochMs", 1125L,
                             "llmCompletedAtEpochMs", 1500L,
-                            "llmLatencyMs", 500.0d));
+                            "llmLatencyMs", 500.0d,
+                            "llmInvocationCount", 2,
+                            "structuredAttempted", true,
+                            "structuredSucceeded", false,
+                            "repairAttempted", true,
+                            "repairSucceeded", true));
 
             SandboxDecisionPerformanceTelemetry telemetry =
                     SandboxDecisionPerformanceTelemetryExtractor.extract(snapshot);
@@ -62,15 +68,27 @@ class SandboxDecisionPerformanceTelemetryExtractorTest {
             assertThat(telemetry.estimatedLlmInputTokens()).isEqualTo(500);
             assertThat(telemetry.estimatedOutputTokens()).isEqualTo(2);
             assertThat(telemetry.tokensPerSecond()).isEqualTo(4.0d);
+            assertThat(telemetry.prefillMeasured()).isTrue();
+            assertThat(telemetry.llmInvocationCount()).isEqualTo(2);
+            assertThat(telemetry.structuredAttempted()).isTrue();
+            assertThat(telemetry.structuredSucceeded()).isFalse();
+            assertThat(telemetry.repairAttempted()).isTrue();
+            assertThat(telemetry.repairSucceeded()).isTrue();
             assertThat(telemetry.costEstimate().costProfile().profileKey()).isEqualTo("TEST_VENDOR");
-            assertThat(telemetry.costEstimate().estimatedVendorCostRaw()).isEqualTo(0.006d);
-            assertThat(telemetry.costEstimate().estimatedVendorCostLlm()).isEqualTo(0.005d);
-            assertThat(telemetry.costEstimate().estimatedVendorCostSavings()).isEqualTo(0.001d);
+            assertThat(telemetry.costEstimate().estimatedVendorCostRaw()).isEqualTo(0.00624d);
+            assertThat(telemetry.costEstimate().estimatedVendorCostLlm()).isEqualTo(0.00504d);
+            assertThat(telemetry.costEstimate().estimatedVendorCostSavings()).isEqualTo(0.0012d);
+            assertThat(telemetry.costEstimate().estimatedInfrastructureCostLlm())
+                    .isEqualTo(Math.round((1.80d * (500.0d / 3_600_000.0d)) * 1_000_000.0d) / 1_000_000.0d);
+            assertThat(telemetry.costEstimate().estimatedInfrastructureCostRaw())
+                    .isGreaterThan(telemetry.costEstimate().estimatedInfrastructureCostLlm());
+            assertThat(telemetry.costEstimate().estimatedInfrastructureCostSavings()).isPositive();
         } finally {
             System.clearProperty("sandbox.decision.cost.profile");
             System.clearProperty("sandbox.decision.cost.currency");
             System.clearProperty("sandbox.decision.cost.input-per-1k");
             System.clearProperty("sandbox.decision.cost.output-per-1k");
+            System.clearProperty("sandbox.decision.cost.infra-per-hour");
         }
     }
 

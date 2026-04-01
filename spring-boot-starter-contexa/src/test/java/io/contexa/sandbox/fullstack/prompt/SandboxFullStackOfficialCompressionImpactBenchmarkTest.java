@@ -27,6 +27,12 @@ class SandboxFullStackOfficialCompressionImpactBenchmarkTest extends AbstractSan
         assertThat(Files.exists(reportDirectory.resolve("compression-impact-profiles.ndjson"))).isTrue();
         assertThat(Files.exists(reportDirectory.resolve("compression-impact-runs.ndjson"))).isTrue();
         assertThat(Files.exists(reportDirectory.resolve("compression-impact-rounds.ndjson"))).isTrue();
+        assertThat(Files.exists(reportDirectory.resolve("compression-performance-summary.json"))).isTrue();
+        assertThat(Files.exists(reportDirectory.resolve("compression-performance-summary.html"))).isTrue();
+        assertThat(Files.exists(reportDirectory.resolve("compression-performance-rounds.ndjson"))).isTrue();
+        assertThat(Files.exists(reportDirectory.resolve("profile-comparison-summary.json"))).isTrue();
+        assertThat(Files.exists(reportDirectory.resolve("profile-comparison-summary.html"))).isTrue();
+        assertThat(Files.exists(reportDirectory.resolve("profile-comparison-rounds.ndjson"))).isTrue();
 
         String baselineProfileDirectory =
                 SandboxPromptCompressionImpactBenchmarkRunner.profileDirectoryName(result.baseline().budgetProfile());

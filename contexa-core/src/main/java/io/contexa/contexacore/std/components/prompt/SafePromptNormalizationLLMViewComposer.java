@@ -154,6 +154,20 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
 
     @Override
     public PromptViewComposition compose(String rawSystemPrompt, String rawUserPrompt, PromptBudgetProfile budgetProfile) {
+        PromptBudgetProfile effectiveProfile = budgetProfile != null
+                ? budgetProfile
+                : PromptBudgetProfile.CORTEX_L1_STANDARD;
+        if (effectiveProfile.viewProfile() == PromptViewProfile.IDENTITY) {
+            String rawSystem = rawSystemPrompt != null ? rawSystemPrompt : "";
+            String rawUser = rawUserPrompt != null ? rawUserPrompt : "";
+            return new PromptViewComposition(
+                    rawSystem,
+                    rawUser,
+                    rawSystem,
+                    rawUser,
+                    buildLedger(rawSystem, rawUser, rawSystem, rawUser, List.of()));
+        }
+
         String normalizedRawSystemPrompt = normalizeLineEndings(rawSystemPrompt);
         String normalizedRawUserPrompt = normalizeLineEndings(rawUserPrompt);
         String normalizedSystemPrompt = compactWhitespace(normalizedRawSystemPrompt);

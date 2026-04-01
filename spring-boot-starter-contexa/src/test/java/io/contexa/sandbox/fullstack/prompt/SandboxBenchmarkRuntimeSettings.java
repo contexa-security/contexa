@@ -24,6 +24,7 @@ public final class SandboxBenchmarkRuntimeSettings {
     private static final long DEFAULT_RAG_TIMEOUT_MS = 4000L;
     private static final String PROMPT_PROFILE_PROPERTY = "sandbox.prompt.benchmark.profile";
     private static final Set<String> KNOWN_PROMPT_PROFILES = Set.of(
+            "CORTEX_L1_RAW_IDENTITY",
             "CORTEX_L1_DECISION_COMPACT",
             "CORTEX_L1_COMPACT",
             "CORTEX_L2_COMPACT",

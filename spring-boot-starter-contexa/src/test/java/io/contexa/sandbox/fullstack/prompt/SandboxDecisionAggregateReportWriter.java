@@ -169,40 +169,48 @@ final class SandboxDecisionAggregateReportWriter {
                         "configured", false,
                         "inputCostPer1kTokens", 0.0d,
                         "outputCostPer1kTokens", 0.0d)));
-        summary.put("metrics", Map.of(
-                "promptPrefillLatencyMs", summarizePerformanceMetric(telemetryRows.stream()
-                        .mapToDouble(SandboxDecisionPerformanceTelemetry::promptPrefillLatencyMs)
-                        .toArray()),
-                "promptEndToEndLatencyMs", summarizePerformanceMetric(telemetryRows.stream()
-                        .mapToDouble(SandboxDecisionPerformanceTelemetry::promptEndToEndLatencyMs)
-                        .toArray()),
-                "estimatedRawInputTokens", summarizePerformanceMetric(telemetryRows.stream()
-                        .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedRawInputTokens)
-                        .toArray()),
-                "estimatedLlmInputTokens", summarizePerformanceMetric(telemetryRows.stream()
-                        .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedLlmInputTokens)
-                        .toArray()),
-                "estimatedOutputTokens", summarizePerformanceMetric(telemetryRows.stream()
-                        .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedOutputTokens)
-                        .toArray()),
-                "tokensPerSecond", summarizePerformanceMetric(telemetryRows.stream()
-                        .mapToDouble(SandboxDecisionPerformanceTelemetry::tokensPerSecond)
-                        .toArray()),
-                "estimatedVendorCostRaw", summarizePerformanceMetric(telemetryRows.stream()
-                        .map(SandboxDecisionPerformanceTelemetry::costEstimate)
-                        .filter(java.util.Objects::nonNull)
-                        .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostRaw)
-                        .toArray()),
-                "estimatedVendorCostLlm", summarizePerformanceMetric(telemetryRows.stream()
-                        .map(SandboxDecisionPerformanceTelemetry::costEstimate)
-                        .filter(java.util.Objects::nonNull)
-                        .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostLlm)
-                        .toArray()),
-                "estimatedVendorCostSavings", summarizePerformanceMetric(telemetryRows.stream()
-                        .map(SandboxDecisionPerformanceTelemetry::costEstimate)
-                        .filter(java.util.Objects::nonNull)
-                        .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostSavings)
-                        .toArray())));
+        summary.put("prefillMeasuredRatePercent", round(percentage(telemetryRows.stream()
+                .filter(SandboxDecisionPerformanceTelemetry::prefillMeasured)
+                .count(), telemetryRows.size())));
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        metrics.put("promptPrefillLatencyMs", summarizePerformanceMetric(telemetryRows.stream()
+                .filter(SandboxDecisionPerformanceTelemetry::prefillMeasured)
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::promptPrefillLatencyMs)
+                .toArray()));
+        metrics.put("promptEndToEndLatencyMs", summarizePerformanceMetric(telemetryRows.stream()
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::promptEndToEndLatencyMs)
+                .toArray()));
+        metrics.put("estimatedRawInputTokens", summarizePerformanceMetric(telemetryRows.stream()
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedRawInputTokens)
+                .toArray()));
+        metrics.put("estimatedLlmInputTokens", summarizePerformanceMetric(telemetryRows.stream()
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedLlmInputTokens)
+                .toArray()));
+        metrics.put("estimatedOutputTokens", summarizePerformanceMetric(telemetryRows.stream()
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::estimatedOutputTokens)
+                .toArray()));
+        metrics.put("llmInvocationCount", summarizePerformanceMetric(telemetryRows.stream()
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::llmInvocationCount)
+                .toArray()));
+        metrics.put("tokensPerSecond", summarizePerformanceMetric(telemetryRows.stream()
+                .mapToDouble(SandboxDecisionPerformanceTelemetry::tokensPerSecond)
+                .toArray()));
+        metrics.put("estimatedVendorCostRaw", summarizePerformanceMetric(telemetryRows.stream()
+                .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                .filter(java.util.Objects::nonNull)
+                .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostRaw)
+                .toArray()));
+        metrics.put("estimatedVendorCostLlm", summarizePerformanceMetric(telemetryRows.stream()
+                .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                .filter(java.util.Objects::nonNull)
+                .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostLlm)
+                .toArray()));
+        metrics.put("estimatedVendorCostSavings", summarizePerformanceMetric(telemetryRows.stream()
+                .map(SandboxDecisionPerformanceTelemetry::costEstimate)
+                .filter(java.util.Objects::nonNull)
+                .mapToDouble(SandboxDecisionCostEstimate::estimatedVendorCostSavings)
+                .toArray()));
+        summary.put("metrics", metrics);
         summary.put("reportFiles", Map.of(
                 "decisionPerformanceSummaryJson", "decision-performance-summary.json",
                 "decisionPerformanceSummaryMd", "decision-performance-summary.md",
@@ -490,9 +498,15 @@ final class SandboxDecisionAggregateReportWriter {
         row.put("completedAtEpochMs", telemetry.completedAtEpochMs());
         row.put("promptPrefillLatencyMs", telemetry.promptPrefillLatencyMs());
         row.put("promptEndToEndLatencyMs", telemetry.promptEndToEndLatencyMs());
+        row.put("prefillMeasured", telemetry.prefillMeasured());
         row.put("estimatedRawInputTokens", telemetry.estimatedRawInputTokens());
         row.put("estimatedLlmInputTokens", telemetry.estimatedLlmInputTokens());
         row.put("estimatedOutputTokens", telemetry.estimatedOutputTokens());
+        row.put("llmInvocationCount", telemetry.llmInvocationCount());
+        row.put("structuredAttempted", telemetry.structuredAttempted());
+        row.put("structuredSucceeded", telemetry.structuredSucceeded());
+        row.put("repairAttempted", telemetry.repairAttempted());
+        row.put("repairSucceeded", telemetry.repairSucceeded());
         row.put("tokensPerSecond", telemetry.tokensPerSecond());
         SandboxDecisionCostEstimate costEstimate = telemetry.costEstimate();
         if (costEstimate != null) {
@@ -500,11 +514,15 @@ final class SandboxDecisionAggregateReportWriter {
             if (costProfile != null) {
                 row.put("costProfileKey", costProfile.profileKey());
                 row.put("costCurrencyCode", costProfile.currencyCode());
+                row.put("costProfileInfrastructurePerHour", costProfile.infrastructureCostPerHour());
                 row.put("costProfileConfigured", costProfile.configured());
             }
             row.put("estimatedVendorCostRaw", costEstimate.estimatedVendorCostRaw());
             row.put("estimatedVendorCostLlm", costEstimate.estimatedVendorCostLlm());
             row.put("estimatedVendorCostSavings", costEstimate.estimatedVendorCostSavings());
+            row.put("estimatedInfrastructureCostRaw", costEstimate.estimatedInfrastructureCostRaw());
+            row.put("estimatedInfrastructureCostLlm", costEstimate.estimatedInfrastructureCostLlm());
+            row.put("estimatedInfrastructureCostSavings", costEstimate.estimatedInfrastructureCostSavings());
         }
     }
 
@@ -636,6 +654,14 @@ final class SandboxDecisionAggregateReportWriter {
             return String.format(Locale.ROOT, "%.3f", number.doubleValue());
         }
         return escapeHtml(String.valueOf(value));
+    }
+
+    private double percentage(long numerator, int denominator) {
+        return denominator <= 0 ? 0.0d : (numerator * 100.0d) / denominator;
+    }
+
+    private double round(double value) {
+        return Math.round(value * 1000.0d) / 1000.0d;
     }
 
     private String escapeHtml(String value) {

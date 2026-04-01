@@ -58,30 +58,59 @@ class SandboxPromptCompressionImpactReportWriterTest {
 
         new SandboxPromptCompressionImpactReportWriter(objectMapper, tempDir)
                 .write("expanded-vs-compact", expanded, compact);
+        new SandboxPromptCompressionImpactReportWriter(objectMapper, tempDir)
+                .writeMatrix(
+                        "raw-vs-standard-vs-compact",
+                        List.of(expanded, compact),
+                        "CORTEX_L1_EXPANDED");
 
         Path summaryJsonPath = tempDir.resolve("compression-impact-summary.json");
         Path summaryHtmlPath = tempDir.resolve("compression-impact-summary.html");
         Path profilesNdjsonPath = tempDir.resolve("compression-impact-profiles.ndjson");
         Path runsNdjsonPath = tempDir.resolve("compression-impact-runs.ndjson");
         Path roundsNdjsonPath = tempDir.resolve("compression-impact-rounds.ndjson");
+        Path performanceSummaryJsonPath = tempDir.resolve("compression-performance-summary.json");
+        Path performanceSummaryHtmlPath = tempDir.resolve("compression-performance-summary.html");
+        Path performanceRoundsNdjsonPath = tempDir.resolve("compression-performance-rounds.ndjson");
+        Path profileComparisonSummaryJsonPath = tempDir.resolve("profile-comparison-summary.json");
+        Path profileComparisonSummaryHtmlPath = tempDir.resolve("profile-comparison-summary.html");
+        Path profileComparisonRoundsNdjsonPath = tempDir.resolve("profile-comparison-rounds.ndjson");
 
         assertThat(summaryJsonPath).exists();
         assertThat(summaryHtmlPath).exists();
         assertThat(profilesNdjsonPath).exists();
         assertThat(runsNdjsonPath).exists();
         assertThat(roundsNdjsonPath).exists();
+        assertThat(performanceSummaryJsonPath).exists();
+        assertThat(performanceSummaryHtmlPath).exists();
+        assertThat(performanceRoundsNdjsonPath).exists();
+        assertThat(profileComparisonSummaryJsonPath).exists();
+        assertThat(profileComparisonSummaryHtmlPath).exists();
+        assertThat(profileComparisonRoundsNdjsonPath).exists();
 
         String summaryJson = Files.readString(summaryJsonPath);
         String summaryHtml = Files.readString(summaryHtmlPath);
+        String performanceSummaryJson = Files.readString(performanceSummaryJsonPath);
+        String profileComparisonSummaryJson = Files.readString(profileComparisonSummaryJsonPath);
 
         assertThat(summaryJson)
                 .contains("promptPrefillLatencyDelta")
                 .contains("promptEndToEndLatencyDelta")
                 .contains("estimatedVendorCostLlmDelta")
+                .contains("estimatedInfrastructureCostLlmDelta")
                 .contains("latencyGainPass")
                 .contains("costGainPass")
                 .contains("\"decisionRegressionPass\" : true")
                 .contains("profileReportDirectory");
+        assertThat(performanceSummaryJson)
+                .contains("compression-performance-summary.json")
+                .contains("minimumTokenGainPercent")
+                .contains("latencyGainPercent")
+                .contains("qualityPass");
+        assertThat(profileComparisonSummaryJson)
+                .contains("profile-comparison-summary.json")
+                .contains("candidateProfile")
+                .contains("estimatedInfrastructureCostLlmDelta");
         assertThat(summaryHtml)
                 .contains("Prefill ms")
                 .contains("End-to-End ms")
@@ -152,14 +181,23 @@ class SandboxPromptCompressionImpactReportWriterTest {
                 Math.max(1, llmTotalLength / 4),
                 42,
                 tokensPerSecond,
+                true,
+                1,
+                true,
+                true,
+                false,
+                false,
                 new SandboxDecisionCostEstimate(
-                        new SandboxDecisionCostProfile("TEST_VENDOR", "Test vendor pricing", "USD", 0.01d, 0.02d, true),
+                        new SandboxDecisionCostProfile("TEST_VENDOR", "Test vendor pricing", "USD", 0.01d, 0.02d, 1.5d, true),
                         Math.max(1, rawTotalLength / 4),
                         Math.max(1, llmTotalLength / 4),
                         42,
                         rawCost,
                         llmCost,
-                        savings));
+                        savings,
+                        rawCost * 0.5d,
+                        llmCost * 0.5d,
+                        savings * 0.5d));
 
         SandboxDecisionBenchmarkRunResult decisionRunResult = new SandboxDecisionBenchmarkRunResult(
                 budgetProfile + "-decision-run",
@@ -346,6 +384,9 @@ class SandboxPromptCompressionImpactReportWriterTest {
     }
 
     private PromptBudgetProfile budgetProfileForKey(int rawTotalLength, int llmTotalLength) {
+        if (llmTotalLength == rawTotalLength) {
+            return PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY;
+        }
         return llmTotalLength < rawTotalLength
                 ? PromptBudgetProfile.CORTEX_L1_COMPACT
                 : PromptBudgetProfile.CORTEX_L1_EXPANDED;

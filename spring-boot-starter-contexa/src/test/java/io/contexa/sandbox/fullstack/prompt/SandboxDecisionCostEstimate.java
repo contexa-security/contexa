@@ -7,5 +7,8 @@ public record SandboxDecisionCostEstimate(
         int estimatedOutputTokens,
         double estimatedVendorCostRaw,
         double estimatedVendorCostLlm,
-        double estimatedVendorCostSavings) {
+        double estimatedVendorCostSavings,
+        double estimatedInfrastructureCostRaw,
+        double estimatedInfrastructureCostLlm,
+        double estimatedInfrastructureCostSavings) {
 }
