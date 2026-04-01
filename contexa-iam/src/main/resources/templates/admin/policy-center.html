@@ -35,12 +35,12 @@
                     <span th:text="#{admin.policy.center.tab.list}">Policy List (List)</span>
                     <span class="tab-count" th:text="${policyPage?.totalElements} ?: '0'"></span>
                 </a>
-                <a href="javascript:void(0)" onclick="PolicyCenter.switchTab('simulator')"
+                <a href="javascript:void(0)" onclick="if(typeof PolicyCenter!=='undefined')PolicyCenter.switchTab('simulator')"
                    class="pc-tab-btn" id="tab-btn-simulator">
                     <i class="fas fa-flask"></i>
                     <span th:text="#{admin.policy.center.tab.simulator}">Simulator</span>
                 </a>
-                <a href="javascript:void(0)" onclick="PolicyCenter.switchTab('matrix')"
+                <a href="javascript:void(0)" onclick="if(typeof PolicyCenter!=='undefined')PolicyCenter.switchTab('matrix')"
                    class="pc-tab-btn" id="tab-btn-matrix">
                     <i class="fas fa-th"></i>
                     <span th:text="#{admin.policy.center.tab.matrix}">Matrix</span>
@@ -634,8 +634,12 @@
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-list-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.policy.center.tab.list}">Policy List</span>
                     </h2>
-                    <div class="flex gap-3 mt-4 sm:mt-0">
-                        <button type="button" id="policy-health-check-btn" onclick="PolicyCenter.Validation.checkHealth()" class="modern-btn-secondary">
+                    <div class="flex gap-3 mt-4 sm:mt-0 items-center">
+                        <span class="text-xs px-3 py-1.5 rounded-full" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);">
+                            <i class="fas fa-cog mr-1"></i> <span th:text="#{admin.policy.center.combining.label}">Algorithm</span>:
+                            <strong id="current-combining-algorithm" th:text="${combiningAlgorithm ?: 'DENY_OVERRIDES'}">DENY_OVERRIDES</strong>
+                        </span>
+                        <button type="button" id="policy-health-check-btn" onclick="if(typeof PolicyCenter!=='undefined')PolicyCenter.Validation.checkHealth()" class="modern-btn-secondary">
                             <i class="fas fa-heartbeat"></i> <span th:text="#{msg.policy.validation.health.check}">Check Health</span>
                         </button>
                         <a th:href="@{/admin/policies/register}" class="modern-btn-primary">
@@ -747,10 +751,10 @@
                                               th:data-confirm-msg="#{admin.policy.center.list.confirm.reject}" onsubmit="return confirm(this.dataset.confirmMsg);">
                                             <button type="submit" class="action-badge-secondary"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.list.reject}">Reject</span></button>
                                         </form>
-                                        <form th:action="@{/admin/policies/delete/{id}(id=${policy.id})}" method="post" style="display:inline;"
-                                              th:data-confirm-msg="#{admin.policy.center.list.confirm.delete}" onsubmit="return confirm(this.dataset.confirmMsg);">
-                                            <button type="submit" class="action-badge-secondary"><i class="fas fa-trash"></i> <span th:text="#{common.delete}">Delete</span></button>
-                                        </form>
+                                        <button type="button" class="action-badge-secondary"
+                                                th:onclick="'PolicyCenter.DeleteModal.open(' + ${policy.id} + ')'">
+                                            <i class="fas fa-trash"></i> <span th:text="#{common.delete}">Delete</span>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -793,7 +797,11 @@
                     <h3 class="text-base font-semibold mb-4" style="color: #cbd5e1;" th:text="#{admin.policy.center.simulator.test.cases}">Test Cases</h3>
                     <div id="sim-test-cases">
                         <div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">
-                            <div class="col-span-3"><input type="number" class="modern-input sim-userId" placeholder="User ID" min="1" /></div>
+                            <div class="col-span-3" style="position:relative;">
+                                <input type="text" class="modern-input sim-userSearch" placeholder="Search user..." oninput="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.searchUser(this)" autocomplete="off" />
+                                <input type="hidden" class="sim-userId" />
+                                <div class="sim-userDropdown hidden" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#1e293b;border:1px solid rgba(71,85,105,0.5);border-radius:0.5rem;max-height:12rem;overflow-y:auto;"></div>
+                            </div>
                             <div class="col-span-5"><input type="text" class="modern-input sim-path" placeholder="/api/path" /></div>
                             <div class="col-span-3">
                                 <select class="modern-select sim-method">
@@ -883,9 +891,53 @@
                     <div class="flex justify-end gap-3">
                         <button type="button" onclick="PolicyCenter.AIValidationModal.close()" class="modern-btn-secondary" th:text="#{common.close}">Close</button>
                         <form id="ai-validation-approve-form" method="post" style="display:inline;">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                            <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                             <button type="submit" id="ai-validation-approve-btn" class="modern-btn-primary" th:text="#{admin.policy.center.list.approve}">Approve</button>
                         </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== VALIDATION RESULT MODAL ==================== -->
+            <div id="validation-result-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
+                <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:40rem;width:100%;max-height:80vh;overflow-y:auto;">
+                    <h3 class="text-lg font-bold mb-6" style="color:#e2e8f0;">
+                        <i class="fas fa-shield-alt mr-2" style="color:#fbbf24;"></i> <span th:text="#{msg.policy.validation.health.title}">Policy Validation</span>
+                    </h3>
+                    <div id="validation-result-content" class="space-y-4 mb-6"></div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="PolicyCenter.ValidationModal.close()" class="modern-btn-secondary" th:text="#{common.close}">Close</button>
+                        <button type="button" id="validation-proceed-btn" class="modern-btn-primary hidden" onclick="PolicyCenter.ValidationModal.proceed()" th:text="#{admin.policy.center.validation.proceed}">Proceed Anyway</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== CONFLICT DETAIL MODAL ==================== -->
+            <div id="conflict-detail-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
+                <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:40rem;width:100%;max-height:80vh;overflow-y:auto;">
+                    <h3 class="text-lg font-bold mb-6" style="color:#e2e8f0;">
+                        <i class="fas fa-bolt mr-2" style="color:#f87171;"></i> <span th:text="#{msg.policy.validation.conflict}">Conflict</span> / <span th:text="#{msg.policy.validation.duplicate}">Duplicate</span> <span th:text="#{admin.policy.center.validation.details}">Details</span>
+                    </h3>
+                    <div id="conflict-detail-content" class="space-y-3 mb-6"></div>
+                    <div class="flex justify-end">
+                        <button type="button" onclick="document.getElementById('conflict-detail-modal').classList.add('hidden');document.getElementById('conflict-detail-modal').style.display='none';" class="modern-btn-secondary" th:text="#{common.close}">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== DELETE REASON MODAL ==================== -->
+            <div id="delete-reason-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
+                <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:30rem;width:100%;">
+                    <h3 class="text-lg font-bold mb-4" style="color:#e2e8f0;">
+                        <i class="fas fa-trash mr-2" style="color:#f87171;"></i> <span th:text="#{common.delete}">Delete</span>
+                    </h3>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{msg.policy.version.change.reason}">Change Reason</label>
+                        <textarea id="delete-reason-input" rows="3" class="modern-input w-full" required th:placeholder="#{msg.policy.version.change.reason.required}"></textarea>
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="PolicyCenter.DeleteModal.close()" class="modern-btn-secondary" th:text="#{common.cancel}">Cancel</button>
+                        <button type="button" onclick="PolicyCenter.DeleteModal.submit()" class="modern-btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);"><i class="fas fa-trash mr-1"></i> <span th:text="#{common.delete}">Delete</span></button>
                     </div>
                 </div>
             </div>
@@ -1174,7 +1226,12 @@
      th:data-sim-unchanged="#{admin.policy.center.simulator.unchanged}"
      th:data-sim-allow-to-deny="#{admin.policy.center.simulator.allow.to.deny}"
      th:data-sim-deny-to-allow="#{admin.policy.center.simulator.deny.to.allow}"
-     th:data-sim-other="#{admin.policy.center.simulator.other.changes}">
+     th:data-sim-other="#{admin.policy.center.simulator.other.changes}"
+     th:data-sim-no-users="#{admin.policy.center.simulator.no.users}"
+     th:data-matrix-no-data="#{admin.policy.center.matrix.no.data}"
+     th:data-delete-reason-required="#{msg.policy.version.change.reason.required}"
+     th:data-sim-select-user="#{admin.policy.center.simulator.select.user}"
+     th:data-ai-validate-error="#{admin.policy.center.ai.validation.error}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>

@@ -15,6 +15,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.SecuritySpelRepository;
+import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
@@ -50,6 +51,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final SecuritySpelRepository securitySpelRepository;
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyConflictAnalyzer policyConflictAnalyzer;
+    private final PolicyVersionService policyVersionService;
 
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
                                      @Lazy RoleService roleService,
@@ -60,7 +62,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                                      CustomDynamicAuthorizationManager authorizationManager,
                                      SecuritySpelRepository securitySpelRepository,
                                      CentralAuditFacade centralAuditFacade,
-                                     PolicyConflictAnalyzer policyConflictAnalyzer) {
+                                     PolicyConflictAnalyzer policyConflictAnalyzer,
+                                     PolicyVersionService policyVersionService) {
         this.policyRepository = policyRepository;
         this.roleService = roleService;
         this.roleRepository = roleRepository;
@@ -71,6 +74,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         this.securitySpelRepository = securitySpelRepository;
         this.centralAuditFacade = centralAuditFacade;
         this.policyConflictAnalyzer = policyConflictAnalyzer;
+        this.policyVersionService = policyVersionService;
     }
 
     @Override
@@ -87,6 +91,9 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         Policy savedPolicy = policyRepository.save(policy);
 
+        policyVersionService.createVersion(savedPolicy,
+                PolicyVersion.ChangeType.CREATED, null);
+
         if (!CollectionUtils.isEmpty(dto.getPermissionIds())) {
             updateResourceStatusForPermissions(dto.getPermissionIds());
         }
@@ -101,6 +108,9 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     public Policy updatePolicyFromBusinessRule(Long policyId, BusinessPolicyDto dto) {
         Policy existingPolicy = policyRepository.findByIdWithDetails(policyId)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
+
+        policyVersionService.createVersion(existingPolicy,
+                PolicyVersion.ChangeType.UPDATED, null);
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
         validateConflicts(existingPolicy);

@@ -22,6 +22,7 @@ import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
@@ -78,6 +79,7 @@ public class PolicyCenterController {
     private final PermissionRepository permissionRepository;
     private final PolicyVersionService policyVersionService;
     private final PolicyMatrixService policyMatrixService;
+    private final PolicyCombiningProperties policyCombiningProperties;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -96,6 +98,7 @@ public class PolicyCenterController {
 
         model.addAttribute("activePage", "policy-center");
         model.addAttribute("activeTab", tab);
+        model.addAttribute("combiningAlgorithm", policyCombiningProperties.getCombiningAlgorithm().name());
 
         try {
             // Resources tab data

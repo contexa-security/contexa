@@ -13,6 +13,7 @@ import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -41,12 +42,13 @@ public class IamAdminCenterAutoConfiguration {
             PolicyValidationService policyValidationService,
             PermissionRepository permissionRepository,
             PolicyVersionService policyVersionService,
-            PolicyMatrixService policyMatrixService) {
+            PolicyMatrixService policyMatrixService,
+            PolicyCombiningProperties policyCombiningProperties) {
         return new PolicyCenterController(
                 resourceRegistryService, policyService, policyRepository, roleService,
                 permissionCatalogService, businessPolicyService, conditionTemplateRepository,
                 managedResourceRepository, securitySpelRepository, messageSource,
                 policyValidationService, permissionRepository, policyVersionService,
-                policyMatrixService);
+                policyMatrixService, policyCombiningProperties);
     }
 }

@@ -71,6 +71,9 @@ class BusinessPolicyServiceImplTest {
     @Mock
     private PolicyConflictAnalyzer policyConflictAnalyzer;
 
+    @Mock
+    private PolicyVersionService policyVersionService;
+
     private BusinessPolicyServiceImpl service;
 
     @BeforeEach
@@ -79,7 +82,7 @@ class BusinessPolicyServiceImplTest {
                 policyRepository, roleService, roleRepository,
                 permissionRepository, conditionTemplateRepository,
                 policyEnrichmentService, authorizationManager, securitySpelRepository,
-                centralAuditFacade, policyConflictAnalyzer);
+                centralAuditFacade, policyConflictAnalyzer, policyVersionService);
     }
 
     @Nested

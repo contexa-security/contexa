@@ -16,6 +16,8 @@ import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -93,11 +95,16 @@ class PolicyCenterControllerTest {
     @Mock
     private PolicyMatrixService policyMatrixService;
 
+    @Mock
+    private PolicyCombiningProperties policyCombiningProperties;
+
     @InjectMocks
     private PolicyCenterController controller;
 
     @BeforeEach
     void setUpMessageSource() {
+        when(policyCombiningProperties.getCombiningAlgorithm())
+                .thenReturn(CombiningAlgorithm.DENY_OVERRIDES);
         when(messageSource.getMessage(anyString(), any(), any(java.util.Locale.class)))
                 .thenAnswer(inv -> {
                     String key = inv.getArgument(0);

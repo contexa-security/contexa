@@ -129,9 +129,11 @@ public class PolicyController {
     }
 
     @PostMapping("/delete/{id}")
-    public String deletePolicy(@PathVariable Long id, RedirectAttributes ra) {
+    public String deletePolicy(@PathVariable Long id,
+                                @RequestParam(required = false) String changeReason,
+                                RedirectAttributes ra) {
         try {
-            policyService.deletePolicy(id);
+            policyService.deletePolicy(id, changeReason);
             ra.addFlashAttribute("message", msg("msg.policy.deleted"));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", e.getMessage()));

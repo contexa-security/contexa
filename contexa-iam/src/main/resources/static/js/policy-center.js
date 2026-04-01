@@ -871,18 +871,20 @@ const PolicyCenter = {
                 };
                 const validation = await PolicyCenter.Validation.validateQuickPolicy(quickRequest);
                 if (!validation.canCreate) {
-                    showToast(PolicyCenter._i18n('validationBlocked', 'Creation blocked: critical conflict detected') + ' - ' + validation.blockedReason, 'error');
+                    await PolicyCenter.ValidationModal.show(validation, false);
                     PolicyCenter.setLoading(btn, false);
                     return;
                 }
                 if (validation.conflicts.length > 0 || validation.duplicates.length > 0) {
-                    if (!confirm(PolicyCenter._i18n('validationConfirm', 'Conflicts detected. Proceed anyway?'))) {
+                    var proceed = await PolicyCenter.ValidationModal.show(validation, true);
+                    if (!proceed) {
                         PolicyCenter.setLoading(btn, false);
                         return;
                     }
                 }
             } catch (valErr) {
                 console.error('Pre-creation validation error', valErr);
+                showToast(PolicyCenter._i18n('validationChecking', 'Validation check failed'), 'warning');
             }
 
             try {
@@ -2125,6 +2127,7 @@ PolicyCenter.Validation = {
         })
         .then(r => r.json())
         .then(report => {
+            PolicyCenter.ConflictDetailModal._lastReport = report;
             this.renderHealthBanner(report);
             this.renderPolicyBadges(report);
             if (btn) PolicyCenter.setLoading(btn, false);
@@ -2228,9 +2231,9 @@ PolicyCenter.Validation = {
                 const maxSeverity = this.maxSeverity(conflicts);
                 const color = maxSeverity === 'CRITICAL' ? '#f87171' :
                     maxSeverity === 'HIGH' ? '#fb923c' : '#fbbf24';
-                html += '<span class="status-badge" style="background:' + color + '20;color:' + color +
+                html += '<span class="status-badge conflict-badge" style="background:' + color + '20;color:' + color +
                     ';border-color:' + color + '50;font-size:0.65rem;cursor:pointer;" ' +
-                    'title="' + conflicts.length + ' conflict(s)">' +
+                    'title="' + conflicts.length + ' conflict(s)" data-policy-id="' + policyId + '">' +
                     '<i class="fas fa-bolt"></i> ' + conflicts.length + '</span> ';
             }
             if (dups.length > 0) {
@@ -2242,6 +2245,13 @@ PolicyCenter.Validation = {
                 html = '<span class="text-xs" style="color:#4ade80;"><i class="fas fa-check"></i></span>';
             }
             cell.innerHTML = html;
+        });
+
+        // Bind click on conflict badges
+        document.querySelectorAll('.conflict-badge').forEach(function(badge) {
+            badge.addEventListener('click', function() {
+                PolicyCenter.ConflictDetailModal.showForPolicy(this.dataset.policyId);
+            });
         });
     },
 
@@ -2362,6 +2372,9 @@ PolicyCenter.switchTab = function(tabName) {
     if (target) { target.style.display = ''; }
     var btn = document.getElementById('tab-btn-' + tabName);
     if (btn) btn.classList.add('active');
+
+    // Auto-load data on tab switch
+    if (tabName === 'matrix') PolicyCenter.MatrixUI.load();
 };
 
 // ================================================================
@@ -2369,24 +2382,79 @@ PolicyCenter.switchTab = function(tabName) {
 // ================================================================
 
 PolicyCenter.SimulatorUI = {
+    _searchTimeout: null,
+
     addTestCase: function() {
         var container = document.getElementById('sim-test-cases');
         container.insertAdjacentHTML('beforeend',
             '<div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">'
-            + '<div class="col-span-3"><input type="number" class="modern-input sim-userId" placeholder="User ID" min="1" /></div>'
+            + '<div class="col-span-3" style="position:relative;">'
+            + '<input type="text" class="modern-input sim-userSearch" placeholder="Search user..." oninput="if(typeof PolicyCenter!==\'undefined\')PolicyCenter.SimulatorUI.searchUser(this)" autocomplete="off" />'
+            + '<input type="hidden" class="sim-userId" />'
+            + '<div class="sim-userDropdown hidden" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#1e293b;border:1px solid rgba(71,85,105,0.5);border-radius:0.5rem;max-height:12rem;overflow-y:auto;"></div>'
+            + '</div>'
             + '<div class="col-span-5"><input type="text" class="modern-input sim-path" placeholder="/api/path" /></div>'
             + '<div class="col-span-3"><select class="modern-select sim-method"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
             + '<div class="col-span-1"><button type="button" onclick="this.closest(\'.sim-case\').remove()" class="remove-btn">&times;</button></div></div>');
     },
 
+    searchUser: function(input) {
+        var self = this;
+        clearTimeout(this._searchTimeout);
+        var keyword = input.value.trim();
+        var dropdown = input.closest('.sim-case') ? input.parentElement.querySelector('.sim-userDropdown') : null;
+        if (!dropdown) return;
+        if (keyword.length < 1) { dropdown.classList.add('hidden'); return; }
+
+        this._searchTimeout = setTimeout(function() {
+            fetch('/admin/access-center/api/users?keyword=' + encodeURIComponent(keyword) + '&size=10', {
+                headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var users = data.content || [];
+                if (!users.length) { dropdown.innerHTML = '<div class="p-3 text-xs" style="color:#64748b;">' + PolicyCenter._i18n('simNoUsers', 'No users found') + '</div>'; dropdown.classList.remove('hidden'); return; }
+                var html = '';
+                users.forEach(function(u) {
+                    html += '<div class="p-2 cursor-pointer text-sm" style="color:#e2e8f0;" onmouseover="this.style.background=\'rgba(99,102,241,0.2)\'" onmouseout="this.style.background=\'transparent\'" '
+                        + 'onclick="PolicyCenter.SimulatorUI.selectUser(this,' + u.id + ',\'' + PolicyCenter.escapeHtml(u.username || u.name || String(u.id)) + '\')">'
+                        + '<span class="font-mono text-xs" style="color:#94a3b8;">ID:' + u.id + '</span> '
+                        + '<span>' + PolicyCenter.escapeHtml(u.username || u.name || '') + '</span></div>';
+                });
+                dropdown.innerHTML = html;
+                dropdown.classList.remove('hidden');
+            })
+            .catch(function() { dropdown.classList.add('hidden'); });
+        }, 300);
+    },
+
+    selectUser: function(el, userId, username) {
+        var caseRow = el.closest('.sim-case') || el.closest('[class*="sim-case"]');
+        if (!caseRow) { caseRow = el.parentElement.parentElement; }
+        var searchInput = caseRow.querySelector('.sim-userSearch');
+        var hiddenInput = caseRow.querySelector('.sim-userId');
+        var dropdown = caseRow.querySelector('.sim-userDropdown');
+        if (searchInput) searchInput.value = username + ' (ID:' + userId + ')';
+        if (hiddenInput) hiddenInput.value = userId;
+        if (dropdown) dropdown.classList.add('hidden');
+    },
+
     run: async function() {
         var cases = [];
         document.querySelectorAll('.sim-case').forEach(function(row) {
-            var userId = row.querySelector('.sim-userId')?.value;
+            var hiddenUserId = row.querySelector('.sim-userId');
+            var userId = hiddenUserId ? hiddenUserId.value : null;
             var path = row.querySelector('.sim-path')?.value;
             var method = row.querySelector('.sim-method')?.value;
             if (userId && path) cases.push({ userId: parseInt(userId), path: path, httpMethod: method || 'GET' });
         });
+        var hasUnselectedUser = false;
+        document.querySelectorAll('.sim-case').forEach(function(row) {
+            var searchVal = row.querySelector('.sim-userSearch')?.value;
+            var hiddenVal = row.querySelector('.sim-userId')?.value;
+            if (searchVal && !hiddenVal) hasUnselectedUser = true;
+        });
+        if (hasUnselectedUser) { showToast(PolicyCenter._i18n('simSelectUser', 'Please select a user from the dropdown'), 'error'); return; }
         if (!cases.length) { showToast(PolicyCenter._i18n('simAddCase', 'Add at least one test case'), 'error'); return; }
 
         var btn = document.getElementById('sim-run-btn');
@@ -2436,12 +2504,12 @@ PolicyCenter.MatrixUI = {
         var resourceFilter = document.getElementById('matrix-resource-filter')?.value || '';
         var roleFilter = document.getElementById('matrix-role-filter')?.value || '';
         var container = document.getElementById('matrix-container');
-        container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Loading...</p>';
+        container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + PolicyCenter._i18n('loading', 'Loading...') + '</p>';
 
         var report = await PolicyCenter.Validation.getMatrix(resourceFilter, roleFilter);
 
         if (!report.resources.length || !report.roles.length) {
-            container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;">No data matching the filter.</p>';
+            container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;">' + PolicyCenter._i18n('matrixNoData', 'No data matching the filter.') + '</p>';
             return;
         }
 
@@ -2457,6 +2525,7 @@ PolicyCenter.MatrixUI = {
         html += '</tr></thead><tbody>';
 
         report.resources.forEach(function(res, rowIdx) {
+            if (!report.cells[rowIdx]) return;
             html += '<tr style="border-color:rgba(71,85,105,0.3);">';
             html += '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">'
                 + '<span class="status-badge bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-xs mr-1">' + res.httpMethod + '</span>'
@@ -2472,7 +2541,8 @@ PolicyCenter.MatrixUI = {
                     var color = cell.access === 'ALLOW' ? '#4ade80' : '#f87171';
                     var style = 'background:' + bg + ';color:' + color + ';' + borderStyle;
                     var label = cell.access + (cell.inherited ? ' *' : '');
-                    html += '<td class="py-3 px-3 text-center cursor-pointer" style="' + style + '" title="' + PolicyCenter.escapeHtml(cell.policyName || '') + '">'
+                    var clickHandler = cell.policyId ? ' onclick="window.location.href=\'/admin/policies/' + cell.policyId + '\'"' : '';
+                    html += '<td class="py-3 px-3 text-center cursor-pointer" style="' + style + '" title="' + PolicyCenter.escapeHtml(cell.policyName || '') + '"' + clickHandler + '>'
                         + '<span class="text-xs font-bold">' + label + '</span></td>';
                 }
             });
@@ -2498,7 +2568,7 @@ PolicyCenter.AIValidationModal = {
         modal.style.display = 'flex';
 
         var itemsDiv = document.getElementById('ai-validation-items');
-        itemsDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> Validating...</p>';
+        itemsDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + PolicyCenter._i18n('aiAnalyzing', 'Validating...') + '</p>';
         document.getElementById('ai-validation-blocked').classList.add('hidden');
 
         try {
@@ -2508,7 +2578,7 @@ PolicyCenter.AIValidationModal = {
             var report = await response.json();
             this.render(report, policyId);
         } catch (err) {
-            itemsDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">Validation failed: ' + err.message + '</p>';
+            itemsDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">' + PolicyCenter._i18n('aiValidateError', 'Validation failed') + ': ' + PolicyCenter.escapeHtml(err.message) + '</p>';
         }
     },
 
@@ -2545,6 +2615,177 @@ PolicyCenter.AIValidationModal = {
         var modal = document.getElementById('ai-validation-modal');
         modal.classList.add('hidden');
         modal.style.display = 'none';
+    }
+};
+
+// ================================================================
+// VALIDATION RESULT MODAL (#2 - 정책 생성 시 검증 결과 상세)
+// ================================================================
+
+PolicyCenter.ValidationModal = {
+    _resolve: null,
+
+    show: function(validation, allowProceed) {
+        return new Promise(function(resolve) {
+            PolicyCenter.ValidationModal._resolve = resolve;
+            var modal = document.getElementById('validation-result-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+
+            var content = document.getElementById('validation-result-content');
+            var html = '';
+
+            // Blocked reason
+            if (!validation.canCreate && validation.blockedReason) {
+                html += '<div class="p-4 rounded-xl" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;">'
+                    + '<i class="fas fa-ban mr-2"></i><strong>' + PolicyCenter.escapeHtml(validation.blockedReason) + '</strong></div>';
+            }
+
+            // Conflicts
+            if (validation.conflicts && validation.conflicts.length > 0) {
+                html += '<h4 class="text-sm font-bold" style="color:#f87171;"><i class="fas fa-bolt mr-1"></i> '
+                    + PolicyCenter._i18n('validationConflict', 'Conflict') + ' (' + validation.conflicts.length + ')</h4>';
+                validation.conflicts.forEach(function(c) {
+                    var severityColor = c.severity === 'CRITICAL' ? '#f87171' : c.severity === 'HIGH' ? '#fb923c' : '#fbbf24';
+                    html += '<div class="flex items-start gap-3 p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">'
+                        + '<span class="status-badge text-xs" style="background:' + severityColor + '20;color:' + severityColor + ';border-color:' + severityColor + '50;">' + c.severity + '</span>'
+                        + '<div><div class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(c.conflictDescription) + '</div>'
+                        + '<div class="text-xs mt-1" style="color:#94a3b8;">' + PolicyCenter.escapeHtml(c.existingPolicyName || '') + '</div></div></div>';
+                });
+            }
+
+            // Duplicates
+            if (validation.duplicates && validation.duplicates.length > 0) {
+                html += '<h4 class="text-sm font-bold mt-3" style="color:#c084fc;"><i class="fas fa-copy mr-1"></i> '
+                    + PolicyCenter._i18n('validationDuplicate', 'Duplicate') + ' (' + validation.duplicates.length + ')</h4>';
+                validation.duplicates.forEach(function(d) {
+                    html += '<div class="p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(168,85,247,0.3);">'
+                        + '<span class="text-xs" style="color:#c084fc;">' + PolicyCenter.escapeHtml(d.type) + '</span> '
+                        + '<span class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(d.reason) + '</span></div>';
+                });
+            }
+
+            if (!html) {
+                html = '<div class="p-4 rounded-xl" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">'
+                    + '<i class="fas fa-check-circle mr-2"></i>' + PolicyCenter._i18n('validationNoIssues', 'No issues detected') + '</div>';
+            }
+
+            content.innerHTML = html;
+
+            var proceedBtn = document.getElementById('validation-proceed-btn');
+            if (allowProceed && validation.canCreate) {
+                proceedBtn.classList.remove('hidden');
+            } else {
+                proceedBtn.classList.add('hidden');
+            }
+        });
+    },
+
+    proceed: function() {
+        this.close();
+        if (this._resolve) this._resolve(true);
+    },
+
+    close: function() {
+        var modal = document.getElementById('validation-result-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        if (this._resolve) { this._resolve(false); this._resolve = null; }
+    }
+};
+
+// ================================================================
+// CONFLICT DETAIL MODAL (#3 - 배지 클릭 시 충돌 상세)
+// ================================================================
+
+PolicyCenter.ConflictDetailModal = {
+    _lastReport: null,
+
+    showForPolicy: function(policyId) {
+        if (!this._lastReport) return;
+        var conflicts = this._lastReport.conflicts.filter(function(c) {
+            return c.newPolicyId == policyId || c.existingPolicyId == policyId;
+        });
+        var duplicates = this._lastReport.duplicates.filter(function(d) {
+            return d.policyIds && d.policyIds.indexOf(parseInt(policyId)) >= 0;
+        });
+        this.render(conflicts, duplicates);
+    },
+
+    render: function(conflicts, duplicates) {
+        var modal = document.getElementById('conflict-detail-modal');
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        var content = document.getElementById('conflict-detail-content');
+        var html = '';
+        conflicts.forEach(function(c) {
+            var severityColor = c.severity === 'CRITICAL' ? '#f87171' : c.severity === 'HIGH' ? '#fb923c' : '#fbbf24';
+            html += '<div class="flex items-start gap-3 p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">'
+                + '<span class="status-badge text-xs" style="background:' + severityColor + '20;color:' + severityColor + ';border-color:' + severityColor + '50;">' + c.severity + '</span>'
+                + '<div><div class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(c.conflictDescription) + '</div>'
+                + '<div class="text-xs mt-1" style="color:#94a3b8;">' + PolicyCenter.escapeHtml((c.newPolicyName || '') + ' vs ' + (c.existingPolicyName || '')) + '</div></div></div>';
+        });
+        duplicates.forEach(function(d) {
+            html += '<div class="p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(168,85,247,0.3);">'
+                + '<span class="status-badge text-xs" style="background:rgba(168,85,247,0.2);color:#c084fc;border-color:rgba(168,85,247,0.3);">' + (d.type || 'DUP') + '</span> '
+                + '<span class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(d.reason) + '</span></div>';
+        });
+        if (!html) html = '<p class="text-sm" style="color:#64748b;">No details available.</p>';
+        content.innerHTML = html;
+    }
+};
+
+// ================================================================
+// DELETE REASON MODAL (#5 - 삭제 시 변경 사유 입력)
+// ================================================================
+
+PolicyCenter.DeleteModal = {
+    currentPolicyId: null,
+
+    open: function(policyId) {
+        this.currentPolicyId = policyId;
+        document.getElementById('delete-reason-input').value = '';
+        var modal = document.getElementById('delete-reason-modal');
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    },
+
+    close: function() {
+        var modal = document.getElementById('delete-reason-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    },
+
+    submit: function() {
+        var reason = document.getElementById('delete-reason-input').value.trim();
+        if (!reason) {
+            showToast(PolicyCenter._i18n('deleteReasonRequired', 'Change reason is required'), 'error');
+            return;
+        }
+
+        // Create a hidden form and submit
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/admin/policies/delete/' + this.currentPolicyId;
+
+        var csrfMeta = document.querySelector('meta[name="_csrf"]');
+        var csrfParamMeta = document.querySelector('meta[name="_csrf_parameter"]');
+        if (csrfMeta && csrfParamMeta) {
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = csrfParamMeta.content;
+            csrfInput.value = csrfMeta.content;
+            form.appendChild(csrfInput);
+        }
+
+        var reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'changeReason';
+        reasonInput.value = reason;
+        form.appendChild(reasonInput);
+
+        document.body.appendChild(form);
+        form.submit();
     }
 };
 
