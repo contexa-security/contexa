@@ -32,6 +32,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcherEntry;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -60,7 +61,9 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private void initialize() {
         this.mappings = new ArrayList<>();
 
-        List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies();
+        List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies().stream()
+                .sorted(Comparator.comparingInt(Policy::getPriority))
+                .collect(Collectors.toList());
 
         for (Policy policy : urlPolicies) {
             if (policy.isAIGenerated() && (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {

@@ -15,12 +15,17 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
@@ -47,6 +52,10 @@ public class DefaultPolicyService implements PolicyService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
     private final CentralAuditFacade centralAuditFacade;
+    private final PolicyConflictAnalyzer policyConflictAnalyzer;
+
+    @Setter
+    private PolicyReloadBroadcaster policyReloadBroadcaster;
 
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
@@ -72,6 +81,7 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     public Policy createPolicy(PolicyDto policyDto) {
         Policy policy = convertDtoToEntity(policyDto);
+        validateConflicts(policy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
         Policy savedPolicy = policyRepository.save(policy);
 
@@ -79,13 +89,14 @@ public class DefaultPolicyService implements PolicyService {
         auditPolicyChange(AuditEventCategory.POLICY_CREATED, savedPolicy);
 
         reloadAuthorizationSystem();
-                return savedPolicy;
+        return savedPolicy;
     }
 
     @Override
     public void updatePolicy(PolicyDto policyDto) {
         Policy existingPolicy = findById(policyDto.getId());
-        updateEntityFromDto(existingPolicy, policyDto); 
+        updateEntityFromDto(existingPolicy, policyDto);
+        validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy updatedPolicy = policyRepository.save(existingPolicy);
 
@@ -93,7 +104,7 @@ public class DefaultPolicyService implements PolicyService {
         auditPolicyChange(AuditEventCategory.POLICY_UPDATED, updatedPolicy);
 
         reloadAuthorizationSystem();
-            }
+    }
 
     private void publishPolicyChangedEvent(Policy policy) {
         Set<String> permissionNames = new HashSet<>();
@@ -214,6 +225,34 @@ public class DefaultPolicyService implements PolicyService {
         reloadAuthorizationSystem();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<PolicyConflictDto> detectConflicts(PolicyDto policyDto) {
+        Policy policy = convertDtoToEntity(policyDto);
+        if (policyDto.getId() != null) {
+            policy.setId(policyDto.getId());
+        }
+        return policyConflictAnalyzer.analyze(policy);
+    }
+
+    private void validateConflicts(Policy policy) {
+        List<PolicyConflictDto> conflicts = policyConflictAnalyzer.analyze(policy);
+        List<PolicyConflictDto> criticalConflicts = conflicts.stream()
+                .filter(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL)
+                .toList();
+        if (!criticalConflicts.isEmpty()) {
+            String details = criticalConflicts.stream()
+                    .map(c -> String.format("[%s] %s", c.existingPolicyName(), c.conflictDescription()))
+                    .collect(Collectors.joining("; "));
+            throw new PolicyConflictException(
+                    "Critical policy conflicts detected: " + details, conflicts);
+        }
+        if (!conflicts.isEmpty()) {
+            log.error("Policy conflicts detected for '{}': {}", policy.getName(),
+                    conflicts.stream().map(PolicyConflictDto::conflictDescription).collect(Collectors.joining("; ")));
+        }
+    }
+
     private void auditPolicyChange(AuditEventCategory category, Policy policy) {
         try {
             String principal = "SYSTEM";
@@ -241,8 +280,11 @@ public class DefaultPolicyService implements PolicyService {
 
     private void reloadAuthorizationSystem() {
         policyRetrievalPoint.clearUrlPoliciesCache();
-        policyRetrievalPoint.clearMethodPoliciesCache(); 
+        policyRetrievalPoint.clearMethodPoliciesCache();
         authorizationManager.reload();
+        if (policyReloadBroadcaster != null) {
+            policyReloadBroadcaster.broadcastReload();
+        }
     }
 
     private Policy convertDtoToEntity(PolicyDto dto) {

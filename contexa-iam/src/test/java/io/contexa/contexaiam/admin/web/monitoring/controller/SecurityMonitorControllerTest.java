@@ -2,6 +2,7 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,9 @@ class SecurityMonitorControllerTest {
     @Mock
     private AuditLogRepository auditLogRepository;
 
+    @Mock
+    private CsvExportService csvExportService;
+
     @InjectMocks
     private SecurityMonitorController controller;
 
@@ -47,7 +51,7 @@ class SecurityMonitorControllerTest {
             when(auditLogRepository.findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, null, 24, 0, model);
+            String view = controller.monitor(null, null, null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
             assertThat(model.getAttribute("activePage")).isEqualTo("security-monitor");
@@ -71,7 +75,7 @@ class SecurityMonitorControllerTest {
                     any(LocalDateTime.class), eq("AUTHENTICATION_SUCCESS"), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor("AUTHENTICATION_SUCCESS", null, 24, 0, model);
+            String view = controller.monitor("AUTHENTICATION_SUCCESS", null, null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
             assertThat(model.getAttribute("category")).isEqualTo("AUTHENTICATION_SUCCESS");
@@ -87,7 +91,7 @@ class SecurityMonitorControllerTest {
             when(auditLogRepository.findAfterHoursAccess(any(LocalDateTime.class), any()))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, "AFTER_HOURS", 24, 0, model);
+            String view = controller.monitor(null, "AFTER_HOURS", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
             assertThat(model.getAttribute("filterType")).isEqualTo("AFTER_HOURS");
@@ -102,7 +106,7 @@ class SecurityMonitorControllerTest {
                     any(LocalDateTime.class), eq(0.4), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, "HIGH_RISK", 24, 0, model);
+            String view = controller.monitor(null, "HIGH_RISK", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
             assertThat(model.getAttribute("filterType")).isEqualTo("HIGH_RISK");
@@ -117,7 +121,7 @@ class SecurityMonitorControllerTest {
                     any(LocalDateTime.class), eq("ALLOW"), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, "DECISION_ALLOW", 24, 0, model);
+            String view = controller.monitor(null, "DECISION_ALLOW", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
         }
@@ -131,7 +135,7 @@ class SecurityMonitorControllerTest {
                     any(LocalDateTime.class), eq("DENY"), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, "DECISION_DENY", 24, 0, model);
+            String view = controller.monitor(null, "DECISION_DENY", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
         }
@@ -149,7 +153,7 @@ class SecurityMonitorControllerTest {
             when(auditLogRepository.countDistinctIpGroupsSince(any(LocalDateTime.class)))
                     .thenReturn(0L);
 
-            String view = controller.monitor(null, "DISTINCT_IP", 24, 0, model);
+            String view = controller.monitor(null, "DISTINCT_IP", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
             assertThat(model.getAttribute("ipGroups")).isNotNull();
@@ -165,7 +169,7 @@ class SecurityMonitorControllerTest {
                     eq("SECURITY_DECISION"), eq("ALLOW"), any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, "ZT_ALLOW", 24, 0, model);
+            String view = controller.monitor(null, "ZT_ALLOW", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
         }
@@ -179,7 +183,7 @@ class SecurityMonitorControllerTest {
                     any(LocalDateTime.class), eq("CUSTOM_FILTER"), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            String view = controller.monitor(null, "CUSTOM_FILTER", 24, 0, model);
+            String view = controller.monitor(null, "CUSTOM_FILTER", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
         }

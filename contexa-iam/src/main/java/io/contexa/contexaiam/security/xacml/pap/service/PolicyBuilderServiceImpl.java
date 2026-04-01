@@ -14,6 +14,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyContext;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyTemplateDto;
@@ -42,6 +43,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     private final PolicyService policyService;
     private final ModelMapper modelMapper;
     private final ObjectMapper objectMapper;
+    private final PolicyConflictAnalyzer policyConflictAnalyzer;
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
     @Override
@@ -100,27 +102,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
 
     @Override
     public List<PolicyConflictDto> detectConflicts(Policy newPolicy) {
-        List<PolicyConflictDto> conflicts = new ArrayList<>();
-        List<Policy> existingPolicies = policyRepository.findAllWithDetails();
-        Set<String> newPolicyTargetSignatures = getTargetSignatures(newPolicy);
-
-        for (Policy existingPolicy : existingPolicies) {
-            if (newPolicy.getId() != null && newPolicy.getId().equals(existingPolicy.getId())) {
-                continue;
-            }
-
-            if (newPolicy.getEffect() != existingPolicy.getEffect()) {
-                Set<String> existingPolicyTargetSignatures = getTargetSignatures(existingPolicy);
-                if (!Collections.disjoint(newPolicyTargetSignatures, existingPolicyTargetSignatures)) {
-                    conflicts.add(new PolicyConflictDto(
-                            newPolicy.getId(), newPolicy.getName(),
-                            existingPolicy.getId(), existingPolicy.getName(),
-                            "ALLOW and DENY policies conflict for the same target."
-                    ));
-                }
-            }
-        }
-        return conflicts;
+        return policyConflictAnalyzer.analyze(newPolicy);
     }
 
     private PolicyTemplateDto convertTemplateEntityToDto(PolicyTemplate template) {
@@ -131,12 +113,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
             log.error("Failed to deserialize policy draft for template ID: {}", template.getTemplateId(), e);
             return null;
         }
-    }
-
-    private Set<String> getTargetSignatures(Policy policy) {
-        return policy.getTargets().stream()
-                .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier())
-                .collect(Collectors.toSet());
     }
 
     private Set<String> getEffectivePermissions(Authentication authentication, Policy temporaryPolicy) {

@@ -3,6 +3,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,6 +26,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,6 +41,12 @@ class BlacklistControllerTest {
     @Mock
     private BlockedUserService blockedUserService;
 
+    @Mock
+    private BlockedUserJpaRepository blockedUserJpaRepository;
+
+    @Mock
+    private MessageSource messageSource;
+
     @InjectMocks
     private BlacklistController controller;
 
@@ -46,6 +55,16 @@ class BlacklistControllerTest {
         SecurityContext context = new SecurityContextImpl();
         context.setAuthentication(new TestingAuthenticationToken("admin", "password"));
         SecurityContextHolder.setContext(context);
+        when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
     }
 
     @AfterEach
@@ -64,7 +83,7 @@ class BlacklistControllerTest {
             List<BlockedUser> all = List.of(BlockedUser.builder().id(1L).build());
             when(blockedUserService.getAllBlockHistory()).thenReturn(all);
 
-            String view = controller.listBlockedUsers("all", model);
+            String view = controller.listBlockedUsers("all", null, model);
 
             assertThat(view).isEqualTo("admin/blacklist");
             assertThat(model.getAttribute("blockedUsers")).isEqualTo(all);
@@ -78,7 +97,7 @@ class BlacklistControllerTest {
             List<BlockedUser> blocked = List.of(BlockedUser.builder().id(2L).build());
             when(blockedUserService.getBlockedUsers()).thenReturn(blocked);
 
-            String view = controller.listBlockedUsers("blocked", model);
+            String view = controller.listBlockedUsers("blocked", null, model);
 
             assertThat(view).isEqualTo("admin/blacklist");
             assertThat(model.getAttribute("blockedUsers")).isEqualTo(blocked);
@@ -92,7 +111,7 @@ class BlacklistControllerTest {
             List<BlockedUser> requested = List.of(BlockedUser.builder().id(3L).build());
             when(blockedUserService.getUnblockRequested()).thenReturn(requested);
 
-            String view = controller.listBlockedUsers("unblock_requested", model);
+            String view = controller.listBlockedUsers("unblock_requested", null, model);
 
             assertThat(view).isEqualTo("admin/blacklist");
             assertThat(model.getAttribute("blockedUsers")).isEqualTo(requested);
@@ -106,7 +125,7 @@ class BlacklistControllerTest {
             BlockedUser blocked = BlockedUser.builder().id(5L).status(BlockedUserStatus.BLOCKED).build();
             when(blockedUserService.getAllBlockHistory()).thenReturn(List.of(resolved, blocked));
 
-            String view = controller.listBlockedUsers("resolved", model);
+            String view = controller.listBlockedUsers("resolved", null, model);
 
             assertThat(view).isEqualTo("admin/blacklist");
             @SuppressWarnings("unchecked")
@@ -123,7 +142,7 @@ class BlacklistControllerTest {
             BlockedUser blocked = BlockedUser.builder().id(7L).status(BlockedUserStatus.BLOCKED).build();
             when(blockedUserService.getAllBlockHistory()).thenReturn(List.of(timeout, blocked));
 
-            String view = controller.listBlockedUsers("timeout_responded", model);
+            String view = controller.listBlockedUsers("timeout_responded", null, model);
 
             assertThat(view).isEqualTo("admin/blacklist");
             @SuppressWarnings("unchecked")

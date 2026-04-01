@@ -5,8 +5,10 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
+import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -24,10 +30,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -39,6 +47,9 @@ class RoleHierarchyControllerTest {
     private RoleHierarchyService roleHierarchyService;
 
     @Mock
+    private RoleHierarchyRepository roleHierarchyRepository;
+
+    @Mock
     private ModelMapper modelMapper;
 
     @Mock
@@ -47,8 +58,25 @@ class RoleHierarchyControllerTest {
     @Mock
     private GroupService groupService;
 
+    @Mock
+    private MessageSource messageSource;
+
     @InjectMocks
     private RoleHierarchyController controller;
+
+    @BeforeEach
+    void setUpMessageSource() {
+        when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(0);
+                    Object[] args = inv.getArgument(1);
+                    if (args != null && args.length > 0) {
+                        return key + " " + java.util.Arrays.stream(args)
+                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                    }
+                    return key;
+                });
+    }
 
     // ===== Helpers =====
 
@@ -77,16 +105,17 @@ class RoleHierarchyControllerTest {
     class ListHierarchies {
 
         @Test
-        @DisplayName("should return list view with hierarchies")
+        @DisplayName("계층 목록이 있을 때 목록 뷰를 반환해야 한다")
         void shouldReturnListView() {
             RoleHierarchyEntity entity = buildEntity(1L, "ROLE_ADMIN > ROLE_USER", "H1", true);
-            when(roleHierarchyService.getAllRoleHierarchies()).thenReturn(List.of(entity));
+            Page<RoleHierarchyEntity> entityPage = new PageImpl<>(List.of(entity));
+            when(roleHierarchyRepository.findAll(any(Pageable.class))).thenReturn(entityPage);
 
             RoleHierarchyDto dto = buildDto(1L, "ROLE_ADMIN > ROLE_USER", "H1", true);
             when(modelMapper.map(any(RoleHierarchyEntity.class), eq(RoleHierarchyDto.class))).thenReturn(dto);
 
             Model model = new ConcurrentModel();
-            String viewName = controller.getRoleHierarchies(model);
+            String viewName = controller.getRoleHierarchies(null, 0, model);
 
             assertThat(viewName).isEqualTo("admin/role-hierarchies");
             assertThat(model.getAttribute("hierarchies")).isNotNull();
@@ -96,12 +125,13 @@ class RoleHierarchyControllerTest {
         }
 
         @Test
-        @DisplayName("should return empty list when no hierarchies")
+        @DisplayName("계층이 없을 때 빈 목록을 반환해야 한다")
         void shouldReturnEmptyList() {
-            when(roleHierarchyService.getAllRoleHierarchies()).thenReturn(Collections.emptyList());
+            Page<RoleHierarchyEntity> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(roleHierarchyRepository.findAll(any(Pageable.class))).thenReturn(emptyPage);
 
             Model model = new ConcurrentModel();
-            String viewName = controller.getRoleHierarchies(model);
+            String viewName = controller.getRoleHierarchies(null, 0, model);
 
             assertThat(viewName).isEqualTo("admin/role-hierarchies");
             @SuppressWarnings("unchecked")

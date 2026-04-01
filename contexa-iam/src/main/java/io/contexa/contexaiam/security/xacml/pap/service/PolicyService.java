@@ -2,6 +2,7 @@ package io.contexa.contexaiam.security.xacml.pap.service;
 
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexacommon.entity.Permission;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,4 +19,5 @@ public interface PolicyService {
     void synchronizePolicyForPermission(Permission permission);
     void approvePolicy(Long id, String approver);
     void rejectPolicy(Long id, String rejector);
+    List<PolicyConflictDto> detectConflicts(PolicyDto policyDto);
 }

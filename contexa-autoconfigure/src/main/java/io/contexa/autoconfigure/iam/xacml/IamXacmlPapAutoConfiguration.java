@@ -19,12 +19,17 @@ import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.service.*;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.modelmapper.ModelMapper;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
@@ -51,6 +56,26 @@ public class IamXacmlPapAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public PolicyConflictAnalyzer policyConflictAnalyzer(PolicyRepository policyRepository) {
+        return new PolicyConflictAnalyzer(policyRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(RedissonClient.class)
+    public PolicyReloadBroadcaster policyReloadBroadcaster(
+            RedissonClient redissonClient,
+            PolicyRetrievalPoint policyRetrievalPoint,
+            CustomDynamicAuthorizationManager authorizationManager) {
+        return new PolicyReloadBroadcaster(redissonClient, () -> {
+            policyRetrievalPoint.clearUrlPoliciesCache();
+            policyRetrievalPoint.clearMethodPoliciesCache();
+            authorizationManager.reload();
+        });
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public PolicyService defaultPolicyService(
             PolicyRepository policyRepository,
             PolicyRetrievalPoint policyRetrievalPoint,
@@ -59,11 +84,15 @@ public class IamXacmlPapAutoConfiguration {
             IntegrationEventBus eventBus,
             PermissionRepository permissionRepository,
             ManagedResourceRepository managedResourceRepository,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
-        return new DefaultPolicyService(
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
+            PolicyConflictAnalyzer policyConflictAnalyzer,
+            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
+        DefaultPolicyService service = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
                 policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository,
-                centralAuditFacade);
+                centralAuditFacade, policyConflictAnalyzer);
+        policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
+        return service;
     }
 
     @Bean
@@ -75,10 +104,12 @@ public class IamXacmlPapAutoConfiguration {
             PolicyTemplateRepository policyTemplateRepository,
             PolicyService policyService,
             ModelMapper modelMapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            PolicyConflictAnalyzer policyConflictAnalyzer) {
         return new PolicyBuilderServiceImpl(
                 policyRepository, userRepository, permissionRepository,
-                policyTemplateRepository, policyService, modelMapper, objectMapper);
+                policyTemplateRepository, policyService, modelMapper, objectMapper,
+                policyConflictAnalyzer);
     }
 
     @Bean

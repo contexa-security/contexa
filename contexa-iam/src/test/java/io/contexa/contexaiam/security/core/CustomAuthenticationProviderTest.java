@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.security.core;
 
 import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -21,7 +22,8 @@ class CustomAuthenticationProviderTest {
     void shouldRejectPasswordAuthenticationForExternalAuthOnlyAccount() {
         UserDetailsService userDetailsService = mock(UserDetailsService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
-        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder);
+        LoginPolicyHandler loginPolicyHandler = mock(LoginPolicyHandler.class);
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
 
         UserDto account = UserDto.builder()
                 .id(100L)
@@ -43,7 +45,8 @@ class CustomAuthenticationProviderTest {
     void shouldAuthenticateLocalAccountWhenPasswordMatches() {
         UserDetailsService userDetailsService = mock(UserDetailsService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
-        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder);
+        LoginPolicyHandler loginPolicyHandler = mock(LoginPolicyHandler.class);
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
 
         UserDto account = UserDto.builder()
                 .id(101L)
