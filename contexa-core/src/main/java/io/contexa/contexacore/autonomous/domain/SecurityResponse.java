@@ -54,7 +54,7 @@ public class SecurityResponse {
             } else {
                 action = extractString(json, "\"action\"");
             }
-            response.setAction(action);
+            response.setAction("PENDING_ANALYSIS");
 
             String reasoning = extractString(json, "\"d\"");
             if (reasoning == null) {

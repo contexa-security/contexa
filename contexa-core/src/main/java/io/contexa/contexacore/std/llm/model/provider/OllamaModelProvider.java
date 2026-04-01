@@ -1,8 +1,6 @@
 package io.contexa.contexacore.std.llm.model.provider;
 
 import io.contexa.contexacore.properties.LlmProviderProperties;
-import io.contexa.contexacore.std.llm.bulkhead.OllamaBulkheadSettings;
-import io.contexa.contexacore.std.llm.bulkhead.OllamaChatBulkheadModel;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -107,22 +105,9 @@ public class OllamaModelProvider extends BaseModelProvider {
                     .defaultOptions(ollamaOptions)
                     .build();
 
-            ChatModel wrappedModel = new OllamaChatBulkheadModel(
-                    chatModel,
-                    modelId,
-                    new OllamaBulkheadSettings(
-                            llmProviderProperties.getOllama().getChatMaxConcurrent(),
-                            llmProviderProperties.getOllama().getChatAcquireTimeoutMs(),
-                            llmProviderProperties.getOllama().getChatRetryAttempts(),
-                            llmProviderProperties.getOllama().getChatRetryDelayMs(),
-                            llmProviderProperties.getOllama().getChatBusyTripThreshold(),
-                            llmProviderProperties.getOllama().getChatCircuitOpenMs()
-                    )
-            );
+            cacheModel(modelId, chatModel);
 
-            cacheModel(modelId, wrappedModel);
-
-            return wrappedModel;
+            return chatModel;
 
         } catch (Exception e) {
             log.error("Failed to create Ollama model: {}", modelId, e);

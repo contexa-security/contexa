@@ -232,74 +232,6 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    @DisplayName("searchRelatedContextBase는 behavior memory와 동일 retrievalPurpose만 조회하고 authorized topK가 찰 때까지 검색 창을 넓혀야 한다")
-    void searchRelatedContextBase_shouldFilterToBehaviorAndPurposeAndExpandSearchWindow() {
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-001")
-                .userId("user-1")
-                .sourceIp("192.168.1.100")
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .metadata(new LinkedHashMap<>(Map.of("requestPath", "/admin/api/security-test/sensitive/resource-001")))
-                .build();
-
-        when(eventEnricher.getTargetResource(event))
-                .thenReturn(Optional.of("/admin/api/security-test/sensitive/resource-001"));
-
-        List<Document> firstSearchDocuments = List.of(
-                new Document("doc-1", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-2", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-3", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-4", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-5", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-6", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")));
-        List<Document> secondSearchDocuments = List.of(
-                new Document("doc-1", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-2", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-3", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-4", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-5", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-6", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")),
-                new Document("doc-7", Map.of("userId", "user-1", "documentType", "behavior", "retrievalPurpose", "security_investigation")));
-
-        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
-                .thenReturn(firstSearchDocuments)
-                .thenReturn(secondSearchDocuments);
-        when(promptContextAuthorizationService.authorize(any(SecurityEvent.class), any(String.class), any(List.class)))
-                .thenReturn(new io.contexa.contexacore.std.security.AuthorizedPromptContext(
-                        List.of(firstSearchDocuments.getFirst()),
-                        firstSearchDocuments.size(),
-                        1,
-                        firstSearchDocuments.size() - 1,
-                        "security_investigation",
-                        List.of("DENIED_PURPOSE")))
-                .thenReturn(new io.contexa.contexacore.std.security.AuthorizedPromptContext(
-                        secondSearchDocuments.subList(0, 6),
-                        secondSearchDocuments.size(),
-                        6,
-                        secondSearchDocuments.size() - 6,
-                        "security_investigation",
-                        List.of("DENIED_USER_SCOPE")));
-
-        List<Document> results = strategy.callSearchRelatedContextBase(event, 6, 0.5d);
-
-        assertThat(results).hasSize(6);
-
-        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(unifiedVectorService, times(2)).searchSimilar(searchRequestCaptor.capture());
-        List<SearchRequest> capturedRequests = searchRequestCaptor.getAllValues();
-        assertThat(capturedRequests.get(0).getTopK()).isEqualTo(6);
-        assertThat(capturedRequests.get(1).getTopK()).isEqualTo(12);
-        assertThat(String.valueOf(capturedRequests.get(0).getFilterExpression()))
-                .contains("documentType")
-                .contains("behavior")
-                .contains("userId")
-                .contains("user-1")
-                .contains("retrievalPurpose")
-                .contains("security_investigation")
-                .doesNotContain("threat");
-    }
-
-    @Test
     @DisplayName("getCachedSessionContext should return null for null eventId")
     void getCachedSessionContext_nullEventId_returnsNull() {
         SecurityDecisionStandardPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(null);
@@ -380,7 +312,7 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    @DisplayName("event metadata에 prompt budget profile이 있으면 layer 기본값보다 우선되어 compact replay request를 만든다")
+    @DisplayName("buildSecurityDecisionRequest should prefer explicit prompt budget profile from event metadata")
     void buildSecurityDecisionRequest_shouldPreferExplicitPromptBudgetProfileFromEventMetadata() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-budget-profile")

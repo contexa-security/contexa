@@ -519,35 +519,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .build();
 
             int requestedTopK = Math.max(topK, 1);
-            int searchTopK = requestedTopK;
-            int maxSearchTopK = Math.max(requestedTopK * 10, 50);
-            AuthorizedPromptContext authorizedPromptContext = null;
-
-            while (true) {
-                searchRequest = SearchRequest.builder()
-                        .query(query)
-                        .topK(searchTopK)
-                        .similarityThreshold(similarityThreshold)
-                        .filterExpression(filter)
-                        .build();
-
-                List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
-                if (documents == null || documents.isEmpty()) {
-                    return Collections.emptyList();
-                }
-
-                authorizedPromptContext = promptContextAuthorizationService
-                        .authorize(event, getContextRetrievalPurpose(), documents);
-
-                int authorizedCount = authorizedPromptContext.documents().size();
-                boolean enoughAuthorizedDocuments = authorizedCount >= requestedTopK;
-                boolean exhaustedSearchWindow = documents.size() < searchTopK || searchTopK >= maxSearchTopK;
-                if (enoughAuthorizedDocuments || exhaustedSearchWindow) {
-                    break;
-                }
-
-                searchTopK = Math.min(maxSearchTopK, searchTopK * 2);
+            List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+            if (documents == null || documents.isEmpty()) {
+                return Collections.emptyList();
             }
+            AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
+                    .authorize(event, getContextRetrievalPurpose(), documents);
 
             AuthorizedPromptContext limitedAuthorizedPromptContext =
                     limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
@@ -793,7 +770,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
         Map<String, Object> metadata = ensureMutableEventMetadata(event);
-        telemetry.forEach(metadata::put);
+        metadata.putAll(telemetry);
         metadata.put("promptRuntimeTelemetryLinked", true);
         metadata.put("promptRuntimeTelemetryLayer", getLayerName());
     }

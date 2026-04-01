@@ -62,13 +62,9 @@ public class VectorStoreCacheLayer {
                 return cachedResult;
             }
 
-            long startTime = System.currentTimeMillis();
-
             List<Document> result = vectorStore.similaritySearch(request);
 
-            long elapsedTime = System.currentTimeMillis() - startTime;
-
-            if (result != null && !result.isEmpty()) {
+            if (!result.isEmpty()) {
                 cache.put(cacheKey, result);
             }
 

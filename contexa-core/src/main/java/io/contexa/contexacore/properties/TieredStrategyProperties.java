@@ -129,7 +129,6 @@ public class TieredStrategyProperties {
         public static class Rag {
 
             private double similarityThreshold = 0.5;
-
         }
     }
 

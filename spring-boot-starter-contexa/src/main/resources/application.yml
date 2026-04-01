@@ -42,6 +42,8 @@ spring:
     token-persistence: localstorage
 
   ai:
+    retry:
+      max-attempts: 1
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:your-anthropic-api-key}
       chat:
@@ -51,7 +53,7 @@ spring:
       base-url: http://127.0.0.1:11434
       chat:
         options:
-          model: llama3.1:8b
+          model: qwen3:8b
           keep-alive: "24h"
       embedding:
         model: mxbai-embed-large
@@ -95,3 +97,9 @@ logging:
     org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
     org.hibernate.orm.connections.pooling: WARN
     org.springframework.aop.framework.CglibAopProxy: ERROR
+
+security:
+  plane:
+    llm-executor:
+      core-pool-size: 2
+      max-pool-size: 2
