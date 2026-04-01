@@ -4,7 +4,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.client.SaasThreatKnowledgePackHttpClient;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,7 +77,7 @@ class SaasThreatKnowledgePackServiceTest {
 
         ThreatKnowledgePackMatchContext context = service.buildThreatKnowledgeContext(
                 event,
-                new SecurityPromptTemplate.BehaviorAnalysis());
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis());
 
         assertThat(context.hasMatches()).isTrue();
         assertThat(context.matchedCases()).extracting(match -> match.knowledgeCase().knowledgeKey())
@@ -117,7 +117,7 @@ class SaasThreatKnowledgePackServiceTest {
 
         ThreatKnowledgePackMatchContext context = guardedService.buildThreatKnowledgeContext(
                 event,
-                new SecurityPromptTemplate.BehaviorAnalysis());
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis());
 
         assertThat(context.hasMatches()).isFalse();
     }
@@ -154,7 +154,7 @@ class SaasThreatKnowledgePackServiceTest {
 
         ThreatKnowledgePackMatchContext context = guardedService.buildThreatKnowledgeContext(
                 event,
-                new SecurityPromptTemplate.BehaviorAnalysis());
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis());
 
         assertThat(context.hasMatches()).isFalse();
     }

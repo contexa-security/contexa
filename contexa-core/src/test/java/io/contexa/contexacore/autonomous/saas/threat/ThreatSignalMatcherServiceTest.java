@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -30,7 +30,7 @@ class ThreatSignalMatcherServiceTest {
                         "failedLoginAttempts", 5,
                         "isSensitiveResource", true))
                 .build();
-        SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityPromptTemplate.BehaviorAnalysis();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
         ThreatIntelligenceMatchContext context = service.buildContext(event, behaviorAnalysis, List.of(
                 signal("signal-auth", "credential_abuse", "KR", List.of("authentication"), List.of("failed_login_burst")),
                 signal("signal-admin", "privilege_abuse", "US", List.of("administration"), List.of("privileged_flow"))), 3);
@@ -50,7 +50,7 @@ class ThreatSignalMatcherServiceTest {
                         "requestPath", "/session/refresh",
                         "geoCountry", "KR"))
                 .build();
-        SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityPromptTemplate.BehaviorAnalysis();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
         behaviorAnalysis.setContextBindingHashMismatch(true);
 
         ThreatIntelligenceMatchContext context = service.buildContext(event, behaviorAnalysis, List.of(
@@ -71,7 +71,7 @@ class ThreatSignalMatcherServiceTest {
                         "failedLoginAttempts", 4,
                         "isSensitiveResource", true))
                 .build();
-        SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityPromptTemplate.BehaviorAnalysis();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
 
         ThreatKnowledgePackMatchContext context = service.buildKnowledgeContext(event, behaviorAnalysis, List.of(
                 knowledgeCase("knowledge-auth", "credential_abuse", "KR", List.of("authentication"), List.of("failed_login_burst")),

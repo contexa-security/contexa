@@ -9,9 +9,9 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
-import org.springframework.ai.document.Document;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.document.Document;
 
 import java.time.LocalDateTime;
 import java.util.List;

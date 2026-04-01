@@ -92,7 +92,7 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should wire SessionNarrativeCollector into canonical context provider and prompt template")
         void shouldWireSessionNarrativeCollectorIntoRuntimePath() {
             Method canonicalProviderMethod = findMethod("canonicalSecurityContextProvider");
-            Method promptTemplateMethod = findMethod("securityPromptTemplate");
+            Method promptTemplateMethod = findMethod("securityDecisionStandardPromptTemplate");
 
             assertThat(canonicalProviderMethod.toGenericString()).contains("SessionNarrativeCollector");
             assertThat(promptTemplateMethod.toGenericString()).contains("CanonicalSecurityContextProvider");
