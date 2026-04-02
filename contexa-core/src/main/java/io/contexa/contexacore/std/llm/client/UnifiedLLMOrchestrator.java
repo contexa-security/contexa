@@ -221,12 +221,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return promptSpec.options(context.getChatOptions());
         }
 
-        if (!hasRuntimeOptions(context)) {
-            return promptSpec;
-        }
-
         if (selectedModel instanceof OllamaChatModel ollamaChatModel) {
             return promptSpec.options(buildOllamaOptions(context, ollamaChatModel));
+        }
+
+        if (!hasRuntimeOptions(context)) {
+            return promptSpec;
         }
 
         return promptSpec.options(buildGenericChatOptions(context));

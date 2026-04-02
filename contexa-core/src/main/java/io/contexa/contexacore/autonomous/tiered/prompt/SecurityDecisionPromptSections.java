@@ -1084,14 +1084,9 @@ public class SecurityDecisionPromptSections {
                 limitation explicit with terms such as limited, provisional,
                 sparse, or insufficient.
 
-                RESPOND WITH JSON ONLY:
-                {
-                  "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
-                  "reasoning":"<exactly 1 short sentence, max 24 words>",
-                  "riskScore":"<0.0-1.0 audit risk estimate>",
-                  "confidence":"<0.0-1.0 audit confidence estimate>",
-                  "mitre":"<optional MITRE tactic, technique, or UNKNOWN>"
-                }
+                Follow the <output_format> schema exactly.
+                Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.
+                If no supported MITRE tactic or technique applies, return mitre as UNKNOWN.
 
                 ACTION SEMANTICS:
 

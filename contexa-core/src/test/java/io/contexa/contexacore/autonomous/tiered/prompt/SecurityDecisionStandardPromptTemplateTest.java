@@ -74,6 +74,13 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
         assertThat(systemPrompt).contains("If uncertainty is required");
         assertThat(systemPrompt).contains("limited, provisional,");
+        assertThat(systemPrompt).contains("Follow the <output_format> schema exactly.");
+        assertThat(systemPrompt).contains("Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.");
+        assertThat(systemPrompt).contains("If no supported MITRE tactic or technique applies, return mitre as UNKNOWN.");
+        assertThat(systemPrompt)
+                .doesNotContain("RESPOND WITH JSON ONLY:")
+                .doesNotContain("\"reasoning\":\"<exactly 1 short sentence, max 24 words>\"")
+                .doesNotContain("<optional MITRE tactic, technique, or UNKNOWN>");
         assertThat(template.getAIGenerationType()).isEqualTo(SecurityDecisionResponseLite.class);
         assertThat(systemPrompt)
                 .doesNotContain("errorMessage")
@@ -91,7 +98,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
-        assertThat(systemPrompt).contains("\"reasoning\":\"<exactly 1 short sentence, max 24 words>\"");
     }
 
     @Test
