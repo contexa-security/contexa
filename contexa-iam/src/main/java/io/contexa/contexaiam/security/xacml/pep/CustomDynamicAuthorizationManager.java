@@ -90,26 +90,28 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
     @Override
     public AuthorizationDecision check(Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context) {
-
         final HttpServletRequest request = context.getRequest();
         final Authentication authentication = authenticationSupplier.get();
+        final AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
+        final boolean firstApplicable = (combiningAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE);
 
-        AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
-
-        if (combiningAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE) {
-            return checkFirstApplicable(authenticationSupplier, context, authentication, authorizationContext, request);
-        }
-
-        // Collect all matching policy decisions
         List<AuthorizationDecision> matchedDecisions = new ArrayList<>();
+
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
             RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(request);
-            if (matchResult.isMatch()) {
-                AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
-                RequestAuthorizationContext enrichedContext =
-                        new RequestAuthorizationContext(request, matchResult.getVariables());
-                matchedDecisions.add(manager.check(authenticationSupplier, enrichedContext));
+            if (!matchResult.isMatch()) continue;
+
+            AuthorizationDecision decision = mapping.getEntry().check(authenticationSupplier,
+                    new RequestAuthorizationContext(request, matchResult.getVariables()));
+
+            if (firstApplicable) {
+                assert decision != null;
+                if (!decision.isGranted()) {
+                    logAuthorizationAttempt(authentication, authorizationContext, decision, request);
+                }
+                return decision;
             }
+            matchedDecisions.add(decision);
         }
 
         if (matchedDecisions.isEmpty()) {
@@ -121,27 +123,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             logAuthorizationAttempt(authentication, authorizationContext, finalDecision, request);
         }
         return finalDecision;
-    }
-
-    private AuthorizationDecision checkFirstApplicable(
-            Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context,
-            Authentication authentication, AuthorizationContext authorizationContext, HttpServletRequest request) {
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
-        for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
-            RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(request);
-            if (matchResult.isMatch()) {
-                AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
-                RequestAuthorizationContext enrichedContext =
-                        new RequestAuthorizationContext(request, matchResult.getVariables());
-                authorizationDecision = manager.check(authenticationSupplier, enrichedContext);
-
-                if (!authorizationDecision.isGranted()) {
-                    logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision, request);
-                }
-                return authorizationDecision;
-            }
-        }
-        return authorizationDecision;
     }
 
 

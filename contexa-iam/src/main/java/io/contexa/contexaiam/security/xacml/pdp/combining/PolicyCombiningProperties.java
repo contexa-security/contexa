@@ -6,12 +6,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Configuration properties for policy combining algorithm.
- * Default: DENY_OVERRIDES (most secure).
+ * Default: FIRST_APPLICABLE (priority-ordered, first matching policy decides).
  */
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "contexa.policy")
 public class PolicyCombiningProperties {
 
-    private CombiningAlgorithm combiningAlgorithm = CombiningAlgorithm.DENY_OVERRIDES;
+    private CombiningAlgorithm combiningAlgorithm = CombiningAlgorithm.FIRST_APPLICABLE;
 }
