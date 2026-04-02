@@ -167,6 +167,16 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             "- ContextTrustWarning:",
             "- ContextFieldLimitation:");
 
+    private final boolean compressionEnabled;
+
+    public SafePromptNormalizationLLMViewComposer() {
+        this(true);
+    }
+
+    public SafePromptNormalizationLLMViewComposer(boolean compressionEnabled) {
+        this.compressionEnabled = compressionEnabled;
+    }
+
     @Override
     public PromptViewComposition compose(String rawSystemPrompt, String rawUserPrompt, PromptBudgetProfile budgetProfile) {
         PromptBudgetProfile effectiveProfile = budgetProfile != null
@@ -194,6 +204,15 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         }
         if (!rawEquals(normalizedRawUserPrompt, normalizedUserPrompt)) {
             records.add(layoutRecord("USER_PROMPT_LAYOUT", normalizedRawUserPrompt, normalizedUserPrompt));
+        }
+
+        if (!compressionEnabled) {
+            return new PromptViewComposition(
+                    normalizedRawSystemPrompt,
+                    normalizedRawUserPrompt,
+                    normalizedSystemPrompt,
+                    normalizedUserPrompt,
+                    buildLedger(normalizedRawSystemPrompt, normalizedRawUserPrompt, normalizedSystemPrompt, normalizedUserPrompt, records));
         }
 
         PromptTransformResult systemPromptTransform = compactSystemPrompt(normalizedSystemPrompt, budgetProfile);

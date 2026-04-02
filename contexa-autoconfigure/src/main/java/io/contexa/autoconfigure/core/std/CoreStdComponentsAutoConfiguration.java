@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseP
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.properties.ContexaRagProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
@@ -69,8 +70,9 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public LLMViewComposer llmViewComposer() {
-        return new SafePromptNormalizationLLMViewComposer();
+    public LLMViewComposer llmViewComposer(TieredStrategyProperties tieredStrategyProperties) {
+        return new SafePromptNormalizationLLMViewComposer(
+                tieredStrategyProperties.getPromptCompression().isEnabled());
     }
 
     @Bean

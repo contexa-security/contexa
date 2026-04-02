@@ -15,6 +15,7 @@ public class TieredStrategyProperties {
 
     private Truncation truncation = new Truncation();
     private Security security = new Security();
+    private PromptCompression promptCompression = new PromptCompression();
 
     @Data
     public static class Security {
@@ -22,6 +23,15 @@ public class TieredStrategyProperties {
         private List<String> trustedProxies = Collections.emptyList();
 
         private boolean trustedProxyValidationEnabled = true;
+    }
+
+    @Data
+    public static class PromptCompression {
+        /**
+         * Runtime compression is disabled by default for production safety.
+         * Benchmark and experiment paths can opt in explicitly.
+         */
+        private boolean enabled = false;
     }
 
     @Data

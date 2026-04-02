@@ -64,15 +64,17 @@ spring:
         options:
           model: gpt-4o-mini
           temperature: 0.3
-#    security:
-#      tiered:
-#        layer1:
-#          default-budget-profile: CORTEX_L1_DECISION_COMPACT
-#          vector-search-limit: 12
-#          prompt:
-#            max-rag-documents: 12
-#        layer2:
-#          default-budget-profile: CORTEX_L2_STANDARD
+    security:
+      tiered:
+        prompt-compression:
+          enabled: false
+        layer1:
+          default-budget-profile: CORTEX_L1_STANDARD
+          vector-search-limit: 12
+          prompt:
+            max-rag-documents: 12
+        layer2:
+          default-budget-profile: CORTEX_L2_STANDARD
 #        security:
 #          trusted-proxy-validation-enabled: true
 #          trusted-proxies:
