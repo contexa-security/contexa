@@ -67,11 +67,8 @@ public class PolicyValidationService {
             if (!policy.getIsActive()) {
                 continue;
             }
-            List<PolicyConflictDto> conflicts = conflictAnalyzer.analyze(policy);
-            allConflicts.addAll(conflicts);
-
-            List<DuplicatePolicyDto> duplicates = duplicateDetector.detect(policy);
-            allDuplicates.addAll(duplicates);
+            allConflicts.addAll(conflictAnalyzer.analyze(policy, allPolicies));
+            allDuplicates.addAll(duplicateDetector.detect(policy, allPolicies));
         }
 
         // Deduplicate symmetric conflicts (A vs B == B vs A)

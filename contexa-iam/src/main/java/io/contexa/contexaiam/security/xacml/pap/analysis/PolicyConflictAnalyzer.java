@@ -32,8 +32,11 @@ public class PolicyConflictAnalyzer {
      * @return list of detected conflicts with severity levels
      */
     public List<PolicyConflictDto> analyze(Policy candidatePolicy) {
+        return analyze(candidatePolicy, policyRepository.findAllWithDetails());
+    }
+
+    public List<PolicyConflictDto> analyze(Policy candidatePolicy, List<Policy> existingPolicies) {
         List<PolicyConflictDto> conflicts = new ArrayList<>();
-        List<Policy> existingPolicies = policyRepository.findAllWithDetails();
 
         Set<TargetSignature> candidateTargets = extractTargetSignatures(candidatePolicy);
         if (candidateTargets.isEmpty()) {

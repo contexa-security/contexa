@@ -363,6 +363,9 @@ public class AuthUrlProvider {
                 getOttRequestCodeUi(),
                 getOttChallengeUi(),
                 getPasskeyChallengeUi(),
+                getPasskeyRegistrationProcessing(),
+                getPasskeyAssertionOptions(),
+                getPasskeyRegistrationOptions(),
                 getRecoveryCodeChallengeUi()
         );
     }

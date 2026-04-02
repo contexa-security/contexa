@@ -64,21 +64,21 @@ spring:
         options:
           model: gpt-4o-mini
           temperature: 0.3
-    security:
-      tiered:
-        layer1:
-          default-budget-profile: CORTEX_L1_DECISION_COMPACT
-          vector-search-limit: 12
-          prompt:
-            max-rag-documents: 12
-        layer2:
-          default-budget-profile: CORTEX_L2_STANDARD
-        security:
-          trusted-proxy-validation-enabled: true
-          trusted-proxies:
-            - "127.0.0.1"
-            - "::1"
-            - "0:0:0:0:0:0:0:1"
+#    security:
+#      tiered:
+#        layer1:
+#          default-budget-profile: CORTEX_L1_DECISION_COMPACT
+#          vector-search-limit: 12
+#          prompt:
+#            max-rag-documents: 12
+#        layer2:
+#          default-budget-profile: CORTEX_L2_STANDARD
+#        security:
+#          trusted-proxy-validation-enabled: true
+#          trusted-proxies:
+#            - "127.0.0.1"
+#            - "::1"
+#            - "0:0:0:0:0:0:0:1"
     vectorstore:
       pgvector:
         dimensions: 1024

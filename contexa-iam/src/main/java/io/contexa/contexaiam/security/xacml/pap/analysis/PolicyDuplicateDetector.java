@@ -35,8 +35,11 @@ public class PolicyDuplicateDetector {
      * Detect duplicate policies for a candidate policy.
      */
     public List<DuplicatePolicyDto> detect(Policy candidate) {
+        return detect(candidate, policyRepository.findAllWithDetails());
+    }
+
+    public List<DuplicatePolicyDto> detect(Policy candidate, List<Policy> existingPolicies) {
         List<DuplicatePolicyDto> duplicates = new ArrayList<>();
-        List<Policy> existingPolicies = policyRepository.findAllWithDetails();
 
         String candidateSignature = buildSignature(candidate);
         String candidateNormalizedSignature = buildNormalizedSignature(candidate);

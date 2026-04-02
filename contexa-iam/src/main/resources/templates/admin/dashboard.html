@@ -458,8 +458,9 @@
         </div>
 
         <!-- ===== 3: 시스템 현황 ===== -->
-        <div class="dash-card mb-8" style="border-color:rgba(96,165,250,0.15);">
-            <h2 class="text-lg font-bold mb-5" style="color: #e2e8f0;"><i class="fas fa-server mr-2" style="color:#60a5fa;"></i><span th:text="#{admin.dashboard.system.status}">System Status</span></h2>
+        <div class="mb-8">
+            <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;"><i class="fas fa-server mr-2" style="color:#60a5fa;"></i><span th:text="#{admin.dashboard.system.status}">System Status</span></h2>
+            <div class="dash-card" style="border-color:rgba(96,165,250,0.15);margin:0;">
             <div style="display:flex;flex-direction:column;gap:0.875rem;">
                 <!-- Users -->
                 <a th:href="@{/admin/users}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(96,165,250,0.06)'" onmouseout="this.style.background='transparent'">
@@ -539,24 +540,7 @@
                         </div>
                     </div>
                 </a>
-                <!-- MFA -->
-                <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;">
-                    <div th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(52,211,153,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;' : 'width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(248,113,113,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;'}">
-                        <i class="fas fa-fingerprint" th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'color:#34d399;font-size:0.9rem;' : 'color:#f87171;font-size:0.9rem;'}"></i>
-                    </div>
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
-                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.mfa.enabled}">MFA Enabled</span>
-                            <span class="text-lg font-bold" th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'color:#34d399;' : 'color:#f87171;'}" th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</span>
-                        </div>
-                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
-                            <div th:style="${'height:100%;border-radius:0.125rem;width:' + (dashboardData.statistics.totalUsers() > 0 ? (dashboardData.statistics.mfaEnabledUsers() * 100.0 / dashboardData.statistics.totalUsers()) : 0) + '%;' + (dashboardData.statistics.mfaEnabledUsers() > 0 ? 'background:#34d399;' : 'background:#f87171;')}"></div>
-                        </div>
-                        <div class="text-xs mt-1" style="color:#64748b;">
-                            <span th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</span> / <span th:text="${dashboardData.statistics.totalUsers()}">0</span> users
-                        </div>
-                    </div>
-                </div>
+            </div>
             </div>
         </div>
 
