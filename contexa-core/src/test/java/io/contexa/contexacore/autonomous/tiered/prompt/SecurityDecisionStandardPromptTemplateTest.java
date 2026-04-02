@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.context.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import org.junit.jupiter.api.DisplayName;
@@ -91,6 +92,36 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
         assertThat(systemPrompt).contains("\"reasoning\":\"<exactly 1 short sentence, max 24 words>\"");
+    }
+
+    @Test
+    @DisplayName("configured layer1 default budget profile should flow into direct browser-style prompt generation")
+    void generatePromptShouldUseConfiguredLayer1DefaultBudgetProfile() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_DECISION_COMPACT");
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                properties);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-budget-profile")
+                .timestamp(LocalDateTime.of(2026, 4, 2, 10, 0))
+                .userId("alice")
+                .sessionId("session-1")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+
+        PromptExecutionMetadata executionMetadata = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of()
+        ).executionMetadata();
+
+        assertThat(executionMetadata.budgetProfile().profileKey())
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_DECISION_COMPACT.profileKey());
     }
 
     @Test

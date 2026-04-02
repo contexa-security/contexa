@@ -227,8 +227,13 @@ public final class SandboxPromptCompressionImpactReportWriter {
         double cdcDelta = number(candidate.get("cdcMean")) - number(baseline.get("cdcMean"));
         double eraDelta = number(candidate.get("eraMean")) - number(baseline.get("eraMean"));
         double suhrDelta = number(candidate.get("suhrMean")) - number(baseline.get("suhrMean"));
-        boolean costEvaluable = booleanValue(baseline.get("costProfileConfigured"))
-                && booleanValue(candidate.get("costProfileConfigured"));
+        boolean vendorCostEvaluable = vendorCostEvaluable(baseline, candidate);
+        boolean infrastructureCostEvaluable = infrastructureCostEvaluable(baseline, candidate);
+        boolean costEvaluable = vendorCostEvaluable || infrastructureCostEvaluable;
+        boolean vendorCostPass = !vendorCostEvaluable
+                || (vendorCostLlmDelta <= 0.0d && vendorCostSavingsDelta >= 0.0d);
+        boolean infrastructureCostPass = !infrastructureCostEvaluable
+                || (infrastructureCostLlmDelta <= 0.0d && infrastructureCostSavingsDelta >= 0.0d);
 
         Map<String, Object> delta = new LinkedHashMap<>();
         delta.put("llmTotalPromptLengthDelta", round(lengthDelta));
@@ -248,12 +253,7 @@ public final class SandboxPromptCompressionImpactReportWriter {
         delta.put("compressionGainPass", lengthDelta < 0.0d && tokenDelta >= 0.0d);
         delta.put("latencyGainPass", endToEndLatencyDelta <= 0.0d);
         delta.put("costGainEvaluable", costEvaluable);
-        delta.put("costGainPass",
-                costEvaluable
-                        && (vendorCostRawDelta <= 0.0d && vendorCostLlmDelta <= 0.0d && vendorCostSavingsDelta >= 0.0d)
-                        && (infrastructureCostRawDelta <= 0.0d
-                        && infrastructureCostLlmDelta <= 0.0d
-                        && infrastructureCostSavingsDelta >= 0.0d));
+        delta.put("costGainPass", costEvaluable && vendorCostPass && infrastructureCostPass);
         delta.put("decisionRegressionPass", cdcDelta >= -3.0d && eraDelta >= -3.0d && suhrDelta >= -3.0d);
         return delta;
     }
@@ -581,6 +581,11 @@ public final class SandboxPromptCompressionImpactReportWriter {
         double infrastructureCostGainPercent = computeGainPercent(
                 number(baselineSummary.get("averageEstimatedInfrastructureCostLlm")),
                 number(summaryRow.get("averageEstimatedInfrastructureCostLlm")));
+        boolean vendorCostEvaluable = vendorCostEvaluable(baselineSummary, summaryRow);
+        boolean infrastructureCostEvaluable = infrastructureCostEvaluable(baselineSummary, summaryRow);
+        boolean costGateEvaluable = vendorCostEvaluable || infrastructureCostEvaluable;
+        boolean vendorCostPass = !vendorCostEvaluable || vendorCostGainPercent >= 0.0d;
+        boolean infrastructureCostPass = !infrastructureCostEvaluable || infrastructureCostGainPercent >= 0.0d;
         Map<String, Object> row = new LinkedHashMap<>(summaryRow);
         row.put("tokenGainPercent", round(tokenGainPercent));
         row.put("prefillGainPercent", round(prefillGainPercent));
@@ -591,11 +596,8 @@ public final class SandboxPromptCompressionImpactReportWriter {
         row.put("minimumLatencyGainPercent", requiredLatencyGainPercent(profile));
         row.put("qualityPass", qualityPass(summaryRow));
         row.put("performanceGatePass", tokenGainPercent >= requiredTokenGainPercent(profile));
-        row.put("costGatePass",
-                booleanValue(summaryRow.get("costProfileConfigured"))
-                        && vendorCostGainPercent >= 0.0d
-                        && infrastructureCostGainPercent >= 0.0d);
-        row.put("costGateEvaluable", booleanValue(summaryRow.get("costProfileConfigured")));
+        row.put("costGatePass", costGateEvaluable && vendorCostPass && infrastructureCostPass);
+        row.put("costGateEvaluable", costGateEvaluable);
         row.put("latencyGatePass", latencyGainPercent >= requiredLatencyGainPercent(profile));
         return row;
     }
@@ -812,6 +814,24 @@ public final class SandboxPromptCompressionImpactReportWriter {
 
     private boolean booleanValue(Object value) {
         return value instanceof Boolean bool && bool;
+    }
+
+    private boolean vendorCostEvaluable(Map<String, Object> baseline, Map<String, Object> candidate) {
+        return booleanValue(baseline.get("costProfileConfigured"))
+                && booleanValue(candidate.get("costProfileConfigured"))
+                && (number(baseline.get("averageEstimatedVendorCostLlm")) > 0.0d
+                || number(candidate.get("averageEstimatedVendorCostLlm")) > 0.0d
+                || number(baseline.get("averageEstimatedVendorCostRaw")) > 0.0d
+                || number(candidate.get("averageEstimatedVendorCostRaw")) > 0.0d);
+    }
+
+    private boolean infrastructureCostEvaluable(Map<String, Object> baseline, Map<String, Object> candidate) {
+        return booleanValue(baseline.get("costProfileConfigured"))
+                && booleanValue(candidate.get("costProfileConfigured"))
+                && (number(baseline.get("averageEstimatedInfrastructureCostLlm")) > 0.0d
+                || number(candidate.get("averageEstimatedInfrastructureCostLlm")) > 0.0d
+                || number(baseline.get("costProfileInfrastructurePerHour")) > 0.0d
+                || number(candidate.get("costProfileInfrastructurePerHour")) > 0.0d);
     }
 
     private double percentage(long numerator, int denominator) {

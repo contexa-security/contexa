@@ -60,6 +60,7 @@ public class TieredStrategyProperties {
         private Timeout timeout = new Timeout();
         private Prompt prompt = new Prompt();
         private int vectorSearchLimit = 12;
+        private String defaultBudgetProfile = "CORTEX_L1_STANDARD";
 
         @Data
         public static class Prompt {
@@ -116,6 +117,7 @@ public class TieredStrategyProperties {
         private long timeoutMs = 10000;
         private boolean enableSoar = false;
         private int ragTopK = 10;
+        private String defaultBudgetProfile = "CORTEX_L2_STANDARD";
 
         @Data
         public static class Cache {

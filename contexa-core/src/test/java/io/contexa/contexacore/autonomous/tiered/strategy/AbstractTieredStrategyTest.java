@@ -13,6 +13,7 @@ import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -328,6 +329,54 @@ class AbstractTieredStrategyTest {
         assertThat(request.getParameter("promptBudgetProfile", String.class)).isEqualTo("CORTEX_L1_COMPACT");
     }
 
+    @Test
+    @DisplayName("buildSecurityDecisionRequest should use configured layer1 default budget profile when no override exists")
+    void buildSecurityDecisionRequest_shouldUseConfiguredLayer1DefaultBudgetProfile() {
+        tieredStrategyProperties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_DECISION_COMPACT");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-budget-profile-default-layer1")
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("promptBudgetProfile", String.class))
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_DECISION_COMPACT.profileKey());
+    }
+
+    @Test
+    @DisplayName("buildSecurityDecisionRequest should use configured layer2 default budget profile for layer2 strategies")
+    void buildSecurityDecisionRequest_shouldUseConfiguredLayer2DefaultBudgetProfile() {
+        tieredStrategyProperties.getLayer2().setDefaultBudgetProfile("CORTEX_L2_COMPACT");
+        Layer2ConcreteStrategy layer2Strategy = new Layer2ConcreteStrategy(
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                unifiedVectorService,
+                baselineLearningService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                tieredStrategyProperties
+        );
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-budget-profile-default-layer2")
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        SecurityDecisionRequest request = layer2Strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("promptBudgetProfile", String.class))
+                .isEqualTo(PromptBudgetProfile.CORTEX_L2_COMPACT.profileKey());
+    }
+
     // -- Concrete test implementation of the abstract class --
 
     private static class ConcreteStrategy extends AbstractTieredStrategy {
@@ -397,6 +446,32 @@ class AbstractTieredStrategyTest {
                 SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
                 List<Document> relatedDocuments) {
             return buildSecurityDecisionRequest(event, sessionContext, behaviorAnalysis, relatedDocuments);
+        }
+    }
+
+    private static class Layer2ConcreteStrategy extends ConcreteStrategy {
+
+        Layer2ConcreteStrategy(SecurityEventEnricher eventEnricher,
+                               SecurityDecisionStandardPromptTemplate promptTemplate,
+                               BehaviorVectorService behaviorVectorService,
+                               UnifiedVectorService unifiedVectorService,
+                               BaselineLearningService baselineLearningService,
+                               PromptContextAuthorizationService promptContextAuthorizationService,
+                               PromptContextAuditForwardingService promptContextAuditForwardingService,
+                               TieredStrategyProperties tieredStrategyProperties) {
+            super(eventEnricher,
+                    promptTemplate,
+                    behaviorVectorService,
+                    unifiedVectorService,
+                    baselineLearningService,
+                    promptContextAuthorizationService,
+                    promptContextAuditForwardingService,
+                    tieredStrategyProperties);
+        }
+
+        @Override
+        protected String getLayerName() {
+            return "Layer2-Test";
         }
     }
 }

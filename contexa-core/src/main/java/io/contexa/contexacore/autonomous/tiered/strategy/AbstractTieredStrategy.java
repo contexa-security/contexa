@@ -743,9 +743,15 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected PromptBudgetProfile resolvePromptBudgetProfile() {
         String layerName = getLayerName();
         if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
-            return PromptBudgetProfile.CORTEX_L2_STANDARD;
+            String configuredProfile = tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
+                    ? tieredStrategyProperties.getLayer2().getDefaultBudgetProfile()
+                    : null;
+            return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L2_STANDARD);
         }
-        return PromptBudgetProfile.CORTEX_L1_STANDARD;
+        String configuredProfile = tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                ? tieredStrategyProperties.getLayer1().getDefaultBudgetProfile()
+                : null;
+        return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L1_STANDARD);
     }
 
     protected void clearPromptRuntimeTelemetry(SecurityEvent event) {

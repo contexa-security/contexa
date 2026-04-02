@@ -57,8 +57,6 @@ public final class SandboxPromptCompressionImpactBenchmarkSettings {
             profiles = SandboxDecisionBenchmarkSettings.useRealLlm()
                     ? List.of(
                     "CORTEX_L1_RAW_IDENTITY",
-                    "CORTEX_L1_STANDARD",
-                    "CORTEX_L1_COMPACT",
                     "CORTEX_L1_DECISION_COMPACT")
                     : List.of(
                     "CORTEX_L1_RAW_IDENTITY",

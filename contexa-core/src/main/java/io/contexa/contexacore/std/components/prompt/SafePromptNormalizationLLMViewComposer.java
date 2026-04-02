@@ -21,6 +21,7 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final String OBSERVED_WORK_PATTERN_HEADER = "=== OBSERVED WORK PATTERN CONTEXT ===";
     private static final String PERSONAL_WORK_PROFILE_HEADER = "=== PERSONAL WORK PROFILE ===";
     private static final String ROLE_SCOPE_HEADER = "=== ROLE AND WORK SCOPE CONTEXT ===";
+    private static final String EXPLICIT_MISSING_KNOWLEDGE_HEADER = "=== EXPLICIT MISSING KNOWLEDGE ===";
     private static final String PEER_COHORT_HEADER = "=== PEER COHORT DELTA ===";
     private static final String FRICTION_HEADER = "=== FRICTION AND APPROVAL HISTORY ===";
     private static final String DELEGATION_HEADER = "=== DELEGATED OBJECTIVE CONTEXT ===";
@@ -39,11 +40,13 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final int THREAT_SECTION_MAX_LINES = 10;
     private static final int DELEGATION_SECTION_MAX_LINES = 8;
     private static final int PEER_COHORT_SECTION_MAX_LINES = 7;
+    private static final int MISSING_KNOWLEDGE_SECTION_MAX_LINES = 10;
     private static final int COMPACT_SESSION_MAX_LINES = 6;
     private static final int COMPACT_WORK_PROFILE_SECTION_MAX_LINES = 8;
     private static final int COMPACT_ROLE_SCOPE_SECTION_MAX_LINES = 8;
     private static final int COMPACT_FRICTION_SECTION_MAX_LINES = 7;
     private static final int COMPACT_THREAT_SECTION_MAX_LINES = 7;
+    private static final int COMPACT_MISSING_KNOWLEDGE_SECTION_MAX_LINES = 5;
 
     private static final Pattern DOC_META_PATTERN = Pattern.compile("\\|(?<key>[a-zA-Z0-9]+)=([^|\\]]+)");
     private static final Pattern BROWSER_PATTERN = Pattern.compile("using\\s+([^\\s]+)\\s+on\\s+");
@@ -152,6 +155,18 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             "CurrentResourcePresentInPeerPreferredResources:",
             "CurrentActionFamilyPresentInPeerPreferredActions:");
 
+    private static final List<String> MISSING_KNOWLEDGE_PRIORITY_PREFIXES = List.of(
+            "BaselineGapSupport:",
+            "  STATUS:",
+            "  IMPACT:",
+            "  BASELINE EVIDENCE CONSTRAINTS:",
+            "- Remediation:",
+            "- ConfidenceWarning:",
+            "- ContextEvidenceLimitation:",
+            "- ContextTrustLimitation:",
+            "- ContextTrustWarning:",
+            "- ContextFieldLimitation:");
+
     @Override
     public PromptViewComposition compose(String rawSystemPrompt, String rawUserPrompt, PromptBudgetProfile budgetProfile) {
         PromptBudgetProfile effectiveProfile = budgetProfile != null
@@ -223,8 +238,17 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 "Role scope retained effective scope anchors and compacted supporting comparison lines.");
         records.addAll(roleScope.records());
 
-        PromptTransformResult friction = compactSectionByPriority(
+        PromptTransformResult missingKnowledge = compactSectionByPriority(
                 roleScope.text(),
+                EXPLICIT_MISSING_KNOWLEDGE_HEADER,
+                MISSING_KNOWLEDGE_PRIORITY_PREFIXES,
+                MISSING_KNOWLEDGE_SECTION_MAX_LINES,
+                "EXPLICIT_MISSING_KNOWLEDGE",
+                "Missing-knowledge context retained highest-value uncertainty anchors and compacted repeated warning lines.");
+        records.addAll(missingKnowledge.records());
+
+        PromptTransformResult friction = compactSectionByPriority(
+                missingKnowledge.text(),
                 FRICTION_HEADER,
                 FRICTION_PRIORITY_PREFIXES,
                 FRICTION_SECTION_MAX_LINES,
@@ -648,6 +672,16 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         current = compactRoleScope.text();
         records.addAll(compactRoleScope.records());
 
+        PromptTransformResult compactMissingKnowledge = compactSectionByPriority(
+                current,
+                EXPLICIT_MISSING_KNOWLEDGE_HEADER,
+                MISSING_KNOWLEDGE_PRIORITY_PREFIXES,
+                COMPACT_MISSING_KNOWLEDGE_SECTION_MAX_LINES,
+                "EXPLICIT_MISSING_KNOWLEDGE_BUDGET",
+                "Budget enforcement retained only the strongest uncertainty and remediation anchors.");
+        current = compactMissingKnowledge.text();
+        records.addAll(compactMissingKnowledge.records());
+
         PromptTransformResult compactFriction = compactSectionByPriority(
                 current,
                 FRICTION_HEADER,
@@ -687,6 +721,7 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             List<PromptCompressionRecord> records) {
         String current = currentPrompt;
         List<SectionOmissionPlan> omissionPlans = List.of(
+                new SectionOmissionPlan(EXPLICIT_MISSING_KNOWLEDGE_HEADER, "EXPLICIT_MISSING_KNOWLEDGE_BUDGET_OMISSION"),
                 new SectionOmissionPlan(PEER_COHORT_HEADER, "PEER_COHORT_DELTA_BUDGET"),
                 new SectionOmissionPlan(REASONING_MEMORY_HEADER, "OUTCOME_AND_REASONING_MEMORY_BUDGET_OMISSION"),
                 new SectionOmissionPlan(THREAT_KNOWLEDGE_HEADER, "THREAT_KNOWLEDGE_PACK_BUDGET_OMISSION"),

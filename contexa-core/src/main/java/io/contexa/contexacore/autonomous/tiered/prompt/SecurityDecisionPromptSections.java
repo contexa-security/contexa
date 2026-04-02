@@ -230,17 +230,27 @@ public class SecurityDecisionPromptSections {
     }
 
     private PromptBudgetProfile resolveBudgetProfile(SecurityEvent event, BehaviorAnalysis behaviorAnalysis) {
+        PromptBudgetProfile layer1Fallback = PromptBudgetProfile.fromKey(
+                tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                        ? tieredStrategyProperties.getLayer1().getDefaultBudgetProfile()
+                        : null,
+                PromptBudgetProfile.CORTEX_L1_STANDARD);
+        PromptBudgetProfile layer2Fallback = PromptBudgetProfile.fromKey(
+                tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
+                        ? tieredStrategyProperties.getLayer2().getDefaultBudgetProfile()
+                        : null,
+                PromptBudgetProfile.CORTEX_L2_STANDARD);
         if (event != null && event.getMetadata() != null) {
             Object explicit = event.getMetadata().get("promptBudgetProfile");
             if (explicit instanceof String value && !value.isBlank()) {
-                return PromptBudgetProfile.fromKey(value, PromptBudgetProfile.CORTEX_L1_STANDARD);
+                return PromptBudgetProfile.fromKey(value, layer1Fallback);
             }
             Object processingLayer = event.getMetadata().get("processingLayer");
             if (processingLayer instanceof Number number && number.intValue() >= 2) {
-                return PromptBudgetProfile.CORTEX_L2_STANDARD;
+                return layer2Fallback;
             }
             if (processingLayer instanceof String value && ("2".equals(value.trim()) || value.toLowerCase(Locale.ROOT).contains("layer2"))) {
-                return PromptBudgetProfile.CORTEX_L2_STANDARD;
+                return layer2Fallback;
             }
         }
         if (behaviorAnalysis != null
@@ -250,7 +260,7 @@ public class SecurityDecisionPromptSections {
                 || !behaviorAnalysis.getActiveThreatSignals().isEmpty())) {
             return PromptBudgetProfile.CORTEX_ENTERPRISE_ENRICHED;
         }
-        return PromptBudgetProfile.CORTEX_L1_STANDARD;
+        return layer1Fallback;
     }
 
     private PromptEvidenceCompleteness evaluateCompleteness(
