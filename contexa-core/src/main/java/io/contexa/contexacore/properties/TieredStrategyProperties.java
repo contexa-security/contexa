@@ -3,6 +3,9 @@ package io.contexa.contexacore.properties;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.Collections;
+import java.util.List;
+
 @Data
 @ConfigurationProperties(prefix = "spring.ai.security.tiered")
 public class TieredStrategyProperties {
@@ -16,7 +19,7 @@ public class TieredStrategyProperties {
     @Data
     public static class Security {
 
-        private java.util.List<String> trustedProxies = java.util.Collections.emptyList();
+        private List<String> trustedProxies = Collections.emptyList();
 
         private boolean trustedProxyValidationEnabled = true;
     }

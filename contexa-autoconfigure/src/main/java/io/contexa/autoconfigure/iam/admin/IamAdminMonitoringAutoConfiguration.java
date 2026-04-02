@@ -52,7 +52,9 @@ public class IamAdminMonitoringAutoConfiguration {
             SecurityScoreCalculator securityScoreCalculator,
             PermissionMatrixService permissionMatrixService,
             ManagedResourceRepository managedResourceRepository,
-            BlockedUserJpaRepository blockedUserJpaRepository) {
+            BlockedUserJpaRepository blockedUserJpaRepository,
+            io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService policyValidationService,
+            io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties policyCombiningProperties) {
         return new DashboardServiceImpl(
                 userRepository,
                 groupRepository,
@@ -65,7 +67,9 @@ public class IamAdminMonitoringAutoConfiguration {
                 securityScoreCalculator,
                 permissionMatrixService,
                 managedResourceRepository,
-                blockedUserJpaRepository);
+                blockedUserJpaRepository,
+                policyValidationService,
+                policyCombiningProperties);
     }
 
     @Bean

@@ -93,6 +93,8 @@ public class PolicyCenterController {
             @ModelAttribute("criteria") ResourceSearchCriteria criteria,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @RequestParam(required = false) String policyKeyword,
+            @RequestParam(required = false) String approvalStatus,
+            @RequestParam(required = false) Boolean activeFilter,
             @RequestParam(required = false, defaultValue = "0") int policyPage,
             Model model) {
 
@@ -117,9 +119,15 @@ public class PolicyCenterController {
             // Policy list tab data (server-side pagination)
             Pageable policyPageable = org.springframework.data.domain.PageRequest.of(
                     policyPage, 10, Sort.by(Sort.Direction.DESC, "id"));
-            Page<Policy> policyPageResult = policyService.searchPolicies(policyKeyword, policyPageable);
+            Policy.ApprovalStatus approvalStatusEnum = null;
+            if (approvalStatus != null && !approvalStatus.isBlank()) {
+                try { approvalStatusEnum = Policy.ApprovalStatus.valueOf(approvalStatus); } catch (IllegalArgumentException ignored) {}
+            }
+            Page<Policy> policyPageResult = policyService.searchPolicies(policyKeyword, approvalStatusEnum, activeFilter, policyPageable);
             model.addAttribute("policyPage", policyPageResult);
             model.addAttribute("policyKeyword", policyKeyword);
+            model.addAttribute("approvalStatusFilter", approvalStatus);
+            model.addAttribute("activeFilter", activeFilter);
 
         } catch (Exception e) {
             log.error("Failed to load policy center data", e);

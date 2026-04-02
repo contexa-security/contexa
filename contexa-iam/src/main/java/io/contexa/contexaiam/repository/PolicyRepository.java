@@ -17,6 +17,20 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
     @Query(value = "SELECT DISTINCT p FROM Policy p " +
             "LEFT JOIN FETCH p.targets " +
+            "WHERE (:keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')))" +
+            " AND (:approvalStatus IS NULL OR p.approvalStatus = :approvalStatus)" +
+            " AND (:activeFilter IS NULL OR p.isActive = :activeFilter)",
+            countQuery = "SELECT COUNT(p) FROM Policy p " +
+            "WHERE (:keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')))" +
+            " AND (:approvalStatus IS NULL OR p.approvalStatus = :approvalStatus)" +
+            " AND (:activeFilter IS NULL OR p.isActive = :activeFilter)")
+    Page<Policy> searchByFilters(@Param("keyword") String keyword,
+                                 @Param("approvalStatus") Policy.ApprovalStatus approvalStatus,
+                                 @Param("activeFilter") Boolean activeFilter,
+                                 Pageable pageable);
+
+    @Query(value = "SELECT DISTINCT p FROM Policy p " +
+            "LEFT JOIN FETCH p.targets " +
             "WHERE :keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))",
             countQuery = "SELECT COUNT(p) FROM Policy p " +
             "WHERE :keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))")
@@ -151,4 +165,7 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
     @Query("SELECT p.approvalStatus, COUNT(p) FROM Policy p WHERE p.source IN :sources GROUP BY p.approvalStatus")
     List<Object[]> countAIApprovalGroupByStatus(@Param("sources") List<Policy.PolicySource> sources);
+
+    @Query("SELECT p.approvalStatus, COUNT(p) FROM Policy p GROUP BY p.approvalStatus")
+    List<Object[]> countGroupByApprovalStatus();
 }

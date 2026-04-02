@@ -66,7 +66,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 .toList();
 
         for (Policy policy : urlPolicies) {
-            if (policy.isAIGenerated() && (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {
+            if (!policy.getIsActive() || policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED) {
                 continue;
             }
 

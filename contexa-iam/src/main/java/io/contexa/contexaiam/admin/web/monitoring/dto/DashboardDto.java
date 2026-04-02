@@ -12,6 +12,7 @@ public record DashboardDto(
         SecurityScoreDto securityScore,
         PermissionMatrixDto permissionMatrix,
         PolicyStatusDto policyStatus,
+        PolicyHealthDto policyHealth,
         List<AccessTrendDto> accessTrends,
         long resourceTotal,
         long resourceProtected,

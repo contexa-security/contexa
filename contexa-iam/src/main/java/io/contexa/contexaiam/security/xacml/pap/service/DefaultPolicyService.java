@@ -89,6 +89,12 @@ public class DefaultPolicyService implements PolicyService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable) {
+        return policyRepository.searchByFilters(keyword, approvalStatus, activeFilter, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Policy findById(Long id) {
         return policyRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found with ID: " + id));

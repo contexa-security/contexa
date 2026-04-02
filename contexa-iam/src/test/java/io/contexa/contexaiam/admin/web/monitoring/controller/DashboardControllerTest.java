@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexaiam.admin.web.monitoring.dto.DashboardDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyHealthDto;
 import io.contexa.contexaiam.admin.web.monitoring.service.DashboardService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -40,7 +41,9 @@ class DashboardControllerTest {
             Model model = new ConcurrentModel();
             DashboardDto dashboardData = new DashboardDto(
                     null, Collections.emptyList(), Collections.emptyList(),
-                    null, null, null, Collections.emptyList(),
+                    null, null, null,
+                    new PolicyHealthDto("HEALTHY", 0, 0, "FIRST_APPLICABLE"),
+                    Collections.emptyList(),
                     0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, Collections.emptyList(),
                     0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0.0,
                     0L, 0L, 0L, 0L, 0L, 0L, 0L, Collections.emptyList()

@@ -51,7 +51,7 @@ public class Policy implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", length = 50)
     @Builder.Default
-    private ApprovalStatus approvalStatus = ApprovalStatus.NOT_REQUIRED;
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
 
     @Column(name = "approved_by", length = 255)
     private String approvedBy;
@@ -77,10 +77,10 @@ public class Policy implements Serializable {
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default
-    private Boolean isActive = true;
+    private Boolean isActive = false;
 
     public boolean getIsActive() {
-        return this.isActive != null ? this.isActive : true;
+        return this.isActive != null && this.isActive;
     }
 
     public void setIsActive(Boolean isActive) {
@@ -126,7 +126,7 @@ public class Policy implements Serializable {
     }
 
     public boolean requiresApproval() {
-        return isAIGenerated() && approvalStatus == ApprovalStatus.PENDING;
+        return approvalStatus == ApprovalStatus.PENDING;
     }
 
     public void approve(String approver) {
@@ -146,7 +146,7 @@ public class Policy implements Serializable {
     }
 
     public void activate() {
-        if (approvalStatus == ApprovalStatus.APPROVED || approvalStatus == ApprovalStatus.NOT_REQUIRED) {
+        if (approvalStatus == ApprovalStatus.APPROVED) {
             this.setIsActive(true);
             this.updatedAt = LocalDateTime.now();
         }

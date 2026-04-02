@@ -724,7 +724,7 @@
                                     <span th:if="${policy.approvalStatus.name() == 'PENDING'}" class="status-badge bg-yellow-500/20 text-yellow-400 border-yellow-500/30" th:text="#{admin.policy.center.list.approval.pending}">Pending</span>
                                     <span th:if="${policy.approvalStatus.name() == 'APPROVED'}" class="status-badge bg-green-500/20 text-green-400 border-green-500/30" th:text="#{admin.policy.center.list.approval.approved}">Approved</span>
                                     <span th:if="${policy.approvalStatus.name() == 'REJECTED'}" class="status-badge bg-red-500/20 text-red-400 border-red-500/30" th:text="#{admin.policy.center.list.approval.rejected}">Rejected</span>
-                                    <span th:if="${policy.approvalStatus.name() == 'NOT_REQUIRED'}" class="text-xs" style="color: #64748b;">-</span>
+                                    <span th:if="${policy.approvalStatus.name() == 'NOT_REQUIRED'}" class="text-xs" style="color: #64748b;" th:text="#{admin.policy.center.list.approval.not.required}">-</span>
                                 </td>
                                 <td class="table-cell-top" th:text="${policy.priority}"></td>
                                 <td class="table-cell-top">
@@ -735,18 +735,18 @@
                                 <td class="table-cell-top">
                                     <div class="flex gap-2">
                                         <a th:href="@{/admin/policies/{id}(id=${policy.id})}" class="action-badge-primary"><i class="fas fa-edit"></i> <span th:text="#{common.edit}">Edit</span></a>
-                                        <!-- Approve button - AI policies go through validation modal -->
-                                        <button th:if="${policy.approvalStatus.name() != 'APPROVED' and (policy.source.name() == 'AI_GENERATED' or policy.source.name() == 'AI_EVOLVED')}"
+                                        <!-- Approve button - PENDING only, AI uses validation modal -->
+                                        <button th:if="${policy.approvalStatus.name() == 'PENDING' and (policy.source.name() == 'AI_GENERATED' or policy.source.name() == 'AI_EVOLVED')}"
                                                 type="button" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"
                                                 th:onclick="'PolicyCenter.AIValidationModal.open(' + ${policy.id} + ')'">
                                             <i class="fas fa-robot"></i> <span th:text="#{admin.policy.center.list.approve}">Approve</span>
                                         </button>
-                                        <form th:if="${policy.approvalStatus.name() != 'APPROVED' and policy.source.name() != 'AI_GENERATED' and policy.source.name() != 'AI_EVOLVED'}"
+                                        <form th:if="${policy.approvalStatus.name() == 'PENDING' and policy.source.name() != 'AI_GENERATED' and policy.source.name() != 'AI_EVOLVED'}"
                                               th:action="@{/admin/policies/{id}/approve(id=${policy.id})}" method="post" style="display:inline;">
                                             <button type="submit" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"><i class="fas fa-check"></i> <span th:text="#{admin.policy.center.list.approve}">Approve</span></button>
                                         </form>
-                                        <!-- Reject button (not shown if already REJECTED) -->
-                                        <form th:if="${policy.approvalStatus.name() != 'REJECTED'}"
+                                        <!-- Reject button - PENDING only -->
+                                        <form th:if="${policy.approvalStatus.name() == 'PENDING'}"
                                               th:action="@{/admin/policies/{id}/reject(id=${policy.id})}" method="post" style="display:inline;"
                                               th:data-confirm-msg="#{admin.policy.center.list.confirm.reject}" onsubmit="return confirm(this.dataset.confirmMsg);">
                                             <button type="submit" class="action-badge-secondary"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.list.reject}">Reject</span></button>

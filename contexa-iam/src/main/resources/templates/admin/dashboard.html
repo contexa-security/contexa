@@ -44,55 +44,151 @@
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
 
-        <!-- ===== 1: 정책 현황 ===== -->
-        <div class="dash-card mb-8" style="border-color: rgba(99,102,241,0.25);">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-bold" style="color: #e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.dashboard.policy.status}">Policy Status</span></h2>
-                <a th:href="@{/admin/policy-center}" class="text-xs" style="color: #818cf8; text-decoration: none;"><span th:text="#{admin.dashboard.policy.center.link}">Policy Center</span> <i class="fas fa-arrow-right ml-1"></i></a>
+        <!-- ===== 1: Policy Center ===== -->
+        <div class="mb-8">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-xl font-bold" style="color: #e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.dashboard.policy.center.title}">Policy Center</span></h2>
+                <a th:href="@{/admin/policy-center}" class="text-sm font-medium" style="color: #818cf8; text-decoration: none;"><span th:text="#{admin.dashboard.policy.center.link}">Policy Center</span> <i class="fas fa-arrow-right ml-1"></i></a>
             </div>
-            <div class="flex items-center gap-8">
-                <div class="gauge-wrap">
-                    <svg viewBox="0 0 100 100">
-                        <circle stroke-width="8" stroke="rgba(71,85,105,0.3)" fill="transparent" r="42" cx="50" cy="50" />
-                        <circle class="gauge-circle" id="resGaugeCircle" stroke-width="8" stroke-linecap="round" fill="transparent" r="42" cx="50" cy="50"
-                                th:attr="data-percent=${dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100 / dashboardData.resourceTotal() : 0}"
-                                th:style="${(dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal() : 0) >= 80 ? 'stroke: #4ade80; filter: drop-shadow(0 0 8px rgba(74,222,128,0.5));' : ((dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal() : 0) >= 50 ? 'stroke: #fbbf24; filter: drop-shadow(0 0 8px rgba(251,191,36,0.5));' : 'stroke: #f87171; filter: drop-shadow(0 0 8px rgba(248,113,113,0.5));')}" />
-                    </svg>
-                    <div class="gauge-center">
-                        <span class="text-5xl font-bold" style="color: #e2e8f0;" th:text="${dashboardData.resourceTotal() > 0 ? #numbers.formatDecimal(dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal(), 1, 0) + '%' : '0%'}"></span>
-                        <span class="text-sm font-medium" style="color: #94a3b8;" th:text="#{admin.dashboard.resource.protection.rate}">Resource Protection Rate</span>
+
+            <!-- Top Cards: 4 gradient cards -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1.25rem;margin-bottom:1.5rem;">
+                <!-- Health -->
+                <a th:href="@{/admin/policy-center(tab='list')}"
+                   th:style="${dashboardData.policyHealth.healthStatus() == 'CRITICAL' ? 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#dc2626,#991b1b);box-shadow:0 4px 20px rgba(220,38,38,0.3);' : (dashboardData.policyHealth.healthStatus() == 'WARNING' ? 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#d97706,#92400e);box-shadow:0 4px 20px rgba(217,119,6,0.3);' : 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#059669,#065f46);box-shadow:0 4px 20px rgba(5,150,105,0.3);')}"
+                   onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+                        <span class="text-sm font-medium" style="color:rgba(255,255,255,0.7);" th:text="#{admin.dashboard.policy.health}">Policy Health</span>
+                        <i th:class="${dashboardData.policyHealth.healthStatus() == 'CRITICAL' ? 'fas fa-times-circle' : (dashboardData.policyHealth.healthStatus() == 'WARNING' ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle')}" style="font-size:1.25rem;color:rgba(255,255,255,0.8);"></i>
+                    </div>
+                    <div class="text-3xl font-bold" style="color:#fff;" th:switch="${dashboardData.policyHealth.healthStatus()}">
+                        <span th:case="'CRITICAL'" th:text="#{admin.dashboard.policy.health.critical}">Critical</span>
+                        <span th:case="'WARNING'" th:text="#{admin.dashboard.policy.health.warning}">Warning</span>
+                        <span th:case="*" th:text="#{admin.dashboard.policy.health.healthy}">Healthy</span>
+                    </div>
+                    <div class="text-xs" style="color:rgba(255,255,255,0.5);margin-top:0.25rem;">
+                        <span th:text="#{admin.dashboard.policy.health.conflicts}">Conflicts</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyHealth.conflictCount()}">0</strong>
+                        &nbsp;&middot;&nbsp;
+                        <span th:text="#{admin.dashboard.policy.health.duplicates}">Duplicates</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyHealth.duplicateCount()}">0</strong>
+                    </div>
+                </a>
+                <!-- Total Policies -->
+                <a th:href="@{/admin/policy-center(tab='list')}" style="text-decoration:none;padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#4f46e5,#3730a3);box-shadow:0 4px 20px rgba(79,70,229,0.3);transition:transform 0.2s;"
+                   onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+                        <span class="text-sm font-medium" style="color:rgba(255,255,255,0.7);" th:text="#{admin.dashboard.policies}">Policies</span>
+                        <i class="fas fa-layer-group" style="font-size:1.25rem;color:rgba(255,255,255,0.8);"></i>
+                    </div>
+                    <div class="text-3xl font-bold" style="color:#fff;" th:text="${dashboardData.policyStatus.totalPolicies()}">0</div>
+                    <div class="text-xs" style="color:rgba(255,255,255,0.5);margin-top:0.25rem;">
+                        <span th:text="#{admin.dashboard.active.policies}">Active</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyStatus.activePolicies()}">0</strong>
+                    </div>
+                </a>
+                <!-- Roles -->
+                <a th:href="@{/admin/roles}" style="text-decoration:none;padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#0891b2,#155e75);box-shadow:0 4px 20px rgba(8,145,178,0.3);transition:transform 0.2s;"
+                   onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+                        <span class="text-sm font-medium" style="color:rgba(255,255,255,0.7);" th:text="#{admin.dashboard.roles}">Roles</span>
+                        <i class="fas fa-users" style="font-size:1.25rem;color:rgba(255,255,255,0.8);"></i>
+                    </div>
+                    <div class="text-3xl font-bold" style="color:#fff;" th:text="${dashboardData.statistics.totalRoles()}">0</div>
+                    <div class="text-xs" style="color:rgba(255,255,255,0.5);margin-top:0.25rem;">
+                        <span th:text="#{admin.dashboard.permissions}">Permissions</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.statistics.totalPermissions()}">0</strong>
+                    </div>
+                </a>
+                <!-- Changes -->
+                <div style="padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#7c3aed,#5b21b6);box-shadow:0 4px 20px rgba(124,58,237,0.3);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+                        <span class="text-sm font-medium" style="color:rgba(255,255,255,0.7);" th:text="#{admin.dashboard.policy.changes.24h}">Changes (24h)</span>
+                        <i class="fas fa-history" style="font-size:1.25rem;color:rgba(255,255,255,0.8);"></i>
+                    </div>
+                    <div class="text-3xl font-bold" style="color:#fff;" th:text="${dashboardData.policyChangeCount24h()}">0</div>
+                    <div class="text-xs" style="color:rgba(255,255,255,0.5);margin-top:0.25rem;">
+                        <span th:text="#{admin.dashboard.policy.combining.algorithm}">Algorithm</span> <strong class="font-mono" style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyHealth.combiningAlgorithm()}">FIRST_APPLICABLE</strong>
                     </div>
                 </div>
-                <div class="flex-1" style="display: flex; flex-direction: column; gap: 1.25rem;">
-                    <div style="display: flex; gap: 1rem;">
-                        <a th:href="@{/admin/roles}" class="dash-stat" style="flex: 1; padding: 0.75rem;">
-                            <div class="text-xl font-bold" style="color: #818cf8;" th:text="${dashboardData.statistics.totalRoles()}">0</div>
-                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.roles}">Roles</div>
-                        </a>
-                        <a th:href="@{/admin/permissions}" class="dash-stat" style="flex: 1; padding: 0.75rem;">
-                            <div class="text-xl font-bold" style="color: #fbbf24;" th:text="${dashboardData.statistics.totalPermissions()}">0</div>
-                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.permissions}">Permissions</div>
-                        </a>
-                        <a th:href="@{/admin/policy-center(tab='list')}" class="dash-stat" style="flex: 1; padding: 0.75rem;">
-                            <div class="text-xl font-bold" style="color: #22d3ee;" th:text="${dashboardData.statistics.totalPolicies()}">0</div>
-                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.policies}">Policies</div>
-                        </a>
-                        <div class="dash-stat" style="flex: 1; padding: 0.75rem;">
-                            <div class="text-xl font-bold" style="color: #4ade80;" th:text="${dashboardData.policyStatus.activePolicies()}">0</div>
-                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.active.policies}">Active Policies</div>
+            </div>
+
+            <!-- Bottom Section: Gauge + Source + Approval -->
+            <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:1.25rem;">
+                <!-- Resource Gauge -->
+                <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
+                    <div class="gauge-wrap" style="flex-shrink:0;">
+                        <svg viewBox="0 0 100 100">
+                            <circle stroke-width="8" stroke="rgba(71,85,105,0.3)" fill="transparent" r="42" cx="50" cy="50" />
+                            <circle class="gauge-circle" id="resGaugeCircle" stroke-width="8" stroke-linecap="round" fill="transparent" r="42" cx="50" cy="50"
+                                    th:attr="data-percent=${dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100 / dashboardData.resourceTotal() : 0}"
+                                    th:style="${(dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal() : 0) >= 80 ? 'stroke: #4ade80; filter: drop-shadow(0 0 8px rgba(74,222,128,0.5));' : ((dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal() : 0) >= 50 ? 'stroke: #fbbf24; filter: drop-shadow(0 0 8px rgba(251,191,36,0.5));' : 'stroke: #f87171; filter: drop-shadow(0 0 8px rgba(248,113,113,0.5));')}" />
+                        </svg>
+                        <div class="gauge-center">
+                            <span class="text-4xl font-bold" style="color: #e2e8f0;" th:text="${dashboardData.resourceTotal() > 0 ? #numbers.formatDecimal(dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal(), 1, 0) + '%' : '0%'}"></span>
+                            <span class="text-xs font-medium" style="color: #94a3b8;" th:text="#{admin.dashboard.resource.protection.rate}">Protection Rate</span>
                         </div>
                     </div>
-                    <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.375rem;">
-                            <span><span th:text="#{admin.dashboard.policy.connected}">Policy Connected</span> <strong style="color:#4ade80;" th:text="${dashboardData.resourceProtected()}">0</strong></span>
-                            <span><span th:text="#{admin.dashboard.policy.awaiting}">Policy Awaiting</span> <strong style="color:#fbbf24;" th:text="${dashboardData.resourceAwaiting()}">0</strong></span>
-                            <span><span th:text="#{admin.dashboard.policy.incomplete}">Policy Incomplete</span> <strong style="color:#f87171;" th:text="${dashboardData.resourceTotal() - dashboardData.resourceProtected() - dashboardData.resourceAwaiting()}">0</strong></span>
+                    <div style="margin-top:1rem;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#94a3b8;margin-bottom:0.375rem;">
+                            <span><span th:text="#{admin.dashboard.policy.connected}">Connected</span> <strong style="color:#4ade80;" th:text="${dashboardData.resourceProtected()}">0</strong></span>
+                            <span><span th:text="#{admin.dashboard.policy.awaiting}">Awaiting</span> <strong style="color:#fbbf24;" th:text="${dashboardData.resourceAwaiting()}">0</strong></span>
+                            <span><span th:text="#{admin.dashboard.policy.incomplete}">Incomplete</span> <strong style="color:#f87171;" th:text="${dashboardData.resourceTotal() - dashboardData.resourceProtected() - dashboardData.resourceAwaiting()}">0</strong></span>
                         </div>
-                        <div style="display: flex; height: 1.25rem; border-radius: 0.625rem; overflow: hidden; background: rgba(71,85,105,0.3);">
-                            <div th:style="${'width: ' + (dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal() : 0) + '%; background: linear-gradient(90deg, #22c55e, #16a34a);'}"></div>
-                            <div th:style="${'width: ' + (dashboardData.resourceTotal() > 0 ? dashboardData.resourceAwaiting() * 100.0 / dashboardData.resourceTotal() : 0) + '%; background: linear-gradient(90deg, #f59e0b, #d97706);'}"></div>
-                            <div th:style="${'width: ' + (dashboardData.resourceTotal() > 0 ? (dashboardData.resourceTotal() - dashboardData.resourceProtected() - dashboardData.resourceAwaiting()) * 100.0 / dashboardData.resourceTotal() : 0) + '%; background: linear-gradient(90deg, #ef4444, #dc2626);'}"></div>
+                        <div style="display:flex;height:0.5rem;border-radius:0.25rem;overflow:hidden;background:rgba(71,85,105,0.3);">
+                            <div th:style="${'width:' + (dashboardData.resourceTotal() > 0 ? dashboardData.resourceProtected() * 100.0 / dashboardData.resourceTotal() : 0) + '%;background:#22c55e;'}"></div>
+                            <div th:style="${'width:' + (dashboardData.resourceTotal() > 0 ? dashboardData.resourceAwaiting() * 100.0 / dashboardData.resourceTotal() : 0) + '%;background:#f59e0b;'}"></div>
+                            <div th:style="${'width:' + (dashboardData.resourceTotal() > 0 ? (dashboardData.resourceTotal() - dashboardData.resourceProtected() - dashboardData.resourceAwaiting()) * 100.0 / dashboardData.resourceTotal() : 0) + '%;background:#ef4444;'}"></div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Source Distribution -->
+                <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
+                    <div class="text-sm font-semibold mb-4" style="color:#e2e8f0;" th:text="#{admin.dashboard.policy.source}">Policy Source</div>
+                    <th:block th:with="total=${dashboardData.policyStatus.totalPolicies()},manual=${dashboardData.policyStatus.manualPolicies()},aiGen=${dashboardData.policyStatus.aiGeneratedPolicies()}">
+                        <div style="display:flex;height:0.5rem;border-radius:0.25rem;overflow:hidden;background:rgba(71,85,105,0.2);margin-bottom:1.5rem;">
+                            <div th:if="${manual > 0}" th:style="${'width:' + (total > 0 ? manual * 100.0 / total : 0) + '%;background:#818cf8;'}"></div>
+                            <div th:if="${aiGen > 0}" th:style="${'width:' + (total > 0 ? aiGen * 100.0 / total : 0) + '%;background:#22d3ee;'}"></div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:1rem;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <div style="display:flex;align-items:center;gap:0.625rem;"><span style="width:0.625rem;height:0.625rem;border-radius:2px;background:#818cf8;"></span><span class="text-sm" style="color:#cbd5e1;" th:text="#{admin.dashboard.policy.source.manual}">Manual</span></div>
+                                <span class="text-lg font-bold" style="color:#818cf8;" th:text="${manual}">0</span>
+                            </div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <div style="display:flex;align-items:center;gap:0.625rem;"><span style="width:0.625rem;height:0.625rem;border-radius:2px;background:#22d3ee;"></span><span class="text-sm" style="color:#cbd5e1;" th:text="#{admin.dashboard.policy.source.ai.generated}">AI Generated</span></div>
+                                <span class="text-lg font-bold" style="color:#22d3ee;" th:text="${aiGen}">0</span>
+                            </div>
+                        </div>
+                    </th:block>
+                </div>
+
+                <!-- Policy Status -->
+                <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
+                    <div class="text-sm font-semibold mb-4" style="color:#e2e8f0;" th:text="#{admin.dashboard.policy.status.title}">Policy Status</div>
+                    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                        <a th:href="@{/admin/policy-center(tab='list',approvalStatus='PENDING')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);transition:all 0.2s;cursor:pointer;"
+                           onmouseover="this.style.background='rgba(251,191,36,0.15)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(251,191,36,0.06)';this.style.transform='none'">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <i class="fas fa-clock" style="color:#fbbf24;font-size:1rem;"></i>
+                                <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.policy.status.pending}">Pending</span>
+                            </div>
+                            <span class="text-2xl font-bold" style="color:#fbbf24;" th:text="${dashboardData.policyStatus.pendingApproval()}">0</span>
+                        </a>
+                        <a th:href="@{/admin/policy-center(tab='list',approvalStatus='APPROVED')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);transition:all 0.2s;cursor:pointer;"
+                           onmouseover="this.style.background='rgba(34,197,94,0.15)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(34,197,94,0.06)';this.style.transform='none'">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <i class="fas fa-check-circle" style="color:#4ade80;font-size:1rem;"></i>
+                                <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.policy.status.approved}">Approved</span>
+                            </div>
+                            <span class="text-2xl font-bold" style="color:#4ade80;" th:text="${dashboardData.policyStatus.approvedPolicies()}">0</span>
+                        </a>
+                        <a th:href="@{/admin/policy-center(tab='list',approvalStatus='REJECTED')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);transition:all 0.2s;cursor:pointer;"
+                           onmouseover="this.style.background='rgba(239,68,68,0.15)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(239,68,68,0.06)';this.style.transform='none'">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <i class="fas fa-times-circle" style="color:#f87171;font-size:1rem;"></i>
+                                <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.policy.status.rejected}">Rejected</span>
+                            </div>
+                            <span class="text-2xl font-bold" style="color:#f87171;" th:text="${dashboardData.policyStatus.rejectedPolicies()}">0</span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -362,41 +458,111 @@
         </div>
 
         <!-- ===== 3: 시스템 현황 ===== -->
-        <div class="mb-8">
-            <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;" th:text="#{admin.dashboard.system.status}">System Status</h2>
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <a th:href="@{/admin/users}" class="dash-stat">
-                    <div class="text-2xl font-bold" style="color: #60a5fa;" th:text="${dashboardData.statistics.totalUsers()}">0</div>
-                    <div class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.dashboard.users}">Users</div>
+        <div class="dash-card mb-8" style="border-color:rgba(96,165,250,0.15);">
+            <h2 class="text-lg font-bold mb-5" style="color: #e2e8f0;"><i class="fas fa-server mr-2" style="color:#60a5fa;"></i><span th:text="#{admin.dashboard.system.status}">System Status</span></h2>
+            <div style="display:flex;flex-direction:column;gap:0.875rem;">
+                <!-- Users -->
+                <a th:href="@{/admin/users}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(96,165,250,0.06)'" onmouseout="this.style.background='transparent'">
+                    <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(96,165,250,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-user" style="color:#60a5fa;font-size:0.9rem;"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.users}">Users</span>
+                            <span class="text-lg font-bold" style="color:#60a5fa;" th:text="${dashboardData.statistics.totalUsers()}">0</span>
+                        </div>
+                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
+                            <div style="height:100%;border-radius:0.125rem;background:#60a5fa;width:100%;"></div>
+                        </div>
+                    </div>
                 </a>
-                <a th:href="@{/admin/groups}" class="dash-stat">
-                    <div class="text-2xl font-bold" style="color: #a78bfa;" th:text="${dashboardData.statistics.totalGroups()}">0</div>
-                    <div class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.dashboard.groups}">Groups</div>
+                <!-- Groups -->
+                <a th:href="@{/admin/groups}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(167,139,250,0.06)'" onmouseout="this.style.background='transparent'">
+                    <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(167,139,250,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-users-cog" style="color:#a78bfa;font-size:0.9rem;"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.groups}">Groups</span>
+                            <span class="text-lg font-bold" style="color:#a78bfa;" th:text="${dashboardData.statistics.totalGroups()}">0</span>
+                        </div>
+                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
+                            <div style="height:100%;border-radius:0.125rem;background:#a78bfa;width:100%;"></div>
+                        </div>
+                    </div>
                 </a>
-                <a th:href="@{/admin/roles}" class="dash-stat">
-                    <div class="text-2xl font-bold" style="color: #34d399;" th:text="${dashboardData.statistics.totalRoles()}">0</div>
-                    <div class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.dashboard.roles}">Roles</div>
+                <!-- Roles -->
+                <a th:href="@{/admin/roles}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(52,211,153,0.06)'" onmouseout="this.style.background='transparent'">
+                    <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(52,211,153,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-user-tag" style="color:#34d399;font-size:0.9rem;"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.roles}">Roles</span>
+                            <span class="text-lg font-bold" style="color:#34d399;" th:text="${dashboardData.statistics.totalRoles()}">0</span>
+                        </div>
+                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
+                            <div style="height:100%;border-radius:0.125rem;background:#34d399;width:100%;"></div>
+                        </div>
+                    </div>
                 </a>
-                <a th:href="@{/admin/permissions}" class="dash-stat">
-                    <div class="text-2xl font-bold" style="color: #fbbf24;" th:text="${dashboardData.statistics.totalPermissions()}">0</div>
-                    <div class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.dashboard.permissions}">Permissions</div>
+                <!-- Permissions -->
+                <a th:href="@{/admin/permissions}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(251,191,36,0.06)'" onmouseout="this.style.background='transparent'">
+                    <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(251,191,36,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-key" style="color:#fbbf24;font-size:0.9rem;"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.permissions}">Permissions</span>
+                            <span class="text-lg font-bold" style="color:#fbbf24;" th:text="${dashboardData.statistics.totalPermissions()}">0</span>
+                        </div>
+                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
+                            <div style="height:100%;border-radius:0.125rem;background:#fbbf24;width:100%;"></div>
+                        </div>
+                    </div>
                 </a>
-                <a th:href="@{/admin/policy-center(tab='list')}" class="dash-stat">
-                    <div class="text-2xl font-bold" style="color: #22d3ee;" th:text="${dashboardData.statistics.totalPolicies()}">0</div>
-                    <div class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.dashboard.policies}">Policies</div>
+                <!-- Policies -->
+                <a th:href="@{/admin/policy-center(tab='list')}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(34,211,238,0.06)'" onmouseout="this.style.background='transparent'">
+                    <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(34,211,238,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-shield-alt" style="color:#22d3ee;font-size:0.9rem;"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.policies}">Policies</span>
+                            <span class="text-lg font-bold" style="color:#22d3ee;" th:text="${dashboardData.statistics.totalPolicies()}">0</span>
+                        </div>
+                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
+                            <div th:style="${'height:100%;border-radius:0.125rem;background:#22d3ee;width:' + (dashboardData.statistics.totalPolicies() > 0 ? (dashboardData.policyStatus.activePolicies() * 100.0 / dashboardData.statistics.totalPolicies()) : 0) + '%;'}"></div>
+                        </div>
+                        <div class="text-xs mt-1" style="color:#64748b;">
+                            <span th:text="#{admin.dashboard.active.policies}">Active</span> <span th:text="${dashboardData.policyStatus.activePolicies()}">0</span> / <span th:text="${dashboardData.statistics.totalPolicies()}">0</span>
+                        </div>
+                    </div>
                 </a>
-                <div class="dash-stat">
-                    <div class="text-2xl font-bold"
-                         th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'color: #34d399;' : 'color: #f87171;'}"
-                         th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</div>
-                    <div class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.dashboard.mfa.enabled}">MFA Enabled</div>
+                <!-- MFA -->
+                <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;">
+                    <div th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(52,211,153,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;' : 'width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(248,113,113,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;'}">
+                        <i class="fas fa-fingerprint" th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'color:#34d399;font-size:0.9rem;' : 'color:#f87171;font-size:0.9rem;'}"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+                            <span class="text-sm font-medium" style="color:#cbd5e1;" th:text="#{admin.dashboard.mfa.enabled}">MFA Enabled</span>
+                            <span class="text-lg font-bold" th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'color:#34d399;' : 'color:#f87171;'}" th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</span>
+                        </div>
+                        <div style="height:0.25rem;border-radius:0.125rem;background:rgba(71,85,105,0.25);overflow:hidden;">
+                            <div th:style="${'height:100%;border-radius:0.125rem;width:' + (dashboardData.statistics.totalUsers() > 0 ? (dashboardData.statistics.mfaEnabledUsers() * 100.0 / dashboardData.statistics.totalUsers()) : 0) + '%;' + (dashboardData.statistics.mfaEnabledUsers() > 0 ? 'background:#34d399;' : 'background:#f87171;')}"></div>
+                        </div>
+                        <div class="text-xs mt-1" style="color:#64748b;">
+                            <span th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</span> / <span th:text="${dashboardData.statistics.totalUsers()}">0</span> users
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- ===== 4: 바로가기 ===== -->
         <div class="mb-8">
-            <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;" th:text="#{admin.dashboard.shortcuts}">Shortcuts</h2>
+            <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;"><i class="fas fa-th-large mr-2" style="color:#a78bfa;"></i><span th:text="#{admin.dashboard.shortcuts}">Shortcuts</span></h2>
             <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <a th:href="@{/admin/policy-center}" class="dash-action" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
                     <div style="background: rgba(255,255,255,0.1); width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">

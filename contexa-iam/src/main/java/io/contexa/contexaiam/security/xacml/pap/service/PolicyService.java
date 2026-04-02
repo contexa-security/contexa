@@ -18,6 +18,7 @@ import java.util.List;
 public interface PolicyService {
     List<Policy> getAllPolicies();
     Page<Policy> searchPolicies(String keyword, Pageable pageable);
+    Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable);
     Policy findById(Long id);
     Policy createPolicy(PolicyDto policyDto);
     void updatePolicy(PolicyDto policyDto);

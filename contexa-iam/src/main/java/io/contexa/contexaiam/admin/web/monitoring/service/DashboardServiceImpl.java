@@ -1,11 +1,15 @@
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
 import io.contexa.contexaiam.admin.web.monitoring.dto.DashboardDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyHealthDto;
 import io.contexa.contexaiam.admin.web.monitoring.dto.RiskIndicatorDto;
 import io.contexa.contexaiam.admin.web.monitoring.dto.StatisticsDto;
 import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyStatusDto;
 import io.contexa.contexaiam.admin.web.monitoring.dto.RecentPolicyDto;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AccessTrendDto;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
@@ -47,6 +51,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final PermissionMatrixService permissionMatrixService;
     private final ManagedResourceRepository managedResourceRepository;
     private final BlockedUserJpaRepository blockedUserJpaRepository;
+    private final PolicyValidationService policyValidationService;
+    private final PolicyCombiningProperties policyCombiningProperties;
 
     @Override
     @Transactional(readOnly = true)
@@ -92,6 +98,8 @@ public class DashboardServiceImpl implements DashboardService {
         long policyActive = policyRepository.countByIsActiveTrue();
         long denyCount24h = auditLogRepository.countDeniedAttemptsSince(since24h);
 
+        PolicyHealthDto policyHealth = buildPolicyHealth();
+
         return new DashboardDto(
                 buildStatistics(policyTotal, policyActive),
                 userContextService.getRecentActivities(currentUsername),
@@ -99,6 +107,7 @@ public class DashboardServiceImpl implements DashboardService {
                 securityScoreCalculator.calculate(),
                 permissionMatrixService.getPermissionMatrix(null),
                 buildPolicyStatus(policyTotal, policyActive),
+                policyHealth,
                 buildAccessTrends(),
                 resourceTotal,
                 resourceCounts.getOrDefault(ManagedResource.Status.POLICY_CONNECTED, 0L),
@@ -155,9 +164,9 @@ public class DashboardServiceImpl implements DashboardService {
             sourceCounts.put((Policy.PolicySource) row[0], (Long) row[1]);
         }
 
-        // AI approval: 3 queries -> 1 GROUP BY
+        // All approval status: 1 GROUP BY
         Map<Policy.ApprovalStatus, Long> approvalCounts = new EnumMap<>(Policy.ApprovalStatus.class);
-        for (Object[] row : policyRepository.countAIApprovalGroupByStatus(aiSources)) {
+        for (Object[] row : policyRepository.countGroupByApprovalStatus()) {
             approvalCounts.put((Policy.ApprovalStatus) row[0], (Long) row[1]);
         }
 
@@ -176,15 +185,32 @@ public class DashboardServiceImpl implements DashboardService {
         return new PolicyStatusDto(
                 policyTotal,
                 policyActive,
+                policyTotal - policyActive,
                 sourceCounts.getOrDefault(Policy.PolicySource.MANUAL, 0L),
                 sourceCounts.getOrDefault(Policy.PolicySource.AI_GENERATED, 0L),
                 sourceCounts.getOrDefault(Policy.PolicySource.AI_EVOLVED, 0L),
+                sourceCounts.getOrDefault(Policy.PolicySource.IMPORTED, 0L),
                 approvalCounts.getOrDefault(Policy.ApprovalStatus.PENDING, 0L),
                 approvalCounts.getOrDefault(Policy.ApprovalStatus.APPROVED, 0L),
                 approvalCounts.getOrDefault(Policy.ApprovalStatus.REJECTED, 0L),
+                approvalCounts.getOrDefault(Policy.ApprovalStatus.NOT_REQUIRED, 0L),
                 policyRepository.calculateAverageConfidenceScoreForAIPolicies(),
                 recentPolicies
         );
+    }
+
+    private PolicyHealthDto buildPolicyHealth() {
+        try {
+            FullValidationReport report = policyValidationService.validateAll();
+            return new PolicyHealthDto(
+                    report.healthStatus(),
+                    report.conflicts().size(),
+                    report.duplicates().size(),
+                    policyCombiningProperties.getCombiningAlgorithm().name());
+        } catch (Exception e) {
+            return new PolicyHealthDto("UNKNOWN", 0, 0,
+                    policyCombiningProperties.getCombiningAlgorithm().name());
+        }
     }
 
     private List<AccessTrendDto> buildAccessTrends() {
