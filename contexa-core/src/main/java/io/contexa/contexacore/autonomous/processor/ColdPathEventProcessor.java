@@ -79,6 +79,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.addAnalysisData("autonomousEnforcementAction", analysisResult.getAction());
             result.addAnalysisData("autonomyConstraintApplied", analysisResult.getAutonomyConstraintApplied());
             result.addAnalysisData("autonomyConstraintSummary", analysisResult.getAutonomyConstraintSummary());
+            if (analysisResult.getLayer1AssessmentSnapshot() != null && !analysisResult.getLayer1AssessmentSnapshot().isEmpty()) {
+                result.addAnalysisData("layer1Assessment", analysisResult.getLayer1AssessmentSnapshot());
+            }
+            if (analysisResult.getLayer2AssessmentSnapshot() != null && !analysisResult.getLayer2AssessmentSnapshot().isEmpty()) {
+                result.addAnalysisData("layer2Assessment", analysisResult.getLayer2AssessmentSnapshot());
+            }
+            if (analysisResult.getDecisionAppliedStage() != null && !analysisResult.getDecisionAppliedStage().isBlank()) {
+                result.addAnalysisData("decisionAppliedStage", analysisResult.getDecisionAppliedStage());
+            }
 
             long processingTime = System.currentTimeMillis() - startTime;
             result.setProcessingTimeMs(processingTime);
@@ -110,6 +119,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 long layer1StartTime = System.currentTimeMillis();
                 layer1Assessment = contextualStrategy.evaluate(event);
                 long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
+                Map<String, Object> layer1Snapshot = buildAssessmentSnapshot(layer1Assessment, "LAYER1");
+                result.setLayer1AssessmentSnapshot(layer1Snapshot);
+                putAssessmentSnapshot(event, "layer1Assessment", layer1Snapshot);
+                Map<String, Object> pipelineMetadata = buildPipelineMetadata(event, requestPath);
+                publishSessionContextLoaded(userId, pipelineMetadata);
+                publishBehaviorAnalysisComplete(userId, pipelineMetadata);
 
                 if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.resolveAuditRiskScore());
@@ -124,6 +139,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                     result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                     result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+                    result.setDecisionAppliedStage("LAYER1");
                     String reasoning = layer1Assessment.getReasoning() != null
                             ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
                     publishLayer1Complete(
@@ -156,7 +172,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                         layer1ElapsedMs,
                         augmentAssessmentMetadata(listenerMetadata, layer1Assessment, "LAYER1"));
 
-                event.getMetadata().put("layer1Assessment", layer1Assessment);
+                result.setDecisionAppliedStage("LAYER1_ESCALATED");
             }
 
             int total = totalAnalysisCount.incrementAndGet();
@@ -177,6 +193,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.setAction(ZeroTrustAction.CHALLENGE.name());
                     result.setReasoning("Escalate overload protection - CHALLENGE applied");
                     result.setAnalysisDepth(1);
+                    result.setDecisionAppliedStage("ESCALATE_PROTECTION");
                     publishDecisionApplied(
                             userId,
                             ZeroTrustAction.CHALLENGE.name(),
@@ -197,6 +214,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 long layer2StartTime = System.currentTimeMillis();
                 ThreatAssessment layer2Assessment = expertStrategy.evaluate(event);
                 long layer2ElapsedMs = System.currentTimeMillis() - layer2StartTime;
+                Map<String, Object> layer2Snapshot = buildAssessmentSnapshot(layer2Assessment, "LAYER2");
+                result.setLayer2AssessmentSnapshot(layer2Snapshot);
+                putAssessmentSnapshot(event, "layer2Assessment", layer2Snapshot);
 
                 result.setFinalScore(layer2Assessment.resolveAuditRiskScore());
                 result.setConfidence(layer2Assessment.getConfidence());
@@ -210,6 +230,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
+                result.setDecisionAppliedStage("LAYER2");
                 String layer2Reasoning = layer2Assessment.getReasoning() != null
                         ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
                 publishLayer2Complete(
@@ -237,6 +258,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
             log.error("[ColdPath] Tiered AI analysis failed, using fallback riskScore: eventId={}", event.getEventId(), e);
             publishError(userId, "Tiered AI analysis failed: " + e.getMessage(), buildErrorMetadata(event));
             if (layer1Assessment != null) {
+                result.setLayer1AssessmentSnapshot(buildAssessmentSnapshot(layer1Assessment, "LAYER1"));
+                putAssessmentSnapshot(event, "layer1Assessment", result.getLayer1AssessmentSnapshot());
+                result.setDecisionAppliedStage("LAYER1_FALLBACK");
                 result.setFinalScore(layer1Assessment.resolveAuditRiskScore());
                 result.setConfidence(layer1Assessment.getConfidence());
                 result.setLlmAuditConfidence(layer1Assessment.resolveAuditConfidence());
@@ -246,6 +270,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
             } else {
+                result.setDecisionAppliedStage("COLD_PATH_FALLBACK");
                 result.setFinalScore(null);
                 result.setConfidence(null);
                 result.setLlmAuditConfidence(null);
@@ -282,6 +307,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private Boolean autonomyConstraintApplied;
         private List<String> autonomyConstraintReasons = new ArrayList<>();
         private String autonomyConstraintSummary;
+        private Map<String, Object> layer1AssessmentSnapshot = Map.of();
+        private Map<String, Object> layer2AssessmentSnapshot = Map.of();
+        private String decisionAppliedStage;
 
         public List<String> getIndicators() {
             return new ArrayList<>(indicators);
@@ -431,6 +459,28 @@ public class ColdPathEventProcessor implements IPathProcessor {
         llmAnalysisEventListener.onEscalateProtectionTriggered(userId, requestPath, escalateCount, totalAnalysisCount);
     }
 
+    private void publishSessionContextLoaded(String userId, Map<String, Object> metadata) {
+        llmAnalysisEventListener.onSessionContextLoaded(userId, metadata);
+    }
+
+    private void publishBehaviorAnalysisComplete(String userId, Map<String, Object> metadata) {
+        llmAnalysisEventListener.onBehaviorAnalysisComplete(userId, metadata);
+    }
+
+    private Map<String, Object> buildPipelineMetadata(SecurityEvent event, String requestPath) {
+        Map<String, Object> metadata = new LinkedHashMap<>(buildListenerMetadata(event, requestPath));
+        if (!metadata.containsKey("requestCount") && metadata.containsKey("recentRequestCount")) {
+            metadata.put("requestCount", metadata.get("recentRequestCount"));
+        }
+        if (!metadata.containsKey("baselineEstablished") && metadata.containsKey("organizationBaselineEstablished")) {
+            metadata.put("baselineEstablished", metadata.get("organizationBaselineEstablished"));
+        }
+        if (!metadata.containsKey("newDevice") && metadata.containsKey("isNewDevice")) {
+            metadata.put("newDevice", metadata.get("isNewDevice"));
+        }
+        return Map.copyOf(metadata);
+    }
+
     private Map<String, Object> buildListenerMetadata(SecurityEvent event, String requestPath) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (event != null && event.getMetadata() != null) {
@@ -460,6 +510,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
             String layer) {
         Map<String, Object> metadata = new LinkedHashMap<>(baseMetadata);
         metadata.put("layer", layer);
+        Map<String, Object> assessmentSnapshot = buildAssessmentSnapshot(assessment, layer);
+        if (!assessmentSnapshot.isEmpty()) {
+            metadata.put("assessmentSnapshot", assessmentSnapshot);
+            if ("LAYER1".equalsIgnoreCase(layer)) {
+                metadata.put("layer1Assessment", assessmentSnapshot);
+            }
+            if ("LAYER2".equalsIgnoreCase(layer)) {
+                metadata.put("layer2Assessment", assessmentSnapshot);
+            }
+        }
         if (assessment != null) {
             putIfNotNull(metadata, "llmAction", assessment.getAction());
             putIfNotNull(metadata, "autonomousAction", assessment.getAutonomousAction());
@@ -487,12 +547,55 @@ public class ColdPathEventProcessor implements IPathProcessor {
         putIfNotNull(metadata, "confidence", result.getLlmAuditConfidence());
         putIfNotNull(metadata, "reasoning", result.getReasoning());
         metadata.put("analysisDepth", result.getAnalysisDepth());
+        putIfNotNull(metadata, "decisionAppliedStage", result.getDecisionAppliedStage());
+        if (result.getLayer1AssessmentSnapshot() != null && !result.getLayer1AssessmentSnapshot().isEmpty()) {
+            metadata.put("layer1Assessment", result.getLayer1AssessmentSnapshot());
+        }
+        if (result.getLayer2AssessmentSnapshot() != null && !result.getLayer2AssessmentSnapshot().isEmpty()) {
+            metadata.put("layer2Assessment", result.getLayer2AssessmentSnapshot());
+        }
         putIfNotNull(metadata, "autonomyConstraintApplied", result.getAutonomyConstraintApplied());
         putIfNotNull(metadata, "autonomyConstraintSummary", result.getAutonomyConstraintSummary());
         if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
             metadata.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
         }
         return Map.copyOf(metadata);
+    }
+
+    private Map<String, Object> buildAssessmentSnapshot(ThreatAssessment assessment, String layer) {
+        if (assessment == null) {
+            return Map.of();
+        }
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        putIfNotNull(snapshot, "layer", layer);
+        putIfNotNull(snapshot, "strategyName", assessment.getStrategyName());
+        putIfNotNull(snapshot, "llmAction", assessment.getAction());
+        putIfNotNull(snapshot, "autonomousAction", assessment.getAutonomousAction());
+        putIfNotNull(snapshot, "riskScore", assessment.resolveAuditRiskScore());
+        putIfNotNull(snapshot, "confidence", assessment.getConfidence());
+        putIfNotNull(snapshot, "llmAuditConfidence", assessment.resolveAuditConfidence());
+        putIfNotNull(snapshot, "reasoning", assessment.getReasoning());
+        putIfNotNull(snapshot, "assessedAt", assessment.getAssessedAt());
+        putIfNotNull(snapshot, "shouldEscalate", assessment.isShouldEscalate());
+        putIfNotNull(snapshot, "autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
+        putIfNotNull(snapshot, "autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
+        if (assessment.getIndicators() != null && !assessment.getIndicators().isEmpty()) {
+            snapshot.put("indicators", new ArrayList<>(assessment.getIndicators()));
+        }
+        if (assessment.getRecommendedActions() != null && !assessment.getRecommendedActions().isEmpty()) {
+            snapshot.put("recommendedActions", new ArrayList<>(assessment.getRecommendedActions()));
+        }
+        if (assessment.getAutonomyConstraintReasons() != null && !assessment.getAutonomyConstraintReasons().isEmpty()) {
+            snapshot.put("autonomyConstraintReasons", new ArrayList<>(assessment.getAutonomyConstraintReasons()));
+        }
+        return snapshot.isEmpty() ? Map.of() : Map.copyOf(snapshot);
+    }
+
+    private void putAssessmentSnapshot(SecurityEvent event, String key, Map<String, Object> snapshot) {
+        if (event == null || event.getMetadata() == null || key == null || snapshot == null || snapshot.isEmpty()) {
+            return;
+        }
+        event.getMetadata().put(key, snapshot);
     }
 
     private void putIfNotNull(Map<String, Object> metadata, String key, Object value) {

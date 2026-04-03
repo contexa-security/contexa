@@ -162,6 +162,10 @@ public class PromptContextAuditPayloadMapper {
             if (correlationId instanceof String value && !value.isBlank()) {
                 return value.trim();
             }
+            Object requestId = event.getMetadata().get("requestId");
+            if (requestId instanceof String value && !value.isBlank()) {
+                return value.trim();
+            }
         }
         if (StringUtils.hasText(event.getEventId())) {
             return event.getEventId().trim();

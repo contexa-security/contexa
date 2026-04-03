@@ -520,14 +520,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             int requestedTopK = Math.max(topK, 1);
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+            AuthorizedPromptContext limitedAuthorizedPromptContext;
             if (documents == null || documents.isEmpty()) {
-                return Collections.emptyList();
-            }
-            AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
-                    .authorize(event, getContextRetrievalPurpose(), documents);
+                limitedAuthorizedPromptContext = limitAuthorizedPromptContext(null, requestedTopK);
+            } else {
+                AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
+                        .authorize(event, getContextRetrievalPurpose(), documents);
 
-            AuthorizedPromptContext limitedAuthorizedPromptContext =
-                    limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
+                limitedAuthorizedPromptContext =
+                        limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
+            }
             if (promptContextAuditForwardingService != null) {
                 promptContextAuditForwardingService.capture(
                         event,
@@ -811,6 +813,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 SecurityDecisionResponse.class);
     }
 }
+
 
 
 

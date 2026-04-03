@@ -56,7 +56,9 @@ document.addEventListener('DOMContentLoaded', function() {
         '/admin/enterprise': 'enterprise',
         '/admin/enterprise/approvals': 'enterprise', '/admin/enterprise/mcp': 'enterprise',
         '/admin/enterprise/permits': 'enterprise', '/admin/enterprise/executions': 'enterprise',
-        '/admin/enterprise/playbooks': 'enterprise', '/admin/enterprise/metrics': 'enterprise',
+        '/admin/enterprise/playbooks': 'enterprise', '/admin/enterprise/verification': 'enterprise',
+        '/admin/enterprise/verification/context': 'enterprise', '/admin/enterprise/verification/decision': 'enterprise',
+        '/admin/enterprise/metrics': 'enterprise',
         '/admin/enterprise/integration': 'enterprise',
         '/admin/saas': 'saas'
     };

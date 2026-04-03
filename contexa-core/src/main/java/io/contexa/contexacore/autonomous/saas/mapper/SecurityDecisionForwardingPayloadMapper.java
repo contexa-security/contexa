@@ -111,8 +111,8 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .newDevice(extractBoolean(eventMetadata, "isNewDevice"))
                 .impossibleTravel(extractBoolean(eventMetadata, "isImpossibleTravel"))
                 .travelDistanceKm(extractDouble(eventMetadata, "travelDistanceKm"))
-                .layer1Assessment(extractMap(analysisData.get("layer1Assessment")))
-                .layer2Assessment(extractMap(analysisData.get("layer2Assessment")))
+                .layer1Assessment(extractFirstMap(analysisData.get("layer1Assessment"), eventMetadata.get("layer1Assessment")))
+                .layer2Assessment(extractFirstMap(analysisData.get("layer2Assessment"), eventMetadata.get("layer2Assessment")))
                 .attributes(extractAttributes(
                         eventMetadata,
                         analysisData,
@@ -137,6 +137,17 @@ public class SecurityDecisionForwardingPayloadMapper {
         Object correlationId = context.getMetadata().get("correlationId");
         if (correlationId instanceof String value && !value.isBlank()) {
             return value.trim();
+        }
+        Map<String, Object> eventMetadata = event.getMetadata();
+        if (eventMetadata != null) {
+            Object metadataCorrelationId = eventMetadata.get("correlationId");
+            if (metadataCorrelationId instanceof String value && !value.isBlank()) {
+                return value.trim();
+            }
+            Object requestId = eventMetadata.get("requestId");
+            if (requestId instanceof String value && !value.isBlank()) {
+                return value.trim();
+            }
         }
         if (event.getEventId() != null && !event.getEventId().isBlank()) {
             return event.getEventId().trim();
@@ -502,6 +513,19 @@ public class SecurityDecisionForwardingPayloadMapper {
     }
 
     @SuppressWarnings("unchecked")
+    private Map<String, Object> extractFirstMap(Object... values) {
+        if (values == null) {
+            return Map.of();
+        }
+        for (Object value : values) {
+            Map<String, Object> extracted = extractMap(value);
+            if (!extracted.isEmpty()) {
+                return extracted;
+            }
+        }
+        return Map.of();
+    }
+
     private Map<String, Object> extractMap(Object value) {
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> copied = new LinkedHashMap<>();

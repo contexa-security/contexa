@@ -59,20 +59,38 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
     @Override
     public ZeroTrustAction getCurrentAction(String userId, String contextBindingHash) {
-        ZeroTrustAction action = getCurrentAction(userId);
-
-        // ALLOW action: verify contextBindingHash to prevent reuse from different IP/device
-        // If hash mismatch, treat as new context requiring fresh analysis
-        if (action == ZeroTrustAction.ALLOW && contextBindingHash != null) {
-            AnalysisEntry entry = analysisStore.get(userId);
-            if (entry != null && entry.contextBindingHash != null
-                    && !entry.contextBindingHash.equals(contextBindingHash)) {
-                log.error("[InMemoryZTARepository] Context binding hash mismatch on ALLOW: userId={}", userId);
-                return ZeroTrustAction.PENDING_ANALYSIS;
-            }
+        if (userId == null) {
+            return ZeroTrustAction.PENDING_ANALYSIS;
         }
 
-        return action;
+        if (blockedUsers.contains(userId)) {
+            return ZeroTrustAction.BLOCK;
+        }
+
+        AnalysisEntry entry = analysisStore.get(userId);
+        if (entry != null && entry.action != null) {
+            ZeroTrustAction action = ZeroTrustAction.fromString(entry.action);
+            if (isExpired(entry)) {
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            if (requiresFreshAnalysis(action, contextBindingHash, entry.contextBindingHash)) {
+                log.error("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            return action;
+        }
+
+        ActionEntry lastAction = lastVerifiedStore.get(userId);
+        if (lastAction != null && !isExpired(lastAction)) {
+            ZeroTrustAction action = ZeroTrustAction.fromString(lastAction.action);
+            if (requiresFreshAnalysis(action, contextBindingHash, lastAction.contextBindingHash)) {
+                log.error("[InMemoryZTARepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            return action;
+        }
+
+        return ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     @Override
@@ -271,6 +289,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
         ActionEntry lastEntry = new ActionEntry();
         lastEntry.action = action.name();
+        lastEntry.contextBindingHash = entry.contextBindingHash;
         lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
         lastVerifiedStore.put(userId, lastEntry);
     }
@@ -323,6 +342,12 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
 
         analysisStore.put(userId, entry);
+
+        ActionEntry lastEntry = new ActionEntry();
+        lastEntry.action = newAction.name();
+        lastEntry.contextBindingHash = contextBindingHash;
+        lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+        lastVerifiedStore.put(userId, lastEntry);
     }
 
     @Override
@@ -414,8 +439,18 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         Instant expiresAt;
     }
 
+    private boolean requiresFreshAnalysis(ZeroTrustAction action, String requestedContextHash, String storedContextHash) {
+        return action != null
+                && action != ZeroTrustAction.PENDING_ANALYSIS
+                && action != ZeroTrustAction.BLOCK
+                && requestedContextHash != null
+                && storedContextHash != null
+                && !storedContextHash.equals(requestedContextHash);
+    }
+
     private static class ActionEntry {
         String action;
+        String contextBindingHash;
         Instant expiresAt;
     }
 

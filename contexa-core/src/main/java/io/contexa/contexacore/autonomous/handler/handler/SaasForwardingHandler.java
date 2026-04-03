@@ -24,8 +24,14 @@ public class SaasForwardingHandler implements SecurityEventHandler {
         if (!(resultObject instanceof ProcessingResult result) || !result.isSuccess()) {
             return false;
         }
-        return "BLOCK".equalsIgnoreCase(result.getAction())
-                || "CHALLENGE".equalsIgnoreCase(result.getAction());
+        return isForwardableAction(result.getAction());
+    }
+
+    private boolean isForwardableAction(String action) {
+        if (action == null || action.isBlank()) {
+            return false;
+        }
+        return !"PENDING_ANALYSIS".equalsIgnoreCase(action);
     }
 
     @Override
@@ -51,3 +57,4 @@ public class SaasForwardingHandler implements SecurityEventHandler {
         return 65;
     }
 }
+
