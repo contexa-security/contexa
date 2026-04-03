@@ -33,7 +33,7 @@ public final class RequestInfoExtractor {
                 .method(request.getMethod())
                 .clientIp(extractClientIp(request, security))
                 .userAgent(extractUserAgent(request))
-                .sessionId(request.getRequestedSessionId())
+                .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
                 .requestId(extractRequestId(request))
                 .observedAt(extractObservedAt(request))
                 .servletPath(request.getServletPath())
@@ -396,3 +396,4 @@ public final class RequestInfoExtractor {
         return null;
     }
 }
+

@@ -3,6 +3,7 @@ package io.contexa.contexacore.hcad.service;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.autonomous.context.PromptRelevantRequestPathPolicy;
+import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
@@ -51,9 +52,9 @@ public class HCADContextExtractor {
 
             String clientIp = extractClientIp(request);
 
-            String userId = extractUserId(authentication);
-            String username = extractUsername(authentication);
-            String sessionId = request.getRequestedSessionId();
+            String userId = extractUserId(request, authentication);
+            String username = extractUsername(request, authentication);
+            String sessionId = OfficialVerificationRequestContext.resolveSessionId(request);
 
             if (userId.startsWith("anonymous:")) {
                 userId = "anonymous:" + clientIp;
@@ -96,8 +97,8 @@ public class HCADContextExtractor {
             log.error("[HCAD] Context extraction failed", e);
 
             return HCADContext.builder()
-                    .userId(authentication != null ? extractUserId(authentication) : "unknown")
-                    .sessionId(request.getRequestedSessionId())
+                    .userId(authentication != null ? extractUserId(request, authentication) : "unknown")
+                    .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
                     .requestPath(request.getRequestURI())
                     .httpMethod(request.getMethod())
                     .remoteIp(request.getRemoteAddr())
@@ -109,7 +110,12 @@ public class HCADContextExtractor {
         }
     }
 
-    private String extractUserId(Authentication authentication) {
+    private String extractUserId(HttpServletRequest request, Authentication authentication) {
+        String requestedUserId = OfficialVerificationRequestContext.resolveUserId(request);
+        if (requestedUserId != null) {
+            return requestedUserId;
+        }
+
         if (authentication == null) {
             return "anonymous:unknown";
         }
@@ -140,8 +146,8 @@ public class HCADContextExtractor {
         return name;
     }
 
-    private String extractUsername(Authentication authentication) {
-        return extractUserId(authentication);
+    private String extractUsername(HttpServletRequest request, Authentication authentication) {
+        return extractUserId(request, authentication);
     }
 
     private String extractClientIp(HttpServletRequest request) {
@@ -513,3 +519,6 @@ public class HCADContextExtractor {
         return false;
     }
 }
+
+
+

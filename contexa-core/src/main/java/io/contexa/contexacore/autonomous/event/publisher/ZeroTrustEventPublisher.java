@@ -10,6 +10,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -114,6 +115,7 @@ public class ZeroTrustEventPublisher {
             String denialReason) {
 
         RequestInfo requestInfo = extractRequestInfoFromContext();
+        String effectiveUserId = resolveEffectiveUserId(authentication);
         String methodResource = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
                 + "." + methodInvocation.getMethod().getName();
         String resource = (requestInfo != null && requestInfo.getRequestUri() != null)
@@ -219,7 +221,7 @@ public class ZeroTrustEventPublisher {
         reconcileAuthorizationDecision(granted, payload);
 
         if (actionRedisRepository != null && authentication != null) {
-            ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(authentication.getName());
+            ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(effectiveUserId);
             if (currentAction != null) {
                 payload.put("action", currentAction.name());
             }
@@ -228,7 +230,7 @@ public class ZeroTrustEventPublisher {
         return build(
                 ZeroTrustEventCategory.AUTHORIZATION,
                 ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD,
-                authentication != null ? authentication.getName() : null,
+                effectiveUserId,
                 requestInfo != null ? requestInfo.getSessionId() : null,
                 requestInfo != null ? requestInfo.getClientIp() : null,
                 requestInfo != null ? requestInfo.getUserAgent() : null,
@@ -294,6 +296,20 @@ public class ZeroTrustEventPublisher {
                 .build();
     }
 
+    private String resolveEffectiveUserId(Authentication authentication) {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                String requestedUserId = OfficialVerificationRequestContext.resolveUserId(attrs.getRequest());
+                if (StringUtils.hasText(requestedUserId)) {
+                    return requestedUserId;
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to resolve effective user id from request context", e);
+        }
+        return authentication != null ? authentication.getName() : null;
+    }
     private TieredStrategyProperties.Security getSecurity() {
         return properties != null ? properties.getSecurity() : null;
     }
@@ -719,3 +735,7 @@ public class ZeroTrustEventPublisher {
         return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }
+
+
+
+
