@@ -37,6 +37,8 @@ public class PromptContextAuditPayload {
         private String sourceType;
         private String artifactId;
         private String artifactVersion;
+        private String userId;
+        private String retrievalPurpose;
         private String authorizationDecision;
         private boolean purposeMatch;
         private String provenanceSummary;

@@ -109,6 +109,8 @@ public class PromptContextAuthorizationService {
                 .sourceType(decision.sourceType())
                 .artifactId(decision.artifactId())
                 .artifactVersion(decision.artifactVersion())
+                .userId(resolveText(metadata, VectorDocumentMetadata.USER_ID, "userId"))
+                .retrievalPurpose(resolveText(metadata, VectorDocumentMetadata.RETRIEVAL_PURPOSE, "retrievalPurpose"))
                 .authorizationDecision(decision.decision())
                 .purposeMatch(decision.purposeMatch())
                 .provenanceSummary(decision.provenanceSummary())

@@ -10,6 +10,8 @@ import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
@@ -58,7 +60,8 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, MethodInvocation mi) {
 
-        String ownerField = extractOwnerFieldFromMethod(mi.getMethod());
+        Method method = resolveSpecificMethod(mi);
+        String ownerField = extractOwnerFieldFromMethod(method);
 
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
@@ -71,7 +74,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         root.setDefaultRolePrefix(getDefaultRolePrefix());
         root.setThis(mi.getThis());
 
-        MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, mi.getMethod(), mi.getArguments(), getParameterNameDiscoverer());
+        MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, method, mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
         ctx.setVariable("ai", root);
 
@@ -79,7 +82,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ctx.setVariable("ownerField", ownerField);
         }
 
-        Method method = mi.getMethod();
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
                 .collect(Collectors.joining(","));
@@ -91,6 +93,21 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         ctx.setVariable("protectableRule", protectableRule);
 
         return ctx;
+    }
+
+    private Method resolveSpecificMethod(MethodInvocation mi) {
+        Method method = mi.getMethod();
+        Object target = mi.getThis();
+        if (target == null) {
+            return method;
+        }
+
+        Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
+        if (targetClass == null) {
+            return method;
+        }
+
+        return AopUtils.getMostSpecificMethod(method, targetClass);
     }
 
     private String extractOwnerFieldFromMethod(Method method) {

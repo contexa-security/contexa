@@ -10,6 +10,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.security.core.Authentication;
 
 import java.lang.reflect.Method;
@@ -53,7 +55,7 @@ public class DefaultContextHandler implements ContextHandler {
         
         Users subjectEntity = getSubjectEntity(authentication);
 
-        Method method = invocation.getMethod();
+        Method method = resolveSpecificMethod(invocation);
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
                 .collect(Collectors.joining(","));
@@ -72,6 +74,21 @@ public class DefaultContextHandler implements ContextHandler {
                 environmentDetails,
                 attributes
         );
+    }
+
+    private Method resolveSpecificMethod(MethodInvocation invocation) {
+        Method method = invocation.getMethod();
+        Object target = invocation.getThis();
+        if (target == null) {
+            return method;
+        }
+
+        Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
+        if (targetClass == null) {
+            return method;
+        }
+
+        return AopUtils.getMostSpecificMethod(method, targetClass);
     }
 
     private Users getSubjectEntity(Authentication authentication) {

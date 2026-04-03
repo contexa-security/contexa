@@ -8,6 +8,8 @@ public record AuthorizedPromptContextItem(
         String sourceType,
         String artifactId,
         String artifactVersion,
+        String userId,
+        String retrievalPurpose,
         String authorizationDecision,
         boolean purposeMatch,
         String provenanceSummary,

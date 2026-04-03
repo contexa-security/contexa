@@ -37,7 +37,7 @@ public class PromptContextAuditPayloadMapper {
         String tenantExternalRef = resolveTenantExternalRef(event);
         List<String> deniedReasons = resolveDeniedReasons(authorizedPromptContext);
 
-        List<PromptContextAuditPayload.ContextItem> contexts = resolveContextItems(authorizedPromptContext);
+        List<PromptContextAuditPayload.ContextItem> contexts = resolveContextItems(authorizedPromptContext, resolvedPurpose);
         String contextFingerprint = resolveContextFingerprint(authorizedPromptContext, deniedReasons, contexts);
         String auditId = resolveAuditId(event, correlationId, resolvedPurpose, contextFingerprint);
 
@@ -71,18 +71,20 @@ public class PromptContextAuditPayloadMapper {
         return "default";
     }
 
-    private List<PromptContextAuditPayload.ContextItem> resolveContextItems(AuthorizedPromptContext authorizedPromptContext) {
+    private List<PromptContextAuditPayload.ContextItem> resolveContextItems(
+            AuthorizedPromptContext authorizedPromptContext,
+            String retrievalPurpose) {
         if (authorizedPromptContext.contextItems() != null && !authorizedPromptContext.contextItems().isEmpty()) {
             return authorizedPromptContext.contextItems().stream()
-                    .map(this::mapContextItem)
+                    .map(item -> mapContextItem(item, retrievalPurpose))
                     .toList();
         }
         return authorizedPromptContext.documents().stream()
-                .map(this::mapContextItem)
+                .map(document -> mapContextItem(document, retrievalPurpose))
                 .toList();
     }
 
-    private PromptContextAuditPayload.ContextItem mapContextItem(Document document) {
+    private PromptContextAuditPayload.ContextItem mapContextItem(Document document, String retrievalPurpose) {
         Map<String, Object> metadata = document.getMetadata() != null ? document.getMetadata() : Map.of();
         return PromptContextAuditPayload.ContextItem.builder()
                 .contextType(resolveText(metadata,
@@ -102,6 +104,13 @@ public class PromptContextAuditPayloadMapper {
                 .artifactVersion(resolveText(metadata,
                         VectorDocumentMetadata.ARTIFACT_VERSION,
                         VectorDocumentMetadata.VERSION))
+                .userId(resolveText(metadata,
+                        VectorDocumentMetadata.USER_ID,
+                        "userId"))
+                .retrievalPurpose(resolveText(metadata,
+                        VectorDocumentMetadata.RETRIEVAL_PURPOSE,
+                        "retrievalPurpose",
+                        retrievalPurpose))
                 .authorizationDecision(resolveText(metadata,
                         VectorDocumentMetadata.AUTHORIZATION_DECISION,
                         "authorizationDecision"))
@@ -125,12 +134,16 @@ public class PromptContextAuditPayloadMapper {
                 .build();
     }
 
-    private PromptContextAuditPayload.ContextItem mapContextItem(AuthorizedPromptContextItem item) {
+    private PromptContextAuditPayload.ContextItem mapContextItem(
+            AuthorizedPromptContextItem item,
+            String retrievalPurpose) {
         return PromptContextAuditPayload.ContextItem.builder()
                 .contextType(item.contextType())
                 .sourceType(item.sourceType())
                 .artifactId(item.artifactId())
                 .artifactVersion(item.artifactVersion())
+                .userId(item.userId())
+                .retrievalPurpose(StringUtils.hasText(item.retrievalPurpose()) ? item.retrievalPurpose() : retrievalPurpose)
                 .authorizationDecision(item.authorizationDecision())
                 .purposeMatch(item.purposeMatch())
                 .provenanceSummary(item.provenanceSummary())
