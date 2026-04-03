@@ -820,15 +820,17 @@ var PolicyDetailValidation = {
     },
 
     proceed: function() {
-        this.closeModal();
-        if (this._resolve) this._resolve(true);
+        var modal = document.getElementById('validation-result-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        if (this._resolve) { var r = this._resolve; this._resolve = null; r(true); }
     },
 
     closeModal: function() {
         var modal = document.getElementById('validation-result-modal');
         modal.classList.add('hidden');
         modal.style.display = 'none';
-        if (this._resolve) { this._resolve(false); this._resolve = null; }
+        if (this._resolve) { var r = this._resolve; this._resolve = null; r(false); }
     },
 
     escapeHtml: function(str) {

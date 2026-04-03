@@ -29,11 +29,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 
 import java.util.*;
 
@@ -86,10 +86,24 @@ class DefaultPolicyServiceTest {
     private PolicySimulator policySimulator;
 
     @Mock
+    private MessageSource messageSource;
+
+    @Mock
     private AIPolicyValidator aiPolicyValidator;
 
-    @InjectMocks
     private DefaultPolicyService policyService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        policyService = new DefaultPolicyService(
+                policyRepository, policyRetrievalPoint, authorizationManager,
+                policyEnrichmentService, eventBus, permissionRepository,
+                managedResourceRepository, centralAuditFacade, policyConflictAnalyzer,
+                policyValidationService, policyVersionService, policyImpactAnalyzer,
+                policySimulator, messageSource, aiPolicyValidator);
+    }
 
     @Nested
     @DisplayName("Policy creation")
@@ -210,7 +224,7 @@ class DefaultPolicyServiceTest {
             // when/then
             assertThatThrownBy(() -> policyService.updatePolicy(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("999");
+                    .hasMessageContaining("msg.policy.not.found");
         }
 
         @Test
@@ -241,24 +255,25 @@ class DefaultPolicyServiceTest {
         @Test
         @DisplayName("should delete policy by ID and publish event")
         void shouldDeleteAndPublishEvent() {
-            // when
+            Policy policy = createPolicyWithCondition(50L, "test-delete", "hasAuthority('ROLE_USER')");
+            when(policyRepository.findByIdWithDetails(50L)).thenReturn(java.util.Optional.of(policy));
+
             policyService.deletePolicy(50L);
 
-            // then
             verify(policyRepository).deleteById(50L);
             ArgumentCaptor<PolicyChangedEvent> captor = ArgumentCaptor.forClass(PolicyChangedEvent.class);
             verify(eventBus).publish(captor.capture());
             assertThat(captor.getValue().getPolicyId()).isEqualTo(50L);
-            assertThat(captor.getValue().getPermissionIds()).isEmpty();
         }
 
         @Test
         @DisplayName("should reload authorization system after deletion")
         void shouldReloadAfterDelete() {
-            // when
+            Policy policy = createPolicyWithCondition(51L, "test-reload", "hasAuthority('ROLE_USER')");
+            when(policyRepository.findByIdWithDetails(51L)).thenReturn(java.util.Optional.of(policy));
+
             policyService.deletePolicy(51L);
 
-            // then
             verify(policyRetrievalPoint).clearUrlPoliciesCache();
             verify(policyRetrievalPoint).clearMethodPoliciesCache();
             verify(authorizationManager).reload();
@@ -390,7 +405,7 @@ class DefaultPolicyServiceTest {
                     .description("Test rules")
                     .effect(Policy.Effect.DENY)
                     .priority(200)
-                    .targets(new ArrayList<>())
+                    .targets(List.of(new TargetDto("URL", "/api/test", "GET", 0, "RESOURCE")))
                     .rules(List.of(new RuleDto(
                             "Test rule",
                             List.of(new ConditionDto("hasAuthority('ADMIN')", PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE))
@@ -465,7 +480,7 @@ class DefaultPolicyServiceTest {
             // when/then
             assertThatThrownBy(() -> policyService.findById(404L))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("404");
+                    .hasMessageContaining("msg.policy.not.found");
         }
     }
 
@@ -477,7 +492,8 @@ class DefaultPolicyServiceTest {
                 .description(description)
                 .effect(Policy.Effect.ALLOW)
                 .priority(100)
-                .targets(new ArrayList<>())
+                .targets(List.of(TargetDto.builder()
+                        .targetType("URL").targetIdentifier("/api/test").httpMethod("GET").build()))
                 .rules(new ArrayList<>())
                 .build();
     }
@@ -566,7 +582,7 @@ class DefaultPolicyServiceTest {
 
             assertThatThrownBy(() -> policyService.approvePolicy(1L, "admin"))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("already approved");
+                    .hasMessageContaining("msg.policy.already.approved");
         }
     }
 
@@ -599,7 +615,7 @@ class DefaultPolicyServiceTest {
 
             assertThatThrownBy(() -> policyService.rejectPolicy(1L, "admin"))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("already rejected");
+                    .hasMessageContaining("msg.policy.already.rejected");
         }
     }
 

@@ -128,6 +128,11 @@ public class PolicyVersionService {
         }
     }
 
+    @Transactional
+    public void deleteByPolicyId(Long policyId) {
+        versionRepository.deleteByPolicyId(policyId);
+    }
+
     private String extractCurrentUsername() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getName() != null) {

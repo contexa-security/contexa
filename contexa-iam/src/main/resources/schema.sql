@@ -77,7 +77,8 @@ CREATE TABLE PERMISSION (
                             target_type VARCHAR(255),
                             action_type VARCHAR(255),
                             condition_expression VARCHAR(255),
-                            managed_resource_id BIGINT UNIQUE REFERENCES MANAGED_RESOURCE(id) ON DELETE SET NULL
+                            managed_resource_id BIGINT UNIQUE REFERENCES MANAGED_RESOURCE(id) ON DELETE SET NULL,
+                            auto_created BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- 사용자-그룹 조인 테이블
@@ -236,4 +237,63 @@ CREATE TABLE DOCUMENT (
                           owner_username VARCHAR(255) NOT NULL,
                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                           updated_at TIMESTAMP
+);
+-- Password History
+CREATE TABLE IF NOT EXISTS password_history (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    password_hash VARCHAR(512) NOT NULL,
+    changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- System Settings
+CREATE TABLE IF NOT EXISTS system_settings (
+    id BIGSERIAL PRIMARY KEY,
+    audit_log_retention_days INT NOT NULL DEFAULT 90,
+    default_role VARCHAR(100) NOT NULL DEFAULT 'ROLE_USER',
+    policy_combining_algorithm VARCHAR(50) NOT NULL DEFAULT 'FIRST_APPLICABLE',
+    registration_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Admin Menu
+CREATE TABLE IF NOT EXISTS admin_menu (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    url VARCHAR(255),
+    icon VARCHAR(2000),
+    parent_id BIGINT,
+    menu_order INT NOT NULL DEFAULT 0,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    menu_type VARCHAR(20) NOT NULL DEFAULT 'CORE',
+    data_page VARCHAR(50)
+);
+
+-- Admin Menu Role Mapping
+CREATE TABLE IF NOT EXISTS admin_menu_role (
+    id BIGSERIAL PRIMARY KEY,
+    menu_id BIGINT NOT NULL REFERENCES admin_menu(id) ON DELETE CASCADE,
+    role_name VARCHAR(100) NOT NULL,
+    UNIQUE(menu_id, role_name)
+);
+
+-- User-Role CRUD Permission (activated CRUD per user-role)
+CREATE TABLE IF NOT EXISTS user_role_permissions (
+    user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id       BIGINT NOT NULL REFERENCES role(role_id) ON DELETE CASCADE,
+    permission_id BIGINT NOT NULL REFERENCES permission(permission_id) ON DELETE CASCADE,
+    assigned_at   TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    assigned_by   VARCHAR(100),
+    PRIMARY KEY (user_id, role_id, permission_id)
+);
+
+-- Group-Role CRUD Permission (activated CRUD per group-role)
+CREATE TABLE IF NOT EXISTS group_role_permissions (
+    group_id      BIGINT NOT NULL REFERENCES app_group(group_id) ON DELETE CASCADE,
+    role_id       BIGINT NOT NULL REFERENCES role(role_id) ON DELETE CASCADE,
+    permission_id BIGINT NOT NULL REFERENCES permission(permission_id) ON DELETE CASCADE,
+    assigned_at   TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    assigned_by   VARCHAR(100),
+    PRIMARY KEY (group_id, role_id, permission_id)
 );

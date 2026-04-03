@@ -45,15 +45,18 @@ class CustomDynamicAuthorizationManagerCombiningTest {
     @Mock private CentralAuditFacade centralAuditFacade;
 
     private CustomDynamicAuthorizationManager createManager(CombiningAlgorithm algorithm) {
-        return new CustomDynamicAuthorizationManager(
+        CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
                 contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
-                new PolicyCombiningEvaluator(), algorithm);
+                new PolicyCombiningEvaluator());
+        manager.setCombiningAlgorithm(algorithm);
+        return manager;
     }
 
     private Policy buildPolicy(Long id, String name, Policy.Effect effect, int priority,
                                 String path, String condition) {
-        Policy policy = Policy.builder().id(id).name(name).effect(effect).priority(priority).build();
+        Policy policy = Policy.builder().id(id).name(name).effect(effect).priority(priority)
+                .isActive(true).approvalStatus(Policy.ApprovalStatus.APPROVED).build();
         PolicyTarget target = PolicyTarget.builder()
                 .policy(policy).targetType("URL").targetIdentifier(path).build();
         policy.getTargets().add(target);

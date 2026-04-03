@@ -88,6 +88,11 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
     }
 
     private Flux<String> processRequestAsyncStream(PolicyGenerationRequest request) {
+        try {
+            vectorService.storePolicyGenerationRequest(request);
+        } catch (Exception e) {
+            log.error("Vector store request storage failed (streaming)", e);
+        }
         return Flux.defer(() -> {
             try {
                 PolicyGenerationRequest enrichedRequest = enrichRequest(request, true);
@@ -114,9 +119,20 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             request.setAvailableItems(availableItems);
         }
 
-        String formattedData = buildSystemMetadataFromAvailableItems(request.getAvailableItems());
-        request.withParameter("iamDataContext", formattedData);
-        request.withParameter("systemMetadata", formattedData);
+        // Collect DB context: existing policies + role hierarchy (not available items - those go in UserPrompt)
+        StringBuilder dbContext = new StringBuilder();
+        String existingPolicies = dataCollectionService.collectExistingPoliciesSummary();
+        if (!existingPolicies.isEmpty()) {
+            dbContext.append("[Existing Policies (avoid conflicts and duplicates)]\n").append(existingPolicies);
+        }
+        String roleHierarchy = dataCollectionService.collectRoleHierarchy();
+        if (!roleHierarchy.isEmpty()) {
+            dbContext.append("\n[Role Hierarchy (higher roles inherit lower role permissions)]\n").append(roleHierarchy).append("\n");
+        }
+
+        if (!dbContext.isEmpty()) {
+            request.withParameter("iamDataContext", dbContext.toString());
+        }
         return request;
     }
 

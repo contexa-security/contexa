@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
+            <!-- Header -->
+            <div class="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.menu.management.title}">Menu Management</h1>
+                    <p class="text-dark-muted mt-1" th:text="#{admin.menu.management.subtitle}">Manage admin navigation menus and role-based access</p>
+                </div>
+                <button type="button" onclick="MenuMgmt.openCreateModal()"
+                   class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
+                   style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                    <i class="fas fa-plus mr-1"></i> <span th:text="#{admin.menu.management.add}">Add Menu</span>
+                </button>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="rounded-xl p-4" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);">
+                    <div class="flex items-center gap-3">
+                        <div style="width:2.5rem;height:2.5rem;border-radius:0.75rem;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-bars" style="color:#818cf8;"></i></div>
+                        <div>
+                            <div class="text-2xl font-bold" style="color:#818cf8;" th:text="${#lists.size(menus)}">0</div>
+                            <div class="text-xs" style="color:#94a3b8;" th:text="#{admin.menu.management.stat.total}">Total</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="rounded-xl p-4" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);">
+                    <div class="flex items-center gap-3">
+                        <div style="width:2.5rem;height:2.5rem;border-radius:0.75rem;background:rgba(34,197,94,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-eye" style="color:#4ade80;"></i></div>
+                        <div>
+                            <div class="text-2xl font-bold" style="color:#4ade80;" th:text="${#lists.size(menus.?[enabled])}">0</div>
+                            <div class="text-xs" style="color:#94a3b8;" th:text="#{admin.menu.management.stat.active}">Active</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="rounded-xl p-4" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
+                    <div class="flex items-center gap-3">
+                        <div style="width:2.5rem;height:2.5rem;border-radius:0.75rem;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-eye-slash" style="color:#f87171;"></i></div>
+                        <div>
+                            <div class="text-2xl font-bold" style="color:#f87171;" th:text="${#lists.size(menus.?[!enabled])}">0</div>
+                            <div class="text-xs" style="color:#94a3b8;" th:text="#{admin.menu.management.stat.inactive}">Inactive</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="rounded-xl p-4" style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);">
+                    <div class="flex items-center gap-3">
+                        <div style="width:2.5rem;height:2.5rem;border-radius:0.75rem;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-folder" style="color:#a78bfa;"></i></div>
+                        <div>
+                            <div class="text-2xl font-bold" style="color:#a78bfa;" th:text="${#lists.size(menus.?[parentId == null])}">0</div>
+                            <div class="text-xs" style="color:#94a3b8;" th:text="#{admin.menu.management.stat.groups}">Groups</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Filter -->
+            <div class="mb-6 flex gap-3">
+                <div class="relative flex-1">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
+                    <input type="text" id="menu-search"
+                           class="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm"
+                           style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;"
+                           th:placeholder="#{admin.menu.management.search}" placeholder="Search menu name or URL..."
+                           oninput="MenuMgmt.filterTable(this.value)" />
+                </div>
+                <button type="button" onclick="MenuMgmt.filterTable(document.getElementById('menu-search').value)"
+                        class="px-4 py-2.5 rounded-lg text-sm font-medium text-white"
+                        style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
+                    <i class="fas fa-search mr-1"></i> <span th:text="#{common.action.search}">Search</span>
+                </button>
+                <button type="button" onclick="MenuMgmt.resetFilter()"
+                        class="px-4 py-2.5 rounded-lg text-sm font-medium"
+                        style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
+                        th:text="#{common.action.reset}">Reset</button>
+            </div>
+
+            <!-- Menu Table -->
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full w-full text-sm text-left">
+                    <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.name}">Menu Name</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.url}">URL</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.type}">Type</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.roles}">Roles</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">Source</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.status}">Status</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.actions}">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                        <th:block th:each="menu : ${menus}">
+                            <tr th:data-id="${menu.id}" th:data-parent="${menu.parentId}"
+                                th:class="${menu.parentId != null ? 'menu-child-row' : ''}"
+                                th:style="${menu.parentId != null ? 'border-color:rgba(71,85,105,0.3);display:none;' : 'border-color:rgba(71,85,105,0.3);'}">
+                                <!-- Name -->
+                                <td class="py-4 px-6">
+                                    <div class="flex items-center gap-2" th:style="${menu.parentId != null ? 'padding-left:2.5rem;' : ''}">
+                                        <!--/* Group: chevron */-->
+                                        <button th:if="${parentIds != null and parentIds.contains(menu.id)}" type="button" class="toggle-group-btn" th:data-menu-id="${menu.id}" style="background:none;border:none;cursor:pointer;color:#a78bfa;font-size:1rem;width:1.5rem;padding:0;"><i class="fas fa-chevron-right"></i></button>
+                                        <!--/* DB icon: SVG */-->
+                                        <span th:if="${menu.icon != null and menu.icon.startsWith('<')}" style="display:inline-flex;align-items:center;width:1.25rem;height:1.25rem;color:#a78bfa;" th:utext="${menu.icon}"></span>
+                                        <!--/* DB icon: FA class */-->
+                                        <i th:if="${menu.icon != null and !menu.icon.isBlank() and !menu.icon.startsWith('<')}" th:class="${menu.icon}" style="color:#a78bfa;font-size:0.875rem;"></i>
+                                        <!--/* No icon: fallback */-->
+                                        <i th:if="${menu.icon == null or menu.icon.isBlank()}" class="fas fa-file-alt" style="color:#64748b;font-size:0.7rem;"></i>
+                                        <!--/* Menu name */-->
+                                        <span th:if="${menu.name.startsWith('menu.')}" style="color:#e2e8f0;font-weight:500;" th:text="${#messages.msg(menu.name)}">Menu</span>
+                                        <span th:unless="${menu.name.startsWith('menu.')}" style="color:#e2e8f0;font-weight:500;" th:text="${menu.name}">Menu</span>
+                                    </div>
+                                </td>
+                                <!-- URL -->
+                                <td class="py-4 px-6">
+                                    <span th:if="${menu.url != null}" class="font-mono text-xs" style="color:#94a3b8;" th:text="${menu.url}"></span>
+                                    <span th:if="${menu.url == null}" class="text-xs italic" style="color:#475569;" th:text="#{admin.menu.management.group}">Group</span>
+                                </td>
+                                <!-- Type -->
+                                <td class="py-4 px-6 text-center">
+                                    <span class="text-xs font-bold px-2.5 py-1 rounded-full"
+                                          th:style="${menu.menuType == 'ENTERPRISE' ? 'background:rgba(139,92,246,0.15);color:#a78bfa;' : (menu.menuType == 'SAAS' ? 'background:rgba(34,211,238,0.15);color:#22d3ee;' : 'background:rgba(99,102,241,0.15);color:#818cf8;')}"
+                                          th:text="${menu.menuType}">CORE</span>
+                                </td>
+                                <!-- Roles -->
+                                <td class="py-4 px-6 text-center">
+                                    <span th:if="${menu.roles.isEmpty()}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">ALL</span>
+                                    <div th:if="${!menu.roles.isEmpty()}" style="display:flex;gap:0.25rem;flex-wrap:wrap;justify-content:center;">
+                                        <span th:each="role : ${menu.roles}" class="text-xs px-1.5 py-0.5 rounded menu-role-badge" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);" th:data-role="${role.roleName}" th:text="${role.roleName}">ROLE</span>
+                                    </div>
+                                </td>
+                                <!-- Source -->
+                                <td class="py-4 px-6 text-center">
+                                    <span th:if="${menu.name.startsWith('menu.')}" class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);">System</span>
+                                    <span th:unless="${menu.name.startsWith('menu.')}" class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">Custom</span>
+                                </td>
+                                <!-- Status -->
+                                <td class="py-4 px-6 text-center">
+                                    <span th:if="${menu.enabled}" class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">
+                                        <i class="fas fa-circle" style="font-size:0.4rem;"></i> <span th:text="#{admin.menu.management.active}">Active</span>
+                                    </span>
+                                    <span th:if="${!menu.enabled}" class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full" style="background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2);">
+                                        <i class="fas fa-circle" style="font-size:0.4rem;"></i> <span th:text="#{admin.menu.management.inactive}">Inactive</span>
+                                    </span>
+                                </td>
+                                <!-- Actions -->
+                                <td class="py-4 px-6 text-center">
+                                    <div style="display:flex;gap:0.375rem;justify-content:center;flex-wrap:wrap;">
+                                        <button type="button" th:onclick="'MenuMgmt.openEditModal(' + ${menu.id} + ')'" class="text-xs px-3 py-1.5 rounded-lg" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.25);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(99,102,241,0.25)'" onmouseout="this.style.background='rgba(99,102,241,0.12)'"><i class="fas fa-pen mr-1"></i><span th:text="#{common.edit}">Edit</span></button>
+                                        <button type="button" th:onclick="'MenuMgmt.openRoleModal(' + ${menu.id} + ')'" class="text-xs px-3 py-1.5 rounded-lg" style="background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.25);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(167,139,250,0.25)'" onmouseout="this.style.background='rgba(167,139,250,0.12)'"><i class="fas fa-user-tag mr-1"></i><span th:text="#{admin.menu.management.col.roles}">Roles</span></button>
+                                        <button type="button" th:onclick="'MenuMgmt.toggle(' + ${menu.id} + ')'" class="text-xs px-3 py-1.5 rounded-lg" th:style="${menu.enabled ? 'background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);cursor:pointer;transition:all 0.2s;' : 'background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);cursor:pointer;transition:all 0.2s;'}"><i th:class="${menu.enabled ? 'fas fa-toggle-on mr-1' : 'fas fa-toggle-off mr-1'}"></i><span th:if="${menu.enabled}" th:text="#{admin.menu.management.active}">Active</span><span th:if="${!menu.enabled}" th:text="#{admin.menu.management.inactive}">Inactive</span></button>
+                                        <button th:unless="${menu.name.startsWith('menu.')}" type="button" th:onclick="'MenuMgmt.confirmDelete(' + ${menu.id} + ')'" class="text-xs px-3 py-1.5 rounded-lg" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.25)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'"><i class="fas fa-trash mr-1"></i><span th:text="#{common.delete}">Delete</span></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </th:block>
+                        <tr th:if="${#lists.isEmpty(menus)}">
+                            <td colspan="7" class="py-12 text-center" style="color:#64748b;">
+                                <i class="fas fa-inbox text-3xl mb-3" style="display:block;color:#475569;"></i>
+                                <span th:text="#{admin.menu.management.empty}">No menus configured</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- ===== Create/Edit Modal ===== -->
+<div id="menu-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
+    <div class="rounded-2xl" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(99,102,241,0.25);width:36rem;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid rgba(71,85,105,0.2);">
+            <div class="flex items-center gap-3">
+                <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.2));display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-sitemap" style="color:#818cf8;"></i>
+                </div>
+                <h3 id="menu-modal-title" class="text-lg font-bold" style="color:#e2e8f0;"></h3>
+            </div>
+            <button type="button" onclick="MenuMgmt.closeModal()" style="width:2rem;height:2rem;border-radius:0.5rem;background:rgba(71,85,105,0.3);border:1px solid rgba(71,85,105,0.4);color:#94a3b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(71,85,105,0.3)';this.style.color='#94a3b8'">&times;</button>
+        </div>
+        <!-- Modal Body -->
+        <div class="p-6 space-y-4">
+            <input type="hidden" id="menu-edit-id" />
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.name}">Menu Name</label>
+                    <input type="text" id="menu-name" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="User Management" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;">URL</label>
+                    <input type="text" id="menu-url" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="/admin/users" />
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.parent}">Parent Menu</label>
+                    <select id="menu-parent" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;">
+                        <option value="">-- None (Top Level) --</option>
+                        <th:block th:each="m : ${menus}">
+                            <option th:if="${m.parentId == null}" th:value="${m.id}" th:text="${m.name.startsWith('menu.') ? #messages.msg(m.name) : m.name}"></option>
+                        </th:block>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.type}">Menu Type</label>
+                    <select id="menu-type" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;">
+                        <option value="CORE">CORE</option>
+                        <option value="ENTERPRISE">ENTERPRISE</option>
+                        <option value="SAAS">SAAS</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.order}">Display Order</label>
+                    <input type="number" id="menu-order" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" value="0" min="0" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;">Data Page</label>
+                    <input type="text" id="menu-datapage" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="users" />
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.icon}">Icon</label>
+                <input type="hidden" id="menu-icon" />
+                <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                    <div id="icon-preview" style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);display:flex;align-items:center;justify-content:center;color:#818cf8;font-size:1.25rem;">
+                        <i class="fas fa-question"></i>
+                    </div>
+                    <button type="button" onclick="MenuMgmt.toggleIconPicker()" class="px-3 py-1.5 rounded-lg text-xs" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.25);cursor:pointer;">Select Icon</button>
+                    <span id="icon-name" class="text-xs" style="color:#64748b;"></span>
+                </div>
+                <div id="icon-picker" style="display:none;padding:0.75rem;border-radius:0.5rem;background:rgba(15,23,42,0.8);border:1px solid rgba(71,85,105,0.3);max-height:12rem;overflow-y:auto;">
+                    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:0.375rem;" id="icon-grid"></div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <input type="checkbox" id="menu-enabled" checked style="accent-color:#6366f1;width:1.125rem;height:1.125rem;" />
+                <label for="menu-enabled" class="text-sm" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.enabled}">Enabled</label>
+            </div>
+        </div>
+        <!-- Modal Footer -->
+        <div class="flex justify-end gap-3 px-6 py-4" style="border-top:1px solid rgba(71,85,105,0.2);background:rgba(15,23,42,0.3);border-radius:0 0 1rem 1rem;">
+            <button type="button" onclick="MenuMgmt.closeModal()" class="px-4 py-2 rounded-lg text-sm" style="background:rgba(71,85,105,0.3);color:#94a3b8;border:1px solid rgba(71,85,105,0.4);cursor:pointer;" th:text="#{common.cancel}">Cancel</button>
+            <button type="button" onclick="MenuMgmt.saveMenu()" class="px-5 py-2 rounded-lg text-sm font-semibold text-white" style="background:linear-gradient(135deg,#4f46e5,#6366f1);cursor:pointer;"><i class="fas fa-save mr-1"></i> <span th:text="#{common.save}">Save</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Role Assignment Modal ===== -->
+<div id="role-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
+    <div class="rounded-2xl" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(167,139,250,0.25);width:32rem;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+        <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid rgba(71,85,105,0.2);">
+            <div class="flex items-center gap-3">
+                <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;"><i class="fas fa-user-tag" style="color:#a78bfa;"></i></div>
+                <h3 class="text-lg font-bold" style="color:#e2e8f0;" th:text="#{admin.menu.management.assign.roles}">Assign Roles</h3>
+            </div>
+            <button type="button" onclick="MenuMgmt.closeRoleModal()" style="width:2rem;height:2rem;border-radius:0.5rem;background:rgba(71,85,105,0.3);border:1px solid rgba(71,85,105,0.4);color:#94a3b8;display:flex;align-items:center;justify-content:center;cursor:pointer;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(71,85,105,0.3)';this.style.color='#94a3b8'">&times;</button>
+        </div>
+        <div class="p-6">
+            <p class="text-sm mb-4" style="color:#94a3b8;" th:text="#{admin.menu.management.assign.roles.desc}">Empty = visible to all users.</p>
+            <div id="role-checkboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                <label th:each="role : ${allRoles}" style="display:flex;align-items:center;gap:0.5rem;padding:0.625rem 0.75rem;border-radius:0.5rem;background:rgba(30,41,59,0.5);border:1px solid rgba(71,85,105,0.2);cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='rgba(99,102,241,0.08)'" onmouseout="this.style.background='rgba(30,41,59,0.5)'">
+                    <input type="checkbox" class="role-cb" th:value="${role.roleName}" style="accent-color:#6366f1;width:1rem;height:1rem;" />
+                    <span class="text-sm" style="color:#cbd5e1;" th:text="${role.roleName}">ROLE</span>
+                </label>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4" style="border-top:1px solid rgba(71,85,105,0.2);background:rgba(15,23,42,0.3);border-radius:0 0 1rem 1rem;">
+            <button type="button" onclick="MenuMgmt.closeRoleModal()" class="px-4 py-2 rounded-lg text-sm" style="background:rgba(71,85,105,0.3);color:#94a3b8;border:1px solid rgba(71,85,105,0.4);cursor:pointer;" th:text="#{common.cancel}">Cancel</button>
+            <button type="button" onclick="MenuMgmt.saveRoles()" class="px-5 py-2 rounded-lg text-sm font-semibold text-white" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);cursor:pointer;"><i class="fas fa-save mr-1"></i> <span th:text="#{common.save}">Save</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Delete Confirmation Modal ===== -->
+<div id="delete-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
+    <div class="rounded-2xl p-6" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(239,68,68,0.25);width:28rem;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+        <div class="text-center mb-5">
+            <div style="width:3.5rem;height:3.5rem;border-radius:1rem;background:rgba(239,68,68,0.15);display:inline-flex;align-items:center;justify-content:center;margin-bottom:1rem;"><i class="fas fa-trash-alt" style="color:#f87171;font-size:1.5rem;"></i></div>
+            <h3 class="text-lg font-bold" style="color:#e2e8f0;" th:text="#{admin.menu.management.delete.title}">Delete Menu</h3>
+            <p class="text-sm mt-2" style="color:#94a3b8;" th:text="#{admin.menu.management.delete.confirm}">Are you sure? This cannot be undone.</p>
+        </div>
+        <div class="flex justify-center gap-3">
+            <button type="button" onclick="MenuMgmt.closeDeleteModal()" class="px-5 py-2 rounded-lg text-sm" style="background:rgba(71,85,105,0.3);color:#94a3b8;border:1px solid rgba(71,85,105,0.4);cursor:pointer;" th:text="#{common.cancel}">Cancel</button>
+            <button type="button" onclick="MenuMgmt.executeDelete()" class="px-5 py-2 rounded-lg text-sm font-semibold text-white" style="background:linear-gradient(135deg,#dc2626,#ef4444);cursor:pointer;"><i class="fas fa-trash mr-1"></i> <span th:text="#{common.delete}">Delete</span></button>
+        </div>
+    </div>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<div id="menu-i18n" style="display:none" th:data-add="#{admin.menu.management.add}" th:data-edit="#{admin.menu.management.field.edit}"></div>
+<script th:src="@{/js/toast.js}"></script>
+<script>
+var MenuMgmt = {
+    _currentMenuId: null,
+    _deleteMenuId: null,
+    _csrfToken: function() { return document.querySelector('meta[name="_csrf"]')?.content; },
+    _csrfHeader: function() { return document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN'; },
+    _handleError: function(err) {
+        console.error('[MenuMgmt] Request failed:', err);
+        if (typeof showToast === 'function') {
+            showToast('Operation failed: ' + (err.message || 'Unknown error'), 'error');
+        }
+    },
+    _checkResponse: function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r;
+    },
+
+    // Create/Edit Modal
+    openCreateModal: function() {
+        document.getElementById('menu-modal-title').textContent = document.getElementById('menu-i18n').dataset.add || 'Add Menu';
+        document.getElementById('menu-edit-id').value = '';
+        document.getElementById('menu-name').value = '';
+        document.getElementById('menu-url').value = '';
+        var parentSel = document.getElementById('menu-parent');
+        parentSel.value = '';
+        MenuMgmt._syncSelect(parentSel);
+        var typeSel = document.getElementById('menu-type');
+        typeSel.value = 'CORE';
+        MenuMgmt._syncSelect(typeSel);
+        document.getElementById('menu-order').value = '0';
+        document.getElementById('menu-datapage').value = '';
+        document.getElementById('menu-icon').value = '';
+        document.getElementById('icon-preview').innerHTML = '<i class="fas fa-question"></i>';
+        document.getElementById('icon-name').textContent = '';
+        document.getElementById('icon-picker').style.display = 'none';
+        document.getElementById('menu-enabled').checked = true;
+        this._showModal('menu-modal');
+    },
+
+    openEditModal: function(id) {
+        document.getElementById('menu-modal-title').textContent = document.getElementById('menu-i18n').dataset.edit || 'Edit Menu';
+        fetch('/admin/menu-management/api/' + id, {
+            headers: { [this._csrfHeader()]: this._csrfToken() }
+        })
+        .then(function(r) { return MenuMgmt._checkResponse(r).json(); })
+        .then(function(m) {
+            document.getElementById('menu-edit-id').value = m.id;
+            document.getElementById('menu-name').value = m.name || '';
+            document.getElementById('menu-url').value = m.url || '';
+            var parentSel = document.getElementById('menu-parent');
+            parentSel.value = m.parentId != null ? String(m.parentId) : '';
+            MenuMgmt._syncSelect(parentSel);
+            var typeSel = document.getElementById('menu-type');
+            typeSel.value = m.menuType || 'CORE';
+            MenuMgmt._syncSelect(typeSel);
+            document.getElementById('menu-order').value = m.menuOrder || 0;
+            document.getElementById('menu-datapage').value = m.dataPage || '';
+            document.getElementById('menu-icon').value = m.icon || '';
+            if (m.icon && !m.icon.startsWith('<')) {
+                document.getElementById('icon-preview').innerHTML = '<i class="' + m.icon + '"></i>';
+                document.getElementById('icon-name').textContent = m.icon.replace('fas fa-', '');
+            } else {
+                document.getElementById('icon-preview').innerHTML = m.icon ? m.icon : '<i class="fas fa-question"></i>';
+                document.getElementById('icon-name').textContent = m.icon ? 'SVG' : '';
+            }
+            document.getElementById('icon-picker').style.display = 'none';
+            document.getElementById('menu-enabled').checked = m.enabled;
+            MenuMgmt._showModal('menu-modal');
+        })
+        .catch(MenuMgmt._handleError);
+    },
+
+    saveMenu: function() {
+        var id = document.getElementById('menu-edit-id').value;
+        var data = {
+            name: document.getElementById('menu-name').value,
+            url: document.getElementById('menu-url').value || null,
+            parentId: document.getElementById('menu-parent').value || null,
+            menuType: document.getElementById('menu-type').value,
+            menuOrder: document.getElementById('menu-order').value,
+            dataPage: document.getElementById('menu-datapage').value,
+            icon: document.getElementById('menu-icon').value,
+            enabled: String(document.getElementById('menu-enabled').checked)
+        };
+        var method = id ? 'PUT' : 'POST';
+        var url = id ? '/admin/menu-management/api/' + id : '/admin/menu-management/api/create';
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json', [this._csrfHeader()]: this._csrfToken() },
+            body: JSON.stringify(data)
+        })
+        .then(MenuMgmt._checkResponse)
+        .then(function() { MenuMgmt.closeModal(); location.reload(); })
+        .catch(MenuMgmt._handleError);
+    },
+
+    closeModal: function() { this._hideModal('menu-modal'); },
+
+    // Toggle
+    toggle: function(id) {
+        fetch('/admin/menu-management/api/toggle/' + id, {
+            method: 'POST', headers: { [this._csrfHeader()]: this._csrfToken() }
+        })
+        .then(MenuMgmt._checkResponse)
+        .then(function() { location.reload(); })
+        .catch(MenuMgmt._handleError);
+    },
+
+    // Delete
+    confirmDelete: function(id) {
+        this._deleteMenuId = id;
+        this._showModal('delete-modal');
+    },
+    executeDelete: function() {
+        fetch('/admin/menu-management/api/' + this._deleteMenuId, {
+            method: 'DELETE', headers: { [this._csrfHeader()]: this._csrfToken() }
+        })
+        .then(MenuMgmt._checkResponse)
+        .then(function() { MenuMgmt.closeDeleteModal(); location.reload(); })
+        .catch(MenuMgmt._handleError);
+    },
+    closeDeleteModal: function() { this._hideModal('delete-modal'); this._deleteMenuId = null; },
+
+    // Roles
+    openRoleModal: function(id) {
+        this._currentMenuId = id;
+        var row = document.querySelector('[data-id="' + id + '"]');
+        var currentRoles = [];
+        if (row) row.querySelectorAll('.menu-role-badge').forEach(function(el) { currentRoles.push(el.dataset.role); });
+        document.querySelectorAll('.role-cb').forEach(function(cb) { cb.checked = currentRoles.includes(cb.value); });
+        this._showModal('role-modal');
+    },
+    saveRoles: function() {
+        var roles = [];
+        document.querySelectorAll('.role-cb:checked').forEach(function(cb) { roles.push(cb.value); });
+        fetch('/admin/menu-management/api/roles/' + this._currentMenuId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', [this._csrfHeader()]: this._csrfToken() },
+            body: JSON.stringify({ roles: roles })
+        })
+        .then(MenuMgmt._checkResponse)
+        .then(function() { MenuMgmt.closeRoleModal(); location.reload(); })
+        .catch(MenuMgmt._handleError);
+    },
+    closeRoleModal: function() { this._hideModal('role-modal'); this._currentMenuId = null; },
+
+    // Group toggle
+    toggleGroup: function(parentId, btn) {
+        var selector = 'tr[data-parent="' + parentId + '"]';
+        var rows = document.querySelectorAll(selector);
+        var icon = btn.querySelector('i');
+        var expanded = icon.classList.contains('fa-chevron-down');
+        var keyword = (document.getElementById('menu-search').value || '').toLowerCase();
+
+        rows.forEach(function(row) {
+            if (expanded) {
+                // collapsing: always hide
+                row.style.display = 'none';
+            } else if (keyword) {
+                // expanding during search: show only matching children
+                var name = (row.querySelector('td:first-child')?.textContent || '').toLowerCase();
+                var url = (row.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
+                row.style.display = (name.includes(keyword) || url.includes(keyword)) ? '' : 'none';
+            } else {
+                // expanding normally: show all
+                row.style.display = '';
+            }
+        });
+        icon.classList.toggle('fa-chevron-right', expanded);
+        icon.classList.toggle('fa-chevron-down', !expanded);
+    },
+
+    // Search/Filter
+    filterTable: function(keyword) {
+        var lc = (keyword || '').toLowerCase();
+        if (!lc) {
+            this.resetFilter();
+            return;
+        }
+        var rows = document.querySelectorAll('tbody tr[data-id]');
+        var visibleParents = new Set();
+
+        // Pass 1: find matching rows and collect parent IDs that need to be visible
+        rows.forEach(function(row) {
+            var name = (row.querySelector('td:first-child')?.textContent || '').toLowerCase();
+            var url = (row.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
+            var match = name.includes(lc) || url.includes(lc);
+            var parentAttr = row.getAttribute('data-parent');
+            if (match && parentAttr) {
+                visibleParents.add(parentAttr);
+            }
+        });
+
+        // Pass 2: show/hide rows
+        rows.forEach(function(row) {
+            var name = (row.querySelector('td:first-child')?.textContent || '').toLowerCase();
+            var url = (row.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
+            var match = name.includes(lc) || url.includes(lc);
+            var parentAttr = row.getAttribute('data-parent');
+            var rowId = row.getAttribute('data-id');
+
+            if (!parentAttr) {
+                // parent row: show if itself matches OR has matching children
+                row.style.display = (match || visibleParents.has(rowId)) ? '' : 'none';
+            } else {
+                // child row: show if matches
+                row.style.display = match ? '' : 'none';
+            }
+        });
+    },
+
+    resetFilter: function() {
+        document.getElementById('menu-search').value = '';
+        document.querySelectorAll('tbody tr[data-id]').forEach(function(row) {
+            var isChild = row.getAttribute('data-parent');
+            row.style.display = isChild ? 'none' : '';
+        });
+        // reset all chevrons to collapsed
+        document.querySelectorAll('.toggle-group-btn i').forEach(function(icon) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        });
+    },
+
+    // Icon Picker
+    _iconList: [
+        'fas fa-home','fas fa-users','fas fa-user-shield','fas fa-shield-alt',
+        'fas fa-key','fas fa-cog','fas fa-cogs','fas fa-chart-bar',
+        'fas fa-chart-line','fas fa-folder','fas fa-file-alt','fas fa-lock',
+        'fas fa-unlock','fas fa-globe','fas fa-database','fas fa-server',
+        'fas fa-code','fas fa-terminal','fas fa-bell','fas fa-envelope',
+        'fas fa-link','fas fa-search','fas fa-eye','fas fa-building',
+        'fas fa-cloud','fas fa-bolt','fas fa-palette','fas fa-puzzle-piece',
+        'fas fa-tools','fas fa-sitemap'
+    ],
+    _iconPickerInit: false,
+
+    toggleIconPicker: function() {
+        var picker = document.getElementById('icon-picker');
+        if (!this._iconPickerInit) {
+            var grid = document.getElementById('icon-grid');
+            this._iconList.forEach(function(cls) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.style.cssText = 'width:2.25rem;height:2.25rem;border-radius:0.375rem;background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:all 0.15s;';
+                btn.innerHTML = '<i class="' + cls + '"></i>';
+                btn.title = cls.replace('fas fa-', '');
+                btn.addEventListener('click', function() { MenuMgmt.selectIcon(cls); });
+                btn.addEventListener('mouseover', function() { this.style.borderColor='#6366f1'; this.style.color='#818cf8'; });
+                btn.addEventListener('mouseout', function() {
+                    var sel = document.getElementById('menu-icon').value;
+                    if (sel !== cls) { this.style.borderColor='rgba(71,85,105,0.3)'; this.style.color='#94a3b8'; }
+                });
+                grid.appendChild(btn);
+            });
+            this._iconPickerInit = true;
+        }
+        picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+    },
+
+    selectIcon: function(cls) {
+        document.getElementById('menu-icon').value = cls;
+        document.getElementById('icon-preview').innerHTML = '<i class="' + cls + '"></i>';
+        document.getElementById('icon-name').textContent = cls.replace('fas fa-', '');
+        document.getElementById('icon-picker').style.display = 'none';
+        // highlight selected in grid
+        document.querySelectorAll('#icon-grid button').forEach(function(b) {
+            var isCurrent = b.querySelector('i').className === cls;
+            b.style.borderColor = isCurrent ? '#6366f1' : 'rgba(71,85,105,0.3)';
+            b.style.color = isCurrent ? '#818cf8' : '#94a3b8';
+        });
+    },
+
+    // Sync custom select UI after programmatic value change
+    _syncSelect: function(sel) {
+        if (!sel) return;
+        var wrapper = sel.closest('.custom-select-wrapper');
+        if (!wrapper) return;
+        var label = wrapper.querySelector('.cs-label');
+        if (!label) return;
+        var opt = sel.options[sel.selectedIndex];
+        if (opt) {
+            label.textContent = opt.textContent;
+            label.classList.toggle('cs-placeholder', opt.value === '');
+        }
+        var panel = wrapper.querySelector('.custom-select-options');
+        if (panel) {
+            panel.querySelectorAll('.custom-select-option').forEach(function(o) {
+                o.classList.toggle('selected', o.getAttribute('data-value') === sel.value);
+            });
+        }
+    },
+
+    // Helpers
+    _showModal: function(id) { var m = document.getElementById(id); m.classList.remove('hidden'); m.style.display = 'flex'; },
+    _hideModal: function(id) { var m = document.getElementById(id); m.classList.add('hidden'); m.style.display = 'none'; }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    var allRows = document.querySelectorAll('tbody tr[data-id]');
+
+    allRows.forEach(function(row) {
+        var parentAttr = row.getAttribute('data-parent');
+        var btn = row.querySelector('.toggle-group-btn');
+        var rowId = row.getAttribute('data-id');
+
+        // Only bind click on rows that have a toggle button (actual groups with children)
+        if (btn) {
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('td:last-child')) {
+                    return;
+                }
+                var menuId = this.getAttribute('data-id');
+                var toggleBtn = this.querySelector('.toggle-group-btn');
+                MenuMgmt.toggleGroup(menuId, toggleBtn);
+            });
+        }
+    });
+});
+</script>
+</body>
+</html>

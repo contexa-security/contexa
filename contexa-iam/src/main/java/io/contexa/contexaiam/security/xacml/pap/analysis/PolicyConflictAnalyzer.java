@@ -6,6 +6,8 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto.Severity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.util.AntPathMatcher;
 
 import java.util.ArrayList;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class PolicyConflictAnalyzer {
 
     private final PolicyRepository policyRepository;
+    private final MessageSource messageSource;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     /**
@@ -202,18 +205,22 @@ public class PolicyConflictAnalyzer {
     private String buildConflictDescription(TargetOverlap overlap, Policy.Effect candidateEffect,
                                              Policy.Effect existingEffect) {
         String overlapDesc = switch (overlap.type) {
-            case EXACT -> "Exact target match";
-            case WILDCARD -> "Wildcard pattern overlap";
-            case METHOD_PARTIAL -> "HTTP method overlap (ANY vs specific)";
-            default -> "Potential overlap";
+            case EXACT -> i18n("msg.policy.conflict.exact");
+            case WILDCARD -> i18n("msg.policy.conflict.wildcard");
+            case METHOD_PARTIAL -> i18n("msg.policy.conflict.method");
+            default -> i18n("msg.policy.conflict.potential");
         };
 
-        return String.format("%s effect conflicts with %s effect. %s: [%s %s] vs [%s %s]",
+        return i18n("msg.policy.conflict.description",
                 candidateEffect, existingEffect, overlapDesc,
                 overlap.candidate.httpMethod != null ? overlap.candidate.httpMethod : "ANY",
                 overlap.candidate.identifier,
                 overlap.existing.httpMethod != null ? overlap.existing.httpMethod : "ANY",
                 overlap.existing.identifier);
+    }
+
+    private String i18n(String code, Object... args) {
+        return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
     }
 
     private boolean isSamePolicy(Policy candidate, Policy existing) {

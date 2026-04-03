@@ -28,6 +28,8 @@ public class AccessCenterController {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final RoleService roleService;
+    private final UserRolePermissionRepository userRolePermissionRepository;
+    private final GroupRolePermissionRepository groupRolePermissionRepository;
 
     // ==================== Main Page ====================
 
@@ -199,24 +201,78 @@ public class AccessCenterController {
 
     // ==================== User-Role Direct Assignment ====================
 
+    /**
+     * Update user direct roles with CRUD permission selections.
+     * Request body: { "roleAssignments": [ { "roleId": 1, "crudPermissions": ["READ", "DELETE"] } ] }
+     * Backward compatible: also accepts { "roleIds": [1, 2] } (assigns all role CRUDs)
+     */
     @PostMapping("/api/users/{userId}/roles")
     @ResponseBody
+    @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> updateUserDirectRoles(
             @PathVariable Long userId,
-            @RequestBody Map<String, List<Long>> body) {
+            @RequestBody Map<String, Object> body) {
         try {
-            List<Long> roleIds = body.getOrDefault("roleIds", Collections.emptyList());
             Users user = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+            String principal = extractCurrentUsername();
 
+            // Clear existing role assignments and CRUD permissions
             user.getUserRoles().clear();
-            roleIds.forEach(rid -> {
-                Role role = roleRepository.findById(rid)
-                        .orElseThrow(() -> new IllegalArgumentException("Role not found: " + rid));
-                user.getUserRoles().add(UserRole.builder().user(user).role(role).build());
-            });
-            userRepository.save(user);
+            userRolePermissionRepository.deleteByUserId(userId);
+            userRolePermissionRepository.flush();
 
+            // New format: roleAssignments with CRUD selections
+            List<Map<String, Object>> assignments = (List<Map<String, Object>>) body.get("roleAssignments");
+            if (assignments != null) {
+                for (Map<String, Object> assignment : assignments) {
+                    Long roleId = Long.valueOf(assignment.get("roleId").toString());
+                    List<String> cruds = (List<String>) assignment.getOrDefault("crudPermissions", List.of("READ"));
+
+                    Role role = roleRepository.findById(roleId)
+                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
+                    user.getUserRoles().add(UserRole.builder().user(user).role(role).build());
+
+                    // Ensure READ is always included
+                    Set<String> crudSet = new HashSet<>(cruds);
+                    crudSet.add("READ");
+
+                    for (String crud : crudSet) {
+                        Permission perm = permissionRepository.findByName(crud).orElse(null);
+                        if (perm != null) {
+                            UserRolePermission urp = new UserRolePermission();
+                            urp.setUser(user);
+                            urp.setRole(role);
+                            urp.setPermission(perm);
+                            urp.setAssignedBy(principal);
+                            userRolePermissionRepository.save(urp);
+                        }
+                    }
+                }
+            } else {
+                // Backward compatible: simple roleIds list (all CRUDs from role_permissions)
+                List<Number> roleIds = (List<Number>) body.getOrDefault("roleIds", Collections.emptyList());
+                for (Number rid : roleIds) {
+                    Role role = roleRepository.findById(rid.longValue())
+                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + rid));
+                    user.getUserRoles().add(UserRole.builder().user(user).role(role).build());
+
+                    // Assign all CRUD permissions the role has
+                    role.getRolePermissions().forEach(rp -> {
+                        Permission perm = rp.getPermission();
+                        if (perm != null && "CRUD".equals(perm.getTargetType())) {
+                            UserRolePermission urp = new UserRolePermission();
+                            urp.setUser(user);
+                            urp.setRole(role);
+                            urp.setPermission(perm);
+                            urp.setAssignedBy(principal);
+                            userRolePermissionRepository.save(urp);
+                        }
+                    });
+                }
+            }
+
+            userRepository.save(user);
             return ResponseEntity.ok(Map.of("success", true, "message", "Direct roles updated successfully."));
         } catch (Exception e) {
             log.error("Failed to update user direct roles", e);
@@ -275,19 +331,65 @@ public class AccessCenterController {
 
     @PostMapping("/api/groups/{groupId}/roles")
     @ResponseBody
+    @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> updateGroupRoles(
             @PathVariable Long groupId,
-            @RequestBody Map<String, List<Long>> body) {
+            @RequestBody Map<String, Object> body) {
         try {
-            List<Long> roleIds = body.getOrDefault("roleIds", Collections.emptyList());
             Group group = groupRepository.findById(groupId)
                     .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
+            String principal = extractCurrentUsername();
+
             group.getGroupRoles().clear();
-            roleIds.forEach(rid -> {
-                Role role = roleRepository.findById(rid)
-                        .orElseThrow(() -> new IllegalArgumentException("Role not found: " + rid));
-                group.getGroupRoles().add(GroupRole.builder().group(group).role(role).build());
-            });
+            groupRolePermissionRepository.deleteByGroupId(groupId);
+            groupRolePermissionRepository.flush();
+
+            List<Map<String, Object>> assignments = (List<Map<String, Object>>) body.get("roleAssignments");
+            if (assignments != null) {
+                for (Map<String, Object> assignment : assignments) {
+                    Long roleId = Long.valueOf(assignment.get("roleId").toString());
+                    List<String> cruds = (List<String>) assignment.getOrDefault("crudPermissions", List.of("READ"));
+
+                    Role role = roleRepository.findById(roleId)
+                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
+                    group.getGroupRoles().add(GroupRole.builder().group(group).role(role).build());
+
+                    Set<String> crudSet = new HashSet<>(cruds);
+                    crudSet.add("READ");
+
+                    for (String crud : crudSet) {
+                        Permission perm = permissionRepository.findByName(crud).orElse(null);
+                        if (perm != null) {
+                            GroupRolePermission grp = new GroupRolePermission();
+                            grp.setGroup(group);
+                            grp.setRole(role);
+                            grp.setPermission(perm);
+                            grp.setAssignedBy(principal);
+                            groupRolePermissionRepository.save(grp);
+                        }
+                    }
+                }
+            } else {
+                List<Number> roleIds = (List<Number>) body.getOrDefault("roleIds", Collections.emptyList());
+                for (Number rid : roleIds) {
+                    Role role = roleRepository.findById(rid.longValue())
+                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + rid));
+                    group.getGroupRoles().add(GroupRole.builder().group(group).role(role).build());
+
+                    role.getRolePermissions().forEach(rp -> {
+                        Permission perm = rp.getPermission();
+                        if (perm != null && "CRUD".equals(perm.getTargetType())) {
+                            GroupRolePermission grpPerm = new GroupRolePermission();
+                            grpPerm.setGroup(group);
+                            grpPerm.setRole(role);
+                            grpPerm.setPermission(perm);
+                            grpPerm.setAssignedBy(principal);
+                            groupRolePermissionRepository.save(grpPerm);
+                        }
+                    });
+                }
+            }
+
             groupRepository.save(group);
             return ResponseEntity.ok(Map.of("success", true, "message", "Group roles updated successfully."));
         } catch (Exception e) {
@@ -376,6 +478,15 @@ public class AccessCenterController {
             m.put("id", r.getId());
             m.put("name", r.getRoleName());
             m.put("desc", r.getRoleDesc());
+            // CRUD permissions this role can have (from role_permissions)
+            List<String> cruds = r.getRolePermissions() != null
+                    ? r.getRolePermissions().stream()
+                        .map(rp -> rp.getPermission())
+                        .filter(p -> p != null && "CRUD".equals(p.getTargetType()))
+                        .map(Permission::getName)
+                        .toList()
+                    : List.of();
+            m.put("crudPermissions", cruds.isEmpty() ? List.of("READ", "WRITE", "UPDATE", "DELETE") : cruds);
             return m;
         }).toList();
         return ResponseEntity.ok(roles);
@@ -393,5 +504,34 @@ public class AccessCenterController {
             return m;
         }).toList();
         return ResponseEntity.ok(perms);
+    }
+
+    /**
+     * Get CRUD permissions activated for a specific user-role combination.
+     */
+    @GetMapping("/api/users/{userId}/roles/{roleId}/cruds")
+    @ResponseBody
+    public ResponseEntity<List<String>> getUserRoleCruds(
+            @PathVariable Long userId, @PathVariable Long roleId) {
+        List<String> cruds = userRolePermissionRepository.findByUserIdAndRoleId(userId, roleId)
+                .stream().map(urp -> urp.getPermission().getName()).toList();
+        return ResponseEntity.ok(cruds);
+    }
+
+    /**
+     * Get CRUD permissions activated for a specific group-role combination.
+     */
+    @GetMapping("/api/groups/{groupId}/roles/{roleId}/cruds")
+    @ResponseBody
+    public ResponseEntity<List<String>> getGroupRoleCruds(
+            @PathVariable Long groupId, @PathVariable Long roleId) {
+        List<String> cruds = groupRolePermissionRepository.findByGroupIdAndRoleId(groupId, roleId)
+                .stream().map(grp -> grp.getPermission().getName()).toList();
+        return ResponseEntity.ok(cruds);
+    }
+
+    private String extractCurrentUsername() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "SYSTEM";
     }
 }

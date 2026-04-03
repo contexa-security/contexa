@@ -20,9 +20,12 @@ public class IamAdminAccessCenterAutoConfiguration {
             GroupRepository groupRepository,
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
-            RoleService roleService) {
+            RoleService roleService,
+            UserRolePermissionRepository userRolePermissionRepository,
+            GroupRolePermissionRepository groupRolePermissionRepository) {
         return new AccessCenterController(
                 userRepository, userRoleRepository, groupRepository,
-                roleRepository, permissionRepository, roleService);
+                roleRepository, permissionRepository, roleService,
+                userRolePermissionRepository, groupRolePermissionRepository);
     }
 }

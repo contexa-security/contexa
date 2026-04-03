@@ -11,7 +11,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
-    
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM AuditLog a WHERE a.timestamp < :cutoff")
+    int deleteByTimestampBefore(@Param("cutoff") LocalDateTime cutoff);
+
     List<AuditLog> findTop5ByPrincipalNameOrderByIdDesc(String principalName);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")

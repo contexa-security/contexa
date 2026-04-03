@@ -9,6 +9,8 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ public class PolicyValidationService {
     private final PolicyConflictAnalyzer conflictAnalyzer;
     private final PolicyDuplicateDetector duplicateDetector;
     private final PolicyRepository policyRepository;
+    private final MessageSource messageSource;
 
     /**
      * Validate a candidate policy before creation or update.
@@ -45,11 +48,36 @@ public class PolicyValidationService {
         boolean canCreate = !hasCritical && !hasExactDuplicate;
         String blockedReason = null;
         if (hasCritical) {
-            blockedReason = "CRITICAL conflict detected with existing policy";
+            blockedReason = messageSource.getMessage("msg.policy.validation.blocked.critical",
+                    null, LocaleContextHolder.getLocale());
         } else if (hasExactDuplicate) {
-            blockedReason = "Exact duplicate policy already exists";
+            blockedReason = messageSource.getMessage("msg.policy.validation.blocked.duplicate",
+                    null, LocaleContextHolder.getLocale());
         }
 
+        return new PolicyValidationReport(conflicts, duplicates, canCreate, blockedReason);
+    }
+
+    /**
+     * Validate against a provided list of existing policies (for batch creation).
+     */
+    public PolicyValidationReport validate(Policy candidate, List<Policy> existingPolicies) {
+        List<PolicyConflictDto> conflicts = conflictAnalyzer.analyze(candidate, existingPolicies);
+        List<DuplicatePolicyDto> duplicates = duplicateDetector.detect(candidate, existingPolicies);
+
+        boolean hasCritical = conflicts.stream()
+                .anyMatch(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL);
+        boolean hasExactDuplicate = duplicates.stream()
+                .anyMatch(d -> d.type() == DuplicateType.EXACT);
+        boolean canCreate = !hasCritical && !hasExactDuplicate;
+        String blockedReason = null;
+        if (hasCritical) {
+            blockedReason = messageSource.getMessage("msg.policy.validation.blocked.critical",
+                    null, LocaleContextHolder.getLocale());
+        } else if (hasExactDuplicate) {
+            blockedReason = messageSource.getMessage("msg.policy.validation.blocked.duplicate",
+                    null, LocaleContextHolder.getLocale());
+        }
         return new PolicyValidationReport(conflicts, duplicates, canCreate, blockedReason);
     }
 

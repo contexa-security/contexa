@@ -1,17 +1,40 @@
 package io.contexa.contexaiam.admin.web;
 
+import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
+import org.springframework.lang.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
+
+import java.util.Collections;
+import java.util.List;
 
 @ControllerAdvice(basePackages = "io.contexa")
 public class AdminEnterpriseModelAdvice {
 
     private final boolean enterpriseEnabled;
     private final boolean saasEnabled;
+    @Nullable
+    private final AdminMenuService adminMenuService;
 
-    public AdminEnterpriseModelAdvice(boolean enterpriseEnabled, boolean saasEnabled) {
+    public AdminEnterpriseModelAdvice(boolean enterpriseEnabled, boolean saasEnabled,
+                                      @Nullable AdminMenuService adminMenuService) {
         this.enterpriseEnabled = enterpriseEnabled;
         this.saasEnabled = saasEnabled;
+        this.adminMenuService = adminMenuService;
+    }
+
+    @ModelAttribute("menuTree")
+    public List<AdminMenuService.MenuNode> menuTree() {
+        if (adminMenuService == null) return Collections.emptyList();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return Collections.emptyList();
+        try {
+            return adminMenuService.getMenuTreeForUser(auth.getAuthorities());
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
     }
 
     @ModelAttribute("contexaAdminEnterpriseEnabled")

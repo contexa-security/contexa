@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,13 +38,15 @@ class AIPolicyValidatorTest {
     @Mock private PermissionRepository permissionRepository;
     @Mock private PolicyConflictAnalyzer conflictAnalyzer;
     @Mock private PolicyDuplicateDetector duplicateDetector;
+    @Mock private MessageSource messageSource;
 
     private AIPolicyValidator validator;
 
     @BeforeEach
     void setUp() {
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class))).thenAnswer(inv -> inv.getArgument(0));
         validator = new AIPolicyValidator(roleRepository, permissionRepository,
-                conflictAnalyzer, duplicateDetector);
+                conflictAnalyzer, duplicateDetector, messageSource);
         when(conflictAnalyzer.analyze(any())).thenReturn(List.of());
         when(duplicateDetector.detect(any())).thenReturn(List.of());
     }

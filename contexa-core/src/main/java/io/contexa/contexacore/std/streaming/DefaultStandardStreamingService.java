@@ -39,7 +39,6 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     private final ObjectMapper objectMapper;
 
     @Override
-    @Protectable
     public <C extends DomainContext> Flux<ServerSentEvent<String>> stream(
             AIRequest<C> request,
             AICoreOperations<C> aiProcessor) {

@@ -2,6 +2,7 @@ package io.contexa.contexaiam.security.xacml.pap.analysis;
 
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.authority.AuthorityResolver;
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -18,14 +19,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.AntPathMatcher;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -40,9 +34,14 @@ public class PolicyImpactAnalyzer {
     private final UserRepository userRepository;
     private final PolicyRepository policyRepository;
     private final RoleHierarchy roleHierarchy;
+    private final AuthorityResolver authorityResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
-    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
-    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\('([^']*)'\\)");
+
+    // Support both single quotes and double quotes
+    private static final Pattern HAS_AUTHORITY_PATTERN =
+            Pattern.compile("hasAuthority\\(['\"]([^'\"]*)['\"]\\)");
+    private static final Pattern HAS_ROLE_PATTERN =
+            Pattern.compile("hasRole\\(['\"]([^'\"]*)['\"]\\)");
 
     /**
      * Analyze which users and resources are affected by the candidate policy.
@@ -54,37 +53,46 @@ public class PolicyImpactAnalyzer {
                 .collect(Collectors.toSet());
 
         if (candidateTargetPaths.isEmpty()) {
-            return new PolicyImpactReport(0, List.of(), List.of(), new AccessChangeSummary(0, 0, 0));
+            return new PolicyImpactReport(0, List.of(), List.of(), new AccessChangeSummary(0, 0, 0, 0));
         }
 
-        // Collect existing policies for the same targets
         List<Policy> existingPolicies = policyRepository.findAllWithDetails().stream()
                 .filter(Policy::getIsActive)
                 .toList();
 
-        // Analyze affected resources
         List<AffectedResource> affectedResources = analyzeAffectedResources(candidatePolicy, existingPolicies);
 
-        // Analyze affected users
+        // Pre-compute: which existing policies match each candidate target path
+        Map<String, List<Policy>> policiesByTarget = new HashMap<>();
+        for (String targetPath : candidateTargetPaths) {
+            List<Policy> matching = existingPolicies.stream()
+                    .filter(p -> policyMatchesTarget(p, targetPath))
+                    .toList();
+            policiesByTarget.put(targetPath, matching);
+        }
+
         List<Users> allUsers = userRepository.findAll();
         List<AffectedUser> affectedUsers = new ArrayList<>();
         int gained = 0;
         int lost = 0;
+        int changed = 0;
         int unchanged = 0;
 
         for (Users user : allUsers) {
-            Set<GrantedAuthority> baseAuthorities = initializeAuthorities(user);
-            Collection<? extends GrantedAuthority> expandedAuthorities =
-                    roleHierarchy.getReachableGrantedAuthorities(baseAuthorities);
+            Set<GrantedAuthority> expandedAuthorities = authorityResolver.resolveAuthorities(user);
 
-            boolean userAffected = false;
+            // Per-user: check ALL target paths, determine worst/best change, deduplicate
+            String worstChangeType = null;
+            String firstCurrentAccess = null;
+            String firstNewAccess = null;
+
             for (String targetPath : candidateTargetPaths) {
-                String currentAccess = evaluateAccess(targetPath, expandedAuthorities, existingPolicies);
-                String newAccess = evaluateAccessWithCandidate(targetPath, expandedAuthorities,
-                        existingPolicies, candidatePolicy);
+                List<Policy> matchingPolicies = policiesByTarget.get(targetPath);
+                String currentAccess = evaluateAccess(expandedAuthorities, matchingPolicies);
+                String newAccess = evaluateAccessWithCandidate(
+                        targetPath, expandedAuthorities, matchingPolicies, candidatePolicy);
 
                 if (!currentAccess.equals(newAccess)) {
-                    userAffected = true;
                     String changeType;
                     if ("ALLOW".equals(newAccess) && !"ALLOW".equals(currentAccess)) {
                         changeType = "ACCESS_GAINED";
@@ -93,34 +101,52 @@ public class PolicyImpactAnalyzer {
                     } else {
                         changeType = "CHANGED";
                     }
-
-                    List<String> roleNames = baseAuthorities.stream()
-                            .filter(a -> a instanceof RoleAuthority)
-                            .map(GrantedAuthority::getAuthority)
-                            .toList();
-                    List<String> groupNames = Optional.ofNullable(user.getUserGroups())
-                            .orElse(Collections.emptySet()).stream()
-                            .map(UserGroup::getGroup)
-                            .filter(Objects::nonNull)
-                            .map(Group::getName)
-                            .toList();
-
-                    affectedUsers.add(new AffectedUser(
-                            user.getId(), user.getUsername(), roleNames, groupNames,
-                            currentAccess, newAccess, changeType));
-
-                    if ("ACCESS_GAINED".equals(changeType)) gained++;
-                    else if ("ACCESS_LOST".equals(changeType)) lost++;
+                    // Prioritize: ACCESS_LOST > CHANGED > ACCESS_GAINED
+                    if (worstChangeType == null || changeSeverity(changeType) > changeSeverity(worstChangeType)) {
+                        worstChangeType = changeType;
+                        firstCurrentAccess = currentAccess;
+                        firstNewAccess = newAccess;
+                    }
                 }
             }
-            if (!userAffected) {
+
+            if (worstChangeType != null) {
+                // Add user ONCE with the most severe change
+                List<String> roleNames = expandedAuthorities.stream()
+                        .filter(a -> a instanceof RoleAuthority)
+                        .map(GrantedAuthority::getAuthority)
+                        .toList();
+                List<String> groupNames = Optional.ofNullable(user.getUserGroups())
+                        .orElse(Collections.emptySet()).stream()
+                        .map(UserGroup::getGroup)
+                        .filter(Objects::nonNull)
+                        .map(Group::getName)
+                        .toList();
+
+                affectedUsers.add(new AffectedUser(
+                        user.getId(), user.getUsername(), roleNames, groupNames,
+                        firstCurrentAccess, firstNewAccess, worstChangeType));
+
+                if ("ACCESS_GAINED".equals(worstChangeType)) gained++;
+                else if ("ACCESS_LOST".equals(worstChangeType)) lost++;
+                else changed++;
+            } else {
                 unchanged++;
             }
         }
 
         return new PolicyImpactReport(
                 affectedUsers.size(), affectedUsers, affectedResources,
-                new AccessChangeSummary(gained, lost, unchanged));
+                new AccessChangeSummary(gained, lost, changed, unchanged));
+    }
+
+    private int changeSeverity(String changeType) {
+        return switch (changeType) {
+            case "ACCESS_LOST" -> 3;
+            case "CHANGED" -> 2;
+            case "ACCESS_GAINED" -> 1;
+            default -> 0;
+        };
     }
 
     private List<AffectedResource> analyzeAffectedResources(Policy candidate, List<Policy> existingPolicies) {
@@ -143,23 +169,27 @@ public class PolicyImpactAnalyzer {
         return resources;
     }
 
-    private String evaluateAccess(String targetPath, Collection<? extends GrantedAuthority> authorities,
-                                   List<Policy> policies) {
-        for (Policy policy : policies) {
-            if (policyMatchesTarget(policy, targetPath) && conditionMatches(policy, authorities)) {
+    /**
+     * Evaluate access using pre-filtered matching policies only.
+     */
+    private String evaluateAccess(Collection<? extends GrantedAuthority> authorities,
+                                   List<Policy> matchingPolicies) {
+        for (Policy policy : matchingPolicies) {
+            if (conditionMatches(policy, authorities)) {
                 return policy.getEffect().name();
             }
         }
         return "NONE";
     }
 
-    private String evaluateAccessWithCandidate(String targetPath, Collection<? extends GrantedAuthority> authorities,
-                                                List<Policy> existingPolicies, Policy candidate) {
-        // Candidate first (higher priority for impact analysis)
+    private String evaluateAccessWithCandidate(String targetPath,
+                                                Collection<? extends GrantedAuthority> authorities,
+                                                List<Policy> matchingExistingPolicies,
+                                                Policy candidate) {
         if (policyMatchesTarget(candidate, targetPath) && conditionMatches(candidate, authorities)) {
             return candidate.getEffect().name();
         }
-        return evaluateAccess(targetPath, authorities, existingPolicies);
+        return evaluateAccess(authorities, matchingExistingPolicies);
     }
 
     private boolean policyMatchesTarget(Policy policy, String targetPath) {
@@ -181,25 +211,21 @@ public class PolicyImpactAnalyzer {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toSet());
 
-        // Extract required authorities from policy conditions
         for (var rule : policy.getRules()) {
             boolean allConditionsMet = true;
             for (PolicyCondition condition : rule.getConditions()) {
-                String expr = condition.getExpression();
-                if (!evaluateSimpleCondition(expr, authorityNames)) {
+                if (!evaluateSimpleCondition(condition.getExpression(), authorityNames)) {
                     allConditionsMet = false;
                     break;
                 }
             }
             if (allConditionsMet) return true;
         }
-        // No conditions = permitAll/denyAll depending on effect
         return policy.getRules().isEmpty() || policy.getRules().stream()
                 .allMatch(r -> r.getConditions().isEmpty());
     }
 
     private boolean evaluateSimpleCondition(String expression, Set<String> authorities) {
-        // Extract authority from hasAuthority('X') or hasRole('X')
         var matcher = HAS_AUTHORITY_PATTERN.matcher(expression);
         while (matcher.find()) {
             if (authorities.contains(matcher.group(1))) return true;
@@ -210,9 +236,7 @@ public class PolicyImpactAnalyzer {
             String fullRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
             if (authorities.contains(fullRole)) return true;
         }
-        // permitAll
         if (expression.contains("permitAll")) return true;
-        // AI conditions - assume match for impact analysis
         if (expression.contains("#ai.")) return true;
         return false;
     }
@@ -225,41 +249,4 @@ public class PolicyImpactAnalyzer {
         }
     }
 
-    private Set<GrantedAuthority> initializeAuthorities(Users user) {
-        Set<GrantedAuthority> authorities = new HashSet<>();
-
-        Optional.ofNullable(user.getUserGroups())
-                .orElse(Collections.emptySet()).stream()
-                .map(UserGroup::getGroup)
-                .filter(Objects::nonNull)
-                .flatMap(group -> Optional.ofNullable(group.getGroupRoles())
-                        .orElse(Collections.emptySet()).stream())
-                .map(GroupRole::getRole)
-                .filter(Objects::nonNull)
-                .filter(Role::isEnabled)
-                .forEach(role -> {
-                    authorities.add(new RoleAuthority(role));
-                    Optional.ofNullable(role.getRolePermissions())
-                            .orElse(Collections.emptySet()).stream()
-                            .map(RolePermission::getPermission)
-                            .filter(Objects::nonNull)
-                            .forEach(p -> authorities.add(new PermissionAuthority(p)));
-                });
-
-        Optional.ofNullable(user.getUserRoles())
-                .orElse(Collections.emptySet()).stream()
-                .map(UserRole::getRole)
-                .filter(Objects::nonNull)
-                .filter(Role::isEnabled)
-                .forEach(role -> {
-                    authorities.add(new RoleAuthority(role));
-                    Optional.ofNullable(role.getRolePermissions())
-                            .orElse(Collections.emptySet()).stream()
-                            .map(RolePermission::getPermission)
-                            .filter(Objects::nonNull)
-                            .forEach(p -> authorities.add(new PermissionAuthority(p)));
-                });
-
-        return authorities;
-    }
 }

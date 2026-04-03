@@ -23,4 +23,13 @@ public class IAMDataCollectionService {
     public PolicyGenerationItem.AvailableItems policyCollectData() {
         return policyGenerationCollectionService.collectData();
     }
+
+    @Transactional(readOnly = true)
+    public String collectExistingPoliciesSummary() {
+        return policyGenerationCollectionService.collectExistingPoliciesSummary();
+    }
+
+    public String collectRoleHierarchy() {
+        return policyGenerationCollectionService.collectRoleHierarchy();
+    }
 }

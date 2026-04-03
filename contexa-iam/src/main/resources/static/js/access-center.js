@@ -359,16 +359,68 @@ const AccessCenter = {
                 container.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>등록된 역할이 없습니다.</p></div>';
                 return;
             }
+            var self = this;
             container.innerHTML = allRoles.map(r => {
                 const checked = directRoleIds.includes(String(r.id));
-                return '<label class="ac-checkbox-item' + (checked ? ' checked' : '') + '">' +
-                    '<input type="checkbox" name="userRole" value="' + AccessCenter.escapeHtml(r.id) + '"' +
-                    (checked ? ' checked' : '') +
-                    ' onchange="this.parentElement.classList.toggle(\'checked\', this.checked)">' +
-                    '<div><div>' + AccessCenter.escapeHtml(r.name) + '</div>' +
-                    (r.desc ? '<div class="ac-checkbox-desc">' + AccessCenter.escapeHtml(r.desc) + '</div>' : '') +
-                    '</div></label>';
+                // CRUD permissions the role can have (from role_permissions)
+                const roleCruds = (r.crudPermissions || ['READ','WRITE','UPDATE','DELETE']);
+                const crudLabels = { READ: 'R', WRITE: 'W', UPDATE: 'U', DELETE: 'D' };
+                const crudHtml = roleCruds.map(c => {
+                    const isRead = c === 'READ';
+                    return '<label class="ac-crud-label" title="' + c + '">' +
+                        '<input type="checkbox" class="ac-crud-cb" data-role-id="' + r.id + '" data-crud="' + c + '"' +
+                        (isRead ? ' checked disabled' : '') +
+                        ' style="accent-color:#6366f1;width:0.875rem;height:0.875rem;">' +
+                        '<span style="font-size:0.6875rem;color:' + (isRead ? '#818cf8' : '#94a3b8') + ';">' + crudLabels[c] + '</span></label>';
+                }).join('');
+                return '<div class="ac-role-crud-item" data-role-id="' + r.id + '" style="padding:0.75rem;border-radius:0.5rem;background:rgba(30,41,59,0.5);border:1px solid ' + (checked ? '#6366f1' : 'rgba(71,85,105,0.3)') + ';margin-bottom:0.5rem;">' +
+                    '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+                    '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">' +
+                    '<input type="checkbox" name="userRole" value="' + r.id + '"' + (checked ? ' checked' : '') +
+                    ' onchange="AccessCenter.Users.toggleRoleCrud(this)" style="accent-color:#6366f1;width:1rem;height:1rem;">' +
+                    '<span style="color:#e2e8f0;font-weight:600;font-size:0.875rem;">' + AccessCenter.escapeHtml(r.name) + '</span>' +
+                    '</label>' +
+                    '<div class="ac-crud-group" style="display:flex;gap:0.5rem;align-items:center;' + (checked ? '' : 'opacity:0.3;pointer-events:none;') + '">' + crudHtml + '</div>' +
+                    '</div>' +
+                    (r.desc ? '<div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem;margin-left:1.5rem;">' + AccessCenter.escapeHtml(r.desc) + '</div>' : '') +
+                    '</div>';
             }).join('');
+
+            // Load existing CRUD selections for checked roles
+            if (self.selectedUserId) {
+                directRoleIds.forEach(rid => {
+                    AccessCenter.fetchJson('/admin/access-center/api/users/' + self.selectedUserId + '/roles/' + rid + '/cruds')
+                        .then(cruds => {
+                            if (!cruds || !cruds.length) return;
+                            container.querySelectorAll('.ac-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
+                                if (cb.dataset.crud !== 'READ') {
+                                    cb.checked = cruds.includes(cb.dataset.crud);
+                                }
+                            });
+                        }).catch(() => {});
+                });
+            }
+        },
+
+        toggleRoleCrud(roleCheckbox) {
+            const item = roleCheckbox.closest('.ac-role-crud-item');
+            const crudGroup = item.querySelector('.ac-crud-group');
+            if (roleCheckbox.checked) {
+                crudGroup.style.opacity = '1';
+                crudGroup.style.pointerEvents = 'auto';
+                item.style.borderColor = '#6366f1';
+                // Auto-check READ
+                const readCb = item.querySelector('.ac-crud-cb[data-crud="READ"]');
+                if (readCb) readCb.checked = true;
+            } else {
+                crudGroup.style.opacity = '0.3';
+                crudGroup.style.pointerEvents = 'none';
+                item.style.borderColor = 'rgba(71,85,105,0.3)';
+                // Uncheck all CRUDs
+                item.querySelectorAll('.ac-crud-cb').forEach(cb => {
+                    if (cb.dataset.crud !== 'READ') cb.checked = false;
+                });
+            }
         },
 
         async saveGroups() {
@@ -394,8 +446,19 @@ const AccessCenter = {
 
         async saveRoles() {
             if (!this.selectedUserId) return;
-            const checkboxes = document.querySelectorAll('#ac-user-roles-grid input[name="userRole"]:checked');
-            const roleIds = Array.from(checkboxes).map(cb => cb.value);
+            const roleAssignments = [];
+            document.querySelectorAll('#ac-user-roles-grid input[name="userRole"]:checked').forEach(cb => {
+                const roleId = cb.value;
+                const item = cb.closest('.ac-role-crud-item');
+                const cruds = [];
+                if (item) {
+                    item.querySelectorAll('.ac-crud-cb:checked').forEach(crudCb => {
+                        cruds.push(crudCb.dataset.crud);
+                    });
+                }
+                if (!cruds.includes('READ')) cruds.push('READ');
+                roleAssignments.push({ roleId: Number(roleId), crudPermissions: cruds });
+            });
 
             try {
                 await AccessCenter.fetchJson('/admin/access-center/api/users/' + encodeURIComponent(this.selectedUserId) + '/roles', {
@@ -404,7 +467,7 @@ const AccessCenter = {
                         'Content-Type': 'application/json',
                         [AccessCenter.getCsrfHeader()]: AccessCenter.getCsrfToken()
                     },
-                    body: JSON.stringify({ roleIds: roleIds })
+                    body: JSON.stringify({ roleAssignments: roleAssignments })
                 });
                 showToast('역할 할당이 저장되었습니다.', 'success');
                 this.selectUser(this.selectedUserId);
@@ -573,16 +636,44 @@ const AccessCenter = {
                 if (!allRoles.length) {
                     gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>등록된 역할이 없습니다.</p></div>';
                 } else {
+                    var self = this;
+                    var crudLabels = { READ: 'R', WRITE: 'W', UPDATE: 'U', DELETE: 'D' };
                     gridEl.innerHTML = allRoles.map(r => {
                         const checked = groupRoleIds.includes(String(r.id));
-                        return '<label class="ac-checkbox-item' + (checked ? ' checked' : '') + '">' +
-                            '<input type="checkbox" name="groupRole" value="' + AccessCenter.escapeHtml(r.id) + '"' +
-                            (checked ? ' checked' : '') +
-                            ' onchange="this.parentElement.classList.toggle(\'checked\', this.checked)">' +
-                            '<div><div>' + AccessCenter.escapeHtml(r.name) + '</div>' +
-                            (r.desc ? '<div class="ac-checkbox-desc">' + AccessCenter.escapeHtml(r.desc) + '</div>' : '') +
-                            '</div></label>';
+                        const roleCruds = (r.crudPermissions || ['READ','WRITE','UPDATE','DELETE']);
+                        const crudHtml = roleCruds.map(c => {
+                            const isRead = c === 'READ';
+                            return '<label class="ac-crud-label" title="' + c + '">' +
+                                '<input type="checkbox" class="ac-grp-crud-cb" data-role-id="' + r.id + '" data-crud="' + c + '"' +
+                                (isRead ? ' checked disabled' : '') +
+                                ' style="accent-color:#6366f1;width:0.875rem;height:0.875rem;">' +
+                                '<span style="font-size:0.6875rem;color:' + (isRead ? '#818cf8' : '#94a3b8') + ';">' + crudLabels[c] + '</span></label>';
+                        }).join('');
+                        return '<div class="ac-role-crud-item" data-role-id="' + r.id + '" style="padding:0.75rem;border-radius:0.5rem;background:rgba(30,41,59,0.5);border:1px solid ' + (checked ? '#6366f1' : 'rgba(71,85,105,0.3)') + ';margin-bottom:0.5rem;">' +
+                            '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+                            '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">' +
+                            '<input type="checkbox" name="groupRole" value="' + r.id + '"' + (checked ? ' checked' : '') +
+                            ' onchange="AccessCenter.Groups.toggleRoleCrud(this)" style="accent-color:#6366f1;width:1rem;height:1rem;">' +
+                            '<span style="color:#e2e8f0;font-weight:600;font-size:0.875rem;">' + AccessCenter.escapeHtml(r.name) + '</span>' +
+                            '</label>' +
+                            '<div class="ac-grp-crud-group" style="display:flex;gap:0.5rem;align-items:center;' + (checked ? '' : 'opacity:0.3;pointer-events:none;') + '">' + crudHtml + '</div>' +
+                            '</div>' +
+                            (r.desc ? '<div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem;margin-left:1.5rem;">' + AccessCenter.escapeHtml(r.desc) + '</div>' : '') +
+                            '</div>';
                     }).join('');
+
+                    // Load existing CRUD selections
+                    if (self.selectedGroupId) {
+                        groupRoleIds.forEach(rid => {
+                            AccessCenter.fetchJson('/admin/access-center/api/groups/' + self.selectedGroupId + '/roles/' + rid + '/cruds')
+                                .then(cruds => {
+                                    if (!cruds || !cruds.length) return;
+                                    gridEl.querySelectorAll('.ac-grp-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
+                                        if (cb.dataset.crud !== 'READ') cb.checked = cruds.includes(cb.dataset.crud);
+                                    });
+                                }).catch(() => {});
+                        });
+                    }
                 }
             } catch (e) {
                 const gridEl = document.getElementById('ac-group-roles-grid');
@@ -590,10 +681,40 @@ const AccessCenter = {
             }
         },
 
+        toggleRoleCrud(roleCheckbox) {
+            const item = roleCheckbox.closest('.ac-role-crud-item');
+            const crudGroup = item.querySelector('.ac-grp-crud-group');
+            if (roleCheckbox.checked) {
+                crudGroup.style.opacity = '1';
+                crudGroup.style.pointerEvents = 'auto';
+                item.style.borderColor = '#6366f1';
+                const readCb = item.querySelector('.ac-grp-crud-cb[data-crud="READ"]');
+                if (readCb) readCb.checked = true;
+            } else {
+                crudGroup.style.opacity = '0.3';
+                crudGroup.style.pointerEvents = 'none';
+                item.style.borderColor = 'rgba(71,85,105,0.3)';
+                item.querySelectorAll('.ac-grp-crud-cb').forEach(cb => {
+                    if (cb.dataset.crud !== 'READ') cb.checked = false;
+                });
+            }
+        },
+
         async saveGroupRoles() {
             if (!this.selectedGroupId) return;
-            const checkboxes = document.querySelectorAll('#ac-group-roles-grid input[name="groupRole"]:checked');
-            const roleIds = Array.from(checkboxes).map(cb => cb.value);
+            const roleAssignments = [];
+            document.querySelectorAll('#ac-group-roles-grid input[name="groupRole"]:checked').forEach(cb => {
+                const roleId = cb.value;
+                const item = cb.closest('.ac-role-crud-item');
+                const cruds = [];
+                if (item) {
+                    item.querySelectorAll('.ac-grp-crud-cb:checked').forEach(crudCb => {
+                        cruds.push(crudCb.dataset.crud);
+                    });
+                }
+                if (!cruds.includes('READ')) cruds.push('READ');
+                roleAssignments.push({ roleId: Number(roleId), crudPermissions: cruds });
+            });
 
             try {
                 await AccessCenter.fetchJson('/admin/access-center/api/groups/' + encodeURIComponent(this.selectedGroupId) + '/roles', {
@@ -602,7 +723,7 @@ const AccessCenter = {
                         'Content-Type': 'application/json',
                         [AccessCenter.getCsrfHeader()]: AccessCenter.getCsrfToken()
                     },
-                    body: JSON.stringify({ roleIds: roleIds })
+                    body: JSON.stringify({ roleAssignments: roleAssignments })
                 });
                 showToast('그룹 역할이 저장되었습니다.', 'success');
                 this.selectGroup(this.selectedGroupId);

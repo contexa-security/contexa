@@ -36,7 +36,13 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
             - The "conditions" field must be a map with numeric condition template IDs from the condition list as keys and string arrays as values
             - Never use descriptive strings like "time.hour" as condition keys. Use only numeric IDs provided in the condition list
             - If no applicable conditions exist in the condition list, set "conditions" to an empty object {}
-            - Always include a "reasoning" field explaining why you chose these specific roles, permissions, and conditions
+            - Always include a "reasoning" field explaining why you chose these specific roles, CRUD permissions, and conditions
+            - The "crudPermissions" field is REQUIRED. Select from: READ, WRITE, UPDATE, DELETE
+            - Based on the target resource HTTP method: GET=READ, POST=WRITE, PUT/PATCH=UPDATE, DELETE=DELETE
+            - If HTTP method is ANY or unspecified, select based on the policy requirements
+            - Do NOT include permissionIds. Use crudPermissions for access control
+            - If an [Existing Policies] section is provided, avoid creating conflicting or duplicate policies
+            - If a [Role Hierarchy] section is provided, leverage role inheritance instead of assigning redundant lower-level roles
             """;
     }
 
@@ -49,7 +55,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
                 "description": "Actual policy description based on requirements",
                 "effect": "ALLOW",
                 "roleIds": [101, 102],
-                "permissionIds": [201, 202],
+                "crudPermissions": ["READ", "WRITE"],
                 "conditions": {
                   "301": ["true"],
                   "302": ["192.168.1.0/24"]
@@ -59,16 +65,12 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
                 "101": "Team Manager",
                 "102": "Document Handler"
               },
-              "permissionIdToNameMap": {
-                "201": "Document View",
-                "202": "Document Edit"
-              },
               "conditionIdToNameMap": {
                 "301": "Within Business Hours",
                 "302": "Internal Network"
               },
-              "reasoning": "Explain why these roles, permissions, and conditions were selected based on the requirements.",
-              "generatedAt": "2023-10-27T10:00:00Z",
+              "reasoning": "Explain why these roles, CRUD permissions, and conditions were selected based on the requirements.",
+              "generatedAt": "2026-04-03T10:00:00Z",
               "version": "1.0.0"
             }
             """;
@@ -83,19 +85,19 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         PolicyGenerationItem.AvailableItems availableItems = extractAvailableItems(request);
         String naturalQuery = extractNaturalQuery(request);
+        String iamDataContext = request.getParameter("iamDataContext", String.class);
 
-        return buildUserPrompt(naturalQuery, availableItems, contextInfo);
+        return buildUserPrompt(naturalQuery, availableItems, contextInfo, iamDataContext);
     }
 
-    /**
-     * Builds the user prompt with policy generation details and execution instructions.
-     *
-     * @param naturalQuery the natural language requirements
-     * @param availableItems the available roles, permissions, and conditions
-     * @param contextInfo additional context information
-     * @return the formatted user prompt
-     */
-    private String buildUserPrompt(String naturalQuery, PolicyGenerationItem.AvailableItems availableItems, String contextInfo) {
+    private String buildUserPrompt(String naturalQuery, PolicyGenerationItem.AvailableItems availableItems,
+                                   String contextInfo, String iamDataContext) {
+        String ragSection = (contextInfo != null && !contextInfo.isBlank())
+                ? "\n**Reference (Similar policy patterns from history):**\n" + contextInfo + "\n"
+                : "";
+        String dbContextSection = (iamDataContext != null && !iamDataContext.isBlank())
+                ? "\n**System Context (from database):**\n" + iamDataContext + "\n"
+                : "";
         return String.format("""
             **Natural Language Requirements:**
             "%s"
@@ -103,7 +105,9 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
             **Available Items (Use only the IDs and names from this list):**
             %s
             %s
-            """, naturalQuery, formatAvailableItems(availableItems), buildUserPromptExecutionInstructions());
+            %s
+            %s
+            """, naturalQuery, formatAvailableItems(availableItems), dbContextSection, ragSection, buildUserPromptExecutionInstructions());
     }
 
     /**

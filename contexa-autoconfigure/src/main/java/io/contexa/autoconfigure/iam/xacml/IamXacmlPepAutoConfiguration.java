@@ -57,10 +57,12 @@ public class IamXacmlPepAutoConfiguration {
             CentralAuditFacade centralAuditFacade,
             PolicyCombiningEvaluator policyCombiningEvaluator,
             PolicyCombiningProperties policyCombiningProperties) {
-        return new CustomDynamicAuthorizationManager(
+        CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver,
                 objectMapper, contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
-                policyCombiningEvaluator, policyCombiningProperties.getCombiningAlgorithm());
+                policyCombiningEvaluator);
+        manager.setCombiningAlgorithm(policyCombiningProperties.getCombiningAlgorithm());
+        return manager;
     }
 
     @Bean

@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;

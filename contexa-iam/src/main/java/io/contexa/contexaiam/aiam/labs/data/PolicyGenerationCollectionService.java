@@ -1,10 +1,14 @@
 package io.contexa.contexaiam.aiam.labs.data;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +30,8 @@ public class PolicyGenerationCollectionService {
     private final RoleService roleService;
     private final PermissionCatalogService permissionCatalogService;
     private final ConditionTemplateRepository conditionTemplateRepository;
+    private final PolicyRepository policyRepository;
+    private final RoleHierarchyService roleHierarchyService;
 
     @Transactional(readOnly = true)
     public PolicyGenerationItem.AvailableItems collectData() {
@@ -74,10 +80,55 @@ public class PolicyGenerationCollectionService {
                             cond.getId(),
                             cond.getName(),
                             enhancedDescription,
-                            true
+                            null
                     );
                 })
                 .toList();
+    }
+
+    /**
+     * Collect existing active policies summary for LLM context.
+     * Helps AI avoid generating conflicting or duplicate policies.
+     */
+    @Transactional(readOnly = true)
+    public String collectExistingPoliciesSummary() {
+        List<Policy> policies = policyRepository.findAllWithDetails();
+        if (policies.isEmpty()) return "";
+
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (Policy p : policies) {
+            if (!p.getIsActive()) continue;
+            if (count >= 50) {
+                sb.append("... and ").append(policies.size() - 50).append(" more policies\n");
+                break;
+            }
+            String targets = p.getTargets().stream()
+                    .map(t -> t.getHttpMethod() + " " + t.getTargetIdentifier())
+                    .collect(Collectors.joining(", "));
+            String conditions = p.getRules().stream()
+                    .flatMap(r -> r.getConditions().stream())
+                    .map(PolicyCondition::getExpression)
+                    .collect(Collectors.joining("; "));
+            sb.append(String.format("- %s [%s]: %s | Condition: %s\n",
+                    p.getName(), p.getEffect(), targets,
+                    StringUtils.hasText(conditions) ? conditions : "none"));
+            count++;
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Collect active role hierarchy string for LLM context.
+     */
+    public String collectRoleHierarchy() {
+        try {
+            String hierarchy = roleHierarchyService.getActiveRoleHierarchyString();
+            return StringUtils.hasText(hierarchy) ? hierarchy : "";
+        } catch (Exception e) {
+            log.error("Failed to collect role hierarchy", e);
+            return "";
+        }
     }
 
     private String enhanceConditionDescription(ConditionTemplate cond) {

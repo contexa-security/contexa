@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.operations;
 
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.exception.AIOperationException;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacommon.domain.request.AIRequest;

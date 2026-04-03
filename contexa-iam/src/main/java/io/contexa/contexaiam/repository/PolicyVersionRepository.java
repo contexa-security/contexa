@@ -18,4 +18,6 @@ public interface PolicyVersionRepository extends JpaRepository<PolicyVersion, Lo
     int findMaxVersionNumber(@Param("policyId") Long policyId);
 
     long countByPolicyId(Long policyId);
+
+    void deleteByPolicyId(Long policyId);
 }

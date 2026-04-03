@@ -19,7 +19,9 @@ import io.contexa.contexaiam.aiam.labs.studio.StudioQueryLab;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.service.QueryIntentAnalyzer;
 import io.contexa.contexaiam.aiam.labs.studio.service.StudioQueryFormatter;
+import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -65,9 +67,12 @@ public class IamAiamLabsAutoConfiguration {
     public PolicyGenerationCollectionService policyGenerationCollectionService(
             RoleService roleService,
             PermissionCatalogService permissionCatalogService,
-            ConditionTemplateRepository conditionTemplateRepository) {
+            ConditionTemplateRepository conditionTemplateRepository,
+            PolicyRepository policyRepository,
+            RoleHierarchyService roleHierarchyService) {
         return new PolicyGenerationCollectionService(
-                roleService, permissionCatalogService, conditionTemplateRepository);
+                roleService, permissionCatalogService, conditionTemplateRepository,
+                policyRepository, roleHierarchyService);
     }
 
     @Bean

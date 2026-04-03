@@ -75,6 +75,15 @@ public class PasswordChangeController {
             return "redirect:/password-change?username=" + username;
         }
 
+        // Check password reuse
+        if (passwordPolicyService.isPasswordReused(user.getId(), newPassword)) {
+            ra.addFlashAttribute("errorMessage", msg("msg.password.change.reused"));
+            return "redirect:/password-change?username=" + username;
+        }
+
+        // Record current password in history before changing
+        passwordPolicyService.recordPasswordHistory(user.getId(), user.getPassword());
+
         // Save new password
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setPasswordChangedAt(LocalDateTime.now());

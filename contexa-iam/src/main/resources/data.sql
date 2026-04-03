@@ -177,3 +177,12 @@ ON CONFLICT (name) DO NOTHING;
 
 SELECT setval('security_spel_id_seq', (SELECT MAX(id) FROM SECURITY_SPEL), true);
 
+-- Common CRUD Permissions
+INSERT INTO PERMISSION (permission_name, friendly_name, description, auto_created, target_type, action_type, created_at)
+VALUES
+    ('READ', 'Read Access', 'Permission to read/view resources', false, 'CRUD', 'READ', CURRENT_TIMESTAMP),
+    ('WRITE', 'Write Access', 'Permission to create new resources', false, 'CRUD', 'WRITE', CURRENT_TIMESTAMP),
+    ('UPDATE', 'Update Access', 'Permission to modify existing resources', false, 'CRUD', 'UPDATE', CURRENT_TIMESTAMP),
+    ('DELETE', 'Delete Access', 'Permission to remove resources', false, 'CRUD', 'DELETE', CURRENT_TIMESTAMP)
+ON CONFLICT (permission_name) DO NOTHING;
+

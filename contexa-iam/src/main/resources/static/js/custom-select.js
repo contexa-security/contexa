@@ -146,6 +146,29 @@
         initCustomSelects();
     }
 
+    // Sync custom select UI after programmatic value change
+    function syncCustomSelect(selectEl) {
+        if (!selectEl || !selectEl.classList.contains('cs-hidden')) return;
+        var wrapper = selectEl.closest('.custom-select-wrapper');
+        if (!wrapper) return;
+        var label = wrapper.querySelector('.cs-label');
+        var optionsPanel = wrapper.querySelector('.custom-select-options');
+        if (!label || !optionsPanel) return;
+        var selectedOpt = selectEl.options[selectEl.selectedIndex];
+        if (selectedOpt) {
+            label.textContent = selectedOpt.textContent;
+            if (selectedOpt.value === '') {
+                label.classList.add('cs-placeholder');
+            } else {
+                label.classList.remove('cs-placeholder');
+            }
+        }
+        optionsPanel.querySelectorAll('.custom-select-option').forEach(function(o) {
+            o.classList.toggle('selected', o.getAttribute('data-value') === selectEl.value);
+        });
+    }
+
     // Expose for dynamic content
     window.initCustomSelects = initCustomSelects;
+    window.syncCustomSelect = syncCustomSelect;
 })();

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></head>
+<body>
+<link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+<div th:insert="~{fragments/header :: header}"></div>
+<div style="display: flex; min-height: 100vh;">
+    <div th:insert="~{fragments/admin-menu :: menu}"></div>
+    <main class="main-content" style="flex: 1; padding: 2rem;">
+
+        <div style="max-width: 48rem; margin: 0 auto;">
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-2xl font-bold" style="color: #e2e8f0;">
+                    <i class="fas fa-cogs mr-2" style="color: #818cf8;"></i>
+                    <span th:text="#{admin.system.settings.title}">System Settings</span>
+                </h1>
+            </div>
+
+            <div th:if="${message}" class="mb-4 p-4 rounded-lg" style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #4ade80;">
+                <i class="fas fa-check-circle mr-2"></i><span th:text="${message}"></span>
+            </div>
+            <div th:if="${errorMessage}" class="mb-4 p-4 rounded-lg" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171;">
+                <i class="fas fa-exclamation-circle mr-2"></i><span th:text="${errorMessage}"></span>
+            </div>
+
+            <form th:action="@{/admin/system-settings}" method="post" th:object="${settings}">
+
+                <!-- Audit & Compliance -->
+                <div class="modern-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-file-alt mr-2" style="color: #a78bfa;"></i>
+                        <span th:text="#{admin.system.settings.audit.title}">Audit &amp; Compliance</span>
+                    </h3>
+                    <div>
+                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.system.settings.audit.retention}">Audit Log Retention (days)</label>
+                        <input type="number" th:field="*{auditLogRetentionDays}" class="modern-input" min="30" max="3650" required style="max-width: 12rem;" />
+                        <p class="text-xs mt-1" style="color: #64748b;" th:text="#{admin.system.settings.audit.retention.desc}">Number of days to retain audit log entries. 0 for unlimited.</p>
+                    </div>
+                </div>
+
+                <!-- Access Control -->
+                <div class="modern-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-shield-alt mr-2" style="color: #4ade80;"></i>
+                        <span th:text="#{admin.system.settings.access.title}">Access Control</span>
+                    </h3>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.system.settings.default.role}">Default Role</label>
+                            <input type="text" th:field="*{defaultRole}" class="modern-input" required />
+                            <p class="text-xs mt-1" style="color: #64748b;" th:text="#{admin.system.settings.default.role.desc}">Role assigned to new users by default.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.system.settings.combining.algorithm}">Policy Combining Algorithm</label>
+                            <select th:field="*{policyCombiningAlgorithm}" class="modern-input">
+                                <option value="FIRST_APPLICABLE">FIRST_APPLICABLE</option>
+                                <option value="DENY_OVERRIDES">DENY_OVERRIDES</option>
+                                <option value="PERMIT_OVERRIDES">PERMIT_OVERRIDES</option>
+                                <option value="DENY_UNLESS_PERMIT">DENY_UNLESS_PERMIT</option>
+                            </select>
+                            <p class="text-xs mt-1" style="color: #64748b;" th:text="#{admin.system.settings.combining.algorithm.desc}">Algorithm used when multiple policies match a request.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Registration -->
+                <div class="modern-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-user-plus mr-2" style="color: #fbbf24;"></i>
+                        <span th:text="#{admin.system.settings.registration.title}">User Registration</span>
+                    </h3>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" th:field="*{registrationEnabled}" id="registrationEnabled" style="accent-color: #6366f1; width: 1.25rem; height: 1.25rem;" />
+                        <label for="registrationEnabled" class="text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.system.settings.registration.enabled}">Allow User Self-Registration</label>
+                    </div>
+                    <p class="text-xs mt-2" style="color: #64748b;" th:text="#{admin.system.settings.registration.enabled.desc}">If disabled, only administrators can create new user accounts.</p>
+                </div>
+
+                <!-- Save Button -->
+                <button type="submit" class="modern-btn-primary w-full justify-center py-3">
+                    <i class="fas fa-save mr-2"></i>
+                    <span th:text="#{admin.system.settings.save}">Save Settings</span>
+                </button>
+            </form>
+        </div>
+
+    </main>
+</div>
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/js/toast.js}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var msg = document.querySelector('[style*="rgba(34,197,94"]');
+        if (msg) setTimeout(function() { msg.style.opacity = '0'; msg.style.transition = 'opacity 0.5s'; }, 3000);
+    });
+</script>
+</body>
+</html>

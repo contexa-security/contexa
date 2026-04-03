@@ -35,6 +35,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +62,7 @@ class DefaultPolicyServiceConflictTest {
     @Mock private PolicyVersionService policyVersionService;
     @Mock private PolicyImpactAnalyzer policyImpactAnalyzer;
     @Mock private PolicySimulator policySimulator;
+    @Mock private MessageSource messageSource;
     @Mock private AIPolicyValidator aiPolicyValidator;
     @Mock private PolicyReloadBroadcaster policyReloadBroadcaster;
 
@@ -68,12 +70,13 @@ class DefaultPolicyServiceConflictTest {
 
     @BeforeEach
     void setUp() {
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class))).thenAnswer(inv -> inv.getArgument(0));
         service = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
                 policyEnrichmentService, eventBus, permissionRepository,
                 managedResourceRepository, centralAuditFacade, policyConflictAnalyzer,
                 policyValidationService, policyVersionService, policyImpactAnalyzer,
-                policySimulator, aiPolicyValidator);
+                policySimulator, messageSource, aiPolicyValidator);
         service.setPolicyReloadBroadcaster(policyReloadBroadcaster);
     }
 
@@ -107,7 +110,7 @@ class DefaultPolicyServiceConflictTest {
 
             assertThatThrownBy(() -> service.createPolicy(dto))
                     .isInstanceOf(PolicyConflictException.class)
-                    .hasMessageContaining("Critical policy conflicts detected")
+                    .hasMessageContaining("msg.policy.validation.conflicts.detected")
                     .satisfies(ex -> {
                         PolicyConflictException pce = (PolicyConflictException) ex;
                         assertThat(pce.getConflicts()).hasSize(1);
@@ -140,30 +143,29 @@ class DefaultPolicyServiceConflictTest {
     // ── 2. CRITICAL 미만 충돌은 경고만 발생 ─────────────────────
 
     @Nested
-    @DisplayName("CRITICAL 미만 충돌은 경고만 발생")
-    class NonCriticalConflictWarning {
+    @DisplayName("HIGH 이상 충돌은 생성 차단")
+    class HighConflictBlocking {
 
         @Test
-        @DisplayName("HIGH 충돌은 생성을 허용하고 경고만 기록함")
-        void highConflictAllowsCreation() {
+        @DisplayName("HIGH 충돌은 생성을 차단하고 PolicyConflictException을 발생시킴")
+        void highConflictBlocksCreation() {
             PolicyDto dto = buildPolicyDto("allow-path", Policy.Effect.ALLOW);
 
             when(policyConflictAnalyzer.analyze(any(Policy.class)))
                     .thenReturn(List.of(new PolicyConflictDto(
                             null, "allow-path", 1L, "deny-wildcard",
                             "Wildcard overlap", Severity.HIGH)));
-            when(policyRepository.save(any(Policy.class)))
-                    .thenAnswer(inv -> {
-                        Policy p = inv.getArgument(0);
-                        p.setId(99L);
-                        return p;
-                    });
 
-            Policy result = service.createPolicy(dto);
+            assertThatThrownBy(() -> service.createPolicy(dto))
+                    .isInstanceOf(PolicyConflictException.class);
 
-            assertThat(result).isNotNull();
-            verify(policyRepository).save(any(Policy.class));
+            verify(policyRepository, never()).save(any());
         }
+    }
+
+    @Nested
+    @DisplayName("MEDIUM 이하 충돌은 경고만 발생")
+    class MediumConflictWarning {
 
         @Test
         @DisplayName("MEDIUM 충돌은 생성을 허용함")
@@ -283,8 +285,8 @@ class DefaultPolicyServiceConflictTest {
         @Test
         @DisplayName("정책 삭제 후 리로드 신호를 브로드캐스트함")
         void deletePolicyBroadcasts() {
-            when(policyRepository.findByIdWithDetails(1L)).thenReturn(java.util.Optional.empty());
-            when(policyRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+            Policy policy = Policy.builder().id(1L).name("broadcast-test").effect(Policy.Effect.ALLOW).priority(100).isActive(true).build();
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(java.util.Optional.of(policy));
 
             service.deletePolicy(1L);
 
@@ -299,7 +301,7 @@ class DefaultPolicyServiceConflictTest {
                     policyEnrichmentService, eventBus, permissionRepository,
                     managedResourceRepository, centralAuditFacade, policyConflictAnalyzer,
                     policyValidationService, policyVersionService, policyImpactAnalyzer,
-                policySimulator, aiPolicyValidator);
+                    policySimulator, messageSource, aiPolicyValidator);
 
             PolicyDto dto = buildPolicyDto("no-broadcast", Policy.Effect.ALLOW);
             when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(List.of());
@@ -361,27 +363,24 @@ class DefaultPolicyServiceConflictTest {
         }
 
         @Test
-        @DisplayName("HIGH + MEDIUM만 있으면 예외 없이 생성됨")
-        void onlyHighAndMedium() {
+        @DisplayName("HIGH + MEDIUM 혼합 시 HIGH 때문에 예외 발생")
+        void highAndMediumBlocksByHigh() {
             PolicyDto dto = buildPolicyDto("warn-policy", Policy.Effect.ALLOW);
 
-            List<PolicyConflictDto> nonCritical = List.of(
+            List<PolicyConflictDto> mixed = List.of(
                     new PolicyConflictDto(null, "warn", 1L, "deny-wildcard",
                             "Wildcard overlap", Severity.HIGH),
                     new PolicyConflictDto(null, "warn", 2L, "deny-method",
                             "Method overlap", Severity.MEDIUM));
 
-            when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(nonCritical);
-            when(policyRepository.save(any(Policy.class)))
-                    .thenAnswer(inv -> {
-                        Policy p = inv.getArgument(0);
-                        p.setId(1L);
-                        return p;
+            when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(mixed);
+
+            assertThatThrownBy(() -> service.createPolicy(dto))
+                    .isInstanceOf(PolicyConflictException.class)
+                    .satisfies(ex -> {
+                        PolicyConflictException pce = (PolicyConflictException) ex;
+                        assertThat(pce.getConflicts()).hasSize(2);
                     });
-
-            Policy result = service.createPolicy(dto);
-
-            assertThat(result).isNotNull();
         }
     }
 
@@ -431,35 +430,29 @@ class DefaultPolicyServiceConflictTest {
         }
 
         @Test
-        @DisplayName("정책 삭제 시 삭제 전 상태가 DELETED 버전으로 저장됨")
-        void deletePolicyCreatesVersion() {
+        @DisplayName("정책 삭제 시 버전 이력도 함께 삭제됨")
+        void deletePolicyDeletesVersions() {
             Policy existing = Policy.builder()
                     .id(5L).name("to-delete").effect(Policy.Effect.ALLOW).priority(100).build();
             when(policyRepository.findByIdWithDetails(5L)).thenReturn(java.util.Optional.of(existing));
-            when(policyRepository.findById(5L)).thenReturn(java.util.Optional.of(existing));
 
             service.deletePolicy(5L, "no longer needed");
 
-            verify(policyVersionService).createVersion(
-                    eq(existing),
-                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.DELETED),
-                    eq("no longer needed"));
+            verify(policyVersionService).deleteByPolicyId(5L);
+            verify(policyRepository).deleteById(5L);
         }
 
         @Test
-        @DisplayName("changeReason 없이 삭제해도 버전이 생성됨")
-        void deletePolicyWithoutReasonCreatesVersion() {
+        @DisplayName("changeReason 없이 삭제해도 정상 동작")
+        void deletePolicyWithoutReason() {
             Policy existing = Policy.builder()
                     .id(6L).name("to-delete").effect(Policy.Effect.ALLOW).priority(100).build();
             when(policyRepository.findByIdWithDetails(6L)).thenReturn(java.util.Optional.of(existing));
-            when(policyRepository.findById(6L)).thenReturn(java.util.Optional.of(existing));
 
             service.deletePolicy(6L);
 
-            verify(policyVersionService).createVersion(
-                    eq(existing),
-                    eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.DELETED),
-                    isNull());
+            verify(policyVersionService).deleteByPolicyId(6L);
+            verify(policyRepository).deleteById(6L);
         }
     }
 
@@ -491,7 +484,7 @@ class DefaultPolicyServiceConflictTest {
             verify(policyVersionService, times(1)).createVersion(
                     any(Policy.class),
                     eq(io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType.ROLLBACK),
-                    contains("Rollback to version 1"));
+                    contains("msg.policy.version.rollback.reason"));
             // UPDATED 버전은 생성되지 않아야 함
             verify(policyVersionService, never()).createVersion(
                     any(Policy.class),
@@ -506,7 +499,7 @@ class DefaultPolicyServiceConflictTest {
 
             assertThatThrownBy(() -> service.rollbackPolicy(10L, 99, "reason"))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Version 99 not found");
+                    .hasMessageContaining("msg.policy.version.not.found");
         }
     }
 }

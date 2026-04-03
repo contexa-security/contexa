@@ -399,6 +399,23 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(io.contexa.contexacommon.security.LoginPolicyHandler.class)
+    public io.contexa.contexaidentity.security.filter.AccountLockoutFilter accountLockoutFilter(
+            io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler,
+            io.contexa.contexacommon.repository.UserRepository userRepository) {
+        return new io.contexa.contexaidentity.security.filter.AccountLockoutFilter(loginPolicyHandler, userRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(io.contexa.contexaidentity.security.filter.AccountLockoutFilter.class)
+    public io.contexa.contexaidentity.security.core.bootstrap.configurer.AccountLockoutConfigurer accountLockoutConfigurer(
+            io.contexa.contexaidentity.security.filter.AccountLockoutFilter accountLockoutFilter) {
+        return new io.contexa.contexaidentity.security.core.bootstrap.configurer.AccountLockoutConfigurer(accountLockoutFilter);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
         return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);

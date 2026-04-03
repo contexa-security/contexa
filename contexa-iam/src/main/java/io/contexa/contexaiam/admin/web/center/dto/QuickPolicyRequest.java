@@ -11,6 +11,7 @@ public class QuickPolicyRequest {
     private String description;
     private Set<Long> roleIds;
     private Set<Long> permissionIds;
+    private Set<String> crudPermissions; // READ, WRITE, UPDATE, DELETE
     private Policy.Effect effect = Policy.Effect.ALLOW;
 
     // Manual target fields (used when sourceType = "MANUAL")

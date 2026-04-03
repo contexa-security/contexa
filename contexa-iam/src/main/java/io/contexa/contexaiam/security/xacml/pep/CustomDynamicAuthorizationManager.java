@@ -49,7 +49,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final AuthorizationMetrics metricsCollector;
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyCombiningEvaluator combiningEvaluator;
-    private final CombiningAlgorithm combiningAlgorithm;
+    @lombok.Setter
+    private CombiningAlgorithm combiningAlgorithm;
 
     private final PolicyExpressionConverter expressionConverter = new PolicyExpressionConverter();
 
@@ -66,7 +67,9 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 .toList();
 
         for (Policy policy : urlPolicies) {
-            if (!policy.getIsActive() || policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED) {
+            if (!policy.getIsActive()
+                    || policy.getApprovalStatus() == Policy.ApprovalStatus.PENDING
+                    || policy.getApprovalStatus() == Policy.ApprovalStatus.REJECTED) {
                 continue;
             }
 
@@ -186,6 +189,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
     public synchronized void reload() {
         policyRetrievalPoint.clearUrlPoliciesCache();
+        policyRetrievalPoint.clearMethodPoliciesCache();
         initialize();
     }
 }

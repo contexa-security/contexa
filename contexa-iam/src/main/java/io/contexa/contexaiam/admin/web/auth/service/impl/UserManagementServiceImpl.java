@@ -32,10 +32,12 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
+    private final io.contexa.contexacommon.repository.RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ModelMapper modelMapper;
     private final CentralAuditFacade centralAuditFacade;
     private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
+    private final io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService;
 
     @Override
     @Transactional
@@ -80,6 +82,20 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .group(group)
                     .build();
             users.getUserGroups().add(userGroup);
+        }
+
+        // Assign default role from system settings
+        try {
+            String defaultRoleName = systemSettingsService.getSettings().getDefaultRole();
+            if (StringUtils.hasText(defaultRoleName)) {
+                roleRepository.findByRoleName(defaultRoleName).ifPresent(role -> {
+                    io.contexa.contexacommon.entity.UserRole userRole = io.contexa.contexacommon.entity.UserRole.builder()
+                            .user(users).role(role).build();
+                    users.getUserRoles().add(userRole);
+                });
+            }
+        } catch (Exception e) {
+            log.error("Failed to assign default role to user: {}", users.getUsername(), e);
         }
 
         userRepository.save(users);

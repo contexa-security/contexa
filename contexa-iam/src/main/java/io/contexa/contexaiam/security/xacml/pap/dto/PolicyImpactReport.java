@@ -28,6 +28,7 @@ public record PolicyImpactReport(
     public record AccessChangeSummary(
             int gained,
             int lost,
+            int changed,
             int unchanged) {
     }
 }

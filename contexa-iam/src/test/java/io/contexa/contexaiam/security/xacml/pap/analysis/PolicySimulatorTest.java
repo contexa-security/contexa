@@ -99,7 +99,7 @@ class PolicySimulatorTest {
             Users user = buildUser(1L, "testuser", "ROLE_USER");
 
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(existing));
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
 
             SimulationReport report = simulator.simulate(null,
                     List.of(new SimulationTestCase(1L, "/api/users", "GET")));
@@ -120,7 +120,7 @@ class PolicySimulatorTest {
             Users user = buildUser(1L, "testuser", "ROLE_USER");
 
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(existing));
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
 
             SimulationReport report = simulator.simulate(candidate,
                     List.of(new SimulationTestCase(1L, "/api/data", "GET")));
@@ -139,7 +139,7 @@ class PolicySimulatorTest {
             Users user = buildUser(1L, "testuser", "ROLE_USER");
 
             when(policyRepository.findAllWithDetails()).thenReturn(List.of());
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
 
             SimulationReport report = simulator.simulate(candidate,
                     List.of(new SimulationTestCase(1L, "/api/new", "GET")));
@@ -167,8 +167,8 @@ class PolicySimulatorTest {
             Users admin = buildUser(2L, "admin", "ROLE_ADMIN");
 
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(existing));
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(2L)).thenReturn(Optional.of(admin));
 
             SimulationReport report = simulator.simulate(candidate, List.of(
                     new SimulationTestCase(1L, "/api/users", "GET"),
@@ -188,7 +188,7 @@ class PolicySimulatorTest {
         @DisplayName("존재하지 않는 사용자 ID는 결과에서 제외됨")
         void nonExistentUserSkipped() {
             when(policyRepository.findAllWithDetails()).thenReturn(List.of());
-            when(userRepository.findById(999L)).thenReturn(Optional.empty());
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(999L)).thenReturn(Optional.empty());
 
             SimulationReport report = simulator.simulate(null,
                     List.of(new SimulationTestCase(999L, "/api/test", "GET")));
@@ -215,7 +215,7 @@ class PolicySimulatorTest {
             Users user = buildUser(1L, "testuser", "ROLE_USER");
 
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(existing));
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
 
             SimulationReport report = simulator.simulate(null,
                     List.of(new SimulationTestCase(1L, "/api/test", "GET")));
@@ -232,7 +232,7 @@ class PolicySimulatorTest {
             Users user = buildUser(1L, "testuser", "ROLE_USER");
 
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(existing));
-            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
 
             SimulationReport report = simulator.simulate(null,
                     List.of(new SimulationTestCase(1L, "/api/test", "GET")));

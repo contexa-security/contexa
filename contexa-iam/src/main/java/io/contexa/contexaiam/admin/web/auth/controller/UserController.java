@@ -30,6 +30,7 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicyService passwordPolicyService;
     private final MessageSource messageSource;
+    private final io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -37,12 +38,20 @@ public class UserController {
 
     @GetMapping("/register")
     public String registerPage(Model model) {
+        if (!systemSettingsService.getSettings().isRegistrationEnabled()) {
+            model.addAttribute("registrationDisabled", true);
+        }
         return "register";
     }
 
     @PostMapping("/api/register")
     @ResponseBody
     public ResponseEntity<?> processRegister(@RequestBody UserDto userDto) {
+
+        if (!systemSettingsService.getSettings().isRegistrationEnabled()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "error", msg("msg.registration.disabled")));
+        }
 
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
             return ResponseEntity.badRequest().body(java.util.Map.of(

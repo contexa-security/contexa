@@ -37,11 +37,14 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +71,7 @@ public class DefaultPolicyService implements PolicyService {
     private final PolicyVersionService policyVersionService;
     private final PolicyImpactAnalyzer policyImpactAnalyzer;
     private final PolicySimulator policySimulator;
+    private final MessageSource messageSource;
     private final AIPolicyValidator aiPolicyValidator;
 
     @Setter
@@ -84,24 +88,27 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     @Transactional(readOnly = true)
     public Page<Policy> searchPolicies(String keyword, Pageable pageable) {
-        return policyRepository.searchByKeyword(keyword, pageable);
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        return policyRepository.searchByKeyword(pattern, pageable);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable) {
-        return policyRepository.searchByFilters(keyword, approvalStatus, activeFilter, pageable);
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        return policyRepository.searchByFilters(pattern, approvalStatus, activeFilter, pageable);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Policy findById(Long id) {
         return policyRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new IllegalArgumentException("Policy not found with ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", id)));
     }
 
     @Override
     public Policy createPolicy(PolicyDto policyDto) {
+        validateInput(policyDto);
         Policy policy = convertDtoToEntity(policyDto);
         validateConflicts(policy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
@@ -212,60 +219,106 @@ public class DefaultPolicyService implements PolicyService {
 
     @Override
     public void deletePolicy(Long id, String changeReason) {
-        // Version snapshot before delete
-        policyRepository.findByIdWithDetails(id).ifPresent(policy ->
-                policyVersionService.createVersion(policy,
-                        PolicyVersion.ChangeType.DELETED, changeReason));
+        Policy policy = policyRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", id)));
 
-        // Revert connected resources to PERMISSION_CREATED before deleting
-        policyRepository.findByIdWithDetails(id).ifPresent(policy -> {
-            Set<String> permNames = new HashSet<>();
-            policy.getRules().stream()
-                    .flatMap(rule -> rule.getConditions().stream())
-                    .map(PolicyCondition::getExpression)
-                    .forEach(spel -> {
-                        Matcher matcher = AUTHORITY_PATTERN.matcher(spel);
-                        while (matcher.find()) permNames.add(matcher.group(1));
-                    });
-            if (!permNames.isEmpty()) {
-                permissionRepository.findAllByNameIn(permNames).forEach(perm -> {
-                    ManagedResource resource = perm.getManagedResource();
-                    if (resource != null && resource.getStatus() == ManagedResource.Status.POLICY_CONNECTED) {
-                        long otherPolicyCount = policyRepository.countOtherPoliciesForTarget(
-                                resource.getResourceType().name(),
-                                resource.getResourceIdentifier(),
-                                id);
-                        if (otherPolicyCount == 0) {
-                            resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
-                            managedResourceRepository.save(resource);
-                        }
-                    }
-                });
-            }
-        });
+        // Cleanup: revert resources and delete auto-created permissions
+        cleanupResourcesForPolicy(policy, id);
 
         // Audit before delete
-        policyRepository.findById(id).ifPresent(p ->
-                auditPolicyChange(AuditEventCategory.POLICY_DELETED, p));
+        auditPolicyChange(AuditEventCategory.POLICY_DELETED, policy);
 
+        // Delete policy versions
+        policyVersionService.deleteByPolicyId(id);
+
+        // Delete policy (cascade: targets, rules, conditions)
         policyRepository.deleteById(id);
 
         eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
         reloadAuthorizationSystem();
+    }
+
+    private void cleanupResourcesForPolicy(Policy policy, Long policyId) {
+        List<Permission> permsToDelete = new ArrayList<>();
+        List<ManagedResource> resourcesToReset = new ArrayList<>();
+
+        // Collect from policy targets
+        policy.getTargets().stream()
+                .map(PolicyTarget::getTargetIdentifier)
+                .distinct()
+                .forEach(identifier -> managedResourceRepository.findByResourceIdentifier(identifier).ifPresent(resource -> {
+                    long otherCount = policyRepository.countOtherPoliciesForTarget(
+                            resource.getResourceType().name(), resource.getResourceIdentifier(), policyId);
+                    if (otherCount == 0) {
+                        Permission perm = resource.getPermission();
+                        if (perm != null && perm.isAutoCreated()) {
+                            permsToDelete.add(perm);
+                        }
+                        resourcesToReset.add(resource);
+                    }
+                }));
+
+        // Collect from condition expressions
+        Set<String> permNames = new HashSet<>();
+        policy.getRules().stream()
+                .flatMap(rule -> rule.getConditions().stream())
+                .map(PolicyCondition::getExpression)
+                .forEach(spel -> {
+                    Matcher matcher = AUTHORITY_PATTERN.matcher(spel);
+                    while (matcher.find()) permNames.add(matcher.group(1));
+                });
+        if (!permNames.isEmpty()) {
+            permissionRepository.findAllByNameIn(permNames).forEach(perm -> {
+                ManagedResource resource = perm.getManagedResource();
+                if (resource != null && resource.getStatus() == ManagedResource.Status.POLICY_CONNECTED
+                        && !resourcesToReset.contains(resource)) {
+                    long otherCount = policyRepository.countOtherPoliciesForTarget(
+                            resource.getResourceType().name(), resource.getResourceIdentifier(), policyId);
+                    if (otherCount == 0) {
+                        if (perm.isAutoCreated() && !permsToDelete.contains(perm)) {
+                            permsToDelete.add(perm);
+                        }
+                        resourcesToReset.add(resource);
+                    }
+                }
+            });
+        }
+
+        // Step 1: Unlink permissions from resources
+        if (!permsToDelete.isEmpty()) {
+            List<Long> permIds = permsToDelete.stream().map(Permission::getId).toList();
+            for (Permission perm : permsToDelete) {
+                perm.setManagedResource(null);
             }
+            permissionRepository.saveAll(permsToDelete);
+            permissionRepository.flush();
+            // Step 2: JPQL delete (bypasses Hibernate cascade re-insert)
+            permissionRepository.deleteAllByIds(permIds);
+            permissionRepository.flush();
+        }
+
+        // Step 3: Reset resource status
+        for (ManagedResource resource : resourcesToReset) {
+            resource.setPermission(null);
+            resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
+        }
+        if (!resourcesToReset.isEmpty()) {
+            managedResourceRepository.saveAll(resourcesToReset);
+        }
+    }
 
     @Override
     public void approvePolicy(Long id, String approver) {
         Policy policy = findById(id);
         if (policy.getApprovalStatus() == Policy.ApprovalStatus.APPROVED) {
-            throw new IllegalStateException("Policy is already approved.");
+            throw new IllegalStateException(i18n("msg.policy.already.approved"));
         }
 
         if (policy.isAIGenerated()) {
             AIPolicyValidationReport validationReport = aiPolicyValidator.validate(policy);
             if (!validationReport.canApprove()) {
                 throw new IllegalStateException(
-                        "AI policy validation failed: " + validationReport.blockedReason());
+                        i18n("msg.policy.ai.validation.failed", validationReport.blockedReason()));
             }
         }
 
@@ -279,7 +332,7 @@ public class DefaultPolicyService implements PolicyService {
     public void rejectPolicy(Long id, String rejector) {
         Policy policy = findById(id);
         if (policy.getApprovalStatus() == Policy.ApprovalStatus.REJECTED) {
-            throw new IllegalStateException("Policy is already rejected.");
+            throw new IllegalStateException(i18n("msg.policy.already.rejected"));
         }
         policy.reject(rejector);
         policyRepository.save(policy);
@@ -307,14 +360,14 @@ public class DefaultPolicyService implements PolicyService {
     public Policy rollbackPolicy(Long policyId, int versionNumber, String reason) {
         PolicyVersion version = policyVersionService.getVersion(policyId, versionNumber)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Version " + versionNumber + " not found for policy " + policyId));
+                        i18n("msg.policy.version.not.found", versionNumber, policyId)));
 
         PolicyDto snapshotDto = policyVersionService.deserializeSnapshot(version)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Failed to deserialize snapshot for version " + versionNumber));
+                        i18n("msg.policy.version.deserialize.failed", versionNumber)));
 
-        String rollbackReason = "Rollback to version " + versionNumber
-                + (reason != null ? ": " + reason : "");
+        String rollbackReason = i18n("msg.policy.version.rollback.reason",
+                versionNumber, reason != null ? ": " + reason : "");
 
         Policy existingPolicy = findById(policyId);
         updateEntityFromDto(existingPolicy, snapshotDto);
@@ -372,22 +425,35 @@ public class DefaultPolicyService implements PolicyService {
         return policySimulator.simulate(candidate, testCases);
     }
 
+    private void validateInput(PolicyDto dto) {
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            throw new IllegalArgumentException(i18n("msg.policy.validation.name.required"));
+        }
+        if (dto.getEffect() == null) {
+            throw new IllegalArgumentException(i18n("msg.policy.validation.effect.required"));
+        }
+        if (dto.getTargets() == null || dto.getTargets().isEmpty()) {
+            throw new IllegalArgumentException(i18n("msg.policy.validation.target.required"));
+        }
+    }
+
     private void validateConflicts(Policy policy) {
         List<PolicyConflictDto> conflicts = policyConflictAnalyzer.analyze(policy);
-        List<PolicyConflictDto> criticalConflicts = conflicts.stream()
-                .filter(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL)
+        List<PolicyConflictDto> blockingConflicts = conflicts.stream()
+                .filter(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL
+                        || c.severity() == PolicyConflictDto.Severity.HIGH)
                 .toList();
-        if (!criticalConflicts.isEmpty()) {
-            String details = criticalConflicts.stream()
-                    .map(c -> String.format("[%s] %s", c.existingPolicyName(), c.conflictDescription()))
+        if (!blockingConflicts.isEmpty()) {
+            String details = blockingConflicts.stream()
+                    .map(c -> String.format("[%s/%s] %s", c.severity(), c.existingPolicyName(), c.conflictDescription()))
                     .collect(Collectors.joining("; "));
             throw new PolicyConflictException(
-                    "Critical policy conflicts detected: " + details, conflicts);
+                    i18n("msg.policy.validation.conflicts.detected", details), conflicts);
         }
-        if (!conflicts.isEmpty()) {
-            log.error("Policy conflicts detected for '{}': {}", policy.getName(),
-                    conflicts.stream().map(PolicyConflictDto::conflictDescription).collect(Collectors.joining("; ")));
-        }
+    }
+
+    private String i18n(String code, Object... args) {
+        return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
     }
 
     private void auditPolicyChange(AuditEventCategory category, Policy policy) {

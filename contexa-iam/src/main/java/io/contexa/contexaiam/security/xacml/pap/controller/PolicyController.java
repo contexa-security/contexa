@@ -58,8 +58,16 @@ public class PolicyController {
 
     @PostMapping
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
-        policyService.createPolicy(policyDto);
-        ra.addFlashAttribute("message", msg("msg.policy.created"));
+        try {
+            policyService.createPolicy(policyDto);
+            ra.addFlashAttribute("message", msg("msg.policy.created"));
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.error("Duplicate policy name", e);
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
+        } catch (Exception e) {
+            log.error("Failed to create policy", e);
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
+        }
         return "redirect:/admin/policy-center?tab=list";
     }
 
@@ -77,9 +85,17 @@ public class PolicyController {
 
     @PostMapping("/{id}/edit")
     public String updatePolicy(@PathVariable Long id, @ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
-        policyDto.setId(id);
-        policyService.updatePolicy(policyDto);
-        ra.addFlashAttribute("message", msg("msg.policy.updated"));
+        try {
+            policyDto.setId(id);
+            policyService.updatePolicy(policyDto);
+            ra.addFlashAttribute("message", msg("msg.policy.updated"));
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.error("Duplicate policy name on update", e);
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
+        } catch (Exception e) {
+            log.error("Failed to update policy", e);
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
+        }
         return "redirect:/admin/policy-center?tab=list";
     }
 

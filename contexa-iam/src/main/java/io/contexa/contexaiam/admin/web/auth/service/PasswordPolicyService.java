@@ -1,8 +1,11 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.entity.PasswordHistory;
 import io.contexa.contexacommon.entity.PasswordPolicy;
+import io.contexa.contexacommon.repository.PasswordHistoryRepository;
 import io.contexa.contexacommon.repository.PasswordPolicyRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -12,6 +15,8 @@ import java.util.List;
 public class PasswordPolicyService {
 
     private final PasswordPolicyRepository repository;
+    private final PasswordHistoryRepository passwordHistoryRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public PasswordPolicy getCurrentPolicy() {
@@ -70,5 +75,32 @@ public class PasswordPolicyService {
         }
 
         return violations;
+    }
+
+    /**
+     * Checks if the new password was recently used (reuse prevention).
+     * Returns true if the password is reused and should be rejected.
+     */
+    public boolean isPasswordReused(Long userId, String rawNewPassword) {
+        PasswordPolicy policy = getCurrentPolicy();
+        if (policy.getHistoryCount() <= 0) return false;
+
+        List<PasswordHistory> history = passwordHistoryRepository
+                .findByUserIdOrderByChangedAtDesc(userId);
+
+        return history.stream()
+                .limit(policy.getHistoryCount())
+                .anyMatch(h -> passwordEncoder.matches(rawNewPassword, h.getPasswordHash()));
+    }
+
+    /**
+     * Records the current password in history before changing it.
+     */
+    @Transactional
+    public void recordPasswordHistory(Long userId, String encodedPassword) {
+        passwordHistoryRepository.save(PasswordHistory.builder()
+                .userId(userId)
+                .passwordHash(encodedPassword)
+                .build());
     }
 }

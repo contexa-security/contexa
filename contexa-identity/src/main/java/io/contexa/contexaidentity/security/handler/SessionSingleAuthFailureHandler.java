@@ -58,6 +58,25 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             }
         }
 
+        // Password expired - redirect to password change page
+        if (exception instanceof org.springframework.security.authentication.CredentialsExpiredException) {
+            String expiredUsername = request.getParameter("username");
+            String passwordChangeUrl = request.getContextPath() + "/password-change?username="
+                    + java.net.URLEncoder.encode(expiredUsername != null ? expiredUsername : "", java.nio.charset.StandardCharsets.UTF_8) + "&expired=true";
+            if (isApiRequest(request)) {
+                Map<String, Object> responseData = new HashMap<>();
+                responseData.put("authenticated", false);
+                responseData.put("errorCode", "CREDENTIALS_EXPIRED");
+                responseData.put("message", "Password has expired");
+                responseData.put("nextStepUrl", passwordChangeUrl);
+                responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
+                        "CREDENTIALS_EXPIRED", "Password has expired", request.getRequestURI(), responseData);
+            } else {
+                response.sendRedirect(passwordChangeUrl);
+            }
+            return;
+        }
+
         String errorCode = "PRIMARY_AUTH_FAILED";
         String errorMessage = "Invalid username or password.";
 

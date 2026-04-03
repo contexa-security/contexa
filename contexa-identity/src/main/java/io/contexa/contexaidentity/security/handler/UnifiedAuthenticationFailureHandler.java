@@ -172,6 +172,14 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             cleanupSessionUsingRepository(request, response, factorContext.getMfaSessionId());
         }
 
+        // Password expired - redirect to password change page
+        if (exception instanceof org.springframework.security.authentication.CredentialsExpiredException) {
+            String passwordChangeUrl = request.getContextPath() + "/password-change?username="
+                    + java.net.URLEncoder.encode(usernameForLog, java.nio.charset.StandardCharsets.UTF_8) + "&expired=true";
+            response.sendRedirect(passwordChangeUrl);
+            return;
+        }
+
         String errorCode = "PRIMARY_AUTH_FAILED";
         String errorMessage = "Invalid username or password.";
         FailureType failureType = FailureType.PRIMARY_AUTH_FAILED;

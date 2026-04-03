@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.MessageSource;
+import io.contexa.contexacommon.security.authority.AuthorityResolver;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -64,14 +65,18 @@ public class IamXacmlPapAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PolicyConflictAnalyzer policyConflictAnalyzer(PolicyRepository policyRepository) {
-        return new PolicyConflictAnalyzer(policyRepository);
+    public PolicyConflictAnalyzer policyConflictAnalyzer(PolicyRepository policyRepository,
+                                                         MessageSource messageSource) {
+        return new PolicyConflictAnalyzer(policyRepository, messageSource);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public PolicyDuplicateDetector policyDuplicateDetector(PolicyRepository policyRepository) {
-        return new PolicyDuplicateDetector(policyRepository);
+    public PolicyDuplicateDetector policyDuplicateDetector(
+            PolicyRepository policyRepository,
+            RoleHierarchy roleHierarchy,
+            MessageSource messageSource) {
+        return new PolicyDuplicateDetector(policyRepository, roleHierarchy, messageSource);
     }
 
     @Bean
@@ -79,8 +84,9 @@ public class IamXacmlPapAutoConfiguration {
     public PolicyValidationService policyValidationService(
             PolicyConflictAnalyzer policyConflictAnalyzer,
             PolicyDuplicateDetector policyDuplicateDetector,
-            PolicyRepository policyRepository) {
-        return new PolicyValidationService(policyConflictAnalyzer, policyDuplicateDetector, policyRepository);
+            PolicyRepository policyRepository,
+            MessageSource messageSource) {
+        return new PolicyValidationService(policyConflictAnalyzer, policyDuplicateDetector, policyRepository, messageSource);
     }
 
     @Bean
@@ -88,8 +94,9 @@ public class IamXacmlPapAutoConfiguration {
     public PolicyImpactAnalyzer policyImpactAnalyzer(
             UserRepository userRepository,
             PolicyRepository policyRepository,
-            RoleHierarchy roleHierarchy) {
-        return new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy);
+            RoleHierarchy roleHierarchy,
+            AuthorityResolver authorityResolver) {
+        return new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy, authorityResolver);
     }
 
     @Bean
@@ -116,9 +123,10 @@ public class IamXacmlPapAutoConfiguration {
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             PolicyConflictAnalyzer policyConflictAnalyzer,
-            PolicyDuplicateDetector policyDuplicateDetector) {
+            PolicyDuplicateDetector policyDuplicateDetector,
+            MessageSource messageSource) {
         return new AIPolicyValidator(roleRepository, permissionRepository,
-                policyConflictAnalyzer, policyDuplicateDetector);
+                policyConflictAnalyzer, policyDuplicateDetector, messageSource);
     }
 
     @Bean
@@ -160,13 +168,14 @@ public class IamXacmlPapAutoConfiguration {
             PolicyVersionService policyVersionService,
             PolicyImpactAnalyzer policyImpactAnalyzer,
             PolicySimulator policySimulator,
+            MessageSource messageSource,
             AIPolicyValidator aiPolicyValidator,
             ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
         DefaultPolicyService service = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
                 policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository,
                 centralAuditFacade, policyConflictAnalyzer, policyValidationService,
-                policyVersionService, policyImpactAnalyzer, policySimulator, aiPolicyValidator);
+                policyVersionService, policyImpactAnalyzer, policySimulator, messageSource, aiPolicyValidator);
         policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
         return service;
     }
@@ -201,12 +210,13 @@ public class IamXacmlPapAutoConfiguration {
             io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
             io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
             PolicyConflictAnalyzer policyConflictAnalyzer,
-            PolicyVersionService policyVersionService) {
+            PolicyVersionService policyVersionService,
+            MessageSource messageSource) {
         return new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository, permissionRepository,
                 conditionTemplateRepository, policyEnrichmentService, authorizationManager,
                 securitySpelRepository, centralAuditFacade, policyConflictAnalyzer,
-                policyVersionService);
+                policyVersionService, messageSource);
     }
 
     @Bean

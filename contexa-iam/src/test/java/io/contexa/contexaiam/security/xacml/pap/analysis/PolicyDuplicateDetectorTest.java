@@ -5,6 +5,8 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import org.springframework.context.MessageSource;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,11 +32,27 @@ class PolicyDuplicateDetectorTest {
     @Mock
     private PolicyRepository policyRepository;
 
+    @Mock
+    private RoleHierarchy roleHierarchy;
+
+    @Mock
+    private MessageSource messageSource;
+
     private PolicyDuplicateDetector detector;
 
     @BeforeEach
     void setUp() {
-        detector = new PolicyDuplicateDetector(policyRepository);
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class)))
+                .thenAnswer(inv -> {
+                    String code = inv.getArgument(0);
+                    return switch (code) {
+                        case "msg.policy.duplicate.exact" -> "Exact duplicate: identical targets, conditions, and effect";
+                        case "msg.policy.duplicate.semantic" -> "Semantic duplicate: equivalent after SpEL normalization";
+                        case "msg.policy.duplicate.subset" -> "Subset: existing policy already covers this policy";
+                        default -> code;
+                    };
+                });
+        detector = new PolicyDuplicateDetector(policyRepository, roleHierarchy, messageSource);
     }
 
     private Policy buildPolicyWithCondition(Long id, String name, Policy.Effect effect,

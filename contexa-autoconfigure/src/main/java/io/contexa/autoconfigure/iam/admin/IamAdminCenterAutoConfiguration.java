@@ -10,10 +10,13 @@ import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -43,12 +46,16 @@ public class IamAdminCenterAutoConfiguration {
             PermissionRepository permissionRepository,
             PolicyVersionService policyVersionService,
             PolicyMatrixService policyMatrixService,
-            PolicyCombiningProperties policyCombiningProperties) {
+            PolicyCombiningProperties policyCombiningProperties,
+            PolicyEnrichmentService policyEnrichmentService,
+            CustomDynamicAuthorizationManager authorizationManager,
+            CentralAuditFacade centralAuditFacade) {
         return new PolicyCenterController(
                 resourceRegistryService, policyService, policyRepository, roleService,
                 permissionCatalogService, businessPolicyService, conditionTemplateRepository,
                 managedResourceRepository, securitySpelRepository, messageSource,
-                policyValidationService, permissionRepository, policyVersionService,
-                policyMatrixService, policyCombiningProperties);
+                policyValidationService, permissionRepository, policyEnrichmentService,
+                policyVersionService, policyMatrixService, policyCombiningProperties,
+                authorizationManager, centralAuditFacade);
     }
 }

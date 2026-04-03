@@ -41,8 +41,9 @@ public class IamAdminAuthAutoConfiguration {
             ModelMapper modelMapper,
             PasswordEncoder passwordEncoder,
             io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
-            MessageSource messageSource) {
-        return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService, messageSource);
+            MessageSource messageSource,
+            io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService) {
+        return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService, messageSource, systemSettingsService);
     }
 
     @Bean
@@ -108,12 +109,15 @@ public class IamAdminAuthAutoConfiguration {
     public UserManagementService userManagementService(
             UserRepository userRepository,
             GroupRepository groupRepository,
+            io.contexa.contexacommon.repository.RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
             ModelMapper modelMapper,
             io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
-            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService) {
+            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
+            io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService) {
         return new UserManagementServiceImpl(
-                userRepository, groupRepository, passwordEncoder, modelMapper, centralAuditFacade, passwordPolicyService);
+                userRepository, groupRepository, roleRepository, passwordEncoder, modelMapper,
+                centralAuditFacade, passwordPolicyService, systemSettingsService);
     }
 
     @Bean

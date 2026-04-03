@@ -42,6 +42,10 @@ public class Permission implements Serializable {
     @JoinColumn(name = "managed_resource_id", unique = true)
     private ManagedResource managedResource;
 
+    @Column(name = "auto_created", nullable = false)
+    @Builder.Default
+    private boolean autoCreated = false;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

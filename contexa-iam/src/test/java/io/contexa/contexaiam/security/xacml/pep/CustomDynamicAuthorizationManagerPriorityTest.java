@@ -52,7 +52,8 @@ class CustomDynamicAuthorizationManagerPriorityTest {
         manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
                 contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
-                new PolicyCombiningEvaluator(), CombiningAlgorithm.FIRST_APPLICABLE);
+                new PolicyCombiningEvaluator());
+        manager.setCombiningAlgorithm(CombiningAlgorithm.FIRST_APPLICABLE);
 
         resolvedExpressions = new ArrayList<>();
         AuthorizationManager<RequestAuthorizationContext> dummyManager = mock(AuthorizationManager.class);
@@ -64,7 +65,8 @@ class CustomDynamicAuthorizationManagerPriorityTest {
 
     private Policy buildPolicy(Long id, String name, Policy.Effect effect, int priority) {
         return Policy.builder()
-                .id(id).name(name).effect(effect).priority(priority).build();
+                .id(id).name(name).effect(effect).priority(priority)
+                .isActive(true).approvalStatus(Policy.ApprovalStatus.APPROVED).build();
     }
 
     private void addUrlTarget(Policy policy, String path, String httpMethod) {

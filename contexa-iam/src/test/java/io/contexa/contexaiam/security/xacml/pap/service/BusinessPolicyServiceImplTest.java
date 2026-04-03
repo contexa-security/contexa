@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 
 import java.util.*;
 
@@ -74,15 +75,20 @@ class BusinessPolicyServiceImplTest {
     @Mock
     private PolicyVersionService policyVersionService;
 
+    @Mock
+    private MessageSource messageSource;
+
     private BusinessPolicyServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(java.util.List.of());
         service = new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository,
                 permissionRepository, conditionTemplateRepository,
                 policyEnrichmentService, authorizationManager, securitySpelRepository,
-                centralAuditFacade, policyConflictAnalyzer, policyVersionService);
+                centralAuditFacade, policyConflictAnalyzer, policyVersionService, messageSource);
     }
 
     @Nested
@@ -181,7 +187,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("At least one role, permission, or expression");
+                    .hasMessageContaining("msg.policy.validation.select.required");
         }
 
         @Test
@@ -239,7 +245,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("dangerous pattern");
+                    .hasMessageContaining("msg.policy.spel.dangerous");
         }
 
         @Test
@@ -256,7 +262,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("dangerous pattern");
+                    .hasMessageContaining("msg.policy.spel.dangerous");
         }
 
         @Test
@@ -273,7 +279,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("dangerous pattern");
+                    .hasMessageContaining("msg.policy.spel.dangerous");
         }
 
         @Test
@@ -290,7 +296,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("dangerous pattern");
+                    .hasMessageContaining("msg.policy.spel.dangerous");
         }
 
         @Test
@@ -307,7 +313,7 @@ class BusinessPolicyServiceImplTest {
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("dangerous pattern");
+                    .hasMessageContaining("msg.policy.spel.dangerous");
         }
 
         @Test

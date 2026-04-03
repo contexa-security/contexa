@@ -32,6 +32,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
             throw new IllegalStateException("Cannot create permission from a resource that needs definition. Resource ID: " + resource.getId());
         }
 
+        // Create per-resource permission (for resource-policy linking and status management)
         String permissionName = generatePermissionName(resource);
 
         Permission permission = permissionRepository.findByName(permissionName)
@@ -41,16 +42,15 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         permission.setDescription(resource.getDescription());
         permission.setTargetType(resource.getResourceType().name());
 
-        String actionType = "EXECUTE"; 
+        String actionType = "EXECUTE";
         if (resource.getResourceType() == ManagedResource.ResourceType.URL && resource.getHttpMethod() != null) {
             actionType = resource.getHttpMethod().name();
         }
         permission.setActionType(actionType);
         permission.setManagedResource(resource);
+        permission.setAutoCreated(true);
 
-        Permission savedPermission = permissionRepository.save(permission);
-
-        return savedPermission;
+        return permissionRepository.save(permission);
     }
 
     @Override
@@ -66,7 +66,8 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     public Page<PermissionDto> searchAvailablePermissions(String keyword, Collection<Long> excludeIds, Pageable pageable) {
         Collection<Long> safeExcludeIds = (excludeIds == null || excludeIds.isEmpty())
                 ? Collections.singleton(-1L) : excludeIds;
-        return permissionRepository.searchAvailablePermissions(keyword, safeExcludeIds, pageable)
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        return permissionRepository.searchAvailablePermissions(pattern, safeExcludeIds, pageable)
                 .map(p -> modelMapper.map(p, PermissionDto.class));
     }
 

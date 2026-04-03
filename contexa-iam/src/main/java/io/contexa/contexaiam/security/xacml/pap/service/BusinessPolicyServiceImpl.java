@@ -26,7 +26,9 @@ import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.CollectionUtils;
@@ -52,6 +54,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyConflictAnalyzer policyConflictAnalyzer;
     private final PolicyVersionService policyVersionService;
+    private final MessageSource messageSource;
 
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
                                      @Lazy RoleService roleService,
@@ -63,7 +66,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                                      SecuritySpelRepository securitySpelRepository,
                                      CentralAuditFacade centralAuditFacade,
                                      PolicyConflictAnalyzer policyConflictAnalyzer,
-                                     PolicyVersionService policyVersionService) {
+                                     PolicyVersionService policyVersionService,
+                                     MessageSource messageSource) {
         this.policyRepository = policyRepository;
         this.roleService = roleService;
         this.roleRepository = roleRepository;
@@ -75,12 +79,17 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         this.centralAuditFacade = centralAuditFacade;
         this.policyConflictAnalyzer = policyConflictAnalyzer;
         this.policyVersionService = policyVersionService;
+        this.messageSource = messageSource;
+    }
+
+    private String i18n(String code, Object... args) {
+        return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
     }
 
     @Override
     public Policy createPolicyFromBusinessRule(BusinessPolicyDto dto) {
         if (dto.getSpelId() == null && CollectionUtils.isEmpty(dto.getRoleIds()) && CollectionUtils.isEmpty(dto.getPermissionIds())) {
-            throw new IllegalArgumentException("At least one role, permission, or expression must be selected to create a policy.");
+            throw new IllegalArgumentException(i18n("msg.policy.validation.select.required"));
         }
 
         Policy policy = new Policy();
@@ -107,7 +116,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     @Override
     public Policy updatePolicyFromBusinessRule(Long policyId, BusinessPolicyDto dto) {
         Policy existingPolicy = policyRepository.findByIdWithDetails(policyId)
-                .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
+                .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", policyId)));
 
         policyVersionService.createVersion(existingPolicy,
                 PolicyVersion.ChangeType.UPDATED, null);
@@ -136,9 +145,11 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             policy.setSource(Policy.PolicySource.MANUAL);
         }
 
-        // AI-generated policies require admin approval
+        // AI-generated policies require admin approval, manual policies don't
         if (policy.isAIGenerated()) {
             policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
+        } else {
+            policy.setApprovalStatus(Policy.ApprovalStatus.NOT_REQUIRED);
         }
         if (dto.getConfidenceScore() != null) {
             policy.setConfidenceScore(dto.getConfidenceScore());
@@ -157,7 +168,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         // SpEL expression mode: use SecuritySpel directly, skip role/permission logic
         if (dto.getSpelId() != null) {
             SecuritySpel spel = securitySpelRepository.findById(dto.getSpelId())
-                    .orElseThrow(() -> new IllegalArgumentException("SecuritySpel not found: " + dto.getSpelId()));
+                    .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.spel.not.found", dto.getSpelId())));
 
             // Add manual target if provided
             if ("MANUAL".equals(dto.getSourceType()) && dto.getManualTargetIdentifier() != null) {
@@ -255,14 +266,28 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             allConditions.add("(" + roleCondition + ")");
         }
 
+        // CRUD permissions (READ, WRITE, UPDATE, DELETE)
+        Set<String> crudPerms = dto.getCrudPermissions() != null ? dto.getCrudPermissions() : Collections.emptySet();
+        if (!crudPerms.isEmpty()) {
+            String crudCondition = crudPerms.stream()
+                    .map(name -> String.format("hasAuthority('%s')", name))
+                    .collect(Collectors.joining(" or "));
+            allConditions.add("(" + crudCondition + ")");
+        }
+
+        // Manual permissions only (exclude auto-created URL_*/METHOD_* and CRUD)
         Set<Long> permissionIds = dto.getPermissionIds() != null ? dto.getPermissionIds() : Collections.emptySet();
-        List<Permission> permissions = permissionIds.isEmpty() ? Collections.emptyList() : new ArrayList<>(permissionRepository.findAllById(permissionIds));
-        String permissionCondition = permissions.stream()
-                .map(Permission::getName)
-                .map(name -> String.format("hasAuthority('%s')", name))
-                .collect(Collectors.joining(" or "));
-        if (StringUtils.hasText(permissionCondition)) {
-            allConditions.add("(" + permissionCondition + ")");
+        if (!permissionIds.isEmpty()) {
+            List<Permission> manualPerms = new ArrayList<>(permissionRepository.findAllById(permissionIds)).stream()
+                    .filter(p -> !p.isAutoCreated() && !"CRUD".equals(p.getTargetType()))
+                    .toList();
+            if (!manualPerms.isEmpty()) {
+                String manualCondition = manualPerms.stream()
+                        .map(Permission::getName)
+                        .map(name -> String.format("hasAuthority('%s')", name))
+                        .collect(Collectors.joining(" or "));
+                allConditions.add("(" + manualCondition + ")");
+            }
         }
 
         if (dto.isAiActionEnabled() && !CollectionUtils.isEmpty(dto.getAllowedActions())) {
@@ -291,7 +316,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         if (!CollectionUtils.isEmpty(dto.getConditions())) {
             dto.getConditions().forEach((templateId, params) -> {
                 ConditionTemplate template = conditionTemplateRepository.findById(templateId)
-                        .orElseThrow(() -> new IllegalArgumentException("Condition template not found: " + templateId));
+                        .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.condition.not.found", templateId)));
                 Object[] quotedParams = params.stream().map(p -> "'" + p + "'").toArray();
                 allConditions.add(String.format(template.getSpelTemplate(), quotedParams));
             });
@@ -303,7 +328,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     @Override
     public BusinessPolicyDto getBusinessRuleForPolicy(Long policyId) {
         Policy policy = policyRepository.findByIdWithDetails(policyId)
-                .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
+                .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", policyId)));
 
         return translatePolicyToBusinessRule(policy);
     }
@@ -505,7 +530,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         };
         for (String pattern : dangerousPatterns) {
             if (upper.contains(pattern)) {
-                throw new IllegalArgumentException("SpEL expression contains dangerous pattern: " + pattern);
+                throw new IllegalArgumentException(i18n("msg.policy.spel.dangerous", pattern));
             }
         }
     }
@@ -550,19 +575,16 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
     private void validateConflicts(Policy policy) {
         List<PolicyConflictDto> conflicts = policyConflictAnalyzer.analyze(policy);
-        List<PolicyConflictDto> criticalConflicts = conflicts.stream()
-                .filter(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL)
+        List<PolicyConflictDto> blockingConflicts = conflicts.stream()
+                .filter(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL
+                        || c.severity() == PolicyConflictDto.Severity.HIGH)
                 .toList();
-        if (!criticalConflicts.isEmpty()) {
-            String details = criticalConflicts.stream()
-                    .map(c -> String.format("[%s] %s", c.existingPolicyName(), c.conflictDescription()))
+        if (!blockingConflicts.isEmpty()) {
+            String details = blockingConflicts.stream()
+                    .map(c -> String.format("[%s/%s] %s", c.severity(), c.existingPolicyName(), c.conflictDescription()))
                     .collect(Collectors.joining("; "));
             throw new PolicyConflictException(
-                    "Critical policy conflicts detected: " + details, conflicts);
-        }
-        if (!conflicts.isEmpty()) {
-            log.error("Policy conflicts detected for '{}': {}", policy.getName(),
-                    conflicts.stream().map(PolicyConflictDto::conflictDescription).collect(Collectors.joining("; ")));
+                    i18n("msg.policy.validation.conflicts.detected", details), conflicts);
         }
     }
 }

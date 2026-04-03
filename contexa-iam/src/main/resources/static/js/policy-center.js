@@ -124,12 +124,9 @@ const PolicyCenter = {
 
     async selectQuickModeMulti() {
         var modal = document.getElementById('policySetupModal');
-        // Show loading state in modal
         var modalTitle = modal.querySelector('h2');
         var originalTitle = modalTitle ? modalTitle.textContent : '';
-        var rpI18n = document.getElementById('rp-i18n');
-        var rpDs = rpI18n ? rpI18n.dataset : {};
-        if (modalTitle) modalTitle.textContent = rpDs.processing || 'Processing...';
+        if (modalTitle) modalTitle.textContent = PolicyCenter._i18n('processing', 'Processing...');
         modal.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
 
         try {
@@ -140,7 +137,6 @@ const PolicyCenter = {
             modal.style.display = 'none';
 
             PolicyCenter.CreateFlow.activateWithResources(ctxArr);
-            // Switch tab directly without calling switchToCreateTab (which calls activateWithResource for single)
             document.querySelectorAll('.pc-tab-content').forEach(function(c) { c.classList.remove('active'); });
             document.querySelectorAll('.pc-tab-btn').forEach(function(b) { b.classList.remove('active'); });
             var createTab = document.getElementById('tab-create');
@@ -150,21 +146,22 @@ const PolicyCenter = {
             var modeBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
             PolicyCenter.switchCreateMode('quick', modeBtn);
             history.pushState(null, '', '/admin/policy-center?tab=create');
+            PolicyCenter.MultiSelect.updateBar();
 
         } catch (e) {
             if (modalTitle) modalTitle.textContent = originalTitle;
             modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
             modal.classList.add('hidden');
             modal.style.display = 'none';
-            var errTpl = rpDs.batchError || 'Batch permission creation failed: {0}';
-            showToast(errTpl.replace('{0}', e.message), 'error');
+            showToast(PolicyCenter._i18n('policyCreateFailed', 'Batch creation failed: ') + e.message, 'error');
         }
     },
 
     async selectAIWizard() {
         const modal = document.getElementById('policySetupModal');
         if (modal.dataset.multiMode === 'true') {
-            return this.selectAIWizardMulti();
+            showToast(PolicyCenter._i18n('aiSingleOnly', 'AI mode supports single resource only. Please use Quick mode for multiple resources.'), 'error');
+            return;
         }
         const result = await this.definePermission(modal);
         if (!result) return;
@@ -189,9 +186,7 @@ const PolicyCenter = {
         // Show loading state in modal
         var modalTitle = modal.querySelector('h2');
         var originalTitle = modalTitle ? modalTitle.textContent : '';
-        var rpI18n = document.getElementById('rp-i18n');
-        var rpDs = rpI18n ? rpI18n.dataset : {};
-        if (modalTitle) modalTitle.textContent = rpDs.processing || 'Processing...';
+        if (modalTitle) modalTitle.textContent = PolicyCenter._i18n('processing', 'Processing...');
         modal.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
 
         try {
@@ -211,23 +206,20 @@ const PolicyCenter = {
             var modeBtn = document.querySelector('.pc-mode-card[onclick*="ai"]');
             PolicyCenter.switchCreateMode('ai', modeBtn);
             history.pushState(null, '', '/admin/policy-center?tab=create');
+            PolicyCenter.MultiSelect.updateBar();
 
-            // Pre-fill AI query with resource summary
+            // Pre-fill AI query with first resource context (AI mode supports single policy only)
             var queryInput = document.getElementById('ai-query-input');
-            if (queryInput) {
-                var summary = '[Target Resources: ' + ctxArr.length + ']\n';
-                ctxArr.forEach(function(c) {
-                    summary += '- ' + c.resourceType + ' ' + c.httpMethod + ' ' + c.resourceIdentifier + '\n';
-                });
-                queryInput.value = summary;
+            if (queryInput && ctxArr.length > 0) {
+                var first = ctxArr[0];
+                queryInput.value = '[' + (first.resourceType || 'URL') + ' ' + (first.httpMethod || '') + ' ' + (first.resourceIdentifier || '') + '] ';
             }
         } catch (e) {
             if (modalTitle) modalTitle.textContent = originalTitle;
             modal.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
             modal.classList.add('hidden');
             modal.style.display = 'none';
-            var errTpl = rpDs.batchError || 'Batch permission creation failed: {0}';
-            showToast(errTpl.replace('{0}', e.message), 'error');
+            showToast(PolicyCenter._i18n('policyCreateFailed', 'Batch creation failed: ') + e.message, 'error');
         }
     },
 
@@ -252,14 +244,13 @@ const PolicyCenter = {
             headers: headers,
             body: JSON.stringify(requests)
         });
-        if (!resp.ok) throw new Error('Server error: ' + resp.status);
+        if (!resp.ok) throw new Error(PolicyCenter._i18n('policyCreateFailed', 'Server error') + ': ' + resp.status);
         var results = await resp.json();
 
         // Only include results that have a permissionId
         var permResults = results.filter(function(r) { return r.permissionId; });
         if (permResults.length === 0) {
-            var rpI18n = document.getElementById('rp-i18n');
-            throw new Error((rpI18n && rpI18n.dataset.noPermissions) || 'No permissions could be created');
+            throw new Error(PolicyCenter._i18n('multiNoPermissions', 'No permissions could be created'));
         }
 
         return permResults.map(function(r) {
@@ -307,6 +298,7 @@ const PolicyCenter = {
 
         // Update URL without reload
         history.pushState(null, '', '/admin/policy-center?tab=create');
+        PolicyCenter.MultiSelect.updateBar();
     },
 
     switchToResourcesTab() {
@@ -317,6 +309,7 @@ const PolicyCenter = {
         const resBtn = document.querySelector('.pc-tab-btn[href*="tab=resources"]');
         if (resBtn) resBtn.classList.add('active');
         history.pushState(null, '', '/admin/policy-center?tab=resources');
+        PolicyCenter.MultiSelect.updateBar();
     },
 
     async excludeResource(button) {
@@ -361,10 +354,20 @@ const PolicyCenter = {
             badge.className = 'status-badge bg-slate-500/20 text-slate-400 border-slate-500/30';
             badge.innerHTML = '<i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('statusExcluded', 'Excluded') + '</span>';
         }
+        row.dataset.resStatus = 'EXCLUDED';
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
         if (defineBtn) defineBtn.closest('div').style.display = 'none';
         const actionDiv = button.closest('div');
         actionDiv.innerHTML = '<button type="button" class="action-badge-restore w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.restoreResource(this)"><i class="fas fa-undo"></i> <span>' + PolicyCenter._i18n('btnRestore', 'Restore') + '</span></button>';
+        // Hide and disable checkbox for EXCLUDED
+        const cb = row.querySelector('.res-cb');
+        if (cb) { cb.checked = false; cb.disabled = true; cb.style.display = 'none'; }
+        // Remove from selection if selected
+        const id = parseInt(row.dataset.resId);
+        if (!isNaN(id) && PolicyCenter.MultiSelect.selectedResources.has(id)) {
+            PolicyCenter.MultiSelect.selectedResources.delete(id);
+            PolicyCenter.MultiSelect.updateBar();
+        }
     },
 
     updateRowAfterRestore(button, resourceId) {
@@ -372,13 +375,35 @@ const PolicyCenter = {
         if (!row) return;
         const badge = row.querySelector('.status-badge');
         if (badge) {
-            badge.className = 'status-badge bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+            badge.className = 'status-badge bg-red-500/20 text-red-400 border-red-500/30';
             badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>' + PolicyCenter._i18n('statusUnset', 'Unset') + '</span>';
         }
+        row.dataset.resStatus = 'NEEDS_DEFINITION';
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
-        if (defineBtn) defineBtn.closest('div').style.display = '';
+        if (defineBtn) {
+            defineBtn.closest('div').style.display = '';
+            defineBtn.disabled = false;
+            defineBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+        }
         const actionDiv = button.closest('div');
         actionDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
+        // Re-enable checkbox for NEEDS_DEFINITION
+        var cb = row.querySelector('.res-cb');
+        if (cb) {
+            cb.disabled = false;
+            cb.style.display = '';
+        } else {
+            // Checkbox was never rendered (e.g. POLICY_CONNECTED row) - create it
+            var cbTd = row.querySelector('td:first-child');
+            if (cbTd) {
+                var newCb = document.createElement('input');
+                newCb.type = 'checkbox';
+                newCb.className = 'res-cb res-styled-cb';
+                newCb.dataset.id = resourceId;
+                newCb.onchange = function() { PolicyCenter.MultiSelect.toggleResource(newCb); };
+                cbTd.appendChild(newCb);
+            }
+        }
     },
 
     // ================================================================
@@ -470,6 +495,9 @@ const PolicyCenter = {
                     name: ctx.friendlyName || 'Permission'
                 };
             }
+
+            // Render CRUD panel based on resource httpMethod
+            PolicyCenter.QuickPanel._renderCrud([ctx]);
         },
 
         activateWithResources: function(ctxArr) {
@@ -492,9 +520,8 @@ const PolicyCenter = {
             if (multiBanner) {
                 multiBanner.classList.remove('hidden');
                 multiBanner.style.display = 'flex';
-                var i18nEl = document.getElementById('rp-i18n');
-                var countTpl = (i18nEl && i18nEl.dataset.selectedCount) || '{0} selected';
-                document.getElementById('create-multi-count').textContent = countTpl.replace('{0}', ctxArr.length);
+                var countTpl = PolicyCenter._i18n('multiBatchInfo', '{0} resources selected');
+                document.getElementById('create-multi-count').textContent = countTpl.replace(/\{0}/g, ctxArr.length);
             }
 
             // Show mode navigation
@@ -507,6 +534,9 @@ const PolicyCenter = {
             PolicyCenter.QuickPanel._preSelectedPerms = ctxArr.map(function(c) {
                 return { id: c.permissionId, name: c.permissionName };
             });
+
+            // Render CRUD panel for all resources
+            PolicyCenter.QuickPanel._renderCrud(ctxArr);
         }
     },
 
@@ -536,6 +566,174 @@ const PolicyCenter = {
         initialMappingDone: false,
         selectedSpel: null,
         spelSearchTimeout: null,
+        _selectedCruds: new Set(),
+
+        _httpMethodToCrud: function(httpMethod) {
+            if (!httpMethod) return 'READ';
+            var m = httpMethod.toUpperCase();
+            if (m === 'GET') return 'READ';
+            if (m === 'POST') return 'WRITE';
+            if (m === 'PUT' || m === 'PATCH') return 'UPDATE';
+            if (m === 'DELETE') return 'DELETE';
+            return 'READ';
+        },
+
+        _renderCrud: function(ctxArr) {
+            var autoItems = document.getElementById('qp-crud-auto-items');
+            var emptyEl = document.getElementById('qp-crud-empty');
+            if (!autoItems) return;
+            if (!ctxArr || ctxArr.length === 0) {
+                autoItems.innerHTML = '';
+                if (emptyEl) emptyEl.style.display = '';
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = 'none';
+
+            var allCruds = ['READ', 'WRITE', 'UPDATE', 'DELETE'];
+            var crudNames = { READ: 'Read', WRITE: 'Write', UPDATE: 'Update', DELETE: 'Delete' };
+            var crudColors = { READ: '#4ade80', WRITE: '#60a5fa', UPDATE: '#fbbf24', DELETE: '#f87171' };
+            var crudIcons = { READ: 'fa-eye', WRITE: 'fa-plus', UPDATE: 'fa-pen', DELETE: 'fa-trash' };
+            var methodColors = { GET: '#4ade80', POST: '#60a5fa', PUT: '#fbbf24', PATCH: '#fbbf24', DELETE: '#f87171', ANY: '#94a3b8' };
+
+            if (ctxArr.length === 1) {
+                // Single resource: 4 CRUD checkboxes (existing behavior)
+                var recommended = new Set();
+                recommended.add(this._httpMethodToCrud(ctxArr[0].httpMethod));
+                this._selectedCruds = new Set(recommended);
+                this._selectedCrudsPerResource = null;
+
+                autoItems.innerHTML = allCruds.map(function(c) {
+                    var isRec = recommended.has(c);
+                    return '<label style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 0.875rem;border-radius:0.5rem;cursor:pointer;transition:all 0.2s;' +
+                        'background:' + (isRec ? crudColors[c] + '15' : 'rgba(30,41,59,0.4)') + ';border:1px solid ' + (isRec ? crudColors[c] + '40' : 'rgba(71,85,105,0.3)') + ';">' +
+                        '<input type="checkbox" class="qp-crud-cb" value="' + c + '"' + (isRec ? ' checked' : '') +
+                        ' onchange="PolicyCenter.QuickPanel._onCrudChange()" style="accent-color:' + crudColors[c] + ';width:1rem;height:1rem;">' +
+                        '<i class="fas ' + crudIcons[c] + '" style="font-size:0.75rem;color:' + crudColors[c] + ';"></i> ' +
+                        '<span style="font-size:0.8125rem;font-weight:600;color:' + (isRec ? crudColors[c] : '#94a3b8') + ';">' + crudNames[c] + '</span>' +
+                        (isRec ? '<span style="font-size:0.625rem;color:#64748b;margin-left:0.25rem;">*</span>' : '') +
+                        '</label>';
+                }).join('');
+            } else {
+                // Multi resource: per-resource CRUD cards
+                this._selectedCruds = null;
+                this._selectedCrudsPerResource = new Map();
+                var self = this;
+
+                autoItems.innerHTML = ctxArr.map(function(ctx, idx) {
+                    var rec = self._httpMethodToCrud(ctx.httpMethod);
+                    self._selectedCrudsPerResource.set(String(ctx.resourceId), new Set([rec]));
+                    var method = (ctx.httpMethod || 'ANY').toUpperCase();
+                    var mColor = methodColors[method] || '#94a3b8';
+
+                    return '<div class="qp-res-crud-card" data-res-id="' + ctx.resourceId + '" style="padding:0.75rem;border-radius:0.625rem;' +
+                        'background:rgba(15,23,42,0.6);border:1px solid rgba(71,85,105,0.3);margin-bottom:0.5rem;">' +
+                        '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">' +
+                        '<span style="font-size:0.6875rem;padding:0.125rem 0.5rem;border-radius:0.25rem;font-weight:700;' +
+                        'background:' + mColor + '20;color:' + mColor + ';border:1px solid ' + mColor + '40;">' + method + '</span>' +
+                        '<span style="font-family:monospace;font-size:0.8125rem;color:#e2e8f0;word-break:break-all;">' +
+                        PolicyCenter.escapeHtml(ctx.resourceIdentifier || '') + '</span></div>' +
+                        '<div style="display:flex;gap:0.375rem;flex-wrap:wrap;">' +
+                        allCruds.map(function(c) {
+                            var isRec = c === rec;
+                            return '<label style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.625rem;border-radius:0.375rem;cursor:pointer;' +
+                                'background:' + (isRec ? crudColors[c] + '15' : 'rgba(30,41,59,0.4)') + ';border:1px solid ' + (isRec ? crudColors[c] + '40' : 'rgba(71,85,105,0.2)') + ';">' +
+                                '<input type="checkbox" class="qp-res-crud-cb" data-res-id="' + ctx.resourceId + '" value="' + c + '"' + (isRec ? ' checked' : '') +
+                                ' onchange="PolicyCenter.QuickPanel._onMultiCrudChange()" style="accent-color:' + crudColors[c] + ';width:0.875rem;height:0.875rem;">' +
+                                '<span style="font-size:0.75rem;font-weight:600;color:' + (isRec ? crudColors[c] : '#64748b') + ';">' + crudNames[c] + '</span></label>';
+                        }).join('') +
+                        '</div></div>';
+                }).join('');
+            }
+
+            this._updateCrudCount();
+        },
+
+        _onCrudChange: function() {
+            // Single resource mode
+            this._selectedCruds = new Set();
+            document.querySelectorAll('.qp-crud-cb:checked').forEach(function(cb) {
+                PolicyCenter.QuickPanel._selectedCruds.add(cb.value);
+            });
+            this._updateCrudCount();
+            this.updateCreateButtonState();
+        },
+
+        _onMultiCrudChange: function() {
+            // Multi resource mode
+            this._selectedCrudsPerResource = new Map();
+            var self = this;
+            document.querySelectorAll('.qp-res-crud-card').forEach(function(card) {
+                var resId = card.dataset.resId;
+                var cruds = new Set();
+                card.querySelectorAll('.qp-res-crud-cb:checked').forEach(function(cb) {
+                    cruds.add(cb.value);
+                });
+                self._selectedCrudsPerResource.set(resId, cruds);
+            });
+            this._updateCrudCount();
+            this.updateCreateButtonState();
+        },
+
+        _updateCrudCount: function() {
+            var countEl = document.getElementById('qp-perm-count');
+            if (!countEl) return;
+            if (this._selectedCrudsPerResource) {
+                // Multi mode: count total selected across all resources
+                var total = 0;
+                this._selectedCrudsPerResource.forEach(function(s) { total += s.size; });
+                countEl.textContent = total + PolicyCenter._i18n('selectedSuffix', ' selected');
+            } else if (this._selectedCruds) {
+                countEl.textContent = this._selectedCruds.size + PolicyCenter._i18n('selectedSuffix', ' selected');
+            }
+        },
+
+        async _createBatchPolicies() {
+            if (this.selectedRoles.size === 0) {
+                showToast(PolicyCenter._i18n('selectRoleRequired', 'Please select at least one role.'), 'error');
+                return;
+            }
+            var ctxArr = PolicyCenter.CreateFlow.selectedResources;
+            if (!ctxArr || ctxArr.length === 0) return;
+
+            var btn = document.getElementById('qp-create-btn');
+            PolicyCenter.setLoading(btn, true);
+
+            try {
+                var items = [];
+                var self = this;
+                ctxArr.forEach(function(ctx) {
+                    var cruds = self._selectedCrudsPerResource.get(String(ctx.resourceId));
+                    items.push({
+                        resourceId: ctx.resourceId,
+                        permissionId: ctx.permissionId,
+                        permissionName: ctx.permissionName || '',
+                        resourceIdentifier: ctx.resourceIdentifier || '',
+                        resourceType: ctx.resourceType || 'URL',
+                        httpMethod: ctx.httpMethod || 'ANY',
+                        crudPermissions: cruds ? Array.from(cruds) : []
+                    });
+                });
+
+                var resp = await fetch('/admin/policy-center/api/batch-create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
+                    body: JSON.stringify({
+                        roleIds: Array.from(this.selectedRoles.keys()),
+                        effect: document.getElementById('qp-policy-effect').value,
+                        items: items
+                    })
+                });
+                var result = await resp.json();
+                if (!resp.ok) throw new Error(result.message || PolicyCenter._i18n('policyCreateFailed', 'Batch creation failed'));
+
+                // Show batch result modal
+                PolicyCenter.BatchResult.show(result.results || [], result.created || 0, result.total || items.length);
+            } catch (e) {
+                PolicyCenter.MultiSelect.selectedResources.clear();
+                showToast(PolicyCenter._i18n('policyCreateFailed', 'Batch creation failed: ') + e.message, 'error');
+                PolicyCenter.setLoading(btn, false);
+            }
+        },
 
         init() {
             this.selectedRoles.clear();
@@ -596,13 +794,14 @@ const PolicyCenter = {
                 const page = await resp.json();
                 this.renderRoleList(page.content || []);
             } catch (e) {
-                list.innerHTML = '<div class="pc-empty"><p>Loading failed</p></div>';
+                if (list) list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('loadFailed', 'Loading failed') + '</p></div>';
             }
         },
 
         renderRoleList(roles) {
             const list = document.getElementById('qp-role-list');
-            if (!roles.length) { list.innerHTML = '<div class="pc-empty"><p>No roles found.</p></div>'; return; }
+            if (!list) return;
+            if (!roles.length) { list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('noItemsAvailable', 'No items found.') + '</p></div>'; return; }
             roles.sort((a, b) => {
                 const aS = this.selectedRoles.has(Number(a.id)) ? 0 : 1;
                 const bS = this.selectedRoles.has(Number(b.id)) ? 0 : 1;
@@ -643,7 +842,8 @@ const PolicyCenter = {
         },
 
         renderRoleChips() {
-            document.getElementById('qp-role-count').textContent = this.selectedRoles.size + PolicyCenter._i18n('selectedSuffix', ' selected');
+            var el = document.getElementById('qp-role-count');
+            if (el) el.textContent = this.selectedRoles.size + PolicyCenter._i18n('selectedSuffix', ' selected');
         },
 
         searchRoles(keyword) {
@@ -663,6 +863,7 @@ const PolicyCenter = {
 
         async loadPermissions(keyword) {
             const list = document.getElementById('qp-perm-list');
+            if (!list) return;
             list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
             const roleIdArr = Array.from(this.selectedRoles.keys());
             const roleParam = roleIdArr.length > 0 ? '&roleIds=' + roleIdArr.join(',') : '';
@@ -689,13 +890,14 @@ const PolicyCenter = {
                 this.updateSummary();
                 this.updateCreateButtonState();
             } catch (e) {
-                list.innerHTML = '<div class="pc-empty"><p>Loading failed</p></div>';
+                if (list) list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('loadFailed', 'Loading failed') + '</p></div>';
             }
         },
 
         renderPermList(perms) {
             const list = document.getElementById('qp-perm-list');
-            if (!perms.length) { list.innerHTML = '<div class="pc-empty"><p>No permissions found.</p></div>'; return; }
+            if (!list) return;
+            if (!perms.length) { list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('noItemsAvailable', 'No items found.') + '</p></div>'; return; }
 
             const roleMap = this.rolePermissionMap;
             const permRoleMap = {};
@@ -757,7 +959,8 @@ const PolicyCenter = {
         },
 
         renderPermChips() {
-            document.getElementById('qp-perm-count').textContent = this.selectedPerms.size + PolicyCenter._i18n('selectedSuffix', ' selected');
+            var el = document.getElementById('qp-perm-count');
+            if (el) el.textContent = this.selectedPerms.size + PolicyCenter._i18n('selectedSuffix', ' selected');
         },
 
         searchPermissions(keyword) {
@@ -777,13 +980,14 @@ const PolicyCenter = {
                 this._cachedSpels = data || [];
                 this.renderSpelList(this._cachedSpels);
             } catch (e) {
-                list.innerHTML = '<div class="pc-empty"><p>Loading failed</p></div>';
+                if (list) list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('loadFailed', 'Loading failed') + '</p></div>';
             }
         },
 
         renderSpelList(spels) {
             const list = document.getElementById('qp-spel-list');
-            if (!spels.length) { list.innerHTML = '<div class="pc-empty"><p>No expressions found.</p></div>'; return; }
+            if (!list) return;
+            if (!spels.length) { list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('noItemsAvailable', 'No items found.') + '</p></div>'; return; }
             list.innerHTML = spels.map(s => {
                 const sid = Number(s.id);
                 const sel = this.selectedSpel && this.selectedSpel.id === sid;
@@ -835,8 +1039,13 @@ const PolicyCenter = {
 
         updateSummary() {
             const nameInput = document.getElementById('qp-policy-name');
-            if (nameInput && !nameInput.value && (this.selectedRoles.size > 0 || this.selectedPerms.size > 0 || this.selectedSpel)) {
-                nameInput.value = 'Policy - ' + new Date().toISOString().slice(0, 16);
+            if (nameInput && !nameInput.value && (this.selectedRoles.size > 0 || this.selectedSpel)) {
+                var ctx = PolicyCenter.CreateFlow.selectedResource;
+                var effect = (document.getElementById('qp-policy-effect')?.value || 'ALLOW').toUpperCase();
+                var roleName = this.selectedRoles.size > 0 ? Array.from(this.selectedRoles.values())[0] : '';
+                var crud = this._selectedCruds && this._selectedCruds.size > 0 ? Array.from(this._selectedCruds).join('_') : '';
+                var resource = ctx && ctx.resourceIdentifier ? ctx.resourceIdentifier.replace(/[\/{}]/g, '_').replace(/^_+|_+$/g, '') : '';
+                nameInput.value = [effect, roleName, crud, resource].filter(Boolean).join('_').substring(0, 200);
             }
         },
 
@@ -846,10 +1055,16 @@ const PolicyCenter = {
         },
 
         async createPolicy() {
+            // Multi-resource batch mode
+            if (this._selectedCrudsPerResource && this._selectedCrudsPerResource.size > 0
+                && Array.from(this._selectedCrudsPerResource.values()).some(function(s) { return s.size > 0; })) {
+                return this._createBatchPolicies();
+            }
+
             const name = document.getElementById('qp-policy-name').value.trim();
             if (!name) { showToast(PolicyCenter._i18n('policyNameRequired', 'Please enter a policy name.'), 'error'); return; }
-            if (!this.selectedSpel && this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
-                showToast(PolicyCenter._i18n('selectRoleOrPerm', 'Please select at least one role, permission, or expression.'), 'error'); return;
+            if (!this.selectedSpel && this.selectedRoles.size === 0) {
+                showToast(PolicyCenter._i18n('selectRoleRequired', 'Please select at least one role.'), 'error'); return;
             }
             const btn = document.getElementById('qp-create-btn');
             PolicyCenter.setLoading(btn, true);
@@ -862,6 +1077,7 @@ const PolicyCenter = {
                     effect: document.getElementById('qp-policy-effect').value,
                     roleIds: this.selectedSpel ? [] : Array.from(this.selectedRoles.keys()),
                     permissionIds: this.selectedSpel ? [] : Array.from(this.selectedPerms.keys()),
+                    crudPermissions: this.selectedSpel ? [] : (this._selectedCruds ? Array.from(this._selectedCruds) : []),
                     spelId: this.selectedSpel ? this.selectedSpel.id : null,
                     sourceType: PolicyCenter.ManualTarget._context ? 'MANUAL' : 'RESOURCE',
                     manualTargetType: PolicyCenter.ManualTarget._context?.manualTargetType || null,
@@ -896,6 +1112,7 @@ const PolicyCenter = {
                         description: document.getElementById('qp-policy-desc').value,
                         roleIds: this.selectedSpel ? [] : Array.from(this.selectedRoles.keys()),
                         permissionIds: this.selectedSpel ? [] : Array.from(this.selectedPerms.keys()),
+                        crudPermissions: this.selectedSpel ? [] : (this._selectedCruds ? Array.from(this._selectedCruds) : []),
                         effect: document.getElementById('qp-policy-effect').value,
                         spelId: this.selectedSpel ? this.selectedSpel.id : null
                     }, PolicyCenter.ManualTarget._context || {}))
@@ -907,13 +1124,14 @@ const PolicyCenter = {
                     showToast(result.warning, 'warning');
                     setTimeout(() => {
                         showToast(PolicyCenter._i18n('policyCreated', 'Policy created successfully.'), 'success');
-                        setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
+                        setTimeout(() => { window.location.href = '/admin/policy-center?tab=list'; }, 1500);
                     }, 2000);
                 } else {
                     showToast(PolicyCenter._i18n('policyCreated', 'Policy created successfully.'), 'success');
-                    setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
+                    setTimeout(() => { window.location.href = '/admin/policy-center?tab=list'; }, 1500);
                 }
             } catch (e) {
+                PolicyCenter.MultiSelect.selectedResources.clear();
                 showToast(PolicyCenter._i18n('policyCreateFailed', 'Policy creation failed: ') + e.message, 'error');
                 PolicyCenter.setLoading(btn, false);
             }
@@ -1186,10 +1404,10 @@ const PolicyCenter = {
             let query = queryInput.value.trim();
             if (!query) { showToast(PolicyCenter._i18n('policyQueryRequired', 'Please enter policy requirements.'), 'error'); queryInput.focus(); return; }
 
-            // Inject selected resource context into query
-            const res = PolicyCenter.CreateFlow.selectedResource;
+            // Inject selected resource context into query (single resource only)
+            var res = PolicyCenter.CreateFlow.selectedResource;
             if (res) {
-                const ctx = '[Target Resource: ' +
+                var ctx = '[Target Resource: ' +
                     (res.resourceType || '') + ' ' +
                     (res.httpMethod || '') + ' ' +
                     (res.resourceIdentifier || '') +
@@ -1221,8 +1439,8 @@ const PolicyCenter = {
                 const items = await this.fetchAvailableItems();
                 availableItems = {
                     roles: (items.roles || []).map(r => ({ id: r.id, name: r.roleName || r.name, description: r.roleDesc || r.description || '' })),
-                    permissions: (items.permissions || []).map(p => ({ id: p.id, name: p.friendlyName || p.name, targetType: p.targetType || '', description: p.description || '' })),
-                    conditions: (items.conditions || []).map(c => ({ id: c.id, name: c.name, description: c.description || '', isCompatible: c.isCompatible !== false }))
+                    permissions: (items.permissions || []).map(p => ({ id: p.id, name: p.friendlyName || p.name, targetType: p.targetType || '', resourceIdentifier: p.managedResourceIdentifier || '', httpMethod: p.actionType || '', description: p.description || '' })),
+                    conditions: (items.conditions || []).map(c => ({ id: c.id, name: c.name, description: c.description || '' }))
                 };
             } catch (e) {
                 console.error('Failed to collect available items', e);
@@ -1327,10 +1545,10 @@ const PolicyCenter = {
                 return;
             }
 
-            // Auto-include selected resource's permission
-            const res = PolicyCenter.CreateFlow.selectedResource;
+            // Auto-include selected resource's permission (single resource only)
+            var res = PolicyCenter.CreateFlow.selectedResource;
             if (res && res.permissionId) {
-                const pid = Number(res.permissionId);
+                var pid = Number(res.permissionId);
                 if (!validatedData.permissionIds.includes(pid)) {
                     validatedData.permissionIds.push(pid);
                 }
@@ -1447,7 +1665,7 @@ const PolicyCenter = {
         },
 
         createFallbackPolicy(query) {
-            const fallback = { policyName: 'AI Generated Policy (' + new Date().toISOString().slice(0, 16) + ')', description: 'Requirement: "' + (query || '') + '"', effect: 'ALLOW', roleIds: [], permissionIds: [], conditions: {}, aiActionEnabled: false, allowedActions: [], customConditionSpel: '' };
+            const fallback = { policyName: 'AI Generated Policy (' + new Date().toISOString().slice(0, 16) + ')', description: 'Requirement: "' + (query || '') + '"', effect: 'ALLOW', roleIds: [], crudPermissions: [], conditions: {}, aiActionEnabled: false, allowedActions: [], customConditionSpel: '' };
             this.generatedPolicyData = fallback;
             this._cachedMaps = { roles: {}, permissions: {}, conditions: {} };
             this.renderPolicyCard(fallback, this._cachedMaps);
@@ -1464,11 +1682,11 @@ const PolicyCenter = {
             document.getElementById('ai-card-description').value = data.description || '';
 
             var roleItems = (data.roleIds || []).map(id => ({ id, name: maps.roles[id] || maps.roles[String(id)] || 'ID:' + id }));
-            var permItems = (data.permissionIds || []).map(id => ({ id, name: maps.permissions[id] || maps.permissions[String(id)] || 'ID:' + id }));
+            var crudItems = (data.crudPermissions || []).map(c => ({ id: c, name: c }));
             var condItems = Object.keys(data.conditions || {}).map(id => ({ id, name: maps.conditions[id] || maps.conditions[String(id)] || 'ID:' + id }));
 
             this.renderChips('ai-card-roles', roleItems, 'role');
-            this.renderChips('ai-card-permissions', permItems, 'permission');
+            this.renderCrudBadges('ai-card-permissions', crudItems);
             this.renderChips('ai-card-conditions', condItems, 'condition');
 
             // Update count spans
@@ -1476,7 +1694,7 @@ const PolicyCenter = {
             var permCountEl = document.getElementById('ai-perm-count');
             var condCountEl = document.getElementById('ai-cond-count');
             if (roleCountEl) roleCountEl.textContent = roleItems.length;
-            if (permCountEl) permCountEl.textContent = permItems.length;
+            if (permCountEl) permCountEl.textContent = crudItems.length;
             if (condCountEl) condCountEl.textContent = condItems.length;
 
             var spelSection = document.getElementById('ai-card-spel-section');
@@ -1497,6 +1715,22 @@ const PolicyCenter = {
                     reasoningSection.classList.add('hidden');
                 }
             }
+        },
+
+        renderCrudBadges(containerId, items) {
+            var container = document.getElementById(containerId);
+            if (!container) return;
+            var crudColors = { READ: '#4ade80', WRITE: '#60a5fa', UPDATE: '#fbbf24', DELETE: '#f87171' };
+            if (!items.length) {
+                container.innerHTML = '<span class="ai-card-chips-empty">' + PolicyCenter._i18n('none', 'None') + '</span>';
+                return;
+            }
+            container.innerHTML = items.map(function(item) {
+                var color = crudColors[item.name] || '#94a3b8';
+                return '<span style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.75rem;border-radius:0.375rem;' +
+                    'background:' + color + '15;border:1px solid ' + color + '40;color:' + color + ';font-weight:600;font-size:0.8125rem;">' +
+                    item.name + '</span>';
+            }).join(' ');
         },
 
         renderChips(containerId, items, type) {
@@ -1815,12 +2049,12 @@ const PolicyCenter = {
 
         async executeSave() {
             this.syncCardToData();
-            const data = this.generatedPolicyData;
-            const btn = document.querySelector('#ai-confirm-overlay .modern-btn-primary');
+            var data = this.generatedPolicyData;
+            var btn = document.querySelector('#ai-confirm-overlay .modern-btn-primary');
             if (btn) btn.disabled = true;
 
             try {
-                const resp = await fetch('/admin/api/policies/build-from-business-rule', {
+                var resp = await fetch('/admin/api/policies/build-from-business-rule', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1828,15 +2062,13 @@ const PolicyCenter = {
                     },
                     body: JSON.stringify(data)
                 });
-
                 if (!resp.ok) {
-                    const error = await resp.json();
+                    var error = await resp.json();
                     throw new Error(error.message || 'Save failed');
                 }
-
                 this.closeConfirmModal();
                 showToast(PolicyCenter._i18n('aiSaveSuccess', 'Policy saved successfully.'), 'success');
-                setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
+                setTimeout(function() { window.location.href = '/admin/policy-center?tab=list'; }, 1500);
             } catch (e) {
                 showToast(PolicyCenter._i18n('aiSaveError', 'Policy save failed: ') + e.message, 'error');
                 if (btn) btn.disabled = false;
@@ -1933,230 +2165,226 @@ PolicyCenter.ManualTarget = {
 // Multi-Resource Selection module
 PolicyCenter.MultiSelect = {
     selectedResources: new Map(),
-    currentPage: 0,
-    searchTimeout: null,
 
-    openResourcePicker: function() {
-        this.selectedResources.clear();
-        this.currentPage = 0;
-        document.getElementById('rp-keyword').value = '';
-        document.getElementById('rp-status').value = '';
-        document.getElementById('rp-select-all').checked = false;
-        var rpModal = document.getElementById('resourcePickerModal');
-        rpModal.classList.remove('hidden');
-        rpModal.style.display = 'flex';
-        this.loadPage(0);
-        this.updateCount();
+    /** Initialize: sync checkboxes with in-memory state */
+    init: function() {
+        this._syncCheckboxes();
+        this.updateBar();
     },
 
-    close: function() {
-        var rpModal = document.getElementById('resourcePickerModal');
-        rpModal.classList.add('hidden');
-        rpModal.style.display = 'none';
-    },
-
-    search: function() {
-        var self = this;
-        if (this.searchTimeout) clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(function() {
-            self.currentPage = 0;
-            self.loadPage(0);
-        }, 400);
-    },
-
-    loadPage: function(page) {
-        var self = this;
-        this.currentPage = page;
-        var keyword = document.getElementById('rp-keyword').value;
-        var status = document.getElementById('rp-status').value;
-        var serviceOwner = document.getElementById('rp-service-owner').value;
-        var url = '/admin/policy-center/api/resources?page=' + page + '&size=15';
-        if (keyword) url += '&keyword=' + encodeURIComponent(keyword);
-        if (status) url += '&status=' + encodeURIComponent(status);
-        if (serviceOwner) url += '&serviceOwner=' + encodeURIComponent(serviceOwner);
-
-        fetch(url).then(function(r) { return r.json(); }).then(function(data) {
-            self.renderTable(data.content);
-            self.renderPagination(data.number, data.totalPages);
-        });
-    },
-
-    renderTable: function(resources) {
-        var self = this;
-        var tbody = document.getElementById('rp-table-body');
-        var i18n = document.getElementById('rp-i18n') || {};
-        var ds = i18n.dataset || {};
-        if (!resources || resources.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem;text-align:center;color:#64748b;"><i class="fas fa-inbox"></i> ' + self.escapeHtml(ds.noResults || 'No resources found') + '</td></tr>';
-            document.getElementById('rp-select-all').disabled = true;
-            return;
-        }
-        document.getElementById('rp-select-all').disabled = false;
-        var html = '';
-        resources.forEach(function(r) {
-            var checked = self.selectedResources.has(r.id) ? ' checked' : '';
-            // Status badge - same Tailwind classes as resource page
-            var statusText, statusIcon, statusBadgeCls;
-            if (r.status === 'NEEDS_DEFINITION') {
-                statusText = ds.statusUnset || 'Unset';
-                statusIcon = 'fas fa-exclamation-circle';
-                statusBadgeCls = 'bg-red-500/20 text-red-400 border-red-500/30';
-            } else if (r.status === 'PERMISSION_CREATED') {
-                statusText = ds.statusAwaiting || 'Awaiting';
-                statusIcon = 'fas fa-clock';
-                statusBadgeCls = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            } else if (r.status === 'POLICY_CONNECTED') {
-                statusText = ds.statusProtected || 'Protected';
-                statusIcon = 'fas fa-shield-alt';
-                statusBadgeCls = 'bg-green-500/20 text-green-400 border-green-500/30';
-            } else {
-                statusText = ds.statusExcluded || 'Excluded';
-                statusIcon = 'fas fa-ban';
-                statusBadgeCls = 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-            }
-            var typeBadge = r.resourceType === 'URL' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400';
-
-            html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.2);cursor:pointer;"'
-                + ' data-id="' + r.id + '"'
-                + ' data-identifier="' + self.escapeHtml(r.resourceIdentifier) + '"'
-                + ' data-type="' + (r.resourceType || '') + '"'
-                + ' data-http="' + (r.httpMethod || 'ANY') + '"'
-                + ' data-status="' + (r.status || '') + '"'
-                + ' data-friendly="' + self.escapeHtml(r.friendlyName || '') + '"'
-                + ' onclick="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this)">';
-            // Checkbox
-            html += '<td style="text-align:center;vertical-align:middle;"><input type="checkbox"' + checked + ' onclick="event.stopPropagation();" onchange="PolicyCenter.MultiSelect.toggleResource(' + r.id + ', this.closest(\'tr\'))"></td>';
-            // Status - pill badge matching resource page
-            html += '<td style="text-align:center;vertical-align:middle;white-space:nowrap;"><span class="status-badge ' + statusBadgeCls + '" style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:600;border:1px solid transparent;white-space:nowrap;"><i class="' + statusIcon + '"></i> ' + self.escapeHtml(statusText) + '</span></td>';
-            // Permission Description (single line, no long description)
-            html += '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;"><span style="font-weight:600;color:#a78bfa;">' + self.escapeHtml(r.friendlyName || '-') + '</span></td>';
-            // Technical Identifier
-            html += '<td><span class="resource-type-badge ' + typeBadge + '" style="font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:0.25rem;margin-right:0.25rem;">' + self.escapeHtml(r.resourceType || '-') + '</span>'
-                + ' <span style="color:#94a3b8;font-size:0.75rem;">' + self.escapeHtml(r.httpMethod || '') + '</span>'
-                + '<div style="font-family:monospace;word-break:break-all;margin-top:0.25rem;">' + self.escapeHtml(r.resourceIdentifier) + '</div></td>';
-            html += '</tr>';
-        });
-        tbody.innerHTML = html;
-        document.getElementById('rp-select-all').checked = false;
-    },
-
-    renderPagination: function(current, total) {
-        var div = document.getElementById('rp-pagination');
-        if (total <= 1) { div.innerHTML = ''; return; }
-        var html = '';
-        var start = Math.max(0, current - 2);
-        var end = Math.min(total, start + 5);
-        if (current > 0) html += '<button class="button secondary small" onclick="PolicyCenter.MultiSelect.loadPage(' + (current - 1) + ')">&laquo;</button>';
-        for (var i = start; i < end; i++) {
-            var cls = i === current ? 'button primary small' : 'button secondary small';
-            html += '<button class="' + cls + '" onclick="PolicyCenter.MultiSelect.loadPage(' + i + ')">' + (i + 1) + '</button>';
-        }
-        if (current < total - 1) html += '<button class="button secondary small" onclick="PolicyCenter.MultiSelect.loadPage(' + (current + 1) + ')">&raquo;</button>';
-        div.innerHTML = html;
-    },
-
-    toggleResource: function(id, trEl) {
-        if (this.selectedResources.has(id)) {
-            this.selectedResources.delete(id);
-            if (trEl) trEl.querySelector('input[type=checkbox]').checked = false;
-        } else {
-            // Read from data attributes instead of fragile cell indices
+    /** Toggle a single resource checkbox */
+    toggleResource: function(cbEl) {
+        var tr = cbEl.closest('tr');
+        var id = parseInt(tr.dataset.resId);
+        if (isNaN(id)) return;
+        if (cbEl.checked) {
             this.selectedResources.set(id, {
                 id: id,
-                resourceIdentifier: trEl.dataset.identifier || '',
-                resourceType: trEl.dataset.type || '',
-                httpMethod: trEl.dataset.http || 'ANY',
-                status: trEl.dataset.status || '',
-                friendlyName: trEl.dataset.friendly || ''
+                resourceIdentifier: tr.dataset.resIdentifier || '',
+                resourceType: tr.dataset.resType || '',
+                httpMethod: tr.dataset.resHttp || 'ANY',
+                status: tr.dataset.resStatus || '',
+                friendlyName: tr.dataset.resFriendly || ''
             });
-            if (trEl) trEl.querySelector('input[type=checkbox]').checked = true;
+        } else {
+            this.selectedResources.delete(id);
         }
-        this.updateCount();
+        this.updateBar();
     },
 
+    /** Toggle all checkboxes on current page */
     toggleAll: function(checked) {
         var self = this;
-        var rows = document.querySelectorAll('#rp-table-body tr');
-        rows.forEach(function(tr) {
-            var cb = tr.querySelector('input[type=checkbox]');
-            if (!cb) return;
-            var onclick = tr.getAttribute('onclick');
-            if (!onclick) return;
-            var match = onclick.match(/toggleResource\((\d+)/);
-            if (!match) return;
-            var id = parseInt(match[1]);
-            if (checked && !self.selectedResources.has(id)) {
-                self.toggleResource(id, tr);
-            } else if (!checked && self.selectedResources.has(id)) {
-                self.toggleResource(id, tr);
+        document.querySelectorAll('.res-cb:not(:disabled)').forEach(function(cb) {
+            cb.checked = checked;
+            var tr = cb.closest('tr');
+            var id = parseInt(tr.dataset.resId);
+            if (isNaN(id)) return;
+            if (checked) {
+                self.selectedResources.set(id, {
+                    id: id,
+                    resourceIdentifier: tr.dataset.resIdentifier || '',
+                    resourceType: tr.dataset.resType || '',
+                    httpMethod: tr.dataset.resHttp || 'ANY',
+                    status: tr.dataset.resStatus || '',
+                    friendlyName: tr.dataset.resFriendly || ''
+                });
+            } else {
+                self.selectedResources.delete(id);
             }
         });
+        this.updateBar();
     },
 
-    updateCount: function() {
+    /** Update floating bar visibility, count, and individual button states */
+    updateBar: function() {
+        var bar = document.getElementById('res-floating-bar');
         var count = this.selectedResources.size;
-        var i18n = document.getElementById('rp-i18n');
-        var template = (i18n && i18n.dataset.selectedCount) || '{0} selected';
-        document.getElementById('rp-selected-count').textContent = template.replace('{0}', count);
-        document.getElementById('rp-confirm-btn').disabled = count === 0;
+        document.getElementById('res-bar-count').textContent = count;
+
+        // Toggle individual "Create Permission & Policy" buttons
+        var individualBtns = document.querySelectorAll('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
+        if (count >= 2) {
+            // Disable individual buttons when multi-select active
+            individualBtns.forEach(function(btn) {
+                if (!btn.disabled) {
+                    btn.dataset.wasEnabled = 'true';
+                    btn.disabled = true;
+                    btn.classList.add('opacity-30', 'cursor-not-allowed');
+                }
+            });
+        } else {
+            // Restore individual buttons
+            individualBtns.forEach(function(btn) {
+                if (btn.dataset.wasEnabled === 'true') {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-30', 'cursor-not-allowed');
+                    delete btn.dataset.wasEnabled;
+                }
+            });
+        }
+
+        // Update floating bar info message
+        var infoEl = document.getElementById('res-bar-info');
+        if (infoEl) {
+            var infoTpl = PolicyCenter._i18n('multiBatchInfo', count + ' resources selected - ' + count + ' policies will be created');
+            infoEl.textContent = infoTpl.replace(/\{0}/g, count);
+        }
+
+        // Floating bar only visible when create tab is NOT active
+        var createTab = document.getElementById('tab-create');
+        var isCreateActive = createTab && createTab.classList.contains('active');
+
+        if (count >= 2 && !isCreateActive) {
+            bar.style.display = 'block';
+            requestAnimationFrame(function() { bar.style.opacity = '1'; bar.style.transform = 'translate(-50%,-50%) scale(1)'; });
+        } else {
+            bar.style.opacity = '0';
+            bar.style.transform = 'translate(-50%,-50%) scale(0.95)';
+            setTimeout(function() { if (PolicyCenter.MultiSelect.selectedResources.size < 2 || isCreateActive) bar.style.display = 'none'; }, 300);
+        }
+        var selectAll = document.getElementById('res-select-all');
+        if (selectAll) {
+            var allCbs = document.querySelectorAll('.res-cb:not(:disabled)');
+            var allChecked = allCbs.length > 0 && Array.from(allCbs).every(function(cb) { return cb.checked; });
+            selectAll.checked = allChecked;
+        }
     },
 
-    confirm: function() {
+    /** Clear all selections */
+    clearSelection: function() {
+        this.selectedResources.clear();
+        document.querySelectorAll('.res-cb').forEach(function(cb) { cb.checked = false; });
+        var selectAll = document.getElementById('res-select-all');
+        if (selectAll) selectAll.checked = false;
+        this.updateBar();
+    },
+
+    /** Reset selected PERMISSION_CREATED resources to NEEDS_DEFINITION */
+    resetPolicyStatus: async function() {
+        // Collect checked checkboxes directly from DOM
+        var ids = [];
+        var hasOther = false;
+        document.querySelectorAll('.res-cb:checked').forEach(function(cb) {
+            var tr = cb.closest('tr');
+            if (!tr) return;
+            var id = parseInt(tr.dataset.resId);
+            if (isNaN(id)) return;
+            var status = tr.dataset.resStatus || '';
+            if (status === 'PERMISSION_CREATED') {
+                ids.push(id);
+            } else {
+                hasOther = true;
+            }
+        });
+        if (ids.length === 0 && !hasOther) {
+            showToast(PolicyCenter._i18n('resetSelectPolicyConnected', 'Please select resources with policy connected status.'), 'error');
+            return;
+        }
+        if (hasOther) {
+            showToast(PolicyCenter._i18n('resetOnlyPolicyConnected', 'Only resources with policy connected status can be reset. Please uncheck others.'), 'error');
+            return;
+        }
+        try {
+            var resp = await fetch('/admin/policy-center/api/reset-policy-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
+                body: JSON.stringify(ids)
+            });
+            var result = await resp.json();
+            if (!resp.ok) throw new Error(result.message || 'Reset failed');
+
+            ids.forEach(function(id) {
+                var row = document.querySelector('tr[data-res-id="' + id + '"]');
+                if (!row) return;
+
+                // 1. Status badge -> NEEDS_DEFINITION
+                var badge = row.querySelector('.status-badge');
+                if (badge) {
+                    badge.className = 'status-badge bg-red-500/20 text-red-400 border-red-500/30';
+                    badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>' + PolicyCenter._i18n('statusUnset', 'Unset') + '</span>';
+                }
+                row.dataset.resStatus = 'NEEDS_DEFINITION';
+
+                // 2. Enable "Create Permission & Policy" button
+                var defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
+                if (defineBtn) {
+                    defineBtn.disabled = false;
+                    defineBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                    defineBtn.closest('div').style.display = '';
+                }
+
+                // 3. Add "Exclude" button (NEEDS_DEFINITION has it, PERMISSION_CREATED doesn't)
+                var actionDiv = row.querySelector('.space-y-2');
+                if (actionDiv && !actionDiv.querySelector('[onclick*="excludeResource"]')) {
+                    var excludeDiv = document.createElement('div');
+                    excludeDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + id + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
+                    actionDiv.appendChild(excludeDiv);
+                }
+
+                // 4. Uncheck checkbox
+                var cb = row.querySelector('.res-cb');
+                if (cb) cb.checked = false;
+            });
+
+            this.selectedResources.clear();
+            var selectAll = document.getElementById('res-select-all');
+            if (selectAll) selectAll.checked = false;
+            this.updateBar();
+            showToast(ids.length + PolicyCenter._i18n('selectedSuffix', ' selected') + ' - ' + PolicyCenter._i18n('statusUnset', 'Reset'), 'success');
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    },
+
+    /** Open policy setup modal from floating bar */
+    setupFromBar: function() {
         if (this.selectedResources.size === 0) return;
-        this.close();
-        this.showPolicySetupModalMulti();
-    },
+        // Hide floating bar immediately
+        var bar = document.getElementById('res-floating-bar');
+        if (bar) { bar.style.opacity = '0'; bar.style.display = 'none'; }
 
-    showPolicySetupModalMulti: function() {
         var modal = document.getElementById('policySetupModal');
         var nameEl = document.getElementById('modal-permission-name');
-        var rpI18n = document.getElementById('rp-i18n');
-        var countTpl = (rpI18n && rpI18n.dataset.selectedCount) || '{0} selected';
-        if (nameEl) nameEl.textContent = countTpl.replace('{0}', this.selectedResources.size);
+        var countTpl = PolicyCenter._i18n('multiBatchInfo', '{0} resources selected');
+        if (nameEl) nameEl.textContent = countTpl.replace(/\{0}/g, this.selectedResources.size);
         modal.dataset.multiMode = 'true';
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
     },
 
-    showSelectedPopover: function() {
-        var list = document.getElementById('selected-resources-list');
-        var rpI18n = document.getElementById('rp-i18n');
-        var ds = rpI18n ? rpI18n.dataset : {};
-        var thIdentifier = ds.colIdentifier || 'Identifier';
-        var thType = ds.colType || 'Type';
-        var thHttp = ds.colHttp || 'HTTP';
-        var html = '<table style="width:100%;border-collapse:collapse;">';
-        html += '<thead><tr style="border-bottom:1px solid rgba(71,85,105,0.4);">';
-        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">' + thIdentifier + '</th>';
-        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">' + thType + '</th>';
-        html += '<th style="padding:0.4rem 0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;width:70px;">' + thHttp + '</th>';
-        html += '</tr></thead><tbody>';
+    /** Sync checkboxes on current page with in-memory Map state */
+    _syncCheckboxes: function() {
         var self = this;
-        this.selectedResources.forEach(function(r) {
-            html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.15);">';
-            html += '<td style="padding:0.4rem 0.5rem;color:#e2e8f0;font-size:0.8rem;font-family:monospace;word-break:break-all;">' + self.escapeHtml(r.resourceIdentifier) + '</td>';
-            html += '<td style="padding:0.4rem 0.5rem;"><span class="badge neutral" style="font-size:0.7rem;">' + self.escapeHtml(r.resourceType) + '</span></td>';
-            html += '<td style="padding:0.4rem 0.5rem;color:#94a3b8;font-size:0.8rem;">' + self.escapeHtml(r.httpMethod) + '</td>';
-            html += '</tr>';
+        document.querySelectorAll('.res-cb').forEach(function(cb) {
+            var id = parseInt(cb.dataset.id);
+            if (cb.disabled && self.selectedResources.has(id)) {
+                self.selectedResources.delete(id);
+                cb.checked = false;
+            } else {
+                cb.checked = self.selectedResources.has(id);
+            }
         });
-        html += '</tbody></table>';
-        list.innerHTML = html;
-        var popover = document.getElementById('selectedResourcesPopover');
-        popover.classList.remove('hidden');
-        popover.style.display = 'flex';
-    },
-
-    statusClass: function(status) {
-        if (status === 'NEEDS_DEFINITION') return 'warning';
-        if (status === 'PERMISSION_CREATED') return 'info';
-        if (status === 'POLICY_CONNECTED') return 'success';
-        return 'neutral';
-    },
-
-    escapeHtml: function(str) {
-        var div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
     }
 };
 
@@ -2348,7 +2576,7 @@ PolicyCenter.Validation = {
             return await response.json();
         } catch (err) {
             console.error('Impact analysis failed', err);
-            return { affectedUserCount: 0, affectedUsers: [], affectedResources: [], accessChangeSummary: { gained: 0, lost: 0, unchanged: 0 } };
+            return { affectedUserCount: 0, affectedUsers: [], affectedResources: [], accessChangeSummary: { gained: 0, lost: 0, changed: 0, unchanged: 0 } };
         }
     },
 
@@ -2426,6 +2654,9 @@ PolicyCenter.switchTab = function(tabName) {
 
     // Auto-load data on tab switch
     if (tabName === 'matrix') PolicyCenter.MatrixUI.load();
+
+    // Refresh floating bar visibility based on current tab
+    PolicyCenter.MultiSelect.updateBar();
 };
 
 // ================================================================
@@ -2807,15 +3038,17 @@ PolicyCenter.ValidationModal = {
     },
 
     proceed: function() {
-        this.close();
-        if (this._resolve) this._resolve(true);
+        var modal = document.getElementById('validation-result-modal');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        if (this._resolve) { var r = this._resolve; this._resolve = null; r(true); }
     },
 
     close: function() {
         var modal = document.getElementById('validation-result-modal');
         modal.classList.add('hidden');
         modal.style.display = 'none';
-        if (this._resolve) { this._resolve(false); this._resolve = null; }
+        if (this._resolve) { var r = this._resolve; this._resolve = null; r(false); }
     }
 };
 
@@ -2910,13 +3143,94 @@ PolicyCenter.DeleteModal = {
         form.appendChild(reasonInput);
 
         document.body.appendChild(form);
+        PolicyCenter.MultiSelect.selectedResources.clear();
         form.submit();
+    }
+};
+
+// ================================================================
+// RESOURCE VIEW MODAL (multi-resource policy creation)
+// ================================================================
+
+PolicyCenter.ResourceViewModal = {
+    open: function() {
+        var ctxArr = PolicyCenter.CreateFlow.selectedResources;
+        if (!ctxArr || ctxArr.length === 0) return;
+
+        var modal = document.getElementById('resource-view-modal');
+        document.getElementById('rv-count').textContent = '(' + ctxArr.length + ')';
+
+        var methodColors = { GET: '#4ade80', POST: '#60a5fa', PUT: '#fbbf24', PATCH: '#fbbf24', DELETE: '#f87171', ANY: '#94a3b8' };
+        var html = '<table style="width:100%;border-collapse:collapse;">';
+        html += '<thead><tr style="border-bottom:1px solid rgba(71,85,105,0.4);">';
+        html += '<th style="padding:0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">' + PolicyCenter._i18n('rvType', 'Type') + '</th>';
+        html += '<th style="padding:0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">' + PolicyCenter._i18n('rvMethod', 'Method') + '</th>';
+        html += '<th style="padding:0.5rem;text-align:left;color:#94a3b8;font-size:0.75rem;">' + PolicyCenter._i18n('rvResource', 'Resource') + '</th>';
+        html += '</tr></thead><tbody>';
+
+        ctxArr.forEach(function(ctx) {
+            var method = (ctx.httpMethod || 'ANY').toUpperCase();
+            var mColor = methodColors[method] || '#94a3b8';
+            html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.15);">';
+            html += '<td style="padding:0.5rem;"><span style="font-size:0.7rem;padding:0.125rem 0.4rem;border-radius:0.25rem;background:rgba(99,102,241,0.15);color:#818cf8;">' + PolicyCenter.escapeHtml(ctx.resourceType || 'URL') + '</span></td>';
+            html += '<td style="padding:0.5rem;"><span style="font-size:0.7rem;padding:0.125rem 0.4rem;border-radius:0.25rem;font-weight:700;background:' + mColor + '20;color:' + mColor + ';">' + method + '</span></td>';
+            html += '<td style="padding:0.5rem;color:#e2e8f0;font-family:monospace;font-size:0.8125rem;">' + PolicyCenter.escapeHtml(ctx.resourceIdentifier || '') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('rv-table-body').innerHTML = html;
+
+        modal.style.display = 'flex';
+    }
+};
+
+// ================================================================
+// BATCH RESULT MODAL
+// ================================================================
+
+PolicyCenter.BatchResult = {
+    show: function(results, created, total) {
+        var modal = document.getElementById('batch-result-modal');
+        document.getElementById('br-title').textContent = created + '/' + total + ' ' + PolicyCenter._i18n('policyCreated', 'policies created');
+
+        var html = '';
+        results.forEach(function(r) {
+            var icon, color;
+            if (r.status === 'CREATED') { icon = 'fa-check-circle'; color = '#4ade80'; }
+            else if (r.status === 'SKIPPED') { icon = 'fa-exclamation-triangle'; color = '#fbbf24'; }
+            else { icon = 'fa-times-circle'; color = '#f87171'; }
+
+            html += '<div style="display:flex;align-items:center;gap:0.75rem;padding:0.625rem;border-radius:0.5rem;margin-bottom:0.375rem;' +
+                'background:rgba(30,41,59,0.5);border:1px solid rgba(71,85,105,0.2);">' +
+                '<i class="fas ' + icon + '" style="color:' + color + ';font-size:1rem;"></i>' +
+                '<div style="flex:1;">' +
+                '<div style="font-family:monospace;font-size:0.8125rem;color:#e2e8f0;">' + PolicyCenter.escapeHtml(r.resourceIdentifier || '') + '</div>' +
+                (r.policyName ? '<div style="font-size:0.6875rem;color:#64748b;">' + PolicyCenter.escapeHtml(r.policyName) + '</div>' : '') +
+                (r.reason ? '<div style="font-size:0.6875rem;color:' + color + ';">' + PolicyCenter.escapeHtml(r.reason) + '</div>' : '') +
+                '</div>' +
+                '<span style="font-size:0.6875rem;padding:0.125rem 0.5rem;border-radius:0.25rem;font-weight:600;' +
+                'background:' + color + '20;color:' + color + ';">' +
+                (r.status === 'CREATED' ? PolicyCenter._i18n('batchStatusCreated', 'Created')
+                    : r.status === 'SKIPPED' ? PolicyCenter._i18n('batchStatusSkipped', 'Skipped')
+                    : PolicyCenter._i18n('batchStatusError', 'Error')) + '</span></div>';
+        });
+
+        document.getElementById('br-body').innerHTML = html;
+        PolicyCenter.MultiSelect.selectedResources.clear();
+        modal.style.display = 'flex';
+    },
+
+    close: function() {
+        var modal = document.getElementById('batch-result-modal');
+        modal.style.display = 'none';
+        window.location.href = '/admin/policy-center?tab=list';
     }
 };
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     PolicyCenter.Manual.initHttpMethodVisibility();
+    PolicyCenter.MultiSelect.init();
 
     // Initialize Create tab - resource selection flow
     const createTab = document.getElementById('tab-create');

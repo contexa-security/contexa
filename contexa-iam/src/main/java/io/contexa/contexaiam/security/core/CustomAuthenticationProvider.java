@@ -23,15 +23,11 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
 
-        loginPolicyService.checkAndUnlockIfExpired(loginId);
+        // Lockout check is handled by AccountLockoutFilter (before authentication)
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
         if (!userDetails.isEnabled()) {
             throw new DisabledException("Account is disabled");
-        }
-
-        if (!userDetails.isAccountNonLocked()) {
-            throw new LockedException("Account is locked");
         }
 
         // Verify password

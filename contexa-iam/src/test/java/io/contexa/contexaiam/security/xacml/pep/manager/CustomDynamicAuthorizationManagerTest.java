@@ -80,7 +80,8 @@ class CustomDynamicAuthorizationManagerTest {
         authorizationManager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
                 contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
-                new PolicyCombiningEvaluator(), CombiningAlgorithm.FIRST_APPLICABLE);
+                new PolicyCombiningEvaluator());
+        authorizationManager.setCombiningAlgorithm(CombiningAlgorithm.FIRST_APPLICABLE);
     }
 
     @Nested
@@ -199,7 +200,7 @@ class CustomDynamicAuthorizationManagerTest {
         }
 
         @Test
-        @DisplayName("Should combine simple authorities with hasAnyAuthority")
+        @DisplayName("Should combine simple authorities with OR expression")
         void shouldCombineSimpleAuthorities() {
             Policy policy = Policy.builder().effect(Policy.Effect.ALLOW).build();
             PolicyRule rule1 = PolicyRule.builder().build();
@@ -214,9 +215,8 @@ class CustomDynamicAuthorizationManagerTest {
 
             String expression = authorizationManager.getExpressionFromPolicy(policy);
 
-            assertThat(expression).startsWith("hasAnyAuthority(");
-            assertThat(expression).contains("'ADMIN'");
-            assertThat(expression).contains("'MANAGER'");
+            assertThat(expression).contains("hasAuthority('ADMIN')");
+            assertThat(expression).contains("hasAuthority('MANAGER')");
         }
     }
 

@@ -14,11 +14,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,11 +30,15 @@ class PolicyConflictAnalyzerTest {
     @Mock
     private PolicyRepository policyRepository;
 
+    @Mock
+    private MessageSource messageSource;
+
     private PolicyConflictAnalyzer analyzer;
 
     @BeforeEach
     void setUp() {
-        analyzer = new PolicyConflictAnalyzer(policyRepository);
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class))).thenAnswer(inv -> inv.getArgument(0));
+        analyzer = new PolicyConflictAnalyzer(policyRepository, messageSource);
     }
 
     // ── helpers ──────────────────────────────────────────────────
@@ -440,9 +446,7 @@ class PolicyConflictAnalyzerTest {
 
             assertThat(conflicts).hasSize(1);
             PolicyConflictDto conflict = conflicts.getFirst();
-            assertThat(conflict.conflictDescription()).contains("ALLOW");
-            assertThat(conflict.conflictDescription()).contains("DENY");
-            assertThat(conflict.conflictDescription()).contains("/api/users");
+            assertThat(conflict.conflictDescription()).contains("msg.policy.conflict.description");
         }
     }
 }

@@ -8,7 +8,8 @@ public record DuplicatePolicyDto(String reason, List<Long> policyIds, String pol
     public enum DuplicateType {
         EXACT,
         SEMANTIC,
-        SUBSET
+        SUBSET,
+        HIERARCHY_SUBSUME
     }
 
     public DuplicatePolicyDto(String reason, List<Long> policyIds, String policySignature) {

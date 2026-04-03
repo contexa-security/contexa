@@ -12,6 +12,7 @@ public class BusinessPolicyDto {
     private String description;
     private Set<Long> roleIds;
     private Set<Long> permissionIds;
+    private Set<String> crudPermissions; // READ, WRITE, UPDATE, DELETE
     private Map<Long, List<String>> conditions;
     private boolean aiActionEnabled;
     private List<String> allowedActions;

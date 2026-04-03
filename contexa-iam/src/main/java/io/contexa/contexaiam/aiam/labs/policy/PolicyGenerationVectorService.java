@@ -107,15 +107,37 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                 metadata.put("policyDescription", policy.getDescription());
                 metadata.put("roleCount", policy.getRoleIds() != null ? policy.getRoleIds().size() : 0);
                 metadata.put("permissionCount", policy.getPermissionIds() != null ? policy.getPermissionIds().size() : 0);
+                metadata.put("effect", policy.getEffect() != null ? policy.getEffect().name() : "ALLOW");
             }
 
-            String policyText = String.format(
-                "AI generated policy: '%s' - %s (roles=%d, permissions=%d)",
-                policy != null ? policy.getPolicyName() : "Unknown",
-                policy != null ? policy.getDescription() : "No description",
-                metadata.get("roleCount"),
-                metadata.get("permissionCount")
-            );
+            // Build detailed policy text for better RAG retrieval
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format("AI generated policy: '%s' - %s",
+                    policy != null ? policy.getPolicyName() : "Unknown",
+                    policy != null ? policy.getDescription() : "No description"));
+            if (policy != null) {
+                sb.append(String.format(" | Effect: %s", policy.getEffect() != null ? policy.getEffect().name() : "ALLOW"));
+                if (policy.getRoleIds() != null && !policy.getRoleIds().isEmpty()) {
+                    sb.append(" | RoleIDs: ").append(policy.getRoleIds());
+                }
+                if (policy.getPermissionIds() != null && !policy.getPermissionIds().isEmpty()) {
+                    sb.append(" | PermIDs: ").append(policy.getPermissionIds());
+                }
+                if (policy.getCrudPermissions() != null && !policy.getCrudPermissions().isEmpty()) {
+                    sb.append(" | CRUD: ").append(policy.getCrudPermissions());
+                }
+                if (policy.getReasoning() != null) {
+                    sb.append(" | Reasoning: ").append(policy.getReasoning());
+                }
+            }
+            // Include role/permission name maps for richer context
+            if (policyDto.getRoleIdToNameMap() != null && !policyDto.getRoleIdToNameMap().isEmpty()) {
+                sb.append(" | Roles: ").append(policyDto.getRoleIdToNameMap().values());
+            }
+            if (policyDto.getPermissionIdToNameMap() != null && !policyDto.getPermissionIdToNameMap().isEmpty()) {
+                sb.append(" | Permissions: ").append(policyDto.getPermissionIdToNameMap().values());
+            }
+            String policyText = sb.toString();
 
             Document policyDoc = new Document(policyText, metadata);
             storeDocument(policyDoc);

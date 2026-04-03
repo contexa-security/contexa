@@ -3,6 +3,7 @@ package io.contexa.contexaiam.security.xacml.pap.analysis;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import org.springframework.context.MessageSource;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto.DuplicateType;
 import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
@@ -23,6 +24,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,12 +34,22 @@ class PolicyValidationServiceTest {
     @Mock private PolicyConflictAnalyzer conflictAnalyzer;
     @Mock private PolicyDuplicateDetector duplicateDetector;
     @Mock private PolicyRepository policyRepository;
+    @Mock private MessageSource messageSource;
 
     private PolicyValidationService service;
 
     @BeforeEach
     void setUp() {
-        service = new PolicyValidationService(conflictAnalyzer, duplicateDetector, policyRepository);
+        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class)))
+                .thenAnswer(inv -> {
+                    String code = inv.getArgument(0);
+                    return switch (code) {
+                        case "msg.policy.validation.blocked.critical" -> "CRITICAL conflict detected with existing policy";
+                        case "msg.policy.validation.blocked.duplicate" -> "Exact duplicate policy already exists";
+                        default -> code;
+                    };
+                });
+        service = new PolicyValidationService(conflictAnalyzer, duplicateDetector, policyRepository, messageSource);
     }
 
     private Policy buildPolicy(Long id, String name) {
@@ -52,7 +64,7 @@ class PolicyValidationServiceTest {
         @DisplayName("충돌/중복 없으면 canCreate=true")
         void noIssues() {
             when(conflictAnalyzer.analyze(any())).thenReturn(List.of());
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(Policy.class))).thenReturn(List.of());
 
             PolicyValidationReport report = service.validate(buildPolicy(null, "safe"));
 
@@ -68,7 +80,7 @@ class PolicyValidationServiceTest {
             when(conflictAnalyzer.analyze(any())).thenReturn(List.of(
                     new PolicyConflictDto(null, "new", 1L, "existing",
                             "Exact conflict", Severity.CRITICAL)));
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(Policy.class))).thenReturn(List.of());
 
             PolicyValidationReport report = service.validate(buildPolicy(null, "blocked"));
 
@@ -82,7 +94,7 @@ class PolicyValidationServiceTest {
             when(conflictAnalyzer.analyze(any())).thenReturn(List.of(
                     new PolicyConflictDto(null, "new", 1L, "existing",
                             "Wildcard overlap", Severity.HIGH)));
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(Policy.class))).thenReturn(List.of());
 
             PolicyValidationReport report = service.validate(buildPolicy(null, "warned"));
 
@@ -139,8 +151,8 @@ class PolicyValidationServiceTest {
         void noConflicts() {
             Policy p = buildPolicy(1L, "safe");
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p));
-            when(conflictAnalyzer.analyze(any())).thenReturn(List.of());
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(conflictAnalyzer.analyze(any(), any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -152,10 +164,10 @@ class PolicyValidationServiceTest {
         void criticalHealth() {
             Policy p = buildPolicy(1L, "conflict");
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p));
-            when(conflictAnalyzer.analyze(any())).thenReturn(List.of(
+            when(conflictAnalyzer.analyze(any(), any())).thenReturn(List.of(
                     new PolicyConflictDto(1L, "conflict", 2L, "other",
                             "Exact match", Severity.CRITICAL)));
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -167,10 +179,10 @@ class PolicyValidationServiceTest {
         void warningHealth() {
             Policy p = buildPolicy(1L, "warn");
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p));
-            when(conflictAnalyzer.analyze(any())).thenReturn(List.of(
+            when(conflictAnalyzer.analyze(any(), any())).thenReturn(List.of(
                     new PolicyConflictDto(1L, "warn", 2L, "other",
                             "Wildcard", Severity.HIGH)));
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -185,11 +197,11 @@ class PolicyValidationServiceTest {
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p1, p2));
 
             // p1 분석 시 p2와 충돌, p2 분석 시 p1과 충돌 (대칭)
-            when(conflictAnalyzer.analyze(p1)).thenReturn(List.of(
+            when(conflictAnalyzer.analyze(eq(p1), any())).thenReturn(List.of(
                     new PolicyConflictDto(1L, "p1", 2L, "p2", "conflict", Severity.HIGH)));
-            when(conflictAnalyzer.analyze(p2)).thenReturn(List.of(
+            when(conflictAnalyzer.analyze(eq(p2), any())).thenReturn(List.of(
                     new PolicyConflictDto(2L, "p2", 1L, "p1", "conflict", Severity.HIGH)));
-            when(duplicateDetector.detect(any())).thenReturn(List.of());
+            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 

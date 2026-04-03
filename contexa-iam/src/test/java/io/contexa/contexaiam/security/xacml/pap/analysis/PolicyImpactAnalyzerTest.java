@@ -2,6 +2,7 @@ package io.contexa.contexaiam.security.xacml.pap.analysis;
 
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.authority.AuthorityResolver;
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,16 +41,46 @@ class PolicyImpactAnalyzerTest {
     @Mock private UserRepository userRepository;
     @Mock private PolicyRepository policyRepository;
     @Mock private RoleHierarchy roleHierarchy;
+    @Mock private AuthorityResolver authorityResolver;
 
     private PolicyImpactAnalyzer analyzer;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
-        analyzer = new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy);
+        analyzer = new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy, authorityResolver);
         // RoleHierarchy returns input as-is by default (no hierarchy expansion)
         when(roleHierarchy.getReachableGrantedAuthorities(anyCollection()))
                 .thenAnswer(inv -> inv.getArgument(0));
+        // AuthorityResolver delegates to buildUser's role setup
+        when(authorityResolver.resolveAuthorities(any(Users.class))).thenAnswer(inv -> {
+            Users u = inv.getArgument(0);
+            java.util.Set<org.springframework.security.core.GrantedAuthority> auths = new java.util.HashSet<>();
+            if (u.getUserGroups() != null) {
+                u.getUserGroups().forEach(ug -> {
+                    if (ug.getGroup() != null && ug.getGroup().getGroupRoles() != null) {
+                        ug.getGroup().getGroupRoles().forEach(gr -> {
+                            if (gr.getRole() != null && gr.getRole().isEnabled()) {
+                                auths.add(new RoleAuthority(gr.getRole()));
+                                if (gr.getRole().getRolePermissions() != null) {
+                                    gr.getRole().getRolePermissions().forEach(rp -> {
+                                        if (rp.getPermission() != null) auths.add(new PermissionAuthority(rp.getPermission()));
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+            if (u.getUserRoles() != null) {
+                u.getUserRoles().forEach(ur -> {
+                    if (ur.getRole() != null && ur.getRole().isEnabled()) {
+                        auths.add(new RoleAuthority(ur.getRole()));
+                    }
+                });
+            }
+            return auths;
+        });
     }
 
     private Policy buildPolicy(Long id, String name, Policy.Effect effect,
@@ -171,20 +203,30 @@ class PolicyImpactAnalyzerTest {
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(existing));
             when(userRepository.findAll()).thenReturn(List.of(admin));
 
-            // Simulate role hierarchy: ROLE_ADMIN -> ROLE_USER
-            when(roleHierarchy.getReachableGrantedAuthorities(anyCollection()))
-                    .thenAnswer(inv -> {
-                        Collection<GrantedAuthority> input = (Collection<GrantedAuthority>) inv.getArgument(0);
-                        Set<GrantedAuthority> expanded = new java.util.HashSet<>(input);
-                        // If user has ROLE_ADMIN, also grant ROLE_USER
-                        if (input.stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()))) {
-                            Role userRole = mock(Role.class);
-                            when(userRole.getRoleName()).thenReturn("ROLE_USER");
-                            when(userRole.getId()).thenReturn(99L);
-                            expanded.add(new RoleAuthority(userRole));
+            // Override authorityResolver to simulate role hierarchy: ROLE_ADMIN -> ROLE_USER
+            when(authorityResolver.resolveAuthorities(any(Users.class))).thenAnswer(inv -> {
+                Users u = inv.getArgument(0);
+                java.util.Set<org.springframework.security.core.GrantedAuthority> auths = new java.util.HashSet<>();
+                if (u.getUserGroups() != null) {
+                    u.getUserGroups().forEach(ug -> {
+                        if (ug.getGroup() != null && ug.getGroup().getGroupRoles() != null) {
+                            ug.getGroup().getGroupRoles().forEach(gr -> {
+                                if (gr.getRole() != null && gr.getRole().isEnabled()) {
+                                    auths.add(new RoleAuthority(gr.getRole()));
+                                }
+                            });
                         }
-                        return expanded;
                     });
+                }
+                // Hierarchy: ROLE_ADMIN includes ROLE_USER
+                if (auths.stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()))) {
+                    Role userRole = mock(Role.class);
+                    when(userRole.getRoleName()).thenReturn("ROLE_USER");
+                    when(userRole.getId()).thenReturn(99L);
+                    auths.add(new RoleAuthority(userRole));
+                }
+                return auths;
+            });
 
             PolicyImpactReport report = analyzer.analyze(candidate);
 

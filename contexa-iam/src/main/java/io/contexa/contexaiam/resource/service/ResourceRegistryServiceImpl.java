@@ -86,7 +86,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
             resourceBatches.forEach(this::processResourceBatch);
         }
-        autoConditionTemplateService.generateConditionTemplates();
+//        autoConditionTemplateService.generateConditionTemplates();
         synchronizeResourcePolicyStatus();
     }
 
@@ -225,6 +225,9 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     public void excludeResourceFromManagement(Long resourceId) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
+        if (resource.getStatus() != ManagedResource.Status.NEEDS_DEFINITION) {
+            throw new IllegalStateException("Resource cannot be excluded in current status: " + resource.getStatus());
+        }
         resource.setStatus(ManagedResource.Status.EXCLUDED);
         managedResourceRepository.save(resource);
     }
@@ -253,9 +256,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     }
 
     private ManagedResource.Status resolveStatus(ManagedResource resource, ManagedResource.Status requestedStatus) {
-        if (requestedStatus == ManagedResource.Status.NEEDS_DEFINITION && resource.getPermission() != null) {
-            return ManagedResource.Status.PERMISSION_CREATED;
-        }
+        // Exclude is only allowed from NEEDS_DEFINITION, so restore always returns to NEEDS_DEFINITION
         return requestedStatus;
     }
 

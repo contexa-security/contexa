@@ -164,7 +164,7 @@ public class Policy implements Serializable {
         }
         
         if (this.isActive == null) {
-            this.isActive = true;
+            this.isActive = false;
         }
     }
 

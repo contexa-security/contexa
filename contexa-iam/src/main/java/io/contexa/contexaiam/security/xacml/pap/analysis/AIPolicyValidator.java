@@ -11,6 +11,8 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,9 +33,14 @@ public class AIPolicyValidator {
     private final PermissionRepository permissionRepository;
     private final PolicyConflictAnalyzer conflictAnalyzer;
     private final PolicyDuplicateDetector duplicateDetector;
+    private final MessageSource messageSource;
 
     private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
     private static final int LEAST_PRIVILEGE_THRESHOLD = 10;
+
+    private String i18n(String code, Object... args) {
+        return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
+    }
 
     /**
      * Validate an AI-generated policy for approval readiness.
@@ -79,54 +86,54 @@ public class AIPolicyValidator {
 
         if (missing.isEmpty()) {
             return new ValidationItem("Referential Integrity", CheckResult.PASS,
-                    "All referenced roles and permissions exist");
+                    i18n("msg.policy.ai.check.referential"));
         }
         return new ValidationItem("Referential Integrity", CheckResult.FAIL,
-                "Missing: " + String.join(", ", missing));
+                i18n("msg.policy.ai.check.referential.missing", String.join(", ", missing)));
     }
 
     private ValidationItem checkConflicts(Policy policy) {
         List<PolicyConflictDto> conflicts = conflictAnalyzer.analyze(policy);
         if (conflicts.isEmpty()) {
             return new ValidationItem("Conflict Check", CheckResult.PASS,
-                    "No conflicts detected");
+                    i18n("msg.policy.ai.check.conflict.none"));
         }
 
         boolean hasCritical = conflicts.stream()
                 .anyMatch(c -> c.severity() == PolicyConflictDto.Severity.CRITICAL);
         if (hasCritical) {
             return new ValidationItem("Conflict Check", CheckResult.FAIL,
-                    conflicts.size() + " conflict(s) including CRITICAL");
+                    i18n("msg.policy.ai.check.conflict.critical", conflicts.size()));
         }
         return new ValidationItem("Conflict Check", CheckResult.WARNING,
-                conflicts.size() + " conflict(s) detected");
+                i18n("msg.policy.ai.check.conflict.found", conflicts.size()));
     }
 
     private ValidationItem checkDuplicates(Policy policy) {
         List<DuplicatePolicyDto> duplicates = duplicateDetector.detect(policy);
         if (duplicates.isEmpty()) {
             return new ValidationItem("Duplicate Check", CheckResult.PASS,
-                    "No duplicates detected");
+                    i18n("msg.policy.ai.check.duplicate.none"));
         }
 
         boolean hasExact = duplicates.stream()
                 .anyMatch(d -> d.type() == DuplicatePolicyDto.DuplicateType.EXACT);
         if (hasExact) {
             return new ValidationItem("Duplicate Check", CheckResult.FAIL,
-                    "Exact duplicate exists");
+                    i18n("msg.policy.ai.check.duplicate.exact"));
         }
         return new ValidationItem("Duplicate Check", CheckResult.WARNING,
-                duplicates.size() + " potential duplicate(s)");
+                i18n("msg.policy.ai.check.duplicate.found", duplicates.size()));
     }
 
     private ValidationItem checkLeastPrivilege(Policy policy) {
         Set<String> authorities = extractReferencedAuthorities(policy);
         if (authorities.size() > LEAST_PRIVILEGE_THRESHOLD) {
             return new ValidationItem("Least Privilege", CheckResult.WARNING,
-                    authorities.size() + " authorities referenced (threshold: " + LEAST_PRIVILEGE_THRESHOLD + ")");
+                    i18n("msg.policy.ai.check.privilege.warn", authorities.size(), LEAST_PRIVILEGE_THRESHOLD));
         }
         return new ValidationItem("Least Privilege", CheckResult.PASS,
-                authorities.size() + " authorities referenced");
+                i18n("msg.policy.ai.check.privilege.ok", authorities.size()));
     }
 
     private ValidationItem checkDangerousPatterns(Policy policy) {
@@ -136,21 +143,21 @@ public class AIPolicyValidator {
             for (PolicyCondition condition : rule.getConditions()) {
                 String expr = condition.getExpression();
                 if ("permitAll".equals(expr.trim()) && policy.getEffect() == Policy.Effect.ALLOW) {
-                    dangers.add("permitAll with ALLOW effect grants unrestricted access");
+                    dangers.add(i18n("msg.policy.ai.check.danger.permitall"));
                 }
                 if ("denyAll".equals(expr.trim()) && policy.getEffect() == Policy.Effect.DENY) {
-                    dangers.add("denyAll with DENY effect blocks all access");
+                    dangers.add(i18n("msg.policy.ai.check.danger.denyall"));
                 }
                 if (expr.contains("isAuthenticated()") && !expr.contains("hasAuthority")
                         && !expr.contains("hasRole") && policy.getEffect() == Policy.Effect.ALLOW) {
-                    dangers.add("isAuthenticated() alone without role/permission check");
+                    dangers.add(i18n("msg.policy.ai.check.danger.authonly"));
                 }
             }
         }
 
         if (dangers.isEmpty()) {
             return new ValidationItem("Dangerous Patterns", CheckResult.PASS,
-                    "No dangerous patterns detected");
+                    i18n("msg.policy.ai.check.danger.none"));
         }
         return new ValidationItem("Dangerous Patterns", CheckResult.WARNING,
                 String.join("; ", dangers));

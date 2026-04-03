@@ -14,9 +14,13 @@ import java.util.Optional;
 
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
-    @Query("SELECT r FROM Role r WHERE r.expression = false " +
-            "AND (:keyword IS NULL OR LOWER(r.roleName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-            "OR LOWER(r.roleDesc) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    @Query(value = "SELECT * FROM role r WHERE r.expression = false " +
+            "AND (CAST(:keyword AS text) IS NULL OR r.role_name ILIKE '%' || CAST(:keyword AS text) || '%' " +
+            "OR r.role_desc ILIKE '%' || CAST(:keyword AS text) || '%')",
+            countQuery = "SELECT COUNT(*) FROM role r WHERE r.expression = false " +
+            "AND (CAST(:keyword AS text) IS NULL OR r.role_name ILIKE '%' || CAST(:keyword AS text) || '%' " +
+            "OR r.role_desc ILIKE '%' || CAST(:keyword AS text) || '%')",
+            nativeQuery = true)
     Page<Role> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
     Page<Role> findByRoleNameContainingIgnoreCaseOrRoleDescContainingIgnoreCase(String roleName, String roleDesc, Pageable pageable);
 

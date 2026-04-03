@@ -6,6 +6,7 @@ import io.contexa.contexaiam.admin.web.center.dto.PolicySummaryDto;
 import io.contexa.contexaiam.admin.web.center.dto.QuickPolicyRequest;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
@@ -21,6 +22,7 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
+import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
@@ -36,7 +38,17 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import org.springframework.security.core.context.SecurityContextHolder;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexaiam.admin.web.center.dto.BatchCreateRequest;
+import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
+import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
+import org.springframework.dao.DataIntegrityViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -77,9 +89,12 @@ public class PolicyCenterController {
     private final MessageSource messageSource;
     private final PolicyValidationService policyValidationService;
     private final PermissionRepository permissionRepository;
+    private final PolicyEnrichmentService policyEnrichmentService;
     private final PolicyVersionService policyVersionService;
     private final PolicyMatrixService policyMatrixService;
     private final PolicyCombiningProperties policyCombiningProperties;
+    private final CustomDynamicAuthorizationManager authorizationManager;
+    private final CentralAuditFacade centralAuditFacade;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -147,7 +162,7 @@ public class PolicyCenterController {
     public String refreshResources(RedirectAttributes ra) {
         try {
             resourceRegistryService.refreshAndSynchronizeResources();
-            synchronizeResourcePolicyStatus();
+            synchronizeResourcePolicyStatus(); // bidirectional sync after refresh
             ra.addFlashAttribute("message", msg("msg.policy.resources.refreshed"));
         } catch (Exception e) {
             log.error("Failed to refresh resources", e);
@@ -163,12 +178,24 @@ public class PolicyCenterController {
                     .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier())
                     .collect(java.util.stream.Collectors.toSet());
 
+            // Downgrade: POLICY_CONNECTED -> PERMISSION_CREATED if no policy targets
             managedResourceRepository.findByStatusInWithPermission(
                     List.of(ManagedResource.Status.POLICY_CONNECTED)
             ).forEach(resource -> {
                 String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
                 if (!allPolicyTargets.contains(key)) {
                     resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                    managedResourceRepository.save(resource);
+                }
+            });
+
+            // Upgrade: PERMISSION_CREATED -> POLICY_CONNECTED if policy targets exist
+            managedResourceRepository.findByStatusInWithPermission(
+                    List.of(ManagedResource.Status.PERMISSION_CREATED)
+            ).forEach(resource -> {
+                String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
+                if (allPolicyTargets.contains(key)) {
+                    resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
                     managedResourceRepository.save(resource);
                 }
             });
@@ -247,6 +274,7 @@ public class PolicyCenterController {
             dto.setEffect(request.getEffect());
             dto.setRoleIds(request.getRoleIds());
             dto.setPermissionIds(request.getPermissionIds());
+            dto.setCrudPermissions(request.getCrudPermissions());
             dto.setConditions(Collections.emptyMap());
             dto.setSource(Policy.PolicySource.MANUAL);
             dto.setSpelId(request.getSpelId());
@@ -282,15 +310,19 @@ public class PolicyCenterController {
             response.put("message", msg("msg.policy.created"));
             if (!duplicateAutoRoles.isEmpty()) {
                 response.put("warning",
-                        "Auto-policies already exist for roles: " + String.join(", ", duplicateAutoRoles)
-                        + ". Consider reviewing for potential duplicates.");
+                        msg("msg.policy.auto.duplicate.warning", String.join(", ", duplicateAutoRoles)));
             }
             return ResponseEntity.ok(response);
+        } catch (DataIntegrityViolationException e) {
+            log.error("Duplicate policy name", e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", msg("msg.policy.name.duplicate")));
         } catch (Exception e) {
             log.error("Failed to create quick policy", e);
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
-                    "message", e.getMessage()));
+                    "message", msg("msg.policy.create.error", e.getMessage())));
         }
     }
 
@@ -408,7 +440,8 @@ public class PolicyCenterController {
     public ResponseEntity<List<Map<String, Object>>> getSpelPermissions(
             @RequestParam(required = false) String keyword) {
         try {
-            List<SecuritySpel> spels = securitySpelRepository.search(keyword);
+            String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+            List<SecuritySpel> spels = securitySpelRepository.search(pattern);
             List<Map<String, Object>> result = spels.stream().map(s -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("id", s.getId());
@@ -432,6 +465,9 @@ public class PolicyCenterController {
         try {
             policyService.createPolicy(policyDto);
             ra.addFlashAttribute("message", msg("msg.policy.created"));
+        } catch (DataIntegrityViolationException e) {
+            log.error("Duplicate policy name", e);
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {
             log.error("Failed to create policy", e);
             ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
@@ -543,19 +579,353 @@ public class PolicyCenterController {
         }
     }
 
+    // ==================== Reset Resource Policy Status API ====================
+
+    @PostMapping("/api/reset-policy-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> resetPolicyStatus(@RequestBody List<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false,
+                    "message", msg("msg.policy.validation.target.required")));
+        }
+        int updated = 0;
+        for (Long id : resourceIds) {
+            try {
+                managedResourceRepository.findById(id).ifPresent(resource -> {
+                    if (resource.getStatus() != ManagedResource.Status.PERMISSION_CREATED) {
+                        return;
+                    }
+                    // Delete linked permission
+                    Permission perm = resource.getPermission();
+                    if (perm != null) {
+                        resource.setPermission(null);
+                        managedResourceRepository.save(resource);
+                        managedResourceRepository.flush();
+                        permissionRepository.deleteById(perm.getId());
+                        permissionRepository.flush();
+                    }
+                    // Reset status
+                    resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
+                    managedResourceRepository.save(resource);
+                });
+                updated++;
+            } catch (Exception e) {
+                log.error("Failed to reset resource status: {}", id, e);
+            }
+        }
+        return ResponseEntity.ok(Map.of("success", true, "updated", updated));
+    }
+
+    // ==================== Batch Policy Creation API ====================
+
+    @PostMapping("/api/batch-create")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> batchCreatePolicies(
+            @RequestBody BatchCreateRequest request) {
+        try {
+            // Input validation
+            if (request.getItems() == null || request.getItems().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false,
+                        "message", msg("msg.policy.validation.target.required")));
+            }
+            Set<Long> roleIds = request.getRoleIds();
+            List<Role> roles = new ArrayList<>();
+            if (roleIds != null) {
+                for (Long rid : roleIds) {
+                    try { roles.add(roleService.getRole(rid)); } catch (Exception ignored) {}
+                }
+            }
+            if (roles.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false,
+                        "message", msg("msg.policy.batch.role.required")));
+            }
+
+            String roleCondition = roles.stream()
+                    .map(r -> String.format("hasAuthority('%s')", r.getRoleName()))
+                    .collect(Collectors.joining(" or "));
+            String allRoleNames = roles.stream().map(Role::getRoleName)
+                    .collect(Collectors.joining("_"));
+
+            List<Policy> allExisting = policyRepository.findAllWithDetails();
+            List<Policy> batchCreated = new ArrayList<>();
+            List<Map<String, Object>> results = new ArrayList<>();
+
+            for (var item : request.getItems()) {
+                try {
+                    // Validate CRUD
+                    if (item.getCrudPermissions() == null || item.getCrudPermissions().isEmpty()) {
+                        results.add(Map.of("resourceIdentifier",
+                                item.getResourceIdentifier() != null ? item.getResourceIdentifier() : "unknown",
+                                "status", "SKIPPED", "reason", msg("msg.policy.batch.no.crud")));
+                        continue;
+                    }
+
+                    // Build SpEL condition (sorted for deterministic expression)
+                    String crudCondition = new TreeSet<>(item.getCrudPermissions()).stream()
+                            .map(c -> String.format("hasAuthority('%s')", c))
+                            .collect(Collectors.joining(" or "));
+                    String spelExpr = "(" + roleCondition + ") and (" + crudCondition + ")";
+
+                    // Auto-generate unique policy name (sorted for deterministic naming)
+                    String crud = new TreeSet<>(item.getCrudPermissions()).stream()
+                            .collect(Collectors.joining("_"));
+                    String resPath = item.getResourceIdentifier() != null
+                            ? item.getResourceIdentifier().replaceAll("[/{}]", "_").replaceAll("^_+|_+$", "").toUpperCase() : "";
+                    String rawName = request.getEffect().name() + "_" + allRoleNames + "_" + crud + "_" + resPath;
+                    String policyName = rawName.replaceAll("_+", "_");
+                    if (policyName.length() > 200) policyName = policyName.substring(0, 200);
+
+                    Policy candidate = Policy.builder()
+                            .name(policyName)
+                            .description(item.getResourceIdentifier())
+                            .effect(request.getEffect())
+                            .priority(100)
+                            .source(Policy.PolicySource.MANUAL)
+                            .approvalStatus(Policy.ApprovalStatus.NOT_REQUIRED)
+                            .isActive(true)
+                            .build();
+
+                    // Add target
+                    var target = PolicyTarget.builder()
+                            .targetType(item.getResourceType() != null ? item.getResourceType() : "URL")
+                            .targetIdentifier(item.getResourceIdentifier())
+                            .httpMethod(item.getHttpMethod() != null ? item.getHttpMethod() : "ANY")
+                            .sourceType("RESOURCE")
+                            .build();
+                    candidate.addTarget(target);
+
+                    // Add rule with condition
+                    var rule = PolicyRule.builder().build();
+                    var condition = PolicyCondition.builder()
+                            .expression(spelExpr).build();
+                    rule.addCondition(condition);
+                    candidate.addRule(rule);
+
+                    // Validate against existing + batch-created policies (2-arg overload)
+                    List<Policy> checkAgainst = new ArrayList<>(allExisting);
+                    checkAgainst.addAll(batchCreated);
+                    var validationReport = policyValidationService.validate(candidate, checkAgainst);
+                    if (!validationReport.canCreate()) {
+                        results.add(Map.of("resourceIdentifier", item.getResourceIdentifier(),
+                                "status", "SKIPPED", "reason",
+                                validationReport.blockedReason() != null ? validationReport.blockedReason() : msg("msg.policy.validation.blocked.critical")));
+                        continue;
+                    }
+
+                    policyEnrichmentService.enrichPolicyWithFriendlyDescription(candidate);
+                    Policy saved = policyRepository.save(candidate);
+
+                    // Version history
+                    policyVersionService.createVersion(saved,
+                            PolicyVersion.ChangeType.CREATED, null);
+
+                    // Update resource status
+                    if (item.getPermissionId() != null) {
+                        permissionRepository.findById(item.getPermissionId()).ifPresent(perm -> {
+                            var resource = perm.getManagedResource();
+                            if (resource != null && resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED) {
+                                resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
+                                managedResourceRepository.save(resource);
+                            }
+                        });
+                    }
+
+                    batchCreated.add(saved);
+                    results.add(Map.of("resourceIdentifier", item.getResourceIdentifier(),
+                            "status", "CREATED", "policyId", saved.getId(), "policyName", saved.getName()));
+
+                } catch (DataIntegrityViolationException e) {
+                    results.add(Map.of("resourceIdentifier",
+                            item.getResourceIdentifier() != null ? item.getResourceIdentifier() : "unknown",
+                            "status", "ERROR", "reason", msg("msg.policy.name.duplicate")));
+                } catch (Exception e) {
+                    log.error("Batch item failed: {}", item.getResourceIdentifier(), e);
+                    results.add(Map.of("resourceIdentifier",
+                            item.getResourceIdentifier() != null ? item.getResourceIdentifier() : "unknown",
+                            "status", "ERROR", "reason", msg("msg.policy.create.error", e.getMessage())));
+                }
+            }
+
+            // Reload authorization system once after all batch items processed
+            if (!batchCreated.isEmpty()) {
+                authorizationManager.reload();
+                try {
+                    String principal = "SYSTEM";
+                    var auth = SecurityContextHolder.getContext().getAuthentication();
+                    if (auth != null && auth.getName() != null) principal = auth.getName();
+                    centralAuditFacade.recordAsync(AuditRecord.builder()
+                            .eventCategory(AuditEventCategory.POLICY_CREATED)
+                            .principalName(principal)
+                            .resourceIdentifier("batch-create")
+                            .eventSource("IAM")
+                            .action("BATCH_POLICY_CREATED")
+                            .decision("SUCCESS")
+                            .outcome("SUCCESS")
+                            .details(Map.of(
+                                    "created", batchCreated.size(),
+                                    "total", request.getItems().size(),
+                                    "roles", allRoleNames,
+                                    "source", "MANUAL"))
+                            .build());
+                } catch (Exception ae) {
+                    log.error("Failed to audit batch policy creation", ae);
+                }
+            }
+
+            return ResponseEntity.ok(Map.of("success", true, "results", results,
+                    "created", batchCreated.size(), "total", request.getItems().size()));
+        } catch (Exception e) {
+            log.error("Batch policy creation failed", e);
+            return ResponseEntity.badRequest().body(Map.of("success", false,
+                    "message", msg("msg.policy.create.error", e.getMessage())));
+        }
+    }
+
+    // ==================== CRUD Migration API ====================
+
+    /**
+     * Migrate existing policy expressions from per-resource permissions (URL_DELETE_USERS)
+     * to common CRUD permissions (DELETE). One-time migration endpoint.
+     */
+    /**
+     * Auto-migrate old policy expressions on server startup.
+     * Converts hasAuthority('URL_xxx') to hasAuthority('CRUD') and regenerates friendlyDescription.
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void autoMigratePolicyExpressions() {
+        try {
+            int migrated = executePolicyMigration();
+            if (migrated > 0) {
+                log.error("[migration] Auto-migrated {} policy expressions from URL_/METHOD_ to CRUD", migrated);
+            }
+        } catch (Exception e) {
+            log.error("[migration] Auto-migration failed", e);
+        }
+    }
+
+    @PostMapping("/api/migrate-to-crud")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> migratePolicyExpressionsToCrud() {
+        try {
+            int migrated = executePolicyMigration();
+            return ResponseEntity.ok(Map.of("success", true, "migrated", migrated));
+        } catch (Exception e) {
+            log.error("Failed to migrate policy expressions", e);
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    private int executePolicyMigration() {
+        int migrated = 0;
+        List<Policy> allPolicies = policyRepository.findAllWithDetails();
+        for (Policy policy : allPolicies) {
+            boolean changed = false;
+            for (var rule : policy.getRules()) {
+                for (var condition : rule.getConditions()) {
+                    String expr = condition.getExpression();
+                    String newExpr = migrateExpressionToCrud(expr);
+                    if (!expr.equals(newExpr)) {
+                        condition.setExpression(newExpr);
+                        changed = true;
+                    }
+                }
+            }
+            if (changed) {
+                policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
+                policyRepository.save(policy);
+                migrated++;
+            }
+        }
+        return migrated;
+    }
+
+    private String migrateExpressionToCrud(String expression) {
+        // Replace hasAuthority('URL_xxx') or hasAuthority('METHOD_xxx') with CRUD equivalent
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("hasAuthority\\('(URL_|METHOD_)([^']*)'\\)");
+        java.util.regex.Matcher matcher = pattern.matcher(expression);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            String permName = matcher.group(1) + matcher.group(2);
+            String crud = resolvePermissionToCrud(permName);
+            matcher.appendReplacement(sb, "hasAuthority('" + crud + "')");
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private String resolvePermissionToCrud(String permissionName) {
+        // Look up permission -> managed resource -> http method -> CRUD
+        return permissionRepository.findByName(permissionName)
+                .map(perm -> {
+                    var resource = perm.getManagedResource();
+                    if (resource != null && resource.getHttpMethod() != null) {
+                        return switch (resource.getHttpMethod().name()) {
+                            case "GET" -> "READ";
+                            case "POST" -> "WRITE";
+                            case "PUT", "PATCH" -> "UPDATE";
+                            case "DELETE" -> "DELETE";
+                            default -> "READ";
+                        };
+                    }
+                    // Fallback: infer from permission name
+                    String upper = permissionName.toUpperCase();
+                    if (upper.contains("DELETE") || upper.contains("REMOVE")) return "DELETE";
+                    if (upper.contains("CREATE") || upper.contains("SAVE") || upper.contains("ADD") || upper.contains("POST")) return "WRITE";
+                    if (upper.contains("UPDATE") || upper.contains("EDIT") || upper.contains("MODIFY") || upper.contains("PUT")) return "UPDATE";
+                    return "READ";
+                })
+                .orElse("READ");
+    }
+
+    /**
+     * Cleanup old auto-created per-resource permissions (URL_*, METHOD_*).
+     * Should be run AFTER migrate-to-crud to remove orphaned permissions.
+     */
+    @PostMapping("/api/cleanup-old-permissions")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cleanupOldAutoCreatedPermissions() {
+        try {
+            List<Permission> oldPerms = permissionRepository.findAll().stream()
+                    .filter(p -> p.isAutoCreated()
+                            && p.getName() != null
+                            && (p.getName().startsWith("URL_") || p.getName().startsWith("METHOD_")))
+                    .toList();
+
+            List<Long> deletedIds = new ArrayList<>();
+            for (Permission perm : oldPerms) {
+                // Unlink from managed resource
+                if (perm.getManagedResource() != null) {
+                    perm.setManagedResource(null);
+                }
+                deletedIds.add(perm.getId());
+            }
+
+            if (!deletedIds.isEmpty()) {
+                permissionRepository.saveAll(oldPerms);
+                permissionRepository.flush();
+                permissionRepository.deleteAllByIds(deletedIds);
+                permissionRepository.flush();
+            }
+
+            return ResponseEntity.ok(Map.of("success", true, "deleted", deletedIds.size()));
+        } catch (Exception e) {
+            log.error("Failed to cleanup old permissions", e);
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
     // ==================== Impact Analysis API ====================
 
     @PostMapping("/api/impact-analysis")
     @ResponseBody
-    public ResponseEntity<PolicyImpactReport> analyzeImpact(
+    public ResponseEntity<?> analyzeImpact(
             @RequestBody PolicyDto policyDto) {
         try {
             return ResponseEntity.ok(policyService.analyzeImpact(policyDto));
         } catch (Exception e) {
             log.error("Failed to analyze policy impact", e);
-            return ResponseEntity.ok(new PolicyImpactReport(
-                    0, List.of(), List.of(),
-                    new PolicyImpactReport.AccessChangeSummary(0, 0, 0)));
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", msg("msg.policy.impact.failed", e.getMessage())));
         }
     }
 
