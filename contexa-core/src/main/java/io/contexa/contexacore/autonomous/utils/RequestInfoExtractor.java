@@ -70,6 +70,12 @@ public final class RequestInfoExtractor {
                         "hcad.resourceBusinessLabel",
                         "resourceLabel",
                         "businessLabel"))
+                .resourceId(extractAttributeText(request,
+                        "hcad.resource_id",
+                        "hcad.resourceId",
+                        "resourceId",
+                        "requestedResourceId",
+                        "protectedResourceId"))
                 .mfaVerified(castToBoolean(request.getAttribute("hcad.mfa_verified")))
                 .previousPath(extractAttributeText(request,
                         "hcad.previous_path",
@@ -346,6 +352,7 @@ public final class RequestInfoExtractor {
         private final String authMethod;
         private final String resourceSensitivity;
         private final String resourceBusinessLabel;
+        private final String resourceId;
         private final Boolean mfaVerified;
         private final String previousPath;
         private final Long lastRequestIntervalMs;

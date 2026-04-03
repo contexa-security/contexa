@@ -83,32 +83,44 @@ public class ZeroTrustAnalysisEventListener implements LlmAnalysisEventListener 
 
     @Override
     public void onHcadAnalysis(String userId, Map<String, Object> hcadData) {
-        LlmAnalysisEventListener.super.onHcadAnalysis(userId, hcadData);
+        if (delegate != null) {
+            delegate.onHcadAnalysis(userId, hcadData);
+        }
     }
 
     @Override
     public void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {
-        LlmAnalysisEventListener.super.onSessionContextLoaded(userId, sessionData);
+        if (delegate != null) {
+            delegate.onSessionContextLoaded(userId, sessionData);
+        }
     }
 
     @Override
     public void onRagSearchComplete(String userId, int matchedCount, long ragSearchMs) {
-        LlmAnalysisEventListener.super.onRagSearchComplete(userId, matchedCount, ragSearchMs);
+        if (delegate != null) {
+            delegate.onRagSearchComplete(userId, matchedCount, ragSearchMs);
+        }
     }
 
     @Override
     public void onBehaviorAnalysisComplete(String userId, Map<String, Object> behaviorData) {
-        LlmAnalysisEventListener.super.onBehaviorAnalysisComplete(userId, behaviorData);
+        if (delegate != null) {
+            delegate.onBehaviorAnalysisComplete(userId, behaviorData);
+        }
     }
 
     @Override
     public void onLlmExecutionStart(String userId, String modelName, long promptBuildMs) {
-        LlmAnalysisEventListener.super.onLlmExecutionStart(userId, modelName, promptBuildMs);
+        if (delegate != null) {
+            delegate.onLlmExecutionStart(userId, modelName, promptBuildMs);
+        }
     }
 
     @Override
     public void onLlmExecutionComplete(String userId, long llmExecutionMs, long responseParseMs) {
-        LlmAnalysisEventListener.super.onLlmExecutionComplete(userId, llmExecutionMs, responseParseMs);
+        if (delegate != null) {
+            delegate.onLlmExecutionComplete(userId, llmExecutionMs, responseParseMs);
+        }
     }
 
     @Override

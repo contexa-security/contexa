@@ -781,6 +781,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.putAll(telemetry);
         metadata.put("promptRuntimeTelemetryLinked", true);
         metadata.put("promptRuntimeTelemetryLayer", getLayerName());
+        if (promptContextAuditForwardingService != null) {
+            promptContextAuditForwardingService.enrich(event);
+        }
     }
 
     private Map<String, Object> ensureMutableEventMetadata(SecurityEvent event) {

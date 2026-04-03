@@ -53,6 +53,16 @@ public class PromptContextAuditPayloadMapper {
                 .deniedDocumentCount(authorizedPromptContext.deniedDocumentCount())
                 .deniedReasons(deniedReasons)
                 .contexts(contexts)
+                .promptKey(resolvePromptKey(event))
+                .templateKey(resolveTemplateKey(event))
+                .promptVersion(resolvePromptVersion(event))
+                .promptHash(resolvePromptHash(event))
+                .systemPromptHash(resolveSystemPromptHash(event))
+                .userPromptHash(resolveUserPromptHash(event))
+                .resourceId(resolveResourceId(event))
+                .requestPath(resolveRequestPath(event))
+                .promptRuntimeTelemetryLinked(resolvePromptRuntimeTelemetryLinked(event))
+                .promptRuntimeTelemetryLayer(resolvePromptRuntimeTelemetryLayer(event))
                 .forwardedAt(LocalDateTime.now())
                 .build();
     }
@@ -71,6 +81,84 @@ public class PromptContextAuditPayloadMapper {
         return "default";
     }
 
+    public PromptContextAuditPayload enrich(PromptContextAuditPayload payload, SecurityEvent event) {
+        if (payload == null || event == null) {
+            return payload;
+        }
+        return PromptContextAuditPayload.builder()
+                .auditId(payload.getAuditId())
+                .correlationId(firstNonBlank(resolveCorrelationId(event), payload.getCorrelationId()))
+                .tenantExternalRef(firstNonBlank(resolveTenantExternalRef(event), payload.getTenantExternalRef()))
+                .executionId(firstNonBlank(resolveExecutionId(event), payload.getExecutionId()))
+                .retrievalPurpose(firstNonBlank(payload.getRetrievalPurpose(), resolveText(metadata(event), "retrievalPurpose")))
+                .contextFingerprint(payload.getContextFingerprint())
+                .requestedDocumentCount(payload.getRequestedDocumentCount())
+                .allowedDocumentCount(payload.getAllowedDocumentCount())
+                .deniedDocumentCount(payload.getDeniedDocumentCount())
+                .deniedReasons(payload.getDeniedReasons() == null ? List.of() : List.copyOf(payload.getDeniedReasons()))
+                .contexts(payload.getContexts() == null ? List.of() : List.copyOf(payload.getContexts()))
+                .promptKey(firstNonBlank(resolvePromptKey(event), payload.getPromptKey()))
+                .templateKey(firstNonBlank(resolveTemplateKey(event), payload.getTemplateKey()))
+                .promptVersion(firstNonBlank(resolvePromptVersion(event), payload.getPromptVersion()))
+                .promptHash(firstNonBlank(resolvePromptHash(event), payload.getPromptHash()))
+                .systemPromptHash(firstNonBlank(resolveSystemPromptHash(event), payload.getSystemPromptHash()))
+                .userPromptHash(firstNonBlank(resolveUserPromptHash(event), payload.getUserPromptHash()))
+                .resourceId(firstNonBlank(resolveResourceId(event), payload.getResourceId()))
+                .requestPath(firstNonBlank(resolveRequestPath(event), payload.getRequestPath()))
+                .promptRuntimeTelemetryLinked(metadata(event).containsKey("promptRuntimeTelemetryLinked")
+                        ? resolveBoolean(metadata(event).get("promptRuntimeTelemetryLinked"))
+                        : payload.getPromptRuntimeTelemetryLinked())
+                .promptRuntimeTelemetryLayer(firstNonBlank(resolvePromptRuntimeTelemetryLayer(event), payload.getPromptRuntimeTelemetryLayer()))
+                .forwardedAt(payload.getForwardedAt() != null ? payload.getForwardedAt() : LocalDateTime.now())
+                .build();
+    }
+
+    private Map<String, Object> metadata(SecurityEvent event) {
+        return event != null && event.getMetadata() != null ? event.getMetadata() : Map.of();
+    }
+
+    private String resolvePromptKey(SecurityEvent event) {
+        return resolveText(metadata(event), "promptKey");
+    }
+
+    private String resolveTemplateKey(SecurityEvent event) {
+        return resolveText(metadata(event), "templateKey", "promptTemplateKey");
+    }
+
+    private String resolvePromptVersion(SecurityEvent event) {
+        return resolveText(metadata(event), "promptVersion");
+    }
+
+    private String resolvePromptHash(SecurityEvent event) {
+        return resolveText(metadata(event), "promptHash");
+    }
+
+    private String resolveSystemPromptHash(SecurityEvent event) {
+        return resolveText(metadata(event), "systemPromptHash");
+    }
+
+    private String resolveUserPromptHash(SecurityEvent event) {
+        return resolveText(metadata(event), "userPromptHash");
+    }
+
+    private String resolveResourceId(SecurityEvent event) {
+        return resolveText(metadata(event), "resourceId", "requestedResourceId", "protectedResourceId");
+    }
+
+    private String resolveRequestPath(SecurityEvent event) {
+        return resolveText(metadata(event), "requestPath", "requestUri", "servletPath");
+    }
+
+    private String resolvePromptRuntimeTelemetryLayer(SecurityEvent event) {
+        return resolveText(metadata(event), "promptRuntimeTelemetryLayer");
+    }
+
+    private Boolean resolvePromptRuntimeTelemetryLinked(SecurityEvent event) {
+        if (!metadata(event).containsKey("promptRuntimeTelemetryLinked")) {
+            return null;
+        }
+        return resolveBoolean(metadata(event).get("promptRuntimeTelemetryLinked"));
+    }
     private List<PromptContextAuditPayload.ContextItem> resolveContextItems(
             AuthorizedPromptContext authorizedPromptContext,
             String retrievalPurpose) {
@@ -156,7 +244,7 @@ public class PromptContextAuditPayloadMapper {
                 .build();
     }
 
-    private String resolveCorrelationId(SecurityEvent event) {
+    public String resolveCorrelationId(SecurityEvent event) {
         if (event.getMetadata() != null) {
             Object correlationId = event.getMetadata().get("correlationId");
             if (correlationId instanceof String value && !value.isBlank()) {
@@ -285,6 +373,17 @@ public class PromptContextAuditPayloadMapper {
         return null;
     }
 
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
     private String safeText(String value) {
         return StringUtils.hasText(value) ? value.trim() : "";
     }

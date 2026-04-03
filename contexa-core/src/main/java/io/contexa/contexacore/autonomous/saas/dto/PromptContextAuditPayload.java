@@ -25,6 +25,16 @@ public class PromptContextAuditPayload {
     private int deniedDocumentCount;
     private List<String> deniedReasons;
     private List<ContextItem> contexts;
+    private String promptKey;
+    private String templateKey;
+    private String promptVersion;
+    private String promptHash;
+    private String systemPromptHash;
+    private String userPromptHash;
+    private String resourceId;
+    private String requestPath;
+    private Boolean promptRuntimeTelemetryLinked;
+    private String promptRuntimeTelemetryLayer;
     private LocalDateTime forwardedAt;
 
     @Data

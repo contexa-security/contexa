@@ -174,6 +174,11 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getResourceBusinessLabel() != null) {
                 payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
             }
+            if (requestInfo.getResourceId() != null) {
+                payload.put("resourceId", requestInfo.getResourceId());
+                payload.put("requestedResourceId", requestInfo.getResourceId());
+                payload.put("protectedResourceId", requestInfo.getResourceId());
+            }
             payload.put("mfaVerified", requestInfo.getMfaVerified());
             if (requestInfo.getPreviousPath() != null) {
                 payload.put("previousPath", requestInfo.getPreviousPath());

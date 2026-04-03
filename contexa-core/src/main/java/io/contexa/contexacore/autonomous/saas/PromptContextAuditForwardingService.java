@@ -37,8 +37,23 @@ public class PromptContextAuditForwardingService {
     public void capture(SecurityEvent event, String retrievalPurpose, AuthorizedPromptContext authorizedPromptContext) {
         PromptContextAuditPayload payload = payloadMapper.map(event, retrievalPurpose, authorizedPromptContext);
         repository.findByAuditId(payload.getAuditId()).ifPresentOrElse(
-                existing -> dispatchAsync(existing.getId()),
+                existing -> updateAndDispatch(existing, payload),
                 () -> saveAndDispatch(event, payload));
+    }
+
+    public void enrich(SecurityEvent event) {
+        if (event == null) {
+            return;
+        }
+        String correlationId = payloadMapper.resolveCorrelationId(event);
+        if (!StringUtils.hasText(correlationId)) {
+            return;
+        }
+        repository.findByCorrelationId(correlationId.trim()).ifPresent(existing -> {
+            PromptContextAuditPayload current = readPayload(existing.getPayloadJson());
+            PromptContextAuditPayload enriched = payloadMapper.enrich(current, event);
+            updateAndDispatch(existing, enriched);
+        });
     }
 
     private void saveAndDispatch(SecurityEvent event, PromptContextAuditPayload payload) {
@@ -57,8 +72,40 @@ public class PromptContextAuditForwardingService {
         dispatchAsync(saved.getId());
     }
 
+    private void updateAndDispatch(PromptContextAuditForwardingOutboxRecord existing, PromptContextAuditPayload payload) {
+        String serializedPayload = writePayload(payload);
+        boolean payloadChanged = !serializedPayload.equals(existing.getPayloadJson());
+        if (payloadChanged) {
+            if (StringUtils.hasText(payload.getCorrelationId())) {
+                existing.setCorrelationId(payload.getCorrelationId().trim());
+            }
+            if (StringUtils.hasText(payload.getTenantExternalRef())) {
+                existing.setTenantExternalRef(payload.getTenantExternalRef().trim());
+            }
+            existing.setPayloadJson(serializedPayload);
+            existing.setStatus(PromptContextAuditForwardingOutboxRecord.STATUS_PENDING);
+            existing.setNextAttemptAt(null);
+            existing.setLastError(null);
+            existing.setDeliveredAt(null);
+            repository.saveAndFlush(existing);
+        }
+        dispatchAsync(existing.getId());
+    }
+
     private void dispatchAsync(Long outboxId) {
         executor.execute(() -> dispatcher.dispatch(outboxId));
+    }
+
+    private PromptContextAuditPayload readPayload(String payloadJson) {
+        if (!StringUtils.hasText(payloadJson)) {
+            throw new IllegalStateException("Prompt context audit payload is empty");
+        }
+        try {
+            return objectMapper.readValue(payloadJson, PromptContextAuditPayload.class);
+        }
+        catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize prompt context audit payload", e);
+        }
     }
 
     private String writePayload(PromptContextAuditPayload payload) {

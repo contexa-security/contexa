@@ -221,6 +221,18 @@ public class SecurityDecisionForwardingPayloadMapper {
         copyIfPresent(eventMetadata, attributes, "failedLoginAttempts");
         copyIfPresent(eventMetadata, attributes, "auth.failure_count");
         copyIfPresent(eventMetadata, attributes, "isSensitiveResource");
+        copyIfPresent(eventMetadata, attributes, "resourceId");
+        copyIfPresent(eventMetadata, attributes, "requestedResourceId");
+        copyIfPresent(eventMetadata, attributes, "protectedResourceId");
+        if (!attributes.containsKey("resourceId")) {
+            Object aliasResourceId = eventMetadata.get("requestedResourceId");
+            if (aliasResourceId == null) {
+                aliasResourceId = eventMetadata.get("protectedResourceId");
+            }
+            if (aliasResourceId != null) {
+                attributes.put("resourceId", aliasResourceId);
+            }
+        }
         copyIfPresent(eventMetadata, attributes, "userRoles");
         copyIfPresent(eventMetadata, attributes, "bridgeCoverageLevel");
         copyIfPresent(eventMetadata, attributes, "bridgeCoverageScore");
