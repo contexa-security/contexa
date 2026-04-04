@@ -228,12 +228,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             ctx.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
         }
 
-        if (event.getUserAgent() != null) {
-            ctx.setCurrentUserAgentOS(SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));
-            ctx.setCurrentUserAgentBrowser(SecurityEventEnricher.extractBrowserSignature(event.getUserAgent()));
-        }
+
 
         enrichBehaviorAnalysisWithBaselineSupport(ctx, event, baselineSeedService);
+        hydrateBehaviorAnalysisRuntimeFacts(ctx, event);
 
         if (threatIntelligenceService != null) {
             ctx.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, ctx));

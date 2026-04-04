@@ -67,6 +67,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Do not repeat the same factor in different wording.");
         assertThat(systemPrompt).contains("If any of those labels is false, you must not claim the opposite.");
         assertThat(systemPrompt).contains("If NewUser is false, do not say \"new user\".");
+        assertThat(systemPrompt).contains("PersonalBaselineStatus: NOT_ESTABLISHED");
         assertThat(systemPrompt).contains("Treat the CURRENT REQUEST sensitivity label as authoritative.");
         assertThat(systemPrompt).contains("If the prompt says Sensitivity: STANDARD or LOW, do not describe");
         assertThat(systemPrompt).contains("not sufficient grounds for confident ALLOW on HIGH or CRITICAL access");
@@ -103,6 +104,53 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
     }
 
+
+    @Test
+    @DisplayName("cold-start sparse baseline prompt should stay factual and preserve uncertainty framing")
+    void generateUserPromptShouldKeepColdStartBaselineFactual() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-cold-start")
+                .timestamp(LocalDateTime.of(2026, 4, 4, 19, 6))
+                .userId("admin")
+                .sessionId("session-cold-start")
+                .sourceIp("0:0:0:0:0:0:0:1")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("isNewUser", false);
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("admin");
+        sessionContext.setSessionId("session-cold-start");
+        sessionContext.setRequestCount(1);
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setBaselineContext("=== PERSONAL BASELINE STATUS ===\n"
+                + "PersonalBaselineStatus: NOT_ESTABLISHED\n"
+                + "PersonalBaselineSummary: No verified personal behavior baseline is available for this subject yet.\n"
+                + "BaselineInterpretation: Missing personal history is uncertainty, not proof of compromise or legitimacy.\n"
+                + "BaselineComparisonStatus: No verified personal history is available for direct comparison.\n");
+        behaviorAnalysis.setPersonalBaselineAvailable(false);
+        behaviorAnalysis.setPersonalBaselineEstablished(false);
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
+
+        String userPrompt = template.generateUserPrompt(request, "");
+
+        assertThat(userPrompt).contains("BaselineGapSupport:");
+        assertThat(userPrompt).contains("STATUS: SPARSE_PERSONAL_HISTORY");
+        assertThat(userPrompt).contains("Sparse personal history is uncertainty, not proof of compromise or legitimacy by itself.");
+        assertThat(userPrompt).doesNotContain("This could be a first-time attacker");
+        assertThat(userPrompt).doesNotContain("Never Trust, Always Verify");
+        assertThat(userPrompt).doesNotContain("You CANNOT determine if this behavior is normal");
+    }
     @Test
     @DisplayName("configured layer1 default budget profile should flow into direct browser-style prompt generation")
     void generatePromptShouldUseConfiguredLayer1DefaultBudgetProfile() {
@@ -164,6 +212,8 @@ class SecurityDecisionStandardPromptTemplateTest {
         event.addMetadata("bridgeCoverageSummary", "Bridge resolved authentication and authorization context for the current request.");
         event.addMetadata("bridgeAuthenticationSource", "SECURITY_CONTEXT");
         event.addMetadata("bridgeAuthorizationSource", "HEADER");
+        event.addMetadata("bridgeMissingContexts", List.of("AUTHORIZATION_EFFECT"));
+        event.addMetadata("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
         event.addMetadata("userRoles", List.of("ROLE_ADMIN"));
         event.addMetadata("effectivePermissions", List.of("report.read"));
         event.addMetadata("scopeTags", List.of("customer_data"));
@@ -348,6 +398,8 @@ class SecurityDecisionStandardPromptTemplateTest {
         event.addMetadata("bridgeCoverageSummary", "Bridge completeness reached authentication and authorization context for the current request.");
         event.addMetadata("bridgeAuthenticationSource", "SECURITY_CONTEXT");
         event.addMetadata("bridgeAuthorizationSource", "HEADER");
+        event.addMetadata("bridgeMissingContexts", List.of("AUTHORIZATION_EFFECT"));
+        event.addMetadata("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
         event.addMetadata("effectiveRoles", List.of("ADMIN"));
         event.addMetadata("effectivePermissions", List.of("report.read"));
         event.addMetadata("scopeTags", List.of("customer_data"));
@@ -374,6 +426,9 @@ class SecurityDecisionStandardPromptTemplateTest {
         String userPrompt = template.generateUserPrompt(request, "");
 
         assertThat(userPrompt).contains("=== BRIDGE RESOLUTION CONTEXT ===");
+        assertThat(userPrompt).contains("AuthorizationContext:");
+        assertThat(userPrompt).contains("AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT");
+        assertThat(userPrompt).contains("AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect; final AuthorizationEffect was resolved later from METHOD_INVOCATION_RESULT.");
         assertThat(userPrompt).contains("AuthorizationEffect: ALLOW");
         assertThat(userPrompt).contains("=== FRICTION AND APPROVAL HISTORY ===");
         assertThat(userPrompt).contains("RecentChallengeCount: 1");
@@ -467,6 +522,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         return count;
     }
 }
+
 
 
 

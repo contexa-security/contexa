@@ -17,6 +17,12 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final String NORMALIZE_AND_FUSE_MODE = "NORMALIZE_AND_FUSE";
 
     private static final String SIMILAR_PAST_EVENTS_HEADER = "=== SIMILAR PAST EVENTS ===";
+    private static final String CURRENT_REQUEST_HEADER = "=== CURRENT REQUEST AND EVENT ===";
+    private static final String BRIDGE_RESOLUTION_HEADER = "=== BRIDGE RESOLUTION CONTEXT ===";
+    private static final String COVERAGE_HEADER = "=== CONTEXT COVERAGE ===";
+    private static final String IDENTITY_ROLE_HEADER = "=== IDENTITY AND ROLE CONTEXT ===";
+    private static final String AUTH_ASSURANCE_HEADER = "=== AUTHENTICATION AND ASSURANCE CONTEXT ===";
+    private static final String RESOURCE_ACTION_HEADER = "=== RESOURCE AND ACTION CONTEXT ===";
     private static final String SESSION_NARRATIVE_HEADER = "=== SESSION NARRATIVE CONTEXT ===";
     private static final String OBSERVED_WORK_PATTERN_HEADER = "=== OBSERVED WORK PATTERN CONTEXT ===";
     private static final String PERSONAL_WORK_PROFILE_HEADER = "=== PERSONAL WORK PROFILE ===";
@@ -33,6 +39,13 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final String CONTEXT_OPEN = "<context>";
     private static final String CONTEXT_CLOSE = "</context>";
 
+    private static final int CURRENT_REQUEST_SECTION_MAX_LINES = 13;
+    private static final int BRIDGE_SECTION_MAX_LINES = 7;
+    private static final int IDENTITY_SECTION_MAX_LINES = 6;
+    private static final int AUTH_SECTION_MAX_LINES = 8;
+    private static final int RESOURCE_SECTION_MAX_LINES = 6;
+    private static final int COVERAGE_MAX_MISSING_FACT_LINES = 2;
+    private static final int COVERAGE_MAX_WARNING_LINES = 3;
     private static final int SESSION_SECTION_MAX_LINES = 8;
     private static final int WORK_PROFILE_SECTION_MAX_LINES = 10;
     private static final int ROLE_SCOPE_SECTION_MAX_LINES = 11;
@@ -41,6 +54,13 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final int DELEGATION_SECTION_MAX_LINES = 8;
     private static final int PEER_COHORT_SECTION_MAX_LINES = 7;
     private static final int MISSING_KNOWLEDGE_SECTION_MAX_LINES = 10;
+    private static final int COMPACT_CURRENT_REQUEST_SECTION_MAX_LINES = 10;
+    private static final int COMPACT_BRIDGE_SECTION_MAX_LINES = 5;
+    private static final int COMPACT_IDENTITY_SECTION_MAX_LINES = 5;
+    private static final int COMPACT_AUTH_SECTION_MAX_LINES = 7;
+    private static final int COMPACT_RESOURCE_SECTION_MAX_LINES = 6;
+    private static final int COMPACT_COVERAGE_MAX_MISSING_FACT_LINES = 1;
+    private static final int COMPACT_COVERAGE_MAX_WARNING_LINES = 2;
     private static final int COMPACT_SESSION_MAX_LINES = 6;
     private static final int COMPACT_WORK_PROFILE_SECTION_MAX_LINES = 8;
     private static final int COMPACT_ROLE_SCOPE_SECTION_MAX_LINES = 8;
@@ -167,6 +187,58 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             "- ContextTrustWarning:",
             "- ContextFieldLimitation:");
 
+    private static final List<String> CURRENT_REQUEST_PRIORITY_PREFIXES = List.of(
+            "AuthorizationContext:",
+            "  AuthorizationEffectProvenance:",
+            "  AuthorizationEffectStageNote:",
+            "User:",
+            "CurrentHour:",
+            "User is requesting ",
+            "This is a SENSITIVE resource.",
+            "Previous request path:",
+            "NewDevice:",
+            "NewSession:",
+            "NewUser:",
+            "MfaVerified:",
+            "FailedLoginAttempts:",
+            "NetworkContext:",
+            "  IP:",
+            "  CurrentOS:",
+            "  CurrentUA:");
+
+    private static final List<String> BRIDGE_PRIORITY_PREFIXES = List.of(
+            "BridgeCompletenessLevel:",
+            "BridgeCompletenessSummary:",
+            "BridgeMissingContexts:",
+            "BridgeAuthenticationSource:",
+            "BridgeAuthorizationSource:");
+
+    private static final List<String> IDENTITY_PRIORITY_PREFIXES = List.of(
+            "AuthorizationEffect:",
+            "EffectiveRoles:",
+            "EffectivePermissions:",
+            "UserId:",
+            "PrincipalType:",
+            "RoleSet:");
+
+    private static final List<String> AUTH_PRIORITY_PREFIXES = List.of(
+            "SessionId:",
+            "AuthenticationType:",
+            "MfaVerified:",
+            "NewDevice:",
+            "RecentRequestCount:",
+            "FailedLoginAttempts:",
+            "NewSession:",
+            "NewUser:");
+
+    private static final List<String> RESOURCE_PRIORITY_PREFIXES = List.of(
+            "RequestPath:",
+            "Sensitivity:",
+            "ActionFamily:",
+            "BusinessLabel:",
+            "HttpMethod:",
+            "SensitiveResource:");
+
     private final boolean compressionEnabled;
 
     public SafePromptNormalizationLLMViewComposer() {
@@ -222,8 +294,58 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         PromptTransformResult similarPastEvents = compactSimilarPastEventsSection(normalizedUserPrompt);
         records.addAll(similarPastEvents.records());
 
-        PromptTransformResult sessionNarrative = compactSectionByPriority(
+        PromptTransformResult currentRequest = compactSectionByPriority(
                 similarPastEvents.text(),
+                CURRENT_REQUEST_HEADER,
+                CURRENT_REQUEST_PRIORITY_PREFIXES,
+                CURRENT_REQUEST_SECTION_MAX_LINES,
+                "CURRENT_REQUEST_AND_EVENT",
+                "Current request retained the decisive request, provenance, and network anchors while compacting repeated detail lines.");
+        records.addAll(currentRequest.records());
+
+        PromptTransformResult bridgeResolution = compactBridgeSection(
+                currentRequest.text(),
+                "BRIDGE_RESOLUTION",
+                "Bridge resolution retained completeness and missing-context anchors while compacting duplicated remediation detail.");
+        records.addAll(bridgeResolution.records());
+
+        PromptTransformResult coverage = compactCoverageSection(
+                bridgeResolution.text(),
+                COVERAGE_MAX_MISSING_FACT_LINES,
+                COVERAGE_MAX_WARNING_LINES,
+                "CONTEXT_COVERAGE",
+                "Context coverage retained level, summary, critical gaps, and highest-value uncertainty warnings while compacting audit-heavy lists.");
+        records.addAll(coverage.records());
+
+        PromptTransformResult identity = compactSectionByPriority(
+                coverage.text(),
+                IDENTITY_ROLE_HEADER,
+                IDENTITY_PRIORITY_PREFIXES,
+                IDENTITY_SECTION_MAX_LINES,
+                "IDENTITY_AND_ROLE",
+                "Identity and role context retained subject, effective role, and authorization anchors while compacting secondary identity detail.");
+        records.addAll(identity.records());
+
+        PromptTransformResult authentication = compactSectionByPriority(
+                identity.text(),
+                AUTH_ASSURANCE_HEADER,
+                AUTH_PRIORITY_PREFIXES,
+                AUTH_SECTION_MAX_LINES,
+                "AUTHENTICATION_AND_ASSURANCE",
+                "Authentication context retained assurance and session-state anchors while compacting duplicate request detail.");
+        records.addAll(authentication.records());
+
+        PromptTransformResult resource = compactSectionByPriority(
+                authentication.text(),
+                RESOURCE_ACTION_HEADER,
+                RESOURCE_PRIORITY_PREFIXES,
+                RESOURCE_SECTION_MAX_LINES,
+                "RESOURCE_AND_ACTION",
+                "Resource context retained request path, action family, and sensitivity anchors while compacting duplicate resource detail.");
+        records.addAll(resource.records());
+
+        PromptTransformResult sessionNarrative = compactSectionByPriority(
+                resource.text(),
                 SESSION_NARRATIVE_HEADER,
                 SESSION_PRIORITY_PREFIXES,
                 SESSION_SECTION_MAX_LINES,
@@ -321,17 +443,17 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 "Peer cohort context retained cohort summary anchors and compacted secondary support lines.");
         records.addAll(peerCohort.records());
 
-        PromptTransformResult deduplicatedFacts = deduplicateRepeatedFactLines(peerCohort.text());
-        records.addAll(deduplicatedFacts.records());
-
         PromptTransformResult budgetEnforced = enforceBudget(
                 systemPromptTransform.text(),
-                deduplicatedFacts.text(),
+                peerCohort.text(),
                 budgetProfile);
         records.addAll(budgetEnforced.records());
 
+        PromptTransformResult deduplicatedFacts = deduplicateRepeatedFactLines(budgetEnforced.text());
+        records.addAll(deduplicatedFacts.records());
+
         String llmSystemPrompt = systemPromptTransform.text();
-        String llmUserPrompt = budgetEnforced.text();
+        String llmUserPrompt = deduplicatedFacts.text();
         PromptCompressionLedger ledger = buildLedger(
                 normalizedRawSystemPrompt,
                 normalizedRawUserPrompt,
@@ -534,6 +656,147 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         });
     }
 
+    private PromptTransformResult compactBridgeSection(
+            String prompt,
+            String scopeKey,
+            String reason) {
+        return compactNamedSection(prompt, BRIDGE_RESOLUTION_HEADER, scopeKey, sectionLines -> {
+            if (sectionLines == null || sectionLines.isEmpty()) {
+                return SectionTransform.identity(sectionLines);
+            }
+
+            List<String> compacted = new ArrayList<>();
+            compacted.add(sectionLines.get(0));
+            appendFirstMatchingLine(compacted, sectionLines, "BridgeCompletenessLevel:");
+            appendFirstMatchingLine(compacted, sectionLines, "BridgeCompletenessSummary:");
+            appendFirstMatchingLine(compacted, sectionLines, "BridgeMissingContexts:");
+            appendFirstMatchingLine(compacted, sectionLines, "BridgeAuthenticationSource:");
+            appendFirstMatchingLine(compacted, sectionLines, "BridgeAuthorizationSource:");
+
+            int remediationHints = countMatchingLines(sectionLines, "BridgeRemediationHints:");
+            if (remediationHints > 0) {
+                compacted.add("BridgeRemediationHintsCompacted: " + remediationHints);
+            }
+            if (compacted.equals(sectionLines)) {
+                return SectionTransform.identity(sectionLines);
+            }
+            return SectionTransform.changed(compacted, PromptCompressionAction.SUMMARIZED, reason);
+        });
+    }
+
+    private PromptTransformResult compactCoverageSection(
+            String prompt,
+            int maxMissingFacts,
+            int maxWarnings,
+            String scopeKey,
+            String reason) {
+        return compactNamedSection(prompt, COVERAGE_HEADER, scopeKey, sectionLines -> {
+            List<String> compacted = retainCoverageLines(sectionLines, maxMissingFacts, maxWarnings);
+            if (compacted.equals(sectionLines)) {
+                return SectionTransform.identity(sectionLines);
+            }
+            return SectionTransform.changed(compacted, PromptCompressionAction.SUMMARIZED, reason);
+        });
+    }
+
+    private List<String> retainCoverageLines(List<String> sectionLines, int maxMissingFacts, int maxWarnings) {
+        if (sectionLines == null || sectionLines.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> compacted = new ArrayList<>();
+        compacted.add(sectionLines.get(0));
+        appendFirstMatchingLine(compacted, sectionLines, "CoverageLevel:");
+        appendFirstMatchingLine(compacted, sectionLines, "CoverageSummary:");
+
+        int availableFacts = countBulletBlockItems(sectionLines, "AvailableFacts:");
+        int missingFacts = appendBulletBlock(compacted, sectionLines, "MissingCriticalFacts:", maxMissingFacts);
+        int remediationHints = countBulletBlockItems(sectionLines, "RemediationHints:");
+        int confidenceWarnings = appendBulletBlock(compacted, sectionLines, "ConfidenceWarnings:", maxWarnings);
+
+        if (availableFacts > 0) {
+            compacted.add("AvailableFactsCompacted: " + availableFacts);
+        }
+        if (missingFacts > maxMissingFacts) {
+            compacted.add("AdditionalMissingCriticalFactsCompacted: " + (missingFacts - maxMissingFacts));
+        }
+        if (remediationHints > 0) {
+            compacted.add("RemediationHintsCompacted: " + remediationHints);
+        }
+        if (confidenceWarnings > maxWarnings) {
+            compacted.add("AdditionalConfidenceWarningsCompacted: " + (confidenceWarnings - maxWarnings));
+        }
+        return compacted;
+    }
+
+    private void appendFirstMatchingLine(List<String> target, List<String> lines, String prefix) {
+        int index = findLineIndex(lines, prefix);
+        if (index >= 0) {
+            target.add(lines.get(index));
+        }
+    }
+
+    private int appendBulletBlock(List<String> target, List<String> sectionLines, String header, int maxItems) {
+        int start = findLineIndex(sectionLines, header);
+        if (start < 0) {
+            return 0;
+        }
+
+        List<String> bullets = new ArrayList<>();
+        for (int i = start + 1; i < sectionLines.size(); i++) {
+            String line = sectionLines.get(i);
+            String trimmed = line.trim();
+            if (line.startsWith("=== ")) {
+                break;
+            }
+            if (line.endsWith(":") && !trimmed.startsWith("- ")) {
+                break;
+            }
+            if (!trimmed.startsWith("- ")) {
+                continue;
+            }
+            bullets.add(trimmed);
+        }
+        if (bullets.isEmpty()) {
+            return 0;
+        }
+        target.add(header);
+        int limit = Math.max(0, maxItems);
+        for (int i = 0; i < bullets.size() && i < limit; i++) {
+            target.add(bullets.get(i));
+        }
+        return bullets.size();
+    }
+
+    private int countBulletBlockItems(List<String> sectionLines, String header) {
+        return appendBulletBlock(new ArrayList<>(), sectionLines, header, 0);
+    }
+
+    private int countMatchingLines(List<String> lines, String prefix) {
+        if (lines == null || prefix == null) {
+            return 0;
+        }
+        int matches = 0;
+        for (String line : lines) {
+            if (line.startsWith(prefix)) {
+                matches++;
+            }
+        }
+        return matches;
+    }
+
+    private int findLineIndex(List<String> lines, String prefix) {
+        if (lines == null || prefix == null) {
+            return -1;
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).startsWith(prefix)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     private PromptTransformResult compactSectionByPriority(
             String prompt,
             String header,
@@ -547,7 +810,7 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             }
 
             List<String> compacted = retainPriorityLines(sectionLines, priorityPrefixes, maxLines);
-            if (compacted.size() >= sectionLines.size()) {
+            if (compacted.equals(sectionLines)) {
                 return SectionTransform.identity(sectionLines);
             }
 
@@ -646,20 +909,31 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         if (line == null || line.isBlank()) {
             return null;
         }
-        return extractFact(line, "RequestPath:", "PATH")
-                .or(() -> extractFact(line, "CurrentRequestPath:", "PATH"))
-                .or(() -> extractFact(line, "ClientIp:", "IP"))
-                .or(() -> extractFact(line, "SourceIp:", "IP"))
-                .or(() -> extractFact(line, "MfaVerified:", "MFA"))
-                .or(() -> extractFact(line, "Sensitivity:", "SENSITIVITY"))
-                .or(() -> extractFact(line, "ResourceSensitivity:", "SENSITIVITY"))
-                .or(() -> extractFact(line, "AuthorizationEffect:", "AUTHORIZATION_EFFECT"))
-                .or(() -> extractFact(line, "AuthMethod:", "AUTH_METHOD"))
+        String normalizedLine = line.trim();
+        return extractFact(normalizedLine, "RequestPath:", "PATH")
+                .or(() -> extractFact(normalizedLine, "CurrentRequestPath:", "PATH"))
+                .or(() -> extractFact(normalizedLine, "Path:", "PATH"))
+                .or(() -> extractFact(normalizedLine, "ClientIp:", "IP"))
+                .or(() -> extractFact(normalizedLine, "SourceIp:", "IP"))
+                .or(() -> extractFact(normalizedLine, "IP:", "IP"))
+                .or(() -> extractFact(normalizedLine, "User:", "USER"))
+                .or(() -> extractFact(normalizedLine, "UserId:", "USER"))
+                .or(() -> extractFact(normalizedLine, "HttpMethod:", "HTTP_METHOD"))
+                .or(() -> extractFact(normalizedLine, "MfaVerified:", "MFA"))
+                .or(() -> extractFact(normalizedLine, "FailedLoginAttempts:", "FAILED_LOGIN_ATTEMPTS"))
+                .or(() -> extractFact(normalizedLine, "NewSession:", "NEW_SESSION"))
+                .or(() -> extractFact(normalizedLine, "NewUser:", "NEW_USER"))
+                .or(() -> extractFact(normalizedLine, "NewDevice:", "NEW_DEVICE"))
+                .or(() -> extractFact(normalizedLine, "RecentRequestCount:", "RECENT_REQUEST_COUNT"))
+                .or(() -> extractFact(normalizedLine, "Sensitivity:", "SENSITIVITY"))
+                .or(() -> extractFact(normalizedLine, "ResourceSensitivity:", "SENSITIVITY"))
+                .or(() -> extractFact(normalizedLine, "AuthorizationEffect:", "AUTHORIZATION_EFFECT"))
+                .or(() -> extractFact(normalizedLine, "AuthMethod:", "AUTH_METHOD"))
                 .orElse(null);
     }
 
     private java.util.Optional<FactLine> extractFact(String line, String prefix, String group) {
-        if (!line.startsWith(prefix)) {
+        if (line == null || !line.startsWith(prefix)) {
             return java.util.Optional.empty();
         }
         String value = line.substring(prefix.length()).trim();
@@ -681,6 +955,62 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         if (!compactProfile && totalTokens <= effectiveProfile.maxInputTokens()) {
             return new PromptTransformResult(current, List.of());
         }
+
+        PromptTransformResult compactCurrentRequest = compactSectionByPriority(
+                current,
+                CURRENT_REQUEST_HEADER,
+                CURRENT_REQUEST_PRIORITY_PREFIXES,
+                COMPACT_CURRENT_REQUEST_SECTION_MAX_LINES,
+                "CURRENT_REQUEST_AND_EVENT_BUDGET",
+                "Budget enforcement retained only the decisive request and provenance anchors.");
+        current = compactCurrentRequest.text();
+        records.addAll(compactCurrentRequest.records());
+
+        PromptTransformResult compactBridge = compactBridgeSection(
+                current,
+                "BRIDGE_RESOLUTION_BUDGET",
+                "Budget enforcement retained only the bridge completeness and missing-context anchors.");
+        current = compactBridge.text();
+        records.addAll(compactBridge.records());
+
+        PromptTransformResult compactCoverage = compactCoverageSection(
+                current,
+                COMPACT_COVERAGE_MAX_MISSING_FACT_LINES,
+                COMPACT_COVERAGE_MAX_WARNING_LINES,
+                "CONTEXT_COVERAGE_BUDGET",
+                "Budget enforcement retained only the strongest coverage summary, critical gap, and uncertainty anchors.");
+        current = compactCoverage.text();
+        records.addAll(compactCoverage.records());
+
+        PromptTransformResult compactIdentity = compactSectionByPriority(
+                current,
+                IDENTITY_ROLE_HEADER,
+                IDENTITY_PRIORITY_PREFIXES,
+                COMPACT_IDENTITY_SECTION_MAX_LINES,
+                "IDENTITY_AND_ROLE_BUDGET",
+                "Budget enforcement retained only subject, role, and authorization anchors.");
+        current = compactIdentity.text();
+        records.addAll(compactIdentity.records());
+
+        PromptTransformResult compactAuthentication = compactSectionByPriority(
+                current,
+                AUTH_ASSURANCE_HEADER,
+                AUTH_PRIORITY_PREFIXES,
+                COMPACT_AUTH_SECTION_MAX_LINES,
+                "AUTHENTICATION_AND_ASSURANCE_BUDGET",
+                "Budget enforcement retained only assurance and session-state anchors.");
+        current = compactAuthentication.text();
+        records.addAll(compactAuthentication.records());
+
+        PromptTransformResult compactResource = compactSectionByPriority(
+                current,
+                RESOURCE_ACTION_HEADER,
+                RESOURCE_PRIORITY_PREFIXES,
+                COMPACT_RESOURCE_SECTION_MAX_LINES,
+                "RESOURCE_AND_ACTION_BUDGET",
+                "Budget enforcement retained only request path, action family, and sensitivity anchors.");
+        current = compactResource.text();
+        records.addAll(compactResource.records());
 
         PromptTransformResult compactSession = compactSectionByPriority(
                 current,
@@ -776,7 +1106,10 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 new SectionOmissionPlan(REASONING_MEMORY_HEADER, "OUTCOME_AND_REASONING_MEMORY_BUDGET_OMISSION"),
                 new SectionOmissionPlan(THREAT_KNOWLEDGE_HEADER, "THREAT_KNOWLEDGE_PACK_BUDGET_OMISSION"),
                 new SectionOmissionPlan(THREAT_CAMPAIGN_HEADER, "THREAT_CAMPAIGN_MATCHES_BUDGET_OMISSION"),
-                new SectionOmissionPlan(DELEGATION_HEADER, "DELEGATED_OBJECTIVE_BUDGET_OMISSION"));
+                new SectionOmissionPlan(DELEGATION_HEADER, "DELEGATED_OBJECTIVE_BUDGET_OMISSION"),
+                new SectionOmissionPlan(FRICTION_HEADER, "FRICTION_AND_APPROVAL_BUDGET_OMISSION"),
+                new SectionOmissionPlan(OBSERVED_WORK_PATTERN_HEADER, "OBSERVED_WORK_PATTERN_BUDGET_OMISSION"),
+                new SectionOmissionPlan(PERSONAL_WORK_PROFILE_HEADER, "PERSONAL_WORK_PROFILE_BUDGET_OMISSION"));
         for (SectionOmissionPlan omissionPlan : omissionPlans) {
             int totalTokens = estimateTokens(systemPrompt + "\n---\n" + current);
             if (totalTokens <= budgetProfile.maxInputTokens()) {
@@ -997,5 +1330,8 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         }
     }
 }
+
+
+
 
 

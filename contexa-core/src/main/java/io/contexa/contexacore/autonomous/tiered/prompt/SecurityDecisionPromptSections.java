@@ -27,6 +27,7 @@ import io.contexa.contexacore.std.components.prompt.PromptSemanticRisk;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -384,6 +385,9 @@ public class SecurityDecisionPromptSections {
                 similar events into "new user" unless NewUser is explicitly true.
                 If similar past events are absent, describe that as limited
                 or sparse comparable history, not as proof that the subject is new.
+                If the prompt includes PersonalBaselineStatus: NOT_ESTABLISHED,
+                treat that as missing verified personal history and uncertainty,
+                not as evidence of compromise or legitimacy.
                 If delegated objective comparison shows mismatch or remains incomplete,
                 reflect that explicitly in the reasoning before returning ALLOW.
                 When you mention scope fit, use explicit evidence labels such as
@@ -552,11 +556,47 @@ public class SecurityDecisionPromptSections {
         section.append("=== CURRENT REQUEST AND EVENT ===\n");
         appendSectionBody(section, buildEventSection(event, userId));
         appendSectionBody(section, buildCurrentRequestNarrative(event, behaviorAnalysis, canonicalSecurityContext, patterns));
+        appendIfPresent(section, buildSupportingPromptBlock("AuthorizationContext", buildAuthorizationResolutionSupport(event)));
         appendIfPresent(section, buildSupportingPromptBlock("NetworkContext", buildNetworkPromptSection(event)));
         appendIfPresent(section, buildSupportingPromptBlock("PayloadSummary", buildPayloadSection(event)));
         return section.toString();
     }
 
+    String buildAuthorizationResolutionSupport(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null || event.getMetadata().isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = event.getMetadata();
+        String provenance = firstNonBlankText(
+                metadata.get("authorizationEffectProvenance"),
+                metadata.get("authorization_effect_provenance"));
+        String finalEffect = firstNonBlankText(
+                metadata.get("authorizationEffect"),
+                metadata.get("authorization_effect"),
+                metadata.get("effect"));
+        boolean bridgeMissingAuthorizationEffect = metadataContainsValue(metadata.get("bridgeMissingContexts"), "AUTHORIZATION_EFFECT");
+
+        if (!bridgeMissingAuthorizationEffect && !StringUtils.hasText(provenance)) {
+            return null;
+        }
+
+        StringBuilder section = new StringBuilder();
+        if (StringUtils.hasText(provenance)) {
+            section.append("AuthorizationEffectProvenance: ")
+                    .append(provenance)
+                    .append("\n");
+        }
+        if (bridgeMissingAuthorizationEffect) {
+            section.append("AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect");
+            if (StringUtils.hasText(finalEffect) && StringUtils.hasText(provenance)) {
+                section.append("; final AuthorizationEffect was resolved later from ")
+                        .append(provenance);
+            }
+            section.append(".\n");
+        }
+        return section.toString();
+    }
     String buildUserProfileNarrative(SecurityEvent event, DetectedPatterns patterns,
             BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
         StringBuilder section = new StringBuilder();
@@ -1608,7 +1648,7 @@ public class SecurityDecisionPromptSections {
         }
 
         if (baselineContext != null &&
-                (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
+                (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE") || baselineContext.contains("PersonalBaselineStatus: NOT_ESTABLISHED"))) {
             return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.SPARSE_PERSONAL_HISTORY;
         }
 
@@ -1628,7 +1668,7 @@ public class SecurityDecisionPromptSections {
             return false;
         }
 
-        if (baselineContext != null && baselineContext.contains("[NO_PERSONAL_BASELINE]")) {
+        if (baselineContext != null && (baselineContext.contains("[NO_PERSONAL_BASELINE]") || baselineContext.contains("PersonalBaselineStatus: NOT_ESTABLISHED"))) {
             return true;
         }
         if (behaviorAnalysis.isOrganizationBaselineAvailable() || behaviorAnalysis.isOrganizationBaselineEstablished()) {
@@ -1660,7 +1700,7 @@ public class SecurityDecisionPromptSections {
                 baseline.startsWith("[NO_DATA]")) {
             return false;
         }
-        if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE") ||
+        if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE") || baseline.contains("PersonalBaselineStatus: NOT_ESTABLISHED") ||
                 baseline.contains("[NEW_USER]")) {
             return false;
         }
@@ -1669,6 +1709,36 @@ public class SecurityDecisionPromptSections {
                 && !baseline.equalsIgnoreCase("N/A");
     }
 
+    private String firstNonBlankText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            String text = value.toString();
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return null;
+    }
+
+    private boolean metadataContainsValue(Object value, String expected) {
+        if (value == null || !StringUtils.hasText(expected)) {
+            return false;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (item != null && expected.equalsIgnoreCase(item.toString())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return value.toString().toUpperCase(java.util.Locale.ROOT).contains(expected.toUpperCase(java.util.Locale.ROOT));
+    }
     private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
         if (metadata == null) {
             return;
@@ -1815,6 +1885,8 @@ public class SecurityDecisionPromptSections {
     }
 
 }
+
+
 
 
 
