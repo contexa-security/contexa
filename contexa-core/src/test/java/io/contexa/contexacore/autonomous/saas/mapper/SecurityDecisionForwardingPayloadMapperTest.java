@@ -97,7 +97,18 @@ class SecurityDecisionForwardingPayloadMapperTest {
                 .containsEntry("budgetProfile", payload.getBudgetProfile())
                 .containsEntry("promptEvidenceCompleteness", payload.getPromptEvidenceCompleteness())
                 .containsEntry("promptRuntimeTelemetryLinked", true)
-                .containsEntry("promptRuntimeTelemetryLayer", "Layer2");
+                .containsEntry("promptRuntimeTelemetryLayer", "Layer2")
+                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
+                .containsEntry("officialVerificationTemperature", 0.0d)
+                .containsEntry("officialVerificationTopP", 0.2d)
+                .containsEntry("officialVerificationSeed", 7)
+                .containsEntry("officialVerificationMaxTokens", 96);
+        assertThat(payload.getPromptRuntimeTelemetry())
+                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
+                .containsEntry("officialVerificationTemperature", 0.0d)
+                .containsEntry("officialVerificationTopP", 0.2d)
+                .containsEntry("officialVerificationSeed", 7)
+                .containsEntry("officialVerificationMaxTokens", 96);
     }
 
     @Test
@@ -213,7 +224,13 @@ class SecurityDecisionForwardingPayloadMapperTest {
                         Map.entry("promptOmissionCount", 1),
                         Map.entry("promptGeneratedAtEpochMs", 1711111111111L),
                         Map.entry("promptRuntimeTelemetryLinked", true),
-                        Map.entry("promptRuntimeTelemetryLayer", "Layer2")))
+                        Map.entry("promptRuntimeTelemetryLayer", "Layer2"),
+                        Map.entry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME"),
+                        Map.entry("officialVerificationPinnedModelId", "qwen3:8b"),
+                        Map.entry("officialVerificationTemperature", 0.0d),
+                        Map.entry("officialVerificationTopP", 0.2d),
+                        Map.entry("officialVerificationSeed", 7),
+                        Map.entry("officialVerificationMaxTokens", 96)))
                 .build();
         ProcessingResult result = ProcessingResult.builder()
                 .success(true)

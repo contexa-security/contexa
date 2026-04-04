@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.PromptContextAuditPayload;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.security.AuthorizedPromptContextItem;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -63,6 +65,7 @@ public class PromptContextAuditPayloadMapper {
                 .requestPath(resolveRequestPath(event))
                 .promptRuntimeTelemetryLinked(resolvePromptRuntimeTelemetryLinked(event))
                 .promptRuntimeTelemetryLayer(resolvePromptRuntimeTelemetryLayer(event))
+                .promptRuntimeTelemetry(resolvePromptRuntimeTelemetry(event))
                 .forwardedAt(LocalDateTime.now())
                 .build();
     }
@@ -109,6 +112,7 @@ public class PromptContextAuditPayloadMapper {
                         ? resolveBoolean(metadata(event).get("promptRuntimeTelemetryLinked"))
                         : payload.getPromptRuntimeTelemetryLinked())
                 .promptRuntimeTelemetryLayer(firstNonBlank(resolvePromptRuntimeTelemetryLayer(event), payload.getPromptRuntimeTelemetryLayer()))
+                .promptRuntimeTelemetry(mergePromptRuntimeTelemetry(payload.getPromptRuntimeTelemetry(), resolvePromptRuntimeTelemetry(event)))
                 .forwardedAt(payload.getForwardedAt() != null ? payload.getForwardedAt() : LocalDateTime.now())
                 .build();
     }
@@ -158,6 +162,25 @@ public class PromptContextAuditPayloadMapper {
             return null;
         }
         return resolveBoolean(metadata(event).get("promptRuntimeTelemetryLinked"));
+    }
+
+    private Map<String, Object> resolvePromptRuntimeTelemetry(SecurityEvent event) {
+        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(metadata(event));
+        return telemetry.isEmpty() ? Map.of() : Map.copyOf(telemetry);
+    }
+
+    private Map<String, Object> mergePromptRuntimeTelemetry(
+            Map<String, Object> existing,
+            Map<String, Object> resolved
+    ) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (existing != null && !existing.isEmpty()) {
+            merged.putAll(existing);
+        }
+        if (resolved != null && !resolved.isEmpty()) {
+            resolved.forEach(merged::putIfAbsent);
+        }
+        return merged.isEmpty() ? Map.of() : Map.copyOf(merged);
     }
     private List<PromptContextAuditPayload.ContextItem> resolveContextItems(
             AuthorizedPromptContext authorizedPromptContext,

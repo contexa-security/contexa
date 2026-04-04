@@ -272,6 +272,12 @@ class AbstractTieredStrategyTest {
         response.withMetadata("budgetProfile", "CORTEX_L2_STANDARD");
         response.withMetadata("promptEvidenceCompleteness", "SUFFICIENT");
         response.withMetadata("promptSectionSet", List.of("CURRENT_REQUEST", "ROLE_SCOPE"));
+        response.withMetadata("officialVerificationPinnedModelId", "qwen3:8b");
+        response.withMetadata("officialVerificationTemperature", 0.0d);
+        response.withMetadata("officialVerificationTopP", 0.2d);
+        response.withMetadata("officialVerificationSeed", 7);
+        response.withMetadata("officialVerificationMaxTokens", 96);
+        response.withMetadata("officialVerificationDisableRetries", true);
 
         strategy.capturePromptRuntimeTelemetryForTest(event, response);
 
@@ -282,7 +288,13 @@ class AbstractTieredStrategyTest {
                 .containsEntry("budgetProfile", "CORTEX_L2_STANDARD")
                 .containsEntry("promptEvidenceCompleteness", "SUFFICIENT")
                 .containsEntry("promptRuntimeTelemetryLinked", true)
-                .containsEntry("promptRuntimeTelemetryLayer", "TestLayer");
+                .containsEntry("promptRuntimeTelemetryLayer", "TestLayer")
+                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
+                .containsEntry("officialVerificationTemperature", 0.0d)
+                .containsEntry("officialVerificationTopP", 0.2d)
+                .containsEntry("officialVerificationSeed", 7)
+                .containsEntry("officialVerificationMaxTokens", 96)
+                .containsEntry("officialVerificationDisableRetries", true);
         assertThat(event.getMetadata().get("promptSectionSet")).isEqualTo(List.of("CURRENT_REQUEST", "ROLE_SCOPE"));
         assertThat(event.getMetadata()).isInstanceOf(LinkedHashMap.class);
     }
@@ -291,13 +303,19 @@ class AbstractTieredStrategyTest {
     @DisplayName("clearPromptRuntimeTelemetry should remove stale prompt runtime facts")
     void clearPromptRuntimeTelemetry_removesStaleFacts() {
         SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(java.util.Map.of(
-                        "promptVersion", "stale-version",
-                        "promptHash", "sha256:stale",
-                        "budgetProfile", "CORTEX_L1_STANDARD",
-                        "promptRuntimeTelemetryLinked", true,
-                        "promptRuntimeTelemetryLayer", "Layer1",
-                        "preserveKey", "preserveValue")))
+                .metadata(new LinkedHashMap<>(java.util.Map.ofEntries(
+                        java.util.Map.entry("promptVersion", "stale-version"),
+                        java.util.Map.entry("promptHash", "sha256:stale"),
+                        java.util.Map.entry("budgetProfile", "CORTEX_L1_STANDARD"),
+                        java.util.Map.entry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME"),
+                        java.util.Map.entry("officialVerificationPinnedModelId", "qwen3:8b"),
+                        java.util.Map.entry("officialVerificationTemperature", 0.0d),
+                        java.util.Map.entry("officialVerificationTopP", 0.2d),
+                        java.util.Map.entry("officialVerificationSeed", 7),
+                        java.util.Map.entry("officialVerificationMaxTokens", 96),
+                        java.util.Map.entry("promptRuntimeTelemetryLinked", true),
+                        java.util.Map.entry("promptRuntimeTelemetryLayer", "Layer1"),
+                        java.util.Map.entry("preserveKey", "preserveValue"))))
                 .build();
 
         strategy.clearPromptRuntimeTelemetryForTest(event);
@@ -309,6 +327,12 @@ class AbstractTieredStrategyTest {
                         "budgetProfile",
                         "promptRuntimeTelemetryLinked",
                         "promptRuntimeTelemetryLayer")
+                .containsEntry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")
+                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
+                .containsEntry("officialVerificationTemperature", 0.0d)
+                .containsEntry("officialVerificationTopP", 0.2d)
+                .containsEntry("officialVerificationSeed", 7)
+                .containsEntry("officialVerificationMaxTokens", 96)
                 .containsEntry("preserveKey", "preserveValue");
     }
 
@@ -375,6 +399,40 @@ class AbstractTieredStrategyTest {
 
         assertThat(request.getParameter("promptBudgetProfile", String.class))
                 .isEqualTo(PromptBudgetProfile.CORTEX_L2_COMPACT.profileKey());
+    }
+    @Test
+    @DisplayName("buildSecurityDecisionRequest should copy official verification runtime options into AI request parameters")
+    void buildSecurityDecisionRequest_shouldCopyOfficialVerificationRuntimeOptions() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-official-runtime")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE",
+                        "promptBudgetProfile", "CORTEX_L1_COMPACT",
+                        "officialVerificationPinnedModelId", "qwen3:8b",
+                        "officialVerificationTemperature", 0.0d,
+                        "officialVerificationTopP", 0.2d,
+                        "officialVerificationSeed", 7,
+                        "officialVerificationMaxTokens", 96,
+                        "officialVerificationDisableRetries", true,
+                        "officialVerificationDisableOllamaThinking", true)))
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("promptBudgetProfile", String.class)).isEqualTo("CORTEX_L1_COMPACT");
+        assertThat(request.getParameter("officialVerificationPinnedModelId", String.class)).isEqualTo("qwen3:8b");
+        assertThat(request.getParameter("officialVerificationTemperature", Double.class)).isEqualTo(0.0d);
+        assertThat(request.getParameter("officialVerificationTopP", Double.class)).isEqualTo(0.2d);
+        assertThat(request.getParameter("officialVerificationSeed", Integer.class)).isEqualTo(7);
+        assertThat(request.getParameter("officialVerificationMaxTokens", Integer.class)).isEqualTo(96);
+        assertThat(request.getParameter("officialVerificationDisableRetries", Boolean.class)).isTrue();
+        assertThat(request.getParameter("officialVerificationDisableOllamaThinking", Boolean.class)).isTrue();
+        assertThat(request.getParameter("officialVerificationDecisionBoundaryMode", String.class))
+                .isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
     }
 
     // -- Concrete test implementation of the abstract class --
@@ -475,3 +533,5 @@ class AbstractTieredStrategyTest {
         }
     }
 }
+
+

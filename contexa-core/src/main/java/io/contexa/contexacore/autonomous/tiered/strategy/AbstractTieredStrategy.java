@@ -458,6 +458,88 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
 
+    protected void hydrateBehaviorAnalysisRuntimeFacts(
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
+            SecurityEvent event) {
+        if (context == null || event == null) {
+            return;
+        }
+
+        if (!StringUtils.hasText(context.getCurrentUserAgentOS()) && StringUtils.hasText(event.getUserAgent())) {
+            context.setCurrentUserAgentOS(SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));
+        }
+        if (!StringUtils.hasText(context.getCurrentUserAgentBrowser()) && StringUtils.hasText(event.getUserAgent())) {
+            context.setCurrentUserAgentBrowser(SecurityEventEnricher.extractBrowserSignature(event.getUserAgent()));
+        }
+
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return;
+        }
+
+        if (context.getIsNewSession() == null) {
+            context.setIsNewSession(resolveBooleanMetadata(metadata, "isNewSession", "newSession"));
+        }
+        if (context.getIsNewDevice() == null) {
+            context.setIsNewDevice(resolveBooleanMetadata(metadata, "isNewDevice", "newDevice"));
+        }
+        if (!StringUtils.hasText(context.getPreviousPath())) {
+            context.setPreviousPath(firstTextMetadata(metadata, "previousPath"));
+        }
+        if (context.getLastRequestIntervalMs() == null) {
+            context.setLastRequestIntervalMs(resolveLongMetadata(metadata, "lastRequestIntervalMs"));
+        }
+        if (context.getContextBindingHashMismatch() == null) {
+            context.setContextBindingHashMismatch(resolveBooleanMetadata(metadata, "contextBindingHashMismatch"));
+        }
+        if (!StringUtils.hasText(context.getPreviousUserAgentOS())) {
+            context.setPreviousUserAgentOS(firstTextMetadata(metadata, "previousUserAgentOS"));
+        }
+        if (!StringUtils.hasText(context.getPreviousUserAgentBrowser())) {
+            context.setPreviousUserAgentBrowser(firstTextMetadata(metadata, "previousUserAgentBrowser"));
+        }
+    }
+
+    private Boolean resolveBooleanMetadata(Map<String, Object> metadata, String... keys) {
+        for (String key : keys) {
+            Object value = metadata.get(key);
+            if (value instanceof Boolean bool) {
+                return bool;
+            }
+            if (value instanceof String text && StringUtils.hasText(text)) {
+                if ("true".equalsIgnoreCase(text)) {
+                    return true;
+                }
+                if ("false".equalsIgnoreCase(text)) {
+                    return false;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long resolveLongMetadata(Map<String, Object> metadata, String... keys) {
+        for (String key : keys) {
+            Object value = metadata.get(key);
+            if (value instanceof Number number) {
+                return number.longValue();
+            }
+            if (value instanceof String text && text.matches("-?\\d+")) {
+                return Long.parseLong(text);
+            }
+        }
+        return null;
+    }
+
+    private String firstTextMetadata(Map<String, Object> metadata, String... keys) {
+        for (String key : keys) {
+            Object value = metadata.get(key);
+            if (value instanceof String text && StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return null;
+    }
     protected List<Document> searchRelatedContextBase(SecurityEvent event,
                                                        int topK,
                                                        double similarityThreshold) {
@@ -726,7 +808,39 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 ));
         request.withParameter("responseType", SecurityDecisionResponse.class);
         request.withParameter("promptBudgetProfile", resolvePromptBudgetProfile(event).profileKey());
+        applyOfficialVerificationRuntimeOptions(request, event);
         return request;
+    }
+
+    protected void applyOfficialVerificationRuntimeOptions(SecurityDecisionRequest request, SecurityEvent event) {
+        if (request == null || event == null || event.getMetadata() == null) {
+            return;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationPinnedModelId");
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationTemperature");
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationTopP");
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationSeed");
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationMaxTokens");
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationDisableRetries");
+        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationDisableOllamaThinking");
+        String scenario = metadata.get("scenario") != null ? String.valueOf(metadata.get("scenario")) : null;
+        if (StringUtils.hasText(scenario) && scenario.trim().toUpperCase(Locale.ROOT).startsWith("OFFICIAL_VERIFICATION")) {
+            request.withParameter("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+        }
+    }
+
+    private void copyOfficialVerificationRuntimeOption(
+            Map<String, Object> metadata,
+            SecurityDecisionRequest request,
+            String key) {
+        if (metadata == null || request == null || !StringUtils.hasText(key)) {
+            return;
+        }
+        Object value = metadata.get(key);
+        if (value != null) {
+            request.withParameter(key, value);
+        }
     }
 
     protected PromptBudgetProfile resolvePromptBudgetProfile(SecurityEvent event) {
@@ -761,7 +875,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
         Map<String, Object> metadata = ensureMutableEventMetadata(event);
-        for (String key : PromptRuntimeTelemetrySupport.runtimeTelemetryKeys()) {
+        for (String key : PromptRuntimeTelemetrySupport.clearableRuntimeTelemetryKeys()) {
             metadata.remove(key);
         }
         metadata.remove("promptRuntimeTelemetryLinked");
@@ -816,6 +930,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 SecurityDecisionResponse.class);
     }
 }
+
 
 
 

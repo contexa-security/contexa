@@ -386,7 +386,32 @@ public class SecurityDecisionPromptSections {
                 or sparse comparable history, not as proof that the subject is new.
                 If delegated objective comparison shows mismatch or remains incomplete,
                 reflect that explicitly in the reasoning before returning ALLOW.
-
+                When you mention scope fit, use explicit evidence labels such as
+                CurrentActionFamilyPresentInExpectedRoleScope, CurrentResourceFamilyPresentInExpectedRoleScope,
+                RoleScopeEvidenceState, or RoleScopeSummary instead of generic permission assurances.
+                When you mention session continuity or history, use explicit labels such as
+                PreviousPath, SessionNarrativeSummary, SessionActionSequence, WorkProfileEvidenceState,
+                or WorkProfileSummary instead of unsupported legitimacy claims.
+                Do not claim no recent login failures or permission-change risk unless
+                FailedLoginAttempts or RecentPermissionChanges appears explicitly in the prompt.
+                If WorkProfileEvidenceState or RoleScopeEvidenceState is PROVISIONAL,
+                PARTIAL, INCOMPLETE, or any confidence warning says thin or fallback-derived,
+                treat that as uncertainty and avoid using aligned, legitimate, approved,
+                or consistent as the main justification.
+                MFA, a known session, a known device, or role membership are necessary
+                controls but not sufficient grounds for confident ALLOW on HIGH or CRITICAL access.
+                If Sensitivity is HIGH or CRITICAL and work profile, role scope, approval lineage,
+                or delegated objective evidence remains provisional, partial, incomplete, thin,
+                or fallback-derived, do not return ALLOW above 0.70 confidence.
+                Do not justify ALLOW primarily with MfaVerified, PreviousPath,
+                SessionNarrativeSummary, CurrentActionFamilyPresentInExpectedRoleScope,
+                or CurrentResourceFamilyPresentInExpectedRoleScope when the supporting evidence
+                state is provisional, partial, incomplete, thin, or fallback-derived.
+                If approval lineage, delegated objective evidence, or trusted scope evidence is
+                missing for HIGH or CRITICAL access, prefer CHALLENGE or ESCALATE over ALLOW.
+                When uncertainty drives CHALLENGE or ESCALATE, the reasoning must explicitly use
+                at least one uncertainty term such as limited, provisional, thin,
+                fallback-derived, ambiguous, or incomplete.
                 Respond with ONLY a JSON object. No explanation, no markdown.
                 Keep every field terse.
                 The reasoning field must be exactly one short sentence, no more than 24 words.
@@ -1079,10 +1104,12 @@ public class SecurityDecisionPromptSections {
                 Do not restate the same fact twice.
                 Use only facts explicitly shown in the prompt.
                 Prefer the literal prompt labels and their exact meanings.
+                Prefer explicit evidence anchors from these labels when available:
+                Sensitivity, PreviousPath, SessionNarrativeSummary, WorkProfileEvidenceState,
+                RoleScopeEvidenceState, CurrentActionFamilyPresentInExpectedRoleScope,
+                CurrentResourceFamilyPresentInExpectedRoleScope, FailedLoginAttempts,
+                MfaVerified, RecentPermissionChanges, ApprovalStatus, ObjectiveAlignmentEvidence.
                 If NewUser is false, do not say "new user".
-                If uncertainty is required, the reasoning sentence must make that
-                limitation explicit with terms such as limited, provisional,
-                sparse, or insufficient.
 
                 Follow the <output_format> schema exactly.
                 Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.
@@ -1091,16 +1118,19 @@ public class SecurityDecisionPromptSections {
                 ACTION SEMANTICS:
 
                 ALLOW:
-                  - Use when the overall story is consistent with legitimate behavior.
-                  - Acknowledge why the request fits personal baseline, organization baseline, session continuity, or other normal context.
+                  - Use only when the overall story is consistent with legitimate behavior and the scope/baseline evidence is sufficiently established for the request sensitivity.
+                  - Do not use for HIGH or CRITICAL access when work profile, role scope, approval lineage, or delegated objective evidence remains provisional, partial, incomplete, thin, or fallback-derived.
+                  - If residual uncertainty remains but ALLOW is still justified, confidence must stay below 0.70 and the reasoning must state the uncertainty explicitly.
 
                 CHALLENGE:
                   - Use when the request is plausible but cannot be trusted without extra verification.
                   - Prefer this when suspicious context exists but the current evidence still allows a legitimate explanation.
+                  - Prefer this when HIGH or CRITICAL access has thin, provisional, or fallback-derived baseline or role-scope evidence even if MFA and session continuity are present.
 
                 ESCALATE:
                   - Use when the context is incomplete, conflicting, or too ambiguous for a safe autonomous decision.
                   - Prefer this when you need expert review rather than a forced allow or deny outcome.
+                  - Prefer this when HIGH or CRITICAL access combines thin baseline/scope evidence with missing approval lineage or delegated objective evidence.
 
                 BLOCK:
                   - Use when the combined context tells a clear story of malicious or actively harmful behavior.
@@ -1111,6 +1141,9 @@ public class SecurityDecisionPromptSections {
                   - Treat cross-tenant threat intelligence and cohort baseline seed as supporting context, not deterministic rules.
                   - Do not follow numeric thresholds, weighted scores, or hidden formulas.
                   - Do not treat a new user or missing baseline as proof of compromise by itself.
+                  - MFA, session continuity, known device state, and role membership are necessary controls but not sufficient grounds for confident ALLOW on sensitive access.
+                  - Do not justify ALLOW primarily with MfaVerified, PreviousPath, or scope-present flags when the evidence state is provisional, thin, fallback-derived, partial, or incomplete.
+                  - If uncertainty drives CHALLENGE or ESCALATE, include at least one explicit uncertainty term such as limited, provisional, thin, fallback-derived, ambiguous, or incomplete.
                   - Prefer concise reasoning that names the strongest contextual facts behind the action.
 
                 """;
@@ -1782,5 +1815,9 @@ public class SecurityDecisionPromptSections {
     }
 
 }
+
+
+
+
 
 

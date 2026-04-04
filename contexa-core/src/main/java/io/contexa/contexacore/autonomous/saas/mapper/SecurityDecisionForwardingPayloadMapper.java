@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizat
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -69,7 +70,7 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .llmAuditRiskScore(result.resolveAuditRiskScore())
                 .effectiveConfidence(result.getConfidence())
                 .llmAuditConfidence(result.resolveAuditConfidence())
-                .reasoning(properties.isIncludeReasoning() ? result.getReasoning() : null)
+                .reasoning(properties.isIncludeReasoning() ? resolveReasoning(result, eventMetadata) : null)
                 .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
                 .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
                 .autonomyConstraintReasons(copyList(result.getAutonomyConstraintReasons()))
@@ -105,6 +106,7 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .omittedSections(extractStringList(eventMetadata.get("omittedSections")))
                 .promptOmissionCount(extractInteger(eventMetadata, "promptOmissionCount"))
                 .promptGeneratedAtEpochMs(extractLong(eventMetadata, "promptGeneratedAtEpochMs"))
+                .promptRuntimeTelemetry(extractPromptRuntimeTelemetry(eventMetadata))
                 .requestPath(extractRequestPath(eventMetadata))
                 .geoCountry(extractText(eventMetadata, "geoCountry"))
                 .geoCity(extractText(eventMetadata, "geoCity"))
@@ -242,6 +244,7 @@ public class SecurityDecisionForwardingPayloadMapper {
         copyIfPresent(eventMetadata, attributes, "bridgeAuthenticationSource");
         copyIfPresent(eventMetadata, attributes, "bridgeAuthorizationSource");
         copyIfPresent(eventMetadata, attributes, "bridgeDelegationSource");
+        copyIfPresent(eventMetadata, attributes, "authorizationEffectProvenance");
         copyIfPresent(eventMetadata, attributes, "threatKnowledgeApplied");
         copyIfPresent(eventMetadata, attributes, "reasoningMemoryApplied");
         copyIfPresent(eventMetadata, attributes, "baselineSeedApplied");
@@ -307,7 +310,21 @@ public class SecurityDecisionForwardingPayloadMapper {
         copyIfPresent(eventMetadata, attributes, "promptGeneratedAtEpochMs");
         copyIfPresent(eventMetadata, attributes, "promptRuntimeTelemetryLinked");
         copyIfPresent(eventMetadata, attributes, "promptRuntimeTelemetryLayer");
+        copyPromptRuntimeTelemetry(eventMetadata, attributes);
         return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
+    }
+
+    private Map<String, Object> extractPromptRuntimeTelemetry(Map<String, Object> eventMetadata) {
+        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(eventMetadata);
+        return telemetry.isEmpty() ? Map.of() : Map.copyOf(telemetry);
+    }
+
+    private void copyPromptRuntimeTelemetry(Map<String, Object> source, Map<String, Object> target) {
+        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(source);
+        if (telemetry.isEmpty()) {
+            return;
+        }
+        telemetry.forEach(target::putIfAbsent);
     }
 
     private void copyIfPresent(Map<String, Object> target, String key, Object value) {
@@ -456,6 +473,16 @@ public class SecurityDecisionForwardingPayloadMapper {
         return null;
     }
 
+    private String resolveReasoning(ProcessingResult result, Map<String, Object> eventMetadata) {
+        return firstNonBlank(
+                result.getReasoning(),
+                extractText(eventMetadata, "reasoning"),
+                extractText(eventMetadata, "reasoningSummary"),
+                extractText(eventMetadata, "layer2Reasoning"),
+                extractText(eventMetadata, "analysisReasoning")
+        );
+    }
+
     private String extractText(Map<String, Object> source, String key) {
         Object value = source.get(key);
         if (value == null) {
@@ -580,5 +607,6 @@ public class SecurityDecisionForwardingPayloadMapper {
         return false;
     }
 }
+
 
 

@@ -51,9 +51,12 @@ class PromptGeneratorTest {
 
         PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
         assertThat(executionMetadata).isNotNull();
-        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.03.26-e0.1");
+        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.04.04-e0.2");
         assertThat(executionMetadata.governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(executionMetadata.governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
+        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("P0-Preflight/E0-2");
+        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
+        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
         assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
         assertThat(executionMetadata.promptTokenEstimate().estimatorKey()).isEqualTo("heuristic-char-div4-v1");
         assertThat(executionMetadata.promptTokenEstimate().budgetEnforcementMode()).isEqualTo("LLM_VIEW_ENFORCED");

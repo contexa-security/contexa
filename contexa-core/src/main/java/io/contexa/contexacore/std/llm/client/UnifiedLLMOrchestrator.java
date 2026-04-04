@@ -258,6 +258,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (context.getTopP() != null) {
             options.setTopP(context.getTopP());
         }
+        if (context.getSeed() != null) {
+            options.setSeed(context.getSeed());
+        }
         if (context.getMaxTokens() != null) {
             options.setNumPredict(context.getMaxTokens());
         }
@@ -478,3 +481,4 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return modelName != null && modelName.toLowerCase().startsWith("qwen3");
     }
 }
+

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SecurityDecisionStandardPromptTemplateTest {
 
     @Test
-    @DisplayName("표준 프롬프트는 5개 필드 계약과 핵심 섹션만 포함해야 한다")
+    @DisplayName("governed standard prompt should keep core contract sections only")
     void generatePromptShouldUseGovernedStandardTemplate() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -61,8 +61,6 @@ class SecurityDecisionStandardPromptTemplateTest {
                 List.of()
         ).executionMetadata();
 
-        // 시스템 프롬프트는 모델에게 고정된 판단 규칙과 출력 계약만 전달해야 한다.
-        // 여기서 불필요한 런타임 메타데이터가 노출되면 소형 모델의 출력 순응도가 흔들릴 수 있다.
         assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("The reasoning field must be exactly one short sentence, no more than 24 words.");
@@ -71,8 +69,12 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("If NewUser is false, do not say \"new user\".");
         assertThat(systemPrompt).contains("Treat the CURRENT REQUEST sensitivity label as authoritative.");
         assertThat(systemPrompt).contains("If the prompt says Sensitivity: STANDARD or LOW, do not describe");
+        assertThat(systemPrompt).contains("not sufficient grounds for confident ALLOW on HIGH or CRITICAL access");
+        assertThat(systemPrompt).contains("do not return ALLOW above 0.70 confidence");
+        assertThat(systemPrompt).contains("prefer CHALLENGE or ESCALATE over ALLOW");
+        assertThat(systemPrompt).contains("at least one uncertainty term such as limited, provisional, thin");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
-        assertThat(systemPrompt).contains("If uncertainty is required");
+        assertThat(systemPrompt).contains("When uncertainty drives CHALLENGE or ESCALATE");
         assertThat(systemPrompt).contains("limited, provisional,");
         assertThat(systemPrompt).contains("Follow the <output_format> schema exactly.");
         assertThat(systemPrompt).contains("Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.");
@@ -86,17 +88,18 @@ class SecurityDecisionStandardPromptTemplateTest {
                 .doesNotContain("errorMessage")
                 .doesNotContain("executionTime")
                 .doesNotContain("\"metadata\"");
-        // 사용자 프롬프트는 현재 요청의 보안 판단에 필요한 핵심 사실을 포함해야 한다.
         assertThat(userPrompt).contains("=== CURRENT REQUEST AND EVENT ===");
         assertThat(userPrompt).contains("/api/customer/export");
         assertThat(userPrompt).contains("alice");
-        // omission/completeness 메타데이터는 "무엇이 빠졌는지"를 추적하기 위한 근거여야 한다.
         assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
         assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
         assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.03.26-e0.1");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.04.04-e0.2");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P0-Preflight/E0-2");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
+        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
     }
 
@@ -131,7 +134,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
-    @DisplayName("현재 요청 섹션은 행동 분석 fallback보다 canonical session narrative를 우선해야 한다")
+    @DisplayName("current request section should prefer canonical session narrative over behavior fallback")
     void generateUserPromptShouldPreferCanonicalSessionNarrativeOverBehaviorFallback() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -182,8 +185,6 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         String userPrompt = template.generateUserPrompt(request, "");
 
-        // 이전 경로와 요청 간격은 UI 부가 호출이 아니라 실제 보호 리소스 흐름을 기준으로 해야 한다.
-        // 이 값이 흔들리면 LLM은 "직전 행위가 무엇이었는지"를 잘못 이해하게 된다.
         assertThat(userPrompt).contains("Previous request path: /admin/api/security-test/sensitive/resource-001.");
         assertThat(userPrompt).contains("Time since last request: 42 seconds.");
         assertThat(userPrompt).doesNotContain("Previous request path: /admin/api/security-test/evidence/server-truth.");
@@ -191,7 +192,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
-    @DisplayName("개인 기준선이 아직 얇을 때는 정상 패턴으로 과장하지 말고 잠정 상태로만 렌더링해야 한다")
+    @DisplayName("baseline narrative should stay provisional until personal baseline is established")
     void generateUserPromptShouldKeepBaselineNarrativeProvisionalUntilPersonalBaselineIsEstablished() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -225,7 +226,6 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         String userPrompt = template.generateUserPrompt(request, "");
 
-        // 관측 수가 얇은 상태를 "정상 행동"으로 단정하면 이후 탈취 시나리오에서 허위 정상 근거가 생긴다.
         assertThat(userPrompt).contains("Provisional baseline evidence (learning in progress):");
         assertThat(userPrompt).doesNotContain("This user normally");
         assertThat(userPrompt).doesNotContain("Frequent paths:");
@@ -233,7 +233,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
-    @DisplayName("기존 사용자의 sparse personal history는 new user로 과장하지 않고 sparse history로만 표현해야 한다")
+    @DisplayName("sparse personal history should not be promoted into new user")
     void generateUserPromptShouldNotPromoteSparsePersonalHistoryIntoNewUser() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -279,7 +279,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
-    @DisplayName("RAG 문서가 존재하면 historical comparable evidence가 userPrompt에 구조적으로 포함되어야 한다")
+    @DisplayName("historical comparable evidence should be rendered when RAG documents exist")
     void generateUserPromptShouldRenderHistoricalComparableEventsWhenRagDocumentsExist() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -311,14 +311,13 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         String userPrompt = template.generateUserPrompt(request, "");
 
-        // relatedDocuments가 실제로 prompt에 반영되지 않으면 2차/3차 회차의 학습 이점이 사라진다.
         assertThat(userPrompt).contains("HistoricalComparableEvents:");
         assertThat(userPrompt).contains("Historical records for context:");
         assertThat(userPrompt).contains("/admin/api/security-test/sensitive/resource-001");
     }
 
     @Test
-    @DisplayName("브라우저 후속 요청 프롬프트에는 bridge와 friction 근거가 함께 나타나야 한다")
+    @DisplayName("browser follow-up prompt should render bridge and friction evidence")
     void generateUserPromptShouldRenderBridgeAndFrictionEvidenceForBrowserStyleFollowUpRequest() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -374,8 +373,6 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         String userPrompt = template.generateUserPrompt(request, "");
 
-        // bridge는 현재 요청의 인증/인가 맥락을 설명하고,
-        // friction은 challenge/MFA 같은 실제 통제 이력을 구조화해서 보여줘야 한다.
         assertThat(userPrompt).contains("=== BRIDGE RESOLUTION CONTEXT ===");
         assertThat(userPrompt).contains("AuthorizationEffect: ALLOW");
         assertThat(userPrompt).contains("=== FRICTION AND APPROVAL HISTORY ===");
@@ -384,7 +381,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
-    @DisplayName("1차에서 3차로 갈수록 RAG와 기준선은 역행하지 않고 더 풍부한 근거를 제공해야 한다")
+    @DisplayName("evidence should evolve across rounds without regression")
     void generateUserPromptShouldEvolveEvidenceAcrossRoundsWithoutRegression() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -447,16 +444,12 @@ class SecurityDecisionStandardPromptTemplateTest {
                                 new Document("Round2: previously allowed access for the same sensitive resource"),
                                 new Document("Round3: repeated follow-up access from the same session and environment")))), "");
 
-        // 1차는 최초 접근이므로 RAG 비교 근거가 없어야 한다.
         assertThat(round1Prompt).doesNotContain("HistoricalComparableEvents:");
-        // 2차는 1차에서 저장된 memory가 들어와야 하며, 기준선은 아직 잠정 상태여야 한다.
         assertThat(round2Prompt).contains("HistoricalComparableEvents:");
         assertThat(round2Prompt).contains("Provisional baseline evidence (learning in progress):");
-        // 3차는 더 많은 memory를 활용해야 하며, 개인 기준선이 성숙했다면 established 상태로 승격되어야 한다.
         assertThat(round3Prompt).contains("HistoricalComparableEvents:");
         assertThat(round3Prompt).contains("Established baseline (from learned behavior):");
         assertThat(round3Prompt).doesNotContain("Provisional baseline evidence (learning in progress):");
-        // 회차가 누적될수록 historical evidence는 줄어들면 안 된다. 줄어들면 RAG 회수나 저장 경로가 깨진 것이다.
         assertThat(countOccurrences(round2Prompt, "Round2:")).isGreaterThanOrEqualTo(1);
         assertThat(countOccurrences(round3Prompt, "Round")).isGreaterThanOrEqualTo(2);
     }
@@ -474,3 +467,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         return count;
     }
 }
+
+
+

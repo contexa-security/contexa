@@ -60,6 +60,7 @@ public class SecurityDecisionForwardingPayload {
     private List<String> omittedSections;
     private Integer promptOmissionCount;
     private Long promptGeneratedAtEpochMs;
+    private Map<String, Object> promptRuntimeTelemetry;
     private String legitimateHypothesis;
     private String suspiciousHypothesis;
     private String requestPath;

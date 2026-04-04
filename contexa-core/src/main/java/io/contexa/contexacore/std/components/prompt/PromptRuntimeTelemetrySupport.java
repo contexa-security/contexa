@@ -6,6 +6,17 @@ import java.util.Map;
 
 public final class PromptRuntimeTelemetrySupport {
 
+    private static final List<String> OFFICIAL_VERIFICATION_RUNTIME_OPTION_KEYS = List.of(
+            "officialVerificationDecisionBoundaryMode",
+            "officialVerificationPinnedModelId",
+            "officialVerificationTemperature",
+            "officialVerificationTopP",
+            "officialVerificationSeed",
+            "officialVerificationMaxTokens",
+            "officialVerificationDisableRetries",
+            "officialVerificationDisableOllamaThinking"
+    );
+
     private static final List<String> RUNTIME_TELEMETRY_KEYS = List.of(
             "promptKey",
             "templateKey",
@@ -61,14 +72,34 @@ public final class PromptRuntimeTelemetrySupport {
             "llmSystemPromptLength",
             "llmUserPromptLength",
             "llmTotalPromptLength",
+            "officialVerificationDecisionBoundaryMode",
+            "officialVerificationPinnedModelId",
+            "officialVerificationTemperature",
+            "officialVerificationTopP",
+            "officialVerificationSeed",
+            "officialVerificationMaxTokens",
+            "officialVerificationDisableRetries",
+            "officialVerificationDisableOllamaThinking",
             "promptGeneratedAtEpochMs"
     );
+
+    private static final List<String> CLEARABLE_RUNTIME_TELEMETRY_KEYS = RUNTIME_TELEMETRY_KEYS.stream()
+            .filter(key -> !OFFICIAL_VERIFICATION_RUNTIME_OPTION_KEYS.contains(key))
+            .toList();
 
     private PromptRuntimeTelemetrySupport() {
     }
 
     public static List<String> runtimeTelemetryKeys() {
         return RUNTIME_TELEMETRY_KEYS;
+    }
+
+    public static List<String> officialVerificationRuntimeOptionKeys() {
+        return OFFICIAL_VERIFICATION_RUNTIME_OPTION_KEYS;
+    }
+
+    public static List<String> clearableRuntimeTelemetryKeys() {
+        return CLEARABLE_RUNTIME_TELEMETRY_KEYS;
     }
 
     public static Map<String, Object> extractRuntimeTelemetry(Map<String, Object> metadata) {

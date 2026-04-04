@@ -28,10 +28,10 @@ public class TieredStrategyProperties {
     @Data
     public static class PromptCompression {
         /**
-         * Runtime compression is disabled by default for production safety.
-         * Benchmark and experiment paths can opt in explicitly.
+         * Runtime compression is enabled by default so governed prompt compaction protects structured output reliability
+         * when the configured budget would otherwise be exceeded.
          */
-        private boolean enabled = false;
+        private boolean enabled = true;
     }
 
     @Data
@@ -148,3 +148,4 @@ public class TieredStrategyProperties {
     }
 
 }
+

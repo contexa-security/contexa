@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -35,6 +36,7 @@ public class PromptContextAuditPayload {
     private String requestPath;
     private Boolean promptRuntimeTelemetryLinked;
     private String promptRuntimeTelemetryLayer;
+    private Map<String, Object> promptRuntimeTelemetry;
     private LocalDateTime forwardedAt;
 
     @Data

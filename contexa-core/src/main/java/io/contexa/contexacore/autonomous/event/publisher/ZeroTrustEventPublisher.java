@@ -157,6 +157,30 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getPromptBudgetProfile() != null) {
                 payload.put("promptBudgetProfile", requestInfo.getPromptBudgetProfile());
             }
+            if (requestInfo.getOfficialVerificationDecisionBoundaryMode() != null) {
+                payload.put("officialVerificationDecisionBoundaryMode", requestInfo.getOfficialVerificationDecisionBoundaryMode());
+            }
+            if (requestInfo.getOfficialVerificationPinnedModelId() != null) {
+                payload.put("officialVerificationPinnedModelId", requestInfo.getOfficialVerificationPinnedModelId());
+            }
+            if (requestInfo.getOfficialVerificationTemperature() != null) {
+                payload.put("officialVerificationTemperature", requestInfo.getOfficialVerificationTemperature());
+            }
+            if (requestInfo.getOfficialVerificationTopP() != null) {
+                payload.put("officialVerificationTopP", requestInfo.getOfficialVerificationTopP());
+            }
+            if (requestInfo.getOfficialVerificationSeed() != null) {
+                payload.put("officialVerificationSeed", requestInfo.getOfficialVerificationSeed());
+            }
+            if (requestInfo.getOfficialVerificationMaxTokens() != null) {
+                payload.put("officialVerificationMaxTokens", requestInfo.getOfficialVerificationMaxTokens());
+            }
+            if (requestInfo.getOfficialVerificationDisableRetries() != null) {
+                payload.put("officialVerificationDisableRetries", requestInfo.getOfficialVerificationDisableRetries());
+            }
+            if (requestInfo.getOfficialVerificationDisableOllamaThinking() != null) {
+                payload.put("officialVerificationDisableOllamaThinking", requestInfo.getOfficialVerificationDisableOllamaThinking());
+            }
             if (requestInfo.getSimulatedUserAgentLabel() != null) {
                 payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
             }
@@ -381,9 +405,9 @@ public class ZeroTrustEventPublisher {
         }
 
         DelegationStamp delegationStamp = bridgeResolutionResult.delegationStamp();
-        if (delegationStamp != null && delegationStamp.delegated()) {
+        if (delegationStamp != null) {
             putIfPresent(payload, "bridgeDelegationSource", delegationStamp.attributes().get("delegationResolver"));
-            payload.put("delegated", true);
+            payload.put("delegated", delegationStamp.delegated());
             putIfPresent(payload, "agentId", delegationStamp.agentId());
             putIfPresent(payload, "objectiveId", delegationStamp.objectiveId());
             putIfPresent(payload, "objectiveFamily", delegationStamp.objectiveFamily());
@@ -466,41 +490,18 @@ public class ZeroTrustEventPublisher {
                 || "UNKNOWN".equalsIgnoreCase(existingEffect);
         if (synthesizedAuthorizationEffect) {
             payload.put("authorizationEffect", granted ? "ALLOW" : "DENY");
+            payload.put("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+        } else if (!hasNonNullPayload(payload, "authorizationEffectProvenance")) {
+            payload.put("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP");
         }
 
-        if (!payload.containsKey("bridgeCoverageLevel")) {
+        if (!payload.containsKey("bridgeCoverageLevel") || hasNonNullPayload(payload, "bridgeCoverageSummary")) {
             return;
-        }
-
-        List<String> missingContexts = new ArrayList<>(extractStringList(payload.get("bridgeMissingContexts")));
-        if (synthesizedAuthorizationEffect) {
-            missingContexts.remove(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
-        }
-        if (missingContexts.isEmpty()) {
-            payload.remove("bridgeMissingContexts");
-        } else {
-            payload.put("bridgeMissingContexts", List.copyOf(missingContexts));
-        }
-
-        List<String> remediationHints = new ArrayList<>(extractStringList(payload.get("bridgeRemediationHints")));
-        if (synthesizedAuthorizationEffect) {
-            remediationHints.removeIf(hint -> hint != null
-                    && hint.toLowerCase(Locale.ROOT).contains("authorization effect"));
-        }
-        if (remediationHints.isEmpty()) {
-            payload.remove("bridgeRemediationHints");
-        } else {
-            payload.put("bridgeRemediationHints", List.copyOf(remediationHints));
-        }
-
-        if (synthesizedAuthorizationEffect && payload.get("bridgeCoverageScore") instanceof Number number) {
-            int adjustedScore = Math.min(100, number.intValue() + 10);
-            payload.put("bridgeCoverageScore", adjustedScore);
         }
 
         String coverageLevel = textValue(payload.get("bridgeCoverageLevel"));
         if (StringUtils.hasText(coverageLevel)) {
-            payload.put("bridgeCoverageSummary", resolveBridgeCoverageSummary(coverageLevel, missingContexts));
+            payload.put("bridgeCoverageSummary", resolveBridgeCoverageSummary(coverageLevel, extractStringList(payload.get("bridgeMissingContexts"))));
         }
     }
 
@@ -735,6 +736,8 @@ public class ZeroTrustEventPublisher {
         return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }
+
+
 
 
 

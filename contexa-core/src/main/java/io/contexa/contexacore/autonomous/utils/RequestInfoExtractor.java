@@ -1,6 +1,11 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
+import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Slf4j
@@ -28,13 +34,31 @@ public final class RequestInfoExtractor {
             return null;
         }
 
+        String requestId = extractRequestId(request);
+        String officialVerificationPinnedModelId = extractHeaderOrAttribute(request, "X-Contexa-Official-Verification-Model-Id", "officialVerificationPinnedModelId");
+        Double officialVerificationTemperature = extractDoubleHeaderOrAttribute(request, "X-Contexa-Official-Verification-Temperature", "officialVerificationTemperature");
+        Double officialVerificationTopP = extractDoubleHeaderOrAttribute(request, "X-Contexa-Official-Verification-Top-P", "officialVerificationTopP");
+        Integer officialVerificationSeed = extractIntegerHeaderOrAttribute(request, "X-Contexa-Official-Verification-Seed", "officialVerificationSeed");
+        Integer officialVerificationMaxTokens = extractIntegerHeaderOrAttribute(request, "X-Contexa-Official-Verification-Max-Tokens", "officialVerificationMaxTokens");
+        Boolean officialVerificationDisableRetries = extractBooleanHeader(request, "X-Contexa-Official-Verification-Disable-Retries");
+        Boolean officialVerificationDisableOllamaThinking = extractBooleanHeader(request, "X-Contexa-Official-Verification-Disable-Ollama-Thinking");
+        String officialVerificationDecisionBoundaryMode = deriveOfficialVerificationDecisionBoundaryMode(
+                request,
+                officialVerificationPinnedModelId,
+                officialVerificationTemperature,
+                officialVerificationTopP,
+                officialVerificationSeed,
+                officialVerificationMaxTokens,
+                officialVerificationDisableRetries,
+                officialVerificationDisableOllamaThinking);
+
         return RequestInfo.builder()
                 .requestUri(request.getRequestURI())
                 .method(request.getMethod())
                 .clientIp(extractClientIp(request, security))
                 .userAgent(extractUserAgent(request))
                 .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
-                .requestId(extractRequestId(request))
+                .requestId(requestId)
                 .observedAt(extractObservedAt(request))
                 .servletPath(request.getServletPath())
                 .queryString(request.getQueryString())
@@ -47,6 +71,14 @@ public final class RequestInfoExtractor {
                 .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
                 .anomalySignal(extractHeader(request, "X-Contexa-Anomaly-Signal"))
                 .promptBudgetProfile(extractHeader(request, "X-Contexa-Prompt-Budget-Profile"))
+                .officialVerificationDecisionBoundaryMode(officialVerificationDecisionBoundaryMode)
+                .officialVerificationPinnedModelId(officialVerificationPinnedModelId)
+                .officialVerificationTemperature(officialVerificationTemperature)
+                .officialVerificationTopP(officialVerificationTopP)
+                .officialVerificationSeed(officialVerificationSeed)
+                .officialVerificationMaxTokens(officialVerificationMaxTokens)
+                .officialVerificationDisableRetries(officialVerificationDisableRetries)
+                .officialVerificationDisableOllamaThinking(officialVerificationDisableOllamaThinking)
                 .simulatedUserAgentLabel(extractHeader(request, "X-Simulated-User-Agent-Label"))
                 .secure(request.isSecure())
                 .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
@@ -95,8 +127,53 @@ public final class RequestInfoExtractor {
                 .travelDistanceKm(castToInteger(request.getAttribute("hcad.travelDistanceKm")))
                 .travelElapsedMinutes(castToInteger(request.getAttribute("hcad.travelElapsedMinutes")))
                 .previousLocation((String) request.getAttribute("hcad.previousLocation"))
-                .bridgeResolutionResult((BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT))
+                .bridgeResolutionResult(extractBridgeResolutionResult(request, security, requestId))
                 .build();
+    }
+
+    private static BridgeResolutionResult extractBridgeResolutionResult(
+            HttpServletRequest request,
+            TieredStrategyProperties.Security security,
+            String requestId) {
+        Object rawResolutionResult = request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        if (rawResolutionResult instanceof BridgeResolutionResult bridgeResolutionResult) {
+            return bridgeResolutionResult;
+        }
+
+        AuthenticationStamp authenticationStamp = request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp
+                ? stamp
+                : null;
+        AuthorizationStamp authorizationStamp = request.getAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP) instanceof AuthorizationStamp stamp
+                ? stamp
+                : null;
+        DelegationStamp delegationStamp = request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
+                ? stamp
+                : null;
+        BridgeCoverageReport coverageReport = request.getAttribute(BridgeRequestAttributes.COVERAGE_REPORT) instanceof BridgeCoverageReport report
+                ? report
+                : null;
+
+        if (authenticationStamp == null && authorizationStamp == null && delegationStamp == null && coverageReport == null) {
+            return null;
+        }
+
+        RequestContextSnapshot requestContext = new RequestContextSnapshot(
+                request.getRequestURI(),
+                request.getMethod(),
+                extractClientIp(request, security),
+                extractUserAgent(request),
+                OfficialVerificationRequestContext.resolveSessionId(request),
+                requestId,
+                request.getServletPath(),
+                request.getQueryString(),
+                request.isSecure(),
+                extractObservedAt(request));
+        return new BridgeResolutionResult(
+                requestContext,
+                authenticationStamp,
+                authorizationStamp,
+                delegationStamp,
+                coverageReport);
     }
 
     public static Instant extractObservedAt(HttpServletRequest request) {
@@ -119,6 +196,10 @@ public final class RequestInfoExtractor {
 
     public static String extractClientIp(HttpServletRequest request, TieredStrategyProperties.Security security) {
         String remoteAddr = request.getRemoteAddr();
+
+        if (isOfficialVerificationRequest(request)) {
+            return extractClientIpLegacy(request);
+        }
 
         if (security == null || !security.isTrustedProxyValidationEnabled()) {
             return extractClientIpLegacy(request);
@@ -145,6 +226,18 @@ public final class RequestInfoExtractor {
         }
 
         return remoteAddr;
+    }
+
+    private static boolean isOfficialVerificationRequest(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String scenario = extractScenario(request);
+        if (scenario != null && scenario.trim().toUpperCase(Locale.ROOT).startsWith("OFFICIAL_VERIFICATION")) {
+            return true;
+        }
+        String path = request.getRequestURI();
+        return path != null && path.contains("/admin/api/enterprise/verification/runtime/probe/");
     }
 
     public static String extractUserAgent(HttpServletRequest request) {
@@ -218,6 +311,99 @@ public final class RequestInfoExtractor {
     private static String extractHeader(HttpServletRequest request, String name) {
         String value = request.getHeader(name);
         return (value != null && !value.isBlank()) ? value.trim() : null;
+    }
+
+
+    private static String extractHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
+        String value = extractHeader(request, headerName);
+        if (value != null) {
+            return value;
+        }
+        return extractAttributeText(request, attributeName);
+    }
+
+    private static Double extractDoubleHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
+        String value = extractHeaderOrAttribute(request, headerName, attributeName);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static String deriveOfficialVerificationDecisionBoundaryMode(
+            HttpServletRequest request,
+            String officialVerificationPinnedModelId,
+            Double officialVerificationTemperature,
+            Double officialVerificationTopP,
+            Integer officialVerificationSeed,
+            Integer officialVerificationMaxTokens,
+            Boolean officialVerificationDisableRetries,
+            Boolean officialVerificationDisableOllamaThinking) {
+        String explicitBoundaryMode = extractHeaderOrAttribute(
+                request,
+                "X-Contexa-Official-Verification-Boundary-Mode",
+                "officialVerificationDecisionBoundaryMode");
+        if (explicitBoundaryMode != null && !explicitBoundaryMode.isBlank()) {
+            return explicitBoundaryMode;
+        }
+        if (officialVerificationPinnedModelId != null
+                || officialVerificationTemperature != null
+                || officialVerificationTopP != null
+                || officialVerificationSeed != null
+                || officialVerificationMaxTokens != null
+                || officialVerificationDisableRetries != null
+                || officialVerificationDisableOllamaThinking != null) {
+            return "OFFICIAL_VERIFICATION_RUNTIME";
+        }
+        return null;
+    }
+
+    private static Integer extractIntegerHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
+        String value = extractHeaderOrAttribute(request, headerName, attributeName);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Double extractDoubleHeader(HttpServletRequest request, String name) {
+        String value = extractHeader(request, name);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Integer extractIntegerHeader(HttpServletRequest request, String name) {
+        String value = extractHeader(request, name);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Boolean extractBooleanHeader(HttpServletRequest request, String name) {
+        String value = extractHeader(request, name);
+        if (value == null) {
+            return null;
+        }
+        return Boolean.parseBoolean(value);
     }
 
     private static String extractAttributeText(HttpServletRequest request, String... names) {
@@ -339,6 +525,14 @@ public final class RequestInfoExtractor {
         private final String behaviorPhase;
         private final String anomalySignal;
         private final String promptBudgetProfile;
+        private final String officialVerificationDecisionBoundaryMode;
+        private final String officialVerificationPinnedModelId;
+        private final Double officialVerificationTemperature;
+        private final Double officialVerificationTopP;
+        private final Integer officialVerificationSeed;
+        private final Integer officialVerificationMaxTokens;
+        private final Boolean officialVerificationDisableRetries;
+        private final Boolean officialVerificationDisableOllamaThinking;
         private final String simulatedUserAgentLabel;
         private final boolean secure;
 
@@ -396,4 +590,9 @@ public final class RequestInfoExtractor {
         return null;
     }
 }
+
+
+
+
+
 

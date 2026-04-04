@@ -174,6 +174,48 @@ class ColdPathEventProcessorTest {
     }
 
     @Test
+    @DisplayName("official verification runs should bypass escalate overload protection and continue to Layer2")
+    void officialVerificationRuns_shouldBypassEscalateProtection() {
+        ThreatAssessment layer1Assessment = ThreatAssessment.builder()
+                .riskScore(0.6)
+                .confidence(0.4)
+                .action(ZeroTrustAction.ESCALATE.name())
+                .reasoning("Official verification escalation")
+                .shouldEscalate(true)
+                .build();
+
+        ThreatAssessment layer2Assessment = ThreatAssessment.builder()
+                .riskScore(0.7)
+                .confidence(0.8)
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .reasoning("Thin evidence requires challenge")
+                .shouldEscalate(false)
+                .build();
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
+        when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer2Assessment);
+
+        ProcessingResult result = null;
+        for (int index = 0; index < 11; index++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .userId("user-ov-" + index)
+                    .sourceIp("10.0.1." + index)
+                    .build();
+            event.addMetadata("requestPath", "/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+            event.addMetadata("scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE");
+            event.addMetadata("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+            result = processor.processEvent(event, 0.5);
+        }
+
+        assertThat(result).isNotNull();
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
+        assertThat(result.getReasoning()).isEqualTo("Thin evidence requires challenge");
+        assertThat(result.getAnalysisData()).containsEntry("decisionAppliedStage", "LAYER2");
+        verify(expertStrategy, org.mockito.Mockito.times(11)).evaluate(any(SecurityEvent.class));
+    }
+
+    @Test
     @DisplayName("Missing userId should return failure result")
     void missingUserId_shouldReturnFailure() {
         // given

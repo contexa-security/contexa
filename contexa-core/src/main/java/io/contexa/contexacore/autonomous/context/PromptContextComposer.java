@@ -7,6 +7,10 @@ import java.util.List;
 
 public class PromptContextComposer {
 
+    private static final int MAX_TRUST_SCOPE_LIMITATIONS = 2;
+    private static final int MAX_TRUST_QUALITY_WARNINGS = 3;
+    private static final int MAX_TRUST_FIELD_RECORDS = 2;
+
     public String compose(CanonicalSecurityContext context) {
         if (context == null) {
             return null;
@@ -531,15 +535,10 @@ public class PromptContextComposer {
         }
 
         section.append("\n=== EXPLICIT MISSING KNOWLEDGE ===\n");
+        int compactedTrustLines = 0;
         if (coverage != null) {
             for (String fact : coverage.missingCriticalFacts()) {
                 section.append("- ").append(fact).append("\n");
-            }
-            for (String hint : coverage.remediationHints()) {
-                section.append("- Remediation: ").append(hint).append("\n");
-            }
-            for (String warning : coverage.confidenceWarnings()) {
-                section.append("- ConfidenceWarning: ").append(warning).append("\n");
             }
         }
         if (trustProfiles == null || trustProfiles.isEmpty()) {
@@ -558,22 +557,39 @@ public class PromptContextComposer {
                     .append(" | evidenceState=")
                     .append(describeProfileEvidenceState(trustProfile))
                     .append("\n");
+            int appendedScopeLimitations = 0;
             for (String limitation : trustProfile.getScopeLimitations()) {
+                if (appendedScopeLimitations >= MAX_TRUST_SCOPE_LIMITATIONS) {
+                    compactedTrustLines++;
+                    continue;
+                }
                 section.append("- ContextTrustLimitation: ")
                         .append(trustProfile.getProfileKey())
                         .append(" | ")
                         .append(limitation)
                         .append("\n");
+                appendedScopeLimitations++;
             }
+            int appendedQualityWarnings = 0;
             for (String warning : trustProfile.getQualityWarnings()) {
+                if (appendedQualityWarnings >= MAX_TRUST_QUALITY_WARNINGS) {
+                    compactedTrustLines++;
+                    continue;
+                }
                 section.append("- ContextTrustWarning: ")
                         .append(trustProfile.getProfileKey())
                         .append(" | ")
                         .append(warning)
                         .append("\n");
+                appendedQualityWarnings++;
             }
+            int appendedFieldRecords = 0;
             for (ContextFieldTrustRecord fieldRecord : trustProfile.getFieldRecords()) {
                 if (fieldRecord == null || !ContextSemanticBoundaryPolicy.requiresEvidenceCaution(fieldRecord)) {
+                    continue;
+                }
+                if (appendedFieldRecords >= MAX_TRUST_FIELD_RECORDS) {
+                    compactedTrustLines += 2;
                     continue;
                 }
                 section.append("- ContextFieldCoverage: ")
@@ -594,7 +610,13 @@ public class PromptContextComposer {
                         .append(" | ")
                         .append(describeFieldEvidenceLimitation(fieldRecord))
                         .append("\n");
+                appendedFieldRecords++;
             }
+        }
+        if (compactedTrustLines > 0) {
+            section.append("- AdditionalContextTrustWarningsCompacted: ")
+                    .append(compactedTrustLines)
+                    .append("\n");
         }
     }
 

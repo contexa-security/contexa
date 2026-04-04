@@ -37,7 +37,10 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         }
 
         Long previousRequestTimestamp = dataStore.getSessionLastRequestTime(sessionId);
-        String previousPath = dataStore.getSessionPreviousPath(sessionId);
+        String previousPath = resolveExplicitPreviousPath(event);
+        if (!StringUtils.hasText(previousPath)) {
+            previousPath = dataStore.getSessionPreviousPath(sessionId);
+        }
         String currentPath = resolveRequestPath(event);
         if (!PromptRelevantRequestPathPolicy.isPromptRelevantPath(currentPath)) {
             return Optional.empty();
@@ -128,6 +131,21 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         return System.currentTimeMillis();
     }
 
+    private String resolveExplicitPreviousPath(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object previousPath = metadata.get("previousPath");
+        if (previousPath == null) {
+            previousPath = metadata.get("previous_path");
+        }
+        if (previousPath == null) {
+            return null;
+        }
+        String normalized = previousPath.toString().trim();
+        return StringUtils.hasText(normalized) ? normalized : null;
+    }
     private String resolveRequestPath(SecurityEvent event) {
         Map<String, Object> metadata = event.getMetadata();
         if (metadata == null || metadata.isEmpty()) {
@@ -222,3 +240,6 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         return null;
     }
 }
+
+
+

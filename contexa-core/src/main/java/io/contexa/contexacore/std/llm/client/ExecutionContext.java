@@ -42,6 +42,7 @@ public class ExecutionContext {
     private ChatOptions chatOptions;
     private Double temperature;
     private Double topP;  
+    private Integer seed;
     private Integer maxTokens;
 
     @Builder.Default

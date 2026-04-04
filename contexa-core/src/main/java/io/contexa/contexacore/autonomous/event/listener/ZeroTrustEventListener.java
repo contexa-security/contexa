@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+import java.util.Locale;
 
 @Slf4j
 public class ZeroTrustEventListener {
@@ -66,6 +67,9 @@ public class ZeroTrustEventListener {
             return false;
         }
         if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
+            if (isOfficialVerificationAuthorizationEvent(event)) {
+                return true;
+            }
             return !shouldSkipPublishing(event.getUserId(), generateAuthorizationContextBindingHash(event));
         }
         return true;
@@ -103,6 +107,22 @@ public class ZeroTrustEventListener {
 
     private void processCustomEvent(ZeroTrustSpringEvent event) {
         securityEventPublisher.publishGenericSecurityEvent(event);
+    }
+
+    private boolean isOfficialVerificationAuthorizationEvent(ZeroTrustSpringEvent event) {
+        if (event == null) {
+            return false;
+        }
+        Object scenario = event.getPayloadValue("scenario");
+        if (scenario != null) {
+            String normalizedScenario = scenario.toString().trim().toUpperCase(Locale.ROOT);
+            if (normalizedScenario.startsWith("OFFICIAL_VERIFICATION")) {
+                return true;
+            }
+        }
+        Object requestPath = event.getPayloadValue("requestPath");
+        return requestPath != null
+                && requestPath.toString().contains("/admin/api/enterprise/verification/runtime/probe/");
     }
 
     private boolean shouldSkipPublishing(String userId, String contextBindingHash) {

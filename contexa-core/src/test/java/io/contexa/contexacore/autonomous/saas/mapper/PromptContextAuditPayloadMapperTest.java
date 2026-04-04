@@ -24,10 +24,15 @@ class PromptContextAuditPayloadMapperTest {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-001")
                 .timestamp(LocalDateTime.of(2026, 3, 19, 10, 0))
-                .metadata(Map.of(
-                        "tenantId", "tenant-acme",
-                        "correlationId", "corr-001",
-                        "executionId", "exec-001"))
+                 .metadata(Map.ofEntries(
+                        Map.entry("tenantId", "tenant-acme"),
+                        Map.entry("correlationId", "corr-001"),
+                        Map.entry("executionId", "exec-001"),
+                        Map.entry("officialVerificationPinnedModelId", "qwen3:8b"),
+                        Map.entry("officialVerificationTemperature", 0.0d),
+                        Map.entry("officialVerificationTopP", 0.2d),
+                        Map.entry("officialVerificationSeed", 7),
+                        Map.entry("officialVerificationMaxTokens", 96)))
                 .build();
         AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(
                 List.of(new Document("threat context", new LinkedHashMap<>(Map.ofEntries(
@@ -65,13 +70,18 @@ class PromptContextAuditPayloadMapperTest {
         assertThat(payload.getContexts().getFirst().getAuthorizationDecision()).isEqualTo("ALLOW");
         assertThat(payload.getContexts().getFirst().isTenantBound()).isTrue();
         assertThat(payload.getContexts().getFirst().getSimilarityScore()).isEqualTo(0.84);
+        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationPinnedModelId", "qwen3:8b");
+        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationTemperature", 0.0d);
+        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationTopP", 0.2d);
+        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationSeed", 7);
+        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationMaxTokens", 96);
     }
 
     @Test
     void resolveTenantExternalRefFallsBackToOrganizationId() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-002")
-                .metadata(Map.of("organizationId", "org-acme"))
+                 .metadata(Map.of("organizationId", "org-acme"))
                 .build();
 
         assertThat(mapper.resolveTenantExternalRef(event)).isEqualTo("org-acme");
@@ -82,9 +92,7 @@ class PromptContextAuditPayloadMapperTest {
     void mapIncludesAllowedAndDeniedContextItemsWithoutCollapsingThem() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-allowed-denied")
-                .metadata(Map.of(
-                        "tenantId", "tenant-acme",
-                        "correlationId", "corr-allowed-denied"))
+                  .metadata(Map.of("tenantId", "tenant-acme", "correlationId", "corr-allowed-denied"))
                 .build();
         AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(
                 List.of(),
@@ -146,9 +154,7 @@ class PromptContextAuditPayloadMapperTest {
     void mapUsesContextFingerprintInAuditId() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-fingerprint")
-                .metadata(Map.of(
-                        "tenantId", "tenant-acme",
-                        "correlationId", "corr-fingerprint"))
+                  .metadata(Map.of("tenantId", "tenant-acme", "correlationId", "corr-fingerprint"))
                 .build();
 
         PromptContextAuditPayload first = mapper.map(event, "THREAT_RUNTIME_CONTEXT", new AuthorizedPromptContext(
@@ -200,9 +206,7 @@ class PromptContextAuditPayloadMapperTest {
     void mapNormalizesDeniedReasonOrderForStableFingerprint() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-stable-fingerprint")
-                .metadata(Map.of(
-                        "tenantId", "tenant-acme",
-                        "correlationId", "corr-stable-fingerprint"))
+                  .metadata(Map.of("tenantId", "tenant-acme", "correlationId", "corr-stable-fingerprint"))
                 .build();
 
         AuthorizedPromptContext firstContext = new AuthorizedPromptContext(

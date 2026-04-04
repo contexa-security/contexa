@@ -41,7 +41,7 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
-    @DisplayName("bridge ?멸? ?④낵媛 鍮꾩뼱 ?덉뼱??post-auth ?대깽?몃뒗 ALLOW ?④낵瑜?蹂댁젙???댁븘???쒕떎")
+    @DisplayName("bridge completeness should remain transparent when authorization effect is synthesized")
     void shouldIncludeBridgeMetadataInAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         request.setRequestedSessionId("session-1");
@@ -62,15 +62,13 @@ class ZeroTrustEventPublisherTest {
                 null
         );
 
-        // granted=true??post-auth ?대깽?몃씪硫?authorizationEffect??UNKNOWN?쇰줈 ?⑥쑝硫????쒕떎.
-        // ??媛믪씠 鍮꾩뼱 ?덉쑝硫?prompt coverage媛 partial濡??붾뱾由ш퀬 bridge ?덉쭏??怨쇱냼?됯??쒕떎.
         assertThat(event.getPayload())
                 .containsEntry("principalType", "USER")
                 .containsEntry("authenticationType", "JWT")
                 .containsEntry("authenticationAssurance", "HIGH")
                 .containsEntry("bridgeCoverageLevel", BridgeCoverageLevel.DELEGATION_CONTEXT.name())
-                .containsEntry("bridgeCoverageScore", 100)
-                .containsEntry("bridgeCoverageSummary", "Bridge completeness reached authentication, authorization, and delegated execution context for the current request.")
+                .containsEntry("bridgeCoverageScore", 90)
+                .containsEntry("bridgeCoverageSummary", "Bridge resolved authentication, authorization, and delegated execution context for the current request.")
                 .containsEntry("bridgeAuthenticationSource", "HEADER")
                 .containsEntry("bridgeAuthorizationSource", "HEADER")
                 .containsEntry("bridgeDelegationSource", "HEADER")
@@ -79,17 +77,52 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("objectiveId", "objective-1")
                 .containsEntry("objectiveFamily", "REPORT_EXPORT")
                 .containsEntry("privilegedExportAllowed", false)
-                .containsEntry("authorizationEffect", "ALLOW");
+                .containsEntry("authorizationEffect", "ALLOW")
+                .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeMissingContexts", List.of()))
-                .doesNotContain(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
+                .contains(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeRemediationHints", List.of()))
-                .noneMatch(hint -> hint.contains("authorization effect"));
+                .anyMatch(hint -> hint.contains("authorization effect"));
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
     }
 
     @Test
-    @DisplayName("bridge authorization???놁뼱???몄쬆 ?뺣낫留뚯쑝濡?理쒖냼 沅뚰븳 硫뷀??곗씠?곕뒗 梨꾩썙?몄빞 ?쒕떎")
+    @DisplayName("delegation objective lineage should survive even when delegated flag is false")
+    void shouldPreserveDelegationObjectiveLineageWhenDelegationStampIsNotMarkedDelegated() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
+        request.setRequestedSessionId("session-2");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.11");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createBridgeResolutionResultWithoutDelegatedFlag());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        assertThat(event.getPayload())
+                .containsEntry("bridgeDelegationSource", "HEADER")
+                .containsEntry("delegated", false)
+                .containsEntry("objectiveId", "objective-2")
+                .containsEntry("objectiveFamily", "REPORT_EXPORT")
+                .containsEntry("objectiveSummary", "Export monthly report")
+                .containsEntry("authorizationEffect", "ALLOW")
+                .containsEntry("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP");
+        assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
+        assertThat((List<String>) event.getPayload().get("allowedResources")).contains("report:monthly");
+    }
+
+    @Test
+    @DisplayName("fallback metadata should populate when bridge authorization is absent")
     void shouldPopulateAuthenticationFallbackMetadataWhenBridgeAuthorizationIsAbsent() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-42");
@@ -117,20 +150,21 @@ class ZeroTrustEventPublisherTest {
         ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
         ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(invocation, authentication, true, null);
 
-        // fallback 硫뷀??곗씠?곌? 梨꾩썙?몄빞 bridge媛 ?쏀븳 ?섍꼍?먯꽌??prompt ?듭떖 ?꾨뱶媛 鍮덇컪?쇰줈 ?⑥? ?딅뒗??
         assertThat(event.getPayload())
                 .containsEntry("authMethod", "mfa")
                 .containsEntry("mfaVerified", true)
                 .containsEntry("resourceSensitivity", "HIGH")
                 .containsEntry("previousPath", "/admin/api/security-test/sensitive/resource-000")
-                .containsEntry("lastRequestIntervalMs", 4_200L);
+                .containsEntry("lastRequestIntervalMs", 4_200L)
+                .containsEntry("authorizationEffect", "ALLOW")
+                .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
         assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("ANALYST");
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("authorities")).contains("ROLE_ANALYST", "report.export", "MFA_VERIFIED");
-        assertThat(event.getPayload()).containsEntry("authorizationEffect", "ALLOW");
     }
+
     @Test
-    @DisplayName("관측 시각 헤더가 있으면 authorization event timestamp는 현재 시각이 아니라 그 시각을 따라야 한다")
+    @DisplayName("observed-at header should control authorization event timestamp")
     void shouldUseObservedAtForAuthorizationEventTimestamp() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-observed-at");
@@ -151,12 +185,11 @@ class ZeroTrustEventPublisherTest {
                 null
         );
 
-        // 이 값이 현재 시각으로 찍히면 benchmark에서 시간대/요일/간격 패턴이 모두 거짓 데이터가 된다.
         assertThat(event.getEventTimestamp()).isEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
     }
 
     @Test
-    @DisplayName("prompt budget profile 헤더는 authorization event payload까지 유지되어 compact replay와 standard replay를 구분한다")
+    @DisplayName("prompt budget profile should propagate into authorization event payload")
     void shouldPropagatePromptBudgetProfileIntoAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-budget");
@@ -178,6 +211,47 @@ class ZeroTrustEventPublisherTest {
         );
 
         assertThat(event.getPayload()).containsEntry("promptBudgetProfile", "CORTEX_L1_COMPACT");
+    }
+
+    @Test
+    @DisplayName("official verification runtime headers should propagate into authorization event payload")
+    void shouldPropagateOfficialVerificationRuntimeHeadersIntoAuthorizationEventPayload() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+        request.setRequestedSessionId("session-ov-runtime");
+        request.addHeader("User-Agent", "JUnit");
+        request.addHeader("X-Contexa-Scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE");
+        request.addHeader("X-Contexa-Official-Verification-Model-Id", "qwen3:8b");
+        request.addHeader("X-Contexa-Official-Verification-Temperature", "0.0");
+        request.addHeader("X-Contexa-Official-Verification-Top-P", "0.2");
+        request.addHeader("X-Contexa-Official-Verification-Seed", "7");
+        request.addHeader("X-Contexa-Official-Verification-Max-Tokens", "96");
+        request.addHeader("X-Contexa-Official-Verification-Disable-Retries", "true");
+        request.addHeader("X-Contexa-Official-Verification-Disable-Ollama-Thinking", "true");
+        request.setRemoteAddr("203.0.113.10");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        assertThat(event.getPayload())
+                .containsEntry("scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE")
+                .containsEntry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")
+                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
+                .containsEntry("officialVerificationTemperature", 0.0d)
+                .containsEntry("officialVerificationTopP", 0.2d)
+                .containsEntry("officialVerificationSeed", 7)
+                .containsEntry("officialVerificationMaxTokens", 96)
+                .containsEntry("officialVerificationDisableRetries", true)
+                .containsEntry("officialVerificationDisableOllamaThinking", true);
     }
 
     private BridgeResolutionResult createBridgeResolutionResult() {
@@ -207,8 +281,35 @@ class ZeroTrustEventPublisherTest {
                         90,
                         Set.of(MissingBridgeContext.AUTHORIZATION_EFFECT),
                         "Bridge resolved authentication, authorization, and delegated execution context for the current request.",
-                        List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request.")
-                )
+                        List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request."))
+        );
+    }
+
+    private BridgeResolutionResult createBridgeResolutionResultWithoutDelegatedFlag() {
+        return new BridgeResolutionResult(
+                new RequestContextSnapshot("/reports/export", "POST", "10.0.0.11", "JUnit", "session-2", "request-2", "/reports/export", null, false, Instant.now()),
+                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-2", List.of("ROLE_USER"), Map.of("organizationId", "tenant-a")),
+                new AuthorizationStamp(
+                        "alice",
+                        "/reports/export",
+                        "POST",
+                        AuthorizationEffect.ALLOW,
+                        true,
+                        List.of("report:export"),
+                        "policy-1",
+                        null,
+                        "HEADER",
+                        Instant.now(),
+                        List.of("ROLE_USER"),
+                        List.of("REPORT_EXPORT"),
+                        Map.of()),
+                new DelegationStamp("alice", "agent-1", false, "objective-2", "REPORT_EXPORT", "Export monthly report", List.of("EXPORT"), List.of("report:monthly"), true, false, false, null, Map.of("delegationResolver", "HEADER")),
+                new BridgeCoverageReport(
+                        BridgeCoverageLevel.AUTHORIZATION_CONTEXT,
+                        80,
+                        Set.of(MissingBridgeContext.DELEGATION),
+                        "Bridge completeness reached authentication and authorization context, but delegated execution metadata is incomplete for this request.",
+                        List.of("Populate explicit delegated execution metadata when the request is acting on behalf of another principal or scoped objective."))
         );
     }
 

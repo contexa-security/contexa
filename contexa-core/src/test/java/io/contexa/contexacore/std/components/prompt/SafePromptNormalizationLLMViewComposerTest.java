@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SafePromptNormalizationLLMViewComposerTest {
 
     @Test
-    @DisplayName("SafePromptNormalizationLLMViewComposer는 공백만 정규화하고 압축 ledger를 남겨야 한다")
+    @DisplayName("SafePromptNormalizationLLMViewComposer should normalize whitespace and record a compression ledger")
     void composeShouldNormalizeWhitespaceAndRecordCompressionLedger() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
 
@@ -31,7 +31,7 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
-    @DisplayName("SafePromptNormalizationLLMViewComposer는 SIMILAR PAST EVENTS를 summary-first로 융합해야 한다")
+    @DisplayName("SafePromptNormalizationLLMViewComposer should fuse similar past events using summary-first compression")
     void composeShouldFuseSimilarPastEventsWhenThreeOrMoreDocumentsExist() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
         String userPrompt = String.join("\n",
@@ -68,7 +68,7 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
-    @DisplayName("SafePromptNormalizationLLMViewComposer는 SESSION NARRATIVE를 압축하되 핵심 흐름은 보존해야 한다")
+    @DisplayName("SafePromptNormalizationLLMViewComposer should compact session narrative and retain key flow anchors")
     void composeShouldCompactSessionNarrativeAndRetainDecisionAnchors() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
         String userPrompt = String.join("\n",
@@ -106,7 +106,7 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
-    @DisplayName("SafePromptNormalizationLLMViewComposer는 PERSONAL WORK PROFILE을 압축하되 baseline anchor는 유지해야 한다")
+    @DisplayName("SafePromptNormalizationLLMViewComposer should compact personal work profile and retain baseline anchors")
     void composeShouldCompactPersonalWorkProfileAndRetainBaselineAnchors() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
         String userPrompt = String.join("\n",
@@ -150,7 +150,7 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
-    @DisplayName("SafePromptNormalizationLLMViewComposer는 role, friction, threat 섹션도 summary-first로 압축해야 한다")
+    @DisplayName("SafePromptNormalizationLLMViewComposer should compact role, friction, and threat sections summary-first")
     void composeShouldCompactRoleScopeFrictionAndThreatSections() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
         String userPrompt = String.join("\n",
@@ -218,7 +218,7 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
-    @DisplayName("SafePromptNormalizationLLMViewComposer는 compact profile에서 supporting 섹션을 budget ladder로 생략해야 한다")
+    @DisplayName("SafePromptNormalizationLLMViewComposer should omit supporting sections with the compact budget ladder")
     void composeShouldOmitSupportingSectionsWhenCompactBudgetStillExceedsLimit() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
         String densePad = "critical-access-context-padding-".repeat(90);
@@ -275,4 +275,35 @@ class SafePromptNormalizationLLMViewComposerTest {
                         Tuple.tuple("PEER_COHORT_DELTA_BUDGET", PromptCompressionAction.OMITTED),
                         Tuple.tuple("OUTCOME_AND_REASONING_MEMORY_BUDGET_OMISSION", PromptCompressionAction.OMITTED));
     }
+
+    @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should compact the system prompt when a non-expanding standard budget overflows")
+    void composeShouldCompactSystemPromptWhenStandardBudgetIsExceeded() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String oversizedSystemPrompt = String.join("\n",
+                "You are a Zero Trust security analyst AI.",
+                "Detailed instruction: " + "context-heavy-contract-".repeat(900),
+                "<output_format>",
+                "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"confidence\":{\"type\":\"number\"},\"reasoning\":{\"type\":\"string\"}}}",
+                "</output_format>",
+                "<context>",
+                "governance-metadata",
+                "</context>");
+
+        PromptViewComposition composition = composer.compose(
+                oversizedSystemPrompt,
+                "=== CURRENT REQUEST AND EVENT ===\nRequestPath: /admin/api/enterprise/verification/runtime/probe/sensitive/resource-001",
+                PromptBudgetProfile.CORTEX_L1_STANDARD);
+
+        assertThat(composition.llmSystemPrompt().length()).isLessThan(composition.rawSystemPrompt().length());
+        assertThat(composition.llmSystemPrompt()).contains("Action semantics:");
+        assertThat(composition.llmSystemPrompt()).contains("not sufficient for confident ALLOW");
+        assertThat(composition.llmSystemPrompt()).contains("do not return ALLOW above 0.70");
+        assertThat(composition.llmSystemPrompt()).contains("explicit uncertainty term");
+        assertThat(composition.compressionLedger().transformationMode()).isEqualTo("NORMALIZE_AND_COMPACT");
+        assertThat(composition.compressionLedger().records())
+                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
+                .contains(Tuple.tuple("SYSTEM_PROMPT_DECISION_CONTRACT", PromptCompressionAction.SUMMARIZED));
+    }
 }
+
