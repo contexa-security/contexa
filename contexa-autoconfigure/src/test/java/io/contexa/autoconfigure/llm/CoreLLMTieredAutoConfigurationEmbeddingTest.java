@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.llm;
 
 import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.ollama.OllamaEmbeddingModel;
@@ -14,10 +15,17 @@ import static org.mockito.Mockito.mock;
 
 class CoreLLMTieredAutoConfigurationEmbeddingTest {
 
+    private CoreLLMTieredAutoConfiguration createConfiguration(String embeddingPriority) {
+        CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();
+        ContexaProperties properties = new ContexaProperties();
+        properties.getLlm().setEmbeddingModelPriority(embeddingPriority);
+        ReflectionTestUtils.setField(configuration, "contexaProperties", properties);
+        return configuration;
+    }
+
     @Test
     void shouldSelectOllamaEmbeddingModelByDefaultPriority() {
-        CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();
-        ReflectionTestUtils.setField(configuration, "embeddingModelPriority", "ollama,openai");
+        CoreLLMTieredAutoConfiguration configuration = createConfiguration("ollama,openai");
 
         OllamaEmbeddingModel ollamaEmbeddingModel = mock(OllamaEmbeddingModel.class);
         OpenAiEmbeddingModel openAiEmbeddingModel = mock(OpenAiEmbeddingModel.class);
@@ -35,8 +43,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
 
     @Test
     void shouldSelectOpenAiEmbeddingModelWhenPriorityChanges() {
-        CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();
-        ReflectionTestUtils.setField(configuration, "embeddingModelPriority", "openai,ollama");
+        CoreLLMTieredAutoConfiguration configuration = createConfiguration("openai,ollama");
 
         OllamaEmbeddingModel ollamaEmbeddingModel = mock(OllamaEmbeddingModel.class);
         OpenAiEmbeddingModel openAiEmbeddingModel = mock(OpenAiEmbeddingModel.class);

@@ -78,7 +78,7 @@ class PromptContextAuditForwardingServiceTest {
     }
 
     @Test
-    void captureDispatchesExistingAuditWithoutSaving() {
+    void captureDispatchesExistingAuditWithoutSaving() throws Exception {
         SecurityEvent event = SecurityEvent.builder().eventId("evt-001").build();
         AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(List.of(), 1, 0, 1, "THREAT_RUNTIME_CONTEXT", List.of());
         PromptContextAuditPayload payload = PromptContextAuditPayload.builder()
@@ -86,6 +86,7 @@ class PromptContextAuditForwardingServiceTest {
                 .correlationId("corr-001")
                 .build();
         when(payloadMapper.map(event, "THREAT_RUNTIME_CONTEXT", authorizedPromptContext)).thenReturn(payload);
+        when(objectMapper.writeValueAsString(payload)).thenReturn("{}");
         when(repository.findByAuditId("audit-001")).thenReturn(Optional.of(PromptContextAuditForwardingOutboxRecord.builder()
                 .id(7L)
                 .auditId("audit-001")

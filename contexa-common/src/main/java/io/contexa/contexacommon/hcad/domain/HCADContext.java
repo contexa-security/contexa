@@ -440,7 +440,6 @@ public class HCADContext {
             jsonMap.put("isSensitiveResource", isSensitiveResource);
             jsonMap.put("riskScore", riskScore);
 
-            
             if (additionalAttributes != null) {
                 jsonMap.put("additionalAttributes", additionalAttributes);
             }

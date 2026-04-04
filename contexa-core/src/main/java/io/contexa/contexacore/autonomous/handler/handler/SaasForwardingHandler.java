@@ -31,7 +31,7 @@ public class SaasForwardingHandler implements SecurityEventHandler {
         if (action == null || action.isBlank()) {
             return false;
         }
-        return !"PENDING_ANALYSIS".equalsIgnoreCase(action);
+        return !("PENDING_ANALYSIS".equalsIgnoreCase(action) || "ALLOW".equalsIgnoreCase(action));
     }
 
     @Override

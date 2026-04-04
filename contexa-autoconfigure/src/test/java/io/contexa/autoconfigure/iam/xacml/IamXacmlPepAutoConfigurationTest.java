@@ -76,7 +76,7 @@ class IamXacmlPepAutoConfigurationTest {
                     .filter(m -> m.getAnnotation(Bean.class) != null)
                     .count();
 
-            assertThat(beanCount).isEqualTo(3);
+            assertThat(beanCount).isEqualTo(4);
         }
     }
 }

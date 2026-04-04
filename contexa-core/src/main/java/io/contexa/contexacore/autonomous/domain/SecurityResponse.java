@@ -31,6 +31,10 @@ public class SecurityResponse {
         if (json == null || json.isBlank()) {
             return null;
         }
+        String trimmed = json.trim();
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+            return null;
+        }
 
         SecurityResponse response = new SecurityResponse();
 
@@ -54,7 +58,7 @@ public class SecurityResponse {
             } else {
                 action = extractString(json, "\"action\"");
             }
-            response.setAction("PENDING_ANALYSIS");
+            response.setAction(action != null ? action : "ESCALATE");
 
             String reasoning = extractString(json, "\"d\"");
             if (reasoning == null) {

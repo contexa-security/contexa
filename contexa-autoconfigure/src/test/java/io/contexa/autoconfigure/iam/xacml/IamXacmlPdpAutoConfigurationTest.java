@@ -33,7 +33,9 @@ class IamXacmlPdpAutoConfigurationTest {
             .withBean(PermissionRepository.class, () -> mock(PermissionRepository.class))
             .withBean(AuditLogRepository.class, () -> mock(AuditLogRepository.class))
             .withBean(ZeroTrustActionRepository.class, () -> mock(ZeroTrustActionRepository.class))
-            .withBean(ContextHandler.class, () -> mock(ContextHandler.class));
+            .withBean(ContextHandler.class, () -> mock(ContextHandler.class))
+            .withBean(org.springframework.security.access.hierarchicalroles.RoleHierarchy.class,
+                    () -> mock(org.springframework.security.access.hierarchicalroles.RoleHierarchy.class));
 
     @Nested
     @DisplayName("SpEL function translator beans")

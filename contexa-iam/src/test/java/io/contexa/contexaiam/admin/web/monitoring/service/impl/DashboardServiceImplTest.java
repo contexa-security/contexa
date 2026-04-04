@@ -14,6 +14,8 @@ import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -82,6 +84,12 @@ class DashboardServiceImplTest {
 
     @Mock
     private BlockedUserJpaRepository blockedUserJpaRepository;
+
+    @Mock
+    private PolicyValidationService policyValidationService;
+
+    @Mock
+    private PolicyCombiningProperties policyCombiningProperties;
 
     @InjectMocks
     private DashboardServiceImpl service;
@@ -184,6 +192,11 @@ class DashboardServiceImplTest {
         when(policyRepository.calculateAverageConfidenceScoreForAIPolicies()).thenReturn(0.75);
         when(policyRepository.findTop5ByOrderByCreatedAtDesc()).thenReturn(Collections.emptyList());
         when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
+        when(policyValidationService.validateAll()).thenReturn(
+                new io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport(0, "HEALTHY", List.of(), List.of()));
+        when(policyCombiningProperties.getCombiningAlgorithm()).thenReturn(
+                io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm.FIRST_APPLICABLE);
+        when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());
     }
 
     // =========================================================================

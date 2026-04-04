@@ -28,6 +28,16 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Exclude bridge integration tests that depend on external example modules
+sourceSets {
+    test {
+        java {
+            exclude '**/bridge/BridgeExampleLegacyBridgeIntegrationTest.java'
+            exclude '**/bridge/BridgeOauth2JwtBridgeIntegrationTest.java'
+        }
+    }
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }

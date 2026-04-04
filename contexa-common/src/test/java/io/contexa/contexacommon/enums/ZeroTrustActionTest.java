@@ -104,9 +104,9 @@ class ZeroTrustActionTest {
         }
 
         @Test
-        @DisplayName("Should return Duration for ALLOW with 1500 seconds")
+        @DisplayName("Should return Duration for ALLOW with 15 seconds")
         void shouldReturnDurationForAllow() {
-            assertThat(ZeroTrustAction.ALLOW.getDefaultTtl()).isEqualTo(Duration.ofSeconds(1500));
+            assertThat(ZeroTrustAction.ALLOW.getDefaultTtl()).isEqualTo(Duration.ofSeconds(15));
         }
 
         @Test

@@ -118,7 +118,7 @@ class ZeroTrustChallengeFilterTest {
     void pass() throws Exception {
         when(request.getRequestURI()).thenReturn("/dashboard");
         when(authentication.isAuthenticated()).thenReturn(true);
-        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.ALLOW);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.ALLOW);
         setUpAuthentication();
 
         filter.doFilter(request, response, filterChain);
@@ -144,7 +144,7 @@ class ZeroTrustChallengeFilterTest {
         when(request.getRequestURI()).thenReturn("/dashboard");
         setUpChallengeAuthentication();
         when(sessionRepository.getSessionId(request)).thenReturn(null);
-        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
         when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(false);
 
         filter.doFilter(request, response, filterChain);
@@ -165,7 +165,7 @@ class ZeroTrustChallengeFilterTest {
         setUpChallengeAuthentication();
 
         when(sessionRepository.getSessionId(request)).thenReturn(null);
-        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
         when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
 
         FactorContext factorContext = mock(FactorContext.class);
@@ -189,7 +189,7 @@ class ZeroTrustChallengeFilterTest {
         setUpChallengeAuthentication();
 
         when(sessionRepository.getSessionId(request)).thenReturn(null);
-        when(actionRepository.getCurrentAction(eq("testUser"), anyString())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
         when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
 
         when(challengeMfaInitializer.initializeChallengeFlow(any(), any(), any()))
