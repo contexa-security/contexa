@@ -218,6 +218,98 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should compact coverage-heavy cold-start prompts without dropping critical gaps")
+    void composeShouldCompactCoverageHeavyColdStartPrompt() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String userPrompt = String.join("\n",
+                "=== CURRENT REQUEST AND EVENT ===",
+                "CurrentHour: 19",
+                "User: admin",
+                "HttpMethod: GET",
+                "FailedLoginAttempts: 0",
+                "NewDevice: true",
+                "NewSession: false",
+                "NewUser: false",
+                "MfaVerified: true",
+                "Path: /admin/api/security-test/sensitive/resource-001",
+                "AuthorizationContext:",
+                "  AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT",
+                "  AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect; final AuthorizationEffect was resolved later from METHOD_INVOCATION_RESULT.",
+                "=== BRIDGE RESOLUTION CONTEXT ===",
+                "BridgeCompletenessLevel: AUTHORIZATION_CONTEXT",
+                "BridgeCompletenessSummary: Bridge completeness reached authentication and partial authorization context for the current request.",
+                "BridgeAuthenticationSource: SECURITY_CONTEXT",
+                "BridgeAuthorizationSource: SECURITY_CONTEXT",
+                "BridgeMissingContexts: AUTHORIZATION_EFFECT",
+                "BridgeRemediationHints: Populate an explicit authorization effect such as ALLOW or DENY for the current request.",
+                "=== CONTEXT COVERAGE ===",
+                "CoverageLevel: BUSINESS_AWARE",
+                "CoverageSummary: Business-aware context is available for role, resource, and session reasoning. Bridge coverage: AUTHORIZATION_CONTEXT.",
+                "AvailableFacts:",
+                "- Actor identity is available.",
+                "- Session identity is available.",
+                "- Effective roles are available.",
+                "- Authorization scope is available.",
+                "MissingCriticalFacts:",
+                "- Bridge missing context: AUTHORIZATION_EFFECT.",
+                "RemediationHints:",
+                "- Collect protectable access history so observed work patterns can be inferred.",
+                "- Populate an explicit authorization effect such as ALLOW or DENY for the current request.",
+                "ConfidenceWarnings:",
+                "- Observed work pattern is missing; comparisons against previously seen resources or action families remain limited.",
+                "- Personal work profile is missing; do not claim the current request matches long-term normal work patterns.",
+                "- Role scope profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of authorized business scope.",
+                "- Friction and approval history is missing; do not assume prior approval, challenge, or denial precedent exists.",
+                "=== IDENTITY AND ROLE CONTEXT ===",
+                "UserId: admin",
+                "PrincipalType: UNIFIEDCUSTOMUSERDETAILS",
+                "EffectiveRoles: DEVELOPER, USER, PENDING_ANALYSIS, MANAGER, ADMIN",
+                "EffectivePermissions: role.user, role.developer, role.manager, role.pending.analysis, role.admin",
+                "AuthorizationEffect: ALLOW",
+                "=== AUTHENTICATION AND ASSURANCE CONTEXT ===",
+                "SessionId: session-1",
+                "ClientIp: 0:0:0:0:0:0:0:1",
+                "AuthenticationType: ZEROTRUSTAUTHENTICATIONTOKEN",
+                "MfaVerified: true",
+                "FailedLoginAttempts: 0",
+                "RecentRequestCount: 2",
+                "NewSession: false",
+                "NewUser: false",
+                "NewDevice: true",
+                "=== RESOURCE AND ACTION CONTEXT ===",
+                "RequestPath: /admin/api/security-test/sensitive/resource-001",
+                "HttpMethod: GET",
+                "ActionFamily: READ",
+                "BusinessLabel: Sensitive Security Test Resource resource-001",
+                "Sensitivity: HIGH",
+                "SensitiveResource: true");
+
+        PromptViewComposition composition = composer.compose(
+                "system",
+                userPrompt,
+                PromptBudgetProfile.CORTEX_L1_STANDARD);
+
+        assertThat(composition.rawUserPrompt()).contains("AvailableFacts:");
+        assertThat(composition.llmUserPrompt()).contains("CoverageLevel: BUSINESS_AWARE");
+        assertThat(composition.llmUserPrompt()).contains("CoverageSummary: Business-aware context is available for role, resource, and session reasoning. Bridge coverage: AUTHORIZATION_CONTEXT.");
+        assertThat(composition.llmUserPrompt()).contains("MissingCriticalFacts:");
+        assertThat(composition.llmUserPrompt()).contains("- Bridge missing context: AUTHORIZATION_EFFECT.");
+        assertThat(composition.llmUserPrompt()).contains("AvailableFactsCompacted: 4");
+        assertThat(composition.llmUserPrompt()).contains("RemediationHintsCompacted: 2");
+        assertThat(composition.llmUserPrompt()).contains("AdditionalConfidenceWarningsCompacted: 1");
+        assertThat(composition.llmUserPrompt()).doesNotContain("AvailableFacts:\n- Actor identity is available.");
+        assertThat(composition.llmUserPrompt()).doesNotContain("RemediationHints:\n-");
+        assertThat(composition.llmUserPrompt()).doesNotContain("BridgeRemediationHints:");
+        assertThat(composition.compressionLedger().records())
+                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
+                .contains(
+                        Tuple.tuple("BRIDGE_RESOLUTION", PromptCompressionAction.SUMMARIZED),
+                        Tuple.tuple("CONTEXT_COVERAGE", PromptCompressionAction.SUMMARIZED),
+                        Tuple.tuple("AUTHENTICATION_AND_ASSURANCE", PromptCompressionAction.SUMMARIZED),
+                        Tuple.tuple("RESOURCE_AND_ACTION", PromptCompressionAction.SUMMARIZED));
+    }
+
+    @Test
     @DisplayName("SafePromptNormalizationLLMViewComposer should omit supporting sections with the compact budget ladder")
     void composeShouldOmitSupportingSectionsWhenCompactBudgetStillExceedsLimit() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
@@ -306,4 +398,5 @@ class SafePromptNormalizationLLMViewComposerTest {
                 .contains(Tuple.tuple("SYSTEM_PROMPT_DECISION_CONTRACT", PromptCompressionAction.SUMMARIZED));
     }
 }
+
 

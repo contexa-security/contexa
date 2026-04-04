@@ -814,14 +814,12 @@ public class BaselineLearningService {
     private String buildNewUserWarning(String userId, SecurityEvent currentEvent) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("=== CRITICAL: NO USER BASELINE ===\n");
-        sb.append("This user has NO established behavior pattern.\n");
-        sb.append("Zero Trust Principle: \"Never Trust, Always Verify\"\n\n");
-
-        sb.append("WITHOUT baseline comparison:\n");
-        sb.append("- You CANNOT determine if this behavior is normal\n");
-        sb.append("- You CANNOT compare against historical patterns\n");
-        sb.append("- This could be a first-time attacker\n\n");
+        sb.append("=== PERSONAL BASELINE STATUS ===\n");
+        sb.append("PersonalBaselineStatus: NOT_ESTABLISHED\n");
+        sb.append("PersonalBaselineSummary: No verified personal behavior baseline is available for this subject yet.\n");
+        sb.append("BaselineInterpretation: Missing personal history is uncertainty, not proof of compromise or legitimacy.\n");
+        sb.append("BaselineComparisonStatus: No verified personal history is available for direct comparison.\n");
+        sb.append("BaselineCollectorGuidance: Use only current request facts and any separately retrieved evidence.\n\n");
 
         sb.append("Current Request Context:\n");
         if (currentEvent != null) {
@@ -844,14 +842,10 @@ public class BaselineLearningService {
         }
         sb.append("\n");
 
-        sb.append("=== BASELINE CONSIDERATIONS ===\n");
-        sb.append("No traditional baseline profile established for this user.\n\n");
-
-        sb.append("Decision guidance (facts, not rules):\n");
-        sb.append("- RELATED CONTEXT contains VERIFIED NORMAL BEHAVIOR (past ALLOW decisions)\n");
-        sb.append("- If RELATED CONTEXT has documents matching current OS/IP/Hour, a verified pattern may exist\n");
-        sb.append("- If RELATED CONTEXT is EMPTY, there are no verified patterns to compare against\n");
-        sb.append("- Cannot verify behavior without comparison data\n\n");
+        sb.append("=== BASELINE COMPARISON NOTES ===\n");
+        sb.append("- RELATED CONTEXT may contain verified historical evidence if retrieval returns matching records.\n");
+        sb.append("- If RELATED CONTEXT is EMPTY, there is no verified personal comparison evidence for this request.\n");
+        sb.append("- Do not infer subject legitimacy or compromise solely from the absence of personal baseline data.\n\n");
 
         return sb.toString();
     }

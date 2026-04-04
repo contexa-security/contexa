@@ -358,12 +358,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             ctx.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
         }
 
-        if (event != null && event.getUserAgent() != null) {
-            ctx.setCurrentUserAgentOS(
-                    SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));
-            ctx.setCurrentUserAgentBrowser(
-                    SecurityEventEnricher.extractBrowserSignature(event.getUserAgent()));
-        }
+
 
         if (behaviorAnalysis.getBaselineContext() != null) {
             String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
@@ -372,7 +367,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         enrichBehaviorAnalysisWithBaselineSupport(ctx, event, baselineSeedService);
 
-        enrichWithActivityContext(ctx, event);
+        hydrateBehaviorAnalysisRuntimeFacts(ctx, event);
 
         if (threatIntelligenceService != null) {
             ctx.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, ctx));
@@ -383,33 +378,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
 
         return ctx;
-    }
-
-    private void enrichWithActivityContext(
-            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis ctx, SecurityEvent event) {
-        if (dataStore == null || event.getUserId() == null) return;
-
-        try {
-            Map<String, Object> metadata = event.getMetadata();
-            if (metadata != null && metadata.containsKey("lastRequestIntervalMs")) {
-                Object interval = metadata.get("lastRequestIntervalMs");
-                if (interval instanceof Number number) {
-                    ctx.setLastRequestIntervalMs(number.longValue());
-                } else if (interval instanceof String text && text.matches("-?\\d+")) {
-                    ctx.setLastRequestIntervalMs(Long.parseLong(text));
-                }
-            }
-
-            if (metadata != null && metadata.containsKey("previousPath")) {
-                Object previousPath = metadata.get("previousPath");
-                if (previousPath instanceof String text && !text.isBlank()) {
-                    ctx.setPreviousPath(text);
-                }
-            }
-        } catch (Exception e) {
-            log.error("[Layer1] Failed to enrich activity context: {}",
-                    e.getMessage());
-        }
     }
 
     private String extractOSFromBaselineContext(String baselineContext) {

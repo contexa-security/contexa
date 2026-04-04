@@ -266,6 +266,11 @@ class BaselineLearningServiceTest {
         String warning = service.buildBaselinePromptContext("org1_user1", event);
 
         assertThat(warning).contains("IP: 192.168.1.100 (range 192.168.1)");
+        assertThat(warning).contains("PersonalBaselineStatus: NOT_ESTABLISHED");
+        assertThat(warning).contains("BaselineInterpretation: Missing personal history is uncertainty, not proof of compromise or legitimacy.");
+        assertThat(warning).doesNotContain("This could be a first-time attacker");
+        assertThat(warning).doesNotContain("Never Trust, Always Verify");
+        assertThat(warning).doesNotContain("You CANNOT determine if this behavior is normal");
         assertThat(warning).contains("UA: Chrome/120");
         assertThat(warning).doesNotContain("??");
     }

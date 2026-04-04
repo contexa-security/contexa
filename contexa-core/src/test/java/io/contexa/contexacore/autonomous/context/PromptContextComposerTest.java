@@ -316,6 +316,78 @@ class PromptContextComposerTest {
         assertThat(section).contains("BridgeCompletenessSummary: Bridge-derived identity and authorization context was not attached to this request.");
     }
 
+    @Test
+    void composeMissingKnowledgeSectionShouldKeepCriticalGapsButCompactRepeatedTrustWarnings() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .coverage(new ContextCoverageReport(
+                        ContextCoverageLevel.BUSINESS_AWARE,
+                        List.of("Actor identity is available."),
+                        List.of("Bridge missing context: AUTHORIZATION_EFFECT."),
+                        List.of(
+                                "Populate an explicit authorization effect such as ALLOW or DENY for the current request.",
+                                "Attach peer cohort deltas through enterprise cohort enrichment when available."),
+                        List.of(
+                                "Observed work pattern is missing; comparisons remain limited.",
+                                "Personal work profile is missing; do not claim long-term normal work patterns.",
+                                "Reasoning memory is missing; avoid assuming prior validated cases exist."),
+                        "Business-aware context is available for role, resource, and session reasoning."))
+                .contextTrustProfiles(List.of(ContextTrustProfile.builder()
+                        .profileKey("ROLE_SCOPE_PROFILE")
+                        .collectorId("ROLE_SCOPE_COLLECTOR")
+                        .provenanceSummary("effectiveRoles=ADMIN,observations=0")
+                        .overallQualityGrade(ContextQualityGrade.WEAK)
+                        .scopeLimitations(List.of(
+                                "Use this profile to understand role-scoped reach after authorization, not to infer business objective by itself.",
+                                "Approval lineage still requires friction or enterprise memory context.",
+                                "Delegated objective still requires explicit delegation context."))
+                        .qualityWarnings(List.of(
+                                "Role scope field expectedResourceFamilies has thin evidence.",
+                                "Role scope field expectedActionFamilies has thin evidence.",
+                                "Role scope field recentPermissionChanges has thin evidence.",
+                                "Role scope baseline is thin; treat expected scope as provisional."))
+                        .fieldRecords(List.of(
+                                ContextFieldTrustRecord.builder()
+                                        .fieldPath("roleScope.expectedResourceFamilies")
+                                        .qualityGrade(ContextQualityGrade.WEAK)
+                                        .observationCount(1)
+                                        .daysCovered(0)
+                                        .fallbackRate(0.0d)
+                                        .unknownRate(1.0d)
+                                        .provenanceSummary("Observations 0")
+                                        .build(),
+                                ContextFieldTrustRecord.builder()
+                                        .fieldPath("roleScope.expectedActionFamilies")
+                                        .qualityGrade(ContextQualityGrade.WEAK)
+                                        .observationCount(1)
+                                        .daysCovered(0)
+                                        .fallbackRate(0.0d)
+                                        .unknownRate(1.0d)
+                                        .provenanceSummary("Observations 0")
+                                        .build(),
+                                ContextFieldTrustRecord.builder()
+                                        .fieldPath("roleScope.recentPermissionChanges")
+                                        .qualityGrade(ContextQualityGrade.WEAK)
+                                        .observationCount(1)
+                                        .daysCovered(0)
+                                        .fallbackRate(0.0d)
+                                        .unknownRate(1.0d)
+                                        .provenanceSummary("Observed authorization-scope fingerprint changes")
+                                        .build()))
+                        .build()))
+                .build();
+
+        String section = new PromptContextComposer().composeMissingKnowledgeSection(context);
+
+        assertThat(section).contains("=== EXPLICIT MISSING KNOWLEDGE ===");
+        assertThat(section).contains("Bridge missing context: AUTHORIZATION_EFFECT.");
+        assertThat(section).contains("ContextEvidenceLimitation: ROLE_SCOPE_PROFILE");
+        assertThat(section).contains("ContextFieldCoverage: roleScope.expectedResourceFamilies");
+        assertThat(section).contains("ContextFieldCoverage: roleScope.expectedActionFamilies");
+        assertThat(section).doesNotContain("- Remediation:");
+        assertThat(section).doesNotContain("- ConfidenceWarning:");
+        assertThat(section).doesNotContain("roleScope.recentPermissionChanges");
+        assertThat(section).contains("AdditionalContextTrustWarningsCompacted:");
+    }
     private List<String> extractHeaders(String promptSection) {
         List<String> headers = new ArrayList<>();
         for (String line : promptSection.split("\\R")) {
