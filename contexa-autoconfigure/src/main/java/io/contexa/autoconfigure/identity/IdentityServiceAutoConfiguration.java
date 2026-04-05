@@ -48,7 +48,7 @@ public class IdentityServiceAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(OneTimeTokenService.class)
-    public OneTimeTokenService oneTimeTokenService(
+    public EmailOneTimeTokenService oneTimeTokenService(
             EmailService emailService,
             JdbcTemplate jdbcTemplate,
             TransactionTemplate transactionTemplate,
@@ -75,3 +75,4 @@ public class IdentityServiceAutoConfiguration {
         return new MfaConfigController(authUrlProvider, mfaFlowUrlRegistry, stateMachineIntegrator);
     }
 }
+

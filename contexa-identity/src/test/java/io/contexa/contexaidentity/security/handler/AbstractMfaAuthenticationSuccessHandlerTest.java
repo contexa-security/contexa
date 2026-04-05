@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -48,7 +49,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
     }
 
     @Test
-    @DisplayName("SESSION MFA 완료는 최종 인증을 AISessionSecurityContextRepository에 저장한다")
+    @DisplayName("SESSION MFA completion persists final authentication in AISessionSecurityContextRepository")
     void save() throws Exception {
         AuthContextProperties properties = new AuthContextProperties();
         properties.setStateType(StateType.SESSION);
@@ -88,7 +89,8 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                 blockedUserRecorder,
                 blockMfaStateStore,
                 centralAuditFacade,
-                blockingSignalBroadcaster
+                blockingSignalBroadcaster,
+                false
         );
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin/login/mfa-ott");
@@ -103,7 +105,76 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         assertThat(contextCaptor.getValue().getAuthentication().getName()).isEqualTo("admin");
     }
 
+    @Test
+    @DisplayName("Returns structured error response when post-success pipeline fails")
+    void returnsStructuredErrorResponseWhenPostSuccessPipelineFails() throws Exception {
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.setStateType(StateType.SESSION);
+
+        AuthResponseWriter responseWriter = mock(AuthResponseWriter.class);
+        MfaSessionRepository sessionRepository = mock(MfaSessionRepository.class);
+        MfaStateMachineIntegrator integrator = mock(MfaStateMachineIntegrator.class);
+        ZeroTrustEventPublisher eventPublisher = mock(ZeroTrustEventPublisher.class);
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        SecurityLearningService learningService = mock(SecurityLearningService.class);
+        AuthUrlProvider authUrlProvider = mock(AuthUrlProvider.class);
+        MfaFlowUrlRegistry flowUrlRegistry = mock(MfaFlowUrlRegistry.class);
+        IBlockedUserRecorder blockedUserRecorder = mock(IBlockedUserRecorder.class);
+        BlockMfaStateStore blockMfaStateStore = mock(BlockMfaStateStore.class);
+        CentralAuditFacade centralAuditFacade = mock(CentralAuditFacade.class);
+        BlockingSignalBroadcaster blockingSignalBroadcaster = mock(BlockingSignalBroadcaster.class);
+        AISessionSecurityContextRepository aiRepository = mock(AISessionSecurityContextRepository.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<AISessionSecurityContextRepository> provider = mock(ObjectProvider.class);
+        ApplicationContext applicationContext = mock(ApplicationContext.class);
+
+        when(applicationContext.getBeanProvider(AISessionSecurityContextRepository.class)).thenReturn(provider);
+        when(provider.getIfAvailable()).thenReturn(aiRepository);
+
+        TestHandler handler = new TestHandler(
+                null,
+                responseWriter,
+                sessionRepository,
+                integrator,
+                properties,
+                eventPublisher,
+                actionRepository,
+                learningService,
+                applicationContext,
+                authUrlProvider,
+                flowUrlRegistry,
+                blockedUserRecorder,
+                blockMfaStateStore,
+                centralAuditFacade,
+                blockingSignalBroadcaster,
+                true
+        );
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin/login/mfa-ott");
+        request.addHeader("Accept", "application/json");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Authentication authentication = new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN");
+
+        handler.complete(request, response, authentication);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> detailCaptor = ArgumentCaptor.forClass((Class) Map.class);
+        verify(responseWriter).writeErrorResponse(
+                eq(response),
+                eq(HttpServletResponse.SC_INTERNAL_SERVER_ERROR),
+                eq("MFA_POST_SUCCESS_PIPELINE_FAILED"),
+                contains("buildResponseData"),
+                eq("/admin/login/mfa-ott"),
+                detailCaptor.capture());
+        assertThat(detailCaptor.getValue())
+                .containsEntry("status", "MFA_POST_SUCCESS_PIPELINE_FAILED")
+                .containsEntry("failedStage", "buildResponseData")
+                .containsEntry("userId", "admin");
+    }
+
     private static final class TestHandler extends AbstractMfaAuthenticationSuccessHandler {
+
+        private final boolean failOnBuildResponse;
 
         private TestHandler(TokenService tokenService,
                             AuthResponseWriter responseWriter,
@@ -119,11 +190,13 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                             IBlockedUserRecorder blockedUserRecorder,
                             BlockMfaStateStore blockMfaStateStore,
                             CentralAuditFacade centralAuditFacade,
-                            BlockingSignalBroadcaster blockingSignalBroadcaster) {
+                            BlockingSignalBroadcaster blockingSignalBroadcaster,
+                            boolean failOnBuildResponse) {
             super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
                     zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext,
                     authUrlProvider, mfaFlowUrlRegistry, blockedUserRecorder, blockMfaStateStore,
                     centralAuditFacade, blockingSignalBroadcaster);
+            this.failOnBuildResponse = failOnBuildResponse;
         }
 
         private void complete(HttpServletRequest request,
@@ -134,6 +207,9 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
 
         @Override
         protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
+            if (failOnBuildResponse) {
+                throw new IllegalStateException("boom");
+            }
             return "/admin";
         }
 

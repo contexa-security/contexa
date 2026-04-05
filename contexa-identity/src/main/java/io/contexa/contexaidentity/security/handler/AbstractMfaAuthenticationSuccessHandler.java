@@ -38,6 +38,7 @@ import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilte
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.helpers.MessageFormatter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.lang.Nullable;
@@ -52,6 +53,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -112,64 +114,132 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         StateType stateType = determineStateType(factorContext);
-
-        TokenPair tokenPair;
         TokenTransportResult transportResult = null;
 
         if (stateType == StateType.OAUTH2) {
-            String deviceId = factorContext != null ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID) : null;
-            tokenPair = createTokenPair(finalAuthentication, deviceId, request, response);
+            String deviceId = factorContext != null
+                    ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID)
+                    : null;
+            TokenPair tokenPair = createTokenPair(finalAuthentication, deviceId, request, response);
             String accessToken = tokenPair.getAccessToken();
             String refreshToken = tokenPair.getRefreshToken();
-
             transportResult = prepareTokenTransport(accessToken, refreshToken);
-
         }
 
         persistSessionAuthentication(finalAuthentication, request, response, stateType);
 
-        if (factorContext != null && factorContext.getMfaSessionId() != null) {
-            stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
-            sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
-
-            request.setAttribute("mfaSessionReleased", true);
-        }
-
-        String userId = finalAuthentication.getName();
-        if (factorContext != null && factorContext.isCompleted()) {
-            log.error("[MFA-TEST1] completed but factorContext is not null: {}", factorContext.isCompleted());
-            Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
-            if (Boolean.TRUE.equals(blockMfaFlow)) {
-                handleBlockMfaSuccess(userId, request, response);
-                return;
+        String successStage = "releaseStateMachine";
+        try {
+            if (factorContext != null && factorContext.getMfaSessionId() != null) {
+                stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
+                sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
+                request.setAttribute("mfaSessionReleased", true);
             }
-            markMfaVerifiedOnChallengeSuccess(userId);
-            resetActionOnMfaSuccess(userId, request, factorContext);
-            recordMfaCompletionInSession(request, factorContext);
-            log.error("[MFA-TEST1] Action: {}", actionRedisRepository.getCurrentAction(userId));
+
+            String userId = finalAuthentication.getName();
+            if (factorContext != null && factorContext.isCompleted()) {
+                log.error("[MFA-TEST1] completed but factorContext is not null: {}", factorContext.isCompleted());
+                Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
+                if (Boolean.TRUE.equals(blockMfaFlow)) {
+                    handleBlockMfaSuccess(userId, request, response);
+                    return;
+                }
+                successStage = "markMfaVerifiedOnChallengeSuccess";
+                markMfaVerifiedOnChallengeSuccess(userId);
+                successStage = "resetActionOnMfaSuccess";
+                resetActionOnMfaSuccess(userId, request, factorContext);
+                successStage = "recordMfaCompletionInSession";
+                recordMfaCompletionInSession(request, factorContext);
+                log.error("[MFA-TEST1] Action: {}", actionRedisRepository.getCurrentAction(userId));
+            }
+
+            successStage = "buildResponseData";
+            Map<String, Object> responseData = buildResponseData(stateType, transportResult, request, response);
+            TokenTransportResult finalResult = TokenTransportResult.builder()
+                    .body(responseData)
+                    .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
+                    .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
+                    .headers(transportResult != null ? transportResult.getHeaders() : null)
+                    .build();
+
+            successStage = "executeDelegateHandler";
+            executeDelegateHandler(request, response, finalAuthentication, finalResult);
+
+            successStage = "onFinalAuthenticationSuccess";
+            if (!response.isCommitted()) {
+                onFinalAuthenticationSuccess(request, response, finalAuthentication, finalResult);
+            }
+
+            successStage = "processDefaultResponse";
+            if (!response.isCommitted()) {
+                processDefaultResponse(request, response, stateType, finalResult);
+            }
+
+            successStage = "auditAuthenticationSuccess";
+            if (factorContext != null && factorContext.isCompleted()) {
+                auditAuthenticationSuccess(request, finalAuthentication, factorContext);
+            }
+        } catch (Throwable throwable) {
+            handlePostSuccessPipelineFailure(request, response, finalAuthentication, factorContext, successStage, throwable);
+        }
+    }
+
+    private void handlePostSuccessPipelineFailure(HttpServletRequest request,
+                                                  HttpServletResponse response,
+                                                  Authentication finalAuthentication,
+                                                  @Nullable FactorContext factorContext,
+                                                  String failedStage,
+                                                  Throwable throwable) throws IOException {
+        if (response.isCommitted()) {
+            safeLogError("MFA post-success pipeline failed after response commit at stage {} for user {}",
+                    throwable,
+                    failedStage,
+                    finalAuthentication.getName());
+            return;
         }
 
-        Map<String, Object> responseData = buildResponseData(stateType, transportResult, request, response);
-        TokenTransportResult finalResult = TokenTransportResult.builder()
-                .body(responseData)
-                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
-                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
-                .headers(transportResult != null ? transportResult.getHeaders() : null)
-                .build();
+        safeLogError("MFA post-success pipeline failed at stage {} for user {}",
+                throwable,
+                failedStage,
+                finalAuthentication.getName());
 
-        executeDelegateHandler(request, response, finalAuthentication, finalResult);
-
-        if (!response.isCommitted()) {
-            onFinalAuthenticationSuccess(request, response, finalAuthentication, finalResult);
+        Map<String, Object> errorDetails = new LinkedHashMap<>();
+        errorDetails.put("status", "MFA_POST_SUCCESS_PIPELINE_FAILED");
+        errorDetails.put("failedStage", failedStage);
+        errorDetails.put("userId", finalAuthentication.getName());
+        errorDetails.put("causeType", throwable.getClass().getName());
+        errorDetails.put("causeMessage", throwable.getMessage());
+        if (factorContext != null) {
+            errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
+            errorDetails.put("mfaState", factorContext.getCurrentState() != null
+                    ? factorContext.getCurrentState().name()
+                    : null);
         }
 
-        if (!response.isCommitted()) {
-            processDefaultResponse(request, response, stateType, finalResult);
+        if (isApiRequest(request)) {
+            responseWriter.writeErrorResponse(
+                    response,
+                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "MFA_POST_SUCCESS_PIPELINE_FAILED",
+                    "MFA post-success pipeline failed at stage: " + failedStage,
+                    request.getRequestURI(),
+                    errorDetails);
+            return;
         }
 
-        if (factorContext != null && factorContext.isCompleted()) {
-            auditAuthenticationSuccess(request, finalAuthentication, factorContext);
+        response.sendRedirect(request.getContextPath() + resolveProvider(request).getMfaFailure() + "?error=post_success_pipeline");
+    }
+
+    private void safeLogError(String template, Throwable throwable, Object... args) {
+        String rendered = MessageFormatter.arrayFormat(template, args).getMessage();
+        if (throwable == null) {
+            log.error(rendered);
+            return;
         }
+        log.error("{} | cause={} | message={}",
+                rendered,
+                throwable.getClass().getName(),
+                throwable.getMessage());
     }
 
     private void persistSessionAuthentication(Authentication finalAuthentication,
@@ -196,7 +266,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             HttpSessionSecurityContextRepository fallbackRepository = new HttpSessionSecurityContextRepository();
             fallbackRepository.saveContext(context, request, response);
         } catch (Exception e) {
-            log.error("Failed to persist session SecurityContext after MFA success for user: {}", finalAuthentication.getName(), e);
+            safeLogError("Failed to persist session SecurityContext after MFA success for user: {}", e, finalAuthentication.getName());
         }
     }
 
@@ -432,7 +502,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             );
 
         } catch (Exception e) {
-            log.error("Failed to publish authentication success event", e);
+            safeLogError("Failed to publish authentication success event", e);
         }
     }
 
@@ -469,7 +539,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .details(details)
                     .build());
         } catch (Exception e) {
-            log.error("Failed to audit authentication success", e);
+            safeLogError("Failed to audit authentication success", e);
         }
     }
 
@@ -571,7 +641,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 blockingSignalBroadcaster.registerUnblock(userId);
             }
         } catch (Exception e) {
-            log.error("[MFA] Failed to process block MFA success for user: {}", userId, e);
+            safeLogError("[MFA] Failed to process block MFA success for user: {}", e, userId);
         }
 
         String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
@@ -594,7 +664,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             HCADDataStore hcadDataStore = applicationContext.getBean(HCADDataStore.class);
             hcadDataStore.markMfaVerified(userId);
         } catch (Exception e) {
-            log.error("[MFA] Failed to mark MFA verified on challenge success: userId={}", userId, e);
+            safeLogError("[MFA] Failed to mark MFA verified on challenge success: userId={}", e, userId);
         }
     }
 
@@ -619,7 +689,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             updateSecurityContextAction(ZeroTrustAction.ALLOW);
 
         } catch (Exception e) {
-            log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
+            safeLogError("[MFA] Failed to set action to ALLOW for user: {}", e, userId);
         }
     }
 
@@ -630,7 +700,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 ztToken.setAction(newAction);
             }
         } catch (Exception e) {
-            log.error("[MFA] Failed to update SecurityContext action to {}", newAction, e);
+            safeLogError("[MFA] Failed to update SecurityContext action to {}", e, newAction);
         }
     }
 
@@ -647,7 +717,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 dataStore.addSessionAction(sessionId, record);
             }
         } catch (Exception e) {
-            log.error("[MFA] Failed to record MFA completion in session timeline", e);
+            safeLogError("[MFA] Failed to record MFA completion in session timeline", e);
         }
     }
 
@@ -684,7 +754,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             securityLearningService.learnAndStore(userId, decision, event);
 
         } catch (Exception e) {
-            log.error("[MFA] Failed to learn on LLM-challenged MFA success: userId={}", userId, e);
+            safeLogError("[MFA] Failed to learn on LLM-challenged MFA success: userId={}", e, userId);
         }
     }
 }
+
