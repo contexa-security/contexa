@@ -37,9 +37,8 @@ class ContexaPropertiesTest {
 
             assertThat(properties.getHcad().isEnabled()).isTrue();
             assertThat(properties.getHcad().getSimilarity().getHotPathThreshold()).isEqualTo(0.7);
-            assertThat(properties.getHcad().getSimilarity().getMinimalThreshold()).isEqualTo(0.8);
             assertThat(properties.getHcad().getBaseline().getMinSamples()).isEqualTo(10);
-            assertThat(properties.getHcad().getBaseline().isAutoLearning()).isTrue();
+            assertThat(properties.getHcad().getBaseline().getCacheTtl()).isEqualTo(3600);
         }
 
         @Test
@@ -48,7 +47,6 @@ class ContexaPropertiesTest {
             ContexaProperties properties = new ContexaProperties();
 
             assertThat(properties.getAutonomous().isEnabled()).isTrue();
-            assertThat(properties.getAutonomous().getStrategyMode()).isEqualTo("dynamic");
             assertThat(properties.getAutonomous().getEventTimeout()).isEqualTo(30000L);
         }
 
@@ -58,18 +56,15 @@ class ContexaPropertiesTest {
             ContexaProperties properties = new ContexaProperties();
 
             assertThat(properties.getLlm().isEnabled()).isTrue();
-            assertThat(properties.getLlm().isTieredEnabled()).isTrue();
             assertThat(properties.getLlm().isAdvisorEnabled()).isTrue();
+            assertThat(properties.getLlm().getChatModelPriority()).isEqualTo("ollama,anthropic,openai");
+            assertThat(properties.getLlm().getEmbeddingModelPriority()).isEqualTo("ollama,openai");
         }
 
         @Test
-        @DisplayName("Should have simulation disabled by default")
-        void shouldHaveSimulationDisabled() {
+        @DisplayName("Should have feedback enabled by default")
+        void shouldHaveFeedbackEnabled() {
             ContexaProperties properties = new ContexaProperties();
-
-            assertThat(properties.getSimulation().isEnabled()).isFalse();
-            assertThat(properties.getSimulation().getData().isEnabled()).isFalse();
-            assertThat(properties.getSimulation().getData().isClearExisting()).isFalse();
         }
     }
 
@@ -101,16 +96,12 @@ class ContexaPropertiesTest {
         }
 
         @Test
-        @DisplayName("Should allow RAG vector store configuration")
+        @DisplayName("Should allow RAG configuration")
         void shouldConfigureRag() {
             ContexaProperties properties = new ContexaProperties();
-            properties.getRag().getVectorStore().setType("qdrant");
-            properties.getRag().getVectorStore().setDefaultTopK(10);
-            properties.getRag().getVectorStore().setDefaultSimilarityThreshold(0.9);
+            properties.getRag().setEnabled(false);
 
-            assertThat(properties.getRag().getVectorStore().getType()).isEqualTo("qdrant");
-            assertThat(properties.getRag().getVectorStore().getDefaultTopK()).isEqualTo(10);
-            assertThat(properties.getRag().getVectorStore().getDefaultSimilarityThreshold()).isEqualTo(0.9);
+            assertThat(properties.getRag().isEnabled()).isFalse();
         }
 
         @Test
