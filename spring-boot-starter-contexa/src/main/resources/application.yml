@@ -2,8 +2,6 @@
 # Contexa AI-Native Zero Trust Security Platform
 # ============================================================
 
-server.port: 9999
-
 contexa:
   saas:
     enabled: true
