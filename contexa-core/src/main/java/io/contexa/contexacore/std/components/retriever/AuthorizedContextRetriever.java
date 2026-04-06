@@ -5,6 +5,7 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
+import io.contexa.contexacore.std.rag.service.VectorOperations;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -27,6 +28,14 @@ public class AuthorizedContextRetriever extends ContextRetriever {
         this.promptContextAuthorizationService = promptContextAuthorizationService;
     }
 
+    public AuthorizedContextRetriever(
+            VectorOperations vectorOperations,
+            ContexaRagProperties ragProperties,
+            PromptContextAuthorizationService promptContextAuthorizationService) {
+        super(vectorOperations, ragProperties);
+        this.promptContextAuthorizationService = promptContextAuthorizationService;
+    }
+
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
         String query = extractQueryFromRequest(request);
@@ -37,7 +46,7 @@ public class AuthorizedContextRetriever extends ContextRetriever {
                 .similarityThreshold(ragProperties.getDefaults().getSimilarityThreshold())
                 .build();
 
-        List<Document> retrievedDocuments = vectorStore.similaritySearch(searchRequest);
+        List<Document> retrievedDocuments = vectorOperations.searchSimilar(searchRequest);
         AuthorizedPromptContext authorizedContext = promptContextAuthorizationService.authorize(request, retrievedDocuments);
 
         String contextInfo = authorizedContext.documents().stream()

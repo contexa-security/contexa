@@ -74,6 +74,24 @@ public class ContexaProperties {
         private boolean advisorEnabled = true;
         private String chatModelPriority = "ollama,anthropic,openai";
         private String embeddingModelPriority = "ollama,openai";
+
+        @NestedConfigurationProperty
+        private Embedding embedding = new Embedding();
+
+        @Data
+        public static class Embedding {
+
+            @NestedConfigurationProperty
+            private Ollama ollama = new Ollama();
+
+            @Data
+            public static class Ollama {
+
+                private boolean dedicatedRuntimeEnabled = false;
+                private String baseUrl = "";
+                private String model = "";
+            }
+        }
     }
 
     

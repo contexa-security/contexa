@@ -68,4 +68,44 @@ class ResponseParsingStepTest {
         assertThat(lite.getAction()).isEqualTo("BLOCK");
         assertThat(lite.getReasoning()).contains("No response from LLM");
     }
+
+    @Test
+    void executeShouldNormalizeMarkdownFinalDecisionIntoCanonicalAction() {
+        ResponseParsingStep step = new ResponseParsingStep();
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.LLM_EXECUTION,
+                "**Final Decision:** DENY\nConfidence: HIGH\nReasoning: Approval lineage is absent for this sensitive request.\nMITRE: UNKNOWN");
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+
+        Object result = step.execute(request, context).block();
+
+        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
+        SecurityDecisionResponseLite lite = (SecurityDecisionResponseLite) result;
+        assertThat(lite.getAction()).isEqualTo("BLOCK");
+        assertThat(lite.getConfidence()).isEqualTo(0.85d);
+        assertThat(lite.getReasoning()).contains("Approval lineage is absent");
+    }
+
+    @Test
+    void executeShouldCoerceLabeledConfidenceFromJsonDecisionPayload() {
+        ResponseParsingStep step = new ResponseParsingStep();
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.LLM_EXECUTION,
+                "{\"action\":\"ALLOW\",\"confidence\":\"MODERATE\",\"riskScore\":\"LOW\",\"reasoning\":\"Baseline aligns with the restored session.\",\"mitre\":\"UNKNOWN\"}");
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+
+        Object result = step.execute(request, context).block();
+
+        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
+        SecurityDecisionResponseLite lite = (SecurityDecisionResponseLite) result;
+        assertThat(lite.getAction()).isEqualTo("ALLOW");
+        assertThat(lite.getConfidence()).isEqualTo(0.74d);
+        assertThat(lite.getRiskScore()).isEqualTo(0.54d);
+    }
 }

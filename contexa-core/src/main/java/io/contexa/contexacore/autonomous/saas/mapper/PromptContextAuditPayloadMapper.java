@@ -61,6 +61,8 @@ public class PromptContextAuditPayloadMapper {
                 .promptHash(resolvePromptHash(event))
                 .systemPromptHash(resolveSystemPromptHash(event))
                 .userPromptHash(resolveUserPromptHash(event))
+                .systemPrompt(resolveSystemPrompt(event))
+                .userPrompt(resolveUserPrompt(event))
                 .resourceId(resolveResourceId(event))
                 .requestPath(resolveRequestPath(event))
                 .promptRuntimeTelemetryLinked(resolvePromptRuntimeTelemetryLinked(event))
@@ -106,6 +108,8 @@ public class PromptContextAuditPayloadMapper {
                 .promptHash(firstNonBlank(resolvePromptHash(event), payload.getPromptHash()))
                 .systemPromptHash(firstNonBlank(resolveSystemPromptHash(event), payload.getSystemPromptHash()))
                 .userPromptHash(firstNonBlank(resolveUserPromptHash(event), payload.getUserPromptHash()))
+                .systemPrompt(firstNonBlank(resolveSystemPrompt(event), payload.getSystemPrompt()))
+                .userPrompt(firstNonBlank(resolveUserPrompt(event), payload.getUserPrompt()))
                 .resourceId(firstNonBlank(resolveResourceId(event), payload.getResourceId()))
                 .requestPath(firstNonBlank(resolveRequestPath(event), payload.getRequestPath()))
                 .promptRuntimeTelemetryLinked(metadata(event).containsKey("promptRuntimeTelemetryLinked")
@@ -143,6 +147,14 @@ public class PromptContextAuditPayloadMapper {
 
     private String resolveUserPromptHash(SecurityEvent event) {
         return resolveText(metadata(event), "userPromptHash");
+    }
+
+    private String resolveSystemPrompt(SecurityEvent event) {
+        return resolveText(metadata(event), "systemPrompt");
+    }
+
+    private String resolveUserPrompt(SecurityEvent event) {
+        return resolveText(metadata(event), "userPrompt");
     }
 
     private String resolveResourceId(SecurityEvent event) {
@@ -411,3 +423,4 @@ public class PromptContextAuditPayloadMapper {
         return StringUtils.hasText(value) ? value.trim() : "";
     }
 }
+

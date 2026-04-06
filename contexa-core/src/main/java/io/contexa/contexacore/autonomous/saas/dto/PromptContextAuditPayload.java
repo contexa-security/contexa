@@ -32,6 +32,8 @@ public class PromptContextAuditPayload {
     private String promptHash;
     private String systemPromptHash;
     private String userPromptHash;
+    private String systemPrompt;
+    private String userPrompt;
     private String resourceId;
     private String requestPath;
     private Boolean promptRuntimeTelemetryLinked;

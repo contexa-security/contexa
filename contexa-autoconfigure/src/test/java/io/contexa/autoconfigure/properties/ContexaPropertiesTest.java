@@ -59,12 +59,17 @@ class ContexaPropertiesTest {
             assertThat(properties.getLlm().isAdvisorEnabled()).isTrue();
             assertThat(properties.getLlm().getChatModelPriority()).isEqualTo("ollama,anthropic,openai");
             assertThat(properties.getLlm().getEmbeddingModelPriority()).isEqualTo("ollama,openai");
+            assertThat(properties.getLlm().getEmbedding().getOllama().isDedicatedRuntimeEnabled()).isFalse();
+            assertThat(properties.getLlm().getEmbedding().getOllama().getBaseUrl()).isEmpty();
+            assertThat(properties.getLlm().getEmbedding().getOllama().getModel()).isEmpty();
         }
 
         @Test
         @DisplayName("Should have feedback enabled by default")
         void shouldHaveFeedbackEnabled() {
             ContexaProperties properties = new ContexaProperties();
+
+            assertThat(properties.getSaas()).isNotNull();
         }
     }
 
@@ -102,6 +107,19 @@ class ContexaPropertiesTest {
             properties.getRag().setEnabled(false);
 
             assertThat(properties.getRag().isEnabled()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should allow dedicated embedding runtime configuration")
+        void shouldConfigureDedicatedEmbeddingRuntime() {
+            ContexaProperties properties = new ContexaProperties();
+            properties.getLlm().getEmbedding().getOllama().setDedicatedRuntimeEnabled(true);
+            properties.getLlm().getEmbedding().getOllama().setBaseUrl("http://127.0.0.1:11435");
+            properties.getLlm().getEmbedding().getOllama().setModel("mxbai-embed-large");
+
+            assertThat(properties.getLlm().getEmbedding().getOllama().isDedicatedRuntimeEnabled()).isTrue();
+            assertThat(properties.getLlm().getEmbedding().getOllama().getBaseUrl()).isEqualTo("http://127.0.0.1:11435");
+            assertThat(properties.getLlm().getEmbedding().getOllama().getModel()).isEqualTo("mxbai-embed-large");
         }
 
         @Test

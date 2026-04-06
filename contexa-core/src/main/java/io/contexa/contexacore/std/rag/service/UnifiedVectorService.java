@@ -25,6 +25,15 @@ public class UnifiedVectorService implements VectorOperations {
     private final VectorStore vectorStore;
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+    private static final int DEFAULT_MAX_CONCURRENT_VECTOR_OPERATIONS = 1;
+    private static final int DEFAULT_VECTOR_BUSY_RETRY_ATTEMPTS = 5;
+    private static final long DEFAULT_VECTOR_BUSY_INITIAL_BACKOFF_MS = 250L;
+    private static final long DEFAULT_VECTOR_BUSY_MAX_BACKOFF_MS = 2_000L;
+    private static final int VECTOR_BUSY_RETRY_ATTEMPTS = Math.max(1,
+            Integer.getInteger("contexa.vector.busy-retry-attempts", DEFAULT_VECTOR_BUSY_RETRY_ATTEMPTS));
+    private static final Semaphore VECTOR_OPERATION_GATE = new Semaphore(
+            Math.max(1, Integer.getInteger("contexa.vector.max-concurrent-operations", DEFAULT_MAX_CONCURRENT_VECTOR_OPERATIONS)),
+            true);
 
     public UnifiedVectorService(
             PgVectorStoreProperties properties,
@@ -40,13 +49,14 @@ public class UnifiedVectorService implements VectorOperations {
     public void storeDocument(Document document) {
         validateDocument(document);
         enrichStandardMetadata(document);
-        executeWithinTimeout(
+        executeWithBusyRetry(
                 () -> {
                     vectorStore.add(List.of(document));
                     return null;
                 },
                 properties.getStoreTimeoutMs(),
-                "store document");
+                "store document",
+                "Failed to store document");
         cacheLayer.invalidateAll();
     }
 
@@ -67,13 +77,14 @@ public class UnifiedVectorService implements VectorOperations {
             int end = Math.min(i + batchSize, documents.size());
             List<Document> batch = documents.subList(i, end);
             List<Document> immutableBatch = List.copyOf(batch);
-            executeWithinTimeout(
+            executeWithBusyRetry(
                     () -> {
                         vectorStore.add(immutableBatch);
                         return null;
                     },
                     properties.getStoreTimeoutMs(),
-                    "store document batch");
+                    "store document batch",
+                    "Failed to store document batch");
         }
 
         cacheLayer.invalidateAll();
@@ -114,19 +125,39 @@ public class UnifiedVectorService implements VectorOperations {
 
     @Override
     public List<Document> searchSimilar(SearchRequest searchRequest) {
-        try {
-            return executeWithinTimeout(
-                    () -> cacheLayer.similaritySearch(searchRequest),
-                    properties.getSearchTimeoutMs(),
-                    "similarity search");
+        return executeWithBusyRetry(
+                () -> cacheLayer.similaritySearch(searchRequest),
+                properties.getSearchTimeoutMs(),
+                "similarity search",
+                "Similarity search failed");
+    }
 
-        } catch (VectorStoreCacheLayer.VectorSearchException vectorSearchException) {
-            log.error("[UnifiedVectorService] Cache-backed similarity search failed", vectorSearchException);
-            throw new VectorStoreException("Similarity search failed", vectorSearchException);
-        } catch (Exception e) {
-            log.error("[UnifiedVectorService] Error during similarity search", e);
-            throw new VectorStoreException("Similarity search failed", e);
+    private <T> T executeWithBusyRetry(Callable<T> operation, long timeoutMs, String operationLabel, String failureMessage) {
+        VectorStoreException lastFailure = null;
+        for (int attempt = 0; attempt < VECTOR_BUSY_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return executeWithinTimeout(operation, timeoutMs, operationLabel);
+            } catch (VectorStoreCacheLayer.VectorSearchException vectorSearchException) {
+                log.error("[UnifiedVectorService] {} failed", operationLabel, vectorSearchException);
+                VectorStoreException mapped = new VectorStoreException(failureMessage, vectorSearchException);
+                if (!isRetryableBusyFailure(vectorSearchException) || attempt >= VECTOR_BUSY_RETRY_ATTEMPTS - 1) {
+                    throw mapped;
+                }
+                lastFailure = mapped;
+                registerBusyRetry(attempt + 1, vectorSearchException, operationLabel);
+            } catch (RuntimeException runtimeException) {
+                log.error("[UnifiedVectorService] {} failed", operationLabel, runtimeException);
+                VectorStoreException mapped = runtimeException instanceof VectorStoreException vectorStoreException
+                        ? vectorStoreException
+                        : new VectorStoreException(failureMessage, runtimeException);
+                if (!isRetryableBusyFailure(runtimeException) || attempt >= VECTOR_BUSY_RETRY_ATTEMPTS - 1) {
+                    throw mapped;
+                }
+                lastFailure = mapped;
+                registerBusyRetry(attempt + 1, runtimeException, operationLabel);
+            }
         }
+        throw lastFailure != null ? lastFailure : new VectorStoreException(failureMessage);
     }
 
     @Override
@@ -175,12 +206,68 @@ public class UnifiedVectorService implements VectorOperations {
         }
     }
 
+    private void registerBusyRetry(int retryCount, Throwable throwable, String operationLabel) {
+        SecurityEventTelemetryContext.put("vectorRetryCount", retryCount);
+        SecurityEventTelemetryContext.put("vectorRetryReason", safeRetryMessage(throwable));
+        long backoffMs = busyRetryBackoffMs(retryCount);
+        log.warn("[UnifiedVectorService] Retrying {} after busy failure (attempt={}, backoff={}ms, reason={})",
+                operationLabel,
+                retryCount,
+                backoffMs,
+                safeRetryMessage(throwable));
+        sleepQuietly(backoffMs);
+    }
+
+    private long busyRetryBackoffMs(int retryCount) {
+        int normalizedRetry = Math.max(1, retryCount);
+        long backoffMs = DEFAULT_VECTOR_BUSY_INITIAL_BACKOFF_MS << Math.max(0, normalizedRetry - 1);
+        return Math.min(DEFAULT_VECTOR_BUSY_MAX_BACKOFF_MS, backoffMs);
+    }
+
+    private boolean isRetryableBusyFailure(Throwable throwable) {
+        if (throwable == null) {
+            return false;
+        }
+        String message = throwable.getMessage();
+        if (message != null) {
+            String normalized = message.toLowerCase(Locale.ROOT);
+            if (normalized.contains("maximum pending requests exceeded")
+                    || normalized.contains("server busy, please try again")
+                    || normalized.contains("transientaiexception")
+                    || normalized.contains("http 503")) {
+                return true;
+            }
+        }
+        return isRetryableBusyFailure(throwable.getCause());
+    }
+
+    private String safeRetryMessage(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown";
+        }
+        if (throwable.getMessage() != null && !throwable.getMessage().isBlank()) {
+            return throwable.getMessage();
+        }
+        return throwable.getClass().getSimpleName();
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private <T> T executeWithinTimeout(Callable<T> operation, long timeoutMs, String operationLabel) {
         SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
         var executor = Executors.newVirtualThreadPerTaskExecutor();
         CompletableFuture<T> future = null;
         long effectiveTimeoutMs = Math.max(100L, timeoutMs);
+        boolean permitAcquired = false;
         try {
+            acquireVectorOperationPermit(operationLabel);
+            permitAcquired = true;
             future = CompletableFuture.supplyAsync(() -> {
                 try {
                     return operation.call();
@@ -206,7 +293,17 @@ public class UnifiedVectorService implements VectorOperations {
             Thread.currentThread().interrupt();
             throw new VectorStoreException("Vector store " + operationLabel + " interrupted", interruptedException);
         } finally {
+            if (permitAcquired) {
+                VECTOR_OPERATION_GATE.release();
+            }
             executor.shutdownNow();
         }
     }
+
+    private void acquireVectorOperationPermit(String operationLabel) throws InterruptedException {
+        VECTOR_OPERATION_GATE.acquire();
+        SecurityEventTelemetryContext.put("vectorOperationGatePermitsRemaining", VECTOR_OPERATION_GATE.availablePermits());
+        SecurityEventTelemetryContext.put("vectorOperationLabel", operationLabel);
+    }
 }
+

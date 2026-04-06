@@ -543,7 +543,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected List<Document> searchRelatedContextBase(SecurityEvent event,
                                                        int topK,
                                                        double similarityThreshold) {
+        int requestedTopK = Math.max(topK, 1);
+        String retrievalPurpose = getContextRetrievalPurpose();
         if (unifiedVectorService == null) {
+            capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
+                    "VECTOR_SERVICE_UNAVAILABLE", null);
             return Collections.emptyList();
         }
         try {
@@ -567,6 +571,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             String query = queryBuilder.toString().trim();
             if (query.isEmpty()) {
+                capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
+                        "VECTOR_QUERY_EMPTY", null);
                 return Collections.emptyList();
             }
 
@@ -574,10 +580,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
                 log.error("[{}] userId missing - skipping RAG search for account isolation",
                     getLayerName());
+                capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
+                        "USER_ID_MISSING", null);
                 return Collections.emptyList();
             }
-
-            String retrievalPurpose = getContextRetrievalPurpose();
 
             FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
             List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
@@ -600,30 +606,70 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .filterExpression(filter)
                     .build();
 
-            int requestedTopK = Math.max(topK, 1);
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
             AuthorizedPromptContext limitedAuthorizedPromptContext;
             if (documents == null || documents.isEmpty()) {
                 limitedAuthorizedPromptContext = limitAuthorizedPromptContext(null, requestedTopK);
             } else {
                 AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
-                        .authorize(event, getContextRetrievalPurpose(), documents);
+                        .authorize(event, retrievalPurpose, documents);
 
                 limitedAuthorizedPromptContext =
                         limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
             }
-            if (promptContextAuditForwardingService != null) {
-                promptContextAuditForwardingService.capture(
-                        event,
-                        getContextRetrievalPurpose(),
-                        limitedAuthorizedPromptContext);
-            }
+            capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
             return limitedAuthorizedPromptContext.documents();
 
         } catch (Exception e) {
             log.error("[{}] Vector store context search failed", getLayerName(), e);
+            capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
+                    "VECTOR_STORE_SEARCH_FAILED", e);
             return Collections.emptyList();
         }
+    }
+
+    private void capturePromptContextAudit(
+            SecurityEvent event,
+            String retrievalPurpose,
+            AuthorizedPromptContext authorizedPromptContext) {
+        if (promptContextAuditForwardingService == null || event == null || authorizedPromptContext == null) {
+            return;
+        }
+        try {
+            promptContextAuditForwardingService.capture(event, retrievalPurpose, authorizedPromptContext);
+        } catch (Exception captureException) {
+            log.error("[{}] Prompt context audit capture failed", getLayerName(), captureException);
+        }
+    }
+
+    private void capturePromptContextAuditFallback(
+            SecurityEvent event,
+            String retrievalPurpose,
+            int requestedTopK,
+            String failureCode,
+            Exception exception) {
+        AuthorizedPromptContext fallbackPromptContext = new AuthorizedPromptContext(
+                List.of(),
+                0,
+                0,
+                0,
+                retrievalPurpose,
+                buildPromptContextAuditFallbackReasons(failureCode, exception));
+        capturePromptContextAudit(event, retrievalPurpose, fallbackPromptContext);
+    }
+
+    private List<String> buildPromptContextAuditFallbackReasons(String failureCode, Exception exception) {
+        List<String> fallbackReasons = new ArrayList<>();
+        if (StringUtils.hasText(failureCode)) {
+            fallbackReasons.add(failureCode.trim());
+        }
+        if (exception != null) {
+            fallbackReasons.add(exception.getClass().getSimpleName());
+            if (StringUtils.hasText(exception.getMessage())) {
+                fallbackReasons.add(exception.getMessage().trim());
+            }
+        }
+        return fallbackReasons.isEmpty() ? List.of("PROMPT_CONTEXT_AUDIT_FALLBACK") : List.copyOf(fallbackReasons);
     }
 
     private AuthorizedPromptContext limitAuthorizedPromptContext(
@@ -886,18 +932,54 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (event == null || pipelineResponse == null) {
             return;
         }
-        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(
-                pipelineResponse.getAllMetadata());
-        if (telemetry.isEmpty()) {
-            return;
-        }
         Map<String, Object> metadata = ensureMutableEventMetadata(event);
-        metadata.putAll(telemetry);
-        metadata.put("promptRuntimeTelemetryLinked", true);
-        metadata.put("promptRuntimeTelemetryLayer", getLayerName());
-        if (promptContextAuditForwardingService != null) {
+        Map<String, Object> responseMetadata = pipelineResponse.getAllMetadata();
+        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(responseMetadata);
+        if (!telemetry.isEmpty()) {
+            metadata.putAll(telemetry);
+            metadata.put("promptRuntimeTelemetryLinked", true);
+            metadata.put("promptRuntimeTelemetryLayer", getLayerName());
+        }
+        copyPromptTextIfPresent(responseMetadata, metadata, "systemPrompt");
+        copyPromptTextIfPresent(responseMetadata, metadata, "userPrompt");
+        copyPromptTextIfPresent(responseMetadata, metadata, "rawSystemPrompt");
+        copyPromptTextIfPresent(responseMetadata, metadata, "rawUserPrompt");
+        if (promptContextAuditForwardingService != null && hasPromptLineage(metadata)) {
             promptContextAuditForwardingService.enrich(event);
         }
+    }
+
+    private void copyPromptTextIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source == null || target == null || !StringUtils.hasText(key)) {
+            return;
+        }
+        Object value = source.get(key);
+        if (value instanceof String text && !text.isBlank()) {
+            target.put(key, text);
+        }
+    }
+
+    private boolean hasPromptLineage(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return false;
+        }
+        return StringUtils.hasText(readMetadataText(metadata, "promptHash"))
+                || StringUtils.hasText(readMetadataText(metadata, "systemPromptHash"))
+                || StringUtils.hasText(readMetadataText(metadata, "userPromptHash"))
+                || StringUtils.hasText(readMetadataText(metadata, "systemPrompt"))
+                || StringUtils.hasText(readMetadataText(metadata, "userPrompt"));
+    }
+
+    private String readMetadataText(Map<String, Object> metadata, String key) {
+        if (metadata == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        Object value = metadata.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isBlank() ? null : text;
     }
 
     private Map<String, Object> ensureMutableEventMetadata(SecurityEvent event) {
@@ -930,6 +1012,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 SecurityDecisionResponse.class);
     }
 }
+
 
 
 

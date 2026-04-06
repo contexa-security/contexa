@@ -3,6 +3,7 @@ package io.contexa.contexacore.std.components.retriever;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.properties.ContexaRagProperties;
+import io.contexa.contexacore.std.rag.service.VectorOperations;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -14,11 +15,15 @@ import java.util.stream.Collectors;
 
 public class ContextRetriever {
 
-    protected final VectorStore vectorStore;
+    protected final VectorOperations vectorOperations;
     protected final ContexaRagProperties ragProperties;
 
     public ContextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
-        this.vectorStore = vectorStore;
+        this(new DirectVectorStoreOperations(vectorStore), ragProperties);
+    }
+
+    public ContextRetriever(VectorOperations vectorOperations, ContexaRagProperties ragProperties) {
+        this.vectorOperations = vectorOperations;
         this.ragProperties = ragProperties;
     }
 
@@ -31,7 +36,7 @@ public class ContextRetriever {
                 .similarityThreshold(ragProperties.getDefaults().getSimilarityThreshold())
                 .build();
 
-        List<Document> contextDocs = vectorStore.similaritySearch(searchRequest);
+        List<Document> contextDocs = vectorOperations.searchSimilar(searchRequest);
 
         String contextInfo = contextDocs.stream()
                 .map(doc -> "- " + doc.getText())
@@ -53,6 +58,74 @@ public class ContextRetriever {
             }
         }
         return query;
+    }
+
+    private static final class DirectVectorStoreOperations implements VectorOperations {
+
+        private final VectorStore vectorStore;
+
+        private DirectVectorStoreOperations(VectorStore vectorStore) {
+            this.vectorStore = vectorStore;
+        }
+
+        @Override
+        public void storeDocument(Document document) {
+            if (vectorStore == null) {
+                return;
+            }
+            vectorStore.add(List.of(document));
+        }
+
+        @Override
+        public void storeDocuments(List<Document> documents) {
+            if (vectorStore == null || documents == null || documents.isEmpty()) {
+                return;
+            }
+            vectorStore.add(documents);
+        }
+
+        @Override
+        public List<Document> searchSimilar(String query) {
+            if (vectorStore == null) {
+                return List.of();
+            }
+            SearchRequest request = SearchRequest.builder()
+                    .query(query)
+                    .topK(5)
+                    .build();
+            return vectorStore.similaritySearch(request);
+        }
+
+        @Override
+        public List<Document> searchSimilar(String query, Map<String, Object> filters) {
+            SearchRequest.Builder builder = SearchRequest.builder().query(query).topK(5);
+            if (filters != null && !filters.isEmpty()) {
+                String filterExpression = filters.entrySet().stream()
+                        .map(entry -> entry.getKey() + " == '" + entry.getValue() + "'")
+                        .reduce((left, right) -> left + " && " + right)
+                        .orElse(null);
+                if (filterExpression != null) {
+                    builder.filterExpression(filterExpression);
+                }
+            }
+            return searchSimilar(builder.build());
+        }
+
+        @Override
+        public List<Document> searchSimilar(SearchRequest request) {
+            if (vectorStore == null) {
+                return List.of();
+            }
+            return vectorStore.similaritySearch(request);
+        }
+
+        @Override
+        public void deleteDocuments(List<String> documentIds) {
+            if (vectorStore == null || documentIds == null || documentIds.isEmpty()) {
+                return;
+            }
+            vectorStore.delete(documentIds);
+        }
     }
 
     public static class ContextRetrievalResult {

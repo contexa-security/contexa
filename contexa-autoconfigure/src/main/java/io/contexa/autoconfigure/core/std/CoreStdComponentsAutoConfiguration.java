@@ -36,11 +36,11 @@ import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -90,10 +90,10 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @Primary
     public ContextRetriever contextRetriever(
-            VectorStore vectorStore,
+            UnifiedVectorService unifiedVectorService,
             ContexaRagProperties ragProperties,
             PromptContextAuthorizationService promptContextAuthorizationService) {
-        return new AuthorizedContextRetriever(vectorStore, ragProperties, promptContextAuthorizationService);
+        return new AuthorizedContextRetriever(unifiedVectorService, ragProperties, promptContextAuthorizationService);
     }
 
     @Bean

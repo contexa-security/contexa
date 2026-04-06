@@ -16,6 +16,8 @@ public interface SecurityDecisionForwardingOutboxRepository extends JpaRepositor
 
     Optional<SecurityDecisionForwardingOutboxRecord> findByCorrelationId(String correlationId);
 
+    Optional<SecurityDecisionForwardingOutboxRecord> findTopByCorrelationIdOrderByIdDesc(String correlationId);
+
     @Query("""
             select record
             from SecurityDecisionForwardingOutboxRecord record

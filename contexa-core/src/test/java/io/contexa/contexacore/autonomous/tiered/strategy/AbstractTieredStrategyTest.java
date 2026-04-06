@@ -15,6 +15,7 @@ import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -433,6 +434,60 @@ class AbstractTieredStrategyTest {
         assertThat(request.getParameter("officialVerificationDisableOllamaThinking", Boolean.class)).isTrue();
         assertThat(request.getParameter("officialVerificationDecisionBoundaryMode", String.class))
                 .isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
+    }
+
+    @Test
+    @DisplayName("searchRelatedContextBase should capture prompt audit fallback when vector search fails")
+    void searchRelatedContextBase_vectorFailure_capturesPromptAuditFallback() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-vector-failure")
+                .userId("admin")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .metadata(new LinkedHashMap<>(Map.of("requestId", "request-vector-failure")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/admin/api/security-test/sensitive/resource-001"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenThrow(new RuntimeException("Similarity search failed"));
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        assertThat(result).isEmpty();
+        ArgumentCaptor<String> retrievalPurposeCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<AuthorizedPromptContext> promptContextCaptor = ArgumentCaptor.forClass(AuthorizedPromptContext.class);
+        verify(promptContextAuditForwardingService, times(1))
+                .capture(org.mockito.ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
+        assertThat(retrievalPurposeCaptor.getValue()).isEqualTo("security_investigation");
+        assertThat(promptContextCaptor.getValue().documents()).isEmpty();
+        assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(3);
+        assertThat(promptContextCaptor.getValue().deniedReasons())
+                .contains("VECTOR_STORE_SEARCH_FAILED", "RuntimeException", "Similarity search failed");
+    }
+
+    @Test
+    @DisplayName("searchRelatedContextBase should capture prompt audit fallback when userId is missing")
+    void searchRelatedContextBase_missingUserId_capturesPromptAuditFallback() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-user-missing")
+                .userId("unknown")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .metadata(new LinkedHashMap<>(Map.of("requestId", "request-user-missing")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/admin/api/security-test/sensitive/resource-001"));
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 2, 0.7d);
+
+        assertThat(result).isEmpty();
+        verify(unifiedVectorService, times(0)).searchSimilar(any(SearchRequest.class));
+        ArgumentCaptor<String> retrievalPurposeCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<AuthorizedPromptContext> promptContextCaptor = ArgumentCaptor.forClass(AuthorizedPromptContext.class);
+        verify(promptContextAuditForwardingService, times(1))
+                .capture(org.mockito.ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
+        assertThat(retrievalPurposeCaptor.getValue()).isEqualTo("security_investigation");
+        assertThat(promptContextCaptor.getValue().documents()).isEmpty();
+        assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(2);
+        assertThat(promptContextCaptor.getValue().deniedReasons()).contains("USER_ID_MISSING");
     }
 
     // -- Concrete test implementation of the abstract class --

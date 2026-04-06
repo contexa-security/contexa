@@ -27,11 +27,15 @@ import java.util.regex.Pattern;
 public class ResponseParsingStep implements PipelineStep {
 
     private static final Pattern EXPLICIT_ACTION_PATTERN = Pattern.compile(
-            "(?is)(?:\\\"action\\\"\\s*:\\s*\\\"|\\baction\\b\\s*[:=-]\\s*|\\bdecision\\b\\s*[:=-]\\s*)(ALLOW|CHALLENGE|BLOCK|ESCALATE)\\b");
+            "(?is)(?:\\\"action\\\"\\s*:\\s*\\\"|\\\"decision\\\"\\s*:\\s*\\\"|\\bfinal\\s+decision\\b\\s*[:=-]?\\s*|\\brecommended\\s+action\\b\\s*[:=-]?\\s*|\\baction\\b\\s*[:=-]\\s*|\\bdecision\\b\\s*[:=-]\\s*)([`\"'*\\s]*)(ALLOW|CHALLENGE|BLOCK|ESCALATE|DENY|DENIED|REJECT|REJECTED|REVIEW)\\b");
     private static final Pattern EXPLICIT_CONFIDENCE_PATTERN = Pattern.compile(
             "(?is)(?:\\\"confidence\\\"\\s*:\\s*|\\bconfidence\\b\\s*[:=-]\\s*)([0-9]+(?:\\.[0-9]+)?)");
     private static final Pattern EXPLICIT_RISK_PATTERN = Pattern.compile(
             "(?is)(?:\\\"riskScore\\\"\\s*:\\s*|\\brisk\\s*score\\b\\s*[:=-]\\s*)([0-9]+(?:\\.[0-9]+)?)");
+    private static final Pattern EXPLICIT_CONFIDENCE_LABEL_PATTERN = Pattern.compile(
+            "(?is)(?:\\\"confidence\\\"\\s*:\\s*\\\"|\\bconfidence\\b\\s*[:=-]\\s*)(LOW|MODERATE|MEDIUM|HIGH|VERY_HIGH|CRITICAL)\\b");
+    private static final Pattern EXPLICIT_RISK_LABEL_PATTERN = Pattern.compile(
+            "(?is)(?:\\\"riskScore\\\"\\s*:\\s*\\\"|\\brisk\\s*score\\b\\s*[:=-]\\s*)(LOW|MODERATE|MEDIUM|HIGH|VERY_HIGH|CRITICAL)\\b");
     private static final Pattern EXPLICIT_REASONING_JSON_PATTERN = Pattern.compile(
             "(?is)\\\"reasoning\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
     private static final Pattern EXPLICIT_REASONING_TEXT_PATTERN = Pattern.compile(
@@ -69,6 +73,21 @@ public class ResponseParsingStep implements PipelineStep {
             if (llmResponse == null || llmResponse.trim().isEmpty()) {
                 log.error("[{}] LLM response is empty", getStepName());
                 return createFallbackResponse(request, context, targetTypeInfo);
+            }
+
+            Class<?> decisionTarget = resolveSecurityDecisionTargetClass(targetTypeInfo);
+            if (decisionTarget != null) {
+                SecurityDecisionResponseLite directDecision = parseSecurityDecisionLite(llmResponse);
+                if (directDecision != null) {
+                    Object decisionResult = toRequestedSecurityDecisionResponse(directDecision, decisionTarget);
+                    context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, decisionResult);
+                    enrichWithMetadata(decisionResult, request, context);
+                    context.addMetadata("parsingComplete", true);
+                    context.addMetadata("securityDecisionDirectParsingApplied", true);
+                    context.addMetadata("parsedResponseType", decisionResult.getClass());
+                    context.addMetadata("responseType", decisionResult.getClass().getSimpleName());
+                    return decisionResult;
+                }
             }
 
             Object result = convertWithSpringAI(llmResponse, targetTypeInfo, context);
@@ -187,7 +206,7 @@ public class ResponseParsingStep implements PipelineStep {
             try {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> stringKeyMap = (Map<String, Object>) mapCandidate;
-                SecurityDecisionResponseLite lite = objectMapper.convertValue(stringKeyMap, SecurityDecisionResponseLite.class);
+                SecurityDecisionResponseLite lite = securityDecisionLiteFromMap(stringKeyMap);
                 return normalizeSecurityDecisionLite(lite, originalResponse);
             } catch (IllegalArgumentException ignored) {
                 // fall through to text parsing
@@ -210,7 +229,9 @@ public class ResponseParsingStep implements PipelineStep {
         try {
             String cleanJson = extractJson(response);
             if (cleanJson != null && cleanJson.trim().startsWith("{")) {
-                SecurityDecisionResponseLite lite = objectMapper.readValue(cleanJson, SecurityDecisionResponseLite.class);
+                SecurityDecisionResponseLite lite = securityDecisionLiteFromMap(
+                        objectMapper.readValue(cleanJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+                        }));
                 SecurityDecisionResponseLite normalized = normalizeSecurityDecisionLite(lite, response);
                 if (normalized != null && normalizeAction(normalized.getAction()) != null) {
                     return normalized;
@@ -224,7 +245,13 @@ public class ResponseParsingStep implements PipelineStep {
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
         lite.setAction(extractExplicitAction(normalizedText));
         lite.setConfidence(extractExplicitDouble(EXPLICIT_CONFIDENCE_PATTERN, normalizedText));
+        if (lite.getConfidence() == null) {
+            lite.setConfidence(extractExplicitScoreLabel(EXPLICIT_CONFIDENCE_LABEL_PATTERN, normalizedText));
+        }
         lite.setRiskScore(extractExplicitDouble(EXPLICIT_RISK_PATTERN, normalizedText));
+        if (lite.getRiskScore() == null) {
+            lite.setRiskScore(extractExplicitScoreLabel(EXPLICIT_RISK_LABEL_PATTERN, normalizedText));
+        }
         lite.setMitre(extractExplicitText(EXPLICIT_MITRE_JSON_PATTERN, normalizedText));
         if (lite.getMitre() == null) {
             lite.setMitre(extractExplicitText(EXPLICIT_MITRE_TEXT_PATTERN, normalizedText));
@@ -280,6 +307,8 @@ public class ResponseParsingStep implements PipelineStep {
         String normalized = action.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case "ALLOW", "CHALLENGE", "BLOCK", "ESCALATE" -> normalized;
+            case "DENY", "DENIED", "REJECT", "REJECTED" -> "BLOCK";
+            case "REVIEW" -> "ESCALATE";
             default -> null;
         };
     }
@@ -294,7 +323,7 @@ public class ResponseParsingStep implements PipelineStep {
     private String extractExplicitAction(String text) {
         Matcher matcher = EXPLICIT_ACTION_PATTERN.matcher(text);
         if (matcher.find()) {
-            return normalizeAction(matcher.group(1));
+            return normalizeAction(matcher.group(2));
         }
         return null;
     }
@@ -307,6 +336,14 @@ public class ResponseParsingStep implements PipelineStep {
             } catch (NumberFormatException ignored) {
                 return null;
             }
+        }
+        return null;
+    }
+
+    private Double extractExplicitScoreLabel(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return normalizeScoreLabel(matcher.group(1));
         }
         return null;
     }
@@ -364,10 +401,93 @@ public class ResponseParsingStep implements PipelineStep {
         String cleaned = response
                 .replace("```json", " ")
                 .replace("```", " ")
+                .replace("**", " ")
+                .replace("__", " ")
+                .replace("`", " ")
                 .replaceAll("(?m)^\\s*[#>*-]+\\s*", "")
                 .replaceAll("\\s+", " ")
                 .trim();
         return cleaned;
+    }
+
+    private SecurityDecisionResponseLite securityDecisionLiteFromMap(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return null;
+        }
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction(extractActionFromMap(payload));
+        lite.setConfidence(extractScoreFromMap(payload, "confidence", "confidenceScore", "decisionConfidence"));
+        lite.setRiskScore(extractScoreFromMap(payload, "riskScore", "risk", "risk_score"));
+        lite.setReasoning(extractTextFromMap(payload, "reasoning", "analysis", "summary", "decisionReasoning"));
+        lite.setMitre(extractTextFromMap(payload, "mitre", "mitreAttack", "mitre_attack", "mitreTechnique"));
+        return lite;
+    }
+
+    private String extractActionFromMap(Map<String, Object> payload) {
+        String direct = extractTextFromMap(payload, "action", "decision", "recommendedAction", "finalDecision");
+        return normalizeAction(direct);
+    }
+
+    private Double extractScoreFromMap(Map<String, Object> payload, String... keys) {
+        for (String key : keys) {
+            Double parsed = coerceScore(payload.get(key));
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    private String extractTextFromMap(Map<String, Object> payload, String... keys) {
+        for (String key : keys) {
+            Object value = payload.get(key);
+            if (value instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        }
+        return null;
+    }
+
+    private Double coerceScore(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return normalizeNumericScore(number.doubleValue());
+        }
+        if (value instanceof String text) {
+            String normalized = text.trim();
+            if (normalized.isEmpty()) {
+                return null;
+            }
+            try {
+                return normalizeNumericScore(Double.parseDouble(normalized));
+            } catch (NumberFormatException ignored) {
+                return normalizeScoreLabel(normalized);
+            }
+        }
+        return null;
+    }
+
+    private Double normalizeNumericScore(Double score) {
+        if (score == null || !Double.isFinite(score)) {
+            return null;
+        }
+        return Math.max(0.0d, Math.min(1.0d, score));
+    }
+
+    private Double normalizeScoreLabel(String label) {
+        if (label == null || label.isBlank()) {
+            return null;
+        }
+        String normalized = label.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "LOW" -> 0.54d;
+            case "MODERATE", "MEDIUM" -> 0.74d;
+            case "HIGH" -> 0.85d;
+            case "VERY_HIGH", "CRITICAL" -> 0.95d;
+            default -> null;
+        };
     }
 
     private String extractJson(String response) {

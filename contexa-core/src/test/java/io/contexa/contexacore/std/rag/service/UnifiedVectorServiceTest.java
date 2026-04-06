@@ -13,12 +13,15 @@ import org.springframework.ai.vectorstore.VectorStore;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,7 +35,7 @@ class UnifiedVectorServiceTest {
     private VectorStore vectorStore;
 
     @Test
-    @DisplayName("cache layer가 빈 결과를 반환한 정상 검색은 vectorStore를 다시 직접 호출하지 않아야 한다")
+    @DisplayName("searchSimilar does not call vectorStore directly when cacheLayer returns an empty result")
     void searchSimilar_shouldNotRepeatSearchWhenCacheLayerReturnsEmptyResult() {
         PgVectorStoreProperties properties = new PgVectorStoreProperties();
         UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
@@ -48,7 +51,7 @@ class UnifiedVectorServiceTest {
     }
 
     @Test
-    @DisplayName("cache layer 검색 실패는 빈 결과로 숨기지 말고 동일 검색 재실행 없이 즉시 전파해야 한다")
+    @DisplayName("searchSimilar propagates a non-retryable cache failure without repeating the same search")
     void searchSimilar_shouldPropagateCacheLayerFailureWithoutRetryingSameSearch() {
         PgVectorStoreProperties properties = new PgVectorStoreProperties();
         UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
@@ -66,14 +69,14 @@ class UnifiedVectorServiceTest {
     }
 
     @Test
-    @DisplayName("document store가 timeout 되면 벡터 저장을 오래 기다리지 않고 VectorStoreException 으로 종료해야 한다")
+    @DisplayName("storeDocument fails fast when the vector store exceeds the timeout")
     void storeDocument_shouldFailFastWhenTimeoutExceeded() {
         PgVectorStoreProperties properties = new PgVectorStoreProperties();
         properties.setStoreTimeoutMs(50);
         UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
         Document document = new Document("behavior memory", Map.of("documentType", "behavior"));
 
-        org.mockito.Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
             Thread.sleep(500);
             return null;
         }).when(vectorStore).add(any());
@@ -82,5 +85,26 @@ class UnifiedVectorServiceTest {
                 .isInstanceOf(VectorOperations.VectorStoreException.class)
                 .hasMessageContaining("timed out");
         verify(cacheLayer, never()).invalidateAll();
+    }
+
+    @Test
+    @DisplayName("storeDocument retries a retryable busy failure and succeeds on the next attempt")
+    void storeDocument_shouldRetryBusyFailureAndInvalidateCacheOnSuccess() {
+        PgVectorStoreProperties properties = new PgVectorStoreProperties();
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
+        Document document = new Document("behavior memory", Map.of("documentType", "behavior"));
+        AtomicInteger attempts = new AtomicInteger(0);
+
+        doAnswer(invocation -> {
+            if (attempts.getAndIncrement() == 0) {
+                throw new RuntimeException("HTTP 503 - {\"error\":\"server busy, please try again.  maximum pending requests exceeded\"}");
+            }
+            return null;
+        }).when(vectorStore).add(any());
+
+        unifiedVectorService.storeDocument(document);
+
+        verify(vectorStore, times(2)).add(any());
+        verify(cacheLayer).invalidateAll();
     }
 }
