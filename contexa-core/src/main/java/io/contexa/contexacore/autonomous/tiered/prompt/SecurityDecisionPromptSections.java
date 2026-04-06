@@ -191,6 +191,9 @@ public class SecurityDecisionPromptSections {
         DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId);
         CanonicalSecurityContext canonicalSecurityContext = resolveCanonicalSecurityContext(event).orElse(null);
         cacheCanonicalSecurityContext(event, canonicalSecurityContext);
+        if (canonicalSecurityContext != null) {
+            event.addMetadata("sealedEvidence.canonicalContext", canonicalSecurityContext);
+        }
         enrichPatternsFromBaseline(patterns, behaviorAnalysis);
         return new SecurityPromptBuildContext(
                 event,
