@@ -76,7 +76,25 @@ public class ContexaProperties {
         private String embeddingModelPriority = "ollama,openai";
 
         @NestedConfigurationProperty
+        private Chat chat = new Chat();
+
+        @NestedConfigurationProperty
         private Embedding embedding = new Embedding();
+
+        @Data
+        public static class Chat {
+
+            @NestedConfigurationProperty
+            private Ollama ollama = new Ollama();
+
+            @Data
+            public static class Ollama {
+
+                private String baseUrl = "";
+                private String model = "";
+                private String keepAlive = "";
+            }
+        }
 
         @Data
         public static class Embedding {

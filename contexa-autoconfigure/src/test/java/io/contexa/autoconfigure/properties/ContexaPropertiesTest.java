@@ -59,6 +59,9 @@ class ContexaPropertiesTest {
             assertThat(properties.getLlm().isAdvisorEnabled()).isTrue();
             assertThat(properties.getLlm().getChatModelPriority()).isEqualTo("ollama,anthropic,openai");
             assertThat(properties.getLlm().getEmbeddingModelPriority()).isEqualTo("ollama,openai");
+            assertThat(properties.getLlm().getChat().getOllama().getBaseUrl()).isEmpty();
+            assertThat(properties.getLlm().getChat().getOllama().getModel()).isEmpty();
+            assertThat(properties.getLlm().getChat().getOllama().getKeepAlive()).isEmpty();
             assertThat(properties.getLlm().getEmbedding().getOllama().isDedicatedRuntimeEnabled()).isFalse();
             assertThat(properties.getLlm().getEmbedding().getOllama().getBaseUrl()).isEmpty();
             assertThat(properties.getLlm().getEmbedding().getOllama().getModel()).isEmpty();
@@ -107,6 +110,19 @@ class ContexaPropertiesTest {
             properties.getRag().setEnabled(false);
 
             assertThat(properties.getRag().isEnabled()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should allow chat Ollama runtime configuration")
+        void shouldConfigureChatOllamaRuntime() {
+            ContexaProperties properties = new ContexaProperties();
+            properties.getLlm().getChat().getOllama().setBaseUrl("http://127.0.0.1:11434");
+            properties.getLlm().getChat().getOllama().setModel("qwen3:8b");
+            properties.getLlm().getChat().getOllama().setKeepAlive("30m");
+
+            assertThat(properties.getLlm().getChat().getOllama().getBaseUrl()).isEqualTo("http://127.0.0.1:11434");
+            assertThat(properties.getLlm().getChat().getOllama().getModel()).isEqualTo("qwen3:8b");
+            assertThat(properties.getLlm().getChat().getOllama().getKeepAlive()).isEqualTo("30m");
         }
 
         @Test

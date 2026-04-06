@@ -20,19 +20,19 @@ import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.observation.EmbeddingModelObservationConvention;
-import org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -64,16 +64,57 @@ import java.util.Map;
 @EnableConfigurationProperties(TieredLLMProperties.class)
 public class CoreLLMTieredAutoConfiguration {
 
+    private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
+    private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "mxbai-embed-large";
+
     @Autowired
     private ContexaProperties contexaProperties;
 
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
 
+    @Bean(name = "contexaOllamaChatApi")
+    @ConditionalOnProperty(prefix = "contexa.llm.chat.ollama", name = "base-url")
+    @ConditionalOnMissingBean(name = "contexaOllamaChatApi")
+    public OllamaApi contexaOllamaChatApi(
+            ObjectProvider<RestClient.Builder> restClientBuilderProvider,
+            ObjectProvider<WebClient.Builder> webClientBuilderProvider,
+            ResponseErrorHandler responseErrorHandler) {
+
+        return buildOllamaApi(
+                resolveChatOllamaBaseUrl(),
+                restClientBuilderProvider,
+                webClientBuilderProvider,
+                responseErrorHandler
+        );
+    }
+
+    @Bean(name = "contexaOllamaChatModel")
+    @ConditionalOnBean(name = "contexaOllamaChatApi")
+    @ConditionalOnMissingBean(name = "contexaOllamaChatModel")
+    public OllamaChatModel contexaOllamaChatModel(
+            @Qualifier("contexaOllamaChatApi") OllamaApi ollamaApi) {
+
+        OllamaChatOptions options = OllamaChatOptions.builder().build();
+        if (StringUtils.hasText(contexaProperties.getLlm().getChat().getOllama().getModel())) {
+            options.setModel(contexaProperties.getLlm().getChat().getOllama().getModel().trim());
+        }
+        else {
+            options.setModel(DEFAULT_OLLAMA_CHAT_MODEL);
+        }
+        if (StringUtils.hasText(contexaProperties.getLlm().getChat().getOllama().getKeepAlive())) {
+            options.setKeepAlive(contexaProperties.getLlm().getChat().getOllama().getKeepAlive().trim());
+        }
+        return OllamaChatModel.builder()
+                .ollamaApi(ollamaApi)
+                .defaultOptions(options)
+                .build();
+    }
+
     @Bean
     @Primary
     public ChatModel primaryChatModel(
-            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
+            @Qualifier("contexaOllamaChatModel") ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
             ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
 
@@ -110,7 +151,7 @@ public class CoreLLMTieredAutoConfiguration {
         }
 
         log.error("No ChatModel available. LLM features will be disabled. " +
-                "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
+                "Configure contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
         return null;
     }
 
@@ -164,12 +205,7 @@ public class CoreLLMTieredAutoConfiguration {
 
         String baseUrl = resolveDedicatedEmbeddingOllamaBaseUrl();
         log.info("Enabling dedicated embedding Ollama runtime at {}", baseUrl);
-        return OllamaApi.builder()
-                .baseUrl(baseUrl)
-                .restClientBuilder(restClientBuilderProvider.getIfAvailable(RestClient::builder))
-                .webClientBuilder(webClientBuilderProvider.getIfAvailable(WebClient::builder))
-                .responseErrorHandler(responseErrorHandler)
-                .build();
+        return buildOllamaApi(baseUrl, restClientBuilderProvider, webClientBuilderProvider, responseErrorHandler);
     }
 
     @Bean(name = "contexaDedicatedOllamaEmbeddingModel")
@@ -178,21 +214,20 @@ public class CoreLLMTieredAutoConfiguration {
     public OllamaEmbeddingModel contexaDedicatedOllamaEmbeddingModel(
             @Qualifier("contexaDedicatedEmbeddingOllamaApi") OllamaApi ollamaApi,
             ObjectProvider<ObservationRegistry> observationRegistry,
-            ObjectProvider<EmbeddingModelObservationConvention> observationConvention,
-            @Value("${spring.ai.ollama.embedding.model:mxbai-embed-large}") String defaultEmbeddingModel) {
+            ObjectProvider<EmbeddingModelObservationConvention> observationConvention) {
 
-        OllamaEmbeddingOptions options = OllamaEmbeddingOptions.builder()
-                .model(resolveDedicatedEmbeddingModel(defaultEmbeddingModel))
-                .build();
+        return buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention, resolveEmbeddingModel());
+    }
 
-        var embeddingModel = OllamaEmbeddingModel.builder()
-                .ollamaApi(ollamaApi)
-                .defaultOptions(options)
-                .observationRegistry(observationRegistry.getIfUnique(() -> ObservationRegistry.NOOP))
-                .build();
+    @Bean(name = "contexaSharedOllamaEmbeddingModel")
+    @ConditionalOnBean(name = "contexaOllamaChatApi")
+    @ConditionalOnMissingBean(name = "contexaSharedOllamaEmbeddingModel")
+    public OllamaEmbeddingModel contexaSharedOllamaEmbeddingModel(
+            @Qualifier("contexaOllamaChatApi") OllamaApi ollamaApi,
+            ObjectProvider<ObservationRegistry> observationRegistry,
+            ObjectProvider<EmbeddingModelObservationConvention> observationConvention) {
 
-        observationConvention.ifAvailable(embeddingModel::setObservationConvention);
-        return embeddingModel;
+        return buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention, resolveEmbeddingModel());
     }
 
     @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
@@ -201,18 +236,18 @@ public class CoreLLMTieredAutoConfiguration {
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     public EmbeddingModel primaryEmbeddingModel(
             @Qualifier("contexaDedicatedOllamaEmbeddingModel") ObjectProvider<OllamaEmbeddingModel> dedicatedOllamaEmbeddingModelProvider,
-            @Qualifier("ollamaEmbeddingModel") ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
+            @Qualifier("contexaSharedOllamaEmbeddingModel") ObjectProvider<OllamaEmbeddingModel> sharedOllamaEmbeddingModelProvider,
             ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
 
         Map<String, EmbeddingModel> availableModels = new HashMap<>();
 
         OllamaEmbeddingModel dedicatedOllamaEmbedding = dedicatedOllamaEmbeddingModelProvider.getIfAvailable();
-        OllamaEmbeddingModel standardOllamaEmbedding = ollamaEmbeddingModelProvider.getIfAvailable();
+        OllamaEmbeddingModel sharedOllamaEmbedding = sharedOllamaEmbeddingModelProvider.getIfAvailable();
         if (dedicatedOllamaEmbedding != null) {
             availableModels.put("ollama", dedicatedOllamaEmbedding);
         }
-        else if (standardOllamaEmbedding != null) {
-            availableModels.put("ollama", standardOllamaEmbedding);
+        else if (sharedOllamaEmbedding != null) {
+            availableModels.put("ollama", sharedOllamaEmbedding);
         }
 
         OpenAiEmbeddingModel openAiEmbedding = openAiEmbeddingModelProvider.getIfAvailable();
@@ -236,12 +271,54 @@ public class CoreLLMTieredAutoConfiguration {
         }
 
         log.error("No EmbeddingModel available. Embedding features will be disabled. " +
-                "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
+                "Configure contexa.llm.embedding.ollama.*, contexa.llm.chat.ollama.*, or spring.ai.openai.* to enable embedding.");
         return null;
     }
 
     @PostConstruct
     public void init() {
+    }
+
+    private OllamaApi buildOllamaApi(
+            String baseUrl,
+            ObjectProvider<RestClient.Builder> restClientBuilderProvider,
+            ObjectProvider<WebClient.Builder> webClientBuilderProvider,
+            ResponseErrorHandler responseErrorHandler
+    ) {
+        return OllamaApi.builder()
+                .baseUrl(baseUrl)
+                .restClientBuilder(restClientBuilderProvider.getIfAvailable(RestClient::builder))
+                .webClientBuilder(webClientBuilderProvider.getIfAvailable(WebClient::builder))
+                .responseErrorHandler(responseErrorHandler)
+                .build();
+    }
+
+    private OllamaEmbeddingModel buildOllamaEmbeddingModel(
+            OllamaApi ollamaApi,
+            ObjectProvider<ObservationRegistry> observationRegistry,
+            ObjectProvider<EmbeddingModelObservationConvention> observationConvention,
+            String model
+    ) {
+        OllamaEmbeddingOptions options = OllamaEmbeddingOptions.builder()
+                .model(model)
+                .build();
+
+        OllamaEmbeddingModel embeddingModel = OllamaEmbeddingModel.builder()
+                .ollamaApi(ollamaApi)
+                .defaultOptions(options)
+                .observationRegistry(observationRegistry.getIfUnique(() -> ObservationRegistry.NOOP))
+                .build();
+
+        observationConvention.ifAvailable(embeddingModel::setObservationConvention);
+        return embeddingModel;
+    }
+
+    private String resolveChatOllamaBaseUrl() {
+        String baseUrl = contexaProperties.getLlm().getChat().getOllama().getBaseUrl();
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new IllegalStateException("contexa.llm.chat.ollama.base-url must be configured when Ollama chat runtime is enabled");
+        }
+        return baseUrl.trim();
     }
 
     private String resolveDedicatedEmbeddingOllamaBaseUrl() {
@@ -255,14 +332,11 @@ public class CoreLLMTieredAutoConfiguration {
         return ollama.getBaseUrl().trim();
     }
 
-    private String resolveDedicatedEmbeddingModel(String defaultEmbeddingModel) {
+    private String resolveEmbeddingModel() {
         String configuredModel = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
         if (StringUtils.hasText(configuredModel)) {
             return configuredModel.trim();
         }
-        if (StringUtils.hasText(defaultEmbeddingModel)) {
-            return defaultEmbeddingModel.trim();
-        }
-        return "mxbai-embed-large";
+        return DEFAULT_OLLAMA_EMBEDDING_MODEL;
     }
 }

@@ -10,7 +10,16 @@ contexa:
     chatModelPriority: ollama,openai,anthropic
 #    embeddingModelPriority: openai,ollama
     embeddingModelPriority: ollama,openai
-
+    chat:
+      ollama:
+        baseUrl: ${CONTEXA_CHAT_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+        model: ${CONTEXA_CHAT_OLLAMA_MODEL:qwen3:8b}
+        keepAlive: ${CONTEXA_OLLAMA_CHAT_KEEP_ALIVE:24h}
+    embedding:
+      ollama:
+        dedicatedRuntimeEnabled: ${CONTEXA_EMBEDDING_OLLAMA_DEDICATED_RUNTIME_ENABLED:false}
+        baseUrl: ${CONTEXA_EMBEDDING_OLLAMA_BASE_URL:}
+        model: ${CONTEXA_EMBEDDING_OLLAMA_MODEL:mxbai-embed-large}
 #security:
 #  zerotrust:
 #    mode: SHADOW
@@ -49,14 +58,6 @@ spring:
       chat:
         options:
           model: claude-3-sonnet-20240229
-    ollama:
-      base-url: http://127.0.0.1:11434
-      chat:
-        options:
-          model: qwen3:8b
-          keep-alive: "24h"
-      embedding:
-        model: mxbai-embed-large
     openai:
       api-key: ${OPENAI_API_KEY:your-anthropic-api-key}
       base-url: https://api.openai.com

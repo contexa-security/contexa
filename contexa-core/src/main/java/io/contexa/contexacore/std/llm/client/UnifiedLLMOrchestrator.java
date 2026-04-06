@@ -53,7 +53,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     if (selectedModel == null) {
                         throw new IllegalStateException(
                                 "No LLM model configured. " +
-                                        "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
+                                        "Please check contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
                     }
 
                     ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
@@ -120,7 +120,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 if (selectedModel == null) {
                     return Flux.error(new IllegalStateException(
                             "LLM model not configured. " +
-                                    "Check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings."));
+                                    "Check contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings."));
                 }
 
                 ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
@@ -150,7 +150,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     if (selectedModel == null) {
                         throw new IllegalStateException(
                                 "No LLM model configured. " +
-                                        "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
+                                        "Please check contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
                     }
 
                     ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
@@ -349,7 +349,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             if (model == null) {
                 throw new IllegalStateException(
                         "No LLM model configured. " +
-                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
+                                "Please check contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
             ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
@@ -381,7 +381,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             if (model == null) {
                 throw new IllegalStateException(
                         "No LLM model configured. " +
-                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
+                                "Please check contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
             ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
