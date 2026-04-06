@@ -65,7 +65,7 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("estimatedUserTokens", Integer.class)).isPositive();
         assertThat(context.getMetadata("estimatedTotalTokens", Integer.class)).isPositive();
         assertThat(context.getMetadata("promptBudgetEnforcementMode", String.class)).isEqualTo("LLM_VIEW_ENFORCED");
-        assertThat(context.getMetadata("promptTransformationMode", String.class)).isIn("IDENTITY", "NORMALIZE_ONLY");
+        assertThat(context.getMetadata("promptTransformationMode", String.class)).isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_COMPACT", "NORMALIZE_AND_FUSE");
         assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isNotNull();
         assertThat(context.getMetadata("rawPromptHash", String.class)).startsWith("sha256:");
         assertThat(context.getMetadata("promptExecutionMetadata", Object.class)).isNotNull();

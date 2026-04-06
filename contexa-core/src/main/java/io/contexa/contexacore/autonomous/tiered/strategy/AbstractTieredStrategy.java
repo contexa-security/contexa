@@ -650,7 +650,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             Exception exception) {
         AuthorizedPromptContext fallbackPromptContext = new AuthorizedPromptContext(
                 List.of(),
-                0,
+                requestedTopK,
                 0,
                 0,
                 retrievalPurpose,
