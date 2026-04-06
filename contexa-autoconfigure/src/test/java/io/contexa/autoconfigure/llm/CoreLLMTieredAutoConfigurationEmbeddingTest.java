@@ -8,14 +8,15 @@ import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.ResponseErrorHandler;
 
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class CoreLLMTieredAutoConfigurationEmbeddingTest {
@@ -74,14 +75,33 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         assertThat(selected).isSameAs(dedicatedEmbeddingModel);
     }
 
+    @Test
+    void shouldFailFastWhenDedicatedEmbeddingRuntimeMissingBaseUrl() {
+        CoreLLMTieredAutoConfiguration configuration = createConfiguration("ollama,openai");
+        ContexaProperties properties = (ContexaProperties) ReflectionTestUtils.getField(configuration, "contexaProperties");
+        properties.getLlm().getEmbedding().getOllama().setDedicatedRuntimeEnabled(true);
+
+        assertThatThrownBy(() -> configuration.contexaDedicatedEmbeddingOllamaApi(
+                providerOf(null),
+                providerOf(null),
+                mock(ResponseErrorHandler.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("contexa.llm.embedding.ollama.base-url");
+    }
+
     private static <T> ObjectProvider<T> providerOf(T value) {
         return new ObjectProvider<>() {
             @Override
-            public T getObject(Object... args) {
+            public T getObject() {
                 if (value == null) {
                     throw new IllegalStateException("No bean available");
                 }
                 return value;
+            }
+
+            @Override
+            public T getObject(Object... args) {
+                return getObject();
             }
 
             @Override

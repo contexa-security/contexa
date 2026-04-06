@@ -21,20 +21,16 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.observation.EmbeddingModelObservationConvention;
 import org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration;
-import org.springframework.ai.model.ollama.autoconfigure.OllamaEmbeddingProperties;
-import org.springframework.ai.model.ollama.autoconfigure.OllamaInitializationProperties;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions;
-import org.springframework.ai.ollama.management.ModelManagementOptions;
-import org.springframework.ai.ollama.management.PullModelStrategy;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -181,27 +177,18 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaDedicatedOllamaEmbeddingModel")
     public OllamaEmbeddingModel contexaDedicatedOllamaEmbeddingModel(
             @Qualifier("contexaDedicatedEmbeddingOllamaApi") OllamaApi ollamaApi,
-            OllamaEmbeddingProperties properties,
-            OllamaInitializationProperties initProperties,
             ObjectProvider<ObservationRegistry> observationRegistry,
-            ObjectProvider<EmbeddingModelObservationConvention> observationConvention) {
+            ObjectProvider<EmbeddingModelObservationConvention> observationConvention,
+            @Value("${spring.ai.ollama.embedding.model:mxbai-embed-large}") String defaultEmbeddingModel) {
 
-        var embeddingModelPullStrategy = initProperties.getEmbedding().isInclude()
-                ? initProperties.getPullModelStrategy() : PullModelStrategy.NEVER;
-
-        OllamaEmbeddingOptions options = copyEmbeddingOptions(properties.getOptions());
-        String configuredModel = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
-        if (StringUtils.hasText(configuredModel)) {
-            options.setModel(configuredModel.trim());
-        }
+        OllamaEmbeddingOptions options = OllamaEmbeddingOptions.builder()
+                .model(resolveDedicatedEmbeddingModel(defaultEmbeddingModel))
+                .build();
 
         var embeddingModel = OllamaEmbeddingModel.builder()
                 .ollamaApi(ollamaApi)
                 .defaultOptions(options)
                 .observationRegistry(observationRegistry.getIfUnique(() -> ObservationRegistry.NOOP))
-                .modelManagementOptions(new ModelManagementOptions(embeddingModelPullStrategy,
-                        initProperties.getEmbedding().getAdditionalModels(), initProperties.getTimeout(),
-                        initProperties.getMaxRetries()))
                 .build();
 
         observationConvention.ifAvailable(embeddingModel::setObservationConvention);
@@ -268,11 +255,14 @@ public class CoreLLMTieredAutoConfiguration {
         return ollama.getBaseUrl().trim();
     }
 
-    private OllamaEmbeddingOptions copyEmbeddingOptions(OllamaEmbeddingOptions source) {
-        OllamaEmbeddingOptions target = OllamaEmbeddingOptions.builder().build();
-        if (source != null) {
-            BeanUtils.copyProperties(source, target);
+    private String resolveDedicatedEmbeddingModel(String defaultEmbeddingModel) {
+        String configuredModel = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
+        if (StringUtils.hasText(configuredModel)) {
+            return configuredModel.trim();
         }
-        return target;
+        if (StringUtils.hasText(defaultEmbeddingModel)) {
+            return defaultEmbeddingModel.trim();
+        }
+        return "mxbai-embed-large";
     }
 }
