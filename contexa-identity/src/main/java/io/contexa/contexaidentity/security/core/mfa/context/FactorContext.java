@@ -161,7 +161,6 @@ public class FactorContext implements FactorContextExtensions, Serializable {
                 this.completedFactors.add(completedFactor);
 
                 updateLastActivityTimestamp();
-            } else {
             }
         } finally {
             factorsLock.writeLock().unlock();
@@ -396,15 +395,14 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public String calculateStateHash() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(mfaSessionId).append(":");
-        sb.append(currentMfaState.get()).append(":");
-        sb.append(version.get()).append(":");
-        sb.append(completedFactors.size()).append(":");
-        sb.append(currentProcessingFactor != null ? currentProcessingFactor : "null").append(":");
-        sb.append(currentStepId != null ? currentStepId : "null");
+        String sb = mfaSessionId + ":" +
+                currentMfaState.get() + ":" +
+                version.get() + ":" +
+                completedFactors.size() + ":" +
+                (currentProcessingFactor != null ? currentProcessingFactor : "null") + ":" +
+                (currentStepId != null ? currentStepId : "null");
 
-        return Integer.toHexString(sb.toString().hashCode());
+        return Integer.toHexString(sb.hashCode());
     }
 
     @Getter
@@ -417,7 +415,8 @@ public class FactorContext implements FactorContextExtensions, Serializable {
         private String detail;
 
         @SuppressWarnings("unused")
-        private MfaAttemptDetail() {}
+        private MfaAttemptDetail() {
+        }
 
         public MfaAttemptDetail(@Nullable AuthType factorType, boolean success, String detail) {
             this.factorType = factorType;

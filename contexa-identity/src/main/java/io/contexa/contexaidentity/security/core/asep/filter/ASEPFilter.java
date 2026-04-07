@@ -33,7 +33,7 @@ import java.util.*;
 @Setter
 public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
 
-    private int order = Ordered.LOWEST_PRECEDENCE - 900; 
+    private int order = Ordered.LOWEST_PRECEDENCE - 900;
 
     private final SecurityExceptionHandlerMethodRegistry handlerRegistry;
     private final SecurityExceptionHandlerInvoker handlerInvoker;
@@ -45,9 +45,9 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             List<HttpMessageConverter<?>> messageConverters) {
         this.handlerRegistry = Objects.requireNonNull(handlerRegistry, "SecurityExceptionHandlerMethodRegistry cannot be null");
         this.handlerInvoker = Objects.requireNonNull(handlerInvoker, "AsepHandlerAdapter cannot be null");
-        
+
         this.messageConverters = (messageConverters != null) ? List.copyOf(messageConverters) : Collections.emptyList();
-            }
+    }
 
     @Override
     public int getOrder() {
@@ -59,15 +59,14 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             throws ServletException, IOException {
         try {
             filterChain.doFilter(request, response);
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             if (response.isCommitted()) {
                 log.error("ASEP: Response already committed. Unable to handle exception [{}] on path [{}].",
                         ex.getClass().getSimpleName(), request.getRequestURI(), ex);
 
                 if (ex instanceof IOException) throw (IOException) ex;
                 if (ex instanceof ServletException) throw (ServletException) ex;
-                if (ex instanceof RuntimeException) throw (RuntimeException) ex;
-                throw new ServletException("Unhandled exception after response committed: " + ex.getMessage(), ex);
+                throw (RuntimeException) ex;
             }
 
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -79,26 +78,26 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             HttpServletRequest request,
             HttpServletResponse response,
             @Nullable Authentication authentication,
-            Throwable exception) throws IOException { 
+            Throwable exception) throws IOException {
         try {
-            
+
             HandlerMethod handlerMethod = handlerRegistry.findBestExceptionHandlerMethod(exception, authentication, request);
 
             if (handlerMethod != null) {
-                
+
                 MediaType resolvedMediaType = determineResponseMediaType(request, handlerMethod);
                 this.handlerInvoker.invokeHandlerMethod(request, response, authentication, exception, handlerMethod, resolvedMediaType);
 
             } else {
-                                handleCentralizedDefaultErrorResponse(request, response, exception, authentication, false);
+                handleCentralizedDefaultErrorResponse(request, response, exception, authentication, false);
             }
         } catch (Exception handlerInvocationException) {
-            
+
             log.error("ASEP: Exception occurred while invoking ASEP handler for original exception [{}]: {}. Handler exception: {}",
                     exception.getClass().getSimpleName(), exception.getMessage(),
                     handlerInvocationException.getMessage(), handlerInvocationException);
             if (!response.isCommitted()) {
-                
+
                 handleCentralizedDefaultErrorResponse(request, response, handlerInvocationException, authentication, true);
             } else {
                 log.error("ASEP: Response already committed. Unable to send final default error for handlerInvocationException: {}",
@@ -115,7 +114,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             @Nullable Authentication authentication,
             boolean isHandlerError) throws IOException {
 
-        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR; 
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
         String errorCode = "INTERNAL_SERVER_ERROR";
         String baseMessage = isHandlerError ? "Error occurred in ASEP exception handler" : "An unexpected error occurred";
 
@@ -123,8 +122,8 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             status = HttpStatus.UNAUTHORIZED;
             errorCode = "UNAUTHENTICATED";
             baseMessage = "Authentication failed";
-            SecurityContextHolder.clearContext(); 
-                    } else if (exception instanceof AccessDeniedException) {
+            SecurityContextHolder.clearContext();
+        } else if (exception instanceof AccessDeniedException) {
             status = HttpStatus.FORBIDDEN;
             errorCode = "ACCESS_DENIED";
             baseMessage = "Access denied";
@@ -135,7 +134,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         } else {
             log.error("ASEP: Response already committed (status {}). Cannot set new status {} for default error response.",
                     response.getStatus(), status.value());
-            return; 
+            return;
         }
 
         Map<String, Object> errorAttributes = new LinkedHashMap<>();
@@ -156,7 +155,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                     try {
                         ((HttpMessageConverter<Object>) converter).write(errorAttributes, bestMatchingMediaType, outputMessage);
                         written = true;
-                                                break;
+                        break;
                     } catch (HttpMessageNotWritableException | IOException e) {
                         log.error("ASEP: Error writing default error response with HttpMessageConverter [{}]: {}",
                                 converter.getClass().getSimpleName(), e.getMessage(), e);
@@ -182,10 +181,10 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             }
         }
 
-            }
+    }
 
     private MediaType determineResponseMediaType(HttpServletRequest request, HandlerMethod handlerMethod) {
-        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.ALL); 
+        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.ALL);
         String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
         if (acceptHeader != null && !acceptHeader.trim().isEmpty()) {
             try {
@@ -201,15 +200,15 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
 
         if (handlerMethod != null && !CollectionUtils.isEmpty(handlerMethod.getProduces())) {
             List<MediaType> handlerProduces = handlerMethod.getProduces().stream()
-                    .map(MediaType::parseMediaType) 
+                    .map(MediaType::parseMediaType)
                     .toList();
 
             for (MediaType acceptedType : acceptedMediaTypes) {
                 for (MediaType producedType : handlerProduces) {
                     if (acceptedType.isCompatibleWith(producedType)) {
-                        
+
                         for (HttpMessageConverter<?> converter : this.messageConverters) {
-                            
+
                             if (converter.canWrite(Object.class, producedType)) {
                                 return producedType.removeQualityValue();
                             }
@@ -217,7 +216,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                     }
                 }
             }
-            
+
             if (!handlerProduces.isEmpty()) {
                 MediaType firstProduce = handlerProduces.get(0).removeQualityValue();
                 for (HttpMessageConverter<?> converter : this.messageConverters) {
@@ -225,12 +224,12 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                 }
             }
         }
-        
+
         return determineBestMediaTypeForDefaultResponse(request);
     }
 
     private MediaType determineBestMediaTypeForDefaultResponse(HttpServletRequest request) {
-        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON); 
+        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON);
         String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
         if (acceptHeader != null && !acceptHeader.trim().isEmpty()) {
             try {
@@ -246,19 +245,19 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         }
 
         for (MediaType acceptedType : acceptedMediaTypes) {
-            
+
             if (!acceptedType.isWildcardType() && !acceptedType.isWildcardSubtype()) {
                 for (HttpMessageConverter<?> converter : this.messageConverters) {
-                    if (converter.canWrite(Map.class, acceptedType)) { 
+                    if (converter.canWrite(Map.class, acceptedType)) {
                         return acceptedType.removeQualityValue();
                     }
                 }
             }
         }
-        
+
         for (MediaType acceptedType : acceptedMediaTypes) {
             for (HttpMessageConverter<?> converter : this.messageConverters) {
-                for(MediaType supported : converter.getSupportedMediaTypes(Map.class)) { 
+                for (MediaType supported : converter.getSupportedMediaTypes(Map.class)) {
                     if (acceptedType.isCompatibleWith(supported) && !supported.isWildcardType() && !supported.isWildcardSubtype()) {
                         return supported.removeQualityValue();
                     }
@@ -269,7 +268,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         for (HttpMessageConverter<?> converter : this.messageConverters) {
             if (converter.canWrite(Map.class, MediaType.APPLICATION_JSON)) return MediaType.APPLICATION_JSON;
         }
-        
+
         return MediaType.APPLICATION_OCTET_STREAM;
     }
 }

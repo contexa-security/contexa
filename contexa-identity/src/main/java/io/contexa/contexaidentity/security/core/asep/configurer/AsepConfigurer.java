@@ -88,8 +88,6 @@ public final class AsepConfigurer implements SecurityConfigurer {
 
         if ("mfa".equalsIgnoreCase(flowTypeName)) {
             flowSpecificAsepAttributes = flowConfig.getMfaAsepAttributes();
-            if (flowSpecificAsepAttributes != null) {
-            }
         } else if (!flowConfig.getStepConfigs().isEmpty()) {
             AuthenticationStepConfig mainStep = flowConfig.getStepConfigs().get(0);
             Object optionsObject = mainStep.getOptions().get("_options");
@@ -98,15 +96,11 @@ public final class AsepConfigurer implements SecurityConfigurer {
             else if (optionsObject instanceof RestOptions ro) flowSpecificAsepAttributes = ro.getAsepAttributes();
             else if (optionsObject instanceof OttOptions oo) flowSpecificAsepAttributes = oo.getAsepAttributes();
             else if (optionsObject instanceof PasskeyOptions po) flowSpecificAsepAttributes = po.getAsepAttributes();
-
-            if (flowSpecificAsepAttributes != null) {
-            }
         }
 
         if (flowSpecificAsepAttributes != null) {
             collectedCustomArgumentResolvers.addAll(flowSpecificAsepAttributes.getCustomArgumentResolvers());
             collectedCustomReturnValueHandlers.addAll(flowSpecificAsepAttributes.getCustomReturnValueHandlers());
-        } else {
         }
 
         List<SecurityHandlerMethodArgumentResolver> finalArgumentResolvers = new ArrayList<>(this.defaultArgumentResolvers);
@@ -122,9 +116,6 @@ public final class AsepConfigurer implements SecurityConfigurer {
             finalReturnValueHandlers.add(customHandler);
         });
         AnnotationAwareOrderComparator.sort(finalReturnValueHandlers);
-
-        if (log.isDebugEnabled()) {
-        }
 
         SecurityExceptionHandlerInvoker handlerInvoker = new SecurityExceptionHandlerInvoker(finalArgumentResolvers, finalReturnValueHandlers);
         ASEPFilter asepFilter = new ASEPFilter(this.methodRegistry, handlerInvoker, this.messageConverters);
