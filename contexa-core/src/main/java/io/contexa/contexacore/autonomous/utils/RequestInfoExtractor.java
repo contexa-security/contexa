@@ -35,22 +35,25 @@ public final class RequestInfoExtractor {
         }
 
         String requestId = extractRequestId(request);
-        String officialVerificationPinnedModelId = extractHeaderOrAttribute(request, "X-Contexa-Official-Verification-Model-Id", "officialVerificationPinnedModelId");
-        Double officialVerificationTemperature = extractDoubleHeaderOrAttribute(request, "X-Contexa-Official-Verification-Temperature", "officialVerificationTemperature");
-        Double officialVerificationTopP = extractDoubleHeaderOrAttribute(request, "X-Contexa-Official-Verification-Top-P", "officialVerificationTopP");
-        Integer officialVerificationSeed = extractIntegerHeaderOrAttribute(request, "X-Contexa-Official-Verification-Seed", "officialVerificationSeed");
-        Integer officialVerificationMaxTokens = extractIntegerHeaderOrAttribute(request, "X-Contexa-Official-Verification-Max-Tokens", "officialVerificationMaxTokens");
-        Boolean officialVerificationDisableRetries = extractBooleanHeader(request, "X-Contexa-Official-Verification-Disable-Retries");
-        Boolean officialVerificationDisableOllamaThinking = extractBooleanHeader(request, "X-Contexa-Official-Verification-Disable-Ollama-Thinking");
-        String officialVerificationDecisionBoundaryMode = deriveOfficialVerificationDecisionBoundaryMode(
+        String requestedModelId = firstNonBlankText(
+                extractHeaderOrAttribute(request, "X-Contexa-Model-Id", "requestedModelId"),
+                extractHeaderOrAttribute(request, "X-Contexa-Preferred-Model", "preferredModel"),
+                extractHeaderOrAttribute(request, "X-Contexa-Runtime-Model-Id", "runtimeModelId"));
+        Double runtimeTemperature = extractDoubleHeaderOrAttribute(request, "X-Contexa-Temperature", "temperature", "runtimeTemperature");
+        Double runtimeTopP = extractDoubleHeaderOrAttribute(request, "X-Contexa-Top-P", "topP", "runtimeTopP");
+        Integer runtimeSeed = extractIntegerHeaderOrAttribute(request, "X-Contexa-Seed", "seed", "runtimeSeed");
+        Integer runtimeMaxTokens = extractIntegerHeaderOrAttribute(request, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
+        Boolean runtimeDisableRetries = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Retries", "disableRetries");
+        Boolean runtimeDisableOllamaThinking = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
+        String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
-                officialVerificationPinnedModelId,
-                officialVerificationTemperature,
-                officialVerificationTopP,
-                officialVerificationSeed,
-                officialVerificationMaxTokens,
-                officialVerificationDisableRetries,
-                officialVerificationDisableOllamaThinking);
+                requestedModelId,
+                runtimeTemperature,
+                runtimeTopP,
+                runtimeSeed,
+                runtimeMaxTokens,
+                runtimeDisableRetries,
+                runtimeDisableOllamaThinking);
 
         return RequestInfo.builder()
                 .requestUri(request.getRequestURI())
@@ -59,6 +62,7 @@ public final class RequestInfoExtractor {
                 .userAgent(extractUserAgent(request))
                 .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
                 .requestId(requestId)
+                .requestedModelId(requestedModelId)
                 .observedAt(extractObservedAt(request))
                 .servletPath(request.getServletPath())
                 .queryString(request.getQueryString())
@@ -71,14 +75,13 @@ public final class RequestInfoExtractor {
                 .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
                 .anomalySignal(extractHeader(request, "X-Contexa-Anomaly-Signal"))
                 .promptBudgetProfile(extractHeader(request, "X-Contexa-Prompt-Budget-Profile"))
-                .officialVerificationDecisionBoundaryMode(officialVerificationDecisionBoundaryMode)
-                .officialVerificationPinnedModelId(officialVerificationPinnedModelId)
-                .officialVerificationTemperature(officialVerificationTemperature)
-                .officialVerificationTopP(officialVerificationTopP)
-                .officialVerificationSeed(officialVerificationSeed)
-                .officialVerificationMaxTokens(officialVerificationMaxTokens)
-                .officialVerificationDisableRetries(officialVerificationDisableRetries)
-                .officialVerificationDisableOllamaThinking(officialVerificationDisableOllamaThinking)
+                .decisionBoundaryMode(decisionBoundaryMode)
+                .runtimeTemperature(runtimeTemperature)
+                .runtimeTopP(runtimeTopP)
+                .runtimeSeed(runtimeSeed)
+                .runtimeMaxTokens(runtimeMaxTokens)
+                .runtimeDisableRetries(runtimeDisableRetries)
+                .runtimeDisableOllamaThinking(runtimeDisableOllamaThinking)
                 .simulatedUserAgentLabel(extractHeader(request, "X-Simulated-User-Agent-Label"))
                 .secure(request.isSecure())
                 .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
@@ -314,16 +317,25 @@ public final class RequestInfoExtractor {
     }
 
 
-    private static String extractHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
+    private static String extractHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
         String value = extractHeader(request, headerName);
         if (value != null) {
             return value;
         }
-        return extractAttributeText(request, attributeName);
+        if (attributeNames == null) {
+            return null;
+        }
+        for (String attributeName : attributeNames) {
+            String attributeValue = extractAttributeText(request, attributeName);
+            if (attributeValue != null) {
+                return attributeValue;
+            }
+        }
+        return null;
     }
 
-    private static Double extractDoubleHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
-        String value = extractHeaderOrAttribute(request, headerName, attributeName);
+    private static Double extractDoubleHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
+        String value = extractHeaderOrAttribute(request, headerName, attributeNames);
         if (value == null) {
             return null;
         }
@@ -334,36 +346,36 @@ public final class RequestInfoExtractor {
         }
     }
 
-    private static String deriveOfficialVerificationDecisionBoundaryMode(
+    private static String deriveDecisionBoundaryMode(
             HttpServletRequest request,
-            String officialVerificationPinnedModelId,
-            Double officialVerificationTemperature,
-            Double officialVerificationTopP,
-            Integer officialVerificationSeed,
-            Integer officialVerificationMaxTokens,
-            Boolean officialVerificationDisableRetries,
-            Boolean officialVerificationDisableOllamaThinking) {
+            String requestedModelId,
+            Double runtimeTemperature,
+            Double runtimeTopP,
+            Integer runtimeSeed,
+            Integer runtimeMaxTokens,
+            Boolean runtimeDisableRetries,
+            Boolean runtimeDisableOllamaThinking) {
         String explicitBoundaryMode = extractHeaderOrAttribute(
                 request,
-                "X-Contexa-Official-Verification-Boundary-Mode",
-                "officialVerificationDecisionBoundaryMode");
+                "X-Contexa-Decision-Boundary-Mode",
+                "decisionBoundaryMode");
         if (explicitBoundaryMode != null && !explicitBoundaryMode.isBlank()) {
             return explicitBoundaryMode;
         }
-        if (officialVerificationPinnedModelId != null
-                || officialVerificationTemperature != null
-                || officialVerificationTopP != null
-                || officialVerificationSeed != null
-                || officialVerificationMaxTokens != null
-                || officialVerificationDisableRetries != null
-                || officialVerificationDisableOllamaThinking != null) {
-            return "OFFICIAL_VERIFICATION_RUNTIME";
+        if (requestedModelId != null
+                || runtimeTemperature != null
+                || runtimeTopP != null
+                || runtimeSeed != null
+                || runtimeMaxTokens != null
+                || runtimeDisableRetries != null
+                || runtimeDisableOllamaThinking != null) {
+            return "RUNTIME_MODEL_SELECTION";
         }
         return null;
     }
 
-    private static Integer extractIntegerHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
-        String value = extractHeaderOrAttribute(request, headerName, attributeName);
+    private static Integer extractIntegerHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
+        String value = extractHeaderOrAttribute(request, headerName, attributeNames);
         if (value == null) {
             return null;
         }
@@ -386,6 +398,13 @@ public final class RequestInfoExtractor {
         }
     }
 
+    private static Boolean extractBooleanHeaderOrAttribute(HttpServletRequest request, String headerName, String attributeName) {
+        String value = extractHeaderOrAttribute(request, headerName, attributeName);
+        if (value == null) {
+            return null;
+        }
+        return Boolean.parseBoolean(value);
+    }
     private static Integer extractIntegerHeader(HttpServletRequest request, String name) {
         String value = extractHeader(request, name);
         if (value == null) {
@@ -406,13 +425,35 @@ public final class RequestInfoExtractor {
         return Boolean.parseBoolean(value);
     }
 
+    private static String firstNonBlankText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
     private static String extractAttributeText(HttpServletRequest request, String... names) {
         if (request == null || names == null) {
             return null;
         }
         for (String name : names) {
             Object value = request.getAttribute(name);
-            if (value instanceof String text && !text.isBlank()) {
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof String text) {
+                if (!text.isBlank()) {
+                    return text.trim();
+                }
+                continue;
+            }
+            String text = String.valueOf(value);
+            if (!text.isBlank()) {
                 return text.trim();
             }
         }
@@ -513,6 +554,7 @@ public final class RequestInfoExtractor {
         private final String userAgent;
         private final String sessionId;
         private final String requestId;
+        private final String requestedModelId;
         private final Instant observedAt;
         private final String servletPath;
         private final String queryString;
@@ -525,14 +567,13 @@ public final class RequestInfoExtractor {
         private final String behaviorPhase;
         private final String anomalySignal;
         private final String promptBudgetProfile;
-        private final String officialVerificationDecisionBoundaryMode;
-        private final String officialVerificationPinnedModelId;
-        private final Double officialVerificationTemperature;
-        private final Double officialVerificationTopP;
-        private final Integer officialVerificationSeed;
-        private final Integer officialVerificationMaxTokens;
-        private final Boolean officialVerificationDisableRetries;
-        private final Boolean officialVerificationDisableOllamaThinking;
+        private final String decisionBoundaryMode;
+        private final Double runtimeTemperature;
+        private final Double runtimeTopP;
+        private final Integer runtimeSeed;
+        private final Integer runtimeMaxTokens;
+        private final Boolean runtimeDisableRetries;
+        private final Boolean runtimeDisableOllamaThinking;
         private final String simulatedUserAgentLabel;
         private final boolean secure;
 
@@ -590,6 +631,13 @@ public final class RequestInfoExtractor {
         return null;
     }
 }
+
+
+
+
+
+
+
 
 
 

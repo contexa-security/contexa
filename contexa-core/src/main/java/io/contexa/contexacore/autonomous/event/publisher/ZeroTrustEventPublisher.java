@@ -157,29 +157,30 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getPromptBudgetProfile() != null) {
                 payload.put("promptBudgetProfile", requestInfo.getPromptBudgetProfile());
             }
-            if (requestInfo.getOfficialVerificationDecisionBoundaryMode() != null) {
-                payload.put("officialVerificationDecisionBoundaryMode", requestInfo.getOfficialVerificationDecisionBoundaryMode());
+            if (requestInfo.getDecisionBoundaryMode() != null) {
+                payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
             }
-            if (requestInfo.getOfficialVerificationPinnedModelId() != null) {
-                payload.put("officialVerificationPinnedModelId", requestInfo.getOfficialVerificationPinnedModelId());
+            if (requestInfo.getRequestedModelId() != null) {
+                payload.put("requestedModelId", requestInfo.getRequestedModelId());
+                payload.put("preferredModel", requestInfo.getRequestedModelId());
             }
-            if (requestInfo.getOfficialVerificationTemperature() != null) {
-                payload.put("officialVerificationTemperature", requestInfo.getOfficialVerificationTemperature());
+            if (requestInfo.getRuntimeTemperature() != null) {
+                payload.put("temperature", requestInfo.getRuntimeTemperature());
             }
-            if (requestInfo.getOfficialVerificationTopP() != null) {
-                payload.put("officialVerificationTopP", requestInfo.getOfficialVerificationTopP());
+            if (requestInfo.getRuntimeTopP() != null) {
+                payload.put("topP", requestInfo.getRuntimeTopP());
             }
-            if (requestInfo.getOfficialVerificationSeed() != null) {
-                payload.put("officialVerificationSeed", requestInfo.getOfficialVerificationSeed());
+            if (requestInfo.getRuntimeSeed() != null) {
+                payload.put("seed", requestInfo.getRuntimeSeed());
             }
-            if (requestInfo.getOfficialVerificationMaxTokens() != null) {
-                payload.put("officialVerificationMaxTokens", requestInfo.getOfficialVerificationMaxTokens());
+            if (requestInfo.getRuntimeMaxTokens() != null) {
+                payload.put("maxTokens", requestInfo.getRuntimeMaxTokens());
             }
-            if (requestInfo.getOfficialVerificationDisableRetries() != null) {
-                payload.put("officialVerificationDisableRetries", requestInfo.getOfficialVerificationDisableRetries());
+            if (requestInfo.getRuntimeDisableRetries() != null) {
+                payload.put("disableRetries", requestInfo.getRuntimeDisableRetries());
             }
-            if (requestInfo.getOfficialVerificationDisableOllamaThinking() != null) {
-                payload.put("officialVerificationDisableOllamaThinking", requestInfo.getOfficialVerificationDisableOllamaThinking());
+            if (requestInfo.getRuntimeDisableOllamaThinking() != null) {
+                payload.put("disableOllamaThinking", requestInfo.getRuntimeDisableOllamaThinking());
             }
             if (requestInfo.getSimulatedUserAgentLabel() != null) {
                 payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
@@ -736,6 +737,9 @@ public class ZeroTrustEventPublisher {
         return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }
+
+
+
 
 
 

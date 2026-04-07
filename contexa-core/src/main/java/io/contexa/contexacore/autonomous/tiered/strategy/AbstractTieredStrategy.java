@@ -854,29 +854,28 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 ));
         request.withParameter("responseType", SecurityDecisionResponse.class);
         request.withParameter("promptBudgetProfile", resolvePromptBudgetProfile(event).profileKey());
-        applyOfficialVerificationRuntimeOptions(request, event);
+        applyRuntimeSelectionOptions(request, event);
         return request;
     }
 
-    protected void applyOfficialVerificationRuntimeOptions(SecurityDecisionRequest request, SecurityEvent event) {
+    protected void applyRuntimeSelectionOptions(SecurityDecisionRequest request, SecurityEvent event) {
         if (request == null || event == null || event.getMetadata() == null) {
             return;
         }
         Map<String, Object> metadata = event.getMetadata();
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationPinnedModelId");
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationTemperature");
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationTopP");
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationSeed");
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationMaxTokens");
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationDisableRetries");
-        copyOfficialVerificationRuntimeOption(metadata, request, "officialVerificationDisableOllamaThinking");
-        String scenario = metadata.get("scenario") != null ? String.valueOf(metadata.get("scenario")) : null;
-        if (StringUtils.hasText(scenario) && scenario.trim().toUpperCase(Locale.ROOT).startsWith("OFFICIAL_VERIFICATION")) {
-            request.withParameter("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
-        }
+        copyRuntimeSelectionOption(metadata, request, "requestedModelId");
+        copyRuntimeSelectionOption(metadata, request, "preferredModel");
+        copyRuntimeSelectionOption(metadata, request, "runtimeModelId");
+        copyRuntimeSelectionOption(metadata, request, "temperature");
+        copyRuntimeSelectionOption(metadata, request, "topP");
+        copyRuntimeSelectionOption(metadata, request, "seed");
+        copyRuntimeSelectionOption(metadata, request, "maxTokens");
+        copyRuntimeSelectionOption(metadata, request, "disableRetries");
+        copyRuntimeSelectionOption(metadata, request, "disableOllamaThinking");
+        copyRuntimeSelectionOption(metadata, request, "decisionBoundaryMode");
     }
 
-    private void copyOfficialVerificationRuntimeOption(
+    private void copyRuntimeSelectionOption(
             Map<String, Object> metadata,
             SecurityDecisionRequest request,
             String key) {
@@ -989,7 +988,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             event.setMetadata(fresh);
             return fresh;
         }
-        if (current instanceof LinkedHashMap || current instanceof HashMap) {
+        if (current instanceof HashMap) {
             return current;
         }
         Map<String, Object> copied = new LinkedHashMap<>(current);
@@ -1012,6 +1011,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 SecurityDecisionResponse.class);
     }
 }
+
+
+
 
 
 

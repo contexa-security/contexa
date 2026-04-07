@@ -6,15 +6,17 @@ import java.util.Map;
 
 public final class PromptRuntimeTelemetrySupport {
 
-    private static final List<String> OFFICIAL_VERIFICATION_RUNTIME_OPTION_KEYS = List.of(
-            "officialVerificationDecisionBoundaryMode",
-            "officialVerificationPinnedModelId",
-            "officialVerificationTemperature",
-            "officialVerificationTopP",
-            "officialVerificationSeed",
-            "officialVerificationMaxTokens",
-            "officialVerificationDisableRetries",
-            "officialVerificationDisableOllamaThinking"
+    private static final List<String> RUNTIME_SELECTION_OPTION_KEYS = List.of(
+            "decisionBoundaryMode",
+            "requestedModelId",
+            "requestedModelSourceKey",
+            "preferredModel",
+            "temperature",
+            "topP",
+            "seed",
+            "maxTokens",
+            "disableRetries",
+            "disableOllamaThinking"
     );
 
     private static final List<String> RUNTIME_TELEMETRY_KEYS = List.of(
@@ -63,6 +65,22 @@ public final class PromptRuntimeTelemetrySupport {
             "rawPromptHash",
             "rawSystemPromptHash",
             "rawUserPromptHash",
+            "requestedModelId",
+            "requestedModelSourceKey",
+            "selectedModelId",
+            "selectedModelProvider",
+            "runtimeModelId",
+            "modelSelectionSource",
+            "modelSelectionFallbackUsed",
+            "modelSelectionFailure",
+            "modelSelectionCandidates",
+            "temperature",
+            "topP",
+            "seed",
+            "maxTokens",
+            "disableRetries",
+            "disableOllamaThinking",
+            "decisionBoundaryMode",
             "systemPromptLength",
             "userPromptLength",
             "totalPromptLength",
@@ -72,19 +90,11 @@ public final class PromptRuntimeTelemetrySupport {
             "llmSystemPromptLength",
             "llmUserPromptLength",
             "llmTotalPromptLength",
-            "officialVerificationDecisionBoundaryMode",
-            "officialVerificationPinnedModelId",
-            "officialVerificationTemperature",
-            "officialVerificationTopP",
-            "officialVerificationSeed",
-            "officialVerificationMaxTokens",
-            "officialVerificationDisableRetries",
-            "officialVerificationDisableOllamaThinking",
             "promptGeneratedAtEpochMs"
     );
 
     private static final List<String> CLEARABLE_RUNTIME_TELEMETRY_KEYS = RUNTIME_TELEMETRY_KEYS.stream()
-            .filter(key -> !OFFICIAL_VERIFICATION_RUNTIME_OPTION_KEYS.contains(key))
+            .filter(key -> !RUNTIME_SELECTION_OPTION_KEYS.contains(key))
             .toList();
 
     private PromptRuntimeTelemetrySupport() {
@@ -94,8 +104,8 @@ public final class PromptRuntimeTelemetrySupport {
         return RUNTIME_TELEMETRY_KEYS;
     }
 
-    public static List<String> officialVerificationRuntimeOptionKeys() {
-        return OFFICIAL_VERIFICATION_RUNTIME_OPTION_KEYS;
+    public static List<String> runtimeSelectionOptionKeys() {
+        return RUNTIME_SELECTION_OPTION_KEYS;
     }
 
     public static List<String> clearableRuntimeTelemetryKeys() {

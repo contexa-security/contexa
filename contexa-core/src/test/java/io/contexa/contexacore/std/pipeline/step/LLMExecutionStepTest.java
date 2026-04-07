@@ -23,25 +23,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LLMExecutionStepTest {
 
     @Test
-    void executeShouldBuildExecutionContextWithOfficialVerificationRuntimeOptions() {
+    void executeShouldBuildExecutionContextWithCanonicalRuntimeSelectionOptions() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
-        PipelineExecutionContext context = new PipelineExecutionContext("exec-ov-runtime");
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-runtime-selection");
         context.addStepResult(
                 PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
-                new PromptGenerationResult(new Prompt("official verification prompt"), "system", "user", Map.of(), null));
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
 
         TestContext domainContext = new TestContext();
         domainContext.setUserId("user-1");
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("officialVerificationPinnedModelId", "qwen3:8b");
-        request.withParameter("officialVerificationTemperature", 0.0d);
-        request.withParameter("officialVerificationTopP", 0.2d);
-        request.withParameter("officialVerificationSeed", 7);
-        request.withParameter("officialVerificationMaxTokens", 96);
-        request.withParameter("officialVerificationDisableRetries", true);
-        request.withParameter("officialVerificationDisableOllamaThinking", true);
-        request.withParameter("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+        request.withParameter("requestedModelId", "qwen3:8b");
+        request.withParameter("temperature", 0.0d);
+        request.withParameter("topP", 0.2d);
+        request.withParameter("seed", 7);
+        request.withParameter("maxTokens", 96);
+        request.withParameter("disableRetries", true);
+        request.withParameter("disableOllamaThinking", true);
+        request.withParameter("decisionBoundaryMode", "RUNTIME_MODEL_SELECTION");
 
         Object response = step.execute(request, context).block();
 
@@ -53,23 +53,24 @@ class LLMExecutionStepTest {
         assertThat(llmClient.lastExecutionContext.getSeed()).isEqualTo(7);
         assertThat(llmClient.lastExecutionContext.getMaxTokens()).isEqualTo(96);
         assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry("requestedModelId", "qwen3:8b")
+                .containsEntry("preferredModel", "qwen3:8b")
+                .containsEntry("runtimeModelId", "qwen3:8b")
+                .containsEntry("requestedModelSourceKey", "requestedModelId")
+                .containsEntry("temperature", 0.0d)
+                .containsEntry("topP", 0.2d)
+                .containsEntry("seed", 7)
+                .containsEntry("maxTokens", 96)
                 .containsEntry("disableRetries", true)
                 .containsEntry("disableOllamaThinking", true)
-                .containsEntry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")
-                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
-                .containsEntry("officialVerificationTemperature", 0.0d)
-                .containsEntry("officialVerificationTopP", 0.2d)
-                .containsEntry("officialVerificationSeed", 7)
-                .containsEntry("officialVerificationMaxTokens", 96)
-                .containsEntry("officialVerificationDisableRetries", true)
-                .containsEntry("officialVerificationDisableOllamaThinking", true);
-        assertThat(context.getMetadata("officialVerificationPinnedModelId", String.class)).isEqualTo("qwen3:8b");
-        assertThat(context.getMetadata("officialVerificationTemperature", Double.class)).isEqualTo(0.0d);
-        assertThat(context.getMetadata("officialVerificationTopP", Double.class)).isEqualTo(0.2d);
-        assertThat(context.getMetadata("officialVerificationSeed", Integer.class)).isEqualTo(7);
-        assertThat(context.getMetadata("officialVerificationMaxTokens", Integer.class)).isEqualTo(96);
-        assertThat(context.getMetadata("officialVerificationDisableRetries", Boolean.class)).isTrue();
-        assertThat(context.getMetadata("officialVerificationDisableOllamaThinking", Boolean.class)).isTrue();
+                .containsEntry("decisionBoundaryMode", "RUNTIME_MODEL_SELECTION");
+        assertThat(context.getMetadata("requestedModelId", String.class)).isEqualTo("qwen3:8b");
+        assertThat(context.getMetadata("temperature", Double.class)).isEqualTo(0.0d);
+        assertThat(context.getMetadata("topP", Double.class)).isEqualTo(0.2d);
+        assertThat(context.getMetadata("seed", Integer.class)).isEqualTo(7);
+        assertThat(context.getMetadata("maxTokens", Integer.class)).isEqualTo(96);
+        assertThat(context.getMetadata("disableRetries", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("disableOllamaThinking", Boolean.class)).isTrue();
         assertThat(llmClient.rawExecutions).isEqualTo(1);
         assertThat(llmClient.entityExecutions).isZero();
     }
@@ -81,13 +82,13 @@ class LLMExecutionStepTest {
         PipelineExecutionContext context = new PipelineExecutionContext("exec-security-decision-raw");
         context.addStepResult(
                 PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
-                new PromptGenerationResult(new Prompt("official verification prompt"), "system", "user", Map.of(), null));
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
 
         TestContext domainContext = new TestContext();
         domainContext.setUserId("user-1");
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("officialVerificationPinnedModelId", "qwen3:8b");
+        request.withParameter("requestedModelId", "qwen3:8b");
 
         Object response = step.execute(request, context).block();
 
@@ -95,6 +96,30 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("structuredOutputComplete", Boolean.class)).isFalse();
         assertThat(llmClient.rawExecutions).isEqualTo(1);
         assertThat(llmClient.entityExecutions).isZero();
+    }
+
+    @Test
+    void executeShouldResolveRuntimeModelIdAliasFromContextMetadata() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-runtime-model-id-alias");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("runtimeModelId", "qwen2.5:7b");
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("raw-response");
+        assertThat(llmClient.lastExecutionContext).isNotNull();
+        assertThat(llmClient.lastExecutionContext.getPreferredModel()).isEqualTo("qwen2.5:7b");
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry("requestedModelId", "qwen2.5:7b")
+                .containsEntry("runtimeModelId", "qwen2.5:7b")
+                .containsEntry("requestedModelSourceKey", "runtimeModelId");
     }
 
     private static class RecordingLlmClient implements LLMClient, LLMOperations {

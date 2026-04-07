@@ -213,20 +213,13 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getPayload()).containsEntry("promptBudgetProfile", "CORTEX_L1_COMPACT");
     }
 
-    @Test
-    @DisplayName("official verification runtime headers should propagate into authorization event payload")
-    void shouldPropagateOfficialVerificationRuntimeHeadersIntoAuthorizationEventPayload() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
-        request.setRequestedSessionId("session-ov-runtime");
+        @Test
+    @DisplayName("generic requested model header should propagate into authorization event payload")
+    void shouldPropagateRequestedModelHeaderIntoAuthorizationEventPayload() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRequestedSessionId("session-generic-model");
         request.addHeader("User-Agent", "JUnit");
-        request.addHeader("X-Contexa-Scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE");
-        request.addHeader("X-Contexa-Official-Verification-Model-Id", "qwen3:8b");
-        request.addHeader("X-Contexa-Official-Verification-Temperature", "0.0");
-        request.addHeader("X-Contexa-Official-Verification-Top-P", "0.2");
-        request.addHeader("X-Contexa-Official-Verification-Seed", "7");
-        request.addHeader("X-Contexa-Official-Verification-Max-Tokens", "96");
-        request.addHeader("X-Contexa-Official-Verification-Disable-Retries", "true");
-        request.addHeader("X-Contexa-Official-Verification-Disable-Ollama-Thinking", "true");
+        request.addHeader("X-Contexa-Model-Id", "qwen2.5:7b");
         request.setRemoteAddr("203.0.113.10");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
@@ -243,15 +236,47 @@ class ZeroTrustEventPublisherTest {
         );
 
         assertThat(event.getPayload())
-                .containsEntry("scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE")
-                .containsEntry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")
-                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
-                .containsEntry("officialVerificationTemperature", 0.0d)
-                .containsEntry("officialVerificationTopP", 0.2d)
-                .containsEntry("officialVerificationSeed", 7)
-                .containsEntry("officialVerificationMaxTokens", 96)
-                .containsEntry("officialVerificationDisableRetries", true)
-                .containsEntry("officialVerificationDisableOllamaThinking", true);
+                .containsEntry("requestedModelId", "qwen2.5:7b")
+                .containsEntry("preferredModel", "qwen2.5:7b");
+    }
+    @Test
+    @DisplayName("canonical runtime headers should propagate into authorization event payload")
+    void shouldPropagateCanonicalRuntimeHeadersIntoAuthorizationEventPayload() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRequestedSessionId("session-runtime-selection");
+        request.addHeader("User-Agent", "JUnit");
+        request.addHeader("X-Contexa-Model-Id", "qwen3:8b");
+        request.addHeader("X-Contexa-Temperature", "0.0");
+        request.addHeader("X-Contexa-Top-P", "0.2");
+        request.addHeader("X-Contexa-Seed", "7");
+        request.addHeader("X-Contexa-Max-Tokens", "96");
+        request.addHeader("X-Contexa-Disable-Retries", "true");
+        request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
+        request.setRemoteAddr("203.0.113.10");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        assertThat(event.getPayload())
+                .containsEntry("decisionBoundaryMode", "RUNTIME_MODEL_SELECTION")
+                .containsEntry("requestedModelId", "qwen3:8b")
+                .containsEntry("preferredModel", "qwen3:8b")
+                .containsEntry("temperature", 0.0d)
+                .containsEntry("topP", 0.2d)
+                .containsEntry("seed", 7)
+                .containsEntry("maxTokens", 96)
+                .containsEntry("disableRetries", true)
+                .containsEntry("disableOllamaThinking", true);
     }
 
     private BridgeResolutionResult createBridgeResolutionResult() {
@@ -318,3 +343,6 @@ class ZeroTrustEventPublisherTest {
         }
     }
 }
+
+
+
