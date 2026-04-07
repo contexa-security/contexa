@@ -317,6 +317,12 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
 
         analysisStore.put(userId, entry);
+
+        ActionEntry lastEntry = new ActionEntry();
+        lastEntry.action = newAction.name();
+        lastEntry.contextBindingHash = null;
+        lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+        lastVerifiedStore.put(userId, lastEntry);
     }
 
     @Override

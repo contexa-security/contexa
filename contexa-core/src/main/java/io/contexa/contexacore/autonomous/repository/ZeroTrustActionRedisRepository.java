@@ -202,7 +202,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     public boolean isStale(String userId, long maxAgeMs) {
         if (userId == null || userId.isBlank()) {
-            return false;
+            return true;
         }
 
         try {
@@ -210,14 +210,14 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             Object updatedAtValue = redisTemplate.opsForHash().get(analysisKey, "updatedAt");
 
             if (updatedAtValue == null) {
-                return false;
+                return true;
             }
 
             Instant updatedInstant = Instant.parse(updatedAtValue.toString());
             return Instant.now().toEpochMilli() - updatedInstant.toEpochMilli() > maxAgeMs;
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to check staleness: userId={}", userId, e);
-            return false;
+            return true;
         }
     }
 

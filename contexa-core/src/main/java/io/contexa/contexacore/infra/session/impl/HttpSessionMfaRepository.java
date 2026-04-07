@@ -90,7 +90,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
 
     @Override
     public boolean isSessionIdUnique(String sessionId) {
-        return isValidSessionIdFormat(sessionId);
+        return isValidSessionIdFormat(sessionId) && !activeSessionIds.contains(sessionId);
     }
 
     @Override
