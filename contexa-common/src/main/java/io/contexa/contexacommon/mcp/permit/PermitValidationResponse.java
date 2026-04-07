@@ -27,6 +27,52 @@ public record PermitValidationResponse(
         String approvedScopes,
         String actionApprovalCategory,
         String executionContinuityFingerprint) {
+    public static PermitValidationResponse allowed(
+            String permitId,
+            String toolName,
+            String requiredScope,
+            String requestId,
+            String approvalId,
+            String incidentId,
+            String sessionId,
+            String executionClass,
+            String argumentsHash,
+            String tenantId,
+            String userId,
+            String zeroTrustAction,
+            Double riskScore,
+            Double confidence,
+            String contextBindingHashDigest,
+            String actorType,
+            String executionMode,
+            String riskLevel) {
+        return allowed(
+                permitId,
+                toolName,
+                requiredScope,
+                requestId,
+                approvalId,
+                incidentId,
+                sessionId,
+                executionClass,
+                argumentsHash,
+                tenantId,
+                userId,
+                zeroTrustAction,
+                riskScore,
+                confidence,
+                contextBindingHashDigest,
+                actorType,
+                executionMode,
+                riskLevel,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
 
     public static PermitValidationResponse allowed(
             String permitId,
@@ -82,7 +128,6 @@ public record PermitValidationResponse(
                 executionContinuityFingerprint
         );
     }
-
     public static PermitValidationResponse allowed(
             String permitId,
             String toolName,

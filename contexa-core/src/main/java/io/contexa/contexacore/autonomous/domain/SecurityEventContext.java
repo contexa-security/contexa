@@ -32,6 +32,14 @@ public class SecurityEventContext {
     @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    public SecurityEventContext(SecurityEvent securityEvent) {
+        this.securityEvent = securityEvent;
+        this.processingStatus = ProcessingStatus.PENDING;
+        this.processingMetrics = new ProcessingMetrics();
+        this.metadata = new HashMap<>();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+    }
     public enum ProcessingStatus {
 
         PENDING,

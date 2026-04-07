@@ -78,6 +78,29 @@ public interface ZeroTrustActionRepository {
             String contextBindingHash,
             String llmProposedAction
     ) {
+        public ZeroTrustAnalysisData(
+                String action,
+                Double riskScore,
+                Double confidence,
+                String threatEvidence,
+                Integer analysisDepth,
+                String updatedAt
+        ) {
+            this(
+                    action,
+                    riskScore,
+                    confidence,
+                    threatEvidence,
+                    analysisDepth,
+                    updatedAt,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
+        }
+
         public static ZeroTrustAnalysisData pending() {
             return new ZeroTrustAnalysisData(
                     ZeroTrustAction.PENDING_ANALYSIS.name(),
@@ -86,3 +109,4 @@ public interface ZeroTrustActionRepository {
         }
     }
 }
+
