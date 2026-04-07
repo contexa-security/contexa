@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.bootstrap.customizer;
 
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.filter.ContexaWebAuthnRegistrationPageFilter;
+import io.contexa.contexaidentity.security.filter.ContexaWebAuthnResourceFilter;
 import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -13,6 +14,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.authentication.ui.DefaultResourcesFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.webauthn.authentication.PublicKeyCredentialRequestOptionsFilter;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
@@ -75,11 +77,35 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 }
             }
 
-            // ContexaWebAuthnRegistrationPageFilter - registration page URL
+            // ContexaWebAuthnRegistrationPageFilter - registration page URL + delete action + JS path
             if (filter instanceof ContexaWebAuthnRegistrationPageFilter pageFilter) {
-                String url = flowUrlProvider.getPasskeyRegistrationPage();
-                if (StringUtils.hasText(url)) {
-                    pageFilter.setRequestMatcher(createGetMatcher(url));
+                String pageUrl = flowUrlProvider.getPasskeyRegistrationPage();
+                if (StringUtils.hasText(pageUrl)) {
+                    pageFilter.setRequestMatcher(createGetMatcher(pageUrl));
+                }
+                String regUrl = flowUrlProvider.getPasskeyRegistrationProcessing();
+                if (StringUtils.hasText(regUrl)) {
+                    pageFilter.setDeleteActionBase(regUrl);
+                    String jsPath = regUrl.replace("/webauthn/register", "/login/webauthn.js");
+                    pageFilter.setWebauthnJsPath(jsPath);
+                    // Extract urlPrefix for webauthn.js contextPath (e.g. "/admin")
+                    String urlPrefix = regUrl.replace("/webauthn/register", "");
+                    if (StringUtils.hasText(urlPrefix)) {
+                        pageFilter.setWebauthnContextPath(urlPrefix);
+                    }
+                }
+            }
+
+            // Replace DefaultResourcesFilter.webauthn() with prefix-aware version
+            if (filter instanceof DefaultResourcesFilter resFilter
+                    && resFilter.toString().contains("spring-security-webauthn.js")) {
+                String regUrl = flowUrlProvider.getPasskeyRegistrationProcessing();
+                if (StringUtils.hasText(regUrl)) {
+                    String jsServingPath = regUrl.replace("/webauthn/register", "/login/webauthn.js");
+                    int idx = getFilters(builtChain).indexOf(filter);
+                    if (idx >= 0) {
+                        getFilters(builtChain).set(idx, ContexaWebAuthnResourceFilter.create(jsServingPath));
+                    }
                 }
             }
         }

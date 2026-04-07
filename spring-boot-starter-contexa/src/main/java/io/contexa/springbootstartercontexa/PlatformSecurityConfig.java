@@ -28,7 +28,6 @@ public class PlatformSecurityConfig {
     private final AISessionSecurityContextRepository aiSessionSecurityContextRepository;
 
     @Bean
-    @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
@@ -62,9 +61,11 @@ public class PlatformSecurityConfig {
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
 
-                .mfa(mfa -> mfa.urlPrefix("/admin").requiredFactors(1)
+                .mfa(mfa -> mfa
+                                .urlPrefix("/admin")
+                                .requiredFactors(1)
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
-//                                        .defaultSuccessUrl("/admin/test/security")
+//                                        .defaultSuccessUrl("/test/security")
                                         .defaultSuccessUrl("/admin/test/security")
                                 ))
                                 .passkey(Customizer.withDefaults())

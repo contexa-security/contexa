@@ -44,6 +44,9 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
     private final PublicKeyCredentialUserEntityRepository userEntities;
     private final UserCredentialRepository userCredentials;
     private MessageSource messageSource;
+    private String deleteActionBase = "/webauthn/register";
+    private String webauthnJsPath = "/login/webauthn.js";
+    private String webauthnContextPath;
 
     public ContexaWebAuthnRegistrationPageFilter(PublicKeyCredentialUserEntityRepository userEntities,
                                                   UserCredentialRepository userCredentials) {
@@ -81,6 +84,18 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         this.matcher = requestMatcher;
     }
 
+    public void setDeleteActionBase(String deleteActionBase) {
+        this.deleteActionBase = deleteActionBase;
+    }
+
+    public void setWebauthnJsPath(String webauthnJsPath) {
+        this.webauthnJsPath = webauthnJsPath;
+    }
+
+    public void setWebauthnContextPath(String webauthnContextPath) {
+        this.webauthnContextPath = webauthnContextPath;
+    }
+
 
 
     @Override
@@ -96,8 +111,15 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         response.setCharacterEncoding("UTF-8");
         response.setStatus(HttpServletResponse.SC_OK);
 
+        String effectiveContextPath = (this.webauthnContextPath != null)
+                ? this.webauthnContextPath
+                : request.getContextPath();
+
         String html = MfaHtmlTemplates.fromTemplate(HTML_TEMPLATE)
                 .withValue("contextPath", request.getContextPath())
+                .withValue("registrationBaseUrl", this.deleteActionBase)
+                .withValue("webauthnJsPath", this.webauthnJsPath)
+                .withValue("webauthnContextPath", effectiveContextPath)
                 .withRawHtml("csrfHeaders", csrfToken != null ? renderCsrfHeader(csrfToken) : "{}")
                 .withRawHtml("passkeys", passkeyRows(request, request.getRemoteUser(), request.getContextPath(), csrfToken))
                 .withValue("i18nTitle", msg(request, "webauthn.title", "Passkey Management"))
@@ -139,7 +161,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("csrfParameterName", csrfToken != null ? csrfToken.getParameterName() : "_csrf")
                 .withValue("csrfToken", csrfToken != null ? csrfToken.getToken() : "")
                 .withValue("contextPath", contextPath)
-                .withValue("registrationBaseUrl", "/webauthn/register")
+                .withValue("registrationBaseUrl", this.deleteActionBase)
                 .withValue("deleteLabel", msg(request, "webauthn.delete", "Delete"))
                 .render();
     }
@@ -170,7 +192,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
                 <title>{{i18nTitle}}</title>
-                <script type="text/javascript" src="{{contextPath}}/login/webauthn.js"></script>
+                <script type="text/javascript" src="{{contextPath}}{{webauthnJsPath}}"></script>
                 <script type="text/javascript">
                     const ui = {
                         getRegisterButton: function() { return document.getElementById('register'); },
@@ -179,7 +201,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                         getLabelInput: function() { return document.getElementById('label'); },
                         getDeleteForms: function() { return Array.from(document.getElementsByClassName("delete-form")); },
                     };
-                    document.addEventListener("DOMContentLoaded", () => setupRegistration({{csrfHeaders}}, "{{contextPath}}", ui));
+                    document.addEventListener("DOMContentLoaded", () => setupRegistration({{csrfHeaders}}, "{{webauthnContextPath}}", ui));
                 </script>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
