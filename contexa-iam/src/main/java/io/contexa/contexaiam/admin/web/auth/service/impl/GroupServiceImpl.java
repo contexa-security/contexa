@@ -27,18 +27,20 @@ public class GroupServiceImpl implements GroupService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public Group createGroup(Group group, List<Long> selectedRoleIds) {
         if (groupRepository.findByName(group.getName()).isPresent()) {
-            throw new IllegalArgumentException("Group with name " + group.getName() + " already exists.");
+            throw new IllegalArgumentException("Group with this name already exists.");
         }
 
         if (selectedRoleIds != null && !selectedRoleIds.isEmpty()) {
-            Set<GroupRole> groupRoles = new HashSet<>();
-            for (Long roleId : selectedRoleIds) {
-                Role role = roleRepository.findById(roleId)
-                        .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + roleId));
-                groupRoles.add(GroupRole.builder().group(group).role(role).build());
+            List<Role> roles = roleRepository.findAllById(selectedRoleIds);
+            if (roles.size() != selectedRoleIds.size()) {
+                throw new IllegalArgumentException("One or more roles not found.");
             }
+            Set<GroupRole> groupRoles = roles.stream()
+                    .map(role -> GroupRole.builder().group(group).role(role).build())
+                    .collect(Collectors.toSet());
             group.setGroupRoles(groupRoles);
         }
 
@@ -55,15 +57,17 @@ public class GroupServiceImpl implements GroupService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public void deleteGroup(Long id) {
         groupRepository.deleteById(id);
     }
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {
         Group existingGroup = groupRepository.findByIdWithRoles(group.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + group.getId()));
+                .orElseThrow(() -> new IllegalArgumentException("Group not found."));
 
         existingGroup.setName(group.getName());
         existingGroup.setDescription(group.getDescription());
@@ -77,15 +81,21 @@ public class GroupServiceImpl implements GroupService {
                 .map(gr -> gr.getRole().getId())
                 .collect(Collectors.toSet());
 
-        desiredRoleIds.stream()
+        List<Long> newRoleIds = desiredRoleIds.stream()
                 .filter(desiredId -> !currentRoleIds.contains(desiredId))
-                .forEach(newRoleId -> {
-                    Role role = roleRepository.findById(newRoleId)
-                            .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + newRoleId));
-                    currentGroupRoles.add(GroupRole.builder().group(existingGroup).role(role).build());
-                });
+                .toList();
 
-        return existingGroup;
+        if (!newRoleIds.isEmpty()) {
+            List<Role> newRoles = roleRepository.findAllById(newRoleIds);
+            if (newRoles.size() != newRoleIds.size()) {
+                throw new IllegalArgumentException("One or more roles not found.");
+            }
+            for (Role role : newRoles) {
+                currentGroupRoles.add(GroupRole.builder().group(existingGroup).role(role).build());
+            }
+        }
+
+        return groupRepository.save(existingGroup);
     }
 
     @Override
@@ -93,14 +103,9 @@ public class GroupServiceImpl implements GroupService {
         List<String> warnings = new ArrayList<>();
         if (roleIds == null || roleIds.size() < 2) return warnings;
 
-        // Load role names
-        List<Role> roles = roleIds.stream()
-                .map(id -> roleRepository.findById(id).orElse(null))
-                .filter(Objects::nonNull)
-                .toList();
+        List<Role> roles = roleRepository.findAllById(roleIds);
         Set<String> roleNames = roles.stream().map(Role::getRoleName).collect(Collectors.toSet());
 
-        // Build hierarchy graph from all active hierarchies
         Map<String, Set<String>> graph = new HashMap<>();
         roleHierarchyRepository.findAllByIsActiveTrue().forEach(h -> {
             String hs = h.getHierarchyString();
@@ -118,8 +123,6 @@ public class GroupServiceImpl implements GroupService {
 
         if (graph.isEmpty()) return warnings;
 
-        // Check for redundant roles: if roleA > roleB in hierarchy,
-        // and both are in the group, roleB is redundant
         Set<String> warnedChildRoles = new HashSet<>();
         for (Role parentRole : roles) {
             Set<String> reachable = getReachableRoles(graph, parentRole.getRoleName());

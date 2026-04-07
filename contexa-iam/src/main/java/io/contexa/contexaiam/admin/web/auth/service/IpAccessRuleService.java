@@ -31,8 +31,9 @@ public class IpAccessRuleService {
     private List<IpAccessRule> getDenyRules() {
         List<IpAccessRule> cached = cachedDenyRules.get();
         if (cached == null) {
-            cached = ipAccessRuleRepository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY);
-            cachedDenyRules.set(cached);
+            cached = List.copyOf(ipAccessRuleRepository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY));
+            cachedDenyRules.compareAndSet(null, cached);
+            return cachedDenyRules.get();
         }
         return cached;
     }
@@ -40,8 +41,9 @@ public class IpAccessRuleService {
     private List<IpAccessRule> getAllowRules() {
         List<IpAccessRule> cached = cachedAllowRules.get();
         if (cached == null) {
-            cached = ipAccessRuleRepository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.ALLOW);
-            cachedAllowRules.set(cached);
+            cached = List.copyOf(ipAccessRuleRepository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.ALLOW));
+            cachedAllowRules.compareAndSet(null, cached);
+            return cachedAllowRules.get();
         }
         return cached;
     }

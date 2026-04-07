@@ -182,7 +182,7 @@ public class SentenceBuffer {
 
         String[] labKeywords = {
                 "PermissionAnalysis", "RiskAssessment", "PolicyGeneration", "AnalysisStarted", "AnalysisComplete",
-                "InProgress", "Processing", "StudioQuery"
+                "InProgress", "Processing"
         };
 
         for (String keyword : labKeywords) {

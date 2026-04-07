@@ -6,7 +6,6 @@ import io.contexa.contexaiam.aiam.service.DataIngestionServiceImpl;
 import io.contexa.contexaiam.aiam.strategy.ConditionTemplateDiagnosisStrategy;
 import io.contexa.contexaiam.aiam.strategy.PolicyGenerationDiagnosisStrategy;
 import io.contexa.contexaiam.aiam.strategy.ResourceNamingDiagnosisStrategy;
-import io.contexa.contexaiam.aiam.strategy.StudioQueryDiagnosisStrategy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -42,11 +41,5 @@ public class IamAiamServiceStrategyAutoConfiguration {
     @ConditionalOnMissingBean
     public ResourceNamingDiagnosisStrategy resourceNamingDiagnosisStrategy(AILabFactory labFactory) {
         return new ResourceNamingDiagnosisStrategy(labFactory);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public StudioQueryDiagnosisStrategy studioQueryDiagnosisStrategy(AILabFactory labFactory) {
-        return new StudioQueryDiagnosisStrategy(labFactory);
     }
 }

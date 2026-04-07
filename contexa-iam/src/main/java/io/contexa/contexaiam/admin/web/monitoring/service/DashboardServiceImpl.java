@@ -57,40 +57,45 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     @Transactional(readOnly = true)
     public DashboardDto getDashboardData() {
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = (authentication != null) ? authentication.getName() : "SYSTEM";
         LocalDateTime since24h = LocalDateTime.now().minusHours(24);
 
         // ManagedResource: 3 queries -> 1 GROUP BY
         Map<ManagedResource.Status, Long> resourceCounts = new EnumMap<>(ManagedResource.Status.class);
         long resourceTotal = 0;
         for (Object[] row : managedResourceRepository.countGroupByStatus()) {
-            ManagedResource.Status status = (ManagedResource.Status) row[0];
-            long count = (Long) row[1];
-            resourceCounts.put(status, count);
-            resourceTotal += count;
+            if (row.length >= 2 && row[0] instanceof ManagedResource.Status status && row[1] instanceof Number count) {
+                resourceCounts.put(status, count.longValue());
+                resourceTotal += count.longValue();
+            }
         }
 
         // BlockedUser: 5 queries -> 1 GROUP BY
         Map<BlockedUserStatus, Long> blockedCounts = new EnumMap<>(BlockedUserStatus.class);
         for (Object[] row : blockedUserJpaRepository.countGroupByStatus()) {
-            blockedCounts.put((BlockedUserStatus) row[0], (Long) row[1]);
+            if (row.length >= 2 && row[0] instanceof BlockedUserStatus status && row[1] instanceof Number count) {
+                blockedCounts.put(status, count.longValue());
+            }
         }
 
         // AuditLog EventCategory: 3 queries -> 1 GROUP BY
         Map<String, Long> eventCatCounts = new HashMap<>();
         for (Object[] row : auditLogRepository.countByEventCategoriesGrouped(since24h,
                 List.of("AUTHENTICATION_SUCCESS", "AUTHENTICATION_FAILURE", "SECURITY_DECISION"))) {
-            eventCatCounts.put((String) row[0], (Long) row[1]);
+            if (row.length >= 2 && row[0] instanceof String category && row[1] instanceof Number count) {
+                eventCatCounts.put(category, count.longValue());
+            }
         }
 
         // ZeroTrust Decision: 5 queries -> 1 GROUP BY
         Map<String, Long> ztCounts = new HashMap<>();
         long ztTotal = 0;
         for (Object[] row : auditLogRepository.countZeroTrustGroupByDecision(since24h)) {
-            String decision = (String) row[0];
-            long count = (Long) row[1];
-            ztCounts.put(decision, count);
-            ztTotal += count;
+            if (row.length >= 2 && row[0] instanceof String decision && row[1] instanceof Number count) {
+                ztCounts.put(decision, count.longValue());
+                ztTotal += count.longValue();
+            }
         }
 
         // Policy counts: computed once, shared between buildStatistics and buildPolicyStatus
@@ -161,13 +166,17 @@ public class DashboardServiceImpl implements DashboardService {
         // Policy source: 3 queries -> 1 GROUP BY
         Map<Policy.PolicySource, Long> sourceCounts = new EnumMap<>(Policy.PolicySource.class);
         for (Object[] row : policyRepository.countGroupBySource()) {
-            sourceCounts.put((Policy.PolicySource) row[0], (Long) row[1]);
+            if (row.length >= 2 && row[0] instanceof Policy.PolicySource source && row[1] instanceof Number count) {
+                sourceCounts.put(source, count.longValue());
+            }
         }
 
         // All approval status: 1 GROUP BY
         Map<Policy.ApprovalStatus, Long> approvalCounts = new EnumMap<>(Policy.ApprovalStatus.class);
         for (Object[] row : policyRepository.countGroupByApprovalStatus()) {
-            approvalCounts.put((Policy.ApprovalStatus) row[0], (Long) row[1]);
+            if (row.length >= 2 && row[0] instanceof Policy.ApprovalStatus status && row[1] instanceof Number count) {
+                approvalCounts.put(status, count.longValue());
+            }
         }
 
         List<RecentPolicyDto> recentPolicies = policyRepository.findTop5ByOrderByCreatedAtDesc()

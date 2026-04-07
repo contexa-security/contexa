@@ -5,7 +5,6 @@ import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
-import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -28,12 +27,6 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public StudioQueryTemplate studioQueryTemplate() {
-        return new StudioQueryTemplate();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ResourceNamingTemplate resourceNamingTemplate() {
         return new ResourceNamingTemplate();
     }
@@ -42,12 +35,6 @@ public class IamAiamComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public ConditionTemplatePromptTemplate conditionTemplatePromptTemplate() {
         return new ConditionTemplatePromptTemplate();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public StudioQueryStreamingTemplate studioQueryStreamingTemplate() {
-        return new StudioQueryStreamingTemplate();
     }
 
     @Bean
@@ -79,16 +66,5 @@ public class IamAiamComponentsAutoConfiguration {
             ContexaRagProperties ragProperties) {
         return new ResourceNamingContextRetriever(
                 vectorStore, contextRetrieverRegistry, ragProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public StudioQueryContextRetriever studioQueryContextRetriever(
-            VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
-            StudioQueryVectorService studioQueryVectorService,
-            ContexaRagProperties ragProperties) {
-        return new StudioQueryContextRetriever(
-                vectorStore, contextRetrieverRegistry, studioQueryVectorService, ragProperties);
     }
 }

@@ -144,7 +144,7 @@ class GroupServiceImplTest {
             Group group = buildGroup(null, "NewGroup");
             Role role = buildRole(1L, "ROLE_USER");
             when(groupRepository.findByName("NewGroup")).thenReturn(Optional.empty());
-            when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+            when(roleRepository.findAllById(List.of(1L))).thenReturn(List.of(role));
             when(groupRepository.save(any(Group.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Group result = service.createGroup(group, List.of(1L));
@@ -182,11 +182,11 @@ class GroupServiceImplTest {
         void shouldThrowWhenRoleNotFound() {
             Group group = buildGroup(null, "NewGroup");
             when(groupRepository.findByName("NewGroup")).thenReturn(Optional.empty());
-            when(roleRepository.findById(999L)).thenReturn(Optional.empty());
+            when(roleRepository.findAllById(List.of(999L))).thenReturn(Collections.emptyList());
 
             assertThatThrownBy(() -> service.createGroup(group, List.of(999L)))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Role not found");
+                    .hasMessageContaining("not found");
         }
     }
 
@@ -210,7 +210,8 @@ class GroupServiceImplTest {
             updateInput.setDescription("Updated desc");
 
             when(groupRepository.findByIdWithRoles(1L)).thenReturn(Optional.of(existing));
-            when(roleRepository.findById(20L)).thenReturn(Optional.of(newRole));
+            when(roleRepository.findAllById(List.of(20L))).thenReturn(List.of(newRole));
+            when(groupRepository.save(any(Group.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Group result = service.updateGroup(updateInput, List.of(20L));
 
@@ -276,8 +277,7 @@ class GroupServiceImplTest {
         void shouldDetectRedundantRole() {
             Role admin = buildRole(1L, "ROLE_ADMIN");
             Role user = buildRole(2L, "ROLE_USER");
-            when(roleRepository.findById(1L)).thenReturn(Optional.of(admin));
-            when(roleRepository.findById(2L)).thenReturn(Optional.of(user));
+            when(roleRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(admin, user));
 
             RoleHierarchyEntity hierarchy = buildHierarchy(1L, "ROLE_ADMIN > ROLE_USER", true);
             when(roleHierarchyRepository.findAllByIsActiveTrue()).thenReturn(List.of(hierarchy));
@@ -293,8 +293,7 @@ class GroupServiceImplTest {
         void shouldReturnEmptyWhenNoHierarchy() {
             Role admin = buildRole(1L, "ROLE_ADMIN");
             Role user = buildRole(2L, "ROLE_USER");
-            when(roleRepository.findById(1L)).thenReturn(Optional.of(admin));
-            when(roleRepository.findById(2L)).thenReturn(Optional.of(user));
+            when(roleRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(admin, user));
             when(roleHierarchyRepository.findAllByIsActiveTrue()).thenReturn(Collections.emptyList());
 
             List<String> result = service.checkHierarchyWarnings(List.of(1L, 2L));
@@ -308,9 +307,7 @@ class GroupServiceImplTest {
             Role admin = buildRole(1L, "ROLE_ADMIN");
             Role manager = buildRole(2L, "ROLE_MANAGER");
             Role user = buildRole(3L, "ROLE_USER");
-            when(roleRepository.findById(1L)).thenReturn(Optional.of(admin));
-            when(roleRepository.findById(2L)).thenReturn(Optional.of(manager));
-            when(roleRepository.findById(3L)).thenReturn(Optional.of(user));
+            when(roleRepository.findAllById(List.of(1L, 3L))).thenReturn(List.of(admin, user));
 
             RoleHierarchyEntity hierarchy = buildHierarchy(1L,
                     "ROLE_ADMIN > ROLE_MANAGER\nROLE_MANAGER > ROLE_USER", true);
