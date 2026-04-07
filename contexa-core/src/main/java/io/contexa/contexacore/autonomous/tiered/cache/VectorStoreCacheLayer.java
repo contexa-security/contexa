@@ -120,6 +120,7 @@ public class VectorStoreCacheLayer {
             vectorStore.add(documents);
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Failed to add documents to vector store", e);
+            throw new VectorSearchException("Failed to add documents to vector store", e);
         }
     }
 

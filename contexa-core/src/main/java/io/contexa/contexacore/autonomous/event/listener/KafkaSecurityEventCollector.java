@@ -17,6 +17,8 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -228,9 +230,12 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         if (e == null) {
             return "";
         }
-        java.io.StringWriter sw = new java.io.StringWriter();
-        java.io.PrintWriter pw = new java.io.PrintWriter(sw);
-        e.printStackTrace(pw);
-        return sw.toString();
+        try (StringWriter sw = new StringWriter();
+             PrintWriter pw = new PrintWriter(sw)) {
+            e.printStackTrace(pw);
+            return sw.toString();
+        } catch (java.io.IOException ignored) {
+            return e.toString();
+        }
     }
 }
