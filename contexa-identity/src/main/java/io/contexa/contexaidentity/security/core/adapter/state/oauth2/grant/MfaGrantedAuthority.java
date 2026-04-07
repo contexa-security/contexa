@@ -10,13 +10,10 @@ public class MfaGrantedAuthority implements GrantedAuthority {
 
     @Serial
     private static final long serialVersionUID = 1L;
-    private String role;
+    private final String role;
 
-    public MfaGrantedAuthority() {
-        this.role = "";
-    }
     public MfaGrantedAuthority(String role) {
-//        Assert.hasText(role, "A granted authority textual representation is required");
+        Assert.hasText(role, "A granted authority textual representation is required");
         this.role = role;
     }
     @Override

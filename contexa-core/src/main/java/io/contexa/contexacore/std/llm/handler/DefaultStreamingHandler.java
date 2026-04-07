@@ -15,6 +15,7 @@ import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -258,6 +259,13 @@ public class DefaultStreamingHandler implements StreamingHandler {
         };
     }
 
+    private String resolveConfiguredModelNameForTier(Integer tier) {
+        if (tier == null || tier <= 1) {
+            return tieredLLMProperties.getModelNameForTier(1);
+        }
+        return tieredLLMProperties.getModelNameForTier(Math.min(tier, 2));
+    }
+
     private boolean hasToolsEnabled(ExecutionContext context) {
         return Boolean.TRUE.equals(context.getToolExecutionEnabled())
                 && (!context.getToolCallbacks().isEmpty() || !context.getToolProviders().isEmpty());
@@ -304,6 +312,11 @@ public class DefaultStreamingHandler implements StreamingHandler {
 
     private String determineModelName(ExecutionContext context) {
 
+        String selectedModelId = resolveSelectedModelId(context);
+        if (selectedModelId != null) {
+            return selectedModelId;
+        }
+
         if (context.getPreferredModel() != null) {
             return context.getPreferredModel();
         }
@@ -314,9 +327,28 @@ public class DefaultStreamingHandler implements StreamingHandler {
         }
 
         if (context.getTier() != null) {
-            return tieredLLMProperties.getModelNameForTier(context.getTier());
+            return resolveConfiguredModelNameForTier(context.getTier());
         }
 
-        return tieredLLMProperties.getModelNameForTier(2);
+        return resolveConfiguredModelNameForTier(2);
+    }
+
+    private String resolveSelectedModelId(ExecutionContext context) {
+        if (context == null || context.getMetadata() == null) {
+            return null;
+        }
+        for (String key : List.of("selectedModelId", "runtimeModelId", "requestedModelId")) {
+            Object value = context.getMetadata().get(key);
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty()) {
+                    return text;
+                }
+            }
+        }
+        return null;
     }
 }
+
+
+

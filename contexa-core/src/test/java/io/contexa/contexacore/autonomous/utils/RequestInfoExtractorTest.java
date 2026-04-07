@@ -102,50 +102,67 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("official verification runtime headers should flow into request info")
-    void extractShouldIncludeOfficialVerificationRuntimeHeaders() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
-        request.addHeader("X-Request-ID", "req-ov-runtime");
-        request.addHeader("X-Contexa-Official-Verification-Model-Id", "qwen3:8b");
-        request.addHeader("X-Contexa-Official-Verification-Temperature", "0.0");
-        request.addHeader("X-Contexa-Official-Verification-Top-P", "0.2");
-        request.addHeader("X-Contexa-Official-Verification-Seed", "7");
-        request.addHeader("X-Contexa-Official-Verification-Max-Tokens", "96");
-        request.addHeader("X-Contexa-Official-Verification-Disable-Retries", "true");
-        request.addHeader("X-Contexa-Official-Verification-Disable-Ollama-Thinking", "true");
+    @DisplayName("generic requested model header should flow into request info")
+    void extractShouldIncludeRequestedModelIdFromGenericHeader() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-generic-model");
+        request.addHeader("X-Contexa-Model-Id", "qwen2.5:7b");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
-        assertThat(requestInfo.getOfficialVerificationDecisionBoundaryMode()).isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
-        assertThat(requestInfo.getOfficialVerificationPinnedModelId()).isEqualTo("qwen3:8b");
-        assertThat(requestInfo.getOfficialVerificationTemperature()).isEqualTo(0.0d);
-        assertThat(requestInfo.getOfficialVerificationTopP()).isEqualTo(0.2d);
-        assertThat(requestInfo.getOfficialVerificationSeed()).isEqualTo(7);
-        assertThat(requestInfo.getOfficialVerificationMaxTokens()).isEqualTo(96);
-        assertThat(requestInfo.getOfficialVerificationDisableRetries()).isTrue();
-        assertThat(requestInfo.getOfficialVerificationDisableOllamaThinking()).isTrue();
+        assertThat(requestInfo.getRequestedModelId()).isEqualTo("qwen2.5:7b");
     }
 
     @Test
-    @DisplayName("official verification runtime attributes should backfill request info when headers are absent")
-    void extractShouldIncludeOfficialVerificationRuntimeAttributesWhenHeadersAreMissing() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
-        request.addHeader("X-Request-ID", "req-ov-runtime-attr");
-        request.setAttribute("officialVerificationPinnedModelId", "qwen3:8b");
-        request.setAttribute("officialVerificationTemperature", "0.0");
-        request.setAttribute("officialVerificationTopP", "0.2");
-        request.setAttribute("officialVerificationSeed", "7");
-        request.setAttribute("officialVerificationMaxTokens", "96");
+    @DisplayName("canonical runtime headers should flow into request info")
+    void extractShouldIncludeCanonicalRuntimeHeaders() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-runtime-selection");
+        request.addHeader("X-Contexa-Model-Id", "qwen3:8b");
+        request.addHeader("X-Contexa-Temperature", "0.0");
+        request.addHeader("X-Contexa-Top-P", "0.2");
+        request.addHeader("X-Contexa-Seed", "7");
+        request.addHeader("X-Contexa-Max-Tokens", "96");
+        request.addHeader("X-Contexa-Disable-Retries", "true");
+        request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
-        assertThat(requestInfo.getOfficialVerificationDecisionBoundaryMode()).isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
-        assertThat(requestInfo.getOfficialVerificationPinnedModelId()).isEqualTo("qwen3:8b");
-        assertThat(requestInfo.getOfficialVerificationTemperature()).isEqualTo(0.0d);
-        assertThat(requestInfo.getOfficialVerificationTopP()).isEqualTo(0.2d);
-        assertThat(requestInfo.getOfficialVerificationSeed()).isEqualTo(7);
-        assertThat(requestInfo.getOfficialVerificationMaxTokens()).isEqualTo(96);
+        assertThat(requestInfo.getDecisionBoundaryMode()).isEqualTo("RUNTIME_MODEL_SELECTION");
+        assertThat(requestInfo.getRequestedModelId()).isEqualTo("qwen3:8b");
+        assertThat(requestInfo.getRuntimeTemperature()).isEqualTo(0.0d);
+        assertThat(requestInfo.getRuntimeTopP()).isEqualTo(0.2d);
+        assertThat(requestInfo.getRuntimeSeed()).isEqualTo(7);
+        assertThat(requestInfo.getRuntimeMaxTokens()).isEqualTo(96);
+        assertThat(requestInfo.getRuntimeDisableRetries()).isTrue();
+        assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isTrue();
+    }
+
+    @Test
+    @DisplayName("canonical runtime attributes should backfill request info when headers are absent")
+    void extractShouldIncludeCanonicalRuntimeAttributesWhenHeadersAreMissing() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-runtime-selection-attr");
+        request.setAttribute("requestedModelId", "qwen3:8b");
+        request.setAttribute("temperature", "0.0");
+        request.setAttribute("topP", "0.2");
+        request.setAttribute("seed", "7");
+        request.setAttribute("maxTokens", "96");
+        request.setAttribute("disableRetries", true);
+        request.setAttribute("disableOllamaThinking", true);
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getDecisionBoundaryMode()).isEqualTo("RUNTIME_MODEL_SELECTION");
+        assertThat(requestInfo.getRequestedModelId()).isEqualTo("qwen3:8b");
+        assertThat(requestInfo.getRuntimeTemperature()).isEqualTo(0.0d);
+        assertThat(requestInfo.getRuntimeTopP()).isEqualTo(0.2d);
+        assertThat(requestInfo.getRuntimeSeed()).isEqualTo(7);
+        assertThat(requestInfo.getRuntimeMaxTokens()).isEqualTo(96);
+        assertThat(requestInfo.getRuntimeDisableRetries()).isTrue();
+        assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isTrue();
     }
 }

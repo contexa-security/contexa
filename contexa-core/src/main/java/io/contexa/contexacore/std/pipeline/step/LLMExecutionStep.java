@@ -1,5 +1,7 @@
 package io.contexa.contexacore.std.pipeline.step;
 
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
@@ -8,17 +10,37 @@ import io.contexa.contexacore.std.llm.client.LLMOperations;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Slf4j
 @RequiredArgsConstructor
 public class LLMExecutionStep implements PipelineStep {
+
+    private static final List<String> EXECUTION_METADATA_KEYS = List.of(
+            "requestedModelId",
+            "requestedModelSourceKey",
+            "preferredModel",
+            "selectedModelId",
+            "selectedModelProvider",
+            "runtimeModelId",
+            "modelSelectionSource",
+            "modelSelectionFallbackUsed",
+            "modelSelectionFailure",
+            "modelSelectionCandidates",
+            "temperature",
+            "topP",
+            "seed",
+            "maxTokens",
+            "disableRetries",
+            "disableOllamaThinking",
+            "decisionBoundaryMode"
+    );
 
     private final LLMClient llmClient;
 
@@ -101,8 +123,10 @@ public class LLMExecutionStep implements PipelineStep {
             AIRequest<T> request,
             PipelineExecutionContext context,
             Class<?> targetType) {
+        ExecutionContext executionContext = buildExecutionContext(prompt, request, context);
         if (llmClient instanceof LLMOperations operations) {
-            return operations.executeEntity(buildExecutionContext(prompt, request, context), targetType);
+            return operations.executeEntity(executionContext, targetType)
+                    .doOnSuccess(response -> syncExecutionMetadata(context, executionContext));
         }
         return llmClient.entity(prompt, targetType);
     }
@@ -111,8 +135,10 @@ public class LLMExecutionStep implements PipelineStep {
             Prompt prompt,
             AIRequest<T> request,
             PipelineExecutionContext context) {
+        ExecutionContext executionContext = buildExecutionContext(prompt, request, context);
         if (llmClient instanceof LLMOperations operations) {
-            return operations.execute(buildExecutionContext(prompt, request, context));
+            return operations.execute(executionContext)
+                    .doOnSuccess(response -> syncExecutionMetadata(context, executionContext));
         }
         return llmClient.call(prompt);
     }
@@ -121,8 +147,10 @@ public class LLMExecutionStep implements PipelineStep {
             Prompt prompt,
             AIRequest<T> request,
             PipelineExecutionContext context) {
+        ExecutionContext executionContext = buildExecutionContext(prompt, request, context);
         if (llmClient instanceof LLMOperations operations) {
-            return operations.stream(buildExecutionContext(prompt, request, context));
+            return operations.stream(executionContext)
+                    .doOnNext(chunk -> syncExecutionMetadata(context, executionContext));
         }
         return llmClient.stream(prompt);
     }
@@ -133,50 +161,87 @@ public class LLMExecutionStep implements PipelineStep {
             PipelineExecutionContext context) {
         ExecutionContext executionContext = ExecutionContext.from(prompt);
         executionContext.setRequestId(request != null ? request.getRequestId() : null);
-        String pinnedModelId = resolveStringParameter(request, context, "officialVerificationPinnedModelId");
-        Double temperature = resolveDoubleParameter(request, context, "officialVerificationTemperature");
-        Double topP = resolveDoubleParameter(request, context, "officialVerificationTopP");
-        Integer seed = resolveIntegerParameter(request, context, "officialVerificationSeed");
-        Integer maxTokens = resolveIntegerParameter(request, context, "officialVerificationMaxTokens");
-        Boolean disableRetries = resolveBooleanParameter(request, context, "officialVerificationDisableRetries");
-        Boolean disableOllamaThinking = resolveBooleanParameter(request, context, "officialVerificationDisableOllamaThinking");
-        String boundaryMode = resolveStringParameter(request, context, "officialVerificationDecisionBoundaryMode");
-        if (boundaryMode == null && (pinnedModelId != null || temperature != null || topP != null || seed != null || maxTokens != null
-                || disableRetries != null || disableOllamaThinking != null)) {
-            boundaryMode = "OFFICIAL_VERIFICATION_RUNTIME";
+
+        ResolvedValue<String> requestedModel = resolveStringParameter(request, context,
+                "preferredModel",
+                "requestedModelId",
+                "runtimeModelId");
+        ResolvedValue<Double> temperature = resolveDoubleParameter(request, context,
+                "temperature",
+                "runtimeTemperature");
+        ResolvedValue<Double> topP = resolveDoubleParameter(request, context,
+                "topP",
+                "runtimeTopP");
+        ResolvedValue<Integer> seed = resolveIntegerParameter(request, context,
+                "seed",
+                "runtimeSeed");
+        ResolvedValue<Integer> maxTokens = resolveIntegerParameter(request, context,
+                "maxTokens",
+                "runtimeMaxTokens");
+        ResolvedValue<Boolean> disableRetries = resolveBooleanParameter(request, context, "disableRetries");
+        ResolvedValue<Boolean> disableOllamaThinking = resolveBooleanParameter(request, context, "disableOllamaThinking");
+        ResolvedValue<String> boundaryMode = resolveStringParameter(request, context, "decisionBoundaryMode");
+
+        if (boundaryMode == null && hasAnyRuntimeOverrides(requestedModel, temperature, topP, seed, maxTokens, disableRetries, disableOllamaThinking)) {
+            boundaryMode = new ResolvedValue<>("RUNTIME_MODEL_SELECTION", "derived.runtimeSelection");
         }
-        if (pinnedModelId != null && !pinnedModelId.isBlank()) {
-            executionContext.setPreferredModel(pinnedModelId);
-            recordMetadata(context, executionContext, "officialVerificationPinnedModelId", pinnedModelId);
+
+        if (requestedModel != null) {
+            executionContext.setPreferredModel(requestedModel.value());
+            recordMetadata(context, executionContext, "requestedModelId", requestedModel.value());
+            recordMetadata(context, executionContext, "preferredModel", requestedModel.value());
+            recordMetadata(context, executionContext, "runtimeModelId", requestedModel.value());
+            recordMetadata(context, executionContext, "requestedModelSourceKey", requestedModel.sourceKey());
         }
         if (temperature != null) {
-            executionContext.setTemperature(temperature);
-            recordMetadata(context, executionContext, "officialVerificationTemperature", temperature);
+            executionContext.setTemperature(temperature.value());
+            recordMetadata(context, executionContext, "temperature", temperature.value());
         }
         if (topP != null) {
-            executionContext.setTopP(topP);
-            recordMetadata(context, executionContext, "officialVerificationTopP", topP);
+            executionContext.setTopP(topP.value());
+            recordMetadata(context, executionContext, "topP", topP.value());
         }
         if (seed != null) {
-            executionContext.setSeed(seed);
-            recordMetadata(context, executionContext, "officialVerificationSeed", seed);
+            executionContext.setSeed(seed.value());
+            recordMetadata(context, executionContext, "seed", seed.value());
         }
         if (maxTokens != null) {
-            executionContext.setMaxTokens(maxTokens);
-            recordMetadata(context, executionContext, "officialVerificationMaxTokens", maxTokens);
+            executionContext.setMaxTokens(maxTokens.value());
+            recordMetadata(context, executionContext, "maxTokens", maxTokens.value());
         }
         if (disableRetries != null) {
-            executionContext.addMetadata("disableRetries", disableRetries);
-            recordMetadata(context, executionContext, "officialVerificationDisableRetries", disableRetries);
+            executionContext.addMetadata("disableRetries", disableRetries.value());
+            recordMetadata(context, executionContext, "disableRetries", disableRetries.value());
         }
         if (disableOllamaThinking != null) {
-            executionContext.addMetadata("disableOllamaThinking", disableOllamaThinking);
-            recordMetadata(context, executionContext, "officialVerificationDisableOllamaThinking", disableOllamaThinking);
+            executionContext.addMetadata("disableOllamaThinking", disableOllamaThinking.value());
+            recordMetadata(context, executionContext, "disableOllamaThinking", disableOllamaThinking.value());
         }
-        if (boundaryMode != null && !boundaryMode.isBlank()) {
-            recordMetadata(context, executionContext, "officialVerificationDecisionBoundaryMode", boundaryMode);
+        if (boundaryMode != null) {
+            recordMetadata(context, executionContext, "decisionBoundaryMode", boundaryMode.value());
         }
         return executionContext;
+    }
+
+    private boolean hasAnyRuntimeOverrides(Object... values) {
+        for (Object value : values) {
+            if (value != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void syncExecutionMetadata(PipelineExecutionContext context, ExecutionContext executionContext) {
+        if (context == null || executionContext == null || executionContext.getMetadata() == null) {
+            return;
+        }
+        for (String key : EXECUTION_METADATA_KEYS) {
+            Object value = executionContext.getMetadata().get(key);
+            if (value != null) {
+                context.addMetadata(key, value);
+            }
+        }
     }
 
     private void recordMetadata(
@@ -202,69 +267,81 @@ public class LLMExecutionStep implements PipelineStep {
         return context != null ? context.getMetadata(key, Object.class) : null;
     }
 
-    private <T extends DomainContext> String resolveStringParameter(
+    private <T extends DomainContext> ResolvedValue<String> resolveStringParameter(
             AIRequest<T> request,
             PipelineExecutionContext context,
-            String key) {
-        Object value = resolveRawParameter(request, context, key);
-        if (value instanceof String text && !text.isBlank()) {
-            return text.trim();
-        }
-        return value != null ? String.valueOf(value) : null;
-    }
-
-    private <T extends DomainContext> Double resolveDoubleParameter(
-            AIRequest<T> request,
-            PipelineExecutionContext context,
-            String key) {
-        Object value = resolveRawParameter(request, context, key);
-        if (value instanceof Double number) {
-            return number;
-        }
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        if (value instanceof String text && !text.isBlank()) {
-            try {
-                return Double.parseDouble(text.trim());
-            } catch (NumberFormatException ignored) {
-                return null;
+            String... keys) {
+        for (String key : keys) {
+            Object value = resolveRawParameter(request, context, key);
+            if (value instanceof String text && !text.isBlank()) {
+                return new ResolvedValue<>(text.trim(), key);
+            }
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty()) {
+                    return new ResolvedValue<>(text, key);
+                }
             }
         }
         return null;
     }
 
-    private <T extends DomainContext> Integer resolveIntegerParameter(
+    private <T extends DomainContext> ResolvedValue<Double> resolveDoubleParameter(
             AIRequest<T> request,
             PipelineExecutionContext context,
-            String key) {
-        Object value = resolveRawParameter(request, context, key);
-        if (value instanceof Integer number) {
-            return number;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String text && !text.isBlank()) {
-            try {
-                return Integer.parseInt(text.trim());
-            } catch (NumberFormatException ignored) {
-                return null;
+            String... keys) {
+        for (String key : keys) {
+            Object value = resolveRawParameter(request, context, key);
+            if (value instanceof Double number) {
+                return new ResolvedValue<>(number, key);
+            }
+            if (value instanceof Number number) {
+                return new ResolvedValue<>(number.doubleValue(), key);
+            }
+            if (value instanceof String text && !text.isBlank()) {
+                try {
+                    return new ResolvedValue<>(Double.parseDouble(text.trim()), key);
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
         return null;
     }
 
-    private <T extends DomainContext> Boolean resolveBooleanParameter(
+    private <T extends DomainContext> ResolvedValue<Integer> resolveIntegerParameter(
             AIRequest<T> request,
             PipelineExecutionContext context,
-            String key) {
-        Object value = resolveRawParameter(request, context, key);
-        if (value instanceof Boolean bool) {
-            return bool;
+            String... keys) {
+        for (String key : keys) {
+            Object value = resolveRawParameter(request, context, key);
+            if (value instanceof Integer number) {
+                return new ResolvedValue<>(number, key);
+            }
+            if (value instanceof Number number) {
+                return new ResolvedValue<>(number.intValue(), key);
+            }
+            if (value instanceof String text && !text.isBlank()) {
+                try {
+                    return new ResolvedValue<>(Integer.parseInt(text.trim()), key);
+                } catch (NumberFormatException ignored) {
+                }
+            }
         }
-        if (value instanceof String text && !text.isBlank()) {
-            return Boolean.parseBoolean(text.trim());
+        return null;
+    }
+
+    private <T extends DomainContext> ResolvedValue<Boolean> resolveBooleanParameter(
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            String... keys) {
+        for (String key : keys) {
+            Object value = resolveRawParameter(request, context, key);
+            if (value instanceof Boolean bool) {
+                return new ResolvedValue<>(bool, key);
+            }
+            if (value instanceof String text && !text.isBlank()) {
+                return new ResolvedValue<>(Boolean.parseBoolean(text.trim()), key);
+            }
         }
         return null;
     }
@@ -293,6 +370,7 @@ public class LLMExecutionStep implements PipelineStep {
     public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {
         return llmClient != null;
     }
+
+    private record ResolvedValue<T>(T value, String sourceKey) {
+    }
 }
-
-

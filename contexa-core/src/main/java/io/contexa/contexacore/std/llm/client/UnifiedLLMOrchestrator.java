@@ -190,6 +190,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     private String determineOllamaModelName(ExecutionContext context) {
 
+        String selectedModelId = resolveSelectedModelId(context);
+        if (selectedModelId != null) {
+            return selectedModelId;
+        }
+
         if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
             return context.getPreferredModel();
         }
@@ -200,7 +205,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         if (context.getTier() != null) {
-            return tieredLLMProperties.getModelNameForTier(context.getTier());
+            return resolveConfiguredModelNameForTier(context.getTier());
         }
 
         if (context.getSecurityTaskType() != null) {
@@ -208,9 +213,25 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return tieredLLMProperties.getModelNameForTier(tier);
         }
 
-        String defaultModel = tieredLLMProperties.getModelNameForTier(1);
+        String defaultModel = resolveConfiguredModelNameForTier(1);
         log.error("Model selection unavailable, using default model: {}", defaultModel);
         return defaultModel;
+    }
+
+    private String resolveSelectedModelId(ExecutionContext context) {
+        if (context == null || context.getMetadata() == null) {
+            return null;
+        }
+        for (String key : List.of("selectedModelId", "runtimeModelId", "requestedModelId")) {
+            Object value = context.getMetadata().get(key);
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty()) {
+                    return text;
+                }
+            }
+        }
+        return null;
     }
 
     private ChatClient.ChatClientRequestSpec applyExecutionOptions(ChatClient.ChatClientRequestSpec promptSpec,
@@ -230,6 +251,13 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return promptSpec.options(buildGenericChatOptions(context));
+    }
+
+    private String resolveConfiguredModelNameForTier(Integer tier) {
+        if (tier == null || tier <= 1) {
+            return tieredLLMProperties.getModelNameForTier(1);
+        }
+        return tieredLLMProperties.getModelNameForTier(Math.min(tier, 2));
     }
 
     private boolean hasRuntimeOptions(ExecutionContext context) {
@@ -481,4 +509,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return modelName != null && modelName.toLowerCase().startsWith("qwen3");
     }
 }
+
+
+
 

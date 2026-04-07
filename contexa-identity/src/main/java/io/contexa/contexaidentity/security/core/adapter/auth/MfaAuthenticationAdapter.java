@@ -36,10 +36,6 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
     private static final String ID = "mfa";
     private volatile ApplicationContext applicationContext;
 
-    public MfaAuthenticationAdapter() {
-        log.error("MfaAuthenticationAdapter created using default constructor. ApplicationContext might not be available.");
-    }
-
     public MfaAuthenticationAdapter(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for MfaAuthenticationAdapter");
     }

@@ -350,6 +350,13 @@ public class DynamicModelRegistry {
         return new ArrayList<>(modelDescriptors.values());
     }
 
+    public ModelDescriptor getDescriptor(String modelId) {
+        if (modelId == null || modelId.trim().isEmpty()) {
+            return null;
+        }
+        return modelDescriptors.get(modelId.trim());
+    }
+
     public List<ModelDescriptor> getModelsByProvider(String provider) {
         if (provider == null || provider.trim().isEmpty()) {
             return Collections.emptyList();
@@ -400,3 +407,4 @@ public class DynamicModelRegistry {
         providers.clear();
     }
 }
+
