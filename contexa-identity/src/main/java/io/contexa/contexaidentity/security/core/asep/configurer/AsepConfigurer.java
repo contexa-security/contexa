@@ -10,20 +10,21 @@ import io.contexa.contexaidentity.security.core.bootstrap.configurer.SecurityCon
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
-import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
-import io.contexa.contexaidentity.security.core.dsl.option.*;
+import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
+import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
+import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 public final class AsepConfigurer implements SecurityConfigurer {
