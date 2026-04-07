@@ -6,6 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageLevel;
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
+import io.contexa.contexacore.autonomous.context.model.ContextEvidenceRecord;
+import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
+import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
+import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 
 class PromptContextComposerTest {
 

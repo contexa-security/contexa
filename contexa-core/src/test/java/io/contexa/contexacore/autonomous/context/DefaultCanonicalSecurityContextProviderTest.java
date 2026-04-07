@@ -7,6 +7,23 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.collector.DefaultRoleScopeCollector;
+import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
+import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.context.enricher.AuthenticationContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.AuthorizationSnapshotProvider;
+import io.contexa.contexacore.autonomous.context.enricher.OrganizationContextProvider;
+import io.contexa.contexacore.autonomous.context.hardener.CanonicalSecurityContextHardener;
+import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageLevel;
+import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
+import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
+import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
+import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 
 class DefaultCanonicalSecurityContextProviderTest {
 

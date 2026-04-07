@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.collector.RoleScopeSnapshot;
 
 class DefaultRoleScopeCollectorTest {
 

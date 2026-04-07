@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.model.ObjectiveDriftEvaluation;
 
 class ObjectiveDriftEvaluatorTest {
 

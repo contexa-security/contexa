@@ -2,11 +2,11 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.contexa.contexacore.autonomous.context.CanonicalContextFieldPolicy;
+import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
-import io.contexa.contexacore.autonomous.context.ContextCoverageReport;
-import io.contexa.contexacore.autonomous.context.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.BehaviorAnalysis;

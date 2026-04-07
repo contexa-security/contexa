@@ -1,10 +1,10 @@
 package io.contexa.contexacore.std.components.prompt;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.context.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
-import io.contexa.contexacore.autonomous.context.InMemoryResourceContextRegistry;
-import io.contexa.contexacore.autonomous.context.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;

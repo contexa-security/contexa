@@ -6,7 +6,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.autonomous.context.PromptRelevantRequestPathPolicy;
+import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;

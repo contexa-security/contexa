@@ -2,7 +2,7 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.autonomous.context.PromptRelevantRequestPathPolicy;
+import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;

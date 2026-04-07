@@ -1,8 +1,8 @@
 package io.contexa.autoconfigure.core.autonomous;
 
-import io.contexa.contexacore.autonomous.context.ProtectableWorkProfileCollector;
-import io.contexa.contexacore.autonomous.context.RoleScopeCollector;
-import io.contexa.contexacore.autonomous.context.SessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
+import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 
 /**
  * Tests CoreAutonomousAutoConfiguration conditional annotations and mode switching structure.

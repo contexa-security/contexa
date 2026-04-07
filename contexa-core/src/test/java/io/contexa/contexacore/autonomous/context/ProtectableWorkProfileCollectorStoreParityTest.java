@@ -22,6 +22,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileSnapshot;
 
 class ProtectableWorkProfileCollectorStoreParityTest {
 

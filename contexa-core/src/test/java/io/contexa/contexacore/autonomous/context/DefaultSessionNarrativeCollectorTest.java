@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeSnapshot;
 
 class DefaultSessionNarrativeCollectorTest {
 

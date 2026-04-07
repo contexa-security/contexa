@@ -11,6 +11,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileSnapshot;
+import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
+import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
 
 class DefaultProtectableWorkProfileCollectorTest {
 

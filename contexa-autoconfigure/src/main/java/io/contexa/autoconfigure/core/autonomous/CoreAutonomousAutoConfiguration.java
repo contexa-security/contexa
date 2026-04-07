@@ -65,6 +65,25 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.collector.DefaultRoleScopeCollector;
+import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
+import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.context.enricher.AuthenticationContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.AuthorizationSnapshotProvider;
+import io.contexa.contexacore.autonomous.context.enricher.DelegationContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.FrictionContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.OrganizationContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.PeerCohortContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.ReasoningMemoryContextProvider;
+import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
+import io.contexa.contexacore.autonomous.context.inference.ObservedScopeInferenceService;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
