@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
