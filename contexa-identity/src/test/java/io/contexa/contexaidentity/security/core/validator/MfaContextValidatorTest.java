@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -105,7 +106,7 @@ class MfaContextValidatorTest {
     void validateFactorSelectionContext_shouldAddWarning_whenNoAvailableFactors() {
         setUpValidBaseContext();
         when(factorContext.getCurrentState()).thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
-        when(factorContext.getAvailableFactors()).thenReturn(null);
+        when(factorContext.getAvailableFactors()).thenReturn(Collections.emptySet());
 
         ValidationResult result = MfaContextValidator.validateFactorSelectionContext(factorContext);
 

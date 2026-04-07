@@ -30,8 +30,7 @@ public final class MfaRestAuthenticationAdapter extends BaseRestAuthenticationAd
     }
 
     @Override
-    protected void configureSecurityContext(MfaRestAuthenticationConfigurer configurer,
-                                            RestOptions opts) {
+    protected void configureSecurityContext(MfaRestAuthenticationConfigurer configurer, RestOptions opts) {
         configurer.securityContextRepository(opts.getSecurityContextRepository());
     }
 }

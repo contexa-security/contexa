@@ -80,7 +80,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
         if (ctx != null) {
             Set<AuthType> availableFactors = ctx.getAvailableFactors();
-            if (availableFactors != null && !availableFactors.isEmpty()) {
+            if (!availableFactors.isEmpty()) {
                 return availableFactors.contains(factorType);
             }
         }
@@ -176,7 +176,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         }
 
         Set<AuthType> availableFactors = ctx.getAvailableFactors();
-        if (availableFactors == null || availableFactors.isEmpty()) {
+        if (availableFactors.isEmpty()) {
             return NextFactorDecision.noMoreFactors();
         }
 

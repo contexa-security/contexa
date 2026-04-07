@@ -69,8 +69,7 @@ public class SelectFactorAction extends AbstractMfaStateAction {
     protected void validatePreconditions(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext) throws Exception {
 
-        if (factorContext.getAvailableFactors() == null ||
-                factorContext.getAvailableFactors().isEmpty()) {
+        if (factorContext.getAvailableFactors().isEmpty()) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No MFA factors available for user: " +

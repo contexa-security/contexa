@@ -72,7 +72,7 @@ public class MfaContextValidator {
         }
 
         Set<AuthType> availableFactors = ctx.getAvailableFactors();
-        if (availableFactors == null || availableFactors.isEmpty()) {
+        if (availableFactors.isEmpty()) {
             result.addWarning("No available MFA factors found");
         }
 

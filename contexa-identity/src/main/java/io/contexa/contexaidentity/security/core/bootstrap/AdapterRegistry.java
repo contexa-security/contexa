@@ -26,6 +26,7 @@ public class AdapterRegistry {
 
     public AdapterRegistry(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null.");
+
         ServiceLoader.load(AuthenticationAdapter.class, getClass().getClassLoader())
                 .forEach(f -> {
                     AuthenticationAdapter adapterInstance = f;

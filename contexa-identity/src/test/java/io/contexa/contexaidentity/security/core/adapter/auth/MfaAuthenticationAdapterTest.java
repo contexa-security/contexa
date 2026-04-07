@@ -246,7 +246,7 @@ class MfaAuthenticationAdapterTest {
 
             AuthenticationStepConfig step = new AuthenticationStepConfig();
             step.setType("ott");
-            step.getOptions().put("_options", procOpts);
+            step.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, procOpts);
 
             // Primary step (order 0) should be skipped for matcher
             AuthenticationStepConfig primaryStep = new AuthenticationStepConfig("form", 0);
