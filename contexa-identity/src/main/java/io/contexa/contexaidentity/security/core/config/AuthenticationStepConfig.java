@@ -13,6 +13,9 @@ import java.util.Objects;
 @Setter
 @ToString
 public class AuthenticationStepConfig {
+
+    public static final String OPTIONS_KEY = "_options";
+
     private String stepId;
     private boolean isPrimary;
     private String type;

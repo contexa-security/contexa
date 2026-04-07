@@ -10,6 +10,7 @@ import io.contexa.contexaidentity.security.core.bootstrap.configurer.SecurityCon
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.*;
@@ -86,13 +87,13 @@ public final class AsepConfigurer implements SecurityConfigurer {
 
         BaseAsepAttributes flowSpecificAsepAttributes = null;
 
-        if ("mfa".equalsIgnoreCase(flowTypeName)) {
+        if (MfaFlowTypeUtils.isMfaFlow(flowTypeName)) {
             flowSpecificAsepAttributes = flowConfig.getMfaAsepAttributes();
             if (flowSpecificAsepAttributes != null) {
             }
         } else if (!flowConfig.getStepConfigs().isEmpty()) {
             AuthenticationStepConfig mainStep = flowConfig.getStepConfigs().get(0);
-            Object optionsObject = mainStep.getOptions().get("_options");
+            Object optionsObject = mainStep.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
 
             if (optionsObject instanceof FormOptions fo) flowSpecificAsepAttributes = fo.getAsepAttributes();
             else if (optionsObject instanceof RestOptions ro) flowSpecificAsepAttributes = ro.getAsepAttributes();

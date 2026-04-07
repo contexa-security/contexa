@@ -74,7 +74,7 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
         }
 
         AuthenticationStepConfig stepConfig = new AuthenticationStepConfig(flowTypeName, authType.name(), actualOrder, false);
-        stepConfig.getOptions().put("_options", options);
+        stepConfig.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, options);
 
         AuthenticationFlowConfig.Builder flowBuilder = AuthenticationFlowConfig.builder(flowTypeName)
                 .stepConfigs(List.of(stepConfig))

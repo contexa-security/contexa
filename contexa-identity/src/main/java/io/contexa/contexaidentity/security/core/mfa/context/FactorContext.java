@@ -15,6 +15,9 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,8 +36,6 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     private String mfaSessionId;
     private AtomicReference<MfaState> currentMfaState;
     private final AtomicInteger version = new AtomicInteger(0);
-
-    private boolean readOnly = false;
 
     private transient ReadWriteLock stateLock;
     private transient ReadWriteLock factorsLock;
@@ -84,17 +85,10 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public void changeState(MfaState newState) {
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Use MfaStateMachineIntegrator to change state through State Machine."
-            );
-        }
-
         stateLock.writeLock().lock();
         try {
             MfaState previousState = this.currentMfaState.getAndSet(newState);
             if (previousState != newState) {
-
                 updateLastActivityTimestamp();
             }
         } finally {
@@ -103,12 +97,6 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public int incrementVersion() {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot increment version."
-            );
-        }
         int newVersion = this.version.incrementAndGet();
         updateLastActivityTimestamp();
         return newVersion;
@@ -119,12 +107,6 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public void setVersion(int newVersion) {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot set version."
-            );
-        }
         if (newVersion < 0) {
             throw new IllegalArgumentException("Version cannot be negative");
         }
@@ -138,18 +120,11 @@ public class FactorContext implements FactorContextExtensions, Serializable {
         boolean success = this.version.compareAndSet(expectedVersion, newVersion);
         if (success) {
             updateLastActivityTimestamp();
-        } else {
         }
         return success;
     }
 
     public void addCompletedFactor(AuthenticationStepConfig completedFactor) {
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot add completed factors."
-            );
-        }
-
         Assert.notNull(completedFactor, "completedFactor cannot be null");
 
         factorsLock.writeLock().lock();
@@ -159,9 +134,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
 
             if (!alreadyExists) {
                 this.completedFactors.add(completedFactor);
-
                 updateLastActivityTimestamp();
-            } else {
             }
         } finally {
             factorsLock.writeLock().unlock();
@@ -194,13 +167,6 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public int incrementAttemptCount(@Nullable AuthType factorType) {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot increment attempt count."
-            );
-        }
-
         if (factorType == null) {
             log.error("FactorContext (ID: {}): Attempted to increment attempt count for a null factorType for user {}.",
                     mfaSessionId, this.username);
@@ -219,24 +185,11 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public void recordAttempt(@Nullable AuthType factorType, boolean success, String detail) {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot record attempt."
-            );
-        }
         this.mfaAttemptHistory.add(new MfaAttemptDetail(factorType, success, detail));
         updateLastActivityTimestamp();
-
     }
 
     public int incrementFailedAttempts(String factorTypeOrStepId) {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot increment failed attempts."
-            );
-        }
         Assert.hasText(factorTypeOrStepId, "factorTypeOrStepId cannot be empty");
 
         int attempts = this.failedAttempts.compute(factorTypeOrStepId,
@@ -252,36 +205,16 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public void resetFailedAttempts(String factorTypeOrStepId) {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot reset failed attempts."
-            );
-        }
         this.failedAttempts.remove(factorTypeOrStepId);
         updateLastActivityTimestamp();
-
     }
 
     public void resetAllFailedAttempts() {
-
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot reset all failed attempts."
-            );
-        }
         this.failedAttempts.clear();
         updateLastActivityTimestamp();
-
     }
 
     public void setAttribute(String name, Object value) {
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot modify attributes."
-            );
-        }
-
         if (value == null) {
             this.attributes.remove(name);
             return;
@@ -303,13 +236,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public void removeAttribute(String name) {
-        if (readOnly) {
-            throw new IllegalStateException(
-                    "FactorContext is read-only. Cannot remove attributes."
-            );
-        }
         this.attributes.remove(name);
-
     }
 
     public boolean isFullyAuthenticated() {
@@ -332,7 +259,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
 
         if (availableFactorsObj == null) {
             log.error("[FactorContext] availableFactors attribute is NULL for session: {} - not initialized yet?", mfaSessionId);
-            return null;
+            return Collections.emptySet();
         }
 
         if (availableFactorsObj instanceof Set) {
@@ -342,23 +269,23 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             } catch (ClassCastException e) {
                 log.error("[FactorContext] availableFactors type cast failed for session: {}, type: {}",
                         mfaSessionId, availableFactorsObj.getClass(), e);
-                return null;
+                return Collections.emptySet();
             }
         }
 
         log.error("[FactorContext] availableFactors attribute type mismatch: {} for session: {}",
                 availableFactorsObj.getClass().getName(), mfaSessionId);
-        return null;
+        return Collections.emptySet();
     }
 
     public boolean isFactorAvailable(AuthType factorType) {
         Set<AuthType> factors = getAvailableFactors();
-        return factors != null && factors.contains(factorType);
+        return factors.contains(factorType);
     }
 
     public Set<AuthType> getRemainingFactors() {
         Set<AuthType> available = getAvailableFactors();
-        if (available == null || available.isEmpty()) {
+        if (available.isEmpty()) {
             return Collections.emptySet();
         }
         factorsLock.readLock().lock();
@@ -404,7 +331,22 @@ public class FactorContext implements FactorContextExtensions, Serializable {
         sb.append(currentProcessingFactor != null ? currentProcessingFactor : "null").append(":");
         sb.append(currentStepId != null ? currentStepId : "null");
 
-        return Integer.toHexString(sb.toString().hashCode());
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(hash, 8);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is guaranteed by the JVM spec; this should never happen
+            return Integer.toHexString(sb.toString().hashCode());
+        }
+    }
+
+    private static String bytesToHex(byte[] bytes, int length) {
+        StringBuilder hex = new StringBuilder(length * 2);
+        for (int i = 0; i < length && i < bytes.length; i++) {
+            hex.append(String.format("%02x", bytes[i]));
+        }
+        return hex.toString();
     }
 
     @Getter

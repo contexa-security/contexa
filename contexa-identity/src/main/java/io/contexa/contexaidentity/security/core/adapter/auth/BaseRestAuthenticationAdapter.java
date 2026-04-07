@@ -1,12 +1,8 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
-import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
-import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.handler.OAuth2SingleAuthFailureHandler;
 import io.contexa.contexaidentity.security.handler.OAuth2SingleAuthSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
@@ -15,11 +11,8 @@ import io.contexa.contexaidentity.security.handler.SessionSingleAuthFailureHandl
 import io.contexa.contexaidentity.security.handler.SessionSingleAuthSuccessHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-
-import java.util.List;
 
 @Slf4j
 public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
@@ -48,47 +41,19 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
     }
 
     @Override
-    protected PlatformAuthenticationSuccessHandler resolveSuccessHandler(
-            RestOptions options,
-            @Nullable AuthenticationFlowConfig currentFlow,
-            AuthenticationStepConfig myStepConfig,
-            @Nullable List<AuthenticationStepConfig> allSteps,
-            @Nullable StateConfig stateConfig,
-            ApplicationContext appContext) {
-
-        StateType stateType = determineStateType(stateConfig, appContext);
-        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
-
-        if (isMfaFlow) {
-            return super.resolveSuccessHandler(options, currentFlow, myStepConfig, allSteps, stateConfig, appContext);
-        } else {
-            if (stateType == StateType.SESSION) {
-                return appContext.getBean(SessionSingleAuthSuccessHandler.class);
-            } else {
-                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
-            }
+    protected PlatformAuthenticationSuccessHandler resolveNonMfaSuccessHandler(StateType stateType, ApplicationContext appContext) {
+        if (stateType == StateType.SESSION) {
+            return appContext.getBean(SessionSingleAuthSuccessHandler.class);
         }
+        return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
     }
 
     @Override
-    protected PlatformAuthenticationFailureHandler resolveFailureHandler(
-            RestOptions options,
-            @Nullable AuthenticationFlowConfig currentFlow,
-            @Nullable StateConfig stateConfig,
-            ApplicationContext appContext) {
-
-        StateType stateType = determineStateType(stateConfig, appContext);
-        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
-
-        if (isMfaFlow) {
-            return super.resolveFailureHandler(options, currentFlow, stateConfig, appContext);
-        } else {
-            if (stateType == StateType.SESSION) {
-                return appContext.getBean(SessionSingleAuthFailureHandler.class);
-            } else {
-                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
-            }
+    protected PlatformAuthenticationFailureHandler resolveNonMfaFailureHandler(StateType stateType, ApplicationContext appContext) {
+        if (stateType == StateType.SESSION) {
+            return appContext.getBean(SessionSingleAuthFailureHandler.class);
         }
+        return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
     }
 
     protected abstract T createConfigurer();

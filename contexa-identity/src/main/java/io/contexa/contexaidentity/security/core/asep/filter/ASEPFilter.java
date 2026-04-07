@@ -119,12 +119,13 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         String errorCode = "INTERNAL_SERVER_ERROR";
         String baseMessage = isHandlerError ? "Error occurred in ASEP exception handler" : "An unexpected error occurred";
 
+        boolean shouldClearContext = false;
         if (exception instanceof AuthenticationException) {
             status = HttpStatus.UNAUTHORIZED;
             errorCode = "UNAUTHENTICATED";
             baseMessage = "Authentication failed";
-            SecurityContextHolder.clearContext(); 
-                    } else if (exception instanceof AccessDeniedException) {
+            shouldClearContext = true;
+        } else if (exception instanceof AccessDeniedException) {
             status = HttpStatus.FORBIDDEN;
             errorCode = "ACCESS_DENIED";
             baseMessage = "Access denied";
@@ -182,7 +183,9 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             }
         }
 
-            }
+        // Clear SecurityContext only after response is fully written
+        clearContextIfNeeded(shouldClearContext);
+    }
 
     private MediaType determineResponseMediaType(HttpServletRequest request, HandlerMethod handlerMethod) {
         List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.ALL); 
@@ -269,7 +272,13 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         for (HttpMessageConverter<?> converter : this.messageConverters) {
             if (converter.canWrite(Map.class, MediaType.APPLICATION_JSON)) return MediaType.APPLICATION_JSON;
         }
-        
+
         return MediaType.APPLICATION_OCTET_STREAM;
+    }
+
+    private void clearContextIfNeeded(boolean shouldClear) {
+        if (shouldClear) {
+            SecurityContextHolder.clearContext();
+        }
     }
 }

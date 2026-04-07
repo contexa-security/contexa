@@ -77,7 +77,7 @@ public class SecurityFilterChainCustomizer {
     }
 
     private PasskeyOptions extractPasskeyOptions(AuthenticationStepConfig passkeyStep) {
-        Object optionsObj = passkeyStep.getOptions().get("_options");
+        Object optionsObj = passkeyStep.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
         return optionsObj instanceof PasskeyOptions opts ? opts : null;
     }
 

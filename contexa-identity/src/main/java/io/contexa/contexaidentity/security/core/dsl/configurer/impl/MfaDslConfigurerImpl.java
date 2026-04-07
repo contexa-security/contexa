@@ -129,7 +129,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
         int stepOrder = currentStepOrderCounter++;
         AuthenticationStepConfig factorStep = new AuthenticationStepConfig(this.mfaFlowTypeName, authType.name(), stepOrder, false);
-        factorStep.getOptions().put("_options", factorOptions);
+        factorStep.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, factorOptions);
         this.configuredSteps.add(factorStep);
                 return this;
     }
@@ -211,14 +211,14 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             configuredSteps.removeIf(s -> s.getOrder() == 0);
 
             AuthenticationStepConfig primaryAuthStep = new AuthenticationStepConfig(this.mfaFlowTypeName, primaryAuthType.name(), 0, true);
-            primaryAuthStep.getOptions().put("_options", primaryConcreteOptions);
+            primaryAuthStep.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, primaryConcreteOptions);
             configuredSteps.addFirst(primaryAuthStep);
                     } else {
 
             if (configuredSteps.isEmpty() || configuredSteps.getFirst().getOrder() != 0) {
                 throw new DslConfigurationException("MFA flow [" + this.mfaFlowTypeName + "] must have a primary authentication step (order 0) or use .primaryAuthentication() DSL.");
             }
-            Object firstStepOptionsObj = configuredSteps.getFirst().getOptions().get("_options");
+            Object firstStepOptionsObj = configuredSteps.getFirst().getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
             if (firstStepOptionsObj instanceof FormOptions fo) {
                 primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder().formOptions(fo).loginProcessingUrl(fo.getLoginProcessingUrl()).build();
             } else if (firstStepOptionsObj instanceof RestOptions ro) {
@@ -238,7 +238,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Assert.isTrue(configuredSteps.size() > 1, "MFA flow must have at least one secondary authentication factor.");
 
         if (primaryAuthOptionsForFlow == null) {
-            Object firstStepRawOptions = firstConfiguredStep.getOptions().get("_options");
+            Object firstStepRawOptions = firstConfiguredStep.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
             if (firstStepRawOptions instanceof FormOptions fo) {
                 
                 primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder()
@@ -265,7 +265,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new LinkedHashMap<>();
         for (int i = 1; i < configuredSteps.size(); i++) {
             AuthenticationStepConfig step = configuredSteps.get(i);
-            Object stepOptionsObject = step.getOptions().get("_options");
+            Object stepOptionsObject = step.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
             if (!(stepOptionsObject instanceof AuthenticationProcessingOptions factorOption)) { 
                 throw new DslConfigurationException("Options for MFA factor step '" + step.getType() +
                         "' are not of type AuthenticationProcessingOptions. Actual: " + (stepOptionsObject != null ? stepOptionsObject.getClass().getName() : "null"));

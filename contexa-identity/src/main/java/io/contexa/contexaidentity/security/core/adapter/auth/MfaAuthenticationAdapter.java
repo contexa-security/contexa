@@ -115,7 +115,10 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
             // Auto-configure securityMatcher when urlPrefix is set
             if (currentFlow.getUrlPrefix() != null) {
-                http.securityMatcher(currentFlow.getUrlPrefix() + "/**");
+                String prefix = currentFlow.getUrlPrefix();
+                Assert.state(prefix.matches("^[a-zA-Z0-9/_-]+$"),
+                        "urlPrefix contains invalid characters. Only alphanumeric, '/', '_', '-' are allowed: " + prefix);
+                http.securityMatcher(prefix + "/**");
             }
 
             mfaContinuationFilter.initializeUrlMatchers(flowUrlProvider);

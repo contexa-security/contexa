@@ -20,7 +20,7 @@ public class PasskeyOptionsValidator implements Validator<AuthenticationStepConf
         }
 
         String stepIdentifier = String.format("Step (type: '%s', order: %d)", step.getType(), step.getOrder());
-        Object optionsObject = step.getOptions().get("_options");
+        Object optionsObject = step.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
 
         if (!(optionsObject instanceof PasskeyOptions passkeyOptions)) {
             result.addError(String.format("Options object for %s is not of PasskeyOptions type. (Actual type: %s)",

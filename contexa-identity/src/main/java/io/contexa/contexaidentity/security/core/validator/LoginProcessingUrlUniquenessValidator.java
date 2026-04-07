@@ -61,7 +61,7 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
         for (AuthenticationFlowConfig flow : flows) {
 
             for (AuthenticationStepConfig step : flow.getStepConfigs()) {
-                Object optionsObject = step.getOptions().get("_options");
+                Object optionsObject = step.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
                 if (optionsObject instanceof AuthenticationProcessingOptions processingOptions) {
                     String loginProcessingUrl = processingOptions.getLoginProcessingUrl();
 

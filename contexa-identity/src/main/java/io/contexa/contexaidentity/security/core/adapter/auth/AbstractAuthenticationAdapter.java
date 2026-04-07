@@ -9,7 +9,6 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -18,7 +17,6 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.NullSecurityContextRepository;
@@ -31,6 +29,8 @@ import java.util.Objects;
 
 @Slf4j
 public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProcessingOptions> implements AuthenticationAdapter {
+
+    private static final SecurityContextRepository SESSION_CONTEXT_REPOSITORY = new HttpSessionSecurityContextRepository();
 
     protected abstract void configureHttpSecurity(HttpSecurity http, O options,
                                                   AuthenticationFlowConfig currentFlow,
@@ -51,7 +51,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
     @Override
     public void apply(HttpSecurity http, List<AuthenticationStepConfig> allStepsInCurrentFlow, StateConfig stateConfig) throws Exception {
-        Objects.requireNonNull(http, "HttpSecurity cannot be null");
+        Assert.notNull(http, "HttpSecurity cannot be null");
 
         AuthenticationStepConfig myRelevantStepConfig = null;
         if (!CollectionUtils.isEmpty(allStepsInCurrentFlow)) {
@@ -67,18 +67,15 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             return;
         }
         AuthenticationFlowConfig currentFlow = http.getSharedObject(AuthenticationFlowConfig.class);
-        O options = (O) myRelevantStepConfig.getOptions().get("_options");
-        if (options == null) {
-            throw new IllegalStateException(
-                    String.format("AuthenticationFeature [%s]: Options not found in AuthenticationStepConfig for type '%s'. " +
-                            "Ensure XxxDslConfigurerImpl correctly builds and stores options.", getId(), myRelevantStepConfig.getType())
-            );
-        }
+        O options = (O) myRelevantStepConfig.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
+        Assert.state(options != null,
+                String.format("AuthenticationFeature [%s]: Options not found in AuthenticationStepConfig for type '%s'. " +
+                        "Ensure XxxDslConfigurerImpl correctly builds and stores options.", getId(), myRelevantStepConfig.getType()));
 
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         Assert.state(platformContext != null, "PlatformContext not found in HttpSecurity shared objects. It must be set by the orchestrator.");
         ApplicationContext appContext = platformContext.applicationContext();
-        Objects.requireNonNull(appContext, "ApplicationContext from PlatformContext cannot be null");
+        Assert.notNull(appContext, "ApplicationContext from PlatformContext cannot be null");
 
         StateConfig resolvedStateConfig = (stateConfig != null) ? stateConfig :
                 (currentFlow != null && currentFlow.getStateConfig() != null) ? currentFlow.getStateConfig() : null;
@@ -142,12 +139,13 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
             if (allSteps != null) {
                 int currentStepIndex = allSteps.indexOf(myStepConfig);
+                Assert.state(currentStepIndex >= 0,
+                        String.format("AuthenticationFeature [%s]: Step config not found in allSteps list. This indicates a configuration mismatch.", getId()));
                 boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
 
                 if (isFirstStepInMfaFlow) {
@@ -159,12 +157,15 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
             return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
         } else {
-            if (stateType == StateType.SESSION) {
-                return null;
-            } else {
-                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
-            }
+            return resolveNonMfaSuccessHandler(determineStateType(stateConfig, appContext), appContext);
         }
+    }
+
+    protected PlatformAuthenticationSuccessHandler resolveNonMfaSuccessHandler(StateType stateType, ApplicationContext appContext) {
+        if (stateType == StateType.SESSION) {
+            return null;
+        }
+        return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
     }
 
     protected PlatformAuthenticationFailureHandler resolveFailureHandler(
@@ -172,22 +173,20 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-
             return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
         } else {
-
-            if (stateType == StateType.SESSION) {
-
-                return null;
-            } else {
-
-                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
-            }
+            return resolveNonMfaFailureHandler(determineStateType(stateConfig, appContext), appContext);
         }
+    }
+
+    protected PlatformAuthenticationFailureHandler resolveNonMfaFailureHandler(StateType stateType, ApplicationContext appContext) {
+        if (stateType == StateType.SESSION) {
+            return null;
+        }
+        return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
     }
 
     protected StateType determineStateType(@Nullable StateConfig stateConfig, ApplicationContext appContext) {
@@ -216,6 +215,8 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         if (isMfaFlow) {
             if (allSteps != null) {
                 int currentStepIndex = allSteps.indexOf(myStepConfig);
+                Assert.state(currentStepIndex >= 0,
+                        String.format("AuthenticationFeature [%s]: Step config not found in allSteps list for security context resolution.", getId()));
                 boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
 
                 if (isFinalStepInMfaFlow) {
@@ -226,23 +227,23 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                     if (options.getSecurityContextRepository() != null) {
                         return options.getSecurityContextRepository();
                     }
-                    return new HttpSessionSecurityContextRepository();
+                    return SESSION_CONTEXT_REPOSITORY;
                 }
             }
 
             log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using HttpSessionSecurityContextRepository as fallback", getId());
-            return new HttpSessionSecurityContextRepository();
+            return SESSION_CONTEXT_REPOSITORY;
         } else {
             return getSecurityContextRepository(stateType, options);
         }
     }
 
     private static <O extends AuthenticationProcessingOptions> @NonNull SecurityContextRepository getSecurityContextRepository(StateType stateType, O options) {
-        if(options.getSecurityContextRepository() != null) {
+        if (options.getSecurityContextRepository() != null) {
             return options.getSecurityContextRepository();
         }
         if (stateType == StateType.SESSION) {
-            return new HttpSessionSecurityContextRepository();
+            return SESSION_CONTEXT_REPOSITORY;
         } else {
             return new NullSecurityContextRepository();
         }

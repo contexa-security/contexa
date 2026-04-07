@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -8,9 +7,7 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
@@ -85,14 +82,7 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
     }
 
     @Override
-    protected void configureSecurityContext(FormLoginConfigurer<HttpSecurity> configurer,
-                                            FormOptions opts, HttpSecurity http) {
-        if(http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
-            configurer.securityContextRepository(http.getSharedObject(SecurityContextRepository.class));
-        }else if (opts.getSecurityContextRepository() != null) {
-            configurer.securityContextRepository(opts.getSecurityContextRepository());
-        }else{
-            configurer.securityContextRepository(new HttpSessionSecurityContextRepository());
-        }
+    protected void applySecurityContextRepository(FormLoginConfigurer<HttpSecurity> configurer, SecurityContextRepository repository) {
+        configurer.securityContextRepository(repository);
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Base class for filter chain customizers that apply per-flow URLs after http.build().
@@ -32,6 +33,30 @@ public abstract class AbstractFilterCustomizer {
 
     protected List<Filter> getFilters(DefaultSecurityFilterChain builtChain) {
         return builtChain.getFilters();
+    }
+
+    /**
+     * Find and apply an action to each filter of the specified type in the chain.
+     */
+    protected <T extends Filter> void forEachFilterOfType(DefaultSecurityFilterChain chain, Class<T> type, Consumer<T> action) {
+        for (Filter filter : getFilters(chain)) {
+            if (type.isInstance(filter)) {
+                action.accept(type.cast(filter));
+            }
+        }
+    }
+
+    /**
+     * Find the first filter of the specified type, or null if not found.
+     */
+    @SuppressWarnings("unchecked")
+    protected <T extends Filter> T findFilter(DefaultSecurityFilterChain chain, Class<T> type) {
+        for (Filter filter : getFilters(chain)) {
+            if (type.isInstance(filter)) {
+                return (T) filter;
+            }
+        }
+        return null;
     }
 
     /**

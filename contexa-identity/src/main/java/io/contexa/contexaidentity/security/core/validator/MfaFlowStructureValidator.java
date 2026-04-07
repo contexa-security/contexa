@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.validator;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
 
@@ -13,7 +14,7 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
     @Override
     public ValidationResult validate(AuthenticationFlowConfig flow) {
         ValidationResult result = new ValidationResult();
-        if (flow == null || !"mfa".equalsIgnoreCase(flow.getTypeName())) {
+        if (flow == null || !MfaFlowTypeUtils.isMfaFlow(flow.getTypeName())) {
             return result;
         }
 
