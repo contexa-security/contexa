@@ -24,6 +24,7 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
     public static final String TYPE_AUTHENTICATION_FAILURE = "FAILURE";
     public static final String TYPE_AUTHENTICATION_MFA = "MFA";
     public static final String TYPE_AUTHORIZATION_METHOD = "METHOD";
+    public static final String TYPE_PRE_PROTECTABLE_REDLINE = "PRE_PROTECTABLE_REDLINE";
 
     private final ZeroTrustEventCategory category;
 
@@ -195,3 +196,5 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
                 '}';
     }
 }
+
+

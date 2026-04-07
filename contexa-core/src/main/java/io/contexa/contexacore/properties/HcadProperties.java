@@ -59,6 +59,9 @@ public class HcadProperties {
     @NestedConfigurationProperty
     private GeoIpSettings geoip = new GeoIpSettings();
 
+    @NestedConfigurationProperty
+    private PreTriggerSettings preTrigger = new PreTriggerSettings();
+
     @Data
     public static class ThresholdSettings {
         private double base = 0.7;
@@ -292,4 +295,23 @@ public class HcadProperties {
         private boolean enabled = false;
         private String dbPath = "data/GeoLite2-City.mmdb";
     }
+
+    @Data
+    public static class PreTriggerSettings {
+        private boolean enabled = true;
+        private int cooldownSeconds = 15;
+        private int inFlightTtlSeconds = 15;
+        private int negativeCacheSeconds = 3;
+        private int failedLoginBurstThreshold = 3;
+        private int requestBurstThreshold = 12;
+        private long rapidRequestIntervalMs = 1000L;
+        private List<String> sensitivePathIndicators = new ArrayList<>(List.of(
+                "/admin/",
+                "/export",
+                "/download",
+                "/sensitive/",
+                "/critical/"
+        ));
+    }
 }
+

@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,13 +44,18 @@ class SecurityDecisionEnforcementHandlerTest {
 
     @Mock
     private BlockingSignalBroadcaster blockingSignalBroadcaster;
-
+    @Mock
+    private AnalysisTriggerStateRepository analysisTriggerStateRepository;
     private SecurityDecisionEnforcementHandler handler;
 
     @BeforeEach
     void setUp() {
         handler = new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService, blockedUserRecorder, blockingSignalBroadcaster);
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository);
     }
 
     @Test
@@ -151,6 +157,29 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(actionRepository, never()).saveAction(anyString(), any(ZeroTrustAction.class), anyMap());
     }
 
+    @Test
+    @DisplayName("pre-trigger completion should release in-flight state after decision enforcement")
+    void preTriggerCompletion_shouldReleaseInFlight() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-5")
+                .metadata(Map.of(
+                        "triggerSource", "PENDING_REDLINE",
+                        "triggerStateKey", "trigger-key-1"))
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.ALLOW.name())
+                .riskScore(0.2)
+                .confidence(0.9)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+        boolean result = handler.handle(context);
+        assertThat(result).isTrue();
+        verify(analysisTriggerStateRepository).releaseInFlight("trigger-key-1");
+    }
     @Test
     @DisplayName("getOrder should return 55")
     void getOrder_shouldReturn55() {

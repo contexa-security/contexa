@@ -11,27 +11,44 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
+import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
-@RequiredArgsConstructor
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
-
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
+    private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry) {
+        this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry, null);
+    }
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository) {
+        this.actionRedisRepository = actionRedisRepository;
+        this.securityLearningService = securityLearningService;
+        this.blockedUserRecorder = blockedUserRecorder;
+        this.blockingDecisionRegistry = blockingDecisionRegistry;
+        this.analysisTriggerStateRepository = analysisTriggerStateRepository;
+    }
 
     @Override
     public boolean handle(SecurityEventContext context) {
         Object resultObj = context.getMetadata().get("processingResult");
         if (!(resultObj instanceof ProcessingResult result) || !result.isSuccess()) {
+            releasePreTriggerInFlight(context.getSecurityEvent());
             return true;
         }
 
@@ -43,7 +60,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         try {
             enforceDecision(userId, event, result);
+            releasePreTriggerInFlight(event);
         } catch (Exception e) {
+            releasePreTriggerInFlight(event);
             log.error("[SecurityDecisionEnforcementHandler] Error enforcing decision: eventId={}", event.getEventId(), e);
             context.markAsFailed("Security decision enforcement failed: " + e.getMessage());
             return false;
@@ -228,6 +247,16 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private void putIfPresent(Map<String, Object> fields, String key, Object value) {
         if (value != null) {
             fields.put(key, value);
+        }
+    }
+    private void releasePreTriggerInFlight(SecurityEvent event) {
+        if (analysisTriggerStateRepository == null || event == null || event.getMetadata() == null) {
+            return;
+        }
+        Object triggerSource = event.getMetadata().get("triggerSource");
+        Object triggerStateKey = event.getMetadata().get("triggerStateKey");
+        if ("PENDING_REDLINE".equals(triggerSource) && triggerStateKey != null && !triggerStateKey.toString().isBlank()) {
+            analysisTriggerStateRepository.releaseInFlight(triggerStateKey.toString());
         }
     }
 

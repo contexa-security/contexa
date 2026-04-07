@@ -10,6 +10,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
@@ -94,11 +95,58 @@ public class ZeroTrustEventPublisher {
 
     }
 
+    public void publishPreProtectableThreat(String userId, Map<String, Object> payload) {
+        RequestInfo requestInfo = extractRequestInfoFromContext();
+        Map<String, Object> mergedPayload = new HashMap<>();
+        if (payload != null) {
+            mergedPayload.putAll(payload);
+        }
+        if (requestInfo != null) {
+            putIfAbsent(mergedPayload, "requestPath", requestInfo.getRequestUri());
+            putIfAbsent(mergedPayload, "requestUri", requestInfo.getRequestUri());
+            putIfAbsent(mergedPayload, "httpMethod", requestInfo.getMethod());
+            putIfAbsent(mergedPayload, "requestId", requestInfo.getRequestId());
+            putIfAbsent(mergedPayload, "correlationId", requestInfo.getRequestId());
+            putIfAbsent(mergedPayload, "clientIp", requestInfo.getClientIp());
+            putIfAbsent(mergedPayload, "userAgent", requestInfo.getUserAgent());
+            putIfAbsent(mergedPayload, "resourceSensitivity", requestInfo.getResourceSensitivity());
+            putIfAbsent(mergedPayload, "mfaVerified", requestInfo.getMfaVerified());
+            putIfAbsent(mergedPayload, "previousPath", requestInfo.getPreviousPath());
+            putIfAbsent(mergedPayload, "lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
+            putIfAbsent(mergedPayload, "recentRequestCount", requestInfo.getRecentRequestCount());
+            putIfAbsent(mergedPayload, "failedLoginAttempts", requestInfo.getFailedLoginAttempts());
+            putIfAbsent(mergedPayload, "isNewDevice", requestInfo.getIsNewDevice());
+            putIfAbsent(mergedPayload, "impossibleTravel", requestInfo.getImpossibleTravel());
+            populateBridgePayload(requestInfo, mergedPayload);
+        }
+        if (actionRedisRepository != null && userId != null && !mergedPayload.containsKey("action")) {
+            ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId);
+            if (currentAction != null) {
+                mergedPayload.put("action", currentAction.name());
+            }
+        }
+
+        publish(
+                ZeroTrustEventCategory.THREAT,
+                ZeroTrustSpringEvent.TYPE_PRE_PROTECTABLE_REDLINE,
+                userId,
+                requestInfo != null ? requestInfo.getSessionId() : null,
+                requestInfo != null ? requestInfo.getClientIp() : null,
+                requestInfo != null ? requestInfo.getUserAgent() : null,
+                requestInfo != null ? requestInfo.getRequestUri() : null,
+                mergedPayload
+        );
+    }
+
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
             Authentication authentication,
             boolean granted,
             String denialReason) {
+        if (shouldSuppressMethodAuthorizationEvent()) {
+            log.debug("[ZeroTrustEventPublisher] Suppressing same-request METHOD authorization event after pre-trigger analysis start");
+            return;
+        }
         ZeroTrustSpringEvent event = buildMethodAuthorizationEvent(
                 methodInvocation,
                 authentication,
@@ -319,6 +367,20 @@ public class ZeroTrustEventPublisher {
                 .eventTimestamp(eventTimestamp != null ? eventTimestamp : Instant.now())
                 .payload(payload != null ? payload : Map.of())
                 .build();
+    }
+
+    private boolean shouldSuppressMethodAuthorizationEvent() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return false;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            return Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED));
+        } catch (Exception e) {
+            log.error("Failed to resolve pre-trigger suppression state", e);
+            return false;
+        }
     }
 
     private String resolveEffectiveUserId(Authentication authentication) {
@@ -713,6 +775,12 @@ public class ZeroTrustEventPublisher {
         }
     }
 
+    private void putIfAbsent(Map<String, Object> payload, String key, Object value) {
+        if (value != null) {
+            payload.putIfAbsent(key, value);
+        }
+    }
+
     private Protectable resolveProtectable(MethodInvocation methodInvocation) {
         Protectable protectable = AnnotationUtils.findAnnotation(methodInvocation.getMethod(), Protectable.class);
         if (protectable != null) {
@@ -737,6 +805,13 @@ public class ZeroTrustEventPublisher {
         return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }
+
+
+
+
+
+
+
 
 
 

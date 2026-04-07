@@ -24,11 +24,9 @@ import java.util.UUID;
 
 @Slf4j
 public final class RequestInfoExtractor {
-
+    private static final String REQUEST_ID_ATTRIBUTE = "contexa.requestId";
     private RequestInfoExtractor() {
-
     }
-
     public static RequestInfo extract(HttpServletRequest request, TieredStrategyProperties.Security security) {
         if (request == null) {
             return null;
@@ -254,9 +252,16 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractRequestId(HttpServletRequest request) {
+        Object existing = request.getAttribute(REQUEST_ID_ATTRIBUTE);
+        if (existing instanceof String text && !text.isBlank()) {
+            return text;
+        }
         String requestId = request.getHeader("X-Request-ID");
-        return (requestId != null && !requestId.isEmpty()) ?
-                requestId : UUID.randomUUID().toString();
+        String resolved = (requestId != null && !requestId.isEmpty())
+                ? requestId
+                : UUID.randomUUID().toString();
+        request.setAttribute(REQUEST_ID_ATTRIBUTE, resolved);
+        return resolved;
     }
 
     public static String extractScenario(HttpServletRequest request) {

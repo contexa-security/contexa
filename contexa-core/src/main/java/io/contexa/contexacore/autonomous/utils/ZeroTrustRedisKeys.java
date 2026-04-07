@@ -178,6 +178,26 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:processing:%s", NAMESPACE, eventId);
     }
 
+    public static String analysisTriggerInflight(String dedupKey) {
+        validateTriggerKey(dedupKey);
+        return String.format("%s:hcad:pretrigger:inflight:%s", NAMESPACE, dedupKey);
+    }
+
+    public static String analysisTriggerCooldown(String dedupKey) {
+        validateTriggerKey(dedupKey);
+        return String.format("%s:hcad:pretrigger:cooldown:%s", NAMESPACE, dedupKey);
+    }
+
+    public static String analysisTriggerNegative(String baseKey) {
+        validateTriggerKey(baseKey);
+        return String.format("%s:hcad:pretrigger:negative:%s", NAMESPACE, baseKey);
+    }
+
+    private static void validateTriggerKey(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Trigger key cannot be null or empty");
+        }
+    }
     private static void validateUserId(String userId) {
         if (userId == null || userId.trim().isEmpty()) {
             throw new IllegalArgumentException("UserId is required for Zero Trust architecture");
@@ -196,3 +216,4 @@ public class ZeroTrustRedisKeys {
         }
     }
 }
+

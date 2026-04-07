@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
@@ -159,9 +160,14 @@ public class CoreAutonomousEventAutoConfiguration {
             ZeroTrustActionRepository actionRepository,
             SecurityLearningService securityLearningService,
             IBlockedUserRecorder blockedUserRecorder,
-            BlockingSignalBroadcaster blockingSignalBroadcaster) {
+            BlockingSignalBroadcaster blockingSignalBroadcaster,
+            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider) {
         return new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService, blockedUserRecorder, blockingSignalBroadcaster);
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepositoryProvider.getIfAvailable());
     }
 
     @Bean

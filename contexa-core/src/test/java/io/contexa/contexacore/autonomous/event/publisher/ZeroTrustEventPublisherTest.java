@@ -11,6 +11,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
@@ -29,8 +30,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ZeroTrustEventPublisherTest {
@@ -279,6 +285,55 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("disableOllamaThinking", true);
     }
 
+    @Test
+    @DisplayName("pre-protectable threat publication should include bridge metadata when available")
+    void shouldIncludeBridgeMetadataInPreProtectableThreatPayload() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/export/reports");
+        request.setRequestedSessionId("session-pre-bridge");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.12");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createBridgeResolutionResult());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(applicationEventPublisher, new TieredStrategyProperties());
+
+        publisher.publishPreProtectableThreat("alice", Map.of("reasonCodes", List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE")));
+
+        ArgumentCaptor<ZeroTrustSpringEvent> captor = ArgumentCaptor.forClass(ZeroTrustSpringEvent.class);
+        verify(applicationEventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().getPayload())
+                .containsEntry("bridgeCoverageLevel", BridgeCoverageLevel.DELEGATION_CONTEXT.name())
+                .containsEntry("bridgeAuthenticationSource", "HEADER")
+                .containsEntry("bridgeAuthorizationSource", "HEADER")
+                .containsEntry("bridgeDelegationSource", "HEADER");
+    }
+    @Test
+    @DisplayName("same-request pre-trigger marker should suppress method authorization publication")
+    void shouldSuppressMethodAuthorizationEventWhenPreTriggerMarkerExists() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/export/reports");
+        request.setRequestedSessionId("session-pre-trigger");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("203.0.113.11");
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED, true);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(applicationEventPublisher, new TieredStrategyProperties());
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        publisher.publishMethodAuthorization(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        verify(applicationEventPublisher, never()).publishEvent(any());
+    }
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
@@ -343,6 +398,9 @@ class ZeroTrustEventPublisherTest {
         }
     }
 }
+
+
+
 
 
 
