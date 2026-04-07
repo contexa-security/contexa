@@ -65,8 +65,9 @@ public class IamAdminAuthAutoConfiguration {
             PermissionService permissionService,
             ModelMapper modelMapper,
             RoleRepository roleRepository,
+            io.contexa.contexaiam.repository.PolicyRepository policyRepository,
             MessageSource messageSource) {
-        return new RoleController(roleService, permissionService, modelMapper, roleRepository, messageSource);
+        return new RoleController(roleService, permissionService, modelMapper, roleRepository, policyRepository, messageSource);
     }
 
     @Bean
@@ -100,8 +101,9 @@ public class IamAdminAuthAutoConfiguration {
             ModelMapper modelMapper,
             FunctionCatalogService functionCatalogService,
             PermissionRepository permissionRepository,
+            io.contexa.contexaiam.repository.PolicyRepository policyRepository,
             MessageSource messageSource) {
-        return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository, messageSource);
+        return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository, policyRepository, messageSource);
     }
 
     @Bean("userManagementService")
@@ -127,8 +129,9 @@ public class IamAdminAuthAutoConfiguration {
             PermissionRepository permissionRepository,
             IntegrationEventBus eventBus,
             io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
-            io.contexa.contexaiam.repository.RoleHierarchyRepository roleHierarchyRepository) {
-        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade, roleHierarchyRepository);
+            io.contexa.contexaiam.repository.RoleHierarchyRepository roleHierarchyRepository,
+            io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService policySynchronizationService) {
+        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade, roleHierarchyRepository, policySynchronizationService);
     }
 
     @Bean

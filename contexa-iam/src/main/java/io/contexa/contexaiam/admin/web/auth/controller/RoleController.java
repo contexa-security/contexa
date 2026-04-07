@@ -4,6 +4,8 @@ import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +25,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Controller
@@ -33,6 +37,7 @@ public class RoleController {
 	private final PermissionService permissionService;
 	private final ModelMapper modelMapper;
 	private final RoleRepository roleRepository;
+	private final PolicyRepository policyRepository;
 	private final MessageSource messageSource;
 
 	private String msg(String key, Object... args) {
@@ -103,10 +108,35 @@ public class RoleController {
 		return "redirect:/admin/roles";
 	}
 
+	@GetMapping("/api/{id}/affected-policies")
+	@ResponseBody
+	public ResponseEntity<Map<String, Object>> getAffectedPolicies(@PathVariable Long id) {
+		Role role = roleRepository.findById(id).orElse(null);
+		if (role == null) {
+			return ResponseEntity.notFound().build();
+		}
+		List<Policy> affected = policyRepository.findActivePoliciesReferencingExpression(role.getRoleName());
+		List<Map<String, Object>> policyList = affected.stream()
+				.map(p -> Map.<String, Object>of(
+						"id", p.getId(),
+						"name", p.getName(),
+						"effect", p.getEffect().name(),
+						"active", p.getIsActive()))
+				.toList();
+		return ResponseEntity.ok(Map.of(
+				"entityName", role.getRoleName(),
+				"policies", policyList,
+				"policyCount", policyList.size()));
+	}
+
 	@PostMapping("/delete/{id}")
 	public String deleteRole(@PathVariable Long id, RedirectAttributes ra) {
-		roleService.deleteRole(id);
-		ra.addFlashAttribute("message", msg("msg.role.deleted"));
+		try {
+			roleService.deleteRole(id);
+			ra.addFlashAttribute("message", msg("msg.role.deleted"));
+		} catch (Exception e) {
+			ra.addFlashAttribute("errorMessage", e.getMessage());
+		}
 		return "redirect:/admin/roles";
 	}
 }

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<!-- Delete Confirmation Modal with Policy Impact Warning -->
+<div th:fragment="modal(confirmMsg, apiBasePath, deleteBasePath, showRoleWarning)"
+     id="deleteModal" class="fixed inset-0 z-50 hidden items-center justify-center"
+     style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
+    <div class="dark-card rounded-2xl p-6 w-full max-w-lg mx-4" style="border:1px solid rgba(71,85,105,0.4);">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold" style="color:#f87171;">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <span th:text="#{common.action.delete}">Delete</span>
+            </h3>
+            <button onclick="closeDeleteModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+        </div>
+        <div class="mb-6" style="color:#e2e8f0;">
+            <p id="deleteModalLoading" class="text-center py-4" style="color:#94a3b8;">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Loading...
+            </p>
+            <div id="deleteModalContent" class="hidden">
+                <p class="mb-3" th:text="${confirmMsg}">Are you sure you want to delete?</p>
+                <div id="roleWarning" class="hidden mb-3 p-3 rounded-lg"
+                     th:if="${showRoleWarning}"
+                     style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);">
+                    <p class="font-semibold text-sm" style="color:#f87171;">
+                        <i class="fas fa-link mr-1"></i>
+                        <span id="roleWarningText"></span>
+                    </p>
+                </div>
+                <div id="policyWarning" class="hidden mb-4 p-4 rounded-lg"
+                     style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);">
+                    <p class="font-semibold mb-2" style="color:#fbbf24;">
+                        <i class="fas fa-shield-alt mr-1"></i>
+                        <span id="policyWarningText"></span>
+                    </p>
+                    <ul id="policyList" class="space-y-2 mt-2 text-sm"></ul>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm font-medium"
+                    style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
+                    th:text="#{common.action.cancel}">Cancel</button>
+            <form id="deleteForm" method="post" style="display:inline;">
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                        style="background:linear-gradient(135deg,#ef4444,#dc2626);"
+                        th:text="#{common.action.delete}">Delete</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block th:fragment="script(apiBasePath, deleteBasePath, showRoleWarning)">
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    var _i18n_affected = /*[[#{msg.delete.affected.policies}]]*/ '{0} active policy(ies) reference this item:';
+    var _i18n_role_assigned = /*[[#{msg.delete.assigned.roles}]]*/ 'This permission is assigned to {0} role(s).';
+    var _i18n_view = /*[[#{common.action.view.policy}]]*/ 'View Policy';
+    var _apiBasePath = /*[[${apiBasePath}]]*/ '';
+    var _deleteBasePath = /*[[${deleteBasePath}]]*/ '';
+    var _showRoleWarning = /*[[${showRoleWarning}]]*/ false;
+
+    function openDeleteModal(id) {
+        var modal = document.getElementById('deleteModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('deleteModalLoading').classList.remove('hidden');
+        document.getElementById('deleteModalContent').classList.add('hidden');
+        document.getElementById('deleteForm').action = _deleteBasePath + '/' + id;
+
+        fetch(_apiBasePath + '/' + id + '/affected-policies')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('deleteModalLoading').classList.add('hidden');
+                document.getElementById('deleteModalContent').classList.remove('hidden');
+
+                if (_showRoleWarning) {
+                    var roleWarn = document.getElementById('roleWarning');
+                    if (roleWarn && data.roleCount > 0) {
+                        roleWarn.classList.remove('hidden');
+                        document.getElementById('roleWarningText').textContent =
+                            _i18n_role_assigned.replace('{0}', data.roleCount);
+                    } else if (roleWarn) {
+                        roleWarn.classList.add('hidden');
+                    }
+                }
+
+                var policyWarn = document.getElementById('policyWarning');
+                if (data.policyCount > 0) {
+                    policyWarn.classList.remove('hidden');
+                    document.getElementById('policyWarningText').textContent =
+                        _i18n_affected.replace('{0}', data.policyCount);
+                    var list = document.getElementById('policyList');
+                    list.innerHTML = '';
+                    data.policies.forEach(function(p) {
+                        var li = document.createElement('li');
+                        li.className = 'flex justify-between items-center p-2 rounded';
+                        li.style.cssText = 'background:rgba(30,41,59,0.6);';
+                        li.innerHTML = '<span style="color:#e2e8f0;"><i class="fas fa-file-shield mr-2" style="color:#fbbf24;"></i>' +
+                            p.name + ' <span class="text-xs ml-1" style="color:#94a3b8;">(' + p.effect + ')</span></span>' +
+                            '<a href="/admin/policy-center?tab=list" target="_blank" class="px-2 py-1 rounded text-xs font-medium" ' +
+                            'style="background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3);">' +
+                            _i18n_view + '</a>';
+                        list.appendChild(li);
+                    });
+                } else {
+                    policyWarn.classList.add('hidden');
+                }
+            })
+            .catch(function() {
+                document.getElementById('deleteModalLoading').classList.add('hidden');
+                document.getElementById('deleteModalContent').classList.remove('hidden');
+            });
+    }
+
+    function closeDeleteModal() {
+        var modal = document.getElementById('deleteModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    /*]]>*/
+</script>
+</th:block>
+
+</html>

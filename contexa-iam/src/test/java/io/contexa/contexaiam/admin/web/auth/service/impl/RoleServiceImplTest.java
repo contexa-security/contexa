@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,9 @@ class RoleServiceImplTest {
 
     @Mock
     private RoleHierarchyRepository roleHierarchyRepository;
+
+    @Mock
+    private PolicySynchronizationService policySynchronizationService;
 
     @InjectMocks
     private RoleServiceImpl service;

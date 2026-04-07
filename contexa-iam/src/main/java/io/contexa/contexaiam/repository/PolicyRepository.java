@@ -168,4 +168,10 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
     @Query("SELECT p.approvalStatus, COUNT(p) FROM Policy p GROUP BY p.approvalStatus")
     List<Object[]> countGroupByApprovalStatus();
+
+    @Query("SELECT DISTINCT p FROM Policy p " +
+           "LEFT JOIN FETCH p.targets " +
+           "LEFT JOIN p.rules r JOIN r.conditions c " +
+           "WHERE p.isActive = true AND c.expression LIKE %:keyword%")
+    List<Policy> findActivePoliciesReferencingExpression(@Param("keyword") String keyword);
 }

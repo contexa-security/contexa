@@ -74,12 +74,10 @@
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
                                th:text="#{common.action.edit}">Edit</a>
-                            <form th:action="@{/admin/permissions/delete/{id}(id=${permission.id})}" method="post" style="display:inline;"
-                                  th:data-confirm-msg="#{common.confirm.delete.permission}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
-                                <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;"
-                                        th:text="#{common.action.delete}">Delete</button>
-                            </form>
+                            <button type="button" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
+                                    style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;"
+                                    th:onclick="'openDeleteModal(' + ${permission.id} + ')'"
+                                    th:text="#{common.action.delete}">Delete</button>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(permissions)}">
@@ -113,21 +111,21 @@
     </main>
 </div>
 
+<div th:replace="~{fragments/delete-policy-modal :: modal(#{msg.delete.confirm.permission}, '/admin/permissions/api', '/admin/permissions/delete', true)}"></div>
+
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
-
-
+<th:block th:replace="~{fragments/delete-policy-modal :: script('/admin/permissions/api', '/admin/permissions/delete', true)}"></th:block>
 <script th:inline="javascript">
     /*<![CDATA[*/
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', function() {
         if (typeof initAuth === 'function') {
             initAuth();
         }
-        // Show toast messages
-        const message = /*[[${message}]]*/ null;
+        var message = /*[[${message}]]*/ null;
         if (message) {
             showToast(message, 'success');
         }
-        const errorMessage = /*[[${errorMessage}]]*/ null;
+        var errorMessage = /*[[${errorMessage}]]*/ null;
         if (errorMessage) {
             showToast(errorMessage, 'error');
         }

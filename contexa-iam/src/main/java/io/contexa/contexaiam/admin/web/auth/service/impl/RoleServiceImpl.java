@@ -12,6 +12,7 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -36,6 +37,7 @@ public class RoleServiceImpl implements RoleService {
     private final IntegrationEventBus eventBus;
     private final CentralAuditFacade centralAuditFacade;
     private final RoleHierarchyRepository roleHierarchyRepository;
+    private final PolicySynchronizationService policySynchronizationService;
 
     @Transactional(readOnly = true)
     @Cacheable(value = "roles", key = "#id")
@@ -171,6 +173,7 @@ public class RoleServiceImpl implements RoleService {
                     "'. Referenced in active hierarchies: " + String.join(", ", referencedIn) +
                     ". Remove it from the hierarchies first.");
         }
+        policySynchronizationService.cleanupAutoPolicy(role.getRoleName());
         auditRoleChange(AuditEventCategory.ROLE_DELETED, role);
         roleRepository.deleteById(id);
     }

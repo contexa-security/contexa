@@ -4,6 +4,8 @@ import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.entity.FunctionCatalog;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,12 +17,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequestMapping("/admin/permissions")
@@ -32,6 +36,7 @@ public class PermissionController {
     private final ModelMapper modelMapper;
     private final FunctionCatalogService functionCatalogService;
     private final PermissionRepository permissionRepository;
+    private final PolicyRepository policyRepository;
     private final MessageSource messageSource;
 
     private String msg(String key, Object... args) {
@@ -93,6 +98,29 @@ public class PermissionController {
     private void addCommonAttributesToModel(Model model) {
         List<FunctionCatalog> allActiveFunctions = functionCatalogService.findAllActiveFunctions();
         model.addAttribute("allFunctions", allActiveFunctions);
+    }
+
+    @GetMapping("/api/{id}/affected-policies")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAffectedPolicies(@PathVariable Long id) {
+        Permission permission = permissionRepository.findById(id).orElse(null);
+        if (permission == null) {
+            return ResponseEntity.notFound().build();
+        }
+        List<Policy> affected = policyRepository.findActivePoliciesReferencingExpression(permission.getName());
+        long roleCount = permissionRepository.countRoleAssignments(id);
+        List<Map<String, Object>> policyList = affected.stream()
+                .map(p -> Map.<String, Object>of(
+                        "id", p.getId(),
+                        "name", p.getName(),
+                        "effect", p.getEffect().name(),
+                        "active", p.getIsActive()))
+                .toList();
+        return ResponseEntity.ok(Map.of(
+                "entityName", permission.getName(),
+                "policies", policyList,
+                "policyCount", policyList.size(),
+                "roleCount", roleCount));
     }
 
     @PostMapping("/delete/{id}")

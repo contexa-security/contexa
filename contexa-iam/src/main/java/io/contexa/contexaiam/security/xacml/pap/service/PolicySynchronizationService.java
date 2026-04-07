@@ -40,6 +40,14 @@ public class PolicySynchronizationService {
         synchronizePolicyForRole(role);
     }
 
+    @Transactional
+    public void cleanupAutoPolicy(String roleName) {
+        String policyName = "AUTO_POLICY_FOR_" + roleName;
+        policyRepository.findByName(policyName).ifPresent(policy -> {
+            policyService.deletePolicy(policy.getId(), "Auto-cleanup: role deleted - " + roleName);
+        });
+    }
+
     private void synchronizePolicyForRole(Role role) {
         String policyName = "AUTO_POLICY_FOR_" + role.getRoleName();
 
