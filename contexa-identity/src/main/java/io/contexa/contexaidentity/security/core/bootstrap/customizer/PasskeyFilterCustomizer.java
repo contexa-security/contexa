@@ -10,8 +10,10 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.webauthn.authentication.PublicKeyCredentialRequestOptionsFilter;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
@@ -63,11 +65,13 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 }
             }
 
-            // WebAuthnRegistrationFilter - registerEndpoint
+            // WebAuthnRegistrationFilter - register & remove endpoints
             if (filter instanceof WebAuthnRegistrationFilter regFilter) {
                 String url = flowUrlProvider.getPasskeyRegistrationProcessing();
                 if (StringUtils.hasText(url)) {
                     regFilter.setRegisterCredentialMatcher(createPostMatcher(url));
+                    regFilter.setRemoveCredentialMatcher(
+                            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.DELETE, url + "/{id}"));
                 }
             }
 

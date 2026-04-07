@@ -81,6 +81,8 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         this.matcher = requestMatcher;
     }
 
+
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -90,7 +92,8 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         }
 
         CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
-        response.setContentType(MediaType.TEXT_HTML_VALUE);
+        response.setContentType(MediaType.TEXT_HTML_VALUE + ";charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
         response.setStatus(HttpServletResponse.SC_OK);
 
         String html = MfaHtmlTemplates.fromTemplate(HTML_TEMPLATE)
@@ -136,6 +139,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("csrfParameterName", csrfToken != null ? csrfToken.getParameterName() : "_csrf")
                 .withValue("csrfToken", csrfToken != null ? csrfToken.getToken() : "")
                 .withValue("contextPath", contextPath)
+                .withValue("registrationBaseUrl", "/webauthn/register")
                 .withValue("deleteLabel", msg(request, "webauthn.delete", "Delete"))
                 .render();
     }
@@ -342,7 +346,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                                 <td>{{lastUsed}}</td>
                                 <td style="text-align:center;">{{signatureCount}}</td>
                                 <td>
-                                    <form class="delete-form no-margin" method="post" action="{{contextPath}}/webauthn/register/{{credentialId}}">
+                                    <form class="delete-form no-margin" method="post" action="{{contextPath}}{{registrationBaseUrl}}/{{credentialId}}">
                                         <input type="hidden" name="method" value="delete">
                                         <input type="hidden" name="{{csrfParameterName}}" value="{{csrfToken}}">
                                         <button class="small-button" type="submit">{{deleteLabel}}</button>
