@@ -31,13 +31,21 @@ import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.CalibrationDecisionApplier;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.CalibrationProfileSelector;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.CalibrationRuntimeObservationFactory;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.SecurityDecisionCalibrationService;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
+import io.contexa.contexacore.autonomous.saas.learning.calibration.DefaultScenarioClassResolver;
+import io.contexa.contexacore.autonomous.saas.learning.calibration.ScenarioClassResolver;
+import io.contexa.contexacore.autonomous.saas.learning.release.LearningArtifactRuntimeConflictService;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
@@ -306,6 +314,51 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public ScenarioClassResolver scenarioClassResolver() {
+        return new DefaultScenarioClassResolver();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CalibrationRuntimeObservationFactory calibrationRuntimeObservationFactory(
+            ObjectProvider<ThreatSignalNormalizationService> threatSignalNormalizationService) {
+        return new CalibrationRuntimeObservationFactory(
+                threatSignalNormalizationService.getIfAvailable(ThreatSignalNormalizationService::new));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CalibrationProfileSelector calibrationProfileSelector() {
+        return new CalibrationProfileSelector();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CalibrationDecisionApplier calibrationDecisionApplier() {
+        return new CalibrationDecisionApplier();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SaasCalibrationProfilePackService.class)
+    public SecurityDecisionCalibrationService securityDecisionCalibrationService(
+            SaasCalibrationProfilePackService calibrationProfilePackService,
+            CalibrationRuntimeObservationFactory calibrationRuntimeObservationFactory,
+            ScenarioClassResolver scenarioClassResolver,
+            CalibrationProfileSelector calibrationProfileSelector,
+            CalibrationDecisionApplier calibrationDecisionApplier,
+            ObjectProvider<LearningArtifactRuntimeConflictService> runtimeConflictService) {
+        return new SecurityDecisionCalibrationService(
+                calibrationProfilePackService,
+                calibrationRuntimeObservationFactory,
+                scenarioClassResolver,
+                calibrationProfileSelector,
+                calibrationDecisionApplier,
+                runtimeConflictService.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer1ContextualStrategy contextualStrategy(
             UnifiedVectorService unifiedVectorService,
@@ -318,7 +371,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SaasBaselineSeedService> baselineSeedService,
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
+            ObjectProvider<SaasDetectionStrategyPackService> detectionStrategyPackService,
             ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
+            ObjectProvider<SecurityDecisionCalibrationService> securityDecisionCalibrationService,
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             TieredStrategyProperties tieredStrategyProperties) {
@@ -333,10 +388,12 @@ public class CoreAutonomousAutoConfiguration {
                 baselineSeedService.getIfAvailable(),
                 threatIntelligenceService.getIfAvailable(),
                 threatKnowledgePackService.getIfAvailable(),
+                detectionStrategyPackService.getIfAvailable(),
                 promptContextAuthorizationService,
                 promptContextAuditForwardingService.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
-                tieredStrategyProperties);
+                tieredStrategyProperties,
+                securityDecisionCalibrationService.getIfAvailable());
     }
 
     @Bean
@@ -355,7 +412,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SaasBaselineSeedService> baselineSeedService,
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
+            ObjectProvider<SaasDetectionStrategyPackService> detectionStrategyPackService,
             ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
+            ObjectProvider<SecurityDecisionCalibrationService> securityDecisionCalibrationService,
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator) {
         return new Layer2ExpertStrategy(
@@ -371,9 +430,11 @@ public class CoreAutonomousAutoConfiguration {
                 baselineSeedService.getIfAvailable(),
                 threatIntelligenceService.getIfAvailable(),
                 threatKnowledgePackService.getIfAvailable(),
+                detectionStrategyPackService.getIfAvailable(),
                 promptContextAuthorizationService,
                 promptContextAuditForwardingService.getIfAvailable(),
-                pipelineOrchestrator.getIfAvailable());
+                pipelineOrchestrator.getIfAvailable(),
+                securityDecisionCalibrationService.getIfAvailable());
     }
 
     @Bean

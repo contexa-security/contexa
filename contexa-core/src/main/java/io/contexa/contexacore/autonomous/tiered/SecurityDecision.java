@@ -30,23 +30,23 @@ public class SecurityDecision {
      * Raw confidence emitted by the LLM before autonomy constraints.
      */
     private Double llmAuditConfidence;
-    private long analysisTime;                
-    private long processingTimeMs;            
-    private int processingLayer;              
+    private long analysisTime;
+    private long processingTimeMs;
+    private int processingLayer;
 
-    private String llmModel;                  
+    private String llmModel;
 
-    private Map<String, Object> sessionContext;    
-    private List<String> behaviorPatterns;        
-    private String threatCategory;                 
-    private List<String> mitigationActions;       
-    private String reasoning;                      
+    private Map<String, Object> sessionContext;
+    private List<String> behaviorPatterns;
+    private String threatCategory;
+    private List<String> mitigationActions;
+    private String reasoning;
 
-    private List<String> iocIndicators;            
-    private Map<String, String> mitreMapping;      
-    private String soarPlaybook;                   
-    private boolean requiresApproval;              
-    private String expertRecommendation;           
+    private List<String> iocIndicators;
+    private Map<String, String> mitreMapping;
+    private String soarPlaybook;
+    private boolean requiresApproval;
+    private String expertRecommendation;
     private String eventId;
     /**
      * Final action used for autonomous execution.
@@ -57,6 +57,15 @@ public class SecurityDecision {
     @Builder.Default
     private List<String> autonomyConstraintReasons = new ArrayList<>();
     private String autonomyConstraintSummary;
+
+    private Boolean calibrationApplied;
+    private String calibrationProfileKey;
+    private String calibrationScenarioClass;
+    private Double calibrationConfidenceAdjustment;
+    private String calibrationActionBias;
+    @Builder.Default
+    private List<String> calibrationReasons = new ArrayList<>();
+    private String calibrationSummary;
 
     public Double resolveAuditRiskScore() {
         return llmAuditRiskScore;
@@ -69,5 +78,4 @@ public class SecurityDecision {
     public ZeroTrustAction resolveAutonomousAction() {
         return autonomousAction != null ? autonomousAction : action;
     }
-
 }

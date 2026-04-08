@@ -7,7 +7,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -18,56 +22,59 @@ public class AdminMenuService {
     private final boolean saasEnabled;
 
     /**
-     * Initialize default menus if the table is empty.
+     * Initialize default menus if the table is empty and backfill new enterprise/saas menus in existing deployments.
      */
     @Transactional
     public void initializeDefaultMenusIfEmpty() {
-        if (menuRepository.count() > 0) return;
+        if (menuRepository.count() == 0) {
+            Long dashId = createMenu("menu.dashboard", "/admin/dashboard", svgHome(), null, 1, "CORE", "dashboard");
+            Long policyId = createMenu("menu.nav.policy", null, svgShield(), null, 2, "CORE", "policy");
+            Long accessId = createMenu("menu.nav.access", null, svgKey(), null, 3, "CORE", "access");
+            Long iamId = createMenu("menu.nav.iam", null, svgPeople(), null, 4, "CORE", "iam");
+            Long securityId = createMenu("menu.nav.security", null, svgEye(), null, 5, "CORE", "security");
+            Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 6, "ENTERPRISE", "enterprise");
+            Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 7, "SAAS", "saas");
 
-        // Groups - save and capture actual IDs
-        Long dashId = createMenu("menu.dashboard", "/admin/dashboard", svgHome(), null, 1, "CORE", "dashboard");
-        Long policyId = createMenu("menu.nav.policy", null, svgShield(), null, 2, "CORE", "policy");
-        Long accessId = createMenu("menu.nav.access", null, svgKey(), null, 3, "CORE", "access");
-        Long iamId = createMenu("menu.nav.iam", null, svgPeople(), null, 4, "CORE", "iam");
-        Long securityId = createMenu("menu.nav.security", null, svgEye(), null, 5, "CORE", "security");
-        Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 6, "ENTERPRISE", "enterprise");
-        Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 7, "SAAS", "saas");
+            createMenu("menu.policy.center", "/admin/policy-center", "", policyId, 1, "CORE", "policy-center");
+            createMenu("menu.access.center", "/admin/access-center", "", accessId, 1, "CORE", "access-center");
+            createMenu("menu.iam.users", "/admin/users", "", iamId, 1, "CORE", "users");
+            createMenu("menu.iam.groups", "/admin/groups", "", iamId, 2, "CORE", "groups");
+            createMenu("menu.iam.roles", "/admin/roles", "", iamId, 3, "CORE", "roles");
+            createMenu("menu.iam.permissions", "/admin/permissions", "", iamId, 4, "CORE", "permissions");
+            createMenu("menu.iam.role.hierarchies", "/admin/role-hierarchies", "", iamId, 5, "CORE", "role-hierarchies");
+            createMenu("menu.iam.password.policy", "/admin/password-policy", "", iamId, 6, "CORE", "password-policy");
+            createMenu("menu.iam.system.settings", "/admin/system-settings", "", iamId, 7, "CORE", "system-settings");
+            createMenu("menu.iam.menu.management", "/admin/menu-management", "", iamId, 8, "CORE", "menu-management");
+            createMenu("menu.zerotrust.monitor", "/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
+            createMenu("menu.zerotrust.blacklist", "/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
+            createMenu("menu.security.sessions", "/admin/session-management", "", securityId, 3, "CORE", "session-management");
+            createMenu("menu.security.ip", "/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
+            createMenu("menu.enterprise.zerotrust", "/admin/enterprise/zerotrust", "", securityId, 5, "ENTERPRISE", "enterprise-zerotrust");
+            createMenu("menu.enterprise.incidents", "/admin/enterprise/incidents", "", securityId, 6, "ENTERPRISE", "enterprise-incidents");
+            createMenu("menu.enterprise.home", "/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
+            createMenu("menu.enterprise.approvals", "/admin/enterprise/approvals", "", enterpriseId, 2, "ENTERPRISE", "enterprise-approvals");
+            createMenu("menu.enterprise.mcp", "/admin/enterprise/mcp", "", enterpriseId, 3, "ENTERPRISE", "enterprise-mcp");
+            createMenu("menu.enterprise.permits", "/admin/enterprise/permits", "", enterpriseId, 4, "ENTERPRISE", "enterprise-permits");
+            createMenu("menu.enterprise.executions", "/admin/enterprise/executions", "", enterpriseId, 5, "ENTERPRISE", "enterprise-executions");
+            createMenu("menu.enterprise.playbooks", "/admin/enterprise/playbooks", "", enterpriseId, 6, "ENTERPRISE", "enterprise-playbooks");
+            createMenu("menu.enterprise.metrics", "/admin/enterprise/metrics", "", enterpriseId, 7, "ENTERPRISE", "enterprise-metrics");
+            createMenu("menu.enterprise.integration", "/admin/enterprise/integration", "", enterpriseId, 8, "ENTERPRISE", "enterprise-integration");
+            createMenu("menu.saas.tenants", "/admin/saas/tenants", "", saasId, 1, "SAAS", "saas-platform-tenants");
+            createMenu("menu.saas.billing", "/admin/saas/billing", "", saasId, 2, "SAAS", "saas-platform-billing");
+            createMenu("menu.saas.dedicated", "/admin/saas/dedicated", "", saasId, 3, "SAAS", "saas-platform-dedicated");
+            createMenu("menu.saas.release.governance", "/admin/saas/release-governance", "", saasId, 4, "SAAS", "saas-release-governance");
+            createMenu("menu.saas.tenant.workspace", "/admin/saas/tenant/workspace", "", saasId, 5, "SAAS", "saas-tenant-workspace");
+        }
 
-        // Policy
-        createMenu("menu.policy.center", "/admin/policy-center", "", policyId, 1, "CORE", "policy-center");
-        // Access
-        createMenu("menu.access.center", "/admin/access-center", "", accessId, 1, "CORE", "access-center");
-        // IAM
-        createMenu("menu.iam.users", "/admin/users", "", iamId, 1, "CORE", "users");
-        createMenu("menu.iam.groups", "/admin/groups", "", iamId, 2, "CORE", "groups");
-        createMenu("menu.iam.roles", "/admin/roles", "", iamId, 3, "CORE", "roles");
-        createMenu("menu.iam.permissions", "/admin/permissions", "", iamId, 4, "CORE", "permissions");
-        createMenu("menu.iam.role.hierarchies", "/admin/role-hierarchies", "", iamId, 5, "CORE", "role-hierarchies");
-        createMenu("menu.iam.password.policy", "/admin/password-policy", "", iamId, 6, "CORE", "password-policy");
-        createMenu("menu.iam.system.settings", "/admin/system-settings", "", iamId, 7, "CORE", "system-settings");
-        createMenu("menu.iam.menu.management", "/admin/menu-management", "", iamId, 8, "CORE", "menu-management");
-        // Security
-        createMenu("menu.zerotrust.monitor", "/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
-        createMenu("menu.zerotrust.blacklist", "/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
-        createMenu("menu.security.sessions", "/admin/session-management", "", securityId, 3, "CORE", "session-management");
-        createMenu("menu.security.ip", "/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
-        createMenu("menu.enterprise.zerotrust", "/admin/enterprise/zerotrust", "", securityId, 5, "ENTERPRISE", "enterprise-zerotrust");
-        createMenu("menu.enterprise.incidents", "/admin/enterprise/incidents", "", securityId, 6, "ENTERPRISE", "enterprise-incidents");
-        // Enterprise
-        createMenu("menu.enterprise.home", "/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
-        createMenu("menu.enterprise.approvals", "/admin/enterprise/approvals", "", enterpriseId, 2, "ENTERPRISE", "enterprise-approvals");
-        createMenu("menu.enterprise.mcp", "/admin/enterprise/mcp", "", enterpriseId, 3, "ENTERPRISE", "enterprise-mcp");
-        createMenu("menu.enterprise.permits", "/admin/enterprise/permits", "", enterpriseId, 4, "ENTERPRISE", "enterprise-permits");
-        createMenu("menu.enterprise.executions", "/admin/enterprise/executions", "", enterpriseId, 5, "ENTERPRISE", "enterprise-executions");
-        createMenu("menu.enterprise.playbooks", "/admin/enterprise/playbooks", "", enterpriseId, 6, "ENTERPRISE", "enterprise-playbooks");
-        createMenu("menu.enterprise.metrics", "/admin/enterprise/metrics", "", enterpriseId, 7, "ENTERPRISE", "enterprise-metrics");
-        createMenu("menu.enterprise.integration", "/admin/enterprise/integration", "", enterpriseId, 8, "ENTERPRISE", "enterprise-integration");
-        // SaaS
-        createMenu("menu.saas.tenants", "/admin/saas/tenants", "", saasId, 1, "SAAS", "saas-platform-tenants");
-        createMenu("menu.saas.billing", "/admin/saas/billing", "", saasId, 2, "SAAS", "saas-platform-billing");
-        createMenu("menu.saas.dedicated", "/admin/saas/dedicated", "", saasId, 3, "SAAS", "saas-platform-dedicated");
-        createMenu("menu.saas.release.governance", "/admin/saas/release-governance", "", saasId, 4, "SAAS", "saas-release-governance");
-        createMenu("menu.saas.tenant.workspace", "/admin/saas/tenant/workspace", "", saasId, 5, "SAAS", "saas-tenant-workspace");
+        ensureLearningMenus();
+    }
+
+    private void ensureLearningMenus() {
+        if (!enterpriseEnabled || !saasEnabled) {
+            return;
+        }
+        Long saasId = ensureMenu("menu.nav.saas", null, svgCloud(), null, 7, "SAAS", "saas");
+        ensureMenu("menu.saas.learning", "/admin/saas/learning/overview", "", saasId, 6, "SAAS", "saas-learning-overview");
     }
 
     private Long createMenu(String name, String url, String icon, Long parentId, int order, String type, String dataPage) {
@@ -76,6 +83,23 @@ public class AdminMenuService {
                 .menuOrder(order).menuType(type).dataPage(dataPage).enabled(true)
                 .build();
         return menuRepository.save(menu).getId();
+    }
+
+    private Long ensureMenu(String name, String url, String icon, Long parentId, int order, String type, String dataPage) {
+        Optional<AdminMenu> existingMenu = menuRepository.findByDataPage(dataPage);
+        if (existingMenu.isPresent()) {
+            AdminMenu menu = existingMenu.get();
+            menu.setName(name);
+            menu.setUrl(url);
+            menu.setIcon(icon);
+            menu.setParentId(parentId);
+            menu.setMenuOrder(order);
+            menu.setMenuType(type);
+            menu.setDataPage(dataPage);
+            menu.setEnabled(true);
+            return menuRepository.save(menu).getId();
+        }
+        return createMenu(name, url, icon, parentId, order, type, dataPage);
     }
 
     private String svgHome() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25\"/></svg>"; }

@@ -2,6 +2,9 @@ package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.autonomous.saas.client.SaasBaselineSeedHttpClient;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightPolicy;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.DefaultCohortSeedRuntimeWeightPolicy;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,6 +15,7 @@ public class SaasBaselineSeedService {
 
     private final SaasForwardingProperties properties;
     private final SaasBaselineSeedHttpClient httpClient;
+    private final CohortSeedRuntimeWeightPolicy runtimeWeightPolicy;
 
     private volatile CachedBaselineSeedSnapshot cachedSnapshot =
             new CachedBaselineSeedSnapshot(BaselineSeedSnapshot.empty(), null);
@@ -19,8 +23,16 @@ public class SaasBaselineSeedService {
     public SaasBaselineSeedService(
             SaasForwardingProperties properties,
             SaasBaselineSeedHttpClient httpClient) {
+        this(properties, httpClient, new DefaultCohortSeedRuntimeWeightPolicy());
+    }
+
+    SaasBaselineSeedService(
+            SaasForwardingProperties properties,
+            SaasBaselineSeedHttpClient httpClient,
+            CohortSeedRuntimeWeightPolicy runtimeWeightPolicy) {
         this.properties = properties;
         this.httpClient = httpClient;
+        this.runtimeWeightPolicy = runtimeWeightPolicy;
     }
 
     public boolean isEnabled() {
@@ -54,6 +66,12 @@ public class SaasBaselineSeedService {
             return BaselineSeedSnapshot.empty();
         }
         return data;
+    }
+
+    public CohortSeedRuntimeWeightDecision resolvePromptSeed(
+            boolean personalBaselineEstablished,
+            boolean organizationBaselineEstablished) {
+        return runtimeWeightPolicy.evaluate(getPromptSeed(), personalBaselineEstablished, organizationBaselineEstablished);
     }
 
     BaselineSeedSnapshot currentSnapshot() {

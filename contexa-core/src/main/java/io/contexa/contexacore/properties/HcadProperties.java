@@ -302,6 +302,10 @@ public class HcadProperties {
         private int cooldownSeconds = 15;
         private int inFlightTtlSeconds = 15;
         private int negativeCacheSeconds = 3;
+        private int redlineScore = 70;
+        private int highRiskScore = 50;
+        private int mediumRiskScore = 30;
+        private double lowBaselineConfidenceThreshold = 0.35;
         private int failedLoginBurstThreshold = 3;
         private int requestBurstThreshold = 12;
         private long rapidRequestIntervalMs = 1000L;

@@ -9,6 +9,8 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
+import io.contexa.contexacore.autonomous.saas.dto.DetectionStrategyPackSnapshot;
+import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyRuntimePack;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
@@ -232,6 +234,8 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private ThreatIntelligenceMatchContext threatIntelligenceMatchContext;
         private ThreatKnowledgePackSnapshot threatKnowledgePack;
         private ThreatKnowledgePackMatchContext threatKnowledgePackMatchContext;
+        private DetectionStrategyPackSnapshot detectionStrategyPack;
+        private DetectionStrategyRuntimePack detectionStrategyRuntimePack;
         private Boolean isNewSession;
         private Boolean isNewDevice;
         private String previousUserAgentOS;
@@ -258,6 +262,9 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private boolean cohortSeedApplied;
         private List<String> cohortSeedSupportingDimensions = List.of();
         private BaselineSeedSnapshot cohortBaselineSeed;
+        private double cohortSeedWeight;
+        private String cohortSeedWeightState;
+        private List<String> cohortSeedPolicyFacts = List.of();
 
         public List<String> getSimilarEvents() {
             return similarEvents != null ? similarEvents : List.of();
@@ -285,6 +292,14 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
         public ThreatKnowledgePackMatchContext getThreatKnowledgePackMatchContext() {
             return threatKnowledgePackMatchContext;
+        }
+
+        public DetectionStrategyPackSnapshot getDetectionStrategyPack() {
+            return detectionStrategyPack;
+        }
+
+        public DetectionStrategyRuntimePack getDetectionStrategyRuntimePack() {
+            return detectionStrategyRuntimePack;
         }
 
         public Boolean getIsNewSession() {
@@ -389,6 +404,18 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
         public BaselineSeedSnapshot getCohortBaselineSeed() {
             return cohortBaselineSeed;
+        }
+
+        public double getCohortSeedWeight() {
+            return cohortSeedWeight;
+        }
+
+        public String getCohortSeedWeightState() {
+            return cohortSeedWeightState;
+        }
+
+        public List<String> getCohortSeedPolicyFacts() {
+            return cohortSeedPolicyFacts != null ? cohortSeedPolicyFacts : List.of();
         }
     }
 }

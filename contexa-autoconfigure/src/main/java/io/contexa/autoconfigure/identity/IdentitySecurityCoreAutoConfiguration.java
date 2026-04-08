@@ -3,6 +3,8 @@ package io.contexa.autoconfigure.identity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -10,6 +12,11 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.hcad.filter.HCADFilter;
+import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.trigger.AuthenticatedPendingAnomalyTriggerFilter;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -24,6 +31,7 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.validator.*;
+import io.contexa.contexaidentity.security.filter.AccountLockoutFilter;
 import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
@@ -396,22 +404,38 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustAccessControlFilter zeroTrustAccessControlFilter) {
         return new ZeroTrustAccessControlConfigurer(zeroTrustAccessControlFilter);
     }
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(HCADAnalysisService.class)
+    public HCADFilterConfigurer hcadFilterConfigurer(
+            HCADAnalysisService hcadAnalysisService,
+            HcadProperties hcadProperties) {
+        return new HCADFilterConfigurer(new HCADFilter(hcadAnalysisService, hcadProperties));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PendingAnomalyTriggerOrchestrator.class)
+    public PendingAnomalyTriggerConfigurer pendingAnomalyTriggerConfigurer(
+            PendingAnomalyTriggerOrchestrator pendingAnomalyTriggerOrchestrator,
+            HcadProperties hcadProperties) {
+        return new PendingAnomalyTriggerConfigurer(
+                new AuthenticatedPendingAnomalyTriggerFilter(pendingAnomalyTriggerOrchestrator, hcadProperties));
+    }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(io.contexa.contexacommon.security.LoginPolicyHandler.class)
-    public io.contexa.contexaidentity.security.filter.AccountLockoutFilter accountLockoutFilter(
-            io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler,
-            io.contexa.contexacommon.repository.UserRepository userRepository) {
-        return new io.contexa.contexaidentity.security.filter.AccountLockoutFilter(loginPolicyHandler, userRepository);
+    public AccountLockoutFilter accountLockoutFilter(LoginPolicyHandler loginPolicyHandler, UserRepository userRepository) {
+        return new AccountLockoutFilter(loginPolicyHandler, userRepository);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(io.contexa.contexaidentity.security.filter.AccountLockoutFilter.class)
-    public io.contexa.contexaidentity.security.core.bootstrap.configurer.AccountLockoutConfigurer accountLockoutConfigurer(
-            io.contexa.contexaidentity.security.filter.AccountLockoutFilter accountLockoutFilter) {
-        return new io.contexa.contexaidentity.security.core.bootstrap.configurer.AccountLockoutConfigurer(accountLockoutFilter);
+    public AccountLockoutConfigurer accountLockoutConfigurer(
+            AccountLockoutFilter accountLockoutFilter) {
+        return new AccountLockoutConfigurer(accountLockoutFilter);
     }
 
     @Bean

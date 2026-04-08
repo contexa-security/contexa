@@ -138,6 +138,27 @@ class CoreAutonomousAutoConfigurationTest {
     }
 
     @Nested
+    @DisplayName("Detection strategy wiring")
+    class DetectionStrategyWiring {
+
+        @Test
+        @DisplayName("Should wire SaasDetectionStrategyPackService into contextual and expert strategies")
+        void shouldWireDetectionStrategyPackServiceIntoRuntimeStrategies() {
+            Method contextualStrategyMethod = findMethod("contextualStrategy");
+            Method expertStrategyMethod = findMethod("expertStrategy");
+
+            assertThat(contextualStrategyMethod.toGenericString()).contains("SaasDetectionStrategyPackService");
+            assertThat(expertStrategyMethod.toGenericString()).contains("SaasDetectionStrategyPackService");
+        }
+
+        private Method findMethod(String name) {
+            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+                    .filter(method -> method.getName().equals(name))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("Method not found: " + name));
+        }
+    }
+    @Nested
     @DisplayName("Role scope wiring")
     class RoleScopeWiring {
 
@@ -156,6 +177,39 @@ class CoreAutonomousAutoConfigurationTest {
             Method canonicalProviderMethod = findMethod("canonicalSecurityContextProvider");
 
             assertThat(canonicalProviderMethod.toGenericString()).contains("RoleScopeCollector");
+        }
+
+        private Method findMethod(String name) {
+            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+                    .filter(method -> method.getName().equals(name))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("Method not found: " + name));
+        }
+    }
+    @Nested
+    @DisplayName("Calibration wiring")
+    class CalibrationWiring {
+
+        @Test
+        @DisplayName("Should declare calibration beans and require SaaS calibration service for runtime calibration")
+        void shouldDeclareCalibrationBeans() {
+            Method scenarioResolverMethod = findMethod("scenarioClassResolver");
+            Method calibrationServiceMethod = findMethod("securityDecisionCalibrationService");
+
+            assertThat(scenarioResolverMethod.toGenericString()).contains("ScenarioClassResolver");
+            assertThat(calibrationServiceMethod.toGenericString()).contains("SaasCalibrationProfilePackService");
+            assertThat(calibrationServiceMethod.toGenericString()).contains("CalibrationRuntimeObservationFactory");
+            assertThat(calibrationServiceMethod.toGenericString()).contains("CalibrationDecisionApplier");
+        }
+
+        @Test
+        @DisplayName("Should wire SecurityDecisionCalibrationService into contextual and expert strategies")
+        void shouldWireCalibrationServiceIntoRuntimeStrategies() {
+            Method contextualStrategyMethod = findMethod("contextualStrategy");
+            Method expertStrategyMethod = findMethod("expertStrategy");
+
+            assertThat(contextualStrategyMethod.toGenericString()).contains("SecurityDecisionCalibrationService");
+            assertThat(expertStrategyMethod.toGenericString()).contains("SecurityDecisionCalibrationService");
         }
 
         private Method findMethod(String name) {

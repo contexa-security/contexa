@@ -32,6 +32,12 @@ public class PendingAnomalyEventTriggerService {
         payload.put("requestPath", report.requestPath());
         payload.put("httpMethod", report.httpMethod());
         payload.put("clientIp", report.clientIp());
+        payload.put("hcadEscalationScore", report.escalationScore());
+        payload.put("hcadEscalationBand", report.escalationBand());
+        payload.put("hcadEscalationEligible", report.escalationEligible());
+        payload.put("hcadEscalationReasons", report.reasonCodes());
+        payload.put("hcadEscalationSummary", report.reasonSummary());
+        payload.put("hcadEscalationVersion", report.escalationVersion());
 
         zeroTrustEventPublisher.publishPreProtectableThreat(report.userId(), payload);
 

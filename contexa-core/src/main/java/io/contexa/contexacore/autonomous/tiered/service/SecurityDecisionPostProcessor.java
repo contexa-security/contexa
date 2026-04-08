@@ -69,7 +69,7 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    // ── ALLOW: behavior document ──
+    // ?? ALLOW: behavior document ??
 
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -166,13 +166,18 @@ public class SecurityDecisionPostProcessor {
                     .append(truncate(decision.getAutonomyConstraintSummary(), 220))
                     .append("\n");
         }
+        if (Boolean.TRUE.equals(decision.getCalibrationApplied())) {
+            sb.append("Calibration: ")
+                    .append(truncate(decision.getCalibrationSummary(), 220))
+                    .append("\n");
+        }
 
         appendSessionContext(sb, event);
 
         return sb.toString();
     }
 
-    // ── BLOCK: threat document ──
+    // ?? BLOCK: threat document ??
 
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -210,7 +215,7 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ── CHALLENGE: suspicious document ──
+    // ?? CHALLENGE: suspicious document ??
 
     private void storeSuspiciousDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -236,7 +241,7 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ── ESCALATE/PENDING: ambiguous document ──
+    // ?? ESCALATE/PENDING: ambiguous document ??
 
     private void storeAmbiguousDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -262,7 +267,7 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ── shared builders ──
+    // ?? shared builders ??
 
     private String buildActionSummary(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sentence = new StringBuilder();
@@ -404,6 +409,27 @@ public class SecurityDecisionPostProcessor {
             if (decision.getAutonomyConstraintReasons() != null && !decision.getAutonomyConstraintReasons().isEmpty()) {
                 metadata.put("autonomyConstraintReasons", decision.getAutonomyConstraintReasons());
             }
+        }
+        if (decision.getCalibrationApplied() != null) {
+            metadata.put("calibrationApplied", decision.getCalibrationApplied());
+        }
+        if (decision.getCalibrationProfileKey() != null) {
+            metadata.put("calibrationProfileKey", decision.getCalibrationProfileKey());
+        }
+        if (decision.getCalibrationScenarioClass() != null) {
+            metadata.put("calibrationScenarioClass", decision.getCalibrationScenarioClass());
+        }
+        if (decision.getCalibrationConfidenceAdjustment() != null) {
+            metadata.put("calibrationConfidenceAdjustment", sanitizeScore(decision.getCalibrationConfidenceAdjustment()));
+        }
+        if (decision.getCalibrationActionBias() != null) {
+            metadata.put("calibrationActionBias", decision.getCalibrationActionBias());
+        }
+        if (decision.getCalibrationSummary() != null) {
+            metadata.put("calibrationSummary", decision.getCalibrationSummary());
+        }
+        if (decision.getCalibrationReasons() != null && !decision.getCalibrationReasons().isEmpty()) {
+            metadata.put("calibrationReasons", decision.getCalibrationReasons());
         }
 
         if (decision.getProcessingLayer() > 0) {

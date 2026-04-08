@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -16,6 +17,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.SecurityDecisionCalibrationService;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -48,8 +50,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final SaasBaselineSeedService baselineSeedService;
     private final SaasThreatIntelligenceService threatIntelligenceService;
     private final SaasThreatKnowledgePackService threatKnowledgePackService;
+    private final SaasDetectionStrategyPackService detectionStrategyPackService;
     private final PipelineOrchestrator pipelineOrchestrator;
+    private final SecurityDecisionCalibrationService securityDecisionCalibrationService;
     private final Cache<String, SessionContext> sessionContextCache;
+
     public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
                                     SecurityContextDataStore dataStore,
                                     SecurityEventEnricher eventEnricher,
@@ -64,6 +69,75 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     PromptContextAuditForwardingService promptContextAuditForwardingService,
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties) {
+        this(
+                unifiedVectorService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                baselineLearningService,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                null,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                tieredStrategyProperties,
+                null);
+    }
+
+    public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
+                                    SecurityContextDataStore dataStore,
+                                    SecurityEventEnricher eventEnricher,
+                                    SecurityDecisionStandardPromptTemplate promptTemplate,
+                                    BehaviorVectorService behaviorVectorService,
+                                    BaselineLearningService baselineLearningService,
+                                    SecurityLearningService securityLearningService,
+                                    SaasBaselineSeedService baselineSeedService,
+                                    SaasThreatIntelligenceService threatIntelligenceService,
+                                    SaasThreatKnowledgePackService threatKnowledgePackService,
+                                    SaasDetectionStrategyPackService detectionStrategyPackService,
+                                    PromptContextAuthorizationService promptContextAuthorizationService,
+                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PipelineOrchestrator pipelineOrchestrator,
+                                    TieredStrategyProperties tieredStrategyProperties) {
+        this(
+                unifiedVectorService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                baselineLearningService,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                tieredStrategyProperties,
+                null);
+    }
+
+    public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
+                                    SecurityContextDataStore dataStore,
+                                    SecurityEventEnricher eventEnricher,
+                                    SecurityDecisionStandardPromptTemplate promptTemplate,
+                                    BehaviorVectorService behaviorVectorService,
+                                    BaselineLearningService baselineLearningService,
+                                    SecurityLearningService securityLearningService,
+                                    SaasBaselineSeedService baselineSeedService,
+                                    SaasThreatIntelligenceService threatIntelligenceService,
+                                    SaasThreatKnowledgePackService threatKnowledgePackService,
+                                    SaasDetectionStrategyPackService detectionStrategyPackService,
+                                    PromptContextAuthorizationService promptContextAuthorizationService,
+                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PipelineOrchestrator pipelineOrchestrator,
+                                    TieredStrategyProperties tieredStrategyProperties,
+                                    SecurityDecisionCalibrationService securityDecisionCalibrationService) {
         super(eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
                 promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
@@ -72,7 +146,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.baselineSeedService = baselineSeedService;
         this.threatIntelligenceService = threatIntelligenceService;
         this.threatKnowledgePackService = threatKnowledgePackService;
+        this.detectionStrategyPackService = detectionStrategyPackService;
         this.pipelineOrchestrator = pipelineOrchestrator;
+        this.securityDecisionCalibrationService = securityDecisionCalibrationService;
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -81,6 +157,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .recordStats()
                 .build();
     }
+
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
 
@@ -106,10 +183,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(decision.getAutonomyConstraintSummary())
+                .calibrationApplied(decision.getCalibrationApplied())
+                .calibrationProfileKey(decision.getCalibrationProfileKey())
+                .calibrationScenarioClass(decision.getCalibrationScenarioClass())
+                .calibrationConfidenceAdjustment(decision.getCalibrationConfidenceAdjustment())
+                .calibrationActionBias(decision.getCalibrationActionBias())
+                .calibrationReasons(decision.getCalibrationReasons())
+                .calibrationSummary(decision.getCalibrationSummary())
                 .build();
     }
 
-        public SecurityDecision analyzeWithContext(SecurityEvent event) {
+    public SecurityDecision analyzeWithContext(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
         long sessionContextMs = 0L;
         long ragSearchMs = 0L;
@@ -177,6 +261,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
 
             SecurityDecision decision = applyPromptConfidenceGuardrail(convertToSecurityDecision(response, event), event);
+            decision = applyRuntimeCalibration(decision, event, behaviorCtx, securityDecisionCalibrationService);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
@@ -351,31 +436,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
-        if (threatIntelligenceService != null) {
-            ctx.setActiveThreatSignals(threatIntelligenceService.getPromptSignals());
-        }
-        if (threatKnowledgePackService != null) {
-            ctx.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
-        }
-
-
 
         if (behaviorAnalysis.getBaselineContext() != null) {
             String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
             ctx.setPreviousUserAgentOS(baselineOS);
         }
 
-        enrichBehaviorAnalysisWithBaselineSupport(ctx, event, baselineSeedService);
-
-        hydrateBehaviorAnalysisRuntimeFacts(ctx, event);
-
-        if (threatIntelligenceService != null) {
-            ctx.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, ctx));
-        }
-        if (threatKnowledgePackService != null) {
-            ctx.setThreatKnowledgePackMatchContext(
-                    threatKnowledgePackService.buildThreatKnowledgeContext(event, ctx));
-        }
+        enrichBehaviorAnalysisWithRuntimeLearningSupport(
+                ctx,
+                event,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService);
 
         return ctx;
     }

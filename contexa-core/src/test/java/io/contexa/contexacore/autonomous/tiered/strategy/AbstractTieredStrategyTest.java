@@ -5,6 +5,10 @@ import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightState;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -489,6 +493,49 @@ class AbstractTieredStrategyTest {
         assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(2);
         assertThat(promptContextCaptor.getValue().deniedReasons()).contains("USER_ID_MISSING");
     }
+    @Test
+    @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should apply cohort seed runtime weight decision")
+    void enrichBehaviorAnalysisWithBaselineSupport_appliesCohortSeedRuntimeWeightDecision() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-cohort-seed-weight")
+                .userId("user-123")
+                .metadata(new LinkedHashMap<>())
+                .build();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        BaselineSeedSnapshot seedSnapshot = new BaselineSeedSnapshot(
+                "tenant-a", true, true, true, "FINTECH_APAC_LARGE", "FINTECH", "APAC", 18, 420L,
+                List.of(9, 10), List.of(1, 2), List.of("WINDOWS"), Map.of(), Map.of(), Map.of(),
+                java.time.LocalDate.of(2026, 4, 8), java.time.LocalDateTime.of(2026, 4, 8, 12, 0));
+        SaasBaselineSeedService baselineSeedService = org.mockito.Mockito.mock(SaasBaselineSeedService.class);
+        when(baselineLearningService.getBaseline("user-123")).thenReturn(null);
+        when(baselineLearningService.describeBaselineMaturity("user-123"))
+                .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        List.of("ACCESS_HOURS", "OPERATING_SYSTEMS")));
+        when(baselineSeedService.resolvePromptSeed(true, true))
+                .thenReturn(new CohortSeedRuntimeWeightDecision(
+                        seedSnapshot,
+                        true,
+                        0.15d,
+                        CohortSeedRuntimeWeightState.DEGRADED_ESTABLISHED_BASELINES,
+                        List.of("Both local baselines are established.", "Runtime weight 0.15 applies.")));
+        strategy.enrichBehaviorAnalysisWithBaselineSupportForTest(behaviorAnalysis, event, baselineSeedService);
+        assertThat(behaviorAnalysis.isCohortSeedApplied()).isTrue();
+        assertThat(behaviorAnalysis.getCohortBaselineSeed()).isEqualTo(seedSnapshot);
+        assertThat(behaviorAnalysis.getCohortSeedWeight()).isEqualTo(0.15d);
+        assertThat(behaviorAnalysis.getCohortSeedWeightState()).isEqualTo("DEGRADED_ESTABLISHED_BASELINES");
+        assertThat(behaviorAnalysis.getCohortSeedPolicyFacts())
+                .containsExactly("Both local baselines are established.", "Runtime weight 0.15 applies.");
+        assertThat(event.getMetadata())
+                .containsEntry("baselineSeedApplied", true)
+                .containsEntry("baselineSeedWeight", 0.15d)
+                .containsEntry("baselineSeedWeightState", "DEGRADED_ESTABLISHED_BASELINES");
+    }
 
     // -- Concrete test implementation of the abstract class --
 
@@ -552,7 +599,12 @@ class AbstractTieredStrategyTest {
         List<Document> callSearchRelatedContextBase(SecurityEvent event, int topK, double similarityThreshold) {
             return searchRelatedContextBase(event, topK, similarityThreshold);
         }
-
+        void enrichBehaviorAnalysisWithBaselineSupportForTest(
+                SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
+                SecurityEvent event,
+                SaasBaselineSeedService baselineSeedService) {
+            enrichBehaviorAnalysisWithBaselineSupport(context, event, baselineSeedService);
+        }
         SecurityDecisionRequest buildSecurityDecisionRequestForTest(
                 SecurityEvent event,
                 SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
@@ -588,5 +640,4 @@ class AbstractTieredStrategyTest {
         }
     }
 }
-
 

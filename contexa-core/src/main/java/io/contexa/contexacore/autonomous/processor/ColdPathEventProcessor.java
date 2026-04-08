@@ -72,6 +72,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.setAutonomyConstraintApplied(analysisResult.getAutonomyConstraintApplied());
             result.setAutonomyConstraintReasons(analysisResult.getAutonomyConstraintReasons());
             result.setAutonomyConstraintSummary(analysisResult.getAutonomyConstraintSummary());
+            result.setCalibrationApplied(analysisResult.getCalibrationApplied());
+            result.setCalibrationProfileKey(analysisResult.getCalibrationProfileKey());
+            result.setCalibrationScenarioClass(analysisResult.getCalibrationScenarioClass());
+            result.setCalibrationConfidenceAdjustment(analysisResult.getCalibrationConfidenceAdjustment());
+            result.setCalibrationActionBias(analysisResult.getCalibrationActionBias());
+            result.setCalibrationReasons(analysisResult.getCalibrationReasons());
+            result.setCalibrationSummary(analysisResult.getCalibrationSummary());
             result.addAnalysisData("aiAssessment", analysisResult);
             result.addAnalysisData("llmAuditRiskScore", analysisResult.getFinalScore());
             result.addAnalysisData("confidence", analysisResult.getConfidence());
@@ -80,6 +87,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.addAnalysisData("autonomousEnforcementAction", analysisResult.getAction());
             result.addAnalysisData("autonomyConstraintApplied", analysisResult.getAutonomyConstraintApplied());
             result.addAnalysisData("autonomyConstraintSummary", analysisResult.getAutonomyConstraintSummary());
+            result.addAnalysisData("calibrationApplied", analysisResult.getCalibrationApplied());
+            result.addAnalysisData("calibrationProfileKey", analysisResult.getCalibrationProfileKey());
+            result.addAnalysisData("calibrationScenarioClass", analysisResult.getCalibrationScenarioClass());
+            result.addAnalysisData("calibrationConfidenceAdjustment", analysisResult.getCalibrationConfidenceAdjustment());
+            result.addAnalysisData("calibrationActionBias", analysisResult.getCalibrationActionBias());
+            result.addAnalysisData("calibrationSummary", analysisResult.getCalibrationSummary());
             if (analysisResult.getLayer1AssessmentSnapshot() != null && !analysisResult.getLayer1AssessmentSnapshot().isEmpty()) {
                 result.addAnalysisData("layer1Assessment", analysisResult.getLayer1AssessmentSnapshot());
             }
@@ -140,6 +153,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                     result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                     result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+                    result.setCalibrationApplied(layer1Assessment.getCalibrationApplied());
+                    result.setCalibrationProfileKey(layer1Assessment.getCalibrationProfileKey());
+                    result.setCalibrationScenarioClass(layer1Assessment.getCalibrationScenarioClass());
+                    result.setCalibrationConfidenceAdjustment(layer1Assessment.getCalibrationConfidenceAdjustment());
+                    result.setCalibrationActionBias(layer1Assessment.getCalibrationActionBias());
+                    result.setCalibrationReasons(layer1Assessment.getCalibrationReasons());
+                    result.setCalibrationSummary(layer1Assessment.getCalibrationSummary());
                     result.setDecisionAppliedStage("LAYER1");
                     String reasoning = layer1Assessment.getReasoning() != null
                             ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
@@ -231,6 +251,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
+                result.setCalibrationApplied(layer2Assessment.getCalibrationApplied());
+                result.setCalibrationProfileKey(layer2Assessment.getCalibrationProfileKey());
+                result.setCalibrationScenarioClass(layer2Assessment.getCalibrationScenarioClass());
+                result.setCalibrationConfidenceAdjustment(layer2Assessment.getCalibrationConfidenceAdjustment());
+                result.setCalibrationActionBias(layer2Assessment.getCalibrationActionBias());
+                result.setCalibrationReasons(layer2Assessment.getCalibrationReasons());
+                result.setCalibrationSummary(layer2Assessment.getCalibrationSummary());
                 result.setDecisionAppliedStage("LAYER2");
                 String layer2Reasoning = layer2Assessment.getReasoning() != null
                         ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
@@ -268,8 +295,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.addIndicators(layer1Assessment.getIndicators());
                 result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                 result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
-                result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
-                result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+                    result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
+                    result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+                    result.setCalibrationApplied(layer1Assessment.getCalibrationApplied());
+                    result.setCalibrationProfileKey(layer1Assessment.getCalibrationProfileKey());
+                    result.setCalibrationScenarioClass(layer1Assessment.getCalibrationScenarioClass());
+                    result.setCalibrationConfidenceAdjustment(layer1Assessment.getCalibrationConfidenceAdjustment());
+                    result.setCalibrationActionBias(layer1Assessment.getCalibrationActionBias());
+                    result.setCalibrationReasons(layer1Assessment.getCalibrationReasons());
+                    result.setCalibrationSummary(layer1Assessment.getCalibrationSummary());
             } else {
                 result.setDecisionAppliedStage("COLD_PATH_FALLBACK");
                 result.setFinalScore(null);
@@ -308,6 +342,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private Boolean autonomyConstraintApplied;
         private List<String> autonomyConstraintReasons = new ArrayList<>();
         private String autonomyConstraintSummary;
+        private Boolean calibrationApplied;
+        private String calibrationProfileKey;
+        private String calibrationScenarioClass;
+        private Double calibrationConfidenceAdjustment;
+        private String calibrationActionBias;
+        private List<String> calibrationReasons = new ArrayList<>();
+        private String calibrationSummary;
         private Map<String, Object> layer1AssessmentSnapshot = Map.of();
         private Map<String, Object> layer2AssessmentSnapshot = Map.of();
         private String decisionAppliedStage;
@@ -361,6 +402,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     .autonomyConstraintApplied(autonomyConstraintApplied)
                     .autonomyConstraintReasons(new ArrayList<>(autonomyConstraintReasons))
                     .autonomyConstraintSummary(autonomyConstraintSummary)
+                    .calibrationApplied(calibrationApplied)
+                    .calibrationProfileKey(calibrationProfileKey)
+                    .calibrationScenarioClass(calibrationScenarioClass)
+                    .calibrationConfidenceAdjustment(calibrationConfidenceAdjustment)
+                    .calibrationActionBias(calibrationActionBias)
+                    .calibrationReasons(new ArrayList<>(calibrationReasons))
+                    .calibrationSummary(calibrationSummary)
                     .build();
         }
     }
@@ -541,6 +589,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
             putIfNotNull(metadata, "reasoning", assessment.getReasoning());
             putIfNotNull(metadata, "autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
             putIfNotNull(metadata, "autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
+            putIfNotNull(metadata, "calibrationApplied", assessment.getCalibrationApplied());
+            putIfNotNull(metadata, "calibrationProfileKey", assessment.getCalibrationProfileKey());
+            putIfNotNull(metadata, "calibrationScenarioClass", assessment.getCalibrationScenarioClass());
+            putIfNotNull(metadata, "calibrationConfidenceAdjustment", assessment.getCalibrationConfidenceAdjustment());
+            putIfNotNull(metadata, "calibrationActionBias", assessment.getCalibrationActionBias());
+            putIfNotNull(metadata, "calibrationSummary", assessment.getCalibrationSummary());
             if (assessment.getAutonomyConstraintReasons() != null && !assessment.getAutonomyConstraintReasons().isEmpty()) {
                 metadata.put("autonomyConstraintReasons", assessment.getAutonomyConstraintReasons());
             }
@@ -569,6 +623,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
         putIfNotNull(metadata, "autonomyConstraintApplied", result.getAutonomyConstraintApplied());
         putIfNotNull(metadata, "autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+        putIfNotNull(metadata, "calibrationApplied", result.getCalibrationApplied());
+        putIfNotNull(metadata, "calibrationProfileKey", result.getCalibrationProfileKey());
+        putIfNotNull(metadata, "calibrationScenarioClass", result.getCalibrationScenarioClass());
+        putIfNotNull(metadata, "calibrationConfidenceAdjustment", result.getCalibrationConfidenceAdjustment());
+        putIfNotNull(metadata, "calibrationActionBias", result.getCalibrationActionBias());
+        putIfNotNull(metadata, "calibrationSummary", result.getCalibrationSummary());
         if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
             metadata.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
         }
@@ -592,6 +652,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
         putIfNotNull(snapshot, "shouldEscalate", assessment.isShouldEscalate());
         putIfNotNull(snapshot, "autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
         putIfNotNull(snapshot, "autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
+        putIfNotNull(snapshot, "calibrationApplied", assessment.getCalibrationApplied());
+        putIfNotNull(snapshot, "calibrationProfileKey", assessment.getCalibrationProfileKey());
+        putIfNotNull(snapshot, "calibrationScenarioClass", assessment.getCalibrationScenarioClass());
+        putIfNotNull(snapshot, "calibrationConfidenceAdjustment", assessment.getCalibrationConfidenceAdjustment());
+        putIfNotNull(snapshot, "calibrationActionBias", assessment.getCalibrationActionBias());
+        putIfNotNull(snapshot, "calibrationSummary", assessment.getCalibrationSummary());
         if (assessment.getIndicators() != null && !assessment.getIndicators().isEmpty()) {
             snapshot.put("indicators", new ArrayList<>(assessment.getIndicators()));
         }

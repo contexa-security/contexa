@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.hcad.filter.HCADFilter;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.service.GeoIpService;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
@@ -16,7 +16,6 @@ import io.contexa.contexacore.hcad.store.InMemoryBaselineDataStore;
 import io.contexa.contexacore.hcad.store.InMemoryHCADDataStore;
 import io.contexa.contexacore.hcad.store.RedisBaselineDataStore;
 import io.contexa.contexacore.hcad.store.RedisHCADDataStore;
-import io.contexa.contexacore.hcad.trigger.AuthenticatedPendingAnomalyTriggerFilter;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEligibilityGate;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceCheckService;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEventTriggerService;
@@ -32,7 +31,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -76,29 +74,18 @@ public class CoreHCADAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer(HcadProperties hcadProperties) {
+        return new HcadPreProtectablePromotionScorer(hcadProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public HCADAnalysisService hcadAnalysisService(
             HCADContextExtractor hcadContextExtractor,
             HcadProperties hcadProperties,
-            HCADDataStore hcadDataStore) {
-        return new HCADAnalysisService(hcadContextExtractor, hcadProperties, hcadDataStore);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public HCADFilter hcadFilter(HCADAnalysisService hcadAnalysisService,
-            HcadProperties hcadProperties) {
-        return new HCADFilter(hcadAnalysisService, hcadProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public FilterRegistrationBean<HCADFilter> hcadFilterRegistrationBean(HCADFilter hcadFilter, HcadProperties hcadProperties) {
-        FilterRegistrationBean<HCADFilter> filterRegistrationBean = new FilterRegistrationBean<>();
-        filterRegistrationBean.setFilter(hcadFilter);
-        filterRegistrationBean.setEnabled(hcadProperties.isEnabled());
-        filterRegistrationBean.setOrder(hcadProperties.getFilterOrder());
-        filterRegistrationBean.addUrlPatterns("/*");
-        return filterRegistrationBean;
+            HCADDataStore hcadDataStore,
+            HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer) {
+        return new HCADAnalysisService(hcadContextExtractor, hcadProperties, hcadDataStore, hcadPreProtectablePromotionScorer);
     }
 
     @Bean
@@ -115,8 +102,8 @@ public class CoreHCADAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(PendingAnomalyEligibilityGate.class)
-    public PendingAnomalyEvidenceCheckService pendingAnomalyEvidenceCheckService(HcadProperties hcadProperties) {
-        return new PendingAnomalyEvidenceCheckService(hcadProperties);
+    public PendingAnomalyEvidenceCheckService pendingAnomalyEvidenceCheckService() {
+        return new PendingAnomalyEvidenceCheckService();
     }
 
     @Bean
@@ -141,29 +128,6 @@ public class CoreHCADAutoConfiguration {
                 pendingAnomalyEventTriggerService,
                 analysisTriggerStateRepository,
                 hcadProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(PendingAnomalyTriggerOrchestrator.class)
-    public AuthenticatedPendingAnomalyTriggerFilter authenticatedPendingAnomalyTriggerFilter(
-            PendingAnomalyTriggerOrchestrator pendingAnomalyTriggerOrchestrator,
-            HcadProperties hcadProperties) {
-        return new AuthenticatedPendingAnomalyTriggerFilter(pendingAnomalyTriggerOrchestrator, hcadProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(AuthenticatedPendingAnomalyTriggerFilter.class)
-    public FilterRegistrationBean<AuthenticatedPendingAnomalyTriggerFilter> authenticatedPendingAnomalyTriggerFilterRegistrationBean(
-            AuthenticatedPendingAnomalyTriggerFilter authenticatedPendingAnomalyTriggerFilter,
-            HcadProperties hcadProperties) {
-        FilterRegistrationBean<AuthenticatedPendingAnomalyTriggerFilter> filterRegistrationBean = new FilterRegistrationBean<>();
-        filterRegistrationBean.setFilter(authenticatedPendingAnomalyTriggerFilter);
-        filterRegistrationBean.setEnabled(hcadProperties.isEnabled() && hcadProperties.getPreTrigger().isEnabled());
-        filterRegistrationBean.setOrder(hcadProperties.getFilterOrder() + 1);
-        filterRegistrationBean.addUrlPatterns("/*");
-        return filterRegistrationBean;
     }
 
     @Configuration

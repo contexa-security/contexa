@@ -13,12 +13,17 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
+import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
+import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.SecurityDecisionCalibrationService;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
@@ -299,6 +304,40 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return decision;
     }
 
+    protected SecurityDecision applyRuntimeCalibration(
+            SecurityDecision decision,
+            SecurityEvent event,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            SecurityDecisionCalibrationService securityDecisionCalibrationService) {
+        if (decision == null || securityDecisionCalibrationService == null) {
+            return decision;
+        }
+        SecurityDecision calibratedDecision = securityDecisionCalibrationService.apply(event, decision, behaviorAnalysis);
+        annotateRuntimeCalibration(event, calibratedDecision);
+        return calibratedDecision;
+    }
+
+    protected void annotateRuntimeCalibration(SecurityEvent event, SecurityDecision decision) {
+        if (event == null || decision == null || event.getMetadata() == null) {
+            return;
+        }
+        putCalibrationMetadata(event.getMetadata(), "calibrationApplied", decision.getCalibrationApplied());
+        putCalibrationMetadata(event.getMetadata(), "calibrationProfileKey", decision.getCalibrationProfileKey());
+        putCalibrationMetadata(event.getMetadata(), "calibrationScenarioClass", decision.getCalibrationScenarioClass());
+        putCalibrationMetadata(event.getMetadata(), "calibrationConfidenceAdjustment", decision.getCalibrationConfidenceAdjustment());
+        putCalibrationMetadata(event.getMetadata(), "calibrationActionBias", decision.getCalibrationActionBias());
+        putCalibrationMetadata(event.getMetadata(), "calibrationSummary", decision.getCalibrationSummary());
+        if (decision.getCalibrationReasons() != null && !decision.getCalibrationReasons().isEmpty()) {
+            event.getMetadata().put("calibrationReasons", List.copyOf(decision.getCalibrationReasons()));
+        }
+    }
+
+    protected void putCalibrationMetadata(Map<String, Object> metadata, String key, Object value) {
+        if (metadata != null && key != null && value != null) {
+            metadata.put(key, value);
+        }
+    }
+
     private Optional<CanonicalSecurityContext> resolveCanonicalContext(SecurityEvent event) {
         if (event == null || promptTemplate == null) {
             return Optional.empty();
@@ -398,6 +437,39 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             event.addMetadata("threatKnowledgeMatchedFacts", matchedFacts);
         }
     }
+    protected void enrichBehaviorAnalysisWithRuntimeLearningSupport(
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
+            SecurityEvent event,
+            SaasBaselineSeedService baselineSeedService,
+            SaasThreatIntelligenceService threatIntelligenceService,
+            SaasThreatKnowledgePackService threatKnowledgePackService,
+            SaasDetectionStrategyPackService detectionStrategyPackService) {
+        if (context == null || event == null) {
+            return;
+        }
+
+        if (threatIntelligenceService != null) {
+            context.setActiveThreatSignals(threatIntelligenceService.getPromptSignals());
+        }
+        if (threatKnowledgePackService != null) {
+            context.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
+        }
+        if (detectionStrategyPackService != null) {
+            context.setDetectionStrategyPack(detectionStrategyPackService.currentSnapshot());
+            context.setDetectionStrategyRuntimePack(detectionStrategyPackService.getPromptRuntimePack());
+        }
+
+        enrichBehaviorAnalysisWithBaselineSupport(context, event, baselineSeedService);
+        hydrateBehaviorAnalysisRuntimeFacts(context, event);
+
+        if (threatIntelligenceService != null) {
+            context.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, context));
+        }
+        if (threatKnowledgePackService != null) {
+            context.setThreatKnowledgePackMatchContext(
+                    threatKnowledgePackService.buildThreatKnowledgeContext(event, context));
+        }
+    }
     protected void enrichBehaviorAnalysisWithBaselineSupport(
             SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
             SecurityEvent event,
@@ -406,9 +478,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
         event.addMetadata("baselineSeedApplied", false);
+        event.addMetadata("baselineSeedWeight", 0.0d);
+        event.addMetadata("baselineSeedWeightState", "UNAVAILABLE");
         event.addMetadata("personalBaselineEstablished", false);
         event.addMetadata("organizationBaselineEstablished", false);
-
         try {
             BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
             if (baseline != null) {
@@ -424,13 +497,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     context.setPreviousUserAgentBrowser(baseline.getNormalUserAgents()[0]);
                 }
             }
-
             BaselineLearningService.BaselineMaturitySnapshot maturity =
                     baselineLearningService.describeBaselineMaturity(event.getUserId());
             if (maturity == null) {
                 return;
             }
-
             context.setPersonalBaselineAvailable(maturity.personalBaselineAvailable());
             context.setPersonalBaselineEstablished(maturity.personalBaselineEstablished());
             context.setOrganizationBaselineAvailable(maturity.organizationBaselineAvailable());
@@ -439,19 +510,30 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             event.addMetadata("organizationBaselineEstablished", maturity.organizationBaselineEstablished());
             context.setCohortSeedRecommended(maturity.cohortSeedRecommended());
             context.setCohortSeedSupportingDimensions(maturity.supportingDimensions());
-
             if (!maturity.cohortSeedRecommended() || baselineSeedService == null) {
                 return;
             }
-
-            BaselineSeedSnapshot baselineSeed = baselineSeedService.getPromptSeed();
+            CohortSeedRuntimeWeightDecision seedDecision = baselineSeedService.resolvePromptSeed(
+                    maturity.personalBaselineEstablished(),
+                    maturity.organizationBaselineEstablished());
+            if (seedDecision == null || !seedDecision.seedAllowed()) {
+                return;
+            }
+            BaselineSeedSnapshot baselineSeed = seedDecision.seedSnapshot();
             if (baselineSeed == null || !baselineSeed.featureEnabled() || !baselineSeed.seedAvailable()) {
                 return;
             }
-
             context.setCohortBaselineSeed(baselineSeed);
             context.setCohortSeedApplied(true);
+            context.setCohortSeedWeight(seedDecision.runtimeWeight());
+            context.setCohortSeedWeightState(seedDecision.weightState().name());
+            context.setCohortSeedPolicyFacts(seedDecision.policyFacts());
             event.addMetadata("baselineSeedApplied", true);
+            event.addMetadata("baselineSeedWeight", seedDecision.runtimeWeight());
+            event.addMetadata("baselineSeedWeightState", seedDecision.weightState().name());
+            if (!seedDecision.policyFacts().isEmpty()) {
+                event.addMetadata("baselineSeedPolicyFacts", List.copyOf(seedDecision.policyFacts()));
+            }
         } catch (Exception ex) {
             log.error("[{}] Failed to enrich baseline support context for user {}",
                     getLayerName(), event.getUserId(), ex);
@@ -1011,18 +1093,3 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 SecurityDecisionResponse.class);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -29,4 +29,14 @@ public interface PromptContextAuditForwardingOutboxRepository extends JpaReposit
             @Param("statuses") List<String> statuses,
             @Param("now") LocalDateTime now,
             Pageable pageable);
+
+    @Query("""
+            select record
+            from PromptContextAuditForwardingOutboxRecord record
+            where record.tenantExternalRef = :tenantExternalRef
+            order by record.createdAt desc
+            """)
+    List<PromptContextAuditForwardingOutboxRecord> findRecentByTenantExternalRef(
+            @Param("tenantExternalRef") String tenantExternalRef,
+            Pageable pageable);
 }

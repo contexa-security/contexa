@@ -25,4 +25,14 @@ public interface ThreatOutcomeForwardingOutboxRepository extends JpaRepository<T
             @Param("statuses") List<String> statuses,
             @Param("now") LocalDateTime now,
             Pageable pageable);
+
+    @Query("""
+            select record
+            from ThreatOutcomeForwardingOutboxRecord record
+            where record.tenantExternalRef = :tenantExternalRef
+            order by record.createdAt desc
+            """)
+    List<ThreatOutcomeForwardingOutboxRecord> findRecentByTenantExternalRef(
+            @Param("tenantExternalRef") String tenantExternalRef,
+            Pageable pageable);
 }

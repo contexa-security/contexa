@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -13,6 +14,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.service.calibration.SecurityDecisionCalibrationService;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -45,7 +47,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private final SaasBaselineSeedService baselineSeedService;
     private final SaasThreatIntelligenceService threatIntelligenceService;
     private final SaasThreatKnowledgePackService threatKnowledgePackService;
+    private final SaasDetectionStrategyPackService detectionStrategyPackService;
     private final PipelineOrchestrator pipelineOrchestrator;
+    private final SecurityDecisionCalibrationService securityDecisionCalibrationService;
 
     @Autowired
     public Layer2ExpertStrategy(ApprovalService approvalService,
@@ -63,6 +67,79 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 PromptContextAuthorizationService promptContextAuthorizationService,
                                 PromptContextAuditForwardingService promptContextAuditForwardingService,
                                 PipelineOrchestrator pipelineOrchestrator) {
+        this(
+                approvalService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                unifiedVectorService,
+                behaviorVectorService,
+                baselineLearningService,
+                tieredStrategyProperties,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                null,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                null);
+    }
+
+    public Layer2ExpertStrategy(ApprovalService approvalService,
+                                SecurityContextDataStore dataStore,
+                                SecurityEventEnricher eventEnricher,
+                                SecurityDecisionStandardPromptTemplate promptTemplate,
+                                UnifiedVectorService unifiedVectorService,
+                                BehaviorVectorService behaviorVectorService,
+                                BaselineLearningService baselineLearningService,
+                                TieredStrategyProperties tieredStrategyProperties,
+                                SecurityLearningService securityLearningService,
+                                SaasBaselineSeedService baselineSeedService,
+                                SaasThreatIntelligenceService threatIntelligenceService,
+                                SaasThreatKnowledgePackService threatKnowledgePackService,
+                                SaasDetectionStrategyPackService detectionStrategyPackService,
+                                PromptContextAuthorizationService promptContextAuthorizationService,
+                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PipelineOrchestrator pipelineOrchestrator) {
+        this(
+                approvalService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                unifiedVectorService,
+                behaviorVectorService,
+                baselineLearningService,
+                tieredStrategyProperties,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                null);
+    }
+
+    public Layer2ExpertStrategy(ApprovalService approvalService,
+                                SecurityContextDataStore dataStore,
+                                SecurityEventEnricher eventEnricher,
+                                SecurityDecisionStandardPromptTemplate promptTemplate,
+                                UnifiedVectorService unifiedVectorService,
+                                BehaviorVectorService behaviorVectorService,
+                                BaselineLearningService baselineLearningService,
+                                TieredStrategyProperties tieredStrategyProperties,
+                                SecurityLearningService securityLearningService,
+                                SaasBaselineSeedService baselineSeedService,
+                                SaasThreatIntelligenceService threatIntelligenceService,
+                                SaasThreatKnowledgePackService threatKnowledgePackService,
+                                SaasDetectionStrategyPackService detectionStrategyPackService,
+                                PromptContextAuthorizationService promptContextAuthorizationService,
+                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PipelineOrchestrator pipelineOrchestrator,
+                                SecurityDecisionCalibrationService securityDecisionCalibrationService) {
         super(eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
               promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
@@ -73,8 +150,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         this.baselineSeedService = baselineSeedService;
         this.threatIntelligenceService = threatIntelligenceService;
         this.threatKnowledgePackService = threatKnowledgePackService;
+        this.detectionStrategyPackService = detectionStrategyPackService;
         this.pipelineOrchestrator = pipelineOrchestrator;
+        this.securityDecisionCalibrationService = securityDecisionCalibrationService;
     }
+
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
         SecurityDecision expertDecision = performDeepAnalysis(event);
@@ -97,6 +177,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())
+                .calibrationApplied(expertDecision.getCalibrationApplied())
+                .calibrationProfileKey(expertDecision.getCalibrationProfileKey())
+                .calibrationScenarioClass(expertDecision.getCalibrationScenarioClass())
+                .calibrationConfidenceAdjustment(expertDecision.getCalibrationConfidenceAdjustment())
+                .calibrationActionBias(expertDecision.getCalibrationActionBias())
+                .calibrationReasons(expertDecision.getCalibrationReasons())
+                .calibrationSummary(expertDecision.getCalibrationSummary())
                 .build();
     }
 
@@ -140,6 +227,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             }
 
             SecurityDecision expertDecision = applyPromptConfidenceGuardrail(convertToSecurityDecision(response, event), event);
+            expertDecision = applyRuntimeCalibration(expertDecision, event, behaviorCtx, securityDecisionCalibrationService);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
@@ -221,25 +309,14 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         ctx.setSimilarEvents(base.getSimilarEvents());
         ctx.setBaselineContext(base.getBaselineContext());
         ctx.setBaselineEstablished(base.isBaselineEstablished());
-        if (threatIntelligenceService != null) {
-            ctx.setActiveThreatSignals(threatIntelligenceService.getPromptSignals());
-        }
-        if (threatKnowledgePackService != null) {
-            ctx.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
-        }
 
-
-
-        enrichBehaviorAnalysisWithBaselineSupport(ctx, event, baselineSeedService);
-        hydrateBehaviorAnalysisRuntimeFacts(ctx, event);
-
-        if (threatIntelligenceService != null) {
-            ctx.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, ctx));
-        }
-        if (threatKnowledgePackService != null) {
-            ctx.setThreatKnowledgePackMatchContext(
-                    threatKnowledgePackService.buildThreatKnowledgeContext(event, ctx));
-        }
+        enrichBehaviorAnalysisWithRuntimeLearningSupport(
+                ctx,
+                event,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService);
 
         return ctx;
     }

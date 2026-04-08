@@ -3,12 +3,15 @@ package io.contexa.contexacore.hcad.filter;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionContextResolver;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import io.contexa.contexacore.properties.HcadProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -24,7 +27,6 @@ public class HCADFilter extends OncePerRequestFilter {
 
     private final HCADAnalysisService hcadAnalysisService;
     private final HcadProperties hcadProperties;
-
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
     public HCADFilter(HCADAnalysisService hcadAnalysisService, HcadProperties hcadProperties) {
@@ -34,7 +36,6 @@ public class HCADFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuthenticated = this.trustResolver.isAuthenticated(authentication);
 
@@ -45,75 +46,83 @@ public class HCADFilter extends OncePerRequestFilter {
 
         try {
             HCADAnalysisResult result = hcadAnalysisService.analyze(request, authentication);
-
             if (result.getContext() != null) {
-                HCADContext ctx = result.getContext();
-                request.setAttribute("hcad.is_new_session", ctx.getIsNewSession());
-                request.setAttribute("hcad.is_new_user", ctx.getIsNewUser());
-                request.setAttribute("hcad.is_new_device", ctx.getIsNewDevice());
-                request.setAttribute("hcad.recent_request_count", ctx.getRecentRequestCount());
-                request.setAttribute("hcad.failed_login_attempts", ctx.getFailedLoginAttempts());
-                request.setAttribute("hcad.baseline_confidence", ctx.getBaselineConfidence());
-                request.setAttribute("hcad.is_sensitive_resource", ctx.getIsSensitiveResource());
-                request.setAttribute("hcad.mfa_verified", ctx.getHasValidMFA());
-                request.setAttribute("hcad.previous_path", ctx.getPreviousPath());
-                request.setAttribute("hcad.last_request_interval_ms", ctx.getLastRequestInterval());
-                request.setAttribute("hcad.observed_at", ctx.getTimestamp());
-                if (ctx.getAuthenticationMethod() != null) {
-                    request.setAttribute("hcad.auth_method", ctx.getAuthenticationMethod());
-                }
-                if (ctx.getCountry() != null) {
-                    request.setAttribute("hcad.country", ctx.getCountry());
-                }
-                if (ctx.getCity() != null) {
-                    request.setAttribute("hcad.city", ctx.getCity());
-                }
-                if (ctx.getLatitude() != null) {
-                    request.setAttribute("hcad.latitude", ctx.getLatitude());
-                }
-                if (ctx.getLongitude() != null) {
-                    request.setAttribute("hcad.longitude", ctx.getLongitude());
-                }
-                Map<String, Object> attrs = ctx.getAdditionalAttributes();
-                if (attrs != null) {
-                    Object resourceSensitivity = attrs.get("resourceSensitivity");
-                    if (resourceSensitivity != null) {
-                        request.setAttribute("hcad.resource_sensitivity", resourceSensitivity);
-                    } else {
-                        String inferredSensitivity = inferResourceSensitivity(request, ctx);
-                        if (inferredSensitivity != null) {
-                            request.setAttribute("hcad.resource_sensitivity", inferredSensitivity);
-                        }
-                    }
-                    Object resourceBusinessLabel = attrs.get("resourceBusinessLabel");
-                    if (resourceBusinessLabel != null) {
-                        request.setAttribute("hcad.resource_business_label", resourceBusinessLabel);
-                    }
-                    if (Boolean.TRUE.equals(attrs.get("impossibleTravel"))) {
-                        request.setAttribute("hcad.impossibleTravel", true);
-                        request.setAttribute("hcad.travelDistanceKm", attrs.get("travelDistanceKm"));
-                        request.setAttribute("hcad.travelElapsedMinutes", attrs.get("travelElapsedMinutes"));
-                        request.setAttribute("hcad.previousLocation", attrs.get("previousLocation"));
-                    }
-                }
-                if (attrs != null && attrs.get("userRoles") != null) {
-                    request.setAttribute("hcad.user_roles", attrs.get("userRoles").toString());
-                }
+                HCADContext context = result.getContext();
+                projectHcadContext(request, context);
+                HcadPreProtectablePromotionAssessment assessment = HcadPreProtectablePromotionContextResolver.resolve(context);
+                HcadPreProtectablePromotionRequestProjector.project(request, assessment);
             }
 
             String action = result.getAction();
             if (ZeroTrustAction.fromString(action).isBlocking()) {
                 log.error("[HCADFilter] Security action: {} - userId: {}, riskScore: {}, threatType: {}",
-                    action, result.getUserId(), String.format("%.3f", result.getAnomalyScore()), result.getThreatType());
+                        action,
+                        result.getUserId(),
+                        String.format("%.3f", result.getAnomalyScore()),
+                        result.getThreatType());
             }
 
             filterChain.doFilter(request, response);
-
         } catch (Exception e) {
             log.error("[HCADFilter] Error during processing", e);
             request.setAttribute("hcad.analysisStatus", "FAILED");
             request.setAttribute("hcad.failReason", e.getClass().getSimpleName());
             filterChain.doFilter(request, response);
+        }
+    }
+
+    private void projectHcadContext(HttpServletRequest request, HCADContext context) {
+        request.setAttribute("hcad.is_new_session", context.getIsNewSession());
+        request.setAttribute("hcad.is_new_user", context.getIsNewUser());
+        request.setAttribute("hcad.is_new_device", context.getIsNewDevice());
+        request.setAttribute("hcad.recent_request_count", context.getRecentRequestCount());
+        request.setAttribute("hcad.failed_login_attempts", context.getFailedLoginAttempts());
+        request.setAttribute("hcad.baseline_confidence", context.getBaselineConfidence());
+        request.setAttribute("hcad.is_sensitive_resource", context.getIsSensitiveResource());
+        request.setAttribute("hcad.mfa_verified", context.getHasValidMFA());
+        request.setAttribute("hcad.previous_path", context.getPreviousPath());
+        request.setAttribute("hcad.last_request_interval_ms", context.getLastRequestInterval());
+        request.setAttribute("hcad.observed_at", context.getTimestamp());
+        if (context.getAuthenticationMethod() != null) {
+            request.setAttribute("hcad.auth_method", context.getAuthenticationMethod());
+        }
+        if (context.getCountry() != null) {
+            request.setAttribute("hcad.country", context.getCountry());
+        }
+        if (context.getCity() != null) {
+            request.setAttribute("hcad.city", context.getCity());
+        }
+        if (context.getLatitude() != null) {
+            request.setAttribute("hcad.latitude", context.getLatitude());
+        }
+        if (context.getLongitude() != null) {
+            request.setAttribute("hcad.longitude", context.getLongitude());
+        }
+
+        Map<String, Object> attrs = context.getAdditionalAttributes();
+        if (attrs != null) {
+            Object resourceSensitivity = attrs.get("resourceSensitivity");
+            if (resourceSensitivity != null) {
+                request.setAttribute("hcad.resource_sensitivity", resourceSensitivity);
+            } else {
+                String inferredSensitivity = inferResourceSensitivity(request, context);
+                if (inferredSensitivity != null) {
+                    request.setAttribute("hcad.resource_sensitivity", inferredSensitivity);
+                }
+            }
+            Object resourceBusinessLabel = attrs.get("resourceBusinessLabel");
+            if (resourceBusinessLabel != null) {
+                request.setAttribute("hcad.resource_business_label", resourceBusinessLabel);
+            }
+            if (Boolean.TRUE.equals(attrs.get("impossibleTravel"))) {
+                request.setAttribute("hcad.impossibleTravel", true);
+                request.setAttribute("hcad.travelDistanceKm", attrs.get("travelDistanceKm"));
+                request.setAttribute("hcad.travelElapsedMinutes", attrs.get("travelElapsedMinutes"));
+                request.setAttribute("hcad.previousLocation", attrs.get("previousLocation"));
+            }
+            if (attrs.get("userRoles") != null) {
+                request.setAttribute("hcad.user_roles", attrs.get("userRoles").toString());
+            }
         }
     }
 

@@ -5,13 +5,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-//@Repository
 public interface DecisionFeedbackForwardingOutboxRepository extends JpaRepository<DecisionFeedbackForwardingOutboxRecord, Long> {
 
     Optional<DecisionFeedbackForwardingOutboxRecord> findByFeedbackId(String feedbackId);
@@ -26,5 +24,15 @@ public interface DecisionFeedbackForwardingOutboxRepository extends JpaRepositor
     List<DecisionFeedbackForwardingOutboxRecord> findDispatchable(
             @Param("statuses") List<String> statuses,
             @Param("now") LocalDateTime now,
+            Pageable pageable);
+
+    @Query("""
+            select record
+            from DecisionFeedbackForwardingOutboxRecord record
+            where record.tenantExternalRef = :tenantExternalRef
+            order by record.createdAt desc
+            """)
+    List<DecisionFeedbackForwardingOutboxRecord> findRecentByTenantExternalRef(
+            @Param("tenantExternalRef") String tenantExternalRef,
             Pageable pageable);
 }

@@ -2,6 +2,8 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,11 +19,11 @@ import org.springframework.security.core.Authentication;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,9 +34,6 @@ class HCADAnalysisServiceTest {
     private HCADContextExtractor contextExtractor;
 
     @Mock
-    private HcadProperties hcadProperties;
-
-    @Mock
     private HCADDataStore hcadDataStore;
 
     @Mock
@@ -43,24 +42,29 @@ class HCADAnalysisServiceTest {
     @Mock
     private Authentication authentication;
 
+    private HcadProperties hcadProperties;
     private HCADAnalysisService analysisService;
 
     @BeforeEach
     void setUp() {
-        analysisService = new HCADAnalysisService(contextExtractor, hcadProperties, hcadDataStore);
-
-        HcadProperties.AnalysisSettings analysisSettings = new HcadProperties.AnalysisSettings();
-        analysisSettings.setMaxAgeMs(3600000L);
-        when(hcadProperties.getAnalysis()).thenReturn(analysisSettings);
+        hcadProperties = new HcadProperties();
+        hcadProperties.getAnalysis().setMaxAgeMs(3600000L);
+        analysisService = new HCADAnalysisService(
+                contextExtractor,
+                hcadProperties,
+                hcadDataStore,
+                new HcadPreProtectablePromotionScorer(hcadProperties));
         when(request.getRequestURI()).thenReturn("/api/test");
     }
 
     @Test
     @DisplayName("Normal analysis returns HCADAnalysisResult with extracted context")
     void analyze_normalFlow_returnsResult() {
-        // given
         HCADContext context = new HCADContext();
         context.setUserId("user1");
+        context.setRequestPath("/api/test");
+        context.setHttpMethod("GET");
+        context.setAdditionalAttributes(new LinkedHashMap<>());
         when(contextExtractor.extractContext(any(), any())).thenReturn(context);
 
         Map<Object, Object> analysisData = new HashMap<>();
@@ -74,10 +78,8 @@ class HCADAnalysisServiceTest {
         analysisData.put("analyzedAt", String.valueOf(System.currentTimeMillis()));
         when(hcadDataStore.getHcadAnalysis("user1")).thenReturn(analysisData);
 
-        // when
         HCADAnalysisResult result = analysisService.analyze(request, authentication);
 
-        // then
         assertThat(result.getUserId()).isEqualTo("user1");
         assertThat(result.getTrustScore()).isEqualTo(0.85);
         assertThat(result.getThreatType()).isEqualTo("NONE");
@@ -86,27 +88,30 @@ class HCADAnalysisServiceTest {
         assertThat(result.isAnomaly()).isFalse();
         assertThat(result.getProcessingTimeMs()).isGreaterThanOrEqualTo(0);
         assertThat(result.getContext()).isNotNull();
+        assertThat(result.getContext().getAdditionalAttributes())
+                .containsKey(HcadPreProtectablePromotionAttributes.CONTEXT_SCORE)
+                .containsKey(HcadPreProtectablePromotionAttributes.CONTEXT_REASON_CODES)
+                .containsKey(HcadPreProtectablePromotionAttributes.CONTEXT_VERSION);
     }
 
     @Test
     @DisplayName("Stale analysis sets stale flag in LLM analysis")
     void analyze_staleData_setsStaleFlag() {
-        // given
         HCADContext context = new HCADContext();
         context.setUserId("user1");
+        context.setRequestPath("/api/test");
+        context.setHttpMethod("GET");
+        context.setAdditionalAttributes(new LinkedHashMap<>());
         when(contextExtractor.extractContext(any(), any())).thenReturn(context);
 
         Map<Object, Object> analysisData = new HashMap<>();
-        // Set analyzedAt to far in the past to trigger stale detection
         analysisData.put("analyzedAt", String.valueOf(System.currentTimeMillis() - 7200000L));
         analysisData.put("riskScore", "0.5");
         analysisData.put("action", "ALLOW");
         when(hcadDataStore.getHcadAnalysis("user1")).thenReturn(analysisData);
 
-        // when
         HCADAnalysisResult result = analysisService.analyze(request, authentication);
 
-        // then
         assertThat(result).isNotNull();
         assertThat(result.getUserId()).isEqualTo("user1");
     }
@@ -114,16 +119,16 @@ class HCADAnalysisServiceTest {
     @Test
     @DisplayName("NaN and default fallback values when no analysis data exists")
     void analyze_noAnalysisData_returnsDefaultValues() {
-        // given
         HCADContext context = new HCADContext();
         context.setUserId("newUser");
+        context.setRequestPath("/api/test");
+        context.setHttpMethod("GET");
+        context.setAdditionalAttributes(new LinkedHashMap<>());
         when(contextExtractor.extractContext(any(), any())).thenReturn(context);
         when(hcadDataStore.getHcadAnalysis("newUser")).thenReturn(Collections.emptyMap());
 
-        // when
         HCADAnalysisResult result = analysisService.analyze(request, authentication);
 
-        // then
         assertThat(result.getUserId()).isEqualTo("newUser");
         assertThat(Double.isNaN(result.getTrustScore())).isTrue();
         assertThat(Double.isNaN(result.getAnomalyScore())).isTrue();
@@ -135,14 +140,11 @@ class HCADAnalysisServiceTest {
     @Test
     @DisplayName("Exception during analysis returns error context")
     void analyze_exceptionThrown_returnsErrorContext() {
-        // given
         when(contextExtractor.extractContext(any(), any()))
                 .thenThrow(new RuntimeException("Extraction failed"));
 
-        // when
         HCADAnalysisResult result = analysisService.analyze(request, authentication);
 
-        // then
         assertThat(result.getUserId()).isEqualTo("error");
         assertThat(result.getThreatType()).isEqualTo("ANALYSIS_ERROR");
         assertThat(result.getThreatEvidence()).contains("LLM analysis retrieval failed");
@@ -155,9 +157,11 @@ class HCADAnalysisServiceTest {
     @Test
     @DisplayName("Analysis data with unparseable numbers falls back to default values")
     void analyze_unparseableNumbers_fallsBackToDefaults() {
-        // given
         HCADContext context = new HCADContext();
         context.setUserId("user1");
+        context.setRequestPath("/api/test");
+        context.setHttpMethod("GET");
+        context.setAdditionalAttributes(new LinkedHashMap<>());
         when(contextExtractor.extractContext(any(), any())).thenReturn(context);
 
         Map<Object, Object> analysisData = new HashMap<>();
@@ -166,10 +170,8 @@ class HCADAnalysisServiceTest {
         analysisData.put("confidence", "abc");
         when(hcadDataStore.getHcadAnalysis("user1")).thenReturn(analysisData);
 
-        // when
         HCADAnalysisResult result = analysisService.analyze(request, authentication);
 
-        // then
         assertThat(result.getAnomalyScore()).isEqualTo(0.0);
         assertThat(result.getTrustScore()).isEqualTo(0.0);
         assertThat(result.getConfidence()).isEqualTo(0.0);

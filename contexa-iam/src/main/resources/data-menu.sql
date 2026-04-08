@@ -39,4 +39,5 @@ INSERT INTO admin_menu (id, name, url, icon, parent_id, menu_order, enabled, men
 (51, 'menu.saas.billing', '/admin/saas/billing', '', 7, 2, true, 'SAAS', 'saas-platform-billing'),
 (52, 'menu.saas.dedicated', '/admin/saas/dedicated', '', 7, 3, true, 'SAAS', 'saas-platform-dedicated'),
 (53, 'menu.saas.release.governance', '/admin/saas/release-governance', '', 7, 4, true, 'SAAS', 'saas-release-governance'),
-(54, 'menu.saas.tenant.workspace', '/admin/saas/tenant/workspace', '', 7, 5, true, 'SAAS', 'saas-tenant-workspace');
+(54, 'menu.saas.tenant.workspace', '/admin/saas/tenant/workspace', '', 7, 5, true, 'SAAS', 'saas-tenant-workspace'),
+(55, 'menu.saas.learning', '/admin/saas/learning/overview', '', 7, 6, true, 'SAAS', 'saas-learning-overview');

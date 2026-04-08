@@ -14,6 +14,8 @@ public class SaasForwardingProperties {
     public static final String THREAT_INTELLIGENCE_READ_SCOPE = "saas.threat-intelligence.read";
     public static final String THREAT_OUTCOME_INGEST_SCOPE = "saas.threat-outcome.ingest";
     public static final String THREAT_KNOWLEDGE_READ_SCOPE = "saas.threat-knowledge.read";
+    public static final String DETECTION_STRATEGY_READ_SCOPE = "saas.detection-strategy.read";
+    public static final String CALIBRATION_PROFILE_READ_SCOPE = "saas.calibration-profile.read";
     public static final String PERFORMANCE_TELEMETRY_INGEST_SCOPE = "saas.telemetry.ingest";
     public static final String PROMPT_CONTEXT_AUDIT_INGEST_SCOPE = "saas.prompt-context-audit.ingest";
 
@@ -34,6 +36,8 @@ public class SaasForwardingProperties {
     private final ThreatIntelligence threatIntelligence;
     private final ThreatOutcome threatOutcome;
     private final ThreatKnowledge threatKnowledge;
+    private final DetectionStrategy detectionStrategy;
+    private final CalibrationProfile calibrationProfile;
     private final PerformanceTelemetry performanceTelemetry;
     private final PromptContextAudit promptContextAudit;
 
@@ -69,6 +73,12 @@ public class SaasForwardingProperties {
         }
         if (threatKnowledge != null) {
             threatKnowledge.validate(oauth2.scope);
+        }
+        if (detectionStrategy != null) {
+            detectionStrategy.validate(oauth2.scope);
+        }
+        if (calibrationProfile != null) {
+            calibrationProfile.validate(oauth2.scope);
         }
         if (performanceTelemetry != null) {
             performanceTelemetry.validate(oauth2.scope);
@@ -373,6 +383,99 @@ public class SaasForwardingProperties {
         }
     }
 
+    @Getter
+    @Builder
+    public static class DetectionStrategy {
+
+        private final boolean enabled;
+        private final String endpointPath;
+        private final long pullIntervalMs;
+        private final long initialDelayMs;
+        private final int strategyLimit;
+        private final int promptLimit;
+        private final int cacheTtlMinutes;
+
+        public void validate(String oauthScopes) {
+            if (!enabled) {
+                return;
+            }
+            if (endpointPath == null || endpointPath.isBlank()) {
+                throw new IllegalStateException("SaaS detection strategy endpointPath must be configured");
+            }
+            if (pullIntervalMs <= 0L) {
+                throw new IllegalStateException("SaaS detection strategy pullIntervalMs must be greater than zero");
+            }
+            if (initialDelayMs < 0L) {
+                throw new IllegalStateException("SaaS detection strategy initialDelayMs must not be negative");
+            }
+            if (strategyLimit <= 0) {
+                throw new IllegalStateException("SaaS detection strategy strategyLimit must be greater than zero");
+            }
+            if (promptLimit <= 0) {
+                throw new IllegalStateException("SaaS detection strategy promptLimit must be greater than zero");
+            }
+            if (cacheTtlMinutes <= 0) {
+                throw new IllegalStateException("SaaS detection strategy cacheTtlMinutes must be greater than zero");
+            }
+            boolean scopePresent = false;
+            if (oauthScopes != null && !oauthScopes.isBlank()) {
+                for (String scope : oauthScopes.trim().split("[,\\s]+")) {
+                    if (DETECTION_STRATEGY_READ_SCOPE.equals(scope)) {
+                        scopePresent = true;
+                        break;
+                    }
+                }
+            }
+            if (!scopePresent) {
+                throw new IllegalStateException("SaaS forwarding OAuth2 scope must include saas.detection-strategy.read when detection strategy pull is enabled");
+            }
+        }
+    }
+
+    @Getter
+    @Builder
+    public static class CalibrationProfile {
+
+        private final boolean enabled;
+        private final String endpointPath;
+        private final long pullIntervalMs;
+        private final long initialDelayMs;
+        private final int profileLimit;
+        private final int cacheTtlMinutes;
+
+        public void validate(String oauthScopes) {
+            if (!enabled) {
+                return;
+            }
+            if (endpointPath == null || endpointPath.isBlank()) {
+                throw new IllegalStateException("SaaS calibration profile endpointPath must be configured");
+            }
+            if (pullIntervalMs <= 0L) {
+                throw new IllegalStateException("SaaS calibration profile pullIntervalMs must be greater than zero");
+            }
+            if (initialDelayMs < 0L) {
+                throw new IllegalStateException("SaaS calibration profile initialDelayMs must not be negative");
+            }
+            if (profileLimit <= 0) {
+                throw new IllegalStateException("SaaS calibration profile profileLimit must be greater than zero");
+            }
+            if (cacheTtlMinutes <= 0) {
+                throw new IllegalStateException("SaaS calibration profile cacheTtlMinutes must be greater than zero");
+            }
+            boolean scopePresent = false;
+            if (oauthScopes != null && !oauthScopes.isBlank()) {
+                for (String scope : oauthScopes.trim().split("[,\\s]+")) {
+                    if (CALIBRATION_PROFILE_READ_SCOPE.equals(scope)) {
+                        scopePresent = true;
+                        break;
+                    }
+                }
+            }
+            if (!scopePresent) {
+                throw new IllegalStateException("SaaS forwarding OAuth2 scope must include saas.calibration-profile.read when calibration profile pull is enabled");
+            }
+        }
+    }
     @Getter
     @Builder
     public static class PerformanceTelemetry {

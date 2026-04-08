@@ -73,6 +73,20 @@ public class ProcessingResult {
 
     private String autonomyConstraintSummary;
 
+    private Boolean calibrationApplied;
+
+    private String calibrationProfileKey;
+
+    private String calibrationScenarioClass;
+
+    private Double calibrationConfidenceAdjustment;
+
+    private String calibrationActionBias;
+
+    private List<String> calibrationReasons;
+
+    private String calibrationSummary;
+
     public enum ProcessingPath {
         COLD_PATH("Cold Path - AI Analysis"),
         BYPASS("Bypass - No Processing");

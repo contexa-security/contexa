@@ -15,6 +15,10 @@ public record PendingAnomalyEvidenceReport(
         String requestPath,
         String httpMethod,
         String clientIp,
+        int escalationScore,
+        String escalationBand,
+        boolean escalationEligible,
+        String escalationVersion,
         List<String> anchorSignals,
         List<String> corroboratingSignals,
         List<String> reasonCodes,
@@ -24,6 +28,8 @@ public record PendingAnomalyEvidenceReport(
 ) {
 
     public PendingAnomalyEvidenceReport {
+        escalationBand = escalationBand == null ? "LOW" : escalationBand;
+        escalationVersion = escalationVersion == null ? "hcad-promotion-v1" : escalationVersion;
         anchorSignals = anchorSignals == null ? List.of() : List.copyOf(anchorSignals);
         corroboratingSignals = corroboratingSignals == null ? List.of() : List.copyOf(corroboratingSignals);
         reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
@@ -40,6 +46,10 @@ public record PendingAnomalyEvidenceReport(
             String requestPath,
             String httpMethod,
             String clientIp,
+            int escalationScore,
+            String escalationBand,
+            boolean escalationEligible,
+            String escalationVersion,
             List<String> anchorSignals,
             List<String> corroboratingSignals,
             List<String> reasonCodes,
@@ -55,6 +65,10 @@ public record PendingAnomalyEvidenceReport(
                 requestPath,
                 httpMethod,
                 clientIp,
+                escalationScore,
+                escalationBand,
+                escalationEligible,
+                escalationVersion,
                 anchorSignals,
                 corroboratingSignals,
                 reasonCodes,

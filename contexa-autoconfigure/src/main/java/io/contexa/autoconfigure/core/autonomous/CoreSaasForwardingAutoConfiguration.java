@@ -11,6 +11,7 @@ import io.contexa.contexacore.autonomous.saas.mapper.DecisionFeedbackPayloadMapp
 import io.contexa.contexacore.autonomous.saas.mapper.PromptContextAuditPayloadMapper;
 import io.contexa.contexacore.autonomous.saas.mapper.SecurityDecisionForwardingPayloadMapper;
 import io.contexa.contexacore.autonomous.saas.mapper.ThreatOutcomePayloadMapper;
+import io.contexa.contexacore.autonomous.saas.learning.release.LearningArtifactRuntimeConflictService;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
@@ -135,15 +136,23 @@ public class CoreSaasForwardingAutoConfiguration {
                         .enabled(source.getThreatOutcome().isEnabled())
                         .endpointPath(source.getThreatOutcome().getEndpointPath())
                         .build())
-                .threatKnowledge(SaasForwardingProperties.ThreatKnowledge.builder()
-                        .enabled(source.getThreatKnowledge().isEnabled())
-                        .endpointPath(source.getThreatKnowledge().getEndpointPath())
-                        .runtimePolicyEndpointPath(source.getThreatKnowledge().getRuntimePolicyEndpointPath())
-                        .pullIntervalMs(source.getThreatKnowledge().getPullIntervalMs())
-                        .initialDelayMs(source.getThreatKnowledge().getInitialDelayMs())
-                        .caseLimit(source.getThreatKnowledge().getCaseLimit())
-                        .promptLimit(source.getThreatKnowledge().getPromptLimit())
-                        .cacheTtlMinutes(source.getThreatKnowledge().getCacheTtlMinutes())
+
+                .detectionStrategy(SaasForwardingProperties.DetectionStrategy.builder()
+                        .enabled(source.getDetectionStrategy().isEnabled())
+                        .endpointPath(source.getDetectionStrategy().getEndpointPath())
+                        .pullIntervalMs(source.getDetectionStrategy().getPullIntervalMs())
+                        .initialDelayMs(source.getDetectionStrategy().getInitialDelayMs())
+                        .strategyLimit(source.getDetectionStrategy().getStrategyLimit())
+                        .promptLimit(source.getDetectionStrategy().getPromptLimit())
+                        .cacheTtlMinutes(source.getDetectionStrategy().getCacheTtlMinutes())
+                        .build())
+                .calibrationProfile(SaasForwardingProperties.CalibrationProfile.builder()
+                        .enabled(source.getCalibrationProfile().isEnabled())
+                        .endpointPath(source.getCalibrationProfile().getEndpointPath())
+                        .pullIntervalMs(source.getCalibrationProfile().getPullIntervalMs())
+                        .initialDelayMs(source.getCalibrationProfile().getInitialDelayMs())
+                        .profileLimit(source.getCalibrationProfile().getProfileLimit())
+                        .cacheTtlMinutes(source.getCalibrationProfile().getCacheTtlMinutes())
                         .build())
                 .performanceTelemetry(SaasForwardingProperties.PerformanceTelemetry.builder()
                         .enabled(source.getPerformanceTelemetry().isEnabled())
@@ -337,6 +346,24 @@ public class CoreSaasForwardingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.saas.detection-strategy", name = "enabled", havingValue = "true")
+    public SaasDetectionStrategyPackHttpClient saasDetectionStrategyPackHttpClient(
+            SaasForwardingProperties properties,
+            SaasDecisionAccessTokenProvider accessTokenProvider) {
+        return new SaasDetectionStrategyPackHttpClient(properties, accessTokenProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.saas.calibration-profile", name = "enabled", havingValue = "true")
+    public SaasCalibrationProfilePackHttpClient saasCalibrationProfilePackHttpClient(
+            SaasForwardingProperties properties,
+            SaasDecisionAccessTokenProvider accessTokenProvider) {
+        return new SaasCalibrationProfilePackHttpClient(properties, accessTokenProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatIntelligenceHttpClient.class)
     public SaasThreatIntelligenceService saasThreatIntelligenceService(
             SaasForwardingProperties properties,
@@ -356,13 +383,32 @@ public class CoreSaasForwardingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SaasDetectionStrategyPackHttpClient.class)
+    public SaasDetectionStrategyPackService saasDetectionStrategyPackService(
+            SaasForwardingProperties properties,
+            SaasDetectionStrategyPackHttpClient httpClient,
+            ObjectProvider<LearningArtifactRuntimeConflictService> runtimeConflictService) {
+        return new SaasDetectionStrategyPackService(properties, httpClient, runtimeConflictService.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SaasCalibrationProfilePackHttpClient.class)
+    public SaasCalibrationProfilePackService saasCalibrationProfilePackService(
+            SaasForwardingProperties properties,
+            SaasCalibrationProfilePackHttpClient httpClient,
+            ObjectProvider<LearningArtifactRuntimeConflictService> runtimeConflictService) {
+        return new SaasCalibrationProfilePackService(properties, httpClient, runtimeConflictService.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatKnowledgeRuntimePolicyHttpClient.class)
     public SaasThreatKnowledgeRuntimePolicyService saasThreatKnowledgeRuntimePolicyService(
             SaasForwardingProperties properties,
             SaasThreatKnowledgeRuntimePolicyHttpClient httpClient) {
         return new SaasThreatKnowledgeRuntimePolicyService(properties, httpClient);
     }
-
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.performance-telemetry", name = "enabled", havingValue = "true")
@@ -445,6 +491,22 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatKnowledgePackPullScheduler(threatKnowledgePackService, properties);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SaasDetectionStrategyPackService.class)
+    public SaasDetectionStrategyPackPullScheduler saasDetectionStrategyPackPullScheduler(
+            SaasDetectionStrategyPackService detectionStrategyPackService,
+            SaasForwardingProperties properties) {
+        return new SaasDetectionStrategyPackPullScheduler(detectionStrategyPackService, properties);
+    }
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SaasCalibrationProfilePackService.class)
+    public SaasCalibrationProfilePackPullScheduler saasCalibrationProfilePackPullScheduler(
+            SaasCalibrationProfilePackService calibrationProfilePackService,
+            SaasForwardingProperties properties) {
+        return new SaasCalibrationProfilePackPullScheduler(calibrationProfilePackService, properties);
+    }
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatKnowledgeRuntimePolicyService.class)

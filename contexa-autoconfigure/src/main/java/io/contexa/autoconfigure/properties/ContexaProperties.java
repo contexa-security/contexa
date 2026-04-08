@@ -190,6 +190,8 @@ public class ContexaProperties {
         public static final String THREAT_INTELLIGENCE_READ_SCOPE = "saas.threat-intelligence.read";
         public static final String THREAT_OUTCOME_INGEST_SCOPE = "saas.threat-outcome.ingest";
         public static final String THREAT_KNOWLEDGE_READ_SCOPE = "saas.threat-knowledge.read";
+        public static final String DETECTION_STRATEGY_READ_SCOPE = "saas.detection-strategy.read";
+        public static final String CALIBRATION_PROFILE_READ_SCOPE = "saas.calibration-profile.read";
         public static final String PERFORMANCE_TELEMETRY_INGEST_SCOPE = "saas.telemetry.ingest";
         public static final String PROMPT_CONTEXT_AUDIT_INGEST_SCOPE = "saas.prompt-context-audit.ingest";
 
@@ -232,6 +234,12 @@ public class ContexaProperties {
 
         @NestedConfigurationProperty
         private ThreatKnowledge threatKnowledge = new ThreatKnowledge();
+
+        @NestedConfigurationProperty
+        private DetectionStrategy detectionStrategy = new DetectionStrategy();
+
+        @NestedConfigurationProperty
+        private CalibrationProfile calibrationProfile = new CalibrationProfile();
 
         @NestedConfigurationProperty
         private PerformanceTelemetry performanceTelemetry = new PerformanceTelemetry();
@@ -307,6 +315,14 @@ public class ContexaProperties {
             return threatKnowledge;
         }
 
+        public DetectionStrategy getDetectionStrategy() {
+            return detectionStrategy;
+        }
+
+        public CalibrationProfile getCalibrationProfile() {
+            return calibrationProfile;
+        }
+
         public PerformanceTelemetry getPerformanceTelemetry() {
             return performanceTelemetry;
         }
@@ -338,6 +354,8 @@ public class ContexaProperties {
             threatIntelligence.validate(oauth2.scope);
             threatOutcome.validate(oauth2.scope);
             threatKnowledge.validate(oauth2.scope);
+            detectionStrategy.validate(oauth2.scope);
+            calibrationProfile.validate(oauth2.scope);
             performanceTelemetry.validate(oauth2.scope);
             promptContextAudit.validate(oauth2.scope);
         }
@@ -373,7 +391,7 @@ public class ContexaProperties {
 
             private String clientSecret = "dev-secret";
 
-            private String scope = "saas.xai.decision.ingest,saas.feedback.ingest,saas.baseline.ingest,saas.baseline-seed.read,saas.threat-intelligence.read,saas.threat-outcome.ingest,saas.threat-knowledge.read,saas.telemetry.ingest,saas.prompt-context-audit.ingest";
+            private String scope = "saas.xai.decision.ingest,saas.feedback.ingest,saas.baseline.ingest,saas.baseline-seed.read,saas.threat-intelligence.read,saas.threat-outcome.ingest,saas.threat-knowledge.read,saas.detection-strategy.read,saas.calibration-profile.read,saas.telemetry.ingest,saas.prompt-context-audit.ingest";
 
             private int expirySkewSeconds = 30;
 
@@ -825,6 +843,160 @@ public class ContexaProperties {
             }
         }
 
+        @Data
+        public static class DetectionStrategy {
+
+            private boolean enabled = false;
+
+            private String endpointPath = "/api/saas/runtime/ai-tuning/detection-strategy-pack";
+
+            private long pullIntervalMs = 3_600_000L;
+
+            private long initialDelayMs = 0L;
+
+            private int strategyLimit = 12;
+
+            private int promptLimit = 3;
+
+            private int cacheTtlMinutes = 90;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public String getEndpointPath() {
+                return endpointPath;
+            }
+
+            public long getPullIntervalMs() {
+                return pullIntervalMs;
+            }
+
+            public long getInitialDelayMs() {
+                return initialDelayMs;
+            }
+
+            public int getStrategyLimit() {
+                return strategyLimit;
+            }
+
+            public int getPromptLimit() {
+                return promptLimit;
+            }
+
+            public int getCacheTtlMinutes() {
+                return cacheTtlMinutes;
+            }
+
+            public void validate(String oauthScopes) {
+                if (!enabled) {
+                    return;
+                }
+                if (endpointPath == null || endpointPath.isBlank()) {
+                    throw new IllegalStateException("contexa.saas.detection-strategy.endpoint-path must be configured when detection strategy pull is enabled");
+                }
+                if (pullIntervalMs <= 0L) {
+                    throw new IllegalStateException("contexa.saas.detection-strategy.pull-interval-ms must be greater than zero");
+                }
+                if (initialDelayMs < 0L) {
+                    throw new IllegalStateException("contexa.saas.detection-strategy.initial-delay-ms must not be negative");
+                }
+                if (strategyLimit <= 0) {
+                    throw new IllegalStateException("contexa.saas.detection-strategy.strategy-limit must be greater than zero");
+                }
+                if (promptLimit <= 0) {
+                    throw new IllegalStateException("contexa.saas.detection-strategy.prompt-limit must be greater than zero");
+                }
+                if (cacheTtlMinutes <= 0) {
+                    throw new IllegalStateException("contexa.saas.detection-strategy.cache-ttl-minutes must be greater than zero");
+                }
+                boolean scopePresent = false;
+                if (oauthScopes != null && !oauthScopes.isBlank()) {
+                    for (String scope : oauthScopes.trim().split("[,\\s]+")) {
+                        if (DETECTION_STRATEGY_READ_SCOPE.equals(scope)) {
+                            scopePresent = true;
+                            break;
+                        }
+                    }
+                }
+                if (!scopePresent) {
+                    throw new IllegalStateException("contexa.saas.oauth2.scope must include saas.detection-strategy.read when detection strategy pull is enabled");
+                }
+            }
+        }
+
+        @Data
+        public static class CalibrationProfile {
+
+            private boolean enabled = false;
+
+            private String endpointPath = "/api/saas/runtime/ai-tuning/calibration-profile-pack";
+
+            private long pullIntervalMs = 3_600_000L;
+
+            private long initialDelayMs = 0L;
+
+            private int profileLimit = 12;
+
+            private int cacheTtlMinutes = 90;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public String getEndpointPath() {
+                return endpointPath;
+            }
+
+            public long getPullIntervalMs() {
+                return pullIntervalMs;
+            }
+
+            public long getInitialDelayMs() {
+                return initialDelayMs;
+            }
+
+            public int getProfileLimit() {
+                return profileLimit;
+            }
+
+            public int getCacheTtlMinutes() {
+                return cacheTtlMinutes;
+            }
+
+            public void validate(String oauthScopes) {
+                if (!enabled) {
+                    return;
+                }
+                if (endpointPath == null || endpointPath.isBlank()) {
+                    throw new IllegalStateException("contexa.saas.calibration-profile.endpoint-path must be configured when calibration profile pull is enabled");
+                }
+                if (pullIntervalMs <= 0L) {
+                    throw new IllegalStateException("contexa.saas.calibration-profile.pull-interval-ms must be greater than zero");
+                }
+                if (initialDelayMs < 0L) {
+                    throw new IllegalStateException("contexa.saas.calibration-profile.initial-delay-ms must not be negative");
+                }
+                if (profileLimit <= 0) {
+                    throw new IllegalStateException("contexa.saas.calibration-profile.profile-limit must be greater than zero");
+                }
+                if (cacheTtlMinutes <= 0) {
+                    throw new IllegalStateException("contexa.saas.calibration-profile.cache-ttl-minutes must be greater than zero");
+                }
+                boolean scopePresent = false;
+                if (oauthScopes != null && !oauthScopes.isBlank()) {
+                    for (String scope : oauthScopes.trim().split("[,\\s]+")) {
+                        if (CALIBRATION_PROFILE_READ_SCOPE.equals(scope)) {
+                            scopePresent = true;
+                            break;
+                        }
+                    }
+                }
+                if (!scopePresent) {
+                    throw new IllegalStateException("contexa.saas.oauth2.scope must include saas.calibration-profile.read when calibration profile pull is enabled");
+                }
+            }
+        }
         @Data
         public static class PerformanceTelemetry {
 
