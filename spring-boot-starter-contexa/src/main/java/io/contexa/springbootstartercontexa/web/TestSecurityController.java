@@ -259,6 +259,7 @@ public class TestSecurityController {
         response.put("demoPhase", registration.getDemoPhase());
         response.put("clientIp", registration.getClientIp());
         response.put("userAgent", registration.getUserAgent());
+        response.put("deviceId", registration.getDeviceId());
         response.put("sessionId", registration.getSessionId());
         response.put("authMode", registration.getAuthMode());
         response.put("tokenSource", registration.getTokenSource());
@@ -270,7 +271,7 @@ public class TestSecurityController {
         response.put("evidenceUrl", "/admin/api/security-test/evidence/" + registration.getRequestId());
         response.put("evidenceExportUrl", "/admin/api/security-test/evidence/" + registration.getRequestId() + "/export");
         response.put("evidenceStreamUrl", "/admin/api/security-test/evidence/" + registration.getRequestId() + "/stream");
-        response.put("actionStatusUrl", "/admin/api/test-action/status");
+        response.put("actionStatusUrl", "/admin/api/test-action/status?requestId=" + registration.getRequestId());
         return response;
     }
 

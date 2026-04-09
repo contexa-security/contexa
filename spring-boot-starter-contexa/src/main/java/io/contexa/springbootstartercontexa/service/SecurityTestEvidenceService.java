@@ -55,6 +55,7 @@ public class SecurityTestEvidenceService {
 
     private final ZeroTrustActionRepository actionRepository;
     private final LlmAnalysisEventPublisher llmAnalysisEventPublisher;
+    private final SecurityTestAnalysisSnapshotService analysisSnapshotService;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<SecurityDecisionForwardingOutboxRepository> securityDecisionOutboxRepositoryProvider;
     private final ObjectProvider<PromptContextAuditForwardingOutboxRepository> promptContextAuditForwardingOutboxRepositoryProvider;
@@ -82,6 +83,7 @@ public class SecurityTestEvidenceService {
         String demoPhase = trimToNull(request.getHeader("X-Contexa-Demo-Phase"));
         String clientIp = resolveClientIp(request);
         String userAgent = firstNonBlank(request.getHeader("X-Simulated-User-Agent"), request.getHeader("User-Agent"), "unknown");
+        String deviceId = trimToNull(request.getHeader("X-Device-Id"));
         String sessionId = request.getSession(false) != null ? request.getSession(false).getId() : request.getRequestedSessionId();
         String requestPath = request.getRequestURI();
         String servletPath = request.getServletPath();
@@ -105,6 +107,7 @@ public class SecurityTestEvidenceService {
                 .resourceId(resourceId)
                 .clientIp(clientIp)
                 .userAgent(userAgent)
+                .deviceId(deviceId)
                 .sessionId(sessionId)
                 .method(method)
                 .requestPath(requestPath)
@@ -132,6 +135,7 @@ public class SecurityTestEvidenceService {
                 demoPhase,
                 clientIp,
                 userAgent,
+                deviceId,
                 sessionId,
                 requestPath,
                 servletPath,
@@ -205,9 +209,8 @@ public class SecurityTestEvidenceService {
         String effectiveUserId = firstNonBlank(userId, trace != null ? trace.getUserId() : null);
         String effectiveRequestId = firstNonBlank(requestId, trace != null ? trace.getRequestId() : null);
 
-        ZeroTrustAnalysisData analysisData = StringUtils.hasText(effectiveUserId)
-                ? actionRepository.getAnalysisData(effectiveUserId)
-                : ZeroTrustAnalysisData.pending();
+        SecurityTestAnalysisSnapshotService.AnalysisSnapshot analysisSnapshot =
+                analysisSnapshotService.resolveSnapshot(effectiveUserId, effectiveRequestId);
 
         List<LlmAnalysisEvent> recentEvents = resolveRecentEvents(effectiveUserId, effectiveRequestId);
         SecurityDecisionForwardingOutboxRecord decisionOutbox = resolveDecisionOutbox(effectiveRequestId);
@@ -215,18 +218,18 @@ public class SecurityTestEvidenceService {
 
         Map<String, Object> requestSection = trace != null ? trace.toMap() : Map.of();
         Map<String, Object> responseSection = trace != null && trace.getResponse() != null ? trace.getResponse().toMap() : Map.of();
-        Map<String, Object> analysisSection = toAnalysisMap(analysisData);
+        Map<String, Object> analysisSection = toAnalysisMap(analysisSnapshot);
         Map<String, Object> sseSection = Map.of(
                 "eventCount", recentEvents.size(),
                 "events", recentEvents.stream().map(this::toEventMap).toList()
         );
         Map<String, Object> promptSection = buildPromptSection(recentEvents, decisionOutbox, promptAuditOutbox);
-        Map<String, Object> contextSection = buildContextSection(trace, effectiveUserId, analysisData);
+        Map<String, Object> contextSection = buildContextSection(trace, effectiveUserId, analysisSnapshot);
         Map<String, Object> saasSection = buildSaasSection(decisionOutbox, promptAuditOutbox);
         Map<String, Object> consistencySection = buildConsistencySection(
                 effectiveRequestId,
                 trace,
-                analysisData,
+                analysisSnapshot,
                 recentEvents,
                 decisionOutbox,
                 promptAuditOutbox);
@@ -281,7 +284,7 @@ public class SecurityTestEvidenceService {
         return repository.findByCorrelationId(requestId).orElse(null);
     }
 
-    private Map<String, Object> buildContextSection(RequestTrace trace, String userId, ZeroTrustAnalysisData analysisData) {
+    private Map<String, Object> buildContextSection(RequestTrace trace, String userId, SecurityTestAnalysisSnapshotService.AnalysisSnapshot analysisSnapshot) {
         Map<String, Object> context = new LinkedHashMap<>();
         SecurityContextDataStore securityContextDataStore = securityContextDataStoreProvider.getIfAvailable();
         HCADDataStore hcadDataStore = hcadDataStoreProvider.getIfAvailable();
@@ -291,11 +294,15 @@ public class SecurityTestEvidenceService {
             context.put("expectedAction", trace.getExpectedAction());
             context.put("clientIp", trace.getClientIp());
             context.put("userAgent", trace.getUserAgent());
+            context.put("deviceId", trace.getDeviceId());
             context.put("sessionId", trace.getSessionId());
+            context.put("requestPath", trace.getRequestPath());
+            context.put("endpointKey", trace.getEndpointKey());
+            context.put("resourceId", trace.getResourceId());
         }
 
-        if (analysisData != null && StringUtils.hasText(analysisData.contextBindingHash())) {
-            context.put("contextBindingHash", analysisData.contextBindingHash());
+        if (analysisSnapshot != null && StringUtils.hasText(analysisSnapshot.contextBindingHash())) {
+            context.put("contextBindingHash", analysisSnapshot.contextBindingHash());
         }
 
         if (securityContextDataStore != null && trace != null && StringUtils.hasText(trace.getSessionId())) {
@@ -396,16 +403,14 @@ public class SecurityTestEvidenceService {
     private Map<String, Object> buildConsistencySection(
             String requestId,
             RequestTrace trace,
-            ZeroTrustAnalysisData analysisData,
+            SecurityTestAnalysisSnapshotService.AnalysisSnapshot analysisSnapshot,
             List<LlmAnalysisEvent> recentEvents,
             SecurityDecisionForwardingOutboxRecord decisionOutbox,
             PromptContextAuditForwardingOutboxRecord promptAuditOutbox) {
 
         boolean requestRegistered = trace != null;
         boolean responseCaptured = trace != null && trace.getResponse() != null;
-        boolean analysisRequestLinked = StringUtils.hasText(requestId)
-                && analysisData != null
-                && requestId.equals(analysisData.requestId());
+        boolean analysisRequestLinked = analysisSnapshot != null && analysisSnapshot.requestLinked();
         boolean sseLinked = recentEvents.stream().anyMatch(event ->
                 requestId != null && (requestId.equals(event.getRequestId()) || requestId.equals(event.getCorrelationId())));
         boolean decisionOutboxLinked = decisionOutbox != null
@@ -414,7 +419,7 @@ public class SecurityTestEvidenceService {
         boolean promptAuditLinked = promptAuditOutbox != null
                 && requestId != null
                 && requestId.equals(promptAuditOutbox.getCorrelationId());
-        boolean contextBindingPresent = analysisData != null && StringUtils.hasText(analysisData.contextBindingHash());
+        boolean contextBindingPresent = analysisSnapshot != null && StringUtils.hasText(analysisSnapshot.contextBindingHash());
 
         Map<String, Object> consistency = new LinkedHashMap<>();
         consistency.put("requestRegistered", requestRegistered);
@@ -430,19 +435,24 @@ public class SecurityTestEvidenceService {
         return consistency;
     }
 
-    private Map<String, Object> toAnalysisMap(ZeroTrustAnalysisData data) {
+    private Map<String, Object> toAnalysisMap(SecurityTestAnalysisSnapshotService.AnalysisSnapshot snapshot) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("action", data.action());
-        map.put("riskScore", data.riskScore());
-        map.put("confidence", data.confidence());
-        map.put("threatEvidence", data.threatEvidence());
-        map.put("analysisDepth", data.analysisDepth());
-        map.put("updatedAt", data.updatedAt());
-        map.put("reasoning", data.reasoning());
-        map.put("reasoningSummary", data.reasoningSummary());
-        map.put("requestId", data.requestId());
-        map.put("contextBindingHash", data.contextBindingHash());
-        map.put("llmProposedAction", data.llmProposedAction());
+        map.put("action", snapshot.action());
+        map.put("riskScore", snapshot.riskScore());
+        map.put("confidence", snapshot.confidence());
+        map.put("threatEvidence", snapshot.threatEvidence());
+        map.put("analysisDepth", snapshot.analysisDepth());
+        map.put("updatedAt", snapshot.updatedAt());
+        map.put("reasoning", snapshot.reasoning());
+        map.put("reasoningSummary", snapshot.reasoningSummary());
+        map.put("requestId", snapshot.requestId());
+        map.put("selectedRequestId", snapshot.selectedRequestId());
+        map.put("contextBindingHash", snapshot.contextBindingHash());
+        map.put("llmProposedAction", snapshot.llmProposedAction());
+        map.put("analysisStatus", snapshot.analysisStatus());
+        map.put("requestLinked", snapshot.requestLinked());
+        map.put("analysisSource", snapshot.analysisSource());
+        map.put("linkedEventCount", snapshot.linkedEventCount());
         return map;
     }
 
@@ -696,6 +706,7 @@ public class SecurityTestEvidenceService {
         private final String demoPhase;
         private final String clientIp;
         private final String userAgent;
+        private final String deviceId;
         private final String sessionId;
         private final String requestPath;
         private final String servletPath;
@@ -714,6 +725,7 @@ public class SecurityTestEvidenceService {
                 String demoPhase,
                 String clientIp,
                 String userAgent,
+                String deviceId,
                 String sessionId,
                 String requestPath,
                 String servletPath,
@@ -730,6 +742,7 @@ public class SecurityTestEvidenceService {
             this.demoPhase = demoPhase;
             this.clientIp = clientIp;
             this.userAgent = userAgent;
+            this.deviceId = deviceId;
             this.sessionId = sessionId;
             this.requestPath = requestPath;
             this.servletPath = servletPath;
@@ -756,6 +769,7 @@ public class SecurityTestEvidenceService {
         private final String resourceId;
         private final String clientIp;
         private final String userAgent;
+        private final String deviceId;
         private final String sessionId;
         private final String method;
         private final String requestPath;
@@ -783,6 +797,7 @@ public class SecurityTestEvidenceService {
             map.put("resourceId", resourceId);
             map.put("clientIp", clientIp);
             map.put("userAgent", userAgent);
+            map.put("deviceId", deviceId);
             map.put("sessionId", sessionId);
             map.put("method", method);
             map.put("requestPath", requestPath);

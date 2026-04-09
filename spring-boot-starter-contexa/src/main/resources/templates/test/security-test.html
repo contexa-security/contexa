@@ -11,22 +11,19 @@
 </head>
 <body th:attr="data-username=${username}">
 <div class="page-shell">
-
-    <!-- ===== LANG SELECTOR ===== -->
     <div class="lang-selector">
         <select id="lang-select" onchange="location.href='?lang='+this.value">
-            <option value="ko" th:selected="${#locale.language == 'ko'}">한국어</option>
+            <option value="ko" th:selected="${#locale.language == 'ko'}">?쒓뎅??/option>
             <option value="en" th:selected="${#locale.language == 'en'}">English</option>
         </select>
     </div>
 
-    <!-- ===== HERO ===== -->
     <header class="hero">
         <div class="hero-backdrop"></div>
         <div class="hero-left">
             <div class="brand-mark" th:text="#{zt.demo.brand}">CONTEXA ZERO-TRUST</div>
             <h1 th:text="#{zt.demo.title}">Post-Authentication Anomaly Detection</h1>
-            <p class="hero-sub" th:text="#{zt.demo.subtitle}">Compare normal user and account takeover in the same session after login</p>
+            <p class="hero-sub" th:text="#{zt.demo.subtitle}">Compare a normal user and an account takeover in the same authenticated session.</p>
         </div>
         <div class="hero-status">
             <div class="status-card status-card--sse">
@@ -45,16 +42,26 @@
                 <code id="selected-request-id">-</code>
             </div>
         </div>
-        <!-- JS-required hidden elements for auth state -->
-        <div class="hidden">
-            <code id="auth-transport">-</code>
-            <code id="auth-token-source">-</code>
-            <code id="auth-token-state">-</code>
-            <code id="auth-subject">-</code>
+        <div class="hero-auth-detail">
+            <div class="auth-chip">
+                <span class="auth-chip__label" th:text="#{zt.demo.auth.carrier}">Auth Carrier</span>
+                <code id="auth-transport">-</code>
+            </div>
+            <div class="auth-chip">
+                <span class="auth-chip__label" th:text="#{zt.demo.auth.mode}">Auth Mode</span>
+                <code id="auth-token-source">-</code>
+            </div>
+            <div class="auth-chip">
+                <span class="auth-chip__label" th:text="#{zt.demo.label.token.state}">Token State</span>
+                <code id="auth-token-state">-</code>
+            </div>
+            <div class="auth-chip">
+                <span class="auth-chip__label" th:text="#{zt.demo.auth.subject}">Auth Subject</span>
+                <code id="auth-subject">-</code>
+            </div>
         </div>
     </header>
 
-    <!-- ===== 1. SCENARIO → 2. TARGET/EXECUTE → 3. VERDICT ===== -->
     <section class="control-grid">
         <article class="panel panel--scenario">
             <div class="panel-header panel-header--step">
@@ -66,7 +73,7 @@
                     <div class="scenario-card__icon scenario-card__icon--safe"></div>
                     <div class="scenario-card__body">
                         <span class="tag allow" th:text="#{zt.demo.scenario.normal}">Normal User</span>
-                        <strong th:text="#{zt.demo.scenario.normal.desc}">Normal access from corporate browser</strong>
+                        <strong th:text="#{zt.demo.scenario.normal.desc}">Normal access from a corporate browser</strong>
                         <span th:text="#{zt.demo.scenario.normal.env}">IP 192.168.1.100 / Chrome 120</span>
                     </div>
                 </button>
@@ -74,7 +81,7 @@
                     <div class="scenario-card__icon scenario-card__icon--threat"></div>
                     <div class="scenario-card__body">
                         <span class="tag block" th:text="#{zt.demo.scenario.takeover}">Account Takeover</span>
-                        <strong th:text="#{zt.demo.scenario.takeover.desc}">Access from different environment with stolen login</strong>
+                        <strong th:text="#{zt.demo.scenario.takeover.desc}">Access from a different environment with stolen login</strong>
                         <span th:text="#{zt.demo.scenario.takeover.env}">IP 203.0.113.50 / Android 10</span>
                     </div>
                 </button>
@@ -86,6 +93,29 @@
                 <span class="badge-label" th:text="#{zt.demo.label.role.prefix}">Role</span>
                 <span class="badge-value badge-value--role" th:text="${urlAuthorities}">ROLE_ADMIN</span>
             </div>
+            <dl class="scenario-summary">
+                <div>
+                    <dt th:text="#{zt.demo.label.scenario}">Scenario</dt>
+                    <dd id="selected-scenario-name">Normal User</dd>
+                </div>
+                <div>
+                    <dt th:text="#{zt.demo.label.expected.ip}">Expected IP</dt>
+                    <dd id="selected-scenario-ip">192.168.1.100</dd>
+                </div>
+                <div>
+                    <dt th:text="#{zt.demo.user.agent}">User-Agent</dt>
+                    <dd id="selected-scenario-ua">Chrome 120 / Windows 11</dd>
+                </div>
+                <div>
+                    <dt th:text="#{zt.demo.expected.action}">Expected Action</dt>
+                    <dd id="selected-expected-action">ALLOW or LOW_RISK</dd>
+                </div>
+                <div>
+                    <dt th:text="#{zt.demo.label.target.resource}">Target Resource</dt>
+                    <dd id="selected-endpoint-name">Standard Resource / Low-sensitivity business access path</dd>
+                </div>
+            </dl>
+            <p class="panel-note" th:text="#{zt.demo.note.comparison}">Run the same account in the same session and change only IP, browser, device, and auth state to compare post-authentication zero-trust verdicts.</p>
         </article>
 
         <article class="panel panel--action">
@@ -94,16 +124,11 @@
                 <h2 th:text="#{zt.demo.section.target.title}">Target / Execute</h2>
             </div>
             <div class="endpoint-row">
-                <button type="button" class="endpoint-pill active" data-endpoint="sensitive" th:text="#{zt.demo.endpoint.sensitive}">Sensitive Resource</button>
+                <button type="button" class="endpoint-pill active" data-endpoint="normal" th:text="#{zt.demo.endpoint.normal}">Standard Resource</button>
+                <button type="button" class="endpoint-pill" data-endpoint="sensitive" th:text="#{zt.demo.endpoint.sensitive}">Sensitive Resource</button>
                 <button type="button" class="endpoint-pill" data-endpoint="critical" th:text="#{zt.demo.endpoint.critical}">Critical Resource</button>
             </div>
             <div class="header-grid" id="request-header-preview"></div>
-            <!-- JS-required hidden elements for renderScenario() -->
-            <span id="selected-scenario-name" class="hidden"></span>
-            <span id="selected-scenario-ip" class="hidden"></span>
-            <span id="selected-scenario-ua" class="hidden"></span>
-            <span id="selected-expected-action" class="hidden"></span>
-            <span id="selected-endpoint-name" class="hidden"></span>
             <div class="action-grid">
                 <button id="btn-run-initial" class="primary-action" th:text="#{zt.demo.btn.initial}">Execute 1st Request</button>
                 <button id="btn-run-follow-up" class="secondary-action" th:text="#{zt.demo.btn.followup}">Execute Follow-up</button>
@@ -139,7 +164,6 @@
         </article>
     </section>
 
-    <!-- ===== TABBED DETAIL SECTION ===== -->
     <section class="detail-tabs">
         <input type="radio" id="dtab-response" name="detail-tab" checked>
         <label for="dtab-response" class="detail-tab-label" th:text="#{zt.demo.tab.response}">Immediate Response / Consistency</label>
@@ -223,10 +247,21 @@
             </div>
         </div>
     </section>
-
 </div>
 
 <script th:inline="javascript">
+window.SECURITY_TEST_CONFIG = {
+    api: {
+        sseUserUrl: /*[[@{/admin/api/sse/llm-analysis/user}]]*/ '/admin/api/sse/llm-analysis/user',
+        statusUrl: /*[[@{/admin/api/test-action/status}]]*/ '/admin/api/test-action/status',
+        evidenceBaseUrl: /*[[@{/admin/api/security-test/evidence}]]*/ '/admin/api/security-test/evidence',
+        endpointBases: {
+            normal: /*[[@{/admin/api/security-test/normal/}]]*/ '/admin/api/security-test/normal/',
+            sensitive: /*[[@{/admin/api/security-test/sensitive/}]]*/ '/admin/api/security-test/sensitive/',
+            critical: /*[[@{/admin/api/security-test/critical/}]]*/ '/admin/api/security-test/critical/'
+        }
+    }
+};
 window.ZT_MSG = {
     httpStatus: /*[[#{zt.demo.http.status}]]*/ 'HTTP Status',
     resultType: /*[[#{zt.demo.result.type}]]*/ 'Result Type',
@@ -249,43 +284,15 @@ window.ZT_MSG = {
     threatEvidence: /*[[#{zt.demo.threat.evidence}]]*/ 'Threat Evidence',
     expectedAction: /*[[#{zt.demo.expected.action}]]*/ 'Expected Action',
     userAgent: /*[[#{zt.demo.user.agent}]]*/ 'User-Agent',
-    recentSessionActions: /*[[#{zt.demo.recent.session.actions}]]*/ 'Recent Session Actions',
-    recentNarrativeFamilies: /*[[#{zt.demo.recent.narrative.families}]]*/ 'Recent Narrative Families',
-    recentProtectableAccesses: /*[[#{zt.demo.recent.protectable.accesses}]]*/ 'Recent Protectable Accesses',
-    workProfileObservations: /*[[#{zt.demo.work.profile.observations}]]*/ 'Work Profile Observations',
-    permissionChangeObservations: /*[[#{zt.demo.permission.change.observations}]]*/ 'Permission Change Observations',
-    hcadSessionMetadata: /*[[#{zt.demo.hcad.session.metadata}]]*/ 'HCAD Session Metadata',
-    hcadAnalysis: /*[[#{zt.demo.hcad.analysis}]]*/ 'HCAD Analysis',
     securityDecisionOutbox: /*[[#{zt.demo.security.decision.outbox}]]*/ 'Security Decision Outbox',
     promptContextAuditOutbox: /*[[#{zt.demo.prompt.context.audit.outbox}]]*/ 'Prompt Context Audit Outbox',
     saasPullSnapshots: /*[[#{zt.demo.saas.pull.snapshots}]]*/ 'SaaS Pull Snapshots',
-    present: /*[[#{zt.demo.present}]]*/ 'Present',
-    status: /*[[#{zt.demo.status}]]*/ 'Status',
-    attemptCount: /*[[#{zt.demo.attempt.count}]]*/ 'Attempt Count',
-    deliveredAt: /*[[#{zt.demo.delivered.at}]]*/ 'Delivered At',
-    correlationId: /*[[#{zt.demo.correlation.id}]]*/ 'Correlation ID',
-    baselineSeed: /*[[#{zt.demo.baseline.seed}]]*/ 'Baseline Seed',
-    threatIntelligence: /*[[#{zt.demo.threat.intelligence}]]*/ 'Threat Intelligence',
-    knowledgePack: /*[[#{zt.demo.knowledge.pack}]]*/ 'Knowledge Pack',
-    runtimePolicy: /*[[#{zt.demo.runtime.policy}]]*/ 'Runtime Policy',
-    consistencyRequestId: /*[[#{zt.demo.consistency.request.id}]]*/ '',
-    consistencySessionId: /*[[#{zt.demo.consistency.session.id}]]*/ '',
-    consistencyClientIp: /*[[#{zt.demo.consistency.client.ip}]]*/ '',
-    consistencyAuthCarrier: /*[[#{zt.demo.consistency.auth.carrier}]]*/ '',
-    consistencyAuthMode: /*[[#{zt.demo.consistency.auth.mode}]]*/ '',
-    consistencyTokenSource: /*[[#{zt.demo.consistency.token.source}]]*/ '',
-    consistencyAuthSubject: /*[[#{zt.demo.consistency.auth.subject}]]*/ '',
-    consistencyAuthAttached: /*[[#{zt.demo.consistency.auth.attached}]]*/ '',
-    consistencyUser: /*[[#{zt.demo.consistency.user}]]*/ '',
-    consistencyTruthUser: /*[[#{zt.demo.consistency.truth.user}]]*/ '',
-    consistencyTruthRequest: /*[[#{zt.demo.consistency.truth.request}]]*/ '',
-    consistencySseLinked: /*[[#{zt.demo.consistency.sse.linked}]]*/ '',
-    consistencyAnalysisLinked: /*[[#{zt.demo.consistency.analysis.linked}]]*/ '',
-    consistencyDecisionOutbox: /*[[#{zt.demo.consistency.decision.outbox}]]*/ '',
-    consistencyPromptAudit: /*[[#{zt.demo.consistency.prompt.audit}]]*/ '',
-    consistencyContextBinding: /*[[#{zt.demo.consistency.context.binding}]]*/ '',
-    consistencyServerTruth: /*[[#{zt.demo.consistency.server.truth}]]*/ '',
-    consistencySaasEvidence: /*[[#{zt.demo.consistency.saas.evidence}]]*/ '',
+    endpointNormal: /*[[#{zt.demo.endpoint.normal}]]*/ 'Standard Resource',
+    endpointNormalDesc: /*[[#{zt.demo.endpoint.normal.desc}]]*/ 'Low-sensitivity business access path',
+    endpointSensitive: /*[[#{zt.demo.endpoint.sensitive}]]*/ 'Sensitive Resource',
+    endpointSensitiveDesc: /*[[#{zt.demo.endpoint.sensitive.desc}]]*/ 'Sensitive information access path',
+    endpointCritical: /*[[#{zt.demo.endpoint.critical}]]*/ 'Critical Resource',
+    endpointCriticalDesc: /*[[#{zt.demo.endpoint.critical.desc}]]*/ 'Critical information access path',
     evidenceJson: /*[[#{zt.demo.evidence.json}]]*/ 'Evidence JSON',
     exportJson: /*[[#{zt.demo.export.json}]]*/ 'Export JSON',
     ndjsonStream: /*[[#{zt.demo.ndjson.stream}]]*/ 'NDJSON Stream',
@@ -294,10 +301,29 @@ window.ZT_MSG = {
     mismatch: /*[[#{zt.demo.mismatch}]]*/ 'Mismatch',
     noEvidence: /*[[#{zt.demo.no.evidence}]]*/ 'No evidence selected',
     waiting: /*[[#{zt.demo.waiting}]]*/ 'Waiting',
-    endpointSensitive: /*[[#{zt.demo.endpoint.sensitive}]]*/ 'Sensitive Resource',
-    endpointSensitiveDesc: /*[[#{zt.demo.endpoint.sensitive.desc}]]*/ 'Sensitive information access path',
-    endpointCritical: /*[[#{zt.demo.endpoint.critical}]]*/ 'Critical Resource',
-    endpointCriticalDesc: /*[[#{zt.demo.endpoint.critical.desc}]]*/ 'Critical information access path',
+    unset: /*[[#{zt.demo.unset}]]*/ 'Unset',
+    none: /*[[#{zt.demo.none}]]*/ 'None',
+    noSseEvents: /*[[#{zt.demo.no.sse.events}]]*/ '',
+    noRequests: /*[[#{zt.demo.no.requests}]]*/ '',
+    noAnalysis: /*[[#{zt.demo.no.analysis}]]*/ '',
+    snapshotNone: /*[[#{zt.demo.snapshot.none}]]*/ 'None',
+    ndjsonHint: /*[[#{zt.demo.ndjson.hint}]]*/ '',
+    sseAuthRequired: /*[[#{zt.demo.sse.auth.required}]]*/ '',
+    sseAuthOrAuthz: /*[[#{zt.demo.sse.auth.or.authz}]]*/ '',
+    sseAnonymous: /*[[#{zt.demo.sse.anonymous}]]*/ '',
+    sseConnecting: /*[[#{zt.demo.sse.connecting.msg}]]*/ '',
+    sseConnected: /*[[#{zt.demo.sse.connected.msg}]]*/ '',
+    sseReconnecting: /*[[#{zt.demo.sse.reconnecting.msg}]]*/ '',
+    alertRunFirst: /*[[#{zt.demo.alert.run.first}]]*/ '',
+    alertNoExport: /*[[#{zt.demo.alert.no.export}]]*/ '',
+    alertNoStream: /*[[#{zt.demo.alert.no.stream}]]*/ '',
+    emptyStream: /*[[#{zt.demo.empty.stream}]]*/ '',
+    scenarioNormalTitle: /*[[#{zt.demo.scenario.normal.title}]]*/ 'Normal User',
+    scenarioTakeoverTitle: /*[[#{zt.demo.scenario.takeover.title}]]*/ 'Account Takeover',
+    headerBrowser: /*[[#{zt.demo.header.browser}]]*/ 'Browser',
+    headerOs: /*[[#{zt.demo.header.os}]]*/ 'OS',
+    headerDevice: /*[[#{zt.demo.header.device}]]*/ 'Device ID',
+    headerSession: /*[[#{zt.demo.header.session}]]*/ 'Session Cookie',
     headerLabels: {
         'Accept': /*[[#{zt.demo.header.accept}]]*/ 'Accept',
         'X-Request-ID': /*[[#{zt.demo.header.request.id}]]*/ 'Request ID',
@@ -318,29 +344,24 @@ window.ZT_MSG = {
         'NORMAL_USER': /*[[#{zt.demo.value.normal.user}]]*/ 'Normal User',
         'ACCOUNT_TAKEOVER': /*[[#{zt.demo.value.account.takeover}]]*/ 'Account Takeover'
     },
-    headerBrowser: /*[[#{zt.demo.header.browser}]]*/ 'Browser',
-    headerOs: /*[[#{zt.demo.header.os}]]*/ 'OS',
-    headerDevice: /*[[#{zt.demo.header.device}]]*/ 'Device ID',
-    headerSession: /*[[#{zt.demo.header.session}]]*/ 'Session Cookie',
-    scenarioNormalTitle: /*[[#{zt.demo.scenario.normal.title}]]*/ 'Normal User',
-    scenarioTakeoverTitle: /*[[#{zt.demo.scenario.takeover.title}]]*/ 'Account Takeover',
-    sseAuthRequired: /*[[#{zt.demo.sse.auth.required}]]*/ '',
-    sseAuthOrAuthz: /*[[#{zt.demo.sse.auth.or.authz}]]*/ '',
-    sseAnonymous: /*[[#{zt.demo.sse.anonymous}]]*/ '',
-    sseConnecting: /*[[#{zt.demo.sse.connecting.msg}]]*/ '',
-    sseConnected: /*[[#{zt.demo.sse.connected.msg}]]*/ '',
-    sseReconnecting: /*[[#{zt.demo.sse.reconnecting.msg}]]*/ '',
-    alertRunFirst: /*[[#{zt.demo.alert.run.first}]]*/ '',
-    alertNoExport: /*[[#{zt.demo.alert.no.export}]]*/ '',
-    alertNoStream: /*[[#{zt.demo.alert.no.stream}]]*/ '',
-    emptyStream: /*[[#{zt.demo.empty.stream}]]*/ '',
-    unset: /*[[#{zt.demo.unset}]]*/ 'Unset',
-    none: /*[[#{zt.demo.none}]]*/ 'None',
-    noSseEvents: /*[[#{zt.demo.no.sse.events}]]*/ '',
-    noRequests: /*[[#{zt.demo.no.requests}]]*/ '',
-    noAnalysis: /*[[#{zt.demo.no.analysis}]]*/ '',
-    snapshotNone: /*[[#{zt.demo.snapshot.none}]]*/ 'None',
-    ndjsonHint: /*[[#{zt.demo.ndjson.hint}]]*/ ''
+    consistencyRequestId: /*[[#{zt.demo.consistency.request.id}]]*/ '',
+    consistencySessionId: /*[[#{zt.demo.consistency.session.id}]]*/ '',
+    consistencyClientIp: /*[[#{zt.demo.consistency.client.ip}]]*/ '',
+    consistencyAuthCarrier: /*[[#{zt.demo.consistency.auth.carrier}]]*/ '',
+    consistencyAuthMode: /*[[#{zt.demo.consistency.auth.mode}]]*/ '',
+    consistencyTokenSource: /*[[#{zt.demo.consistency.token.source}]]*/ '',
+    consistencyAuthSubject: /*[[#{zt.demo.consistency.auth.subject}]]*/ '',
+    consistencyAuthAttached: /*[[#{zt.demo.consistency.auth.attached}]]*/ '',
+    consistencyUser: /*[[#{zt.demo.consistency.user}]]*/ '',
+    consistencyTruthUser: /*[[#{zt.demo.consistency.truth.user}]]*/ '',
+    consistencyTruthRequest: /*[[#{zt.demo.consistency.truth.request}]]*/ '',
+    consistencySseLinked: /*[[#{zt.demo.consistency.sse.linked}]]*/ '',
+    consistencyAnalysisLinked: /*[[#{zt.demo.consistency.analysis.linked}]]*/ '',
+    consistencyDecisionOutbox: /*[[#{zt.demo.consistency.decision.outbox}]]*/ '',
+    consistencyPromptAudit: /*[[#{zt.demo.consistency.prompt.audit}]]*/ '',
+    consistencyContextBinding: /*[[#{zt.demo.consistency.context.binding}]]*/ '',
+    consistencyServerTruth: /*[[#{zt.demo.consistency.server.truth}]]*/ '',
+    consistencySaasEvidence: /*[[#{zt.demo.consistency.saas.evidence}]]*/ ''
 };
 </script>
 <script th:src="@{/js/security-test.js}"></script>
