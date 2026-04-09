@@ -586,6 +586,7 @@ function renderEvidence(evidence) {
             ['auditFields', sizeOf(prompt.audit)]
         ]),
         card('Security Decision Outbox', [
+            ['enabled', saas.securityDecisionOutbox && saas.securityDecisionOutbox.enabled],
             ['present', saas.securityDecisionOutbox && saas.securityDecisionOutbox.present],
             ['status', saas.securityDecisionOutbox && saas.securityDecisionOutbox.status],
             ['attemptCount', saas.securityDecisionOutbox && saas.securityDecisionOutbox.attemptCount],
@@ -593,6 +594,7 @@ function renderEvidence(evidence) {
             ['correlationId', saas.securityDecisionOutbox && saas.securityDecisionOutbox.correlationId]
         ]),
         card('Prompt Context Audit Outbox', [
+            ['enabled', saas.promptContextAuditOutbox && saas.promptContextAuditOutbox.enabled],
             ['present', saas.promptContextAuditOutbox && saas.promptContextAuditOutbox.present],
             ['status', saas.promptContextAuditOutbox && saas.promptContextAuditOutbox.status],
             ['attemptCount', saas.promptContextAuditOutbox && saas.promptContextAuditOutbox.attemptCount],
@@ -635,11 +637,11 @@ function renderConsistency(evidence, truth) {
         boolItem(MSG.consistencyTruthRequest || 'Server truth requestId matches evidence analysis requestId', !truth || !truth.requestId || truth.requestId === analysis.requestId),
         boolItem(MSG.consistencySseLinked || 'SSE events linked to current requestId', Boolean(consistency.sseLinked)),
         boolItem(MSG.consistencyAnalysisLinked || 'Analysis result linked to current requestId', Boolean(consistency.analysisRequestLinked)),
-        boolItem(MSG.consistencyDecisionOutbox || 'Decision outbox linked to current requestId', Boolean(consistency.decisionOutboxLinked)),
-        boolItem(MSG.consistencyPromptAudit || 'Prompt audit outbox linked to current requestId', Boolean(consistency.promptAuditLinked)),
+        stateItem(MSG.consistencyDecisionOutbox || 'Decision outbox linked to current requestId', consistency.decisionOutboxState || (consistency.decisionOutboxLinked ? 'MATCH' : 'PENDING')),
+        stateItem(MSG.consistencyPromptAudit || 'Prompt audit outbox linked to current requestId', consistency.promptAuditState || (consistency.promptAuditLinked ? 'MATCH' : 'PENDING')),
         boolItem(MSG.consistencyContextBinding || 'Context binding hash exists', Boolean(consistency.contextBindingPresent)),
         boolItem(MSG.consistencyServerTruth || 'Server truth ready', Boolean(consistency.serverTruthReady)),
-        boolItem(MSG.consistencySaasEvidence || 'SaaS evidence ready', Boolean(consistency.saasEvidenceReady))
+        stateItem(MSG.consistencySaasEvidence || 'SaaS evidence ready', consistency.saasEvidenceState || (consistency.saasEvidenceReady ? 'MATCH' : 'PENDING'))
     ].join(''));
 }
 function renderVerdict() {
@@ -980,6 +982,28 @@ function addTimelineEntry(type, summary, requestId) {
 
 function boolItem(label, passed) {
     return consistencyItem(label, passed ? (MSG.match || 'Match') : (MSG.mismatch || 'Mismatch'), passed ? 'pass' : 'fail');
+}
+
+function stateItem(label, state) {
+    const normalized = normalizeConsistencyState(state);
+    if (normalized === 'MATCH') {
+        return consistencyItem(label, MSG.match || 'Match', 'pass');
+    }
+    if (normalized === 'NOT_APPLICABLE') {
+        return consistencyItem(label, MSG.notApplicable || 'Not Applicable', 'pending');
+    }
+    if (normalized === 'MISMATCH') {
+        return consistencyItem(label, MSG.mismatch || 'Mismatch', 'fail');
+    }
+    return consistencyItem(label, MSG.waiting || 'Waiting', 'pending');
+}
+
+function normalizeConsistencyState(state) {
+    const value = str(state).trim().toUpperCase();
+    if (value === 'MATCH' || value === 'NOT_APPLICABLE' || value === 'MISMATCH' || value === 'PENDING') {
+        return value;
+    }
+    return 'PENDING';
 }
 
 function consistencyItem(label, text, kind) {

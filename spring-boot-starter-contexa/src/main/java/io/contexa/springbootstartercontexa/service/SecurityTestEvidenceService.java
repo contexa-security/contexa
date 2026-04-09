@@ -5,7 +5,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository.ZeroTrustAnalysisData;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.SaasDecisionOutboxService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgeRuntimePolicyService;
@@ -65,6 +67,8 @@ public class SecurityTestEvidenceService {
     private final ObjectProvider<SaasThreatIntelligenceService> saasThreatIntelligenceServiceProvider;
     private final ObjectProvider<SaasThreatKnowledgePackService> saasThreatKnowledgePackServiceProvider;
     private final ObjectProvider<SaasThreatKnowledgeRuntimePolicyService> saasThreatKnowledgeRuntimePolicyServiceProvider;
+    private final ObjectProvider<SaasDecisionOutboxService> saasDecisionOutboxServiceProvider;
+    private final ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingServiceProvider;
 
     private final ConcurrentMap<String, RequestTrace> tracesByRequestId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> latestRequestByUser = new ConcurrentHashMap<>();
@@ -186,11 +190,11 @@ public class SecurityTestEvidenceService {
                 Map<String, Object> consistency = castMap(snapshot.get("consistency"));
                 boolean analysisLinked = Boolean.TRUE.equals(consistency.get("analysisRequestLinked"));
                 boolean sseLinked = Boolean.TRUE.equals(consistency.get("sseLinked"));
-                boolean decisionOutboxLinked = Boolean.TRUE.equals(consistency.get("decisionOutboxLinked"));
-                boolean promptAuditLinked = Boolean.TRUE.equals(consistency.get("promptAuditLinked"));
                 boolean responseCaptured = Boolean.TRUE.equals(consistency.get("responseCaptured"));
+                boolean saasEvidenceReady = Boolean.TRUE.equals(consistency.get("saasEvidenceReady"));
+                boolean saasEvidenceApplicable = !Boolean.FALSE.equals(consistency.get("saasEvidenceApplicable"));
 
-                if (responseCaptured && analysisLinked && sseLinked && (decisionOutboxLinked || promptAuditLinked)) {
+                if (responseCaptured && analysisLinked && sseLinked && (!saasEvidenceApplicable || saasEvidenceReady)) {
                     break;
                 }
 
@@ -344,9 +348,18 @@ public class SecurityTestEvidenceService {
             SecurityDecisionForwardingOutboxRecord decisionOutbox,
             PromptContextAuditForwardingOutboxRecord promptAuditOutbox) {
 
+        boolean decisionOutboxEnabled = saasDecisionOutboxServiceProvider.getIfAvailable() != null;
+        boolean promptAuditEnabled = promptContextAuditForwardingServiceProvider.getIfAvailable() != null;
+
+        Map<String, Object> securityDecisionOutbox = new LinkedHashMap<>(toOutboxMap(decisionOutbox));
+        securityDecisionOutbox.put("enabled", decisionOutboxEnabled);
+
+        Map<String, Object> promptContextAuditOutbox = new LinkedHashMap<>(toOutboxMap(promptAuditOutbox));
+        promptContextAuditOutbox.put("enabled", promptAuditEnabled);
+
         Map<String, Object> saas = new LinkedHashMap<>();
-        saas.put("securityDecisionOutbox", toOutboxMap(decisionOutbox));
-        saas.put("promptContextAuditOutbox", toOutboxMap(promptAuditOutbox));
+        saas.put("securityDecisionOutbox", securityDecisionOutbox);
+        saas.put("promptContextAuditOutbox", promptContextAuditOutbox);
         saas.put("pullSnapshots", buildPullSnapshotSection());
         return saas;
     }
@@ -420,6 +433,9 @@ public class SecurityTestEvidenceService {
                 && requestId != null
                 && requestId.equals(promptAuditOutbox.getCorrelationId());
         boolean contextBindingPresent = analysisSnapshot != null && StringUtils.hasText(analysisSnapshot.contextBindingHash());
+        boolean decisionOutboxApplicable = saasDecisionOutboxServiceProvider.getIfAvailable() != null;
+        boolean promptAuditApplicable = promptContextAuditForwardingServiceProvider.getIfAvailable() != null;
+        boolean saasEvidenceApplicable = decisionOutboxApplicable || promptAuditApplicable;
 
         Map<String, Object> consistency = new LinkedHashMap<>();
         consistency.put("requestRegistered", requestRegistered);
@@ -427,12 +443,25 @@ public class SecurityTestEvidenceService {
         consistency.put("analysisRequestLinked", analysisRequestLinked);
         consistency.put("sseLinked", sseLinked);
         consistency.put("decisionOutboxLinked", decisionOutboxLinked);
+        consistency.put("decisionOutboxApplicable", decisionOutboxApplicable);
+        consistency.put("decisionOutboxState", resolveConsistencyLinkState(decisionOutboxApplicable, decisionOutboxLinked));
         consistency.put("promptAuditLinked", promptAuditLinked);
+        consistency.put("promptAuditApplicable", promptAuditApplicable);
+        consistency.put("promptAuditState", resolveConsistencyLinkState(promptAuditApplicable, promptAuditLinked));
         consistency.put("contextBindingPresent", contextBindingPresent);
         consistency.put("serverTruthReady",
                 requestRegistered && responseCaptured && sseLinked && analysisRequestLinked);
+        consistency.put("saasEvidenceApplicable", saasEvidenceApplicable);
         consistency.put("saasEvidenceReady", decisionOutboxLinked || promptAuditLinked);
+        consistency.put("saasEvidenceState", resolveConsistencyLinkState(saasEvidenceApplicable, decisionOutboxLinked || promptAuditLinked));
         return consistency;
+    }
+
+    private String resolveConsistencyLinkState(boolean applicable, boolean linked) {
+        if (!applicable) {
+            return "NOT_APPLICABLE";
+        }
+        return linked ? "MATCH" : "PENDING";
     }
 
     private Map<String, Object> toAnalysisMap(SecurityTestAnalysisSnapshotService.AnalysisSnapshot snapshot) {
