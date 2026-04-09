@@ -1,7 +1,9 @@
-package io.contexa.contexacore.autonomous.tiered.prompt;
+package io.contexa.contexacore.std.pipeline.processor;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 

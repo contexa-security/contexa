@@ -127,7 +127,7 @@ public class TieredStrategyProperties {
         private Rag rag = new Rag();
         private Cache cache = new Cache();
 
-        private long timeoutMs = 10000;
+        private long timeoutMs = 100000;
         private boolean enableSoar = false;
         private int ragTopK = 10;
         private String defaultBudgetProfile = "CORTEX_L2_STANDARD";

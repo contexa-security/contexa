@@ -244,6 +244,9 @@ function handleSse(type, event) {
         renderVerdict();
     }
     if (payload.type === 'DECISION_APPLIED' || payload.type === 'LAYER2_COMPLETE' || payload.type === 'ERROR') {
+        st.pendingRequest = false;
+        console.log('[CONTEXA] SSE decision received, pendingRequest set to false, type:', payload.type);
+        renderVerdict();
         refreshEvidence(false);
     }
 }
@@ -274,6 +277,18 @@ async function executeRequest(phase) {
 
     st.pendingRequest = true;
     setRunButtonsBusy(true);
+
+    // AI 분석 중 표시
+    console.log('[CONTEXA] executeRequest started, phase:', phase);
+    console.log('[CONTEXA] el.verdictBadge:', el.verdictBadge);
+    if (el.verdictBadge) {
+        el.verdictBadge.className = 'verdict-badge analyzing';
+        el.verdictBadge.innerHTML = '<span class="analyzing-spinner"></span> AI 분석 중...';
+        console.log('[CONTEXA] verdict-badge set to analyzing');
+    } else {
+        console.error('[CONTEXA] verdict-badge element not found');
+    }
+
     renderHeaderPreview({
         requestId: tentativeRequestId,
         phase: phase,
@@ -343,9 +358,11 @@ async function executeRequest(phase) {
         });
     } catch (error) {
         addTimelineEntry('ERROR', 'Request execution failed: ' + error.message, st.requestId || tentativeRequestId);
-    } finally {
         st.pendingRequest = false;
+        console.log('[CONTEXA] fetch failed, pendingRequest reset');
+    } finally {
         setRunButtonsBusy(false);
+        console.log('[CONTEXA] fetch completed, pendingRequest still:', st.pendingRequest);
     }
 }
 
@@ -649,6 +666,15 @@ function renderVerdict() {
     const analysis = (evidence && evidence.analysis) || st.truth || {};
     const events = st.requestId ? (st.events.get(st.requestId) || []) : [];
     const action = analysis.action || deriveAction(events) || 'PENDING_ANALYSIS';
+
+    // AI 분석 중이면 analyzing 상태 유지
+    if (st.pendingRequest && (action === 'PENDING_ANALYSIS' || !analysis.action)) {
+        if (!el.verdictBadge.classList.contains('analyzing')) {
+            el.verdictBadge.className = 'verdict-badge analyzing';
+            el.verdictBadge.innerHTML = '<span class="analyzing-spinner"></span> AI 분석 중...';
+        }
+        return;
+    }
 
     setText(el.metricRisk, num(analysis.riskScore));
     setText(el.metricConfidence, num(analysis.confidence));

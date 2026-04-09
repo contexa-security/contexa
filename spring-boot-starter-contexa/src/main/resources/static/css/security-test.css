@@ -454,6 +454,22 @@ body {
 .verdict-badge.challenge { background: rgba(99,102,241,0.15); color: var(--info); border: 2px solid rgba(99,102,241,0.4); box-shadow: 0 0 20px rgba(99,102,241,0.15); }
 .verdict-badge.escalate { background: rgba(139,92,246,0.15); color: var(--purple); border: 2px solid var(--purple-border); box-shadow: 0 0 20px rgba(139,92,246,0.15); }
 .verdict-badge.pending { background: var(--card-bg-inner); color: var(--dim); border: 2px solid var(--card-border); }
+.verdict-badge.analyzing {
+    background: rgba(34,211,238,0.1); color: var(--cyan); border: 2px solid rgba(34,211,238,0.4);
+    box-shadow: 0 0 20px rgba(34,211,238,0.15);
+    animation: verdict-in 0.35s ease-out, analyzing-glow 1.5s ease-in-out infinite;
+}
+@keyframes analyzing-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(34,211,238,0.15); }
+    50% { box-shadow: 0 0 40px rgba(34,211,238,0.3), 0 0 80px rgba(34,211,238,0.1); }
+}
+.analyzing-spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 3px solid rgba(34,211,238,0.3); border-top-color: var(--cyan);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Metrics - like dashboard stat boxes */
 .verdict-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }

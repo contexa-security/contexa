@@ -3,7 +3,7 @@ package io.contexa.autoconfigure.core.std;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.domain.PromptTemplate;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseProcessor;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponseProcessor;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.properties.ContexaRagProperties;
@@ -41,7 +41,6 @@ import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -52,7 +51,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.Optional;
