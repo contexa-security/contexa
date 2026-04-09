@@ -31,6 +31,7 @@ public class SoarContext extends DomainContext {
     private String sessionId;
     private SessionState sessionState;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private String originalQuery;
     private ThreatLevel threatLevel;
     private Double riskScore;
@@ -39,15 +40,18 @@ public class SoarContext extends DomainContext {
     private Map<String, Object> additionalInfo;
 
     private List<Message> conversationHistory;
-    private AssistantMessage.ToolCall requiredToolCall; 
-    private boolean humanApprovalNeeded; 
-    private String humanApprovalMessage; 
-    private String lastLlmResponse; 
+    private AssistantMessage.ToolCall requiredToolCall;
+    private boolean humanApprovalNeeded;
+    private String humanApprovalMessage;
+    private String lastLlmResponse;
 
     private SoarExecutionMode executionMode = SoarExecutionMode.AUTO;
 
     public SoarContext() {
         this.conversationHistory = new ArrayList<>();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+        this.lastActivity = this.createdAt;
     }
 
     public SoarContext(String incidentId, String threatType, String description, List<String> affectedAssets, String currentStatus, String detectedSource, String severity, String recommendedActions, String organizationId) {
@@ -60,7 +64,10 @@ public class SoarContext extends DomainContext {
         this.severity = severity;
         this.recommendedActions = recommendedActions;
         super.setOrganizationId(organizationId);
-        this.conversationHistory = new ArrayList<>(); 
+        this.conversationHistory = new ArrayList<>();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+        this.lastActivity = this.createdAt;
     }
 
     public SoarContext(String incidentId, String threatType, String description, List<String> affectedAssets, String currentStatus, String detectedSource, String severity, String recommendedActions, String organizationId, PipelineExecutionContext pipelineExecutionContext) {
@@ -79,6 +86,9 @@ public class SoarContext extends DomainContext {
         this.additionalInfo = additionalInfo;
         super.setOrganizationId(organizationId);
         this.conversationHistory = new ArrayList<>();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+        this.lastActivity = this.createdAt;
     }
 
     @Override
@@ -93,19 +103,19 @@ public class SoarContext extends DomainContext {
         LOW("Low", 4),
         INFO("Info", 2),
         UNKNOWN("Unknown", 0);
-        
+
         private final String description;
         private final int level;
-        
+
         ThreatLevel(String description, int level) {
             this.description = description;
             this.level = level;
         }
-        
+
         public String getDescription() {
             return description;
         }
-        
+
         public int getLevel() {
             return level;
         }
@@ -113,35 +123,35 @@ public class SoarContext extends DomainContext {
 
     private List<ApprovalRequest> approvalRequests = new ArrayList<>();
     private java.util.Set<String> approvedTools = new java.util.HashSet<>();
-    
+
     public void addApprovalRequest(ApprovalRequest request) {
         if (this.approvalRequests == null) {
             this.approvalRequests = new ArrayList<>();
         }
         this.approvalRequests.add(request);
     }
-    
+
     public List<ApprovalRequest> getApprovalRequests() {
         if (this.approvalRequests == null) {
             this.approvalRequests = new ArrayList<>();
         }
         return this.approvalRequests;
     }
-    
+
     public void approveTool(String toolName) {
         if (this.approvedTools == null) {
             this.approvedTools = new java.util.HashSet<>();
         }
         this.approvedTools.add(toolName);
     }
-    
+
     public java.util.Set<String> getApprovedTools() {
         if (this.approvedTools == null) {
             this.approvedTools = new java.util.HashSet<>();
         }
         return this.approvedTools;
     }
-    
+
     public void transitionTo(SessionState newState) {
         this.sessionState = newState;
     }
@@ -151,34 +161,33 @@ public class SoarContext extends DomainContext {
         String parentUserId = super.getUserId();
         return (parentUserId != null && !parentUserId.isEmpty()) ? parentUserId : "system-user";
     }
-    
+
     public void addConversationEntry(String role, String message) {
         if (this.conversationHistory == null) {
             this.conversationHistory = new ArrayList<>();
         }
-        Message entry =
-            new Message(role, message);
+        Message entry = new Message(role, message);
         this.conversationHistory.add(entry);
     }
 
     public String getIncidentStatus() {
         return this.currentStatus;
     }
-    
+
     public LocalDateTime getUpdatedAt() {
-        return this.createdAt; 
+        return this.updatedAt != null ? this.updatedAt : this.createdAt;
     }
-    
+
     public void setUpdatedAt(LocalDateTime updatedAt) {
-        
+        this.updatedAt = updatedAt;
     }
-    
+
     public void setLastActivity(LocalDateTime lastActivity) {
-        
+        this.lastActivity = lastActivity;
+        this.updatedAt = lastActivity;
     }
-    
+
     public String getCurrentApprovalId() {
-        
         if (approvalRequests != null && !approvalRequests.isEmpty()) {
             return approvalRequests.get(approvalRequests.size() - 1).getRequestId();
         }
@@ -186,11 +195,11 @@ public class SoarContext extends DomainContext {
     }
 
     private String queryIntent;
-    
+
     public String getQueryIntent() {
         return this.queryIntent;
     }
-    
+
     public void setQueryIntent(String queryIntent) {
         this.queryIntent = queryIntent;
     }
@@ -202,18 +211,18 @@ public class SoarContext extends DomainContext {
     public boolean isRequiresToolExecution() {
         return this.requiresToolExecution;
     }
-    
+
     public void setRequiresToolExecution(boolean requiresToolExecution) {
         this.requiresToolExecution = requiresToolExecution;
     }
-    
+
     public List<String> getExecutedTools() {
         if (this.executedTools == null) {
             this.executedTools = new ArrayList<>();
         }
         return this.executedTools;
     }
-    
+
     public void addExecutedTool(String toolName) {
         if (this.executedTools == null) {
             this.executedTools = new ArrayList<>();
@@ -222,14 +231,14 @@ public class SoarContext extends DomainContext {
     }
 
     private Map<String, Object> extractedEntities = new java.util.HashMap<>();
-    
+
     public Map<String, Object> getExtractedEntities() {
         if (this.extractedEntities == null) {
             this.extractedEntities = new java.util.HashMap<>();
         }
         return this.extractedEntities;
     }
-    
+
     public void addEntity(String key, Object value) {
         if (this.extractedEntities == null) {
             this.extractedEntities = new java.util.HashMap<>();
@@ -263,15 +272,42 @@ public class SoarContext extends DomainContext {
     public boolean isEmergencyMode() {
         return emergencyMode;
     }
-    
+
     public void setEmergencyMode(boolean emergencyMode) {
         this.emergencyMode = emergencyMode;
     }
 
     private LocalDateTime lastActivity;
-    
+
     public LocalDateTime getLastActivity() {
         return lastActivity != null ? lastActivity : createdAt;
     }
-}
 
+    public void putAdditionalInfo(String key, Object value) {
+        if (this.additionalInfo == null) {
+            this.additionalInfo = new java.util.LinkedHashMap<>();
+        }
+        this.additionalInfo.put(key, value);
+    }
+
+    public Object getAdditionalInfoValue(String key) {
+        if (this.additionalInfo == null) {
+            return null;
+        }
+        return this.additionalInfo.get(key);
+    }
+
+    public String getAdditionalInfoText(String key) {
+        Object value = getAdditionalInfoValue(key);
+        return value != null ? value.toString() : null;
+    }
+
+    public void touch() {
+        LocalDateTime now = LocalDateTime.now();
+        if (this.createdAt == null) {
+            this.createdAt = now;
+        }
+        this.updatedAt = now;
+        this.lastActivity = now;
+    }
+}
