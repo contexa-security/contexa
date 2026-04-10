@@ -22,7 +22,13 @@ public record PermitValidationRequest(
         String taskPurpose,
         String approvedScopes,
         String actionApprovalCategory,
-        String executionContinuityFingerprint) {
+        String executionContinuityFingerprint,
+        String subjectType,
+        String protocolType,
+        String protocolVersion,
+        String chainId,
+        Integer chainDepth,
+        String attestationState) {
 
     public PermitValidationRequest(
             String permitId,
@@ -63,9 +69,16 @@ public record PermitValidationRequest(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
+
     public PermitValidationRequest(
             String permitId,
             String toolName,
@@ -108,6 +121,67 @@ public record PermitValidationRequest(
                 delegationId,
                 taskPurpose,
                 approvedScopes,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    public PermitValidationRequest(
+            String permitId,
+            String toolName,
+            String requiredScope,
+            String executionClass,
+            String requestId,
+            String approvalId,
+            String incidentId,
+            String sessionId,
+            String argumentsHash,
+            String riskLevel,
+            String tenantId,
+            String userId,
+            String zeroTrustAction,
+            String contextBindingHashDigest,
+            String actorType,
+            String executionMode,
+            String executionId,
+            String delegationId,
+            String taskPurpose,
+            String approvedScopes,
+            String actionApprovalCategory,
+            String executionContinuityFingerprint) {
+        this(
+                permitId,
+                toolName,
+                requiredScope,
+                executionClass,
+                requestId,
+                approvalId,
+                incidentId,
+                sessionId,
+                argumentsHash,
+                riskLevel,
+                tenantId,
+                userId,
+                zeroTrustAction,
+                contextBindingHashDigest,
+                actorType,
+                executionMode,
+                executionId,
+                delegationId,
+                taskPurpose,
+                approvedScopes,
+                actionApprovalCategory,
+                executionContinuityFingerprint,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
         );

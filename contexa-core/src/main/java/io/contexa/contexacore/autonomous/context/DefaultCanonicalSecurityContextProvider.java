@@ -45,6 +45,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private final RoleScopeCollector roleScopeCollector;
     private final CanonicalSecurityContextHardener contextHardener;
     private final ObjectiveDriftEvaluator objectiveDriftEvaluator = new ObjectiveDriftEvaluator();
+    private final CanonicalExecutionContextResolver canonicalExecutionContextResolver = new CanonicalExecutionContextResolver();
     private final List<ProfileResolver<?>> profileResolvers = List.of(
             new SessionNarrativeProfileResolver(),
             new WorkProfileResolver(),
@@ -288,6 +289,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         context.setContextTrustProfiles(resolveContextTrustProfiles(metadata));
         contextHardener.harden(context);
         finalizeDelegation(context);
+        context.setExecutionSubject(canonicalExecutionContextResolver.resolveSubject(context));
+        context.setExecutionEnvelope(canonicalExecutionContextResolver.resolveEnvelope(context));
         context.setCoverage(coverageEvaluator.evaluate(context));
         return Optional.of(context);
     }

@@ -356,6 +356,8 @@ public class ZeroTrustEventPublisher {
             Map<String, Object> payload,
             Instant eventTimestamp) {
 
+        Map<String, Object> effectivePayload = CanonicalExecutionEventMetadataSupport.enrich(payload != null ? payload : Map.of());
+
         return ZeroTrustSpringEvent.builder(this)
                 .category(category)
                 .eventType(eventType)
@@ -365,7 +367,7 @@ public class ZeroTrustEventPublisher {
                 .userAgent(userAgent)
                 .resource(resource)
                 .eventTimestamp(eventTimestamp != null ? eventTimestamp : Instant.now())
-                .payload(payload != null ? payload : Map.of())
+                .payload(effectivePayload)
                 .build();
     }
 

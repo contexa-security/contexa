@@ -206,6 +206,25 @@ public class BridgeRuntimeSupport {
         String bridgeSubjectKey = userSyncResult != null ? text(userSyncResult.bridgeSubjectKey()) : null;
         Long internalUserId = userSyncResult != null ? userSyncResult.internalUserId() : null;
         String externalSubjectId = authenticationStamp.principalId();
+        String canonicalSubjectType = resolveCanonicalSubjectType(authenticationStamp, result.delegationStamp(), userSyncResult);
+        String canonicalExecutionMode = result.delegationStamp() != null && result.delegationStamp().delegated()
+                ? "DELEGATED_AGENT"
+                : "DIRECT_USER";
+        String canonicalLineageState = result.delegationStamp() != null && result.delegationStamp().delegated()
+                ? "DECLARED"
+                : "DIRECT";
+        String canonicalExecutionId = result.delegationStamp() != null
+                ? firstBridgeAttribute(result.delegationStamp(), "executionId", "execution_id", "requestId", "request_id")
+                : null;
+        String canonicalDelegationId = result.delegationStamp() != null
+                ? firstBridgeAttribute(result.delegationStamp(), "delegationId", "delegation_id")
+                : null;
+        String canonicalProtocolType = firstNonBlank(
+                result.delegationStamp() != null
+                        ? firstBridgeAttribute(result.delegationStamp(), "protocolType", "protocol_type", "sourceProtocol")
+                        : null,
+                "HUMAN_SESSION");
+        List<String> canonicalApprovedScopes = result.authorizationStamp() != null ? result.authorizationStamp().scopeTags() : List.of();
 
         BridgeAuthenticationDetails details = new BridgeAuthenticationDetails(
                 authenticationStamp.authenticationSource(),
@@ -239,6 +258,13 @@ public class BridgeRuntimeSupport {
                 result.delegationStamp() != null ? result.delegationStamp().approvalRequired() : null,
                 result.delegationStamp() != null ? result.delegationStamp().privilegedExportAllowed() : null,
                 result.delegationStamp() != null ? result.delegationStamp().containmentOnly() : null,
+                canonicalSubjectType,
+                canonicalExecutionMode,
+                canonicalLineageState,
+                canonicalExecutionId,
+                canonicalDelegationId,
+                canonicalProtocolType,
+                canonicalApprovedScopes,
                 internalUserId,
                 internalUsername,
                 bridgeSubjectKey,
@@ -266,6 +292,47 @@ public class BridgeRuntimeSupport {
         );
         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
         return authenticationToken;
+    }
+    @Nullable
+    private String resolveCanonicalSubjectType(AuthenticationStamp authenticationStamp, @Nullable DelegationStamp delegationStamp, @Nullable BridgeUserMirrorSyncResult userSyncResult) {
+        if (delegationStamp != null && delegationStamp.delegated()) {
+            return "AGENT_RUNTIME";
+        }
+        String principalType = text(authenticationStamp != null ? authenticationStamp.principalType() : null);
+        if (principalType != null) {
+            String normalized = principalType.toUpperCase();
+            if (normalized.contains("SERVICE") || normalized.contains("CLIENT") || normalized.contains("WORKLOAD")) {
+                return "SERVICE_CLIENT";
+            }
+        }
+        if (userSyncResult != null && Boolean.TRUE.equals(userSyncResult.externalAuthOnly())) {
+            return "HUMAN_USER";
+        }
+        return "HUMAN_USER";
+    }
+
+    @Nullable
+    private String firstBridgeAttribute(@Nullable DelegationStamp delegationStamp, String... keys) {
+        if (delegationStamp == null || delegationStamp.attributes() == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String value = text(delegationStamp.attributes().get(key));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
     @Nullable
     private String text(@Nullable Object value) {

@@ -36,6 +36,13 @@ public record BridgeAuthenticationDetails(
         Boolean approvalRequired,
         Boolean privilegedExportAllowed,
         Boolean containmentOnly,
+        String canonicalSubjectType,
+        String canonicalExecutionMode,
+        String canonicalLineageState,
+        String canonicalExecutionId,
+        String canonicalDelegationId,
+        String canonicalProtocolType,
+        List<String> canonicalApprovedScopes,
         Long internalUserId,
         String internalUsername,
         String bridgeSubjectKey,
@@ -52,6 +59,7 @@ public record BridgeAuthenticationDetails(
         effectiveAuthorities = immutableList(effectiveAuthorities);
         allowedOperations = immutableList(allowedOperations);
         allowedResources = immutableList(allowedResources);
+        canonicalApprovedScopes = immutableList(canonicalApprovedScopes);
     }
 
     public BridgeAuthenticationDetails(
@@ -122,6 +130,13 @@ public record BridgeAuthenticationDetails(
                 approvalRequired,
                 null,
                 containmentOnly,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
                 internalUserId,
                 internalUsername,
                 bridgeSubjectKey,

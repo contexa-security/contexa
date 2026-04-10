@@ -1,5 +1,9 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
+import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
+import io.contexa.contexacore.autonomous.execution.ExecutionEnvelope;
+import io.contexa.contexacore.autonomous.execution.ExecutionSubject;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,8 +14,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
-import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 
 @Data
 @Builder
@@ -28,6 +30,10 @@ public class CanonicalSecurityContext {
     private Authorization authorization;
 
     private Delegation delegation;
+
+    private ExecutionSubject executionSubject;
+
+    private ExecutionEnvelope executionEnvelope;
 
     private Bridge bridge;
 

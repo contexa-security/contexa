@@ -26,7 +26,13 @@ public record PermitValidationResponse(
         String taskPurpose,
         String approvedScopes,
         String actionApprovalCategory,
-        String executionContinuityFingerprint) {
+        String executionContinuityFingerprint,
+        String subjectType,
+        String protocolType,
+        String protocolVersion,
+        String chainId,
+        Integer chainDepth,
+        String attestationState) {
     public static PermitValidationResponse allowed(
             String permitId,
             String toolName,
@@ -70,6 +76,12 @@ public record PermitValidationResponse(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
@@ -99,6 +111,71 @@ public record PermitValidationResponse(
             String approvedScopes,
             String actionApprovalCategory,
             String executionContinuityFingerprint) {
+        return allowed(
+                permitId,
+                toolName,
+                requiredScope,
+                requestId,
+                approvalId,
+                incidentId,
+                sessionId,
+                executionClass,
+                argumentsHash,
+                tenantId,
+                userId,
+                zeroTrustAction,
+                riskScore,
+                confidence,
+                contextBindingHashDigest,
+                actorType,
+                executionMode,
+                riskLevel,
+                executionId,
+                delegationId,
+                taskPurpose,
+                approvedScopes,
+                actionApprovalCategory,
+                executionContinuityFingerprint,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    public static PermitValidationResponse allowed(
+            String permitId,
+            String toolName,
+            String requiredScope,
+            String requestId,
+            String approvalId,
+            String incidentId,
+            String sessionId,
+            String executionClass,
+            String argumentsHash,
+            String tenantId,
+            String userId,
+            String zeroTrustAction,
+            Double riskScore,
+            Double confidence,
+            String contextBindingHashDigest,
+            String actorType,
+            String executionMode,
+            String riskLevel,
+            String executionId,
+            String delegationId,
+            String taskPurpose,
+            String approvedScopes,
+            String actionApprovalCategory,
+            String executionContinuityFingerprint,
+            String subjectType,
+            String protocolType,
+            String protocolVersion,
+            String chainId,
+            Integer chainDepth,
+            String attestationState) {
         return new PermitValidationResponse(
                 true,
                 permitId,
@@ -125,9 +202,16 @@ public record PermitValidationResponse(
                 taskPurpose,
                 approvedScopes,
                 actionApprovalCategory,
-                executionContinuityFingerprint
+                executionContinuityFingerprint,
+                subjectType,
+                protocolType,
+                protocolVersion,
+                chainId,
+                chainDepth,
+                attestationState
         );
     }
+
     public static PermitValidationResponse allowed(
             String permitId,
             String toolName,
@@ -175,6 +259,12 @@ public record PermitValidationResponse(
                 taskPurpose,
                 approvedScopes,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
@@ -184,6 +274,12 @@ public record PermitValidationResponse(
                 false,
                 null,
                 reason,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
