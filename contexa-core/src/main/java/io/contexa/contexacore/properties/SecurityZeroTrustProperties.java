@@ -37,6 +37,9 @@ public class SecurityZeroTrustProperties {
     private ThresholdsSettings thresholds = new ThresholdsSettings();
 
     @NestedConfigurationProperty
+    private ProtectableSettings protectable = new ProtectableSettings();
+
+    @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
     @NestedConfigurationProperty
@@ -81,6 +84,11 @@ public class SecurityZeroTrustProperties {
         private double optional = 0.5;
         private double required = 0.7;
         private double strict = 0.9;
+    }
+
+    @Data
+    public static class ProtectableSettings {
+        private long rapidReentryWindowMs = 5000;
     }
 
     @Data
