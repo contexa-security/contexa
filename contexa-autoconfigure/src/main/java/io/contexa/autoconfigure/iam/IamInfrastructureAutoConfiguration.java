@@ -23,7 +23,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
-import org.springframework.beans.factory.annotation.Value;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -73,10 +73,10 @@ public class IamInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public ProtectableRapidReentryGuard protectableRapidReentryGuard(
             ProtectableRapidReentryRepository protectableRapidReentryRepository,
-            @Value("${contexa.iam.protectable.rapid-reentry.window-ms:5000}") long rapidReentryWindowMs) {
+            SecurityZeroTrustProperties zeroTrustProperties) {
         return new ProtectableRapidReentryGuard(
                 protectableRapidReentryRepository,
-                Duration.ofMillis(Math.max(0L, rapidReentryWindowMs)));
+                Duration.ofMillis(Math.max(0L, zeroTrustProperties.getProtectable().getRapidReentryWindowMs())));
     }
 
     @Bean

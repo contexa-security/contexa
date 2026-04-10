@@ -40,3 +40,4 @@ public class LlmProviderProperties {
         private boolean enabled = true;
     }
 }
+
