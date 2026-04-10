@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.inference.DefaultPromptConfidenceGuardrail;
+
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.Test;
 
@@ -62,7 +64,7 @@ class DefaultPromptConfidenceGuardrailTest {
         assertThat(adjustment.applied()).isTrue();
         assertThat(adjustment.autonomyConstrained()).isFalse();
         assertThat(adjustment.enforcementAction()).isNull();
-        assertThat(adjustment.effectiveConfidence()).isEqualTo(DefaultPromptConfidenceGuardrail.MODERATE_CONFIDENCE_CAP);
+        assertThat(adjustment.effectiveConfidence()).isEqualTo(0.74d);
         assertThat(adjustment.summary()).contains("environment-only");
     }
 
@@ -98,7 +100,7 @@ class DefaultPromptConfidenceGuardrailTest {
         assertThat(adjustment.applied()).isTrue();
         assertThat(adjustment.autonomyConstrained()).isTrue();
         assertThat(adjustment.enforcementAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
-        assertThat(adjustment.effectiveConfidence()).isEqualTo(DefaultPromptConfidenceGuardrail.LOW_CONFIDENCE_CAP);
+        assertThat(adjustment.effectiveConfidence()).isEqualTo(0.54d);
         assertThat(adjustment.summary()).contains("Approval is required");
     }
 
@@ -122,7 +124,7 @@ class DefaultPromptConfidenceGuardrailTest {
         assertThat(adjustment.applied()).isTrue();
         assertThat(adjustment.autonomyConstrained()).isFalse();
         assertThat(adjustment.enforcementAction()).isNull();
-        assertThat(adjustment.effectiveConfidence()).isEqualTo(DefaultPromptConfidenceGuardrail.LOW_CONFIDENCE_CAP);
+        assertThat(adjustment.effectiveConfidence()).isEqualTo(0.54d);
         assertThat(adjustment.summary()).contains("Session narrative, personal work profile, and role scope are missing");
     }
 
@@ -180,7 +182,7 @@ class DefaultPromptConfidenceGuardrailTest {
         assertThat(adjustment.applied()).isTrue();
         assertThat(adjustment.autonomyConstrained()).isFalse();
         assertThat(adjustment.enforcementAction()).isNull();
-        assertThat(adjustment.effectiveConfidence()).isEqualTo(DefaultPromptConfidenceGuardrail.MODERATE_CONFIDENCE_CAP);
+        assertThat(adjustment.effectiveConfidence()).isEqualTo(0.74d);
         assertThat(adjustment.summary()).contains("objective alignment evidence is still incomplete");
     }
 
@@ -218,7 +220,7 @@ class DefaultPromptConfidenceGuardrailTest {
         assertThat(adjustment.applied()).isTrue();
         assertThat(adjustment.autonomyConstrained()).isTrue();
         assertThat(adjustment.enforcementAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
-        assertThat(adjustment.effectiveConfidence()).isEqualTo(DefaultPromptConfidenceGuardrail.LOW_CONFIDENCE_CAP);
+        assertThat(adjustment.effectiveConfidence()).isEqualTo(0.54d);
         assertThat(adjustment.summary()).contains("Critical decision context is incomplete");
     }
 }

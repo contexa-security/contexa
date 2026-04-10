@@ -16,7 +16,15 @@ public final class PromptRuntimeTelemetrySupport {
             "seed",
             "maxTokens",
             "disableRetries",
-            "disableOllamaThinking"
+            "disableOllamaThinking",
+            "officialVerificationDecisionBoundaryMode",
+            "officialVerificationPinnedModelId",
+            "officialVerificationTemperature",
+            "officialVerificationTopP",
+            "officialVerificationSeed",
+            "officialVerificationMaxTokens",
+            "officialVerificationDisableRetries",
+            "officialVerificationDisableOllamaThinking"
     );
 
     private static final List<String> RUNTIME_TELEMETRY_KEYS = List.of(
@@ -81,6 +89,14 @@ public final class PromptRuntimeTelemetrySupport {
             "disableRetries",
             "disableOllamaThinking",
             "decisionBoundaryMode",
+            "officialVerificationDecisionBoundaryMode",
+            "officialVerificationPinnedModelId",
+            "officialVerificationTemperature",
+            "officialVerificationTopP",
+            "officialVerificationSeed",
+            "officialVerificationMaxTokens",
+            "officialVerificationDisableRetries",
+            "officialVerificationDisableOllamaThinking",
             "systemPromptLength",
             "userPromptLength",
             "totalPromptLength",

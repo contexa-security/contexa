@@ -43,13 +43,18 @@ public class ThreatSignalNormalizationService {
         if (containsText(normalizedPath, "session", "cookie", "refresh")) {
             return "session";
         }
-        if (containsText(normalizedPath, "admin", "role", "permission", "privilege", "policy")) {
-            return "administration";
-        }
         if (containsText(normalizedPath, "client", "credential", "secret", "apikey", "api_key", "service")) {
             return "credential_management";
         }
-        if (containsText(normalizedPath, "audit", "export", "report", "compliance", "invoice", "billing")) {
+        boolean privilegedAdministration = containsText(normalizedPath, "role", "permission", "privilege", "policy");
+        boolean sensitiveDataFlow = containsText(normalizedPath, "audit", "export", "report", "compliance", "invoice", "billing");
+        if (sensitiveDataFlow && !privilegedAdministration) {
+            return "sensitive_data";
+        }
+        if (containsText(normalizedPath, "admin", "role", "permission", "privilege", "policy")) {
+            return "administration";
+        }
+        if (sensitiveDataFlow) {
             return "sensitive_data";
         }
         return "application";

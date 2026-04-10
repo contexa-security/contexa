@@ -220,7 +220,7 @@ public class DefaultDecisionBiasAggregator implements DecisionBiasAggregator {
 
     private boolean containsAny(String value, String... candidates) {
         for (String candidate : candidates) {
-            if (value.contains(candidate)) {
+            if (value.contains(candidate.toUpperCase(Locale.ROOT))) {
                 return true;
             }
         }

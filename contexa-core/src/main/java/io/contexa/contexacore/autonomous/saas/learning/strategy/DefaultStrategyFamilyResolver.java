@@ -73,7 +73,7 @@ public class DefaultStrategyFamilyResolver implements StrategyFamilyResolver {
         boolean sensitiveScope = truthy(signal(observation, "isSensitiveResource")) || isSensitiveOrAdministrativeSurface(observation);
         return hasContainmentOrConfirmedAttack(observation)
                 && sensitiveScope
-                && (privilegedSignal || containsText(signalText(observation, "requestPath"), "/admin/", "/export", "/report", "/billing"));
+                && (privilegedSignal || containsText(signalText(observation, "requestPath"), "/roles", "/role", "/permission", "/policy", "/export", "/report", "/billing"));
     }
 
     private boolean isPathSequenceDivergence(StrategyLearningObservation observation) {

@@ -42,7 +42,7 @@ public final class CanonicalExecutionEventMetadataSupport {
         subject.put("agentId", text(metadata.get("agentId")));
         subject.put("tenantId", firstNonBlank(text(metadata.get("tenantId")), text(metadata.get("organizationId"))));
         subject.put("clientId", text(metadata.get("clientId")));
-        metadata.putIfAbsent("canonicalExecutionSubject", Map.copyOf(subject));
+        metadata.putIfAbsent("canonicalExecutionSubject", immutableCopyWithoutNulls(subject));
 
         Map<String, Object> execution = new LinkedHashMap<>();
         execution.put("executionId", firstNonBlank(text(metadata.get("executionId")), text(metadata.get("requestId"))));
@@ -60,8 +60,20 @@ public final class CanonicalExecutionEventMetadataSupport {
         execution.put("permitId", text(metadata.get("permitId")));
         execution.put("approvalId", text(metadata.get("approvalId")));
         execution.put("protocolType", protocolType);
-        metadata.putIfAbsent("canonicalExecution", Map.copyOf(execution));
+        metadata.putIfAbsent("canonicalExecution", immutableCopyWithoutNulls(execution));
         return metadata;
+    }
+
+    private static Map<String, Object> immutableCopyWithoutNulls(Map<String, Object> source) {
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        if (source != null) {
+            source.forEach((key, value) -> {
+                if (key != null && value != null) {
+                    sanitized.put(key, value);
+                }
+            });
+        }
+        return Map.copyOf(sanitized);
     }
 
     private static String inferSubjectType(Map<String, Object> metadata) {

@@ -43,7 +43,7 @@ public class SaasCalibrationProfilePackService extends AbstractSaasRuntimeArtifa
         List<CalibrationProfileRuntimePack.RuntimeCalibrationItem> profiles = snapshot.profiles().stream()
                 .filter(item -> isRuntimeEligible(snapshot.tenantId(), item))
                 .sorted(Comparator.comparingLong(CalibrationProfilePackSnapshot.ProfileItem::sampleSize).reversed()
-                        .thenComparingLong(CalibrationProfilePackSnapshot.ProfileItem::operatorReviewedOutcomeCount).reversed())
+                        .thenComparing(Comparator.comparingLong(CalibrationProfilePackSnapshot.ProfileItem::operatorReviewedOutcomeCount).reversed()))
                 .map(this::toRuntimeItem)
                 .toList();
         if (profiles.isEmpty()) {

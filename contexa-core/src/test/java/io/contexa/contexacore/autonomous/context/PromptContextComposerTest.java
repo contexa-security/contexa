@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

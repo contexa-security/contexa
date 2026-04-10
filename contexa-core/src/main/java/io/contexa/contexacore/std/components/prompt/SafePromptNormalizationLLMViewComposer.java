@@ -1101,6 +1101,7 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             List<PromptCompressionRecord> records) {
         String current = currentPrompt;
         List<SectionOmissionPlan> omissionPlans = List.of(
+                new SectionOmissionPlan(SIMILAR_PAST_EVENTS_HEADER, "SIMILAR_PAST_EVENTS_BUDGET_OMISSION"),
                 new SectionOmissionPlan(EXPLICIT_MISSING_KNOWLEDGE_HEADER, "EXPLICIT_MISSING_KNOWLEDGE_BUDGET_OMISSION"),
                 new SectionOmissionPlan(PEER_COHORT_HEADER, "PEER_COHORT_DELTA_BUDGET"),
                 new SectionOmissionPlan(REASONING_MEMORY_HEADER, "OUTCOME_AND_REASONING_MEMORY_BUDGET_OMISSION"),

@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.inference.ObjectiveDriftEvaluator;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

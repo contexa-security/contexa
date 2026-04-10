@@ -955,6 +955,18 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         copyRuntimeSelectionOption(metadata, request, "disableRetries");
         copyRuntimeSelectionOption(metadata, request, "disableOllamaThinking");
         copyRuntimeSelectionOption(metadata, request, "decisionBoundaryMode");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationDecisionBoundaryMode");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationPinnedModelId");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationTemperature");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationTopP");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationSeed");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationMaxTokens");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationDisableRetries");
+        copyRuntimeSelectionOption(metadata, request, "officialVerificationDisableOllamaThinking");
+        if (request.getParameter("officialVerificationDecisionBoundaryMode", Object.class) == null
+                && hasOfficialVerificationRuntimeOption(metadata)) {
+            request.withParameter("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+        }
     }
 
     private void copyRuntimeSelectionOption(
@@ -968,6 +980,20 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (value != null) {
             request.withParameter(key, value);
         }
+    }
+
+    private boolean hasOfficialVerificationRuntimeOption(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return false;
+        }
+        return metadata.containsKey("officialVerificationDecisionBoundaryMode")
+                || metadata.containsKey("officialVerificationPinnedModelId")
+                || metadata.containsKey("officialVerificationTemperature")
+                || metadata.containsKey("officialVerificationTopP")
+                || metadata.containsKey("officialVerificationSeed")
+                || metadata.containsKey("officialVerificationMaxTokens")
+                || metadata.containsKey("officialVerificationDisableRetries")
+                || metadata.containsKey("officialVerificationDisableOllamaThinking");
     }
 
     protected PromptBudgetProfile resolvePromptBudgetProfile(SecurityEvent event) {

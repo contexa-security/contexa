@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

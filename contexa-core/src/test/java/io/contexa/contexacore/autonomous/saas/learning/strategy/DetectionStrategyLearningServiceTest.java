@@ -40,7 +40,7 @@ class DetectionStrategyLearningServiceTest {
         assertThat(family.falsePositiveCount()).isEqualTo(1);
         assertThat(family.confirmedAttackCount()).isEqualTo(1);
         assertThat(family.metrics().outcomeCoverageRate()).isEqualTo(1.0d);
-        assertThat(family.metrics().localLiftRate()).isCloseTo(1.0d / 6.0d, within(0.0001d));
+        assertThat(family.metrics().localLiftRate()).isCloseTo(-1.0d / 6.0d, within(0.0001d));
     }
 
     @Test

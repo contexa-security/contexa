@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrativeCollector;
+
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;

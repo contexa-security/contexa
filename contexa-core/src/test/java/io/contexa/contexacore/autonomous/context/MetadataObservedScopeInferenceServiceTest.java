@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
+
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import org.junit.jupiter.api.Test;
 
