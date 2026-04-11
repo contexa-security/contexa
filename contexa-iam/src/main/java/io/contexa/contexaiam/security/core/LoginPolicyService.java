@@ -64,7 +64,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public boolean isCredentialsExpired(String username) {
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
         if (policy.getPasswordExpiryDays() <= 0) {
