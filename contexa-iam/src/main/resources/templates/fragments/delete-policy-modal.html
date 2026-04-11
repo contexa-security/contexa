@@ -41,7 +41,7 @@
             <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm font-medium"
                     style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
                     th:text="#{common.action.cancel}">Cancel</button>
-            <form id="deleteForm" method="post" style="display:inline;">
+            <form id="deleteForm" method="post" th:action="@{/admin/policies/delete}" style="display:inline;">
                 <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium text-white"
                         style="background:linear-gradient(135deg,#ef4444,#dc2626);"
                         th:text="#{common.action.delete}">Delete</button>

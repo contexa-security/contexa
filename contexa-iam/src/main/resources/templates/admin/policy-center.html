@@ -50,12 +50,16 @@
             <!-- ==================== TAB 1: RESOURCES ==================== -->
             <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources' or activeTab == 'create'} ? ' active' : ''">
 
+                <!-- Refresh Resources (separate POST form) -->
+                <form id="refreshForm" th:action="@{/admin/policy-center/refresh-resources}" method="post" style="display:none;">
+                    <input type="hidden" name="tab" value="create" />
+                </form>
                 <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="create" />
                     <!-- Action buttons -->
                     <div class="flex gap-2 justify-end mb-4">
-                        <button type="submit" class="modern-btn-refresh" formaction="/admin/policy-center/refresh-resources" formmethod="post"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
+                        <button type="submit" class="modern-btn-refresh" form="refreshForm"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.resetPolicyStatus()" style="border-color: rgba(239,68,68,0.6);color:#fca5a5;font-weight:600;"><i class="fas fa-undo-alt"></i> <span th:text="#{policy.center.multi.reset.policy}">Reset Policy</span></button>
                     </div>
@@ -933,8 +937,7 @@
                     <div id="ai-validation-blocked" class="hidden p-4 rounded-xl mb-4" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;"></div>
                     <div class="flex justify-end gap-3">
                         <button type="button" onclick="PolicyCenter.AIValidationModal.close()" class="modern-btn-secondary" th:text="#{common.close}">Close</button>
-                        <form id="ai-validation-approve-form" method="post" style="display:inline;">
-                            <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                        <form id="ai-validation-approve-form" method="post" th:action="@{/admin/policies/approve}" style="display:inline;">
                             <button type="submit" id="ai-validation-approve-btn" class="modern-btn-primary" th:text="#{admin.policy.center.list.approve}">Approve</button>
                         </form>
                     </div>

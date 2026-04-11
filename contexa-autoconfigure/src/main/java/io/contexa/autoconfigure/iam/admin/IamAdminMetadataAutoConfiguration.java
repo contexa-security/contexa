@@ -2,7 +2,6 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.controller.ResourceAdminController;
-import io.contexa.contexaiam.admin.web.metadata.controller.WorkbenchMetadataController;
 import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataService;
 import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataServiceImpl;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
@@ -37,17 +36,6 @@ public class IamAdminMetadataAutoConfiguration {
         return new ResourceAdminController(resourceRegistryService, managedResourceRepository, messageSource);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public WorkbenchMetadataController workbenchMetadataController(
-            BusinessMetadataService businessMetadataService,
-            ModelMapper modelMapper,
-            PermissionCatalogService permissionCatalogService) {
-        return new WorkbenchMetadataController(
-                businessMetadataService, modelMapper, permissionCatalogService);
-    }
-
-    
     @Bean
     @ConditionalOnMissingBean
     public FunctionCatalogService functionCatalogService(

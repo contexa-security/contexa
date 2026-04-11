@@ -533,6 +533,10 @@ public class ResponseParsingStep implements PipelineStep {
                     objectMapper.readTree(fixed);
                     return fixed;
                 } catch (Exception retryError) {
+                    String recovered = recoverTruncatedJson(cleaned);
+                    if (recovered != null) {
+                        return recovered;
+                    }
                     log.error("[{}] Invalid JSON structure: {}", getStepName(), e.getMessage());
                 }
             }
@@ -556,6 +560,10 @@ public class ResponseParsingStep implements PipelineStep {
                         objectMapper.readTree(fixed);
                         return fixed;
                     } catch (Exception ignored) {
+                        String recovered = recoverTruncatedJson(candidate);
+                        if (recovered != null) {
+                            return recovered;
+                        }
                         log.error("[{}] Failed to extract JSON from mixed content", getStepName());
                     }
                 }
@@ -563,6 +571,66 @@ public class ResponseParsingStep implements PipelineStep {
         }
 
         return response;
+    }
+
+    private String recoverTruncatedJson(String truncated) {
+        if (truncated == null || truncated.length() < 2) {
+            return null;
+        }
+
+        char openChar = truncated.charAt(0);
+        char closeChar = (openChar == '{') ? '}' : ']';
+
+        int depth = 0;
+        int lastCompleteEntry = -1;
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = 0; i < truncated.length(); i++) {
+            char ch = truncated.charAt(i);
+
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (ch == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (ch == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) {
+                continue;
+            }
+
+            if (ch == '{' || ch == '[') {
+                depth++;
+            } else if (ch == '}' || ch == ']') {
+                depth--;
+                if (depth == 1) {
+                    lastCompleteEntry = i;
+                }
+            }
+        }
+
+        if (lastCompleteEntry > 0) {
+            String partial = truncated.substring(0, lastCompleteEntry + 1);
+            partial = partial.replaceAll(",\\s*$", "");
+            partial = partial + closeChar;
+
+            try {
+                objectMapper.readTree(partial);
+                log.error("[{}] Recovered truncated JSON: kept {} of {} chars",
+                        getStepName(), partial.length(), truncated.length());
+                return partial;
+            } catch (Exception ignored) {
+                // recovery failed
+            }
+        }
+
+        return null;
     }
 
     private Object determineTargetType(AIRequest<?> request, PipelineExecutionContext context) {

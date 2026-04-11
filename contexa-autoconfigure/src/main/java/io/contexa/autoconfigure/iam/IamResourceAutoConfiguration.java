@@ -2,15 +2,13 @@ package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
+import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
-import io.contexa.contexaiam.resource.ResourceEnhancementService;
 import io.contexa.contexaiam.resource.WorkbenchInitializer;
 import io.contexa.contexaiam.resource.scanner.MethodResourceScanner;
-import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.resource.scanner.MvcResourceScanner;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import io.contexa.contexaiam.resource.service.AutoConditionTemplateService;
@@ -70,12 +68,6 @@ public class IamResourceAutoConfiguration {
             ApplicationContext applicationContext,
             ObjectMapper objectMapper) {
         return new MethodResourceScanner(applicationContext, objectMapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ResourceEnhancementService resourceEnhancementService(ResourceRegistryService resourceRegistryService) {
-        return new ResourceEnhancementService(resourceRegistryService);
     }
 
     @Bean

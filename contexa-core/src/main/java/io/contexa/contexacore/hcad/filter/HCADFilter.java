@@ -55,7 +55,7 @@ public class HCADFilter extends OncePerRequestFilter {
 
             String action = result.getAction();
             if (ZeroTrustAction.fromString(action).isBlocking()) {
-                log.error("[HCADFilter] Security action: {} - userId: {}, riskScore: {}, threatType: {}",
+                log.info("[HCADFilter] Security action: {} - userId: {}, riskScore: {}, threatType: {}",
                         action,
                         result.getUserId(),
                         String.format("%.3f", result.getAnomalyScore()),

@@ -101,7 +101,7 @@ public class SecurityContextAdvisor extends BaseAdvisor {
 
         boolean hasResponse = response != null && response.chatResponse() != null;
 
-        log.error("LLM audit - userId: {}, sessionId: {}, authenticated: {}, executionTimeMs: {}, hasResponse: {}",
+        log.info("LLM audit - userId: {}, sessionId: {}, authenticated: {}, executionTimeMs: {}, hasResponse: {}",
                 userId, sessionId, authenticated, executionTime, hasResponse);
 
         return response;

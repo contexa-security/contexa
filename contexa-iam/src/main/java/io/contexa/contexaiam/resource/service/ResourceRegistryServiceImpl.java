@@ -59,7 +59,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         groupedByIdentifier.forEach((identifier, list) -> {
             if (list.size() > 1) {
-                log.error("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
+                log.info("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
             }
         });
 
@@ -82,7 +82,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
 
         if (!newResources.isEmpty()) {
-            int batchSize = 10;
+            int batchSize = 5;
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
             resourceBatches.forEach(this::processResourceBatch);
         }
