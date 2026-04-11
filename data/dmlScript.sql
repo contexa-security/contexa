@@ -49,10 +49,10 @@ WHERE (g.group_name = 'Administrators' AND r.role_name IN ('ROLE_ADMIN', 'ROLE_M
 -- ============================================================
 
 INSERT INTO users (username, email, password, name, phone, department, position, enabled, mfa_enabled, account_locked, bridge_managed, credentials_expired, external_auth_only, failed_login_attempts, created_at) VALUES
-    ('admin',       'admin@contexa.io',       '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'System Admin',   '010-0000-0001', 'IT',          'Administrator', TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    ('kim_manager', 'kim.manager@contexa.io', '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'Kim Jihoon',     '010-0000-0002', 'Finance',     'Manager',       TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    ('park_user',   'park.user@contexa.io',   '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'Park Minjun',    '010-0000-0003', 'Engineering', 'Developer',     TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    ('dev_lead',    'dev.lead@contexa.io',    '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'Lee Soyeon',     '010-0000-0004', 'Engineering', 'Tech Lead',     TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP);
+    ('admin',       'admin@contexa.io',       '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', 'System Admin',   '010-0000-0001', 'IT',          'Administrator', TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    ('kim_manager', 'kim.manager@contexa.io', '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', 'Kim Jihoon',     '010-0000-0002', 'Finance',     'Manager',       TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    ('park_user',   'park.user@contexa.io',   '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', 'Park Minjun',    '010-0000-0003', 'Engineering', 'Developer',     TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    ('dev_lead',    'dev.lead@contexa.io',    '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', 'Lee Soyeon',     '010-0000-0004', 'Engineering', 'Tech Lead',     TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP);
 
 -- ============================================================
 -- 5. User-Group Assignments
@@ -69,3 +69,11 @@ WHERE (u.username = 'admin'       AND g.group_name = 'Administrators')
    OR (u.username = 'kim_manager' AND g.group_name = 'Managers')
    OR (u.username = 'park_user'   AND g.group_name = 'Users')
    OR (u.username = 'dev_lead'    AND g.group_name = 'Developers');
+
+INSERT INTO permission (permission_name, friendly_name, description, auto_created, target_type, action_type, created_at)
+VALUES
+    ('READ', 'Read Access', 'Permission to read/view resources', false, 'CRUD', 'READ', CURRENT_TIMESTAMP),
+    ('WRITE', 'Write Access', 'Permission to create new resources', false, 'CRUD', 'WRITE', CURRENT_TIMESTAMP),
+    ('UPDATE', 'Update Access', 'Permission to modify existing resources', false, 'CRUD', 'UPDATE', CURRENT_TIMESTAMP),
+    ('DELETE', 'Delete Access', 'Permission to remove resources', false, 'CRUD', 'DELETE', CURRENT_TIMESTAMP)
+ON CONFLICT (permission_name) DO NOTHING;
