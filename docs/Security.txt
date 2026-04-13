@@ -1,0 +1,11 @@
+This file is not RFC 9116 security.txt.
+
+Purpose:
+- prevent confusion between the public vulnerability disclosure file and internal strategy/reference material
+- point operators to the actual public security contact file
+
+Public RFC 9116 file:
+- contexa-site/src/main/resources/static/.well-known/security.txt
+
+Glasswing reference document:
+- 2026-04-12 - Anthropic Project Glasswing Reference.md

@@ -2,7 +2,7 @@
 
 # CONTEXA
 
-**AI-Native Zero Trust Security Platform for Spring**
+**Open-source AI Native Post-Auth Runtime Control Plane for Spring**
 
 <br clear="left" />
 
@@ -10,29 +10,100 @@
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green.svg)](https://spring.io/projects/spring-boot)
 
-> Security doesn't end at login.
-> Contexa continuously verifies every request after authentication using AI-driven behavioral analysis.
+> Security does not end at login.
+> CONTEXA continuously evaluates authenticated runtime behavior and applies zero-trust controls inside the application.
 
-**[Website](https://www.ctxa.ai)** · **[Documentation](https://www.ctxa.ai/get-started.html)** · **[Architecture](https://ctxa.ai/en/docs/reference/architecture/overview)** · **[GitHub](https://github.com/contexa-security/contexa)**
+- **Website:** https://ctxa.ai
+- **Documentation:** https://docs.ctxa.ai
+- **Architecture:** https://docs.ctxa.ai/docs/reference/architecture/overview.html
+- **Public Benchmark:** https://ctxa.ai/benchmark
+- **Security Contact:** https://ctxa.ai/.well-known/security.txt
+- **GitHub:** https://github.com/contexa-security/contexa
 
 ---
 
-## Why Contexa
+## What CONTEXA Is
 
-Most breaches happen **after** successful authentication — valid credentials, valid sessions, but malicious intent.
+CONTEXA is an open-source AI Native Post-Auth Runtime Control Plane.
 
-Traditional security stops at login. Contexa starts there.
+It is built for what happens after authentication succeeds:
 
-| | Traditional Security | + Contexa |
+- request-time runtime zero trust
+- authenticated human access decisions
+- workload and service-client continuity
+- delegated agent execution governance
+- exploit-window compensating controls
+- verification-backed benchmark and proof generation
+
+## What CONTEXA Is Not
+
+CONTEXA is not:
+
+- a vulnerability scanner
+- a binary analysis engine
+- a penetration testing framework
+- a SIEM replacement
+- a generic IAM admin SaaS product
+
+CONTEXA complements upstream security discovery by constraining authenticated runtime behavior after risk is discovered.
+
+## Why CONTEXA
+
+Most serious breaches happen after successful authentication.
+
+The attacker already has one or more of the following:
+
+- a valid session
+- a valid token
+- a valid workload credential
+- an approved tool path
+- an authenticated delegated agent
+
+Traditional security often concentrates on login, network edges, and endpoint state.
+CONTEXA starts where those layers leave off: inside the application runtime, at request time, with zero-trust decisions that can challenge, block, contain, or escalate.
+
+| Dimension | Traditional Security | With CONTEXA |
 |---|---|---|
-| **When** | At login only | Every request, continuously |
-| **How** | Static rules (RBAC, ACL) | AI behavioral analysis |
-| **Scope** | Network / endpoint | Inside the application |
-| **Response** | Allow or deny | ALLOW · CHALLENGE · BLOCK · ESCALATE |
+| Decision point | Login or coarse policy checkpoints | Every protected request |
+| Scope | Network, endpoint, perimeter | Inside the application runtime |
+| Subject | Mostly users and devices | Humans, workloads, service clients, delegated agents |
+| Response | Allow or deny | ALLOW, CHALLENGE, BLOCK, ESCALATE, PENDING_ANALYSIS |
+| Proof | Logs and dashboards | Verification, benchmark, publication-ready proof |
+
+## Glasswing Relevance
+
+**Glasswing discovers. CONTEXA constrains.**
+
+Anthropic Project Glasswing represents upstream AI-driven defensive discovery.
+CONTEXA addresses the downstream runtime problem that remains after discovery:
+
+- how to reduce exploit windows before remediation is complete
+- how to constrain authenticated humans, workloads, and delegated agents
+- how to apply compensating controls in production
+- how to prove those controls with verification and benchmark artifacts
+
+This repository contains the open-source runtime control engine for that downstream layer.
+
+## Open-source Core and Enterprise Surfaces
+
+This repository contains the open-source core platform:
+
+- `contexa-core`
+- `contexa-identity`
+- `contexa-iam`
+- `contexa-common`
+- `contexa-autoconfigure`
+- `spring-boot-starter-contexa`
+
+Commercial and enterprise operational surfaces exist separately.
+Those surfaces include multi-tenant operations, publication workflows, advanced review planes, and commercial runtime delivery features.
+
+The open-source core remains a meaningful platform on its own.
+It provides the runtime decision, control, and integration foundation.
 
 ## Quick Start
 
-**1. Add dependency**
+### 1. Add the dependency
 
 ```gradle
 dependencies {
@@ -40,15 +111,16 @@ dependencies {
 }
 ```
 
-**2. Enable AI Security**
+### 2. Enable AI security
 
 ```java
 @SpringBootApplication
 @EnableAISecurity
-public class MyApplication { }
+public class MyApplication {
+}
 ```
 
-**3. Protect resources**
+### 3. Protect resources
 
 ```java
 @Protectable
@@ -58,84 +130,93 @@ public void disableUser(@PathVariable Long id) {
 }
 ```
 
-That's it. Two annotations. Contexa handles the rest — context collection, AI analysis, and autonomous response.
+For full setup, configuration, and architecture guidance, use the documentation site at `https://docs.ctxa.ai`.
 
-> For full setup including database and LLM configuration, see the **[Get Started Guide](https://www.ctxa.ai/get-started.html)**.
+## Runtime Zero Trust Actions
 
-## Zero Trust Actions
-
-Every request receives a real-time AI verdict:
+Every protected request receives a runtime decision.
 
 | Action | HTTP | Meaning |
 |---|---|---|
-| `ALLOW` | 200 | Behavior matches baseline — access granted |
-| `CHALLENGE` | 401 | Suspicious signal detected — MFA required |
-| `BLOCK` | 403 | Active threat — immediate denial |
-| `ESCALATE` | 423 | Ambiguous — requires admin review |
-| `PENDING_ANALYSIS` | 503 | Analysis in progress |
+| `ALLOW` | 200 | Behavior is within acceptable bounds |
+| `CHALLENGE` | 401 | Additional verification is required |
+| `BLOCK` | 403 | Active risk requires immediate denial |
+| `ESCALATE` | 423 | Human review or higher-friction handling is required |
+| `PENDING_ANALYSIS` | 503 | Runtime analysis has not completed yet |
 
 ## How It Works
 
-```
-Request (Human / API / AI Agent)
-  │
-  ├─ contexa-identity ─── Authentication flows (Form / REST / OTT / Passkey / MFA)
-  │
-  ├─ contexa-iam ──────── Policy evaluation (URL / Method / Resource)
-  │                        @Protectable method protection
-  │
-  ├─ contexa-core ─────── AI behavioral analysis
-  │                        Baseline comparison + RAG + LLM reasoning
-  │                        Zero Trust action decision
-  │
-  └─ Action ───────────── ALLOW │ CHALLENGE │ BLOCK │ ESCALATE │ PENDING_ANALYSIS
+```text
+Request (Human / Workload / Service Client / Delegated Agent)
+  |
+  +-- contexa-identity
+  |     Authentication flows, MFA, adaptive challenges
+  |
+  +-- contexa-iam
+  |     URL, method, and resource policy evaluation
+  |     @Protectable method protection
+  |
+  +-- contexa-core
+        Context collection
+        Behavioral analysis
+        RAG and LLM reasoning
+        Runtime zero-trust decision
+        Control action application
 ```
 
 ## Modules
 
 | Module | Responsibility |
 |---|---|
-| `contexa-core` | AI pipeline, LLM orchestration, RAG, vector services, autonomous security processing, Zero Trust state |
-| `contexa-identity` | Identity DSL, authentication flows (Form/REST/OTT/Passkey/MFA), adaptive MFA, Zero Trust access control |
-| `contexa-iam` | Dynamic authorization, XACML-style evaluation, resource scanning, policy workflow, AI-assisted policy generation |
+| `contexa-core` | AI pipeline, LLM orchestration, RAG, autonomous security processing, runtime zero-trust state |
+| `contexa-identity` | Authentication flows, MFA, passkey, adaptive zero-trust access control |
+| `contexa-iam` | Dynamic authorization, policy evaluation, resource scanning, policy workflows |
 | `contexa-common` | Shared annotations, DTOs, enums, contracts |
-| `contexa-autoconfigure` | Spring Boot auto-configuration layer |
-| `spring-boot-starter-contexa` | Community starter (recommended entry point) |
+| `contexa-autoconfigure` | Spring Boot auto-configuration |
+| `spring-boot-starter-contexa` | Starter entry point for community adoption |
 
 ## Key Capabilities
 
-### Identity DSL
-Model authentication flows through a DSL instead of scattered configuration. Supports form login, REST, OTT, passkey, and MFA combinations.
+### Runtime Behavioral Security
+
+CONTEXA compares each request against runtime context, history, and policy signals to detect behavior that static rules miss.
 
 ### Dynamic Authorization
-Policy-driven access control at URL, method, and resource levels. `@Protectable` enables method-level Zero Trust protection with AI-assisted risk evaluation.
 
-### AI Security Engine
-LLM-powered behavioral analysis with contextual enrichment. Compares each request against learned baselines using vector retrieval (RAG) to detect anomalies that static rules miss.
+CONTEXA evaluates URL, method, and resource-level access decisions and supports method-level protection through `@Protectable`.
 
-### Autonomous Security Plane
-Event-driven processing layer that collects security events, enriches context, runs AI analysis, and applies Zero Trust actions back into the platform in real-time.
+### AI-native Control Decisions
+
+CONTEXA can challenge, block, escalate, or defer based on runtime analysis instead of relying only on static roles and ACLs.
+
+### Proof-backed Security
+
+CONTEXA is designed to support verification, replay, benchmarking, and publication-ready reporting rather than simple vendor claims.
 
 ## Operating Modes
 
 | Mode | Infrastructure | Use Case |
 |---|---|---|
-| `standalone` | PostgreSQL + Ollama | Development, small deployments |
-| `distributed` | + Redis + Kafka | Production, multi-instance |
+| `standalone` | PostgreSQL + Ollama | Development and smaller deployments |
+| `distributed` | PostgreSQL + Redis + Kafka | Production and multi-instance deployments |
 
 ```yaml
 contexa:
   infrastructure:
-    mode: standalone   # or distributed
+    mode: standalone
 ```
 
-## Links
+## Trust and Public References
 
-- **Website**: [https://www.ctxa.ai](https://www.ctxa.ai)
-- **Documentation**: [Get Started](https://www.ctxa.ai/get-started.html) · [Architecture](https://ctxa.ai/en/docs/reference/architecture/overview)
-- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
-- **Security**: [SECURITY.md](SECURITY.md)
+- Main site: https://ctxa.ai
+- Documentation site: https://docs.ctxa.ai
+- Architecture overview: https://docs.ctxa.ai/docs/reference/architecture/overview.html
+- Public benchmark entry: https://ctxa.ai/benchmark
+- Security policy: [SECURITY.md](SECURITY.md)
+- Public security.txt: https://ctxa.ai/.well-known/security.txt
+- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.

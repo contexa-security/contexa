@@ -1,40 +1,41 @@
-# Contributing to Contexa
+# Contributing to CONTEXA
 
-Thank you for your interest in contributing to Contexa! This guide will help you get started.
+Thank you for your interest in contributing to CONTEXA.
+
+This repository contains the open-source core platform. Commercial and enterprise operational surfaces may be developed separately, but contributions to the runtime control engine, shared contracts, Spring integrations, and public OSS experience are welcome here.
 
 ## How to Contribute
 
-### Reporting Bugs
+### Report Bugs
 
-1. Check [existing issues](https://github.com/contexa-security/contexa/issues) to avoid duplicates
-2. Use the [Bug Report template](https://github.com/contexa-security/contexa/issues/new?template=bug_report.md)
+1. Check existing issues first
+2. Use the bug report template
 3. Include steps to reproduce, expected behavior, and actual behavior
-4. Attach logs, screenshots, or stack traces if applicable
+4. Attach logs, screenshots, or stack traces when useful
 
-### Suggesting Features
+### Suggest Features
 
-1. Check [existing issues](https://github.com/contexa-security/contexa/issues) for similar requests
-2. Use the [Feature Request template](https://github.com/contexa-security/contexa/issues/new?template=feature_request.md)
-3. Describe the use case and expected behavior
+1. Check existing issues for similar requests
+2. Use the feature request template
+3. Describe the use case, expected behavior, and tradeoffs
 
-### Submitting Pull Requests
+### Submit Pull Requests
 
 1. Fork the repository
-2. Create a feature branch from `main`: `git checkout -b feature/your-feature`
-3. Make your changes following the coding standards below
-4. Write or update tests as needed
-5. Run `./gradlew clean compileJava` to verify the build
-6. Commit with a clear message describing the change
-7. Push and open a Pull Request against `main`
+2. Create a branch from `main`
+3. Keep the change focused
+4. Add or update tests when needed
+5. Run `./gradlew clean compileJava` before submitting
+6. Open the pull request against `main`
 
 ## Development Setup
 
 ### Prerequisites
 
 - Java 21+
-- Gradle 8.x (wrapper included)
+- Gradle 8.x via the wrapper
 - PostgreSQL 15+
-- Docker (optional, for infrastructure services)
+- Docker optional for supporting services
 
 ### Build
 
@@ -46,16 +47,24 @@ cd contexa
 
 ## Coding Standards
 
-- Follow existing code conventions and patterns in the project
-- Use Java 21 features where appropriate
-- Write meaningful commit messages
-- Keep pull requests focused on a single change
-- All comments and log messages must be in English
+- follow existing code conventions and package structure
+- prefer clear, direct names over clever abstractions
+- keep changes small and reviewable
+- write or update tests for non-trivial behavior changes
+- use English for code comments, commit messages, and log messages
+
+## Public Project Positioning
+
+When updating public-facing documentation in this repository, keep the project thesis consistent:
+
+- CONTEXA is an open-source AI Native Post-Auth Runtime Control Plane
+- CONTEXA is not a vulnerability scanner or binary analysis engine
+- CONTEXA complements upstream discovery with downstream runtime controls
 
 ## Code of Conduct
 
-This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-By contributing to Contexa, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
+By contributing to CONTEXA, you agree that your contributions are licensed under the [Apache License 2.0](LICENSE).
