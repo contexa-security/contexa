@@ -14,7 +14,7 @@ If you discover a security vulnerability in CONTEXA, report it responsibly.
 
 ### How to Report
 
-1. Email `security@contexa.io`
+1. Email `contex73@gmail.com`
 2. Include:
    - a clear description of the issue
    - reproduction steps
