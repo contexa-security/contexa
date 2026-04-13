@@ -107,7 +107,7 @@ It provides the runtime decision, control, and integration foundation.
 
 ```gradle
 dependencies {
-    implementation "io.contexa:spring-boot-starter-contexa:0.1.0"
+    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.0"
 }
 ```
 

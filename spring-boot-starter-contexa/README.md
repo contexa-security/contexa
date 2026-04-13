@@ -1,179 +1,75 @@
-# Spring Boot Starter for Contexa
+# Spring Boot Starter for CONTEXA
 
-Contexa Community Starter - AI-Native IAM 플랫폼을 위한 Spring Boot AutoConfiguration 기반 한 줄 통합
+**OSS starter entry point for the CONTEXA runtime control core**
 
-## 개요
+This module is the Spring Boot starter for the open-source CONTEXA core.
+It brings the OSS modules onto the classpath and activates the auto-configuration path used by `@EnableAISecurity`.
 
-Contexa는 Spring AI 기반의 차세대 AI-Native IAM(Identity and Access Management) 플랫폼입니다.
-이 Starter는 Contexa Community Edition의 핵심 기능을 Spring Boot 애플리케이션에 자동으로 구성합니다.
-
-## 주요 기능
-
-- **HCAD (Hyper-lightweight Context Anomaly Detector)**: 초경량 실시간 이상 탐지
-- **AI-Native LLM 통합**: OpenAI, Ollama, Anthropic Claude 지원
-- **RAG 기반 보안 분석**: PgVector 기반 벡터 스토어 통합
-- **Zero Trust Architecture**: 계층적 보안 분석 (3-Tier LLM Strategy)
-- **Autonomous Security Plane**: 24시간 자율 운영 보안 에이전트
-
-## 빠른 시작
-
-### 1. 의존성 추가
+## Coordinates
 
 Gradle:
 ```gradle
 dependencies {
-    implementation 'io.contexa:spring-boot-starter-contexa:0.1.0-ALPHA'
+    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.0"
 }
 ```
 
 Maven:
 ```xml
 <dependency>
-    <groupId>io.contexa</groupId>
+    <groupId>ai.ctxa</groupId>
     <artifactId>spring-boot-starter-contexa</artifactId>
-    <version>0.1.0-ALPHA</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
-### 2. 설정 파일 (application.yml)
+## What it brings in
 
-```yaml
-# Contexa 기본 설정
-contexa:
-  # LLM 설정 (기본: 활성화)
-  llm:
-    enabled: true
+The starter is wired from the OSS repository modules:
 
-  # HCAD 설정 (기본: 활성화)
-  hcad:
-    enabled: true
+- `contexa-core`
+- `contexa-identity`
+- `contexa-iam`
+- `contexa-common`
+- `contexa-autoconfigure`
 
-  # RAG 설정 (기본: 활성화)
-  rag:
-    enabled: true
-
-  # Autonomous Security Plane (기본: 활성화)
-  autonomous:
-    enabled: true
-
-  # Simulation (기본: 비활성화)
-  simulation:
-    enabled: false
-
-# Spring AI 설정
-spring:
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-
-    ollama:
-      base-url: http://localhost:11434
-
-    vectorstore:
-      pgvector:
-        index-type: HNSW
-        distance-type: COSINE_DISTANCE
-
-# 데이터베이스 설정
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/contexa
-    username: postgres
-    password: ${DB_PASSWORD}
-```
-
-### 3. 애플리케이션 시작
+## Minimal activation
 
 ```java
 @SpringBootApplication
-public class MyContextaApplication {
+@EnableAISecurity
+public class MyApplication {
+
     public static void main(String[] args) {
-        SpringApplication.run(MyContextaApplication.class, args);
+        SpringApplication.run(MyApplication.class, args);
     }
 }
 ```
 
-## 선택적 의존성
+## Default bootstrap path
 
-### Redis (HCAD 캐싱, 분산 락)
-```gradle
-implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-```
+If the application does not define a custom `PlatformConfig` bean, `AiSecurityConfiguration` creates one through `IdentityDslRegistry`.
+The current OSS default path includes:
 
-### Kafka (이벤트 스트리밍)
-```gradle
-implementation 'org.springframework.kafka:spring-kafka'
-```
+- `global(...)`
+- `mfa(...)` with `requiredFactors(1)`
+- `passkey(...)`
+- `ott(...)`
+- `session(...)`
+- `build()`
 
-### Redisson (분산 락)
-```gradle
-implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
-```
+## What this starter does not claim
 
-## AutoConfiguration 모듈
+This starter does not, by itself, document or ship:
 
-Starter는 다음 AutoConfiguration 모듈을 자동으로 활성화합니다:
+- enterprise-only operation planes
+- commercial benchmark publication workflows
+- a standalone external admin SaaS surface
 
-1. **CoreInfrastructureAutoConfiguration**: Redis, Kafka, Vector Store 인프라
-2. **CoreLLMAutoConfiguration**: 3계층 보안 LLM 시스템
-3. **CoreRAGAutoConfiguration**: RAG 기반 보안 분석
-4. **CoreHCADAutoConfiguration**: HCAD 실시간 이상 탐지 (21개 Bean)
-5. **CoreAutonomousAutoConfiguration**: Autonomous Security Plane (20개 Bean)
-6. **CoreSimulationAutoConfiguration**: 공격 시뮬레이션 (선택적)
+Those surfaces belong outside the OSS starter unless the relevant code exists in this repository.
 
-## Migration Guide
+## Further reading
 
-### @ComponentScan에서 AutoConfiguration으로 마이그레이션
-
-기존 코드:
-```java
-@SpringBootApplication
-@ComponentScan(basePackages = "io.contexa")
-public class OldApplication {
-    // ...
-}
-```
-
-새로운 코드:
-```java
-@SpringBootApplication  // AutoConfiguration 자동 활성화!
-public class NewApplication {
-    // ...
-}
-```
-
-## 문제 해결
-
-### 1. AutoConfiguration이 활성화되지 않는 경우
-
-`application.yml`에서 명시적으로 활성화:
-```yaml
-contexa:
-  llm:
-    enabled: true
-  hcad:
-    enabled: true
-```
-
-### 2. Bean 충돌이 발생하는 경우
-
-`@ConditionalOnMissingBean`으로 인해 사용자 정의 Bean이 우선합니다:
-```java
-@Configuration
-public class MyContextaConfig {
-
-    @Bean
-    public HCADAnalysisService customHCADAnalysisService() {
-        // 커스텀 구현
-    }
-}
-```
-
-## 라이선스
-
-Apache License 2.0
-
-## 지원
-
-- GitHub Issues: https://github.com/your-org/contexa
-- Documentation: https://docs.contexa.io
+- Root repository: `D:/contexa`
+- Public docs: `https://docs.ctxa.ai`
+- Architecture reference: `https://docs.ctxa.ai/docs/reference/architecture/overview.html`
