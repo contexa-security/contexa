@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDenied
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.aop.Advice;
 import org.aopalliance.intercept.MethodInterceptor;
@@ -40,6 +41,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private ZeroTrustEventPublisher zeroTrustEventPublisher;
     private AuthorizationMetrics metricsCollector;
     private SynchronousProtectableDecisionService synchronousProtectableDecisionService;
+    private SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public AuthorizationManagerMethodInterceptor(
             Pointcut pointcut,
@@ -73,10 +75,17 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             if (isSyncProtectable(protectable)) {
                 SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {
+                    if (isEnforcementDisabled()) {
+                        log.info("[ZeroTrust][SHADOW] sync Protectable decision observed but not enforced. resource={}, action={}",
+                                buildResourceId(mi), syncDecision.action());
+                        publishEvent = false;
+                    } else {
+                        publishEvent = false;
+                        throw toZeroTrustAccessDeniedException(syncDecision, buildResourceId(mi));
+                    }
+                } else {
                     publishEvent = false;
-                    throw toZeroTrustAccessDeniedException(syncDecision, buildResourceId(mi));
                 }
-                publishEvent = false;
             }
 
             granted = true;
@@ -203,6 +212,14 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     public void setSynchronousProtectableDecisionService(
             SynchronousProtectableDecisionService synchronousProtectableDecisionService) {
         this.synchronousProtectableDecisionService = synchronousProtectableDecisionService;
+    }
+
+    public void setSecurityZeroTrustProperties(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        this.securityZeroTrustProperties = securityZeroTrustProperties;
+    }
+
+    private boolean isEnforcementDisabled() {
+        return securityZeroTrustProperties != null && !securityZeroTrustProperties.isEnforcementEnabled();
     }
 
     private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,

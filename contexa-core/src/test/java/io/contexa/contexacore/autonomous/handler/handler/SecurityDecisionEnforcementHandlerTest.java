@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -188,5 +189,91 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(order).isEqualTo(55);
+    }
+
+    @Test
+    @DisplayName("SHADOW mode should skip saveAction, setBlockedFlag, and registerBlock")
+    void shadowMode_shouldSkipEnforcementSideEffects() {
+        // given
+        SecurityZeroTrustProperties shadowProperties = new SecurityZeroTrustProperties();
+        shadowProperties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+
+        SecurityDecisionEnforcementHandler shadowHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository,
+                shadowProperties);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-shadow-block")
+                .sourceIp("10.0.0.10")
+                .userAgent("ShadowAgent")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.98)
+                .confidence(0.95)
+                .reasoning("Anomalous behavior detected in shadow")
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        // when
+        boolean result = shadowHandler.handle(context);
+
+        // then
+        assertThat(result).isTrue();
+        verify(actionRepository, never()).saveAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).setBlockedFlag(anyString());
+        verify(blockingSignalBroadcaster, never()).registerBlock(anyString());
+    }
+
+    @Test
+    @DisplayName("ENFORCE mode with explicit properties should still persist decision")
+    void enforceMode_withExplicitProperties_shouldPersist() {
+        // given
+        SecurityZeroTrustProperties enforceProperties = new SecurityZeroTrustProperties();
+        enforceProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+
+        SecurityDecisionEnforcementHandler enforceHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository,
+                enforceProperties);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-enforce-block")
+                .sourceIp("10.0.0.20")
+                .userAgent("EnforceAgent")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.97)
+                .confidence(0.9)
+                .reasoning("Enforce path block")
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        // when
+        boolean result = enforceHandler.handle(context);
+
+        // then
+        assertThat(result).isTrue();
+        verify(actionRepository).saveAction(eq("user-enforce-block"), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(actionRepository).setBlockedFlag("user-enforce-block");
+        verify(blockingSignalBroadcaster).registerBlock("user-enforce-block");
     }
 }

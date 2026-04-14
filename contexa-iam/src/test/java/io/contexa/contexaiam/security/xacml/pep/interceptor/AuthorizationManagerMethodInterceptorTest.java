@@ -6,6 +6,8 @@ import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDenied
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
@@ -263,6 +265,88 @@ class AuthorizationManagerMethodInterceptorTest {
         @Protectable(sync = true)
         public String protectedMethod() {
             return "protected";
+        }
+    }
+
+    @Nested
+    @DisplayName("Shadow mode sync Protectable handling")
+    class ShadowModeSyncTests {
+
+        @Test
+        @DisplayName("ENFORCE mode: sync BLOCK should throw ZeroTrustAccessDeniedException")
+        void enforce_syncBlock_shouldThrow() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+
+            SynchronousProtectableDecisionService.SyncDecisionResult blockResult =
+                    new SynchronousProtectableDecisionService.SyncDecisionResult(
+                            null, null, ZeroTrustAction.BLOCK, null, null);
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenReturn(blockResult);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOf(ZeroTrustAccessDeniedException.class);
+
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("SHADOW mode: sync BLOCK should NOT throw and should proceed")
+        void shadow_syncBlock_shouldProceed() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("protected");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            interceptor.setSecurityZeroTrustProperties(shadow);
+
+            SynchronousProtectableDecisionService.SyncDecisionResult blockResult =
+                    new SynchronousProtectableDecisionService.SyncDecisionResult(
+                            null, null, ZeroTrustAction.BLOCK, null, null);
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenReturn(blockResult);
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("protected");
+            verify(methodInvocation).proceed();
+        }
+
+        @Test
+        @DisplayName("SHADOW mode: sync ALLOW should proceed normally (no behavior change)")
+        void shadow_syncAllow_shouldProceedSame() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("protected");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            interceptor.setSecurityZeroTrustProperties(shadow);
+
+            SynchronousProtectableDecisionService.SyncDecisionResult allowResult =
+                    new SynchronousProtectableDecisionService.SyncDecisionResult(
+                            null, null, ZeroTrustAction.ALLOW, null, null);
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenReturn(allowResult);
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("protected");
+            verify(methodInvocation).proceed();
         }
     }
 }

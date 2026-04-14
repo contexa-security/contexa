@@ -161,13 +161,15 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityLearningService securityLearningService,
             IBlockedUserRecorder blockedUserRecorder,
             BlockingSignalBroadcaster blockingSignalBroadcaster,
-            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider) {
+            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
                 blockedUserRecorder,
                 blockingSignalBroadcaster,
-                analysisTriggerStateRepositoryProvider.getIfAvailable());
+                analysisTriggerStateRepositoryProvider.getIfAvailable(),
+                securityZeroTrustProperties);
     }
 
     @Bean

@@ -85,7 +85,8 @@ public class IamInfrastructureAutoConfiguration {
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
             ProtectableRapidReentryGuard protectableRapidReentryGuard,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider) {
+            ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
         AuthorizationManagerMethodInterceptor interceptor = new AuthorizationManagerMethodInterceptor(
@@ -97,6 +98,7 @@ public class IamInfrastructureAutoConfiguration {
         if (synchronousProtectableDecisionService != null) {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
         }
+        interceptor.setSecurityZeroTrustProperties(securityZeroTrustProperties);
         return interceptor;
     }
 

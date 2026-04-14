@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -24,12 +25,13 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final IBlockedUserRecorder blockedUserRecorder;
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
             IBlockedUserRecorder blockedUserRecorder,
             BlockingSignalBroadcaster blockingDecisionRegistry) {
-        this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry, null);
+        this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry, null, null);
     }
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -37,11 +39,25 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             IBlockedUserRecorder blockedUserRecorder,
             BlockingSignalBroadcaster blockingDecisionRegistry,
             AnalysisTriggerStateRepository analysisTriggerStateRepository) {
+        this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry, analysisTriggerStateRepository, null);
+    }
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.blockedUserRecorder = blockedUserRecorder;
         this.blockingDecisionRegistry = blockingDecisionRegistry;
         this.analysisTriggerStateRepository = analysisTriggerStateRepository;
+        this.securityZeroTrustProperties = securityZeroTrustProperties;
+    }
+
+    private boolean isEnforcementDisabled() {
+        return securityZeroTrustProperties != null && !securityZeroTrustProperties.isEnforcementEnabled();
     }
 
     @Override
@@ -123,6 +139,13 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         String contextBindingHash = resolveContextBindingHash(event);
         if (contextBindingHash != null) {
             additionalFields.put("contextBindingHash", contextBindingHash);
+        }
+
+        if (isEnforcementDisabled()) {
+            additionalFields.put("shadowMode", true);
+            log.info("[SecurityDecisionEnforcementHandler][SHADOW] Observation-only: decision not persisted and no runtime side-effects applied. userId={}, ztAction={}, proposedAction={}",
+                    userId, ztAction, result.getProposedAction());
+            return;
         }
 
         actionRedisRepository.saveAction(userId, ztAction, additionalFields);

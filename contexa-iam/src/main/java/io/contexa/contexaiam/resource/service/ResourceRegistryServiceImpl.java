@@ -66,7 +66,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         Map<String, ManagedResource> discoveredResourcesMap = groupedByIdentifier.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFirst()));
 
-        Map<String, ManagedResource> existingResourcesMap = managedResourceRepository.findAll().stream()
+        Map<String, ManagedResource> existingResourcesMap = managedResourceRepository.findAllWithPermission().stream()
                 .collect(Collectors.toMap(ManagedResource::getResourceIdentifier, Function.identity()));
 
         List<ManagedResource> newResources = discoveredResourcesMap.values().stream()
