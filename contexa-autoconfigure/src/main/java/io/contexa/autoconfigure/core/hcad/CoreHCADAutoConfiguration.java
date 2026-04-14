@@ -27,6 +27,7 @@ import io.contexa.contexacore.properties.HcadProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,6 +38,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 @AutoConfiguration
+@AutoConfigureAfter(name = {
+        "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
+})
 @ConditionalOnProperty(prefix = "hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class })
 public class CoreHCADAutoConfiguration {
@@ -155,26 +160,21 @@ public class CoreHCADAutoConfiguration {
         }
     }
 
-    @Configuration
-    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
-    static class StandaloneHCADConfig {
+    @Bean
+    @ConditionalOnMissingBean(HCADDataStore.class)
+    public InMemoryHCADDataStore hcadDataStore() {
+        return new InMemoryHCADDataStore();
+    }
 
-        @Bean
-        @ConditionalOnMissingBean(HCADDataStore.class)
-        public InMemoryHCADDataStore hcadDataStore() {
-            return new InMemoryHCADDataStore();
-        }
+    @Bean
+    @ConditionalOnMissingBean(BaselineDataStore.class)
+    public InMemoryBaselineDataStore baselineDataStore() {
+        return new InMemoryBaselineDataStore();
+    }
 
-        @Bean
-        @ConditionalOnMissingBean(BaselineDataStore.class)
-        public InMemoryBaselineDataStore baselineDataStore() {
-            return new InMemoryBaselineDataStore();
-        }
-
-        @Bean
-        @ConditionalOnMissingBean(AnalysisTriggerStateRepository.class)
-        public InMemoryAnalysisTriggerStateRepository analysisTriggerStateRepository() {
-            return new InMemoryAnalysisTriggerStateRepository();
-        }
+    @Bean
+    @ConditionalOnMissingBean(AnalysisTriggerStateRepository.class)
+    public InMemoryAnalysisTriggerStateRepository analysisTriggerStateRepository() {
+        return new InMemoryAnalysisTriggerStateRepository();
     }
 }

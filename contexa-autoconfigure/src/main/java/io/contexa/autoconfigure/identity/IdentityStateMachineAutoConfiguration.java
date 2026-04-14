@@ -23,6 +23,7 @@ import io.contexa.contexaidentity.security.statemachine.listener.MfaStateChangeL
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -44,6 +45,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter(name = {
+        "org.redisson.spring.starter.RedissonAutoConfiguration",
+        "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
+})
 @EnableAsync
 @EnableConfigurationProperties(StateMachineProperties.class)
 @ConditionalOnBean(PlatformConfig.class)

@@ -38,6 +38,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -45,6 +46,11 @@ import org.springframework.context.annotation.Lazy;
 
 
 @AutoConfiguration
+@AutoConfigureAfter(name = {
+        "org.redisson.spring.starter.RedissonAutoConfiguration",
+        "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
+})
 public class IamXacmlPapAutoConfiguration {
 
     

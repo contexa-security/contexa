@@ -77,30 +77,23 @@ public class CoreAutonomousEventAutoConfiguration {
         return new BlockingDecisionRegistry(redissonClient);
     }
 
-    // === Standalone mode: In-memory event beans ===
+    @Bean
+    @ConditionalOnMissingBean(SecurityEventCollector.class)
+    public InMemorySecurityEventCollector inMemorySecurityEventCollector() {
+        return new InMemorySecurityEventCollector();
+    }
 
-    @Configuration
-    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
-    static class StandaloneEventConfiguration {
+    @Bean
+    @ConditionalOnMissingBean(SecurityEventPublisher.class)
+    public InMemorySecurityEventPublisher inMemorySecurityEventPublisher(
+            SecurityEventCollector collector) {
+        return new InMemorySecurityEventPublisher(collector);
+    }
 
-        @Bean
-        @ConditionalOnMissingBean(SecurityEventCollector.class)
-        public InMemorySecurityEventCollector inMemorySecurityEventCollector() {
-            return new InMemorySecurityEventCollector();
-        }
-
-        @Bean
-        @ConditionalOnMissingBean(SecurityEventPublisher.class)
-        public InMemorySecurityEventPublisher inMemorySecurityEventPublisher(
-                SecurityEventCollector collector) {
-            return new InMemorySecurityEventPublisher(collector);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean(BlockingSignalBroadcaster.class)
-        public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster() {
-            return new InMemoryBlockingSignalBroadcaster();
-        }
+    @Bean
+    @ConditionalOnMissingBean(BlockingSignalBroadcaster.class)
+    public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster() {
+        return new InMemoryBlockingSignalBroadcaster();
     }
 
     // === Common beans (mode-independent) ===

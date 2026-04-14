@@ -97,7 +97,9 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
 @AutoConfigureAfter(name = {
         "io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration",
         "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
-        "io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration"
+        "io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration",
+        "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
@@ -517,42 +519,35 @@ public class CoreAutonomousAutoConfiguration {
         }
     }
 
-    // === Standalone mode: In-memory beans ===
+    @Bean
+    @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
+    public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository() {
+        return new InMemoryZeroTrustActionRepository();
+    }
 
-    @Configuration
-    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
-    static class StandaloneRepositoryConfiguration {
+    @Bean
+    @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
+    public InMemoryProtectableRapidReentryRepository inMemoryProtectableRapidReentryRepository() {
+        return new InMemoryProtectableRapidReentryRepository();
+    }
 
-        @Bean
-        @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
-        public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository() {
-            return new InMemoryZeroTrustActionRepository();
-        }
+    @Bean
+    @ConditionalOnMissingBean(DistributedLockService.class)
+    public InMemoryDistributedLockService inMemoryDistributedLockService() {
+        return new InMemoryDistributedLockService();
+    }
 
-        @Bean
-        @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
-        public InMemoryProtectableRapidReentryRepository inMemoryProtectableRapidReentryRepository() {
-            return new InMemoryProtectableRapidReentryRepository();
-        }
+    @Bean
+    @ConditionalOnMissingBean(ThreatScoreUtil.class)
+    public InMemoryThreatScoreUtil inMemoryThreatScoreUtil(
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new InMemoryThreatScoreUtil(securityZeroTrustProperties);
+    }
 
-        @Bean
-        @ConditionalOnMissingBean(DistributedLockService.class)
-        public InMemoryDistributedLockService inMemoryDistributedLockService() {
-            return new InMemoryDistributedLockService();
-        }
-
-        @Bean
-        @ConditionalOnMissingBean(ThreatScoreUtil.class)
-        public InMemoryThreatScoreUtil inMemoryThreatScoreUtil(
-                SecurityZeroTrustProperties securityZeroTrustProperties) {
-            return new InMemoryThreatScoreUtil(securityZeroTrustProperties);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean(SecurityContextDataStore.class)
-        public InMemorySecurityContextDataStore inMemorySecurityContextDataStore() {
-            return new InMemorySecurityContextDataStore();
-        }
+    @Bean
+    @ConditionalOnMissingBean(SecurityContextDataStore.class)
+    public InMemorySecurityContextDataStore inMemorySecurityContextDataStore() {
+        return new InMemorySecurityContextDataStore();
     }
 }
 

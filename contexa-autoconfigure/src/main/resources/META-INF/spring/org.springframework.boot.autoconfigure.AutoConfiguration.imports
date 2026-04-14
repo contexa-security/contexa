@@ -60,6 +60,9 @@ io.contexa.autoconfigure.identity.IdentityServiceAutoConfiguration
 # Identity Handler
 io.contexa.autoconfigure.identity.IdentityHandlerAutoConfiguration
 
+# IAM Seed Data (classpath:data.sql 자동 적재 — SECURITY_SPEL 등 공통 시드)
+io.contexa.autoconfigure.identity.IamSeedDataAutoConfiguration
+
 # IAM Infrastructure
 io.contexa.autoconfigure.iam.IamInfrastructureAutoConfiguration
 
