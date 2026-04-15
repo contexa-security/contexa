@@ -100,6 +100,30 @@ public class ContextCoverageEvaluator {
             remediationHints.add("Propagate MFA verification state and recent assurance outcomes.");
         }
 
+        if (CanonicalContextFieldPolicy.hasDeviceContext(context)) {
+            availableFacts.add("Device context is available.");
+        }
+        else {
+            remediationHints.add("Propagate device OS, browser, language, and fingerprint match metadata when available.");
+            confidenceWarnings.add("Device context is partial; client-environment comparisons remain limited.");
+        }
+
+        if (CanonicalContextFieldPolicy.hasLocationContext(context)) {
+            availableFacts.add("Location context is available.");
+        }
+        else {
+            remediationHints.add("Propagate country, city, ASN, or IP band metadata when available.");
+            confidenceWarnings.add("Location context is partial; regional or network-origin comparisons remain limited.");
+        }
+
+        if (CanonicalContextFieldPolicy.hasIntentContext(context)) {
+            availableFacts.add("Request intent signals are available.");
+        }
+        else {
+            remediationHints.add("Propagate request anomaly signals such as bot user-agent, referer, language, TLS, and header-order observations when available.");
+            confidenceWarnings.add("Request intent signals are partial; client anomaly reasoning should remain conservative.");
+        }
+
         if (CanonicalContextFieldPolicy.hasObservedScope(context)) {
             availableFacts.add("Observed work pattern is available.");
         }

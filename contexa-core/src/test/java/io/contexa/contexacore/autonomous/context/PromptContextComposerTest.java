@@ -41,6 +41,32 @@ class PromptContextComposerTest {
                         .recentRequestCount(5)
                         .recentChallengeCount(2)
                         .recentBlockCount(1)
+                        .currentAccessHour(14)
+                        .concurrentSessions(3)
+                        .passwordAgeDays(9)
+                        .build())
+                .device(CanonicalSecurityContext.Device.builder()
+                        .os("WINDOWS")
+                        .osVersion("11")
+                        .browser("Chrome")
+                        .browserVersion("136")
+                        .screenResolution("1920x1080")
+                        .language("ko-KR")
+                        .fingerprintMatch(true)
+                        .build())
+                .location(CanonicalSecurityContext.Location.builder()
+                        .country("KR")
+                        .city("Seoul")
+                        .ipBand("203.0.113.0/24")
+                        .asn("AS64512")
+                        .build())
+                .intent(CanonicalSecurityContext.Intent.builder()
+                        .botUserAgent(false)
+                        .missingReferer(true)
+                        .languageMismatch(false)
+                        .tlsFingerprintAltered(true)
+                        .abnormalHeaderOrder(true)
+                        .impossibleTravel(true)
                         .build())
                 .resource(CanonicalSecurityContext.Resource.builder()
                         .resourceId("/api/customer/export")
@@ -215,6 +241,9 @@ class PromptContextComposerTest {
                 "=== CONTEXT COVERAGE ===",
                 "=== IDENTITY AND ROLE CONTEXT ===",
                 "=== AUTHENTICATION AND ASSURANCE CONTEXT ===",
+                "=== DEVICE CONTEXT ===",
+                "=== LOCATION CONTEXT ===",
+                "=== REQUEST INTENT SIGNAL CONTEXT ===",
                 "=== RESOURCE AND ACTION CONTEXT ===",
                 "=== SESSION NARRATIVE CONTEXT ===",
                 "=== OBSERVED WORK PATTERN CONTEXT ===",
@@ -230,6 +259,9 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("=== BRIDGE RESOLUTION CONTEXT ===");
         assertThat(promptSection).contains("=== IDENTITY AND ROLE CONTEXT ===");
         assertThat(promptSection).contains("=== AUTHENTICATION AND ASSURANCE CONTEXT ===");
+        assertThat(promptSection).contains("=== DEVICE CONTEXT ===");
+        assertThat(promptSection).contains("=== LOCATION CONTEXT ===");
+        assertThat(promptSection).contains("=== REQUEST INTENT SIGNAL CONTEXT ===");
         assertThat(promptSection).contains("=== RESOURCE AND ACTION CONTEXT ===");
         assertThat(promptSection).contains("=== SESSION NARRATIVE CONTEXT ===");
         assertThat(promptSection).contains("=== OBSERVED WORK PATTERN CONTEXT ===");
@@ -254,6 +286,15 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("AuthenticationType: SESSION");
         assertThat(promptSection).contains("RecentMfaFailureCount: 2");
         assertThat(promptSection).contains("LastMfaUsedAt: 2026-03-24T08:58:00");
+        assertThat(promptSection).contains("CurrentAccessHour: 14");
+        assertThat(promptSection).contains("ConcurrentSessions: 3");
+        assertThat(promptSection).contains("PasswordAgeDays: 9");
+        assertThat(promptSection).contains("DeviceOs: WINDOWS");
+        assertThat(promptSection).contains("DeviceBrowser: Chrome");
+        assertThat(promptSection).contains("Country: KR");
+        assertThat(promptSection).contains("IpBand: 203.0.113.0/24");
+        assertThat(promptSection).contains("MissingReferer: true");
+        assertThat(promptSection).contains("ImpossibleTravel: true");
         assertThat(promptSection).contains("PolicyId: policy-1");
         assertThat(promptSection).contains("NormalReadWriteExportRatio: 80:15:5");
         assertThat(promptSection).contains("ProtectableResourceHeatmap: /api/customer/list=9, /api/customer/export=3");

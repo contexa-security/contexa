@@ -15,7 +15,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 class ContextCoverageEvaluatorTest {
 
     @Test
-    @DisplayName("bridge가 있을 때 coverage 보고서는 bridge 근거와 빠진 컨텍스트를 함께 설명해야 한다")
+    @DisplayName("evaluate should include bridge and optional device/location/intent facts")
     void evaluateShouldIncludeBridgeFactsInCoverageReport() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(CanonicalSecurityContext.Actor.builder()
@@ -25,6 +25,20 @@ class ContextCoverageEvaluatorTest {
                 .session(CanonicalSecurityContext.Session.builder()
                         .sessionId("session-1")
                         .mfaVerified(true)
+                        .build())
+                .device(CanonicalSecurityContext.Device.builder()
+                        .os("WINDOWS")
+                        .browser("Chrome")
+                        .fingerprintMatch(true)
+                        .build())
+                .location(CanonicalSecurityContext.Location.builder()
+                        .country("KR")
+                        .city("Seoul")
+                        .ipBand("203.0.113.0/24")
+                        .build())
+                .intent(CanonicalSecurityContext.Intent.builder()
+                        .missingReferer(true)
+                        .abnormalHeaderOrder(true)
                         .build())
                 .resource(CanonicalSecurityContext.Resource.builder()
                         .resourceId("/api/customer/export")
@@ -53,12 +67,14 @@ class ContextCoverageEvaluatorTest {
 
         ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
 
-        // available/missing/warning이 동시에 나와야 LLM이 "무엇은 알고 무엇은 모르는지"를 구분할 수 있다.
         assertThat(report.availableFacts()).contains(
                 "Bridge coverage metadata is available.",
                 "Bridge authentication source is available.",
                 "Bridge authorization source is available.",
                 "Bridge delegation source is available.",
+                "Device context is available.",
+                "Location context is available.",
+                "Request intent signals are available.",
                 "Context trust profile is available for PERSONAL_WORK_PROFILE.",
                 "Context provenance summary: collector=PROTECTABLE_WORK_PROFILE_COLLECTOR,window=7d,observations=3,daysCovered=1");
         assertThat(report.missingCriticalFacts()).contains("Bridge missing context: DELEGATION.");
@@ -72,7 +88,7 @@ class ContextCoverageEvaluatorTest {
     }
 
     @Test
-    @DisplayName("얇은 개인 work profile은 미수집이 아니라 잠정 근거로 표시되어야 한다")
+    @DisplayName("evaluate should treat thin work profile as provisional instead of unavailable")
     void evaluateShouldTreatThinWorkProfileAsProvisionalInsteadOfUnavailable() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(CanonicalSecurityContext.Actor.builder()
@@ -104,7 +120,6 @@ class ContextCoverageEvaluatorTest {
 
         ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
 
-        // 얇은 profile을 unavailable로 찍으면 2차 3차 회차에서 학습이 진행되는 흐름을 설명할 수 없게 된다.
         assertThat(report.availableFacts()).contains("Personal work profile evidence is available but provisional.");
         assertThat(report.missingCriticalFacts()).doesNotContain("Personal work profile is unavailable.");
         assertThat(report.confidenceWarnings())
@@ -112,7 +127,7 @@ class ContextCoverageEvaluatorTest {
     }
 
     @Test
-    @DisplayName("명시적 인가 사실이 없으면 role scope는 비교 근거로만 표현되어야 한다")
+    @DisplayName("evaluate should describe role scope as comparison evidence when explicit authorization facts are missing")
     void evaluateShouldDescribeRoleScopeAsComparisonEvidenceWhenExplicitAuthorizationFactsAreMissing() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(CanonicalSecurityContext.Actor.builder()
@@ -134,7 +149,6 @@ class ContextCoverageEvaluatorTest {
 
         ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
 
-        // role scope를 실제 authorization처럼 과장하면 모델이 허용 범위를 오해하게 된다.
         assertThat(report.availableFacts())
                 .contains("Role scope comparison evidence is available, but explicit authorization facts are still partial.");
         assertThat(report.confidenceWarnings())
@@ -142,7 +156,7 @@ class ContextCoverageEvaluatorTest {
     }
 
     @Test
-    @DisplayName("scope가 있어도 authorization effect가 비어 있으면 coverage는 보수적으로 남아야 한다")
+    @DisplayName("evaluate should keep authorization coverage conservative when effect is missing")
     void evaluateShouldKeepAuthorizationCoverageConservativeWhenEffectIsMissing() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(CanonicalSecurityContext.Actor.builder()
@@ -165,7 +179,6 @@ class ContextCoverageEvaluatorTest {
 
         ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
 
-        // effect가 UNKNOWN인데 available로 단정하면 bridge 품질을 실제보다 높게 보고하게 된다.
         assertThat(report.availableFacts())
                 .contains("Authorization scope evidence is available, but authorization effect is still partial.");
         assertThat(report.missingCriticalFacts())
@@ -175,7 +188,7 @@ class ContextCoverageEvaluatorTest {
     }
 
     @Test
-    @DisplayName("bridge 자체가 없으면 coverage 보고서는 이를 명시적으로 실패 근거로 남겨야 한다")
+    @DisplayName("evaluate should flag missing bridge context")
     void evaluateShouldFlagMissingBridgeContext() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(CanonicalSecurityContext.Actor.builder()
@@ -197,7 +210,6 @@ class ContextCoverageEvaluatorTest {
 
         ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
 
-        // bridge 부재는 고객 컨텍스트 수집 실패이므로 숨기지 말고 직접 드러나야 한다.
         assertThat(report.missingCriticalFacts())
                 .contains("Bridge-derived identity and authorization context is unavailable.");
         assertThat(report.remediationHints())

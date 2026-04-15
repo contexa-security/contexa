@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.context.inference.ObservedScopeInferenc
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ObjectiveDriftEvaluation;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 
 public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurityContextProvider {
 
@@ -269,9 +270,13 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
         Map<String, Object> metadata = prepareMetadata(event);
 
+        CanonicalSecurityContext.Session session = resolveSession(event, metadata);
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(resolveActor(event, metadata))
-                .session(resolveSession(event, metadata))
+                .session(session)
+                .device(resolveDevice(metadata, session))
+                .intent(resolveIntent(metadata))
+                .location(resolveLocation(metadata, session))
                 .resource(resolveResource(event, metadata))
                 .authorization(resolveAuthorization(metadata))
                 .bridge(resolveBridge(metadata))
@@ -401,6 +406,10 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     }
 
     private CanonicalSecurityContext.Session resolveSession(SecurityEvent event, Map<String, Object> metadata) {
+        Integer accessHour = resolveInteger(
+                metadata.get("currentAccessHour"),
+                metadata.get("accessHour"),
+                event != null && event.getTimestamp() != null ? event.getTimestamp().getHour() : null);
         return CanonicalSecurityContext.Session.builder()
                 .sessionId(firstText(event.getSessionId(), metadata.get("sessionId")))
                 .clientIp(firstText(event.getSourceIp(), metadata.get("clientIp")))
@@ -410,8 +419,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .mfaVerified(resolveBoolean(metadata.get("mfaVerified"), metadata.get("mfa_verified")))
                 .recentMfaFailureCount(resolveInteger(metadata.get("recentMfaFailureCount"), metadata.get("recent_mfa_failure_count"), metadata.get("mfaFailureCount"), metadata.get("mfa_failure_count")))
                 .lastMfaUsedAt(firstText(metadata.get("lastMfaUsedAt"), metadata.get("last_mfa_used_at"), metadata.get("lastUsedMfaAt")))
-                .failedLoginAttempts(resolveInteger(metadata.get("failedLoginAttempts"), metadata.get("failed_login_attempts")))
-                .recentRequestCount(resolveInteger(metadata.get("recentRequestCount"), metadata.get("recent_request_count")))
+                .failedLoginAttempts(resolveInteger(metadata.get("failedLoginAttempts"), metadata.get("failed_login_attempts"), metadata.get("recentLoginFailures")))
+                .recentRequestCount(resolveInteger(metadata.get("recentRequestCount"), metadata.get("recent_request_count"), metadata.get("requestRateMultiplier")))
                 .recentChallengeCount(resolveInteger(metadata.get("recentChallengeCount"), metadata.get("recent_challenge_count"), metadata.get("challengeCount")))
                 .recentBlockCount(resolveInteger(metadata.get("recentBlockCount"), metadata.get("recent_block_count"), metadata.get("blockCount")))
                 .recentEscalationCount(resolveInteger(metadata.get("recentEscalationCount"), metadata.get("recent_escalation_count"), metadata.get("escalationCount")))
@@ -419,7 +428,56 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .newSession(resolveBoolean(metadata.get("isNewSession"), metadata.get("is_new_session")))
                 .newUser(resolveBoolean(metadata.get("isNewUser"), metadata.get("is_new_user")))
                 .newDevice(resolveBoolean(metadata.get("isNewDevice"), metadata.get("is_new_device")))
+                .currentAccessHour(accessHour)
+                .concurrentSessions(resolveInteger(metadata.get("concurrentSessions"), metadata.get("currentConcurrentSessions")))
+                .passwordAgeDays(resolveInteger(metadata.get("passwordAgeDays"), metadata.get("daysSincePasswordChange")))
                 .build();
+    }
+
+    private CanonicalSecurityContext.Device resolveDevice(Map<String, Object> metadata, CanonicalSecurityContext.Session session) {
+        String userAgent = session != null ? session.getUserAgent() : null;
+        String browserSignature = firstText(
+                metadata.get("deviceBrowserSignature"),
+                metadata.get("browserSignature"),
+                SecurityEventEnricher.extractBrowserSignature(userAgent));
+        String[] browserParts = splitNameAndVersion(browserSignature);
+        String browser = firstText(metadata.get("deviceBrowser"), metadata.get("browser"), browserParts[0]);
+        String browserVersion = firstText(metadata.get("deviceBrowserVersion"), metadata.get("browserVersion"), browserParts[1]);
+        String os = firstText(metadata.get("deviceOs"), metadata.get("os"), SecurityEventEnricher.extractOSFromUserAgent(userAgent));
+        String osVersion = firstText(metadata.get("deviceOsVersion"), metadata.get("osVersion"));
+        CanonicalSecurityContext.Device device = CanonicalSecurityContext.Device.builder()
+                .os(os)
+                .osVersion(osVersion)
+                .browser(browser)
+                .browserVersion(browserVersion)
+                .screenResolution(firstText(metadata.get("deviceScreenResolution"), metadata.get("screenResolution")))
+                .language(firstText(metadata.get("deviceLanguage"), metadata.get("language"), metadata.get("acceptLanguage")))
+                .fingerprintMatch(resolveBoolean(metadata.get("deviceFingerprintMatch"), metadata.get("fingerprintMatch")))
+                .build();
+        return hasDeviceData(device) ? device : null;
+    }
+
+    private CanonicalSecurityContext.Intent resolveIntent(Map<String, Object> metadata) {
+        CanonicalSecurityContext.Intent intent = CanonicalSecurityContext.Intent.builder()
+                .botUserAgent(resolveBoolean(metadata.get("intentBotUserAgent"), metadata.get("botUserAgent")))
+                .missingReferer(resolveBoolean(metadata.get("intentMissingReferer"), metadata.get("missingReferer")))
+                .languageMismatch(resolveBoolean(metadata.get("intentLanguageMismatch"), metadata.get("languageMismatch")))
+                .tlsFingerprintAltered(resolveBoolean(metadata.get("intentTlsFingerprintAltered"), metadata.get("tlsFingerprintAltered")))
+                .abnormalHeaderOrder(resolveBoolean(metadata.get("intentAbnormalHeaderOrder"), metadata.get("abnormalHeaderOrder")))
+                .impossibleTravel(resolveBoolean(metadata.get("intentImpossibleTravel"), metadata.get("impossibleTravel"), metadata.get("isImpossibleTravel")))
+                .build();
+        return hasIntentData(intent) ? intent : null;
+    }
+
+    private CanonicalSecurityContext.Location resolveLocation(Map<String, Object> metadata, CanonicalSecurityContext.Session session) {
+        String clientIp = session != null ? session.getClientIp() : null;
+        CanonicalSecurityContext.Location location = CanonicalSecurityContext.Location.builder()
+                .country(firstText(metadata.get("country"), metadata.get("geoCountry")))
+                .city(firstText(metadata.get("city"), metadata.get("geoCity")))
+                .ipBand(firstText(metadata.get("ipBand"), deriveIpBand(clientIp)))
+                .asn(firstText(metadata.get("asn"), metadata.get("geoAsn")))
+                .build();
+        return hasLocationData(location) ? location : null;
     }
 
     private CanonicalSecurityContext.Resource resolveResource(SecurityEvent event, Map<String, Object> metadata) {
@@ -440,6 +498,70 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .privileged(privileged)
                 .exportSensitive(exportSensitive)
                 .build();
+    }
+
+    private boolean hasDeviceData(CanonicalSecurityContext.Device device) {
+        return device != null
+                && (StringUtils.hasText(device.getOs())
+                || StringUtils.hasText(device.getOsVersion())
+                || StringUtils.hasText(device.getBrowser())
+                || StringUtils.hasText(device.getBrowserVersion())
+                || StringUtils.hasText(device.getScreenResolution())
+                || StringUtils.hasText(device.getLanguage())
+                || device.getFingerprintMatch() != null);
+    }
+
+    private boolean hasIntentData(CanonicalSecurityContext.Intent intent) {
+        return intent != null
+                && (intent.getBotUserAgent() != null
+                || intent.getMissingReferer() != null
+                || intent.getLanguageMismatch() != null
+                || intent.getTlsFingerprintAltered() != null
+                || intent.getAbnormalHeaderOrder() != null
+                || intent.getImpossibleTravel() != null);
+    }
+
+    private boolean hasLocationData(CanonicalSecurityContext.Location location) {
+        return location != null
+                && (StringUtils.hasText(location.getCountry())
+                || StringUtils.hasText(location.getCity())
+                || StringUtils.hasText(location.getIpBand())
+                || StringUtils.hasText(location.getAsn()));
+    }
+
+    private String[] splitNameAndVersion(String signature) {
+        if (!StringUtils.hasText(signature)) {
+            return new String[] { null, null };
+        }
+        String normalized = signature.trim();
+        int separator = normalized.indexOf('/');
+        if (separator < 0) {
+            return new String[] { normalized, null };
+        }
+        String name = normalized.substring(0, separator).trim();
+        String version = normalized.substring(separator + 1).trim();
+        return new String[] {
+                StringUtils.hasText(name) ? name : null,
+                StringUtils.hasText(version) ? version : null
+        };
+    }
+
+    private String deriveIpBand(String clientIp) {
+        if (!StringUtils.hasText(clientIp)) {
+            return null;
+        }
+        String normalized = clientIp.trim();
+        String[] ipv4 = normalized.split("\\.");
+        if (ipv4.length == 4) {
+            return ipv4[0] + "." + ipv4[1] + "." + ipv4[2] + ".0/24";
+        }
+        if (normalized.contains(":")) {
+            String[] ipv6 = normalized.split(":");
+            if (ipv6.length >= 4) {
+                return String.join(":", ipv6[0], ipv6[1], ipv6[2], ipv6[3]) + "::/64";
+            }
+        }
+        return null;
     }
 
     private String resolveResourceSensitivity(

@@ -65,6 +65,38 @@ public final class CanonicalContextFieldPolicy {
         return hasResourceBusinessLabel(context) && hasResourceSensitivity(context);
     }
 
+    public static boolean hasDeviceContext(CanonicalSecurityContext context) {
+        return context != null
+                && context.getDevice() != null
+                && (StringUtils.hasText(context.getDevice().getOs())
+                || StringUtils.hasText(context.getDevice().getOsVersion())
+                || StringUtils.hasText(context.getDevice().getBrowser())
+                || StringUtils.hasText(context.getDevice().getBrowserVersion())
+                || StringUtils.hasText(context.getDevice().getScreenResolution())
+                || StringUtils.hasText(context.getDevice().getLanguage())
+                || context.getDevice().getFingerprintMatch() != null);
+    }
+
+    public static boolean hasIntentContext(CanonicalSecurityContext context) {
+        return context != null
+                && context.getIntent() != null
+                && (context.getIntent().getBotUserAgent() != null
+                || context.getIntent().getMissingReferer() != null
+                || context.getIntent().getLanguageMismatch() != null
+                || context.getIntent().getTlsFingerprintAltered() != null
+                || context.getIntent().getAbnormalHeaderOrder() != null
+                || context.getIntent().getImpossibleTravel() != null);
+    }
+
+    public static boolean hasLocationContext(CanonicalSecurityContext context) {
+        return context != null
+                && context.getLocation() != null
+                && (StringUtils.hasText(context.getLocation().getCountry())
+                || StringUtils.hasText(context.getLocation().getCity())
+                || StringUtils.hasText(context.getLocation().getIpBand())
+                || StringUtils.hasText(context.getLocation().getAsn()));
+    }
+
     public static boolean hasMfaState(CanonicalSecurityContext context) {
         return context != null
                 && context.getSession() != null

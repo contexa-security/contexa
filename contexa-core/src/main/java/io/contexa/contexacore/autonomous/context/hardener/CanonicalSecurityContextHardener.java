@@ -33,6 +33,15 @@ public class CanonicalSecurityContextHardener {
 
         hardenActor(context.getActor());
         hardenSession(context.getSession());
+        if (context.getDevice() != null) {
+            hardenDevice(context.getDevice());
+        }
+        if (context.getIntent() != null) {
+            hardenIntent(context.getIntent());
+        }
+        if (context.getLocation() != null) {
+            hardenLocation(context.getLocation());
+        }
         hardenResource(context.getResource());
         hardenAuthorization(context.getAuthorization());
         hardenDelegation(context.getDelegation());
@@ -90,6 +99,28 @@ public class CanonicalSecurityContextHardener {
         session.setRecentChallengeCount(normalizeInteger(session.getRecentChallengeCount()));
         session.setRecentBlockCount(normalizeInteger(session.getRecentBlockCount()));
         session.setRecentEscalationCount(normalizeInteger(session.getRecentEscalationCount()));
+        session.setCurrentAccessHour(normalizeHour(session.getCurrentAccessHour()));
+        session.setConcurrentSessions(normalizeInteger(session.getConcurrentSessions()));
+        session.setPasswordAgeDays(normalizeInteger(session.getPasswordAgeDays()));
+    }
+
+    private void hardenDevice(CanonicalSecurityContext.Device device) {
+        device.setOs(normalizeUpperText(device.getOs()));
+        device.setOsVersion(normalizeText(device.getOsVersion()));
+        device.setBrowser(normalizeText(device.getBrowser()));
+        device.setBrowserVersion(normalizeText(device.getBrowserVersion()));
+        device.setScreenResolution(normalizeText(device.getScreenResolution()));
+        device.setLanguage(normalizeText(device.getLanguage()));
+    }
+
+    private void hardenIntent(CanonicalSecurityContext.Intent intent) {
+    }
+
+    private void hardenLocation(CanonicalSecurityContext.Location location) {
+        location.setCountry(normalizeUpperText(location.getCountry()));
+        location.setCity(normalizeText(location.getCity()));
+        location.setIpBand(normalizeText(location.getIpBand()));
+        location.setAsn(normalizeUpperText(location.getAsn()));
     }
 
     private void hardenResource(CanonicalSecurityContext.Resource resource) {
@@ -223,6 +254,19 @@ public class CanonicalSecurityContextHardener {
             return null;
         }
         return Math.max(value, 0);
+    }
+
+    private Integer normalizeHour(Integer value) {
+        if (value == null) {
+            return null;
+        }
+        if (value < 0) {
+            return 0;
+        }
+        if (value > 23) {
+            return 23;
+        }
+        return value;
     }
 
     private Double normalizeDouble(Double value) {

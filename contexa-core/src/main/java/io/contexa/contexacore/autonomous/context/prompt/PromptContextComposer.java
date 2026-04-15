@@ -28,6 +28,9 @@ public class PromptContextComposer {
         appendSection(section, composeCoverageSection(context));
         appendSection(section, composeIdentitySection(context));
         appendSection(section, composeAuthenticationAndAssuranceSection(context));
+        appendSection(section, composeDeviceSection(context));
+        appendSection(section, composeLocationSection(context));
+        appendSection(section, composeIntentSection(context));
         appendSection(section, composeResourceSection(context));
         appendSection(section, composeSessionNarrativeSection(context));
         appendSection(section, composeObservedScopeSection(context));
@@ -56,6 +59,18 @@ public class PromptContextComposer {
 
     public String composeAuthenticationAndAssuranceSection(CanonicalSecurityContext context) {
         return composeSection(context, section -> appendAuthenticationAndAssuranceSection(section, context.getSession()));
+    }
+
+    public String composeDeviceSection(CanonicalSecurityContext context) {
+        return composeSection(context, section -> appendDeviceSection(section, context.getDevice()));
+    }
+
+    public String composeLocationSection(CanonicalSecurityContext context) {
+        return composeSection(context, section -> appendLocationSection(section, context.getLocation()));
+    }
+
+    public String composeIntentSection(CanonicalSecurityContext context) {
+        return composeSection(context, section -> appendIntentSection(section, context.getIntent()));
     }
 
     public String composeResourceSection(CanonicalSecurityContext context) {
@@ -220,6 +235,47 @@ public class PromptContextComposer {
         appendLine(section, "NewSession", session.getNewSession());
         appendLine(section, "NewUser", session.getNewUser());
         appendLine(section, "NewDevice", session.getNewDevice());
+        appendLine(section, "CurrentAccessHour", session.getCurrentAccessHour());
+        appendLine(section, "ConcurrentSessions", session.getConcurrentSessions());
+        appendLine(section, "PasswordAgeDays", session.getPasswordAgeDays());
+    }
+
+    private void appendDeviceSection(StringBuilder section, CanonicalSecurityContext.Device device) {
+        if (device == null) {
+            return;
+        }
+        section.append("\n=== DEVICE CONTEXT ===\n");
+        appendLine(section, "DeviceOs", device.getOs());
+        appendLine(section, "DeviceOsVersion", device.getOsVersion());
+        appendLine(section, "DeviceBrowser", device.getBrowser());
+        appendLine(section, "DeviceBrowserVersion", device.getBrowserVersion());
+        appendLine(section, "DeviceScreenResolution", device.getScreenResolution());
+        appendLine(section, "DeviceLanguage", device.getLanguage());
+        appendLine(section, "DeviceFingerprintMatch", device.getFingerprintMatch());
+    }
+
+    private void appendLocationSection(StringBuilder section, CanonicalSecurityContext.Location location) {
+        if (location == null) {
+            return;
+        }
+        section.append("\n=== LOCATION CONTEXT ===\n");
+        appendLine(section, "Country", location.getCountry());
+        appendLine(section, "City", location.getCity());
+        appendLine(section, "IpBand", location.getIpBand());
+        appendLine(section, "Asn", location.getAsn());
+    }
+
+    private void appendIntentSection(StringBuilder section, CanonicalSecurityContext.Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        section.append("\n=== REQUEST INTENT SIGNAL CONTEXT ===\n");
+        appendLine(section, "BotUserAgent", intent.getBotUserAgent());
+        appendLine(section, "MissingReferer", intent.getMissingReferer());
+        appendLine(section, "LanguageMismatch", intent.getLanguageMismatch());
+        appendLine(section, "TlsFingerprintAltered", intent.getTlsFingerprintAltered());
+        appendLine(section, "AbnormalHeaderOrder", intent.getAbnormalHeaderOrder());
+        appendLine(section, "ImpossibleTravel", intent.getImpossibleTravel());
     }
 
     private void appendResourceSection(StringBuilder section, CanonicalSecurityContext.Resource resource) {

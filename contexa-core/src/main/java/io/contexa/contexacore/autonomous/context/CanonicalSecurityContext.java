@@ -25,6 +25,12 @@ public class CanonicalSecurityContext {
 
     private Session session;
 
+    private Device device;
+
+    private Intent intent;
+
+    private Location location;
+
     private Resource resource;
 
     private Authorization authorization;
@@ -103,6 +109,47 @@ public class CanonicalSecurityContext {
         private Boolean newSession;
         private Boolean newUser;
         private Boolean newDevice;
+        private Integer currentAccessHour;
+        private Integer concurrentSessions;
+        private Integer passwordAgeDays;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Device {
+        private String os;
+        private String osVersion;
+        private String browser;
+        private String browserVersion;
+        private String screenResolution;
+        private String language;
+        private Boolean fingerprintMatch;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Intent {
+        private Boolean botUserAgent;
+        private Boolean missingReferer;
+        private Boolean languageMismatch;
+        private Boolean tlsFingerprintAltered;
+        private Boolean abnormalHeaderOrder;
+        private Boolean impossibleTravel;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Location {
+        private String country;
+        private String city;
+        private String ipBand;
+        private String asn;
     }
 
     @Data
