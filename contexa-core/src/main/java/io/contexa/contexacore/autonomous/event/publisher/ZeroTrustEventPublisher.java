@@ -117,6 +117,26 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(mergedPayload, "failedLoginAttempts", requestInfo.getFailedLoginAttempts());
             putIfAbsent(mergedPayload, "isNewDevice", requestInfo.getIsNewDevice());
             putIfAbsent(mergedPayload, "impossibleTravel", requestInfo.getImpossibleTravel());
+            // Canonical Context Extension v1.0 payload promotion
+            putIfAbsent(mergedPayload, "ipBand", requestInfo.getIpBand());
+            putIfAbsent(mergedPayload, "asn", requestInfo.getAsn());
+            putIfAbsent(mergedPayload, "deviceOs", requestInfo.getDeviceOs());
+            putIfAbsent(mergedPayload, "deviceOsVersion", requestInfo.getDeviceOsVersion());
+            putIfAbsent(mergedPayload, "deviceBrowser", requestInfo.getDeviceBrowser());
+            putIfAbsent(mergedPayload, "deviceBrowserVersion", requestInfo.getDeviceBrowserVersion());
+            putIfAbsent(mergedPayload, "deviceScreenResolution", requestInfo.getDeviceScreenResolution());
+            putIfAbsent(mergedPayload, "deviceLanguage", requestInfo.getDeviceLanguage());
+            putIfAbsent(mergedPayload, "deviceFingerprintMatch", requestInfo.getDeviceFingerprintMatch());
+            putIfAbsent(mergedPayload, "intentBotUserAgent", requestInfo.getIntentBotUserAgent());
+            putIfAbsent(mergedPayload, "intentMissingReferer", requestInfo.getIntentMissingReferer());
+            putIfAbsent(mergedPayload, "intentLanguageMismatch", requestInfo.getIntentLanguageMismatch());
+            putIfAbsent(mergedPayload, "intentTlsFingerprintAltered", requestInfo.getIntentTlsFingerprintAltered());
+            putIfAbsent(mergedPayload, "intentAbnormalHeaderOrder", requestInfo.getIntentAbnormalHeaderOrder());
+            putIfAbsent(mergedPayload, "authenticationType", requestInfo.getAuthenticationType());
+            putIfAbsent(mergedPayload, "currentAccessHour", requestInfo.getCurrentAccessHour());
+            putIfAbsent(mergedPayload, "concurrentSessions", requestInfo.getConcurrentSessions());
+            putIfAbsent(mergedPayload, "passwordAgeDays", requestInfo.getPasswordAgeDays());
+            putIfAbsent(mergedPayload, "sessionAgeMinutes", requestInfo.getSessionAgeMinutes());
             populateBridgePayload(requestInfo, mergedPayload);
         }
         if (actionRedisRepository != null && userId != null && !mergedPayload.containsKey("action")) {
@@ -288,6 +308,27 @@ public class ZeroTrustEventPublisher {
                 payload.put("travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
                 payload.put("previousLocation", requestInfo.getPreviousLocation());
             }
+
+            // Canonical Context Extension v1.0 payload promotion
+            if (requestInfo.getIpBand() != null)                 payload.put("ipBand", requestInfo.getIpBand());
+            if (requestInfo.getAsn() != null)                    payload.put("asn", requestInfo.getAsn());
+            if (requestInfo.getDeviceOs() != null)               payload.put("deviceOs", requestInfo.getDeviceOs());
+            if (requestInfo.getDeviceOsVersion() != null)        payload.put("deviceOsVersion", requestInfo.getDeviceOsVersion());
+            if (requestInfo.getDeviceBrowser() != null)          payload.put("deviceBrowser", requestInfo.getDeviceBrowser());
+            if (requestInfo.getDeviceBrowserVersion() != null)   payload.put("deviceBrowserVersion", requestInfo.getDeviceBrowserVersion());
+            if (requestInfo.getDeviceScreenResolution() != null) payload.put("deviceScreenResolution", requestInfo.getDeviceScreenResolution());
+            if (requestInfo.getDeviceLanguage() != null)         payload.put("deviceLanguage", requestInfo.getDeviceLanguage());
+            if (requestInfo.getDeviceFingerprintMatch() != null) payload.put("deviceFingerprintMatch", requestInfo.getDeviceFingerprintMatch());
+            if (requestInfo.getIntentBotUserAgent() != null)          payload.put("intentBotUserAgent", requestInfo.getIntentBotUserAgent());
+            if (requestInfo.getIntentMissingReferer() != null)        payload.put("intentMissingReferer", requestInfo.getIntentMissingReferer());
+            if (requestInfo.getIntentLanguageMismatch() != null)      payload.put("intentLanguageMismatch", requestInfo.getIntentLanguageMismatch());
+            if (requestInfo.getIntentTlsFingerprintAltered() != null) payload.put("intentTlsFingerprintAltered", requestInfo.getIntentTlsFingerprintAltered());
+            if (requestInfo.getIntentAbnormalHeaderOrder() != null)   payload.put("intentAbnormalHeaderOrder", requestInfo.getIntentAbnormalHeaderOrder());
+            if (requestInfo.getAuthenticationType() != null)  payload.put("authenticationType", requestInfo.getAuthenticationType());
+            if (requestInfo.getCurrentAccessHour() != null)   payload.put("currentAccessHour", requestInfo.getCurrentAccessHour());
+            if (requestInfo.getConcurrentSessions() != null)  payload.put("concurrentSessions", requestInfo.getConcurrentSessions());
+            if (requestInfo.getPasswordAgeDays() != null)     payload.put("passwordAgeDays", requestInfo.getPasswordAgeDays());
+            if (requestInfo.getSessionAgeMinutes() != null)   payload.put("sessionAgeMinutes", requestInfo.getSessionAgeMinutes());
         }
 
         populateAuthenticationFallback(authentication, payload);

@@ -128,6 +128,29 @@ public final class RequestInfoExtractor {
                 .travelDistanceKm(castToInteger(request.getAttribute("hcad.travelDistanceKm")))
                 .travelElapsedMinutes(castToInteger(request.getAttribute("hcad.travelElapsedMinutes")))
                 .previousLocation((String) request.getAttribute("hcad.previousLocation"))
+                // Canonical Context Extension v1.0 - Location supplements
+                .ipBand(extractAttributeText(request, "hcad.ip_band", "hcad.ipBand"))
+                .asn(extractAttributeText(request, "hcad.asn", "hcad.geoAsn"))
+                // Canonical Context Extension v1.0 - Device slot
+                .deviceOs(extractAttributeText(request, "hcad.device_os", "hcad.deviceOs"))
+                .deviceOsVersion(extractAttributeText(request, "hcad.device_os_version", "hcad.deviceOsVersion"))
+                .deviceBrowser(extractAttributeText(request, "hcad.device_browser", "hcad.deviceBrowser"))
+                .deviceBrowserVersion(extractAttributeText(request, "hcad.device_browser_version", "hcad.deviceBrowserVersion"))
+                .deviceScreenResolution(extractAttributeText(request, "hcad.device_screen_resolution", "hcad.deviceScreenResolution"))
+                .deviceLanguage(extractAttributeText(request, "hcad.device_language", "hcad.deviceLanguage"))
+                .deviceFingerprintMatch(castToBoolean(firstNonNullAttribute(request, "hcad.device_fingerprint_match", "hcad.deviceFingerprintMatch")))
+                // Canonical Context Extension v1.0 - Intent slot
+                .intentBotUserAgent(castToBoolean(firstNonNullAttribute(request, "hcad.intent_bot_user_agent", "hcad.intentBotUserAgent")))
+                .intentMissingReferer(castToBoolean(firstNonNullAttribute(request, "hcad.intent_missing_referer", "hcad.intentMissingReferer")))
+                .intentLanguageMismatch(castToBoolean(firstNonNullAttribute(request, "hcad.intent_language_mismatch", "hcad.intentLanguageMismatch")))
+                .intentTlsFingerprintAltered(castToBoolean(firstNonNullAttribute(request, "hcad.intent_tls_fingerprint_altered", "hcad.intentTlsFingerprintAltered")))
+                .intentAbnormalHeaderOrder(castToBoolean(firstNonNullAttribute(request, "hcad.intent_abnormal_header_order", "hcad.intentAbnormalHeaderOrder")))
+                // Canonical Context Extension v1.0 - Session slot additions
+                .authenticationType(extractAttributeText(request, "hcad.authentication_type", "hcad.authenticationType"))
+                .currentAccessHour(castToInteger(firstNonNullAttribute(request, "hcad.current_access_hour", "hcad.currentAccessHour")))
+                .concurrentSessions(castToInteger(firstNonNullAttribute(request, "hcad.concurrent_sessions", "hcad.concurrentSessions")))
+                .passwordAgeDays(castToInteger(firstNonNullAttribute(request, "hcad.password_age_days", "hcad.passwordAgeDays")))
+                .sessionAgeMinutes(castToInteger(firstNonNullAttribute(request, "hcad.session_age_minutes", "hcad.sessionAgeMinutes")))
                 .bridgeResolutionResult(extractBridgeResolutionResult(request, security, requestId))
                 .build();
     }
@@ -608,6 +631,33 @@ public final class RequestInfoExtractor {
         private final Integer travelDistanceKm;
         private final Integer travelElapsedMinutes;
         private final String previousLocation;
+
+        // Canonical Context Extension v1.0 - Location supplements
+        private final String ipBand;
+        private final String asn;
+
+        // Canonical Context Extension v1.0 - Device slot
+        private final String deviceOs;
+        private final String deviceOsVersion;
+        private final String deviceBrowser;
+        private final String deviceBrowserVersion;
+        private final String deviceScreenResolution;
+        private final String deviceLanguage;
+        private final Boolean deviceFingerprintMatch;
+
+        // Canonical Context Extension v1.0 - Intent slot
+        private final Boolean intentBotUserAgent;
+        private final Boolean intentMissingReferer;
+        private final Boolean intentLanguageMismatch;
+        private final Boolean intentTlsFingerprintAltered;
+        private final Boolean intentAbnormalHeaderOrder;
+
+        // Canonical Context Extension v1.0 - Session slot additions
+        private final String authenticationType;
+        private final Integer currentAccessHour;
+        private final Integer concurrentSessions;
+        private final Integer passwordAgeDays;
+        private final Integer sessionAgeMinutes;
     }
 
     private static Integer castToInteger(Object value) {
