@@ -14,6 +14,7 @@
 > CONTEXA continuously evaluates authenticated runtime behavior and applies zero-trust controls inside the application.
 
 - **Website:** https://ctxa.ai
+- **Demo / Verification Console:** https://demo.ctxa.ai
 - **Documentation:** https://docs.ctxa.ai
 - **Architecture:** https://docs.ctxa.ai/docs/reference/architecture/overview.html
 - **Public Benchmark:** https://ctxa.ai/benchmark
@@ -83,6 +84,26 @@ CONTEXA addresses the downstream runtime problem that remains after discovery:
 - how to prove those controls with verification and benchmark artifacts
 
 This repository contains the open-source runtime control engine for that downstream layer.
+
+## Project Status
+
+- Current public OSS version: `0.1.0`
+- Repository stage: initial public open-source release
+- Core focus: post-authentication runtime control inside Spring applications
+
+CONTEXA should be evaluated as an early but serious security infrastructure project.
+Its public scale is still developing, but the category it addresses is already operationally important: constraining authenticated runtime behavior after risk is discovered and before remediation is complete.
+
+## Why Review CONTEXA at an Early OSS Stage
+
+CONTEXA does not yet claim mature open-source scale.
+It should instead be assessed on structural security relevance:
+
+- it addresses the post-authentication runtime problem that remains after upstream discovery
+- it operates at the application layer, where authenticated requests are actually executed
+- it provides public documentation, benchmark surfaces, and a security contact path
+- it is built as an open-source runtime control engine rather than a marketing-only concept
+- it is relevant to downstream exploit-window reduction for authenticated humans, workloads, service clients, and delegated agents
 
 ## Open-source Core and Enterprise Surfaces
 
@@ -209,14 +230,18 @@ contexa:
 ## Trust and Public References
 
 - Main site: https://ctxa.ai
+- Demo / verification console: https://demo.ctxa.ai
 - Documentation site: https://docs.ctxa.ai
 - Architecture overview: https://docs.ctxa.ai/docs/reference/architecture/overview.html
 - Public benchmark entry: https://ctxa.ai/benchmark
 - Security policy: [SECURITY.md](SECURITY.md)
 - Public security.txt: https://ctxa.ai/.well-known/security.txt
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Maintainer statement: [MAINTAINERS.md](MAINTAINERS.md)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+
