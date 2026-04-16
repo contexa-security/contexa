@@ -2,7 +2,7 @@
 
 # CONTEXA
 
-**Open-source AI Native Post-Auth Runtime Control Plane for Spring**
+**Open-source AI-native Post-Authentication Runtime Control Plane for Spring**
 
 <br clear="left" />
 
@@ -25,7 +25,7 @@
 
 ## What CONTEXA Is
 
-CONTEXA is an open-source AI Native Post-Auth Runtime Control Plane.
+CONTEXA is an open-source AI-native Post-Authentication Runtime Control Plane.
 
 It is built for what happens after authentication succeeds:
 
@@ -50,9 +50,9 @@ CONTEXA complements upstream security discovery by constraining authenticated ru
 
 ## Why CONTEXA
 
-Most serious breaches happen after successful authentication.
+Most material security failures occur after successful authentication.
 
-The attacker already has one or more of the following:
+At that point, the attacker may already hold one or more of the following:
 
 - a valid session
 - a valid token
@@ -91,7 +91,7 @@ This repository contains the open-source runtime control engine for that downstr
 - Repository stage: initial public open-source release
 - Core focus: post-authentication runtime control inside Spring applications
 
-CONTEXA should be evaluated as an early but serious security infrastructure project.
+CONTEXA should be reviewed as early-stage security infrastructure with material category relevance.
 Its public scale is still developing, but the category it addresses is already operationally important: constraining authenticated runtime behavior after risk is discovered and before remediation is complete.
 
 ## Why Review CONTEXA at an Early OSS Stage
@@ -104,6 +104,21 @@ It should instead be assessed on structural security relevance:
 - it provides public documentation, benchmark surfaces, and a security contact path
 - it is built as an open-source runtime control engine rather than a marketing-only concept
 - it is relevant to downstream exploit-window reduction for authenticated humans, workloads, service clients, and delegated agents
+
+## Runtime Decision Path
+
+```mermaid
+flowchart LR
+    A[Authenticated Request\nPost-auth subject request] --> B[contexa-identity\nAuth flows, MFA, adaptive challenge]
+    B --> C[contexa-iam\nPolicy, resource protection, method protection]
+    C --> D[contexa-core\nContext, analysis, RAG, LLM adjudication]
+    D --> E{Runtime Decision\nRequest-time control decision}
+    E --> F[ALLOW\nPermit request]
+    E --> G[CHALLENGE\nRequire extra verification]
+    E --> H[BLOCK\nDeny immediately]
+    E --> I[ESCALATE\nStronger control or review]
+    E --> J[PENDING_ANALYSIS\nWait for analysis]
+```
 
 ## Open-source Core and Enterprise Surfaces
 
@@ -121,6 +136,14 @@ Those surfaces include multi-tenant operations, publication workflows, advanced 
 
 The open-source core remains a meaningful platform on its own.
 It provides the runtime decision, control, and integration foundation.
+
+## Current Public Release
+
+- Current release: `0.1.0`
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Release notes: [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- Maintainer statement: [MAINTAINERS.md](MAINTAINERS.md)
+- Governance: [GOVERNANCE.md](GOVERNANCE.md)
 
 ## Quick Start
 
@@ -238,10 +261,10 @@ contexa:
 - Public security.txt: https://ctxa.ai/.well-known/security.txt
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Maintainer statement: [MAINTAINERS.md](MAINTAINERS.md)
+- Governance: [GOVERNANCE.md](GOVERNANCE.md)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Release notes: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
-
-
