@@ -911,15 +911,34 @@ public class BaselineLearningService {
         }
 
         if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
-            return extractBrowserVersion(userAgent, "Chrome/");
+            String sig = extractBrowserVersion(userAgent, "Chrome/");
+            if (!"unknown".equals(sig)) return sig;
         } else if (userAgent.contains("Edg/")) {
-            String browser = extractBrowserVersion(userAgent, "Edg/");
-            return browser.replace("Edg", "Edge");
+            String sig = extractBrowserVersion(userAgent, "Edg/");
+            if (!"unknown".equals(sig)) return sig.replace("Edg", "Edge");
         } else if (userAgent.contains("Firefox/")) {
-            return extractBrowserVersion(userAgent, "Firefox/");
+            String sig = extractBrowserVersion(userAgent, "Firefox/");
+            if (!"unknown".equals(sig)) return sig;
         } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
-            String browser = extractBrowserVersion(userAgent, "Version/");
-            return browser.replace("Version", "Safari");
+            if (userAgent.contains("Version/")) {
+                String sig = extractBrowserVersion(userAgent, "Version/");
+                if (!"unknown".equals(sig)) return sig.replace("Version", "Safari");
+            }
+            String sig = extractBrowserVersion(userAgent, "Safari/");
+            if (!"unknown".equals(sig)) return sig;
+        }
+
+        String[] tokens = userAgent.split("\\s+");
+        for (int i = tokens.length - 1; i >= 0; i--) {
+            String token = tokens[i];
+            int slashIdx = token.indexOf('/');
+            if (slashIdx > 0 && slashIdx < token.length() - 1) {
+                String name = token.substring(0, slashIdx).replaceAll("[^A-Za-z0-9._-]", "");
+                String version = token.substring(slashIdx + 1).replaceAll("[^A-Za-z0-9._-]", "");
+                if (!name.isEmpty() && !version.isEmpty()) {
+                    return name + "/" + version;
+                }
+            }
         }
 
         return "UNKNOWN_BROWSER_SIGNATURE";
