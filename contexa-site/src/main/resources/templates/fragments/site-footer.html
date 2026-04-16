@@ -1,0 +1,34 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<footer th:fragment="footer" class="site-footer">
+    <div class="footer-grid">
+        <div class="footer-brand">
+            <div class="footer-logo">CONTE<span>X</span>A</div>
+            <p th:text="#{site.footer.desc}">AI-Native Zero Trust Security Platform</p>
+            <a href="mailto:contexa73@gmail.com" class="footer-email">contexa73@gmail.com</a>
+        </div>
+        <div class="footer-col">
+            <h4 th:text="#{site.footer.platform}">Platform</h4>
+            <a href="#platform" th:text="#{site.footer.platform.overview}">Overview</a>
+            <a href="#how" th:text="#{site.footer.platform.how}">How It Works</a>
+            <a href="#use-cases" th:text="#{site.footer.platform.usecases}">Use Cases</a>
+        </div>
+        <div class="footer-col">
+            <h4 th:text="#{site.footer.developers}">Developers</h4>
+            <a href="https://docs.ctxa.ai" target="_blank" rel="noopener" th:text="#{site.footer.developers.docs}">Documentation</a>
+            <a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener" th:text="#{site.footer.developers.github}">GitHub</a>
+            <a th:href="@{/benchmark/methodology}" th:text="#{site.nav.resources}">Methodology</a>
+        </div>
+        <div class="footer-col">
+            <h4 th:text="#{site.footer.company}">Company</h4>
+            <a href="#company" th:text="#{site.footer.company.about}">About</a>
+            <a th:href="@{/benchmark}" th:text="#{site.nav.benchmark}">Benchmark</a>
+            <a href="mailto:contexa73@gmail.com" th:text="#{site.footer.company.contact}">Contact</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span th:text="#{site.footer.copyright}">&copy; 2026 Contexa. All rights reserved.</span>
+    </div>
+    <script th:src="@{/js/site.js}"></script>
+</footer>
+</html>

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head th:replace="~{fragments/site-head :: head(${pageTitle})}"></head>
+<body class="benchmark-site">
+<div th:replace="~{fragments/site-nav :: nav}"></div>
+<section class="benchmark-hero benchmark-hero--dossier">
+    <div class="benchmark-shell">
+        <a class="benchmark-back" th:href="@{/benchmark}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg><span th:text="#{site.benchmark.ui.back}">Benchmark</span></a>
+        <div class="benchmark-pill-row benchmark-pill-row--story">
+            <span class="benchmark-pill benchmark-pill--info" th:text="${dossierHero.sourceType}">OFFICIAL_BENCHMARK</span>
+            <span class="benchmark-pill benchmark-pill--soft" th:text="${dossierHero.benchmarkVersion}">v1</span>
+            <span class="benchmark-pill" th:classappend="| benchmark-pill--${dossierHero.statusTone}|" th:text="${dossierHero.statusLabel}">Published</span>
+        </div>
+        <p class="benchmark-eyebrow" th:text="#{site.benchmark.report.hero.eyebrow}">Official report</p>
+        <h1 class="benchmark-title" th:text="${dossierHero.title}">Official report</h1>
+        <p class="benchmark-subtitle" th:text="${dossierHero.dossierNote}">Canonical benchmark dossier for external review.</p>
+        <div class="benchmark-actions benchmark-actions--hero">
+            <a class="btn-primary" href="#verdict" th:text="#{site.benchmark.report.hero.read-verdict}">Read the verdict</a>
+            <a class="btn-secondary" th:href="${reportPdfUrl}" th:text="#{site.benchmark.report.hero.pdf}">Download PDF</a>
+            <a class="btn-secondary" th:href="${reportManifestUrl}" th:text="#{site.benchmark.report.hero.manifest}">Manifest</a>
+            <a class="btn-secondary" th:href="${reportSummaryUrl}" th:text="#{site.benchmark.report.hero.summary}">Summary JSON</a>
+        </div>
+    </div>
+</section>
+<main class="benchmark-shell benchmark-main">
+    <section class="benchmark-story-grid fade-in-up">
+        <article class="benchmark-story-card benchmark-story-card--span-8 benchmark-section-anchor" id="verdict">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.verdict.kicker}">Report verdict</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.verdict.title}">What this report says now</h2>
+            <p class="benchmark-section-lead" th:text="${dossierExecutiveSummary.summary}">Summary</p>
+            <p class="benchmark-section-note" th:text="${dossierExecutiveSummary.readerGuidance}">Guidance</p>
+            <div class="benchmark-kpi-band benchmark-kpi-band--story">
+                <article class="benchmark-kpi" th:each="kpi : ${dossierExecutiveSummary.kpiCards}" th:classappend="| benchmark-kpi--${kpi.tone}|">
+                    <span class="benchmark-kpi__label" th:text="${kpi.label}">Coverage</span>
+                    <strong th:text="${kpi.value}">0.00%</strong>
+                    <small th:text="${kpi.note}">Note</small>
+                </article>
+            </div>
+            <div class="benchmark-callout">
+                <strong th:text="#{site.benchmark.report.verdict.reading-title}">Read it in this order</strong>
+                <ul>
+                    <li th:text="#{site.benchmark.report.verdict.step1}">Start with the verdict and the key numbers.</li>
+                    <li th:text="#{site.benchmark.report.verdict.step2}">Then read claims and official metrics.</li>
+                    <li th:text="#{site.benchmark.report.verdict.step3}">Use scenarios, version change, and artifacts for the supporting detail.</li>
+                </ul>
+            </div>
+        </article>
+
+        <article class="benchmark-story-card benchmark-story-card--span-4 benchmark-sticky-card">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.guide.kicker}">Report guide</div>
+            <ul class="benchmark-nav-list">
+                <li><a href="#verdict" th:text="#{site.benchmark.report.guide.verdict}">Verdict</a></li>
+                <li><a href="#provenance" th:text="#{site.benchmark.report.guide.provenance}">Evidence chain</a></li>
+                <li><a href="#claims" th:text="#{site.benchmark.report.guide.claims}">Claims</a></li>
+                <li><a href="#metrics" th:text="#{site.benchmark.report.guide.metrics}">Official metrics</a></li>
+                <li><a href="#scenarios" th:text="#{site.benchmark.report.guide.scenarios}">Scenario results</a></li>
+                <li><a href="#response-proof" th:text="#{site.benchmark.report.guide.response}">Response proof</a></li>
+                <li><a href="#trend" th:text="#{site.benchmark.report.guide.trend}">Version change</a></li>
+                <li><a href="#rules" th:text="#{site.benchmark.report.guide.rules}">Reading rules</a></li>
+                <li><a href="#artifacts" th:text="#{site.benchmark.report.guide.artifacts}">Artifacts</a></li>
+            </ul>
+            <div class="benchmark-compact-stack" style="margin-top:20px;">
+                <div class="benchmark-summary-card" th:each="item,itemStat : ${dossierExecutiveSummary.docketItems}" th:if="${itemStat.index < 4}">
+                    <span class="benchmark-summary-card__label" th:text="${item.label}">Status</span>
+                    <strong th:text="${item.value}">Ready</strong>
+                    <p th:text="${item.note}">Note</p>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <section class="benchmark-story-grid fade-in-up benchmark-section-anchor" id="provenance">
+        <article class="benchmark-story-card benchmark-story-card--span-12">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.provenance.kicker}">Evidence chain</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.provenance.title}">Where this result comes from</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.provenance.note}">Public numbers come only from verified cases, locked methodology versions, and published artifacts.</p>
+            <div class="benchmark-inline-metrics">
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.report.verified-cases}">Verified cases</span><strong th:text="${dossierTruthProvenance.sourceVerifiedCaseCount}">0</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.report.evaluation-cases}">Evaluation cases</span><strong th:text="${dossierTruthProvenance.sourceEvaluationCaseCount}">0</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.common.metric}">Verified metrics</span><strong th:text="${dossierTruthProvenance.verifiedMetricCount}">0</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.common.replay-coverage}">Replay coverage</span><strong th:text="|${#numbers.formatDecimal(dossierTruthProvenance.replayCoverageRate * 100,1,2)}%|">0.00%</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.report.provenance.assurance}">Assurance coverage</span><strong th:text="|${#numbers.formatDecimal(dossierTruthProvenance.assuranceCoverageRate * 100,1,2)}%|">0.00%</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.report.methodology-label}">Methodology</span><strong th:text="${dossierTruthProvenance.methodologyVersion}">-</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.common.sanitization}">Sanitization</span><strong th:text="${dossierTruthProvenance.sanitizationProfileVersion}">-</strong></article>
+                <article class="benchmark-inline-metric"><span th:text="#{site.benchmark.common.last-verified}">Last verified</span><strong th:text="${dossierTruthProvenance.lastVerifiedLabel}">-</strong></article>
+            </div>
+        </article>
+    </section>
+
+    <section class="benchmark-story-grid fade-in-up benchmark-section-anchor" id="claims">
+        <article class="benchmark-story-card benchmark-story-card--span-6">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.claims.kicker}">Claim verdicts</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.claims.title2}">What was proven</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.claims.note}">Claims are the public product promises. This section shows the score and supporting cases behind each claim.</p>
+            <div class="benchmark-compact-stack" th:if="${!#lists.isEmpty(reportClaimHighlights)}">
+                <article class="benchmark-summary-card" th:each="card : ${reportClaimHighlights}">
+                    <span class="benchmark-summary-card__label" th:text="${card.title}">Claim</span>
+                    <strong th:text="${#numbers.formatDecimal(card.score,1,2)}">0.00</strong>
+                    <p th:text="|${card.passingEvaluationCaseCount}/${card.sourceEvaluationCaseCount}|">0/0</p>
+                </article>
+            </div>
+            <details class="benchmark-disclosure">
+                <summary th:text="#{site.benchmark.report.claims.open-detail}">Open claim detail</summary>
+                <div class="benchmark-disclosure__content">
+                    <div class="benchmark-table-wrap">
+                        <table class="benchmark-data-table benchmark-data-table--compact">
+                            <thead>
+                            <tr>
+                                <th th:text="#{site.benchmark.report.table.claim}">Claim</th>
+                                <th th:text="#{site.benchmark.report.table.score}">Score</th>
+                                <th th:text="#{site.benchmark.report.table.suites}">Supporting suites</th>
+                                <th th:text="#{site.benchmark.report.table.evaluation-cases}">Cases</th>
+                                <th th:text="#{site.benchmark.report.claims.verdict}">Verdict</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="row : ${dossierClaimScorecardRows}">
+                                <td><strong th:text="${row.title}">Claim</strong><div class="benchmark-muted" th:text="${row.key}">KEY</div></td>
+                                <td th:text="${#numbers.formatDecimal(row.score,1,2)}">0.00</td>
+                                <td th:text="${row.supportingSuites}">suite</td>
+                                <td th:text="|${row.passingEvaluationCaseCount}/${row.sourceEvaluationCaseCount}|">0/0</td>
+                                <td>
+                                    <span class="benchmark-pill benchmark-pill--success" th:if="${row.pass}" th:text="#{site.benchmark.ui.pass}">Pass</span>
+                                    <span class="benchmark-pill benchmark-pill--warning" th:unless="${row.pass}" th:text="#{site.benchmark.ui.hold}">Hold</span>
+                                    <div class="benchmark-tag-stack" th:if="${!#lists.isEmpty(row.failingGates)}">
+                                        <span class="benchmark-tag benchmark-tag--warning" th:each="gate : ${row.failingGates}" th:text="${gate}">gate</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        </article>
+
+        <article class="benchmark-story-card benchmark-story-card--span-6 benchmark-section-anchor" id="metrics">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.metrics.kicker}">Official metrics</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.metrics.title2}">How the official metric set looks</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.metrics.note}">Pass, fail, and missing stay visible together. Missing means the public evidence is not complete yet.</p>
+            <div class="benchmark-donut-wrap">
+                <div class="benchmark-donut" th:style="|background:${reportDonut.cssGradient};|">
+                    <div class="benchmark-donut-center"><strong th:text="${reportDonut.totalCount}">0</strong><span th:text="#{site.benchmark.report.metrics.metrics-label}">Metrics</span></div>
+                </div>
+                <div class="benchmark-donut-legend">
+                    <div class="benchmark-donut-legend-item" th:each="segment : ${reportDonut.segments}">
+                        <span class="benchmark-donut-swatch" th:style="|background:${segment.color};|"></span>
+                        <span th:text="${segment.label}">Passing</span>
+                        <strong th:text="${segment.value}">0</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="benchmark-kpi-band benchmark-kpi-band--story">
+                <article class="benchmark-kpi" th:each="card : ${reportGateSummaryCards}" th:classappend="| benchmark-kpi--${card.tone}|">
+                    <span class="benchmark-kpi__label" th:text="${card.label}">Metric</span>
+                    <strong th:text="${card.value}">0</strong>
+                    <small th:text="${card.caption}">Note</small>
+                </article>
+            </div>
+            <details class="benchmark-disclosure" th:if="${!#lists.isEmpty(reportFailingMetrics) or !#lists.isEmpty(dossierOfficialGate.missingOfficialMetrics)}">
+                <summary th:text="#{site.benchmark.report.metrics.open-missing}">Open missing and failing metrics</summary>
+                <div class="benchmark-disclosure__content">
+                    <div class="benchmark-data-list" th:if="${!#lists.isEmpty(reportFailingMetrics)}">
+                        <div class="benchmark-data-list__item" th:each="metric : ${reportFailingMetrics}">
+                            <span class="benchmark-data-list__label" th:text="${metric.name}">Metric</span>
+                            <strong th:text="|${#numbers.formatDecimal(metric.mean,1,2)} / ${#numbers.formatDecimal(metric.threshold,1,2)}|">0.00 / 0.00</strong>
+                            <small th:text="${metric.code + ' · ' + metric.category}">code</small>
+                        </div>
+                    </div>
+                    <div class="benchmark-tag-stack" th:if="${!#lists.isEmpty(dossierOfficialGate.missingOfficialMetrics)}" style="margin-top:14px;">
+                        <span class="benchmark-tag benchmark-tag--warning" th:each="metric : ${dossierOfficialGate.missingOfficialMetrics}" th:text="${metric}">metric</span>
+                    </div>
+                </div>
+            </details>
+        </article>
+    </section>
+
+    <section class="benchmark-story-grid fade-in-up benchmark-section-anchor" id="scenarios">
+        <article class="benchmark-story-card benchmark-story-card--span-5">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.suites.kicker}">Evaluation suites</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.suites.title2}">Which test groups produced the result</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.suites.note}">Suites group related checks. This section shows which groups contributed to the result.</p>
+            <div class="benchmark-data-list">
+                <div class="benchmark-data-list__item" th:each="suite : ${dossierSuiteBreakdownRows}">
+                    <span class="benchmark-data-list__label" th:text="${suite.title}">Suite</span>
+                    <strong th:text="${#numbers.formatDecimal(suite.averageScore,1,2)}">0.00</strong>
+                    <small th:text="|${suite.passingCaseCount}/${suite.evaluationCaseCount} · ${suite.key}|">0/0</small>
+                </div>
+            </div>
+        </article>
+
+        <article class="benchmark-story-card benchmark-story-card--span-7">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.scenario.kicker}">Scenario results</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.scenario.title2}">How actual values compare with expected values</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.scenario.note}">Key scenarios stay visible first. Open the full table only when full matrix detail is needed.</p>
+            <div class="benchmark-heatmap-grid" th:if="${!#lists.isEmpty(reportHeatmapCells)}">
+                <div class="benchmark-heatmap-cell" th:each="cell,cellStat : ${reportHeatmapCells}" th:if="${cellStat.index < 6}" th:style="|background:${cell.background};|">
+                    <strong th:text="${cell.label}">Scenario</strong>
+                    <span th:text="${cell.category}">category</span>
+                    <div class="benchmark-muted-row"><span th:text="|Actual ${#numbers.formatDecimal(cell.actual,1,2)}|">Actual 0.00</span><span th:text="|Expected ${#numbers.formatDecimal(cell.expected,1,2)}|">Expected 0.00</span></div>
+                    <div class="benchmark-muted-row"><span th:text="|Delta ${#numbers.formatDecimal(cell.deltaPercent,1,2)}%|">Delta 0.00%</span><span th:text="${cell.pass} ? #{site.benchmark.ui.pass} : #{site.benchmark.ui.hold}">Pass</span></div>
+                </div>
+            </div>
+            <details class="benchmark-disclosure">
+                <summary th:text="#{site.benchmark.report.scenario.open-table}">Open the full scenario table</summary>
+                <div class="benchmark-disclosure__content">
+                    <div class="benchmark-table-wrap">
+                        <table class="benchmark-data-table benchmark-data-table--compact">
+                            <thead>
+                            <tr>
+                                <th th:text="#{site.benchmark.report.table.scenario}">Scenario</th>
+                                <th th:text="#{site.benchmark.common.category}">Category</th>
+                                <th th:text="#{site.benchmark.common.actual}">Actual</th>
+                                <th th:text="#{site.benchmark.common.expected}">Expected</th>
+                                <th th:text="#{site.benchmark.report.trend-heatmap-subtitle}">Delta</th>
+                                <th th:text="#{site.benchmark.report.table.claims}">Claims</th>
+                                <th th:text="#{site.benchmark.report.table.suites}">Suites</th>
+                                <th th:text="#{site.benchmark.report.claims.verdict}">Verdict</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="row : ${dossierScenarioMatrixRows}">
+                                <td><strong th:text="${row.label}">Scenario</strong><div class="benchmark-muted" th:text="${row.key}">key</div></td>
+                                <td><strong th:text="${row.category}">category</strong><div class="benchmark-muted" th:text="${row.deviationClass}">class</div></td>
+                                <td th:text="${#numbers.formatDecimal(row.actual,1,2)}">0.00</td>
+                                <td th:text="${#numbers.formatDecimal(row.expected,1,2)}">0.00</td>
+                                <td th:text="|${#numbers.formatDecimal(row.deltaPercent,1,2)}%|">0.00%</td>
+                                <td><div class="benchmark-tag-stack"><span class="benchmark-tag benchmark-tag--soft" th:each="claimKey : ${row.claimKeys}" th:text="${claimKey}">claim</span></div></td>
+                                <td><div class="benchmark-tag-stack"><span class="benchmark-tag benchmark-tag--soft" th:each="suiteKey : ${row.suiteKeys}" th:text="${suiteKey}">suite</span></div></td>
+                                <td>
+                                    <span class="benchmark-pill benchmark-pill--success" th:if="${row.pass}" th:text="#{site.benchmark.ui.pass}">Pass</span>
+                                    <span class="benchmark-pill benchmark-pill--warning" th:unless="${row.pass}" th:text="#{site.benchmark.ui.hold}">Hold</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        </article>
+    </section>
+
+    <section class="benchmark-story-grid fade-in-up">
+        <article class="benchmark-story-card benchmark-story-card--span-6 benchmark-section-anchor" id="response-proof">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.response.kicker}">Response proof</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.response.title2}">Did control and response actually connect</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.response.note}">Response latency, control coverage, and permit continuity stay visible in one place.</p>
+            <div class="benchmark-kpi-band benchmark-kpi-band--story" th:if="${dossierExploitWindow.present}">
+                <article class="benchmark-kpi" th:each="card : ${reportExploitSummaryCards}" th:classappend="| benchmark-kpi--${card.tone}|">
+                    <span class="benchmark-kpi__label" th:text="${card.label}">Label</span>
+                    <strong th:text="${card.value}">0</strong>
+                    <small th:text="${card.note}">Note</small>
+                </article>
+            </div>
+            <div class="benchmark-empty-slim" th:unless="${dossierExploitWindow.present}">
+                <strong th:text="#{site.benchmark.report.response.empty-title}">No public response proof is available yet.</strong>
+                <span th:text="#{site.benchmark.report.response.empty-note}">This section fills in when response evidence clears the public publication boundary.</span>
+            </div>
+        </article>
+
+        <article class="benchmark-story-card benchmark-story-card--span-6 benchmark-section-anchor" id="trend">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.trend.kicker}">Version change</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.trend.title2}">How this differs from earlier public points</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.trend.note2}">The chart shows direction. The table shows per-release detail.</p>
+            <div class="benchmark-chart-frame" th:if="${!#lists.isEmpty(reportTrendChart.points)}">
+                <svg class="benchmark-line-chart" th:attr="viewBox=|0 0 ${reportTrendChart.width} ${reportTrendChart.height}|" preserveAspectRatio="none">
+                    <polyline class="benchmark-line-chart__path" th:attr="points=${reportTrendChart.polyline}"></polyline>
+                    <g th:each="point : ${reportTrendChart.points}"><circle class="benchmark-line-chart__point" th:attr="cx=${point.x},cy=${point.y},r=4"></circle></g>
+                </svg>
+                <div class="benchmark-chart-axis benchmark-chart-axis--timeline">
+                    <span th:each="point : ${reportTrendChart.points}" th:text="${point.label}">v1</span>
+                </div>
+            </div>
+            <div class="benchmark-empty-slim" th:if="${#lists.isEmpty(reportTrendChart.points)}">
+                <strong th:text="#{site.benchmark.report.trend.empty-title2}">No public trend history is available yet.</strong>
+                <span th:text="#{site.benchmark.report.trend.empty-note2}">This area becomes useful as more public releases are added.</span>
+            </div>
+            <details class="benchmark-disclosure">
+                <summary th:text="#{site.benchmark.report.trend.open-detail}">Open version detail</summary>
+                <div class="benchmark-disclosure__content">
+                    <div class="benchmark-table-wrap">
+                        <table class="benchmark-data-table benchmark-data-table--compact">
+                            <thead>
+                            <tr>
+                                <th th:text="#{site.benchmark.report.table.run}">Point</th>
+                                <th th:text="#{site.benchmark.common.version}">Version</th>
+                                <th th:text="#{site.benchmark.common.source}">Source</th>
+                                <th th:text="#{site.benchmark.common.generated}">Generated</th>
+                                <th th:text="#{site.benchmark.common.coverage}">Coverage</th>
+                                <th th:text="#{site.benchmark.report.trend.delta}">Delta</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="row : ${dossierTrendComparisonRows}">
+                                <td><strong th:text="${row.label}">Run 1</strong><div class="benchmark-muted" th:text="${row.milestoneLabel}">milestone</div></td>
+                                <td th:text="${row.versionMarker}">v1</td>
+                                <td th:text="${row.sourceLabel}">OFFICIAL_BENCHMARK</td>
+                                <td th:text="${row.generatedLabel}">2026-04-11</td>
+                                <td th:text="|${#numbers.formatDecimal(row.coveragePercent,1,2)}%|">0.00%</td>
+                                <td th:text="${row.deltaFromPrevious != null ? #numbers.formatDecimal(row.deltaFromPrevious,1,2) + '%' : '-'}">-</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        </article>
+    </section>
+
+    <section class="benchmark-story-grid fade-in-up">
+        <article class="benchmark-story-card benchmark-story-card--span-6 benchmark-section-anchor" id="rules">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.rules.kicker}">Reading rules</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.rules.title2}">Rules for reading the numbers</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.rules.note2}">Read the score with the public boundary, methodology version, and missing metrics.</p>
+            <div class="benchmark-compact-stack">
+                <article class="benchmark-summary-card" th:each="rule : ${dossierMethodologyConstraints}">
+                    <span class="benchmark-summary-card__label" th:text="${rule.title}">Rule</span>
+                    <strong th:text="${rule.detail}">Detail</strong>
+                    <p th:text="${rule.tone}">Tone</p>
+                </article>
+            </div>
+        </article>
+
+        <article class="benchmark-story-card benchmark-story-card--span-6 benchmark-section-anchor" id="artifacts">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.report.artifacts.kicker}">Source artifacts</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.report.artifacts.title2}">Files behind this public report</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.report.artifacts.note2}">Each file is part of the published evidence set and is tied to the same manifest identity.</p>
+            <div class="benchmark-compact-stack">
+                <article class="benchmark-summary-card" th:each="artifact : ${dossierSourceArtifacts}">
+                    <span class="benchmark-summary-card__label" th:text="${artifact.title}">Summary JSON</span>
+                    <strong th:text="${artifact.identity}">summary.json</strong>
+                    <p th:text="${artifact.summary}">Public summary contract</p>
+                    <a class="benchmark-link" th:if="${artifact.href != null}" th:href="${artifact.href}" th:text="#{site.benchmark.report.artifacts.open}">Open file</a>
+                </article>
+            </div>
+        </article>
+    </section>
+</main>
+<div th:replace="~{fragments/site-footer :: footer}"></div>
+</body>
+</html>

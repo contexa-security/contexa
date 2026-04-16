@@ -3,7 +3,10 @@ package io.contexa.autoconfigure.core.autonomous;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,7 +16,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 
 /**
  * Tests CoreAutonomousAutoConfiguration conditional annotations and mode switching structure.
@@ -158,6 +160,7 @@ class CoreAutonomousAutoConfigurationTest {
                     .orElseThrow(() -> new AssertionError("Method not found: " + name));
         }
     }
+
     @Nested
     @DisplayName("Role scope wiring")
     class RoleScopeWiring {
@@ -186,6 +189,24 @@ class CoreAutonomousAutoConfigurationTest {
                     .orElseThrow(() -> new AssertionError("Method not found: " + name));
         }
     }
+
+    @Nested
+    @DisplayName("Post processor wiring")
+    class PostProcessorWiring {
+
+        @Test
+        @DisplayName("Should require UnifiedVectorService for securityDecisionPostProcessor")
+        void shouldRequireUnifiedVectorServiceForSecurityDecisionPostProcessor() throws Exception {
+            Method method = CoreAutonomousAutoConfiguration.class
+                    .getDeclaredMethod("securityDecisionPostProcessor", SecurityContextDataStore.class, UnifiedVectorService.class);
+
+            assertThat(method.getReturnType()).isEqualTo(SecurityDecisionPostProcessor.class);
+            ConditionalOnBean annotation = method.getAnnotation(ConditionalOnBean.class);
+            assertThat(annotation).isNotNull();
+            assertThat(annotation.value()).containsExactly(UnifiedVectorService.class);
+        }
+    }
+
     @Nested
     @DisplayName("Calibration wiring")
     class CalibrationWiring {

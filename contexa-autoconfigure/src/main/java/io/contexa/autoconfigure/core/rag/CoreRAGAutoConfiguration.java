@@ -1,25 +1,22 @@
 package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
-import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
@@ -30,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -43,7 +41,7 @@ import java.time.format.DateTimeFormatter;
 @AutoConfiguration
 @AutoConfigureAfter(io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, PgVectorStoreProperties.class, io.contexa.contexacore.properties.ContexaRagProperties.class })
+@EnableConfigurationProperties({ContexaProperties.class, PgVectorStoreProperties.class, ContexaRagProperties.class})
 public class CoreRAGAutoConfiguration {
 
     private final ContexaRagProperties ragProps;
@@ -53,29 +51,32 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
-            io.contexa.contexacore.properties.ContexaRagProperties ragProperties) {
+            ContexaRagProperties ragProperties) {
         return new BehaviorVectorService(vectorStore, vectorStoreMetrics, ragProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public DistributedStrategyExecutor distributedStrategyExecutor(
-            AIStrategyRegistry strategyRegistry) {
+    public DistributedStrategyExecutor distributedStrategyExecutor(AIStrategyRegistry strategyRegistry) {
         return new DistributedStrategyExecutor(strategyRegistry);
     }
 
     @Bean
+    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
-    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore,
+    public VectorStoreCacheLayer vectorStoreCacheLayer(
+            VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
         return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
     }
 
     @Bean
+    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public UnifiedVectorService unifiedVectorService(
             PgVectorStoreProperties properties,
@@ -90,16 +91,15 @@ public class CoreRAGAutoConfiguration {
             AuditLogger auditLogger,
             DistributedLockService distributedLockService,
             DistributedStrategyExecutor distributedStrategyExecutor) {
-        return new AINativeProcessor(
-                auditLogger, distributedLockService, distributedStrategyExecutor);
+        return new AINativeProcessor(auditLogger, distributedLockService, distributedStrategyExecutor);
     }
 
     @Bean
     @Primary
+    @ConditionalOnBean(name = "behaviorQueryTransformer")
     @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(
             VectorStore vectorStore,
-            ChatClient.Builder chatClientBuilder,
             @Qualifier("behaviorQueryTransformer") QueryTransformer behaviorQueryTransformer) {
 
         String thirtyDaysAgo = LocalDateTime.now()
@@ -125,10 +125,10 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(name = "riskQueryTransformer")
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
-            ChatClient.Builder chatClientBuilder,
             @Qualifier("riskQueryTransformer") QueryTransformer riskQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
@@ -150,10 +150,10 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(name = "policyQueryTransformer")
     @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
             VectorStore vectorStore,
-            ChatClient.Builder chatClientBuilder,
             @Qualifier("policyQueryTransformer") QueryTransformer policyQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
@@ -173,6 +173,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean("behaviorQueryTransformer")
+    @ConditionalOnBean(ChatClient.Builder.class)
     @ConditionalOnMissingBean(name = "behaviorQueryTransformer")
     public QueryTransformer behaviorQueryTransformer(ChatClient.Builder chatClientBuilder) {
         return new QueryTransformer() {
@@ -209,6 +210,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean("riskQueryTransformer")
+    @ConditionalOnBean(ChatClient.Builder.class)
     @ConditionalOnMissingBean(name = "riskQueryTransformer")
     public QueryTransformer riskQueryTransformer(ChatClient.Builder chatClientBuilder) {
         return new QueryTransformer() {
@@ -245,6 +247,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean("policyQueryTransformer")
+    @ConditionalOnBean(ChatClient.Builder.class)
     @ConditionalOnMissingBean(name = "policyQueryTransformer")
     public QueryTransformer policyQueryTransformer(ChatClient.Builder chatClientBuilder) {
         return new QueryTransformer() {

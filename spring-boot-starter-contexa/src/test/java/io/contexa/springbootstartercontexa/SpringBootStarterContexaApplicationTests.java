@@ -1,0 +1,99 @@
+package io.contexa.springbootstartercontexa;
+
+import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
+import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
+import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
+import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
+import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+
+class SpringBootStarterContexaApplicationTests {
+
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(CoreLLMTieredAutoConfiguration.class))
+            .withUserConfiguration(TestConfiguration.class)
+            .withPropertyValues(
+                    "contexa.llm.selection.chat.mode=spring-primary",
+                    "contexa.llm.selection.embedding.mode=spring-primary"
+            );
+
+    @Test
+    void contextLoadsWithSpringAiStandardRuntimeBeans() {
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasBean("standardChatModel");
+            assertThat(context).hasBean("standardEmbeddingModel");
+            assertThat(context).hasBean("primaryChatModel");
+            assertThat(context).hasBean("primaryEmbeddingModel");
+            assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("standardChatModel"));
+            assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("primaryChatModel"));
+            assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("standardEmbeddingModel"));
+            assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("primaryEmbeddingModel"));
+            assertThat(context.getBean(LlmRuntimeCatalog.class).getChatBindings()).hasSize(1);
+            assertThat(context.getBean(LlmRuntimeCatalog.class).getEmbeddingBindings()).hasSize(1);
+        });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class TestConfiguration {
+
+        @Bean
+        ContexaProperties contexaProperties() {
+            return new ContexaProperties();
+        }
+
+        @Bean
+        ContexaLlmBindingProperties contexaLlmBindingProperties() {
+            return new ContexaLlmBindingProperties();
+        }
+
+        @Bean
+        AdvisorRegistry advisorRegistry() {
+            return new AdvisorRegistry();
+        }
+
+        @Bean
+        JsonStreamingProcessor jsonStreamingProcessor() {
+            return mock(JsonStreamingProcessor.class);
+        }
+
+        @Bean
+        ModelSelectionStrategy modelSelectionStrategy() {
+            return mock(ModelSelectionStrategy.class);
+        }
+
+        @Bean
+        LlmRuntimeCatalog llmRuntimeCatalog(
+                ConfigurableApplicationContext applicationContext,
+                ContexaProperties contexaProperties,
+                ContexaLlmBindingProperties contexaLlmBindingProperties) {
+            return new SpringLlmRuntimeCatalog(applicationContext, contexaProperties, contexaLlmBindingProperties);
+        }
+
+        @Bean
+        @Primary
+        ChatModel standardChatModel() {
+            return mock(ChatModel.class);
+        }
+
+        @Bean
+        @Primary
+        EmbeddingModel standardEmbeddingModel() {
+            return mock(EmbeddingModel.class);
+        }
+    }
+}

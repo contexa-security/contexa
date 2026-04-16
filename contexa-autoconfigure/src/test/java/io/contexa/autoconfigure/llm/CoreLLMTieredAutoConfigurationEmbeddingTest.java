@@ -1,23 +1,24 @@
 package io.contexa.autoconfigure.llm;
 
 import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
+import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.ollama.OllamaEmbeddingModel;
-import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResponseErrorHandler;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class CoreLLMTieredAutoConfigurationEmbeddingTest {
 
@@ -26,53 +27,64 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         ContexaProperties properties = new ContexaProperties();
         properties.getLlm().setEmbeddingModelPriority(embeddingPriority);
         ReflectionTestUtils.setField(configuration, "contexaProperties", properties);
+        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", new ContexaLlmSelectionProperties());
         return configuration;
     }
 
     @Test
-    void shouldSelectOllamaEmbeddingModelByDefaultPriority() {
+    void shouldResolveDynamicPriorityPrimaryEmbeddingModelThroughRuntimeCatalog() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("ollama,openai");
+        LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        when(catalog.resolvePrimaryEmbeddingModel("ollama,openai")).thenReturn(Optional.of(embeddingModel));
 
-        OllamaEmbeddingModel ollamaEmbeddingModel = mock(OllamaEmbeddingModel.class);
-        OpenAiEmbeddingModel openAiEmbeddingModel = mock(OpenAiEmbeddingModel.class);
+        EmbeddingModel selected = configuration.dynamicPriorityPrimaryEmbeddingModel(catalog);
 
-        EmbeddingModel selected = configuration.primaryEmbeddingModel(
-                providerOf(null),
-                providerOf(ollamaEmbeddingModel),
-                providerOf(openAiEmbeddingModel));
-
-        assertThat(selected).isSameAs(ollamaEmbeddingModel);
+        assertThat(selected).isSameAs(embeddingModel);
+        verify(catalog).resolvePrimaryEmbeddingModel("ollama,openai");
     }
 
     @Test
-    void shouldSelectOpenAiEmbeddingModelWhenPriorityChanges() {
+    void shouldPreferSelectionPriorityOverLegacyEmbeddingModelPriority() {
+        CoreLLMTieredAutoConfiguration configuration = createConfiguration("legacy-openai,legacy-ollama");
+        ContexaLlmSelectionProperties selectionProperties = new ContexaLlmSelectionProperties();
+        selectionProperties.getEmbedding().setPriority("voyageai,openai");
+        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
+        LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        when(catalog.resolvePrimaryEmbeddingModel("voyageai,openai")).thenReturn(Optional.of(embeddingModel));
+
+        EmbeddingModel selected = configuration.dynamicPriorityPrimaryEmbeddingModel(catalog);
+
+        assertThat(selected).isSameAs(embeddingModel);
+        verify(catalog).resolvePrimaryEmbeddingModel("voyageai,openai");
+    }
+
+    @Test
+    void shouldFailFastWhenNoDynamicPriorityEmbeddingModelCanBeResolved() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("openai,ollama");
+        LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
+        when(catalog.resolvePrimaryEmbeddingModel("openai,ollama")).thenReturn(Optional.empty());
 
-        OllamaEmbeddingModel ollamaEmbeddingModel = mock(OllamaEmbeddingModel.class);
-        OpenAiEmbeddingModel openAiEmbeddingModel = mock(OpenAiEmbeddingModel.class);
-
-        EmbeddingModel selected = configuration.primaryEmbeddingModel(
-                providerOf(null),
-                providerOf(ollamaEmbeddingModel),
-                providerOf(openAiEmbeddingModel));
-
-        assertThat(selected).isSameAs(openAiEmbeddingModel);
+        assertThatThrownBy(() -> configuration.dynamicPriorityPrimaryEmbeddingModel(catalog))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No embedding runtime binding could be resolved");
     }
 
     @Test
-    void shouldPreferDedicatedOllamaEmbeddingRuntimeWhenAvailable() {
+    void shouldSupportSpringPrimaryModeForEmbeddingSelection() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("ollama,openai");
+        ContexaLlmSelectionProperties selectionProperties = new ContexaLlmSelectionProperties();
+        selectionProperties.getEmbedding().setMode(ContexaLlmSelectionProperties.Mode.SPRING_PRIMARY);
+        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
+        LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
+        EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
+        when(catalog.resolveSpringPrimaryEmbeddingModel()).thenReturn(Optional.of(embeddingModel));
 
-        OllamaEmbeddingModel dedicatedEmbeddingModel = mock(OllamaEmbeddingModel.class);
-        OllamaEmbeddingModel standardEmbeddingModel = mock(OllamaEmbeddingModel.class);
-        OpenAiEmbeddingModel openAiEmbeddingModel = mock(OpenAiEmbeddingModel.class);
+        EmbeddingModel selected = configuration.springPrimaryEmbeddingModel(catalog);
 
-        EmbeddingModel selected = configuration.primaryEmbeddingModel(
-                providerOf(dedicatedEmbeddingModel),
-                providerOf(standardEmbeddingModel),
-                providerOf(openAiEmbeddingModel));
-
-        assertThat(selected).isSameAs(dedicatedEmbeddingModel);
+        assertThat(selected).isSameAs(embeddingModel);
+        verify(catalog).resolveSpringPrimaryEmbeddingModel();
     }
 
     @Test
@@ -81,63 +93,15 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         ContexaProperties properties = (ContexaProperties) ReflectionTestUtils.getField(configuration, "contexaProperties");
         properties.getLlm().getEmbedding().getOllama().setDedicatedRuntimeEnabled(true);
 
+        ObjectProvider<RestClient.Builder> restClientBuilderProvider = mock(ObjectProvider.class);
+        ObjectProvider<WebClient.Builder> webClientBuilderProvider = mock(ObjectProvider.class);
+        ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider = mock(ObjectProvider.class);
+
         assertThatThrownBy(() -> configuration.contexaDedicatedEmbeddingOllamaApi(
-                providerOf(null),
-                providerOf(null),
-                mock(ResponseErrorHandler.class)))
+                restClientBuilderProvider,
+                webClientBuilderProvider,
+                responseErrorHandlerProvider))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("contexa.llm.embedding.ollama.base-url");
-    }
-
-    private static <T> ObjectProvider<T> providerOf(T value) {
-        return new ObjectProvider<>() {
-            @Override
-            public T getObject() {
-                if (value == null) {
-                    throw new IllegalStateException("No bean available");
-                }
-                return value;
-            }
-
-            @Override
-            public T getObject(Object... args) {
-                return getObject();
-            }
-
-            @Override
-            public T getIfAvailable() {
-                return value;
-            }
-
-            @Override
-            public T getIfAvailable(Supplier<T> defaultSupplier) {
-                return value != null ? value : defaultSupplier.get();
-            }
-
-            @Override
-            public T getIfUnique() {
-                return value;
-            }
-
-            @Override
-            public T getIfUnique(Supplier<T> defaultSupplier) {
-                return value != null ? value : defaultSupplier.get();
-            }
-
-            @Override
-            public Iterator<T> iterator() {
-                return value == null ? Collections.emptyIterator() : Collections.singleton(value).iterator();
-            }
-
-            @Override
-            public Stream<T> stream() {
-                return value == null ? Stream.empty() : Stream.of(value);
-            }
-
-            @Override
-            public Stream<T> orderedStream() {
-                return stream();
-            }
-        };
     }
 }

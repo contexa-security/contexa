@@ -1,0 +1,23 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<nav th:fragment="nav" class="site-nav">
+    <a href="/" class="nav-logo"><img th:src="@{/images/logo.png}" alt="CONTEXA" class="nav-logo-img"></a>
+    <ul class="nav-links">
+        <li><a href="#platform" th:text="#{site.nav.platform}">Platform</a></li>
+        <li><a th:href="@{/benchmark}" th:text="#{site.nav.benchmark}">Benchmark</a></li>
+        <li><a href="https://docs.ctxa.ai" target="_blank" rel="noopener" th:text="#{site.nav.developers}">Developers</a></li>
+        <li><a th:href="@{/benchmark/methodology}" th:text="#{site.nav.resources}">Methodology</a></li>
+        <li><a href="#company" th:text="#{site.nav.company}">Company</a></li>
+    </ul>
+    <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+    </button>
+    <div class="nav-actions">
+        <a href="?lang=en" class="lang-switch" th:classappend="${#locale.language == 'en'} ? 'active' : ''">EN</a>
+        <a href="?lang=ko" class="lang-switch" th:classappend="${#locale.language == 'ko'} ? 'active' : ''">KO</a>
+        <a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener" class="nav-cta" th:text="#{site.nav.get-started}">Get Started</a>
+    </div>
+</nav>
+</html>

@@ -72,7 +72,11 @@ public class ContexaProperties {
 
         private boolean enabled = true;
         private boolean advisorEnabled = true;
+
+        @Deprecated
         private String chatModelPriority = "ollama,anthropic,openai";
+
+        @Deprecated
         private String embeddingModelPriority = "ollama,openai";
 
         @NestedConfigurationProperty

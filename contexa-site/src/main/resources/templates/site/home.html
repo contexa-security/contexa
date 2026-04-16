@@ -1,0 +1,245 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head th:replace="~{fragments/site-head :: head('Home')}"></head>
+<body>
+<div th:replace="~{fragments/site-nav :: nav}"></div>
+
+<section class="hero" id="hero">
+    <p class="hero-logo">CONTE<span class="accent">X</span>A</p>
+    <p class="hero-subtitle" th:text="#{site.hero.subtitle}">Open-source AI Native Post-Auth Runtime Control Plane</p>
+    <h1 class="hero-title" th:text="#{site.hero.title}">Reduce exploit windows after authentication succeeds.</h1>
+    <div class="hero-cta">
+        <a href="https://docs.ctxa.ai" target="_blank" rel="noopener" class="btn-primary" th:text="#{site.hero.cta.start}">Read the Docs</a>
+        <a th:href="@{/benchmark}" class="btn-secondary" th:text="#{site.hero.cta.demo}">View Benchmark</a>
+    </div>
+</section>
+
+<section class="section" id="why">
+    <div class="section-header text-center fade-in-up">
+        <span class="eyebrow" th:text="#{site.why.eyebrow}">Why Contexa</span>
+        <h2 class="section-title" th:text="#{site.why.title}">Security Doesn't End at Login</h2>
+        <p class="section-sub" th:utext="#{site.why.lead}">Authentication verifies who you are.</p>
+    </div>
+
+    <div class="wc-auth-box fade-in-up">
+        <div class="wc-auth-icons">
+            <div class="wc-auth-icon"><svg viewBox="0 0 36 36" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="28" height="24" rx="3"/><line x1="4" y1="14" x2="32" y2="14"/><line x1="4" y1="22" x2="32" y2="22"/><line x1="18" y1="6" x2="18" y2="30"/></svg><span>Firewall</span></div>
+            <div class="wc-auth-icon"><svg viewBox="0 0 36 36" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="10" width="20" height="16" rx="3"/><circle cx="18" cy="18" r="3"/><path d="M18 21V24"/><path d="M12 10V8a6 6 0 0112 0v2"/></svg><span>MFA</span></div>
+            <div class="wc-auth-icon"><svg viewBox="0 0 36 36" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="12"/><path d="M12 18L16 22L24 14"/></svg><span>SSO</span></div>
+            <div class="wc-auth-icon"><svg viewBox="0 0 36 36" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6c-6.6 0-12 5.4-12 12"/><path d="M18 10c-4.4 0-8 3.6-8 8"/><path d="M18 14c-2.2 0-4 1.8-4 4v4"/><path d="M18 18v8"/><path d="M22 20v4c0 2.2-1.8 4-4 4"/><path d="M26 18c0-4.4-3.6-8-8-8"/></svg><span>Passkey</span></div>
+        </div>
+        <div class="wc-auth-msg" th:text="#{site.why.auth.msg}">Authentication layer is well-defended.</div>
+    </div>
+
+    <div class="wc-divider">
+        <svg width="40" height="36" viewBox="0 0 40 36" fill="none"><path d="M20 2V28" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round"/><path d="M12 22L20 32L28 22" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <br><span class="wc-divider-label" th:text="#{site.why.after}">After Authentication</span>
+    </div>
+
+    <div class="wc-compare fade-in-up">
+        <div class="wc-side wc-side--muted">
+            <div class="wc-side-title" th:text="#{site.why.without.title}">Without Post-Auth Protection</div>
+            <div class="wc-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><div><strong th:text="#{site.why.without.item1.title}">No behavioral monitoring</strong><br><span th:text="#{site.why.without.item1.desc}">Session hijacking undetected</span></div></div>
+            <div class="wc-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><div><strong th:text="#{site.why.without.item2.title}">Static rules only</strong><br><span th:text="#{site.why.without.item2.desc}">Cannot adapt</span></div></div>
+            <div class="wc-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><div><strong th:text="#{site.why.without.item3.title}">No autonomous response</strong><br><span th:text="#{site.why.without.item3.desc}">No real-time action</span></div></div>
+            <div class="wc-result"><div class="wc-result-box wc-result--muted" th:text="#{site.why.without.result}">Threats go undetected</div></div>
+        </div>
+
+        <div class="wc-side wc-side--active">
+            <div class="wc-side-title" th:text="#{site.why.with.title}">+ Contexa: Continuous Protection</div>
+            <div class="wc-flow-step"><div class="wc-flow-num">01</div><div><div class="wc-flow-title" th:text="#{site.why.with.step1.title}">Context Collection</div><div class="wc-flow-desc" th:text="#{site.why.with.step1.desc}">API patterns</div></div></div>
+            <div class="wc-flow-arrow">&darr;</div>
+            <div class="wc-flow-step"><div class="wc-flow-num">02</div><div><div class="wc-flow-title" th:text="#{site.why.with.step2.title}">AI Behavioral Analysis</div><div class="wc-flow-desc" th:text="#{site.why.with.step2.desc}">Baseline comparison</div></div></div>
+            <div class="wc-flow-arrow">&darr;</div>
+            <div class="wc-flow-step"><div class="wc-flow-num">03</div><div><div class="wc-flow-title" th:text="#{site.why.with.step3.title}">Autonomous Response</div><div class="wc-flow-desc"><span class="zt-allow">ALLOW</span> &middot; <span class="zt-challenge">CHALLENGE</span> &middot; <span class="zt-block">BLOCK</span></div></div></div>
+            <div class="wc-result"><div class="wc-result-box wc-result--active" th:text="#{site.why.with.result}">Threats detected and blocked</div></div>
+        </div>
+    </div>
+</section>
+
+<section class="section platform-section" id="platform">
+    <div class="container">
+        <div class="section-header text-center">
+            <span class="eyebrow" th:text="#{site.platform.eyebrow}">Platform</span>
+            <h2 th:text="#{site.platform.title}">AI Native Zero Trust Platform</h2>
+            <p class="section-sub" th:text="#{site.platform.lead}">Authentication alone is not security.</p>
+        </div>
+
+        <div class="platform-diagram">
+            <div class="pd-tagline"><span th:text="#{site.platform.tagline}">NEVER TRUST · ALWAYS VERIFY · EVERY REQUEST</span></div>
+            <div class="platform-diagram-grid">
+                <div class="pd-source-panel">
+                    <div class="pd-section-label" th:text="#{site.platform.source}">Any Request</div>
+                    <div class="pd-source-item"><div class="pd-source-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M6 21c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg></div><span class="pd-source-text">Human</span></div>
+                    <div class="pd-source-item"><div class="pd-source-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.8" stroke-linecap="round"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg></div><span class="pd-source-text">Workload</span></div>
+                    <div class="pd-source-item"><div class="pd-source-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="10" r="1.5" fill="rgba(255,255,255,0.4)"/><circle cx="15" cy="10" r="1.5" fill="rgba(255,255,255,0.4)"/><path d="M9 15c0 0 1.5 2 3 2s3-2 3-2"/></svg></div><span class="pd-source-text">Agent</span></div>
+                    <div class="pd-auth-label"><span th:text="#{site.platform.source.auth}">All authenticated</span></div>
+                </div>
+
+                <div class="platform-connector">
+                    <div class="pd-connector-label">REQUEST</div>
+                    <div class="pd-connector-line pd-connector-line--request">
+                        <div class="pd-connector-arrow pd-connector-arrow--request"></div>
+                        <div class="pd-connector-dot"></div>
+                    </div>
+                </div>
+
+                <div class="platform-engine">
+                    <div class="pd-engine-glow"></div>
+                    <div class="pd-engine-header">
+                        <div class="pd-engine-badge"><span>AI-<span class="pd-accent">Native</span> <span class="pd-accent-light">Security</span></span></div>
+                        <div class="pd-engine-subtitle" th:text="#{site.platform.engine.subtitle}">Post-authentication behavioral analysis engine</div>
+                    </div>
+                    <div class="pd-pipeline">
+                        <div class="pd-pipeline-step"><div class="pd-step-number">01</div><div><div class="pd-step-title" th:text="#{site.platform.step1.title}">Context Collection</div><div class="pd-step-desc" th:text="#{site.platform.step1.desc}">API patterns</div></div></div>
+                        <div class="pd-pipeline-arrow"><svg width="24" height="28" viewBox="0 0 24 28"><line x1="12" y1="2" x2="12" y2="20" stroke="#00D4FF" stroke-width="2" stroke-linecap="round" opacity="0.4"/><polygon points="6,18 12,26 18,18" fill="#00D4FF" opacity="0.5"/></svg></div>
+                        <div class="pd-pipeline-step pd-pipeline-step--accent"><div class="pd-step-number">02</div><div><div class="pd-step-title" th:text="#{site.platform.step2.title}">AI Behavioral Analysis</div><div class="pd-step-desc" th:text="#{site.platform.step2.desc}">Baseline comparison</div></div></div>
+                        <div class="pd-pipeline-arrow"><svg width="24" height="28" viewBox="0 0 24 28"><line x1="12" y1="2" x2="12" y2="20" stroke="#00D4FF" stroke-width="2" stroke-linecap="round" opacity="0.4"/><polygon points="6,18 12,26 18,18" fill="#00D4FF" opacity="0.5"/></svg></div>
+                        <div class="pd-pipeline-step"><div class="pd-step-number">03</div><div><div class="pd-step-title" th:text="#{site.platform.step3.title}">Autonomous Response</div><div class="pd-step-desc" th:text="#{site.platform.step3.desc}">Real-time Zero Trust decision</div></div></div>
+                    </div>
+                    <div class="pd-insight"><div th:utext="#{site.platform.insight}">Not rule-based.</div></div>
+                    <div class="pd-modules">
+                        <span class="pd-module-tag">Identity</span>
+                        <span class="pd-module-tag">Runtime</span>
+                        <span class="pd-module-tag pd-module-tag--purple">Benchmark</span>
+                        <span class="pd-module-tag pd-module-tag--purple">Verification</span>
+                    </div>
+                </div>
+
+                <div class="platform-connector">
+                    <div class="pd-connector-label">DECISION</div>
+                    <div class="pd-connector-line pd-connector-line--decision">
+                        <div class="pd-connector-arrow pd-connector-arrow--decision"></div>
+                        <div class="pd-connector-dot"></div>
+                    </div>
+                </div>
+
+                <div class="pd-action-panel">
+                    <div class="pd-section-label" style="white-space:nowrap;">Zero Trust Action</div>
+                    <div class="pd-action-item"><div class="pd-action-dot pd-action-dot--allow"></div><div><div class="pd-action-name pd-action-name--allow">ALLOW</div><div class="pd-action-desc">Normal access</div></div></div>
+                    <div class="pd-action-item"><div class="pd-action-dot pd-action-dot--challenge"></div><div><div class="pd-action-name pd-action-name--challenge">CHALLENGE</div><div class="pd-action-desc">Re-verify identity</div></div></div>
+                    <div class="pd-action-item"><div class="pd-action-dot pd-action-dot--escalate"></div><div><div class="pd-action-name pd-action-name--escalate">ESCALATE</div><div class="pd-action-desc">Security team review</div></div></div>
+                    <div class="pd-action-item"><div class="pd-action-dot pd-action-dot--block"></div><div><div class="pd-action-name pd-action-name--block">BLOCK</div><div class="pd-action-desc">Terminate session</div></div></div>
+                    <div class="pd-action-item"><div class="pd-action-dot pd-action-dot--pending"></div><div><div class="pd-action-name pd-action-name--pending">PENDING</div><div class="pd-action-desc">Awaiting analysis</div></div></div>
+                </div>
+            </div>
+            <div class="pd-bottom-tagline"><span th:text="#{site.platform.bottom}">CONTINUOUS MONITORING · REAL-TIME ANALYSIS · AUTONOMOUS RESPONSE</span></div>
+        </div>
+    </div>
+</section>
+
+<section class="section" id="how">
+    <div class="section-header text-center fade-in-up">
+        <span class="eyebrow" th:text="#{site.features.eyebrow}">Features</span>
+        <h2 class="section-title" th:text="#{site.features.title}">How It Works</h2>
+        <p class="section-sub" th:text="#{site.features.lead}">A comprehensive security platform.</p>
+    </div>
+    <div class="value-grid fade-in-up">
+        <div class="value-card">
+            <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <h3 th:text="#{site.features.identity.title}">Identity DSL</h3>
+            <p th:text="#{site.features.identity.desc}">Declarative authentication.</p>
+        </div>
+        <div class="value-card">
+            <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <h3 th:text="#{site.features.authz.title}">Dynamic Authorization</h3>
+            <p th:text="#{site.features.authz.desc}">Full XACML engine.</p>
+        </div>
+        <div class="value-card">
+            <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="2"/></svg></div>
+            <h3 th:text="#{site.features.ai.title}">AI Security Engine</h3>
+            <p th:text="#{site.features.ai.desc}">HCAD with 5-layer pipeline.</p>
+        </div>
+        <div class="value-card">
+            <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <h3 th:text="#{site.features.zt.title}">Zero Trust</h3>
+            <p th:text="#{site.features.zt.desc}">Continuous verification after authentication.</p>
+        </div>
+        <div class="value-card">
+            <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <h3 th:text="#{site.features.shadow.title}">Shadow Mode</h3>
+            <p th:text="#{site.features.shadow.desc}">Safe 2-stage deployment.</p>
+        </div>
+        <div class="value-card">
+            <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <h3 th:text="#{site.features.rag.title}">Streaming &amp; RAG</h3>
+            <p th:text="#{site.features.rag.desc}">PgVector-backed RAG.</p>
+        </div>
+    </div>
+</section>
+
+<section class="section" id="use-cases">
+    <div class="section-header text-center fade-in-up">
+        <span class="eyebrow" th:text="#{site.usecases.eyebrow}">Use Cases</span>
+        <h2 class="section-title" th:text="#{site.usecases.title}">Where Contexa fits</h2>
+        <p class="section-sub" th:text="#{site.usecases.lead}">Contexa operates after authentication succeeds.</p>
+    </div>
+    <div class="value-grid fade-in-up">
+        <div class="value-card">
+            <h3 th:text="#{site.usecases.human.title}">Authenticated workforce sessions</h3>
+            <p th:text="#{site.usecases.human.desc}">Continuously evaluate human requests after login.</p>
+        </div>
+        <div class="value-card">
+            <h3 th:text="#{site.usecases.workload.title}">Service and workload identities</h3>
+            <p th:text="#{site.usecases.workload.desc}">Apply runtime controls to service clients and workload tokens.</p>
+        </div>
+        <div class="value-card">
+            <h3 th:text="#{site.usecases.agent.title}">Delegated agent execution</h3>
+            <p th:text="#{site.usecases.agent.desc}">Constrain MCP and A2A tool execution.</p>
+        </div>
+    </div>
+</section>
+
+<section class="section" id="code">
+    <h2 class="section-title" th:text="#{site.code.title}">One Annotation to Start</h2>
+    <p class="section-sub" th:text="#{site.code.desc}">Add CONTEXA with a single annotation.</p>
+    <div class="code-block fade-in-up">
+        <pre><code><span class="code-annotation">@SpringBootApplication</span>
+<span class="code-annotation">@EnableAISecurity</span>
+<span class="code-keyword">public class</span> <span class="code-class">MyApp</span> { }</code></pre>
+    </div>
+    <div class="code-cta">
+        <a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener" class="btn-secondary" th:text="#{site.code.cta.github}">View on GitHub</a>
+        <a href="https://docs.ctxa.ai" target="_blank" rel="noopener" class="btn-secondary" th:text="#{site.code.cta.docs}">Read the Docs</a>
+    </div>
+</section>
+
+<section class="section" id="company">
+    <div class="section-header text-center fade-in-up">
+        <span class="eyebrow" th:text="#{site.company.eyebrow}">Company</span>
+        <h2 class="section-title" th:text="#{site.company.title}">Built as a verifiable runtime control plane</h2>
+        <p class="section-sub" th:text="#{site.company.lead}">Contexa combines an open-source engine core with verification, benchmarking, and publication workflows.</p>
+    </div>
+    <div class="value-grid fade-in-up">
+        <div class="value-card">
+            <h3 th:text="#{site.company.open.title}">Open-source engine core</h3>
+            <p th:text="#{site.company.open.desc}">The core engine is public and Spring-native.</p>
+        </div>
+        <div class="value-card">
+            <h3 th:text="#{site.company.benchmark.title}">Public proof surface</h3>
+            <p th:text="#{site.company.benchmark.desc}">Published benchmark reports make runtime claims reviewable.</p>
+        </div>
+        <div class="value-card">
+            <h3 th:text="#{site.company.contact.title}">Direct contact</h3>
+            <p th:text="#{site.company.contact.desc}">Use the docs, benchmark reports, and security contact channel first.</p>
+        </div>
+    </div>
+    <div class="hero-cta">
+        <a href="https://docs.ctxa.ai" target="_blank" rel="noopener" class="btn-secondary" th:text="#{site.code.cta.docs}">Read the Docs</a>
+        <a th:href="@{/benchmark}" class="btn-secondary" th:text="#{site.nav.benchmark}">Benchmark</a>
+        <a href="mailto:contexa73@gmail.com" class="btn-secondary" th:text="#{site.footer.company.contact}">Contact</a>
+    </div>
+</section>
+
+<section class="section cta-section" id="cta">
+    <h2 class="section-title" th:text="#{site.cta.title}">Get Started Today</h2>
+    <p class="section-sub" th:text="#{site.cta.desc}">Deploy AI-native zero trust security.</p>
+    <div class="hero-cta">
+        <a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener" class="btn-primary" th:text="#{site.cta.start}">Get Started Free</a>
+        <a href="mailto:contexa73@gmail.com" class="btn-secondary" th:text="#{site.cta.demo}">Schedule Demo</a>
+    </div>
+</section>
+
+<div th:replace="~{fragments/site-footer :: footer}"></div>
+</body>
+</html>

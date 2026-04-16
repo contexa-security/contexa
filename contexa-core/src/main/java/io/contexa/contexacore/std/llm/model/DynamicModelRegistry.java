@@ -2,158 +2,102 @@ package io.contexa.contexacore.std.llm.model;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeBinding;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.context.ApplicationContext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Dynamic model registry for managing LLM models across multiple providers.
- * Discovers Spring AI models and ModelProvider beans automatically.
+ * Runtime model registry backed by Spring AI runtime bindings.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class DynamicModelRegistry {
 
-    private final ApplicationContext applicationContext;
     private final TieredLLMProperties tieredLLMProperties;
+    private final LlmRuntimeCatalog runtimeCatalog;
 
-    private final Map<String, ModelProvider> providers = new ConcurrentHashMap<>();
     private final Map<String, ModelDescriptor> modelDescriptors = new ConcurrentHashMap<>();
     private final Map<String, ChatModel> modelInstances = new ConcurrentHashMap<>();
+    private final Map<String, String> aliases = new ConcurrentHashMap<>();
+
+    public DynamicModelRegistry(ApplicationContext applicationContext, TieredLLMProperties tieredLLMProperties) {
+        this(applicationContext, tieredLLMProperties, null);
+    }
+
+    public DynamicModelRegistry(
+            ApplicationContext applicationContext,
+            TieredLLMProperties tieredLLMProperties,
+            LlmRuntimeCatalog runtimeCatalog) {
+        this.tieredLLMProperties = tieredLLMProperties;
+        this.runtimeCatalog = runtimeCatalog;
+    }
 
     @PostConstruct
     public void initialize() {
-        try {
-            discoverAndRegisterProviders();
-        } catch (Exception e) {
-            log.error("Failed to discover ModelProviders. LLM functionality may be limited: {}", e.getMessage());
-        }
+        registerCatalogModels();
+        loadModelsFromConfiguration();
+    }
 
-        try {
-            discoverSpringAiModels();
-        } catch (Exception e) {
-            log.error("Failed to discover Spring AI models. LLM functionality may be limited: {}", e.getMessage());
+    private void registerCatalogModels() {
+        if (runtimeCatalog == null) {
+            return;
         }
-
-        try {
-            loadModelsFromConfiguration();
-        } catch (Exception e) {
-            log.error("Failed to load models from configuration: {}", e.getMessage());
-        }
-
-        try {
-            performHealthCheck();
-        } catch (Exception e) {
-            log.error("Failed to perform model health check: {}", e.getMessage());
+        for (LlmRuntimeBinding binding : runtimeCatalog.getChatBindings()) {
+            registerCatalogBinding(binding);
         }
     }
 
-    private void discoverSpringAiModels() {
-        Map<String, ChatModel> chatModels = applicationContext.getBeansOfType(ChatModel.class);
+    private void registerCatalogBinding(LlmRuntimeBinding binding) {
+        if (binding == null) {
+            return;
+        }
+        String canonicalId = binding.canonicalId();
+        if (canonicalId == null || canonicalId.isBlank()) {
+            return;
+        }
 
-        for (Map.Entry<String, ChatModel> entry : chatModels.entrySet()) {
-            ChatModel chatModel = entry.getValue();
-            String providerName = inferProviderFromModel(chatModel);
-
-            // Check if provider already exists
-            if (providers.containsKey(providerName)) {
-                ModelProvider existingProvider = providers.get(providerName);
-                // If existing provider has no models, use Spring AI model
-                if (existingProvider.getAvailableModels().isEmpty()) {
-                    registerSpringAiModel(providerName, chatModel);
-                }
-                continue;
+        ModelDescriptor existing = modelDescriptors.get(canonicalId);
+        if (existing == null) {
+            existing = ModelDescriptor.builder()
+                    .modelId(canonicalId)
+                    .displayName(canonicalId)
+                    .provider(binding.getProvider())
+                    .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                    .build();
+            modelDescriptors.put(canonicalId, existing);
+        }
+        else {
+            if (existing.getProvider() == null && binding.getProvider() != null) {
+                existing.setProvider(binding.getProvider());
             }
-
-            // Register Spring AI model directly without AutoDiscoveredModelProvider
-            registerSpringAiModel(providerName, chatModel);
+            existing.setStatus(ModelDescriptor.ModelStatus.AVAILABLE);
         }
-    }
 
-    private void registerSpringAiModel(String providerName, ChatModel chatModel) {
-        String modelId = extractModelIdFromChatModel(chatModel);
-
-        ModelDescriptor descriptor = ModelDescriptor.builder()
-                .modelId(modelId)
-                .displayName(modelId)
-                .provider(providerName)
-                .status(ModelDescriptor.ModelStatus.AVAILABLE)
-                .capabilities(ModelDescriptor.ModelCapabilities.builder()
-                        .streaming(true)
-                        .build())
-                .build();
-
-        registerModel(descriptor);
-        modelInstances.put(modelId, chatModel);
-    }
-
-    private String extractModelIdFromChatModel(ChatModel chatModel) {
-        ChatOptions options = chatModel.getDefaultOptions();
-        if (options != null && options.getModel() != null) {
-            return options.getModel();
-        }
-        return chatModel.getClass().getSimpleName();
-    }
-
-    private String inferProviderFromModel(ChatModel model) {
-        String className = model.getClass().getSimpleName().toLowerCase();
-
-        if (className.contains("ollama"))
-            return "ollama";
-        if (className.contains("anthropic"))
-            return "anthropic";
-        if (className.contains("openai"))
-            return "openai";
-        if (className.contains("gemini") || className.contains("vertex"))
-            return "gemini";
-        if (className.contains("mistral"))
-            return "mistral";
-        if (className.contains("azure"))
-            return "azure";
-        if (className.contains("bedrock"))
-            return "bedrock";
-        if (className.contains("huggingface") || className.contains("hf"))
-            return "huggingface";
-
-        return "unknown-" + className;
-    }
-
-    private void discoverAndRegisterProviders() {
-        Map<String, ModelProvider> providerBeans = applicationContext.getBeansOfType(ModelProvider.class);
-
-        for (Map.Entry<String, ModelProvider> entry : providerBeans.entrySet()) {
-            ModelProvider provider = entry.getValue();
-            String providerName = provider.getProviderName();
-
-            providers.put(providerName, provider);
-
-            try {
-                provider.initialize(Collections.emptyMap());
-
-                List<ModelDescriptor> models = provider.getAvailableModels();
-                for (ModelDescriptor model : models) {
-                    registerModel(model);
-                }
-            } catch (Exception e) {
-                log.error("ModelProvider initialization failed: {}", providerName, e);
-            }
+        registerAlias(binding.getBeanName(), canonicalId);
+        registerAlias(binding.getRuntimeId(), canonicalId);
+        registerAlias(binding.getModelId(), canonicalId);
+        for (String alias : binding.getAliases()) {
+            registerAlias(alias, canonicalId);
         }
     }
 
     private void loadModelsFromConfiguration() {
-        registerModelFromConfig(1, tieredLLMProperties.getLayer1().getModel());
+        registerModelFromConfig(1, tieredLLMProperties.getModelNameForTier(1));
         if (tieredLLMProperties.getLayer1().hasBackupModel()) {
             registerModelFromConfig(1, tieredLLMProperties.getLayer1().getBackup().getModel());
         }
 
-        registerModelFromConfig(2, tieredLLMProperties.getLayer2().getModel());
+        registerModelFromConfig(2, tieredLLMProperties.getModelNameForTier(2));
         if (tieredLLMProperties.getLayer2().hasBackupModel()) {
             registerModelFromConfig(2, tieredLLMProperties.getLayer2().getBackup().getModel());
         }
@@ -164,109 +108,93 @@ public class DynamicModelRegistry {
             return;
         }
 
-        if (modelDescriptors.containsKey(modelName)) {
-            ModelDescriptor existing = modelDescriptors.get(modelName);
-            // Configuration tier always takes precedence over provider-defined tier
+        String canonicalId = resolveCanonicalModelId(modelName);
+        LlmRuntimeBinding binding = findBinding(modelName, canonicalId);
+        if (binding != null) {
+            registerCatalogBinding(binding);
+            canonicalId = binding.canonicalId();
+        }
+
+        ModelDescriptor existing = modelDescriptors.get(canonicalId);
+        if (existing != null) {
             if (existing.getTier() == null || !existing.getTier().equals(tier)) {
                 existing.setTier(tier);
             }
+            registerAlias(modelName, canonicalId);
             return;
         }
 
-        // Create simple descriptor from model name
-        String provider = inferProviderFromModelName(modelName);
         ModelDescriptor descriptor = ModelDescriptor.builder()
-                .modelId(modelName)
-                .displayName(modelName)
-                .provider(provider)
+                .modelId(canonicalId)
+                .displayName(canonicalId)
+                .provider(binding != null ? binding.getProvider() : inferProviderFromModelName(canonicalId))
                 .tier(tier)
                 .status(ModelDescriptor.ModelStatus.AVAILABLE)
                 .build();
-
         registerModel(descriptor);
+        registerAlias(modelName, canonicalId);
+    }
+
+    private LlmRuntimeBinding findBinding(String selector, String canonicalId) {
+        if (runtimeCatalog == null) {
+            return null;
+        }
+        return runtimeCatalog.findChatBinding(selector)
+                .or(() -> runtimeCatalog.findChatBinding(canonicalId))
+                .orElse(null);
     }
 
     private String inferProviderFromModelName(String modelName) {
         String lowerName = modelName.toLowerCase();
-
-        // Ollama models
-        if (lowerName.contains("llama") || lowerName.contains("qwen") ||
-            lowerName.contains("gemma") || lowerName.contains("mistral") ||
-            lowerName.contains("phi") || lowerName.contains("exaone") ||
-            lowerName.contains("codellama") || lowerName.contains("deepseek")) {
+        if (lowerName.contains("llama") || lowerName.contains("qwen")
+                || lowerName.contains("gemma") || lowerName.contains("mistral")
+                || lowerName.contains("phi") || lowerName.contains("exaone")
+                || lowerName.contains("codellama") || lowerName.contains("deepseek")) {
             return "ollama";
         }
-
-        // Anthropic models
         if (lowerName.contains("claude")) {
             return "anthropic";
         }
-
-        // OpenAI models
         if (lowerName.contains("gpt") || lowerName.contains("o1") || lowerName.contains("davinci")) {
             return "openai";
         }
-
-        // Default to unknown
-        return "unknown";
-    }
-
-    private void performHealthCheck() {
-        for (Map.Entry<String, ModelProvider> entry : providers.entrySet()) {
-            String providerName = entry.getKey();
-            ModelProvider provider = entry.getValue();
-
-            if (!provider.isReady()) {
-                continue;
-            }
-
-            for (ModelDescriptor model : provider.getAvailableModels()) {
-                try {
-                    ModelProvider.HealthStatus health = provider.checkHealth(model.getModelId());
-                    if (!health.isHealthy()) {
-                        log.error("Model {} unhealthy: {}", model.getModelId(), health.getMessage());
-                        model.setStatus(ModelDescriptor.ModelStatus.UNAVAILABLE);
-                    }
-                } catch (Exception e) {
-                    log.error("Model {} health check failed", model.getModelId(), e);
-                }
-            }
+        if (lowerName.contains("gemini") || lowerName.contains("vertex")) {
+            return "gemini";
         }
+        if (lowerName.contains("bedrock")) {
+            return "bedrock";
+        }
+        return "spring";
     }
 
     public void registerModel(ModelDescriptor descriptor) {
         if (descriptor == null || descriptor.getModelId() == null) {
             return;
         }
-
         ModelDescriptor existing = modelDescriptors.get(descriptor.getModelId());
         if (existing != null) {
-            // Merge new descriptor with existing one, preserving important fields
             mergeDescriptors(existing, descriptor);
-        } else {
+        }
+        else {
             modelDescriptors.put(descriptor.getModelId(), descriptor);
         }
     }
 
     private void mergeDescriptors(ModelDescriptor existing, ModelDescriptor newDescriptor) {
-        // Preserve tier if already set (configuration takes precedence)
         if (existing.getTier() == null && newDescriptor.getTier() != null) {
             existing.setTier(newDescriptor.getTier());
         }
-
-        // Update status if new descriptor has more recent info
         if (newDescriptor.getStatus() != null) {
             existing.setStatus(newDescriptor.getStatus());
         }
-
-        // Update capabilities if existing has none
         if (existing.getCapabilities() == null && newDescriptor.getCapabilities() != null) {
             existing.setCapabilities(newDescriptor.getCapabilities());
         }
-
-        // Update options if existing has none
         if (existing.getOptions() == null && newDescriptor.getOptions() != null) {
             existing.setOptions(newDescriptor.getOptions());
+        }
+        if (existing.getProvider() == null && newDescriptor.getProvider() != null) {
+            existing.setProvider(newDescriptor.getProvider());
         }
     }
 
@@ -274,76 +202,26 @@ public class DynamicModelRegistry {
         if (modelId == null) {
             throw new ModelSelectionException("Model ID is null");
         }
-
-        if (modelInstances.containsKey(modelId)) {
-            return modelInstances.get(modelId);
+        if (runtimeCatalog == null) {
+            throw new ModelSelectionException("No LLM runtime catalog configured", modelId);
         }
 
-        ModelDescriptor descriptor = modelDescriptors.get(modelId);
-        if (descriptor == null) {
-            // Try to find provider dynamically
-            ModelProvider provider = findProviderForModel(modelId);
-            if (provider != null) {
-                descriptor = ModelDescriptor.builder()
-                        .modelId(modelId)
-                        .displayName(modelId)
-                        .provider(provider.getProviderName())
-                        .status(ModelDescriptor.ModelStatus.AVAILABLE)
-                        .build();
-                registerModel(descriptor);
-            } else {
-                throw new ModelSelectionException("Model not found: " + modelId, modelId);
-            }
+        String canonicalId = resolveCanonicalModelId(modelId);
+        ChatModel cached = modelInstances.get(canonicalId);
+        if (cached != null) {
+            return cached;
         }
 
-        String providerName = descriptor.getProvider();
-        ModelProvider provider = providers.get(providerName);
-
-        if (provider == null) {
-            provider = findProviderForModel(modelId);
-            if (provider != null) {
-                descriptor.setProvider(provider.getProviderName());
-            }
+        LlmRuntimeBinding binding = findBinding(modelId, canonicalId);
+        if (binding == null) {
+            throw new ModelSelectionException("Model runtime binding not found: " + modelId, modelId);
         }
 
-        if (provider == null) {
-            throw new ModelSelectionException(
-                    "No provider supports model: " + modelId, modelId);
-        }
-
-        try {
-            ChatModel model = provider.createModel(descriptor);
-            modelInstances.put(modelId, model);
-            return model;
-        } catch (Exception e) {
-            throw new ModelSelectionException(
-                    "Model creation failed: " + modelId + " - " + e.getMessage(), modelId, e);
-        }
-    }
-
-    private ModelProvider findProviderForModel(String modelId) {
-        // Sort by priority (ascending) and filter ready providers that support the model
-        List<ModelProvider> sortedProviders = providers.values().stream()
-                .filter(ModelProvider::isReady)
-                .filter(p -> p.supportsModel(modelId))
-                .sorted(Comparator.comparingInt(ModelProvider::getPriority))
-                .toList();
-
-        // Try each provider in priority order
-        for (ModelProvider provider : sortedProviders) {
-            try {
-                ModelDescriptor tempDesc = ModelDescriptor.builder()
-                        .modelId(modelId)
-                        .provider(provider.getProviderName())
-                        .build();
-                ChatModel model = provider.createModel(tempDesc);
-                if (model != null) {
-                    return provider;
-                }
-            } catch (Exception e) {
-            }
-        }
-        return null;
+        ChatModel model = runtimeCatalog.resolveChatModel(binding.getRuntimeId() != null ? binding.getRuntimeId() : binding.canonicalId());
+        registerCatalogBinding(binding);
+        modelInstances.put(binding.canonicalId(), model);
+        modelInstances.put(canonicalId, model);
+        return model;
     }
 
     public Collection<ModelDescriptor> getAllModels() {
@@ -354,7 +232,7 @@ public class DynamicModelRegistry {
         if (modelId == null || modelId.trim().isEmpty()) {
             return null;
         }
-        return modelDescriptors.get(modelId.trim());
+        return modelDescriptors.get(resolveCanonicalModelId(modelId));
     }
 
     public List<ModelDescriptor> getModelsByProvider(String provider) {
@@ -370,41 +248,39 @@ public class DynamicModelRegistry {
     }
 
     public void updateModelStatus(String modelId, ModelDescriptor.ModelStatus status) {
-        ModelDescriptor descriptor = modelDescriptors.get(modelId);
+        ModelDescriptor descriptor = modelDescriptors.get(resolveCanonicalModelId(modelId));
         if (descriptor != null) {
             descriptor.setStatus(status);
         }
     }
 
     public void refreshModels() {
-        for (ModelProvider provider : providers.values()) {
-            try {
-                provider.refreshModels();
+        aliases.clear();
+        modelDescriptors.clear();
+        modelInstances.clear();
+        registerCatalogModels();
+        loadModelsFromConfiguration();
+    }
 
-                for (ModelDescriptor model : provider.getAvailableModels()) {
-                    if (!modelDescriptors.containsKey(model.getModelId())) {
-                        registerModel(model);
-                    }
-                }
-            } catch (Exception e) {
-                log.error("Model refresh failed: {}", provider.getProviderName(), e);
-            }
+    private String resolveCanonicalModelId(String selector) {
+        if (selector == null) {
+            return null;
         }
+        String normalized = selector.trim();
+        return aliases.getOrDefault(normalized, normalized);
+    }
+
+    private void registerAlias(String alias, String canonicalId) {
+        if (alias == null || alias.isBlank() || canonicalId == null || canonicalId.isBlank()) {
+            return;
+        }
+        aliases.putIfAbsent(alias.trim(), canonicalId.trim());
     }
 
     @PreDestroy
     public void shutdown() {
-        for (ModelProvider provider : providers.values()) {
-            try {
-                provider.shutdown();
-            } catch (Exception e) {
-                log.error("ModelProvider shutdown failed: {}", provider.getProviderName(), e);
-            }
-        }
-
+        aliases.clear();
         modelInstances.clear();
         modelDescriptors.clear();
-        providers.clear();
     }
 }
-

@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.core.llm;
 
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.context.annotation.Condition;
@@ -13,19 +14,6 @@ public class AnyChatModelAvailableCondition implements Condition {
         if (!(context.getBeanFactory() instanceof ListableBeanFactory beanFactory)) {
             return false;
         }
-
-        return hasBean(beanFactory, "org.springframework.ai.ollama.OllamaChatModel")
-                || hasBean(beanFactory, "org.springframework.ai.anthropic.AnthropicChatModel")
-                || hasBean(beanFactory, "org.springframework.ai.openai.OpenAiChatModel");
-    }
-
-    private boolean hasBean(ListableBeanFactory beanFactory, String className) {
-        try {
-            Class<?> beanType = Class.forName(className);
-            return BeanFactoryUtils.beanNamesForTypeIncludingAncestors(beanFactory, beanType, true, false).length > 0;
-        }
-        catch (ClassNotFoundException ignored) {
-            return false;
-        }
+        return BeanFactoryUtils.beanNamesForTypeIncludingAncestors(beanFactory, ChatModel.class, true, false).length > 0;
     }
 }

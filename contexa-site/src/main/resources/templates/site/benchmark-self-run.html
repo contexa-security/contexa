@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head th:replace="~{fragments/site-head :: head(${pageTitle})}"></head>
+<body class="benchmark-site">
+<div th:replace="~{fragments/site-nav :: nav}"></div>
+<section class="benchmark-hero benchmark-hero--appendix">
+    <div class="benchmark-shell">
+        <a class="benchmark-back" th:href="@{/benchmark}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg><span th:text="#{site.benchmark.ui.back}">Benchmark</span></a>
+        <p class="benchmark-eyebrow" th:text="#{site.benchmark.selfrun.ui.eyebrow}">Customer self-run appendix</p>
+        <h1 class="benchmark-title" th:text="#{site.benchmark.selfrun.ui.title}">Public intake for customer self-run bundles</h1>
+        <p class="benchmark-subtitle" th:text="#{site.benchmark.selfrun.ui.subtitle}">Customer results appear publicly only after clearing the same publication boundary as first-party reports.</p>
+    </div>
+</section>
+<main class="benchmark-shell benchmark-main">
+    <section class="benchmark-story-grid fade-in-up">
+        <article class="benchmark-story-card benchmark-story-card--span-7">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.selfrun.ui.rules-kicker}">Intake rules</div>
+            <h2 class="benchmark-section-title" th:text="#{site.benchmark.selfrun.ui.rules-title}">What must be satisfied before public exposure</h2>
+            <p class="benchmark-section-note" th:text="#{site.benchmark.selfrun.ui.rules-note}">Customer self-run bundles follow the same public boundary and evidence rules as first-party reports.</p>
+            <div class="benchmark-summary-grid">
+                <article class="benchmark-summary-card" th:each="requirement : ${intakeRequirements}">
+                    <span class="benchmark-summary-card__label" th:text="#{site.benchmark.selfrun.ui.requirement}">Requirement</span>
+                    <strong th:text="${requirement}">Requirement</strong>
+                </article>
+            </div>
+        </article>
+        <article class="benchmark-story-card benchmark-story-card--span-5">
+            <div class="benchmark-section-kicker" th:text="#{site.benchmark.selfrun.ui.state-kicker}">Current state</div>
+            <div class="benchmark-compact-stack">
+                <div class="benchmark-summary-card">
+                    <span class="benchmark-summary-card__label" th:text="#{site.benchmark.selfrun.ui.published-bundles}">Published customer bundles</span>
+                    <strong th:text="${#lists.size(customerSubmissions)}">0</strong>
+                    <p th:text="#{site.benchmark.selfrun.ui.published-bundles-note}">Customer self-run bundles currently exposed on the public site.</p>
+                </div>
+                <div class="benchmark-summary-card">
+                    <span class="benchmark-summary-card__label" th:text="#{site.benchmark.selfrun.ui.acceptance-rules}">Acceptance rules</span>
+                    <strong th:text="${#lists.size(publicationBundleAcceptanceRules)}">0</strong>
+                    <p th:text="#{site.benchmark.selfrun.ui.acceptance-rules-note}">Rules checked before public exposure.</p>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <section class="benchmark-story-card fade-in-up">
+        <div class="benchmark-section-kicker" th:text="#{site.benchmark.selfrun.ui.acceptance-kicker}">Publication acceptance rules</div>
+        <h2 class="benchmark-section-title" th:text="#{site.benchmark.selfrun.ui.acceptance-title}">Rules used to approve public exposure</h2>
+        <div class="benchmark-compact-stack">
+            <article class="benchmark-summary-card" th:each="rule : ${publicationBundleAcceptanceRules}">
+                <span class="benchmark-summary-card__label" th:text="#{site.benchmark.selfrun.ui.acceptance-rule}">Acceptance rule</span>
+                <strong th:text="${rule}">Rule</strong>
+            </article>
+        </div>
+    </section>
+
+    <section class="benchmark-story-card fade-in-up">
+        <div class="benchmark-section-kicker" th:text="#{site.benchmark.selfrun.ui.results-kicker}">Published customer results</div>
+        <h2 class="benchmark-section-title" th:text="#{site.benchmark.selfrun.ui.results-title}">Customer bundles already exposed on the public site</h2>
+        <div class="benchmark-empty-slim" th:if="${#lists.isEmpty(customerSubmissions)}">
+            <strong th:text="#{site.benchmark.selfrun.ui.results-empty-title}">No customer self-run submissions.</strong>
+            <span th:text="#{site.benchmark.selfrun.ui.results-empty-note}">No customer bundle has completed publication-safe intake yet.</span>
+        </div>
+        <div class="benchmark-table-wrap" th:if="${!#lists.isEmpty(customerSubmissions)}">
+            <table class="benchmark-data-table benchmark-data-table--compact">
+                <thead>
+                <tr>
+                    <th th:text="#{site.benchmark.common.report}">Dossier</th>
+                    <th th:text="#{site.benchmark.common.version}">Version</th>
+                    <th th:text="#{site.benchmark.common.coverage}">Coverage</th>
+                    <th th:text="#{site.benchmark.common.official-metrics}">Official metrics</th>
+                    <th th:text="#{site.benchmark.common.scenario-families}">Families</th>
+                    <th th:text="#{site.benchmark.common.status}">Status</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="report : ${customerSubmissions}">
+                    <td><a class="benchmark-link benchmark-link--strong" th:href="|/benchmark/reports/${report.slug}|" th:text="${report.title}">Report</a><div class="benchmark-muted" th:text="#{site.benchmark.common.customer-selfrun}">Customer self-run</div></td>
+                    <td th:text="${report.benchmarkVersion}">v1</td>
+                    <td th:text="|${#numbers.formatDecimal(report.overallCoveragePercent,1,2)}%|">0.00%</td>
+                    <td th:text="|${report.passingOfficialMetricCount} / ${report.officialMetricCount}|">0 / 0</td>
+                    <td th:text="${#lists.size(report.scenarioFamilies)}">0</td>
+                    <td>
+                        <span class="benchmark-pill benchmark-pill--success" th:if="${report.submissionReady}" th:text="#{site.benchmark.ui.ready}">Ready</span>
+                        <span class="benchmark-pill benchmark-pill--warning" th:unless="${report.submissionReady}" th:text="#{site.benchmark.ui.hold}">Hold</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+<div th:replace="~{fragments/site-footer :: footer}"></div>
+</body>
+</html>

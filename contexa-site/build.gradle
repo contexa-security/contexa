@@ -1,0 +1,35 @@
+dependencies {
+    implementation project(':spring-boot-starter-contexa-enterprise')
+    implementation platform("org.springframework.ai:spring-ai-bom:1.1.2")
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'com.h2database:h2'
+}
+
+bootJar.enabled = true
+jar.enabled = false
+
+springBoot {
+    mainClass = 'io.contexa.site.ContexaSiteApplication'
+}
+
+tasks.named('bootRun') {
+    mainClass = 'io.contexa.site.ContexaSiteApplication'
+}
+
+tasks.named('bootJar') {
+    mainClass = 'io.contexa.site.ContexaSiteApplication'
+}
+
+tasks.named('resolveMainClassName') {
+    enabled = false
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.core.llm;
 
+import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
@@ -8,13 +9,13 @@ import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.micrometer.observation.ObservationRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -25,8 +26,6 @@ import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,27 +40,29 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 @AutoConfigureAfter(name = {
+        "org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration",
         "org.springframework.ai.model.ollama.autoconfigure.OllamaEmbeddingAutoConfiguration",
-        "org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration"
+        "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration",
+        "org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration",
+        "org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration"
 })
 @AutoConfigureBefore(name = {
         "org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration",
         "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration",
         "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
-@EnableConfigurationProperties(TieredLLMProperties.class)
+@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class})
 public class CoreLLMTieredAutoConfiguration {
 
     private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
@@ -73,19 +74,22 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
 
+    @Autowired
+    private ContexaLlmSelectionProperties contexaLlmSelectionProperties;
+
     @Bean(name = "contexaOllamaChatApi")
     @ConditionalOnProperty(prefix = "contexa.llm.chat.ollama", name = "base-url")
     @ConditionalOnMissingBean(name = "contexaOllamaChatApi")
     public OllamaApi contexaOllamaChatApi(
             ObjectProvider<RestClient.Builder> restClientBuilderProvider,
             ObjectProvider<WebClient.Builder> webClientBuilderProvider,
-            ResponseErrorHandler responseErrorHandler) {
+            ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider) {
 
         return buildOllamaApi(
                 resolveChatOllamaBaseUrl(),
                 restClientBuilderProvider,
                 webClientBuilderProvider,
-                responseErrorHandler
+                responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new)
         );
     }
 
@@ -111,53 +115,32 @@ public class CoreLLMTieredAutoConfiguration {
                 .build();
     }
 
-    @Bean
+    @Bean(name = "primaryChatModel")
     @Primary
-    public ChatModel primaryChatModel(
-            @Qualifier("contexaOllamaChatModel") ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
-            ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
-            ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
+    @ConditionalOnMissingBean(name = "primaryChatModel")
+    @Conditional(AnyChatModelAvailableCondition.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "dynamic-priority", matchIfMissing = true)
+    public ChatModel dynamicPriorityPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        return llmRuntimeCatalog.resolvePrimaryChatModel(resolveChatPriority())
+                .orElseThrow(() -> new IllegalStateException(
+                        "No chat runtime binding could be resolved from the available Spring AI ChatModel beans. "
+                                + "Configure contexa.llm.selection.chat.priority or provide a ready chat runtime binding."));
+    }
 
-        Map<String, ChatModel> availableModels = new HashMap<>();
-
-        OllamaChatModel ollamaModel = ollamaChatModelProvider.getIfAvailable();
-        if (ollamaModel != null) {
-            availableModels.put("ollama", ollamaModel);
-        }
-
-        AnthropicChatModel anthropicModel = anthropicChatModelProvider.getIfAvailable();
-        if (anthropicModel != null) {
-            availableModels.put("anthropic", anthropicModel);
-        }
-
-        OpenAiChatModel openAiModel = openAiChatModelProvider.getIfAvailable();
-        if (openAiModel != null) {
-            availableModels.put("openai", openAiModel);
-        }
-
-        List<String> priorities = List.of(contexaProperties.getLlm().getChatModelPriority().split(","));
-        for (String modelName : priorities) {
-            String trimmedName = modelName.trim().toLowerCase();
-            ChatModel model = availableModels.get(trimmedName);
-            if (model != null) {
-                return model;
-            }
-        }
-
-        if (!availableModels.isEmpty()) {
-            Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.error("No priority model found. Using {} (fallback)", firstEntry.getKey());
-            return firstEntry.getValue();
-        }
-
-        log.error("No ChatModel available. LLM features will be disabled. " +
-                "Configure contexa.llm.chat.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
-        return null;
+    @Bean(name = "primaryChatModel")
+    @ConditionalOnMissingBean(name = "primaryChatModel")
+    @Conditional(AnyChatModelAvailableCondition.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "spring-primary")
+    public ChatModel springPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        return llmRuntimeCatalog.resolveSpringPrimaryChatModel()
+                .orElseThrow(() -> new IllegalStateException(
+                        "No chat runtime binding is available for spring-primary selection. Register a Spring AI ChatModel bean first."));
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public ChatClient primaryChatClient(ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
+    @ConditionalOnBean(name = "primaryChatModel")
+    public ChatClient primaryChatClient(@Qualifier("primaryChatModel") ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
         ChatClient.Builder builder = ChatClient.builder(primaryChatModel);
         List<Advisor> advisors = advisorRegistry.getEnabled();
         if (!advisors.isEmpty()) {
@@ -176,9 +159,18 @@ public class CoreLLMTieredAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean(UnifiedLLMOrchestrator.class)
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
-            ModelSelectionStrategy modelSelectionStrategy,
+            ObjectProvider<ModelSelectionStrategy> modelSelectionStrategyProvider,
             StreamingHandler streamingHandler,
-            AdvisorRegistry advisorRegistry, ChatClient primaryChatClient) {
+            AdvisorRegistry advisorRegistry,
+            @Qualifier("primaryChatClient") ObjectProvider<ChatClient> primaryChatClientProvider) {
+
+        ModelSelectionStrategy modelSelectionStrategy = modelSelectionStrategyProvider.getIfAvailable();
+        if (modelSelectionStrategy == null) {
+            throw new IllegalStateException(missingChatRuntimeConfigurationMessage());
+        }
+        if (primaryChatClientProvider.getIfAvailable() == null) {
+            throw new IllegalStateException(missingChatRuntimeConfigurationMessage());
+        }
 
         return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties, advisorRegistry);
     }
@@ -201,11 +193,12 @@ public class CoreLLMTieredAutoConfiguration {
     public OllamaApi contexaDedicatedEmbeddingOllamaApi(
             ObjectProvider<RestClient.Builder> restClientBuilderProvider,
             ObjectProvider<WebClient.Builder> webClientBuilderProvider,
-            ResponseErrorHandler responseErrorHandler) {
+            ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider) {
 
         String baseUrl = resolveDedicatedEmbeddingOllamaBaseUrl();
         log.info("Enabling dedicated embedding Ollama runtime at {}", baseUrl);
-        return buildOllamaApi(baseUrl, restClientBuilderProvider, webClientBuilderProvider, responseErrorHandler);
+        return buildOllamaApi(baseUrl, restClientBuilderProvider, webClientBuilderProvider,
+                responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new));
     }
 
     @Bean(name = "contexaDedicatedOllamaEmbeddingModel")
@@ -234,45 +227,22 @@ public class CoreLLMTieredAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
-    public EmbeddingModel primaryEmbeddingModel(
-            @Qualifier("contexaDedicatedOllamaEmbeddingModel") ObjectProvider<OllamaEmbeddingModel> dedicatedOllamaEmbeddingModelProvider,
-            @Qualifier("contexaSharedOllamaEmbeddingModel") ObjectProvider<OllamaEmbeddingModel> sharedOllamaEmbeddingModelProvider,
-            ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "dynamic-priority", matchIfMissing = true)
+    public EmbeddingModel dynamicPriorityPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        return llmRuntimeCatalog.resolvePrimaryEmbeddingModel(resolveEmbeddingPriority())
+                .orElseThrow(() -> new IllegalStateException(
+                        "No embedding runtime binding could be resolved from the available Spring AI EmbeddingModel beans. "
+                                + "Configure contexa.llm.selection.embedding.priority or provide a ready embedding runtime binding."));
+    }
 
-        Map<String, EmbeddingModel> availableModels = new HashMap<>();
-
-        OllamaEmbeddingModel dedicatedOllamaEmbedding = dedicatedOllamaEmbeddingModelProvider.getIfAvailable();
-        OllamaEmbeddingModel sharedOllamaEmbedding = sharedOllamaEmbeddingModelProvider.getIfAvailable();
-        if (dedicatedOllamaEmbedding != null) {
-            availableModels.put("ollama", dedicatedOllamaEmbedding);
-        }
-        else if (sharedOllamaEmbedding != null) {
-            availableModels.put("ollama", sharedOllamaEmbedding);
-        }
-
-        OpenAiEmbeddingModel openAiEmbedding = openAiEmbeddingModelProvider.getIfAvailable();
-        if (openAiEmbedding != null) {
-            availableModels.put("openai", openAiEmbedding);
-        }
-
-        List<String> priorities = List.of(contexaProperties.getLlm().getEmbeddingModelPriority().split(","));
-        for (String modelName : priorities) {
-            String trimmedName = modelName.trim().toLowerCase();
-            EmbeddingModel model = availableModels.get(trimmedName);
-            if (model != null) {
-                return model;
-            }
-        }
-
-        if (!availableModels.isEmpty()) {
-            Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.error("No priority model found. Using {} (fallback)", firstEntry.getKey());
-            return firstEntry.getValue();
-        }
-
-        log.error("No EmbeddingModel available. Embedding features will be disabled. " +
-                "Configure contexa.llm.embedding.ollama.*, contexa.llm.chat.ollama.*, or spring.ai.openai.* to enable embedding.");
-        return null;
+    @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @Conditional(AnyEmbeddingModelAvailableCondition.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "spring-primary")
+    public EmbeddingModel springPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        return llmRuntimeCatalog.resolveSpringPrimaryEmbeddingModel()
+                .orElseThrow(() -> new IllegalStateException(
+                        "No embedding runtime binding is available for spring-primary selection. Register a Spring AI EmbeddingModel bean first."));
     }
 
     @PostConstruct
@@ -332,11 +302,38 @@ public class CoreLLMTieredAutoConfiguration {
         return ollama.getBaseUrl().trim();
     }
 
+    private String resolveChatPriority() {
+        if (StringUtils.hasText(contexaLlmSelectionProperties.getChat().getPriority())) {
+            return contexaLlmSelectionProperties.getChat().getPriority().trim();
+        }
+        return contexaProperties.getLlm().getChatModelPriority();
+    }
+
+    private String resolveEmbeddingPriority() {
+        if (StringUtils.hasText(contexaLlmSelectionProperties.getEmbedding().getPriority())) {
+            return contexaLlmSelectionProperties.getEmbedding().getPriority().trim();
+        }
+        return contexaProperties.getLlm().getEmbeddingModelPriority();
+    }
+
     private String resolveEmbeddingModel() {
         String configuredModel = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
         if (StringUtils.hasText(configuredModel)) {
             return configuredModel.trim();
         }
         return DEFAULT_OLLAMA_EMBEDDING_MODEL;
+    }
+
+    private String missingChatRuntimeConfigurationMessage() {
+        return "No Spring AI ChatModel is configured for CONTEXA. "
+                + "Add at least one Spring AI chat provider starter to your application dependencies "
+                + "(for example org.springframework.ai:spring-ai-starter-model-openai, "
+                + "org.springframework.ai:spring-ai-starter-model-anthropic, or "
+                + "org.springframework.ai:spring-ai-starter-model-ollama), "
+                + "then configure the matching provider under spring.ai.* "
+                + "(for example spring.ai.openai.*, spring.ai.anthropic.*, or spring.ai.ollama.*). "
+                + "If the dependency is already present, verify that the corresponding API key or base URL is actually set. "
+                + "After a ChatModel bean is available, you may optionally control CONTEXA selection with "
+                + "contexa.llm.selection.chat.* and contexa.llm.bindings.chat.*.";
     }
 }

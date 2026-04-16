@@ -440,6 +440,7 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(UnifiedVectorService.class)
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
             SecurityContextDataStore dataStore,

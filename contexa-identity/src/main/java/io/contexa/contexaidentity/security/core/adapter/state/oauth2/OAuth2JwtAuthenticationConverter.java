@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
 import io.contexa.contexacommon.repository.UserRepository;
-import io.restassured.internal.common.assertion.Assertion;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
