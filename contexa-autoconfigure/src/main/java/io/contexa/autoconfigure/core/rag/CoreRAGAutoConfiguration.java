@@ -51,7 +51,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(VectorStore.class)
+//    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
@@ -67,7 +67,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(VectorStore.class)
+//    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public VectorStoreCacheLayer vectorStoreCacheLayer(
             VectorStore vectorStore,
@@ -76,7 +76,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(VectorStore.class)
+//    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public UnifiedVectorService unifiedVectorService(
             PgVectorStoreProperties properties,
