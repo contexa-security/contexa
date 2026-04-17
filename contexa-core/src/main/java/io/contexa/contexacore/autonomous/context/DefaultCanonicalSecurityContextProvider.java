@@ -317,14 +317,14 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             return;
         }
         sessionNarrativeCollector.collect(event).ifPresent(snapshot -> {
-            metadata.put("sessionNarrativeSummary", snapshot.getSummary());
-            metadata.put("sessionAgeMinutes", snapshot.getSessionAgeMinutes());
-            metadata.put("previousPath", snapshot.getPreviousPath());
-            metadata.put("previousActionFamily", snapshot.getPreviousActionFamily());
-            metadata.put("lastRequestIntervalMs", snapshot.getLastRequestIntervalMs());
-            metadata.put("sessionActionSequence", snapshot.getSessionActionSequence());
-            metadata.put("sessionProtectableSequence", snapshot.getSessionProtectableSequence());
-            metadata.put("burstPattern", snapshot.getBurstPattern());
+            backfillMetadata(metadata, "sessionNarrativeSummary", snapshot.getSummary());
+            backfillMetadata(metadata, "sessionAgeMinutes", snapshot.getSessionAgeMinutes());
+            backfillMetadata(metadata, "previousPath", snapshot.getPreviousPath());
+            backfillMetadata(metadata, "previousActionFamily", snapshot.getPreviousActionFamily());
+            backfillMetadata(metadata, "lastRequestIntervalMs", snapshot.getLastRequestIntervalMs());
+            backfillMetadata(metadata, "sessionActionSequence", snapshot.getSessionActionSequence());
+            backfillMetadata(metadata, "sessionProtectableSequence", snapshot.getSessionProtectableSequence());
+            backfillMetadata(metadata, "burstPattern", snapshot.getBurstPattern());
         });
     }
 
@@ -333,20 +333,20 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             return;
         }
         protectableWorkProfileCollector.collect(event).ifPresent(snapshot -> {
-            metadata.put("workProfileSummary", snapshot.getSummary());
-            metadata.put("frequentProtectableResources", snapshot.getFrequentProtectableResources());
-            metadata.put("frequentActionFamilies", snapshot.getFrequentActionFamilies());
-            metadata.put("normalAccessHours", snapshot.getNormalAccessHours());
-            metadata.put("normalAccessDays", snapshot.getNormalAccessDays());
-            metadata.put("normalRequestRate", snapshot.getNormalRequestRate());
-            metadata.put("protectableInvocationDensity", snapshot.getProtectableInvocationDensity());
-            metadata.put("protectableResourceHeatmap", snapshot.getProtectableResourceHeatmap());
-            metadata.put("frequentSensitiveResourceCategories", snapshot.getFrequentSensitiveResourceCategories());
-            metadata.put("normalReadWriteExportRatio", snapshot.getNormalReadWriteExportRatio());
+            backfillMetadata(metadata, "workProfileSummary", snapshot.getSummary());
+            backfillMetadata(metadata, "frequentProtectableResources", snapshot.getFrequentProtectableResources());
+            backfillMetadata(metadata, "frequentActionFamilies", snapshot.getFrequentActionFamilies());
+            backfillMetadata(metadata, "normalAccessHours", snapshot.getNormalAccessHours());
+            backfillMetadata(metadata, "normalAccessDays", snapshot.getNormalAccessDays());
+            backfillMetadata(metadata, "normalRequestRate", snapshot.getNormalRequestRate());
+            backfillMetadata(metadata, "protectableInvocationDensity", snapshot.getProtectableInvocationDensity());
+            backfillMetadata(metadata, "protectableResourceHeatmap", snapshot.getProtectableResourceHeatmap());
+            backfillMetadata(metadata, "frequentSensitiveResourceCategories", snapshot.getFrequentSensitiveResourceCategories());
+            backfillMetadata(metadata, "normalReadWriteExportRatio", snapshot.getNormalReadWriteExportRatio());
             if (snapshot.getTrustProfile() != null) {
-                metadata.put("workProfileTrustProfile", snapshot.getTrustProfile());
-                metadata.put("workProfileProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
-                metadata.put("workProfileQualityWarnings", snapshot.getTrustProfile().getQualityWarnings());
+                backfillMetadata(metadata, "workProfileTrustProfile", snapshot.getTrustProfile());
+                backfillMetadata(metadata, "workProfileProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
+                backfillMetadata(metadata, "workProfileQualityWarnings", snapshot.getTrustProfile().getQualityWarnings());
             }
         });
     }
@@ -356,25 +356,34 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             return;
         }
         roleScopeCollector.collect(event).ifPresent(snapshot -> {
-            metadata.put("roleScopeSummary", snapshot.getSummary());
-            metadata.put("currentResourceFamily", snapshot.getCurrentResourceFamily());
-            metadata.put("currentActionFamily", snapshot.getCurrentActionFamily());
-            metadata.put("expectedResourceFamilies", snapshot.getExpectedResourceFamilies());
-            metadata.put("expectedActionFamilies", snapshot.getExpectedActionFamilies());
-            metadata.put("forbiddenResourceFamilies", snapshot.getForbiddenResourceFamilies());
-            metadata.put("forbiddenActionFamilies", snapshot.getForbiddenActionFamilies());
-            metadata.put("normalApprovalPatterns", snapshot.getNormalApprovalPatterns());
-            metadata.put("normalEscalationPatterns", snapshot.getNormalEscalationPatterns());
-            metadata.put("recentPermissionChanges", snapshot.getRecentPermissionChanges());
-            metadata.put("temporaryElevation", snapshot.getTemporaryElevation());
-            metadata.put("temporaryElevationReason", snapshot.getTemporaryElevationReason());
-            metadata.put("elevatedPrivilegeWindowActive", snapshot.getElevatedPrivilegeWindowActive());
-            metadata.put("elevationWindowSummary", snapshot.getElevationWindowSummary());
+            backfillMetadata(metadata, "roleScopeSummary", snapshot.getSummary());
+            backfillMetadata(metadata, "currentResourceFamily", snapshot.getCurrentResourceFamily());
+            backfillMetadata(metadata, "currentActionFamily", snapshot.getCurrentActionFamily());
+            backfillMetadata(metadata, "expectedResourceFamilies", snapshot.getExpectedResourceFamilies());
+            backfillMetadata(metadata, "expectedActionFamilies", snapshot.getExpectedActionFamilies());
+            backfillMetadata(metadata, "forbiddenResourceFamilies", snapshot.getForbiddenResourceFamilies());
+            backfillMetadata(metadata, "forbiddenActionFamilies", snapshot.getForbiddenActionFamilies());
+            backfillMetadata(metadata, "normalApprovalPatterns", snapshot.getNormalApprovalPatterns());
+            backfillMetadata(metadata, "normalEscalationPatterns", snapshot.getNormalEscalationPatterns());
+            backfillMetadata(metadata, "recentPermissionChanges", snapshot.getRecentPermissionChanges());
+            backfillMetadata(metadata, "temporaryElevation", snapshot.getTemporaryElevation());
+            backfillMetadata(metadata, "temporaryElevationReason", snapshot.getTemporaryElevationReason());
+            backfillMetadata(metadata, "elevatedPrivilegeWindowActive", snapshot.getElevatedPrivilegeWindowActive());
+            backfillMetadata(metadata, "elevationWindowSummary", snapshot.getElevationWindowSummary());
             if (snapshot.getTrustProfile() != null) {
-                metadata.put("roleScopeTrustProfile", snapshot.getTrustProfile());
-                metadata.put("roleScopeProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
+                backfillMetadata(metadata, "roleScopeTrustProfile", snapshot.getTrustProfile());
+                backfillMetadata(metadata, "roleScopeProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
             }
         });
+    }
+
+    private void backfillMetadata(Map<String, Object> metadata, String key, Object value) {
+        if (metadata == null || key == null || value == null) {
+            return;
+        }
+        if (!metadata.containsKey(key) || metadata.get(key) == null) {
+            metadata.put(key, value);
+        }
     }
 
     private List<ContextTrustProfile> resolveContextTrustProfiles(Map<String, Object> metadata) {

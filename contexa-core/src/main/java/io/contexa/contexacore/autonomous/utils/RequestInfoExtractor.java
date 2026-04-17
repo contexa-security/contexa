@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.utils;
 
+import io.contexa.contexacommon.hcad.official.OfficialContextRequestAttributes;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -20,6 +21,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -43,6 +45,8 @@ public final class RequestInfoExtractor {
         Integer runtimeMaxTokens = extractIntegerHeaderOrAttribute(request, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
         Boolean runtimeDisableRetries = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Retries", "disableRetries");
         Boolean runtimeDisableOllamaThinking = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
+        Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
+        String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
                 requestedModelId,
@@ -89,10 +93,6 @@ public final class RequestInfoExtractor {
                 .failedLoginAttempts(castToInteger(request.getAttribute("hcad.failed_login_attempts")))
                 .baselineConfidence(castToDouble(request.getAttribute("hcad.baseline_confidence")))
                 .isSensitiveResource((Boolean) request.getAttribute("hcad.is_sensitive_resource"))
-                .authMethod(extractAttributeText(request,
-                        "hcad.auth_method",
-                        "hcad.authMethod",
-                        "authMethod"))
                 .resourceSensitivity(extractAttributeText(request,
                         "hcad.resource_sensitivity",
                         "hcad.resourceSensitivity",
@@ -109,7 +109,7 @@ public final class RequestInfoExtractor {
                         "resourceId",
                         "requestedResourceId",
                         "protectedResourceId"))
-                .mfaVerified(castToBoolean(request.getAttribute("hcad.mfa_verified")))
+                .mfaVerified(castToBoolean(officialContextFields.get("mfaVerified")))
                 .previousPath(extractAttributeText(request,
                         "hcad.previous_path",
                         "hcad.previousPath",
@@ -120,37 +120,40 @@ public final class RequestInfoExtractor {
                                 "hcad.lastRequestIntervalMs",
                                 "lastRequestIntervalMs")))
                 .userRoles((String) request.getAttribute("hcad.user_roles"))
-                .geoCountry((String) request.getAttribute("hcad.country"))
-                .geoCity((String) request.getAttribute("hcad.city"))
+                .geoCountry(castToText(officialContextFields.get("country")))
+                .geoCity(castToText(officialContextFields.get("city")))
                 .geoLatitude(castToDouble(request.getAttribute("hcad.latitude")))
                 .geoLongitude(castToDouble(request.getAttribute("hcad.longitude")))
-                .impossibleTravel(castToBoolean(request.getAttribute("hcad.impossibleTravel")))
+                .impossibleTravel(castToBoolean(officialContextFields.get("impossibleTravel")))
                 .travelDistanceKm(castToInteger(request.getAttribute("hcad.travelDistanceKm")))
                 .travelElapsedMinutes(castToInteger(request.getAttribute("hcad.travelElapsedMinutes")))
                 .previousLocation((String) request.getAttribute("hcad.previousLocation"))
-                // Canonical Context Extension v1.0 - Location supplements
-                .ipBand(extractAttributeText(request, "hcad.ip_band", "hcad.ipBand"))
-                .asn(extractAttributeText(request, "hcad.asn", "hcad.geoAsn"))
-                // Canonical Context Extension v1.0 - Device slot
-                .deviceOs(extractAttributeText(request, "hcad.device_os", "hcad.deviceOs"))
-                .deviceOsVersion(extractAttributeText(request, "hcad.device_os_version", "hcad.deviceOsVersion"))
-                .deviceBrowser(extractAttributeText(request, "hcad.device_browser", "hcad.deviceBrowser"))
-                .deviceBrowserVersion(extractAttributeText(request, "hcad.device_browser_version", "hcad.deviceBrowserVersion"))
-                .deviceScreenResolution(extractAttributeText(request, "hcad.device_screen_resolution", "hcad.deviceScreenResolution"))
-                .deviceLanguage(extractAttributeText(request, "hcad.device_language", "hcad.deviceLanguage"))
-                .deviceFingerprintMatch(castToBoolean(firstNonNullAttribute(request, "hcad.device_fingerprint_match", "hcad.deviceFingerprintMatch")))
-                // Canonical Context Extension v1.0 - Intent slot
-                .intentBotUserAgent(castToBoolean(firstNonNullAttribute(request, "hcad.intent_bot_user_agent", "hcad.intentBotUserAgent")))
-                .intentMissingReferer(castToBoolean(firstNonNullAttribute(request, "hcad.intent_missing_referer", "hcad.intentMissingReferer")))
-                .intentLanguageMismatch(castToBoolean(firstNonNullAttribute(request, "hcad.intent_language_mismatch", "hcad.intentLanguageMismatch")))
-                .intentTlsFingerprintAltered(castToBoolean(firstNonNullAttribute(request, "hcad.intent_tls_fingerprint_altered", "hcad.intentTlsFingerprintAltered")))
-                .intentAbnormalHeaderOrder(castToBoolean(firstNonNullAttribute(request, "hcad.intent_abnormal_header_order", "hcad.intentAbnormalHeaderOrder")))
-                // Canonical Context Extension v1.0 - Session slot additions
-                .authenticationType(extractAttributeText(request, "hcad.authentication_type", "hcad.authenticationType"))
-                .currentAccessHour(castToInteger(firstNonNullAttribute(request, "hcad.current_access_hour", "hcad.currentAccessHour")))
-                .concurrentSessions(castToInteger(firstNonNullAttribute(request, "hcad.concurrent_sessions", "hcad.concurrentSessions")))
-                .passwordAgeDays(castToInteger(firstNonNullAttribute(request, "hcad.password_age_days", "hcad.passwordAgeDays")))
-                .sessionAgeMinutes(castToInteger(firstNonNullAttribute(request, "hcad.session_age_minutes", "hcad.sessionAgeMinutes")))
+                .ipBand(castToText(officialContextFields.get("ipBand")))
+                .asn(castToText(officialContextFields.get("asn")))
+                .deviceOs(castToText(officialContextFields.get("deviceOs")))
+                .deviceOsVersion(castToText(officialContextFields.get("deviceOsVersion")))
+                .deviceBrowser(castToText(officialContextFields.get("deviceBrowser")))
+                .deviceBrowserVersion(castToText(officialContextFields.get("deviceBrowserVersion")))
+                .deviceScreenResolution(castToText(officialContextFields.get("deviceScreenResolution")))
+                .deviceLanguage(castToText(officialContextFields.get("deviceLanguage")))
+                .deviceFingerprintMatch(castToBoolean(officialContextFields.get("deviceFingerprintMatch")))
+                .intentBotUserAgent(castToBoolean(officialContextFields.get("intentBotUserAgent")))
+                .intentMissingReferer(castToBoolean(officialContextFields.get("intentMissingReferer")))
+                .intentLanguageMismatch(castToBoolean(officialContextFields.get("intentLanguageMismatch")))
+                .intentTlsFingerprintAltered(castToBoolean(officialContextFields.get("intentTlsFingerprintAltered")))
+                .intentAbnormalHeaderOrder(castToBoolean(officialContextFields.get("intentAbnormalHeaderOrder")))
+                .authenticationType(authenticationType)
+                .currentAccessHour(castToInteger(officialContextFields.get("currentAccessHour")))
+                .concurrentSessions(castToInteger(officialContextFields.get("concurrentSessions")))
+                .passwordAgeDays(castToInteger(officialContextFields.get("passwordAgeDays")))
+                .sessionAgeMinutes(castToInteger(officialContextFields.get("sessionAgeMinutes")))
+                .authMethod(firstNonBlankText(
+                        extractAttributeText(request,
+                                "hcad.auth_method",
+                                "hcad.authMethod",
+                                "authMethod"),
+                        authenticationType))
+                .officialContextFields(Map.copyOf(officialContextFields))
                 .bridgeResolutionResult(extractBridgeResolutionResult(request, security, requestId))
                 .build();
     }
@@ -658,12 +661,21 @@ public final class RequestInfoExtractor {
         private final Integer concurrentSessions;
         private final Integer passwordAgeDays;
         private final Integer sessionAgeMinutes;
+        private final Map<String, Object> officialContextFields;
     }
 
     private static Integer castToInteger(Object value) {
         if (value instanceof Integer) return (Integer) value;
         if (value instanceof Number) return ((Number) value).intValue();
         return null;
+    }
+
+    private static String castToText(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
     }
 
     private static Double castToDouble(Object value) {

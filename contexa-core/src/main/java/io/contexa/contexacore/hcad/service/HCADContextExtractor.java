@@ -3,6 +3,7 @@ package io.contexa.contexacore.hcad.service;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -14,6 +15,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.util.StringUtils;
 import org.springframework.util.AntPathMatcher;
 
 import java.time.Instant;
@@ -76,6 +78,10 @@ public class HCADContextExtractor {
             context.setReferer(request.getHeader("Referer"));
             Instant observedAt = resolveObservedAt(request);
             context.setTimestamp(observedAt);
+            context.setIpBand(deriveIpBand(clientIp));
+            context.setCurrentAccessHour(LocalDateTime.ofInstant(observedAt, ZoneId.systemDefault()).getHour());
+            enrichWithDeviceContext(context, request);
+            enrichWithIntentSignals(context, request);
 
             boolean promptRelevantPath = PromptRelevantRequestPathPolicy.isPromptRelevantPath(context.getRequestPath());
 
@@ -198,9 +204,15 @@ public class HCADContextExtractor {
                 hcadDataStore.saveSessionMetadata(sessionId, newSessionInfo);
             }
 
+            Integer sessionAgeMinutes = calculateSessionAgeMinutes(sessionInfo, observedAt);
+            if (sessionAgeMinutes != null) {
+                context.setSessionAgeMinutes(sessionAgeMinutes);
+            }
+
         } catch (Exception e) {
             context.setIsNewSession(true);
             context.setIsNewDevice(true);
+            context.setSessionAgeMinutes(0);
         }
     }
 
@@ -299,6 +311,7 @@ public class HCADContextExtractor {
             String authMethod = authentication.getAuthorities().stream()
                     .anyMatch(auth -> auth.getAuthority().contains("MFA")) ? "mfa" : "password";
             context.setAuthenticationMethod(authMethod);
+            context.setAuthenticationType(authMethod);
 
             boolean hasMfa = resolveMfaVerified(userId);
             context.setHasValidMFA(hasMfa);
@@ -448,6 +461,147 @@ public class HCADContextExtractor {
         } catch (Exception e) {
             log.error("[HCADContextExtractor] GeoIP enrichment failed: ip={}", clientIp, e);
         }
+    }
+
+    private void enrichWithDeviceContext(HCADContext context, HttpServletRequest request) {
+        if (context == null) {
+            return;
+        }
+        String userAgent = context.getUserAgent();
+        String browserSignature = SecurityEventEnricher.extractBrowserSignature(userAgent);
+        String[] browserParts = splitNameAndVersion(browserSignature);
+        context.setDeviceOs(SecurityEventEnricher.extractOSFromUserAgent(userAgent));
+        context.setDeviceBrowser(browserParts[0]);
+        context.setDeviceBrowserVersion(browserParts[1]);
+        context.setDeviceLanguage(resolveDeviceLanguage(request));
+        context.setDeviceScreenResolution(resolveScreenResolution(request));
+    }
+
+    private void enrichWithIntentSignals(HCADContext context, HttpServletRequest request) {
+        if (context == null || request == null) {
+            return;
+        }
+        context.setIntentBotUserAgent(isBotUserAgent(context.getUserAgent()));
+        context.setIntentMissingReferer(!StringUtils.hasText(request.getHeader("Referer")));
+    }
+
+    private Integer calculateSessionAgeMinutes(Map<Object, Object> sessionInfo, Instant observedAt) {
+        if (observedAt == null) {
+            return null;
+        }
+        String createdAt = sessionInfo != null ? text(sessionInfo.get("createdAt")) : null;
+        if (!StringUtils.hasText(createdAt)) {
+            return 0;
+        }
+        try {
+            Instant sessionStart = Instant.parse(createdAt);
+            long elapsedMinutes = Math.max(0L, (observedAt.toEpochMilli() - sessionStart.toEpochMilli()) / 60_000L);
+            return Math.toIntExact(elapsedMinutes);
+        } catch (Exception ex) {
+            return 0;
+        }
+    }
+
+    private String resolveDeviceLanguage(HttpServletRequest request) {
+        String header = request != null ? request.getHeader("Accept-Language") : null;
+        if (!StringUtils.hasText(header)) {
+            return null;
+        }
+        String primary = header.split(",")[0].trim();
+        int separator = primary.indexOf(';');
+        if (separator >= 0) {
+            primary = primary.substring(0, separator).trim();
+        }
+        return StringUtils.hasText(primary) ? primary : null;
+    }
+
+    private String resolveScreenResolution(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String explicit = firstHeader(request,
+                "X-Contexa-Screen-Resolution",
+                "X-Device-Screen-Resolution",
+                "Sec-CH-Viewport");
+        if (StringUtils.hasText(explicit)) {
+            return explicit;
+        }
+        String width = firstHeader(request, "Sec-CH-Viewport-Width", "X-Viewport-Width");
+        String height = firstHeader(request, "Sec-CH-Viewport-Height", "X-Viewport-Height");
+        if (StringUtils.hasText(width) && StringUtils.hasText(height)) {
+            return width.trim() + "x" + height.trim();
+        }
+        return null;
+    }
+
+    private String[] splitNameAndVersion(String signature) {
+        if (!StringUtils.hasText(signature)) {
+            return new String[] { null, null };
+        }
+        String normalized = signature.trim();
+        int separator = normalized.indexOf('/');
+        if (separator < 0) {
+            return new String[] { normalized, null };
+        }
+        String name = normalized.substring(0, separator).trim();
+        String version = normalized.substring(separator + 1).trim();
+        return new String[] {
+                StringUtils.hasText(name) ? name : null,
+                StringUtils.hasText(version) ? version : null
+        };
+    }
+
+    private String deriveIpBand(String clientIp) {
+        if (!StringUtils.hasText(clientIp)) {
+            return null;
+        }
+        String normalized = clientIp.trim();
+        String[] ipv4 = normalized.split("\\.");
+        if (ipv4.length == 4) {
+            return ipv4[0] + "." + ipv4[1] + "." + ipv4[2] + ".0/24";
+        }
+        if (normalized.contains(":")) {
+            String[] ipv6 = normalized.split(":");
+            if (ipv6.length >= 4) {
+                return String.join(":", ipv6[0], ipv6[1], ipv6[2], ipv6[3]) + "::/64";
+            }
+        }
+        return null;
+    }
+
+    private Boolean isBotUserAgent(String userAgent) {
+        if (!StringUtils.hasText(userAgent)) {
+            return null;
+        }
+        String normalized = userAgent.toLowerCase();
+        return normalized.contains("bot")
+                || normalized.contains("crawler")
+                || normalized.contains("spider")
+                || normalized.contains("python-requests")
+                || normalized.contains("curl/")
+                || normalized.contains("wget/")
+                || normalized.contains("java/");
+    }
+
+    private String firstHeader(HttpServletRequest request, String... names) {
+        if (request == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            String value = request.getHeader(name);
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String text(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return StringUtils.hasText(text) ? text : null;
     }
 
     private void detectImpossibleTravel(HCADContext context, GeoIpService.GeoLocation currentLocation) {

@@ -117,26 +117,7 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(mergedPayload, "failedLoginAttempts", requestInfo.getFailedLoginAttempts());
             putIfAbsent(mergedPayload, "isNewDevice", requestInfo.getIsNewDevice());
             putIfAbsent(mergedPayload, "impossibleTravel", requestInfo.getImpossibleTravel());
-            // Canonical Context Extension v1.0 payload promotion
-            putIfAbsent(mergedPayload, "ipBand", requestInfo.getIpBand());
-            putIfAbsent(mergedPayload, "asn", requestInfo.getAsn());
-            putIfAbsent(mergedPayload, "deviceOs", requestInfo.getDeviceOs());
-            putIfAbsent(mergedPayload, "deviceOsVersion", requestInfo.getDeviceOsVersion());
-            putIfAbsent(mergedPayload, "deviceBrowser", requestInfo.getDeviceBrowser());
-            putIfAbsent(mergedPayload, "deviceBrowserVersion", requestInfo.getDeviceBrowserVersion());
-            putIfAbsent(mergedPayload, "deviceScreenResolution", requestInfo.getDeviceScreenResolution());
-            putIfAbsent(mergedPayload, "deviceLanguage", requestInfo.getDeviceLanguage());
-            putIfAbsent(mergedPayload, "deviceFingerprintMatch", requestInfo.getDeviceFingerprintMatch());
-            putIfAbsent(mergedPayload, "intentBotUserAgent", requestInfo.getIntentBotUserAgent());
-            putIfAbsent(mergedPayload, "intentMissingReferer", requestInfo.getIntentMissingReferer());
-            putIfAbsent(mergedPayload, "intentLanguageMismatch", requestInfo.getIntentLanguageMismatch());
-            putIfAbsent(mergedPayload, "intentTlsFingerprintAltered", requestInfo.getIntentTlsFingerprintAltered());
-            putIfAbsent(mergedPayload, "intentAbnormalHeaderOrder", requestInfo.getIntentAbnormalHeaderOrder());
-            putIfAbsent(mergedPayload, "authenticationType", requestInfo.getAuthenticationType());
-            putIfAbsent(mergedPayload, "currentAccessHour", requestInfo.getCurrentAccessHour());
-            putIfAbsent(mergedPayload, "concurrentSessions", requestInfo.getConcurrentSessions());
-            putIfAbsent(mergedPayload, "passwordAgeDays", requestInfo.getPasswordAgeDays());
-            putIfAbsent(mergedPayload, "sessionAgeMinutes", requestInfo.getSessionAgeMinutes());
+            promoteOfficialContextFields(requestInfo, mergedPayload);
             populateBridgePayload(requestInfo, mergedPayload);
         }
         if (actionRedisRepository != null && userId != null && !mergedPayload.containsKey("action")) {
@@ -308,27 +289,7 @@ public class ZeroTrustEventPublisher {
                 payload.put("travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
                 payload.put("previousLocation", requestInfo.getPreviousLocation());
             }
-
-            // Canonical Context Extension v1.0 payload promotion
-            if (requestInfo.getIpBand() != null)                 payload.put("ipBand", requestInfo.getIpBand());
-            if (requestInfo.getAsn() != null)                    payload.put("asn", requestInfo.getAsn());
-            if (requestInfo.getDeviceOs() != null)               payload.put("deviceOs", requestInfo.getDeviceOs());
-            if (requestInfo.getDeviceOsVersion() != null)        payload.put("deviceOsVersion", requestInfo.getDeviceOsVersion());
-            if (requestInfo.getDeviceBrowser() != null)          payload.put("deviceBrowser", requestInfo.getDeviceBrowser());
-            if (requestInfo.getDeviceBrowserVersion() != null)   payload.put("deviceBrowserVersion", requestInfo.getDeviceBrowserVersion());
-            if (requestInfo.getDeviceScreenResolution() != null) payload.put("deviceScreenResolution", requestInfo.getDeviceScreenResolution());
-            if (requestInfo.getDeviceLanguage() != null)         payload.put("deviceLanguage", requestInfo.getDeviceLanguage());
-            if (requestInfo.getDeviceFingerprintMatch() != null) payload.put("deviceFingerprintMatch", requestInfo.getDeviceFingerprintMatch());
-            if (requestInfo.getIntentBotUserAgent() != null)          payload.put("intentBotUserAgent", requestInfo.getIntentBotUserAgent());
-            if (requestInfo.getIntentMissingReferer() != null)        payload.put("intentMissingReferer", requestInfo.getIntentMissingReferer());
-            if (requestInfo.getIntentLanguageMismatch() != null)      payload.put("intentLanguageMismatch", requestInfo.getIntentLanguageMismatch());
-            if (requestInfo.getIntentTlsFingerprintAltered() != null) payload.put("intentTlsFingerprintAltered", requestInfo.getIntentTlsFingerprintAltered());
-            if (requestInfo.getIntentAbnormalHeaderOrder() != null)   payload.put("intentAbnormalHeaderOrder", requestInfo.getIntentAbnormalHeaderOrder());
-            if (requestInfo.getAuthenticationType() != null)  payload.put("authenticationType", requestInfo.getAuthenticationType());
-            if (requestInfo.getCurrentAccessHour() != null)   payload.put("currentAccessHour", requestInfo.getCurrentAccessHour());
-            if (requestInfo.getConcurrentSessions() != null)  payload.put("concurrentSessions", requestInfo.getConcurrentSessions());
-            if (requestInfo.getPasswordAgeDays() != null)     payload.put("passwordAgeDays", requestInfo.getPasswordAgeDays());
-            if (requestInfo.getSessionAgeMinutes() != null)   payload.put("sessionAgeMinutes", requestInfo.getSessionAgeMinutes());
+            promoteOfficialContextFields(requestInfo, payload);
         }
 
         populateAuthenticationFallback(authentication, payload);
@@ -474,35 +435,35 @@ public class ZeroTrustEventPublisher {
         }
         AuthenticationStamp authenticationStamp = bridgeResolutionResult.authenticationStamp();
         if (authenticationStamp != null) {
-            putIfPresent(payload, "bridgeAuthenticationSource", authenticationStamp.authenticationSource());
-            putIfPresent(payload, "principalType", authenticationStamp.principalType());
-            putIfPresent(payload, "authenticationType", authenticationStamp.authenticationType());
-            putIfPresent(payload, "authenticationAssurance", authenticationStamp.authenticationAssurance());
-            putIfPresent(payload, "mfaVerified", authenticationStamp.mfaCompleted());
+            putIfAbsent(payload, "bridgeAuthenticationSource", authenticationStamp.authenticationSource());
+            putIfAbsent(payload, "principalType", authenticationStamp.principalType());
+            putIfAbsent(payload, "authenticationType", authenticationStamp.authenticationType());
+            putIfAbsent(payload, "authenticationAssurance", authenticationStamp.authenticationAssurance());
+            putIfAbsent(payload, "mfaVerified", authenticationStamp.mfaCompleted());
             if (!authenticationStamp.authorities().isEmpty()) {
-                payload.put("authorities", authenticationStamp.authorities());
+                payload.put("authorities", mergeDistinctStringLists(payload.get("authorities"), authenticationStamp.authorities()));
             }
-            putIfPresent(payload, "organizationId", authenticationStamp.attributes().get("organizationId"));
-            putIfPresent(payload, "orgId", authenticationStamp.attributes().get("orgId"));
-            putIfPresent(payload, "department", authenticationStamp.attributes().get("department"));
+            putIfAbsent(payload, "organizationId", authenticationStamp.attributes().get("organizationId"));
+            putIfAbsent(payload, "orgId", authenticationStamp.attributes().get("orgId"));
+            putIfAbsent(payload, "department", authenticationStamp.attributes().get("department"));
         }
 
         AuthorizationStamp authorizationStamp = bridgeResolutionResult.authorizationStamp();
         if (authorizationStamp != null) {
-            putIfPresent(payload, "bridgeAuthorizationSource", authorizationStamp.decisionSource());
-            payload.put("authorizationEffect", authorizationStamp.effect().name());
-            putIfPresent(payload, "privileged", authorizationStamp.privileged());
-            putIfPresent(payload, "policyId", authorizationStamp.policyId());
+            putIfAbsent(payload, "bridgeAuthorizationSource", authorizationStamp.decisionSource());
+            putIfAbsent(payload, "authorizationEffect", authorizationStamp.effect().name());
+            putIfAbsent(payload, "privileged", authorizationStamp.privileged());
+            putIfAbsent(payload, "policyId", authorizationStamp.policyId());
             if (!authorizationStamp.scopeTags().isEmpty()) {
-                payload.put("scopeTags", authorizationStamp.scopeTags());
+                payload.putIfAbsent("scopeTags", authorizationStamp.scopeTags());
             }
             List<String> effectiveRoles = sanitizeRoleTokens(authorizationStamp.effectiveRoles());
             if (!effectiveRoles.isEmpty()) {
-                payload.put("effectiveRoles", effectiveRoles);
+                payload.putIfAbsent("effectiveRoles", effectiveRoles);
             }
             List<String> effectivePermissions = sanitizePermissionTokens(authorizationStamp.effectiveAuthorities());
             if (!effectivePermissions.isEmpty()) {
-                payload.put("effectivePermissions", effectivePermissions);
+                payload.putIfAbsent("effectivePermissions", effectivePermissions);
             }
             List<String> authorityEvidence = sanitizeAuthorityTokens(authorizationStamp.effectiveAuthorities());
             if (!authorityEvidence.isEmpty()) {
@@ -512,22 +473,29 @@ public class ZeroTrustEventPublisher {
 
         DelegationStamp delegationStamp = bridgeResolutionResult.delegationStamp();
         if (delegationStamp != null) {
-            putIfPresent(payload, "bridgeDelegationSource", delegationStamp.attributes().get("delegationResolver"));
-            payload.put("delegated", delegationStamp.delegated());
-            putIfPresent(payload, "agentId", delegationStamp.agentId());
-            putIfPresent(payload, "objectiveId", delegationStamp.objectiveId());
-            putIfPresent(payload, "objectiveFamily", delegationStamp.objectiveFamily());
-            putIfPresent(payload, "objectiveSummary", delegationStamp.objectiveSummary());
-            putIfPresent(payload, "approvalRequired", delegationStamp.approvalRequired());
-            putIfPresent(payload, "privilegedExportAllowed", delegationStamp.privilegedExportAllowed());
-            putIfPresent(payload, "containmentOnly", delegationStamp.containmentOnly());
+            putIfAbsent(payload, "bridgeDelegationSource", delegationStamp.attributes().get("delegationResolver"));
+            putIfAbsent(payload, "delegated", delegationStamp.delegated());
+            putIfAbsent(payload, "agentId", delegationStamp.agentId());
+            putIfAbsent(payload, "objectiveId", delegationStamp.objectiveId());
+            putIfAbsent(payload, "objectiveFamily", delegationStamp.objectiveFamily());
+            putIfAbsent(payload, "objectiveSummary", delegationStamp.objectiveSummary());
+            putIfAbsent(payload, "approvalRequired", delegationStamp.approvalRequired());
+            putIfAbsent(payload, "privilegedExportAllowed", delegationStamp.privilegedExportAllowed());
+            putIfAbsent(payload, "containmentOnly", delegationStamp.containmentOnly());
             if (!delegationStamp.allowedOperations().isEmpty()) {
-                payload.put("allowedOperations", delegationStamp.allowedOperations());
+                payload.putIfAbsent("allowedOperations", delegationStamp.allowedOperations());
             }
             if (!delegationStamp.allowedResources().isEmpty()) {
-                payload.put("allowedResources", delegationStamp.allowedResources());
+                payload.putIfAbsent("allowedResources", delegationStamp.allowedResources());
             }
         }
+    }
+
+    private void promoteOfficialContextFields(RequestInfo requestInfo, Map<String, Object> payload) {
+        if (requestInfo == null || requestInfo.getOfficialContextFields() == null || requestInfo.getOfficialContextFields().isEmpty()) {
+            return;
+        }
+        requestInfo.getOfficialContextFields().forEach((key, value) -> putIfAbsent(payload, key, value));
     }
 
     private void populateAuthenticationFallback(Authentication authentication, Map<String, Object> payload) {

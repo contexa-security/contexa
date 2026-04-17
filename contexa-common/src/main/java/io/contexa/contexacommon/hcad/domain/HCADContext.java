@@ -44,6 +44,8 @@ public class HCADContext {
     private String city;
     private Double latitude;
     private Double longitude;
+    private String ipBand;
+    private String asn;
 
     
     private Integer recentRequestCount; 
@@ -54,9 +56,14 @@ public class HCADContext {
 
     
     private String authenticationMethod; 
+    private String authenticationType;
     private Integer failedLoginAttempts; 
     private Double currentTrustScore; 
     private Boolean hasValidMFA; 
+    private Integer currentAccessHour;
+    private Integer concurrentSessions;
+    private Integer passwordAgeDays;
+    private Integer sessionAgeMinutes;
 
     
     private String resourceType; 
@@ -122,6 +129,18 @@ public class HCADContext {
     private String deviceType; 
     private Double threatScore; 
     private Boolean isNewLocation; 
+    private String deviceOs;
+    private String deviceOsVersion;
+    private String deviceBrowser;
+    private String deviceBrowserVersion;
+    private String deviceScreenResolution;
+    private String deviceLanguage;
+    private Boolean deviceFingerprintMatch;
+    private Boolean intentBotUserAgent;
+    private Boolean intentMissingReferer;
+    private Boolean intentLanguageMismatch;
+    private Boolean intentTlsFingerprintAltered;
+    private Boolean intentAbnormalHeaderOrder;
 
     
     public String toCompactString() {

@@ -3,6 +3,7 @@ package io.contexa.contexacore.hcad.filter;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.official.OfficialContextRequestAttributes;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionContextResolver;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
@@ -75,29 +76,22 @@ public class HCADFilter extends OncePerRequestFilter {
         request.setAttribute("hcad.is_new_session", context.getIsNewSession());
         request.setAttribute("hcad.is_new_user", context.getIsNewUser());
         request.setAttribute("hcad.is_new_device", context.getIsNewDevice());
-        request.setAttribute("hcad.recent_request_count", context.getRecentRequestCount());
-        request.setAttribute("hcad.failed_login_attempts", context.getFailedLoginAttempts());
         request.setAttribute("hcad.baseline_confidence", context.getBaselineConfidence());
         request.setAttribute("hcad.is_sensitive_resource", context.getIsSensitiveResource());
-        request.setAttribute("hcad.mfa_verified", context.getHasValidMFA());
         request.setAttribute("hcad.previous_path", context.getPreviousPath());
         request.setAttribute("hcad.last_request_interval_ms", context.getLastRequestInterval());
         request.setAttribute("hcad.observed_at", context.getTimestamp());
-        if (context.getAuthenticationMethod() != null) {
-            request.setAttribute("hcad.auth_method", context.getAuthenticationMethod());
-        }
-        if (context.getCountry() != null) {
-            request.setAttribute("hcad.country", context.getCountry());
-        }
-        if (context.getCity() != null) {
-            request.setAttribute("hcad.city", context.getCity());
-        }
         if (context.getLatitude() != null) {
             request.setAttribute("hcad.latitude", context.getLatitude());
         }
         if (context.getLongitude() != null) {
             request.setAttribute("hcad.longitude", context.getLongitude());
         }
+
+        OfficialContextRequestAttributes.applySnapshot(
+                request,
+                OfficialContextRequestAttributes.snapshotFrom(context),
+                false);
 
         Map<String, Object> attrs = context.getAdditionalAttributes();
         if (attrs != null) {

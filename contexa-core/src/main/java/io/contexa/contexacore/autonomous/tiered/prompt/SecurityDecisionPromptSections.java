@@ -25,6 +25,7 @@ import io.contexa.contexacore.std.components.prompt.PromptOmissionRecord;
 import io.contexa.contexacore.std.components.prompt.PromptOmissionType;
 import io.contexa.contexacore.std.components.prompt.PromptSectionPriorityClass;
 import io.contexa.contexacore.std.components.prompt.PromptSemanticRisk;
+import io.contexa.contexacore.std.components.prompt.SecurityPromptSectionCatalog;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -72,21 +73,24 @@ public class SecurityDecisionPromptSections {
                 .expireAfterWrite(15, TimeUnit.MINUTES)
                 .build();
         this.systemSectionPlans = List.of(
-                new PromptSectionPlan("SYSTEM_INSTRUCTION", PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityInstructionSectionBuilder()),
-                new PromptSectionPlan("DECISION_CONTRACT", PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityDecisionContractSectionBuilder())
+                new PromptSectionPlan(SecurityPromptSectionCatalog.SYSTEM_INSTRUCTION, PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityInstructionSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.DECISION_CONTRACT, PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityDecisionContractSectionBuilder())
         );
         this.userSectionPlans = List.of(
-                new PromptSectionPlan("CURRENT_REQUEST_AND_EVENT", PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityEventUserSectionBuilder()),
-                new PromptSectionPlan("BRIDGE_AND_COVERAGE", PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityCanonicalContextUserSectionBuilder()),
-                new PromptSectionPlan("IDENTITY_AND_ROLE", PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityIdentityAuthorityUserSectionBuilder()),
-                new PromptSectionPlan("RESOURCE_AND_ACTION", PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityResourceSemanticsUserSectionBuilder()),
-                new PromptSectionPlan("SESSION_NARRATIVE", PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecuritySessionUserSectionBuilder()),
-                new PromptSectionPlan("OBSERVED_AND_PERSONAL_WORK_PATTERN", PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityBehaviorProfileUserSectionBuilder()),
-                new PromptSectionPlan("ROLE_SCOPE", PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityRoleScopeUserSectionBuilder()),
-                new PromptSectionPlan("FRICTION_AND_APPROVAL", PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityFrictionUserSectionBuilder()),
-                new PromptSectionPlan("DELEGATED_OBJECTIVE", PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityDelegationUserSectionBuilder()),
-                new PromptSectionPlan("THREAT_LEARNING_AND_MEMORY", PromptSectionPriorityClass.P2_SUPPORTING, true, false, new SecurityThreatLearningUserSectionBuilder()),
-                new PromptSectionPlan("EXPLICIT_MISSING_KNOWLEDGE", PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityContextQualityUserSectionBuilder())
+                new PromptSectionPlan(SecurityPromptSectionCatalog.CURRENT_REQUEST_AND_EVENT, PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityEventUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.BRIDGE_AND_COVERAGE, PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityCanonicalContextUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.IDENTITY_AND_ROLE, PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityIdentityAuthorityUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.DEVICE_CONTEXT, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityDeviceUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.LOCATION_CONTEXT, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityLocationUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.INTENT_SIGNAL_CONTEXT, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityIntentUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.RESOURCE_AND_ACTION, PromptSectionPriorityClass.P0_REQUIRED, false, true, new SecurityResourceSemanticsUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.SESSION_NARRATIVE, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecuritySessionUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.OBSERVED_AND_PERSONAL_WORK_PATTERN, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityBehaviorProfileUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.ROLE_SCOPE, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityRoleScopeUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.FRICTION_AND_APPROVAL, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityFrictionUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.DELEGATED_OBJECTIVE, PromptSectionPriorityClass.P1_HIGH_VALUE, true, true, new SecurityDelegationUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.THREAT_LEARNING_AND_MEMORY, PromptSectionPriorityClass.P2_SUPPORTING, true, false, new SecurityThreatLearningUserSectionBuilder()),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.EXPLICIT_MISSING_KNOWLEDGE, PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityContextQualityUserSectionBuilder())
         );
     }
 
@@ -496,23 +500,6 @@ public class SecurityDecisionPromptSections {
             narrative.append("a resource");
         }
 
-        String ip = SecurityEventEnricher.normalizeIP(event.getSourceIp());
-        if (ip != null) {
-            narrative.append(" from ").append(ip);
-        }
-
-        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
-        String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
-        if (browser != null && os != null) {
-            narrative.append(" using ").append(browser).append(" on ").append(os);
-        }
-        else if (browser != null) {
-            narrative.append(" using ").append(browser);
-        }
-        else if (os != null) {
-            narrative.append(" using a device on ").append(os);
-        }
-
         if (event.getTimestamp() != null) {
             narrative.append(" at ").append(String.format("%02d:%02d",
                     event.getTimestamp().getHour(),
@@ -563,7 +550,6 @@ public class SecurityDecisionPromptSections {
         appendSectionBody(section, buildEventSection(event, userId));
         appendSectionBody(section, buildCurrentRequestNarrative(event, behaviorAnalysis, canonicalSecurityContext, patterns));
         appendIfPresent(section, buildSupportingPromptBlock("AuthorizationContext", buildAuthorizationResolutionSupport(event)));
-        appendIfPresent(section, buildSupportingPromptBlock("NetworkContext", buildNetworkPromptSection(event)));
         appendIfPresent(section, buildSupportingPromptBlock("PayloadSummary", buildPayloadSection(event)));
         return section.toString();
     }
@@ -1562,6 +1548,27 @@ public class SecurityDecisionPromptSections {
             return null;
         }
         return promptContextComposer.composeResourceSection(canonicalSecurityContext);
+    }
+
+    String buildDeviceContextSection(CanonicalSecurityContext canonicalSecurityContext) {
+        if (canonicalSecurityContext == null || promptContextComposer == null) {
+            return null;
+        }
+        return promptContextComposer.composeDeviceSection(canonicalSecurityContext);
+    }
+
+    String buildLocationContextSection(CanonicalSecurityContext canonicalSecurityContext) {
+        if (canonicalSecurityContext == null || promptContextComposer == null) {
+            return null;
+        }
+        return promptContextComposer.composeLocationSection(canonicalSecurityContext);
+    }
+
+    String buildIntentSignalContextSection(CanonicalSecurityContext canonicalSecurityContext) {
+        if (canonicalSecurityContext == null || promptContextComposer == null) {
+            return null;
+        }
+        return promptContextComposer.composeIntentSection(canonicalSecurityContext);
     }
 
     String buildSessionNarrativeContextSection(CanonicalSecurityContext canonicalSecurityContext) {

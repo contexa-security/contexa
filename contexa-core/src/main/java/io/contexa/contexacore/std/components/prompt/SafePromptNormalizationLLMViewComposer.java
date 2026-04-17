@@ -17,21 +17,24 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final String NORMALIZE_AND_FUSE_MODE = "NORMALIZE_AND_FUSE";
 
     private static final String SIMILAR_PAST_EVENTS_HEADER = "=== SIMILAR PAST EVENTS ===";
-    private static final String CURRENT_REQUEST_HEADER = "=== CURRENT REQUEST AND EVENT ===";
-    private static final String BRIDGE_RESOLUTION_HEADER = "=== BRIDGE RESOLUTION CONTEXT ===";
-    private static final String COVERAGE_HEADER = "=== CONTEXT COVERAGE ===";
-    private static final String IDENTITY_ROLE_HEADER = "=== IDENTITY AND ROLE CONTEXT ===";
-    private static final String AUTH_ASSURANCE_HEADER = "=== AUTHENTICATION AND ASSURANCE CONTEXT ===";
-    private static final String RESOURCE_ACTION_HEADER = "=== RESOURCE AND ACTION CONTEXT ===";
-    private static final String SESSION_NARRATIVE_HEADER = "=== SESSION NARRATIVE CONTEXT ===";
-    private static final String OBSERVED_WORK_PATTERN_HEADER = "=== OBSERVED WORK PATTERN CONTEXT ===";
-    private static final String PERSONAL_WORK_PROFILE_HEADER = "=== PERSONAL WORK PROFILE ===";
-    private static final String ROLE_SCOPE_HEADER = "=== ROLE AND WORK SCOPE CONTEXT ===";
-    private static final String EXPLICIT_MISSING_KNOWLEDGE_HEADER = "=== EXPLICIT MISSING KNOWLEDGE ===";
-    private static final String PEER_COHORT_HEADER = "=== PEER COHORT DELTA ===";
-    private static final String FRICTION_HEADER = "=== FRICTION AND APPROVAL HISTORY ===";
-    private static final String DELEGATION_HEADER = "=== DELEGATED OBJECTIVE CONTEXT ===";
-    private static final String REASONING_MEMORY_HEADER = "=== OUTCOME AND REASONING MEMORY ===";
+    private static final String CURRENT_REQUEST_HEADER = SecurityPromptSectionCatalog.HEADER_CURRENT_REQUEST_AND_EVENT;
+    private static final String BRIDGE_RESOLUTION_HEADER = SecurityPromptSectionCatalog.HEADER_BRIDGE_RESOLUTION_CONTEXT;
+    private static final String COVERAGE_HEADER = SecurityPromptSectionCatalog.HEADER_CONTEXT_COVERAGE;
+    private static final String IDENTITY_ROLE_HEADER = SecurityPromptSectionCatalog.HEADER_IDENTITY_AND_ROLE_CONTEXT;
+    private static final String AUTH_ASSURANCE_HEADER = SecurityPromptSectionCatalog.HEADER_AUTHENTICATION_AND_ASSURANCE_CONTEXT;
+    private static final String DEVICE_CONTEXT_HEADER = SecurityPromptSectionCatalog.HEADER_DEVICE_CONTEXT;
+    private static final String LOCATION_CONTEXT_HEADER = SecurityPromptSectionCatalog.HEADER_LOCATION_CONTEXT;
+    private static final String INTENT_CONTEXT_HEADER = SecurityPromptSectionCatalog.HEADER_REQUEST_INTENT_SIGNAL_CONTEXT;
+    private static final String RESOURCE_ACTION_HEADER = SecurityPromptSectionCatalog.HEADER_RESOURCE_AND_ACTION_CONTEXT;
+    private static final String SESSION_NARRATIVE_HEADER = SecurityPromptSectionCatalog.HEADER_SESSION_NARRATIVE_CONTEXT;
+    private static final String OBSERVED_WORK_PATTERN_HEADER = SecurityPromptSectionCatalog.HEADER_OBSERVED_WORK_PATTERN_CONTEXT;
+    private static final String PERSONAL_WORK_PROFILE_HEADER = SecurityPromptSectionCatalog.HEADER_PERSONAL_WORK_PROFILE;
+    private static final String ROLE_SCOPE_HEADER = SecurityPromptSectionCatalog.HEADER_ROLE_AND_WORK_SCOPE_CONTEXT;
+    private static final String EXPLICIT_MISSING_KNOWLEDGE_HEADER = SecurityPromptSectionCatalog.HEADER_EXPLICIT_MISSING_KNOWLEDGE;
+    private static final String PEER_COHORT_HEADER = SecurityPromptSectionCatalog.HEADER_PEER_COHORT_DELTA;
+    private static final String FRICTION_HEADER = SecurityPromptSectionCatalog.HEADER_FRICTION_AND_APPROVAL_HISTORY;
+    private static final String DELEGATION_HEADER = SecurityPromptSectionCatalog.HEADER_DELEGATED_OBJECTIVE_CONTEXT;
+    private static final String REASONING_MEMORY_HEADER = SecurityPromptSectionCatalog.HEADER_OUTCOME_AND_REASONING_MEMORY;
     private static final String THREAT_KNOWLEDGE_HEADER = "=== THREAT KNOWLEDGE PACK ===";
     private static final String THREAT_CAMPAIGN_HEADER = "=== ACTIVE THREAT CAMPAIGN MATCHES ===";
     private static final String OUTPUT_FORMAT_OPEN = "<output_format>";
@@ -43,6 +46,9 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final int BRIDGE_SECTION_MAX_LINES = 7;
     private static final int IDENTITY_SECTION_MAX_LINES = 6;
     private static final int AUTH_SECTION_MAX_LINES = 8;
+    private static final int DEVICE_SECTION_MAX_LINES = 7;
+    private static final int LOCATION_SECTION_MAX_LINES = 6;
+    private static final int INTENT_SECTION_MAX_LINES = 6;
     private static final int RESOURCE_SECTION_MAX_LINES = 6;
     private static final int COVERAGE_MAX_MISSING_FACT_LINES = 2;
     private static final int COVERAGE_MAX_WARNING_LINES = 3;
@@ -58,6 +64,9 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
     private static final int COMPACT_BRIDGE_SECTION_MAX_LINES = 5;
     private static final int COMPACT_IDENTITY_SECTION_MAX_LINES = 5;
     private static final int COMPACT_AUTH_SECTION_MAX_LINES = 7;
+    private static final int COMPACT_DEVICE_SECTION_MAX_LINES = 6;
+    private static final int COMPACT_LOCATION_SECTION_MAX_LINES = 5;
+    private static final int COMPACT_INTENT_SECTION_MAX_LINES = 5;
     private static final int COMPACT_RESOURCE_SECTION_MAX_LINES = 6;
     private static final int COMPACT_COVERAGE_MAX_MISSING_FACT_LINES = 1;
     private static final int COMPACT_COVERAGE_MAX_WARNING_LINES = 2;
@@ -200,11 +209,30 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             "NewSession:",
             "NewUser:",
             "MfaVerified:",
-            "FailedLoginAttempts:",
-            "NetworkContext:",
-            "  IP:",
-            "  CurrentOS:",
-            "  CurrentUA:");
+            "FailedLoginAttempts:");
+
+    private static final List<String> DEVICE_PRIORITY_PREFIXES = List.of(
+            "DeviceOs:",
+            "DeviceBrowser:",
+            "DeviceBrowserVersion:",
+            "DeviceOsVersion:",
+            "DeviceLanguage:",
+            "DeviceScreenResolution:",
+            "DeviceFingerprintMatch:");
+
+    private static final List<String> LOCATION_PRIORITY_PREFIXES = List.of(
+            "Country:",
+            "City:",
+            "IpBand:",
+            "Asn:");
+
+    private static final List<String> INTENT_PRIORITY_PREFIXES = List.of(
+            "ImpossibleTravel:",
+            "BotUserAgent:",
+            "MissingReferer:",
+            "LanguageMismatch:",
+            "TlsFingerprintAltered:",
+            "AbnormalHeaderOrder:");
 
     private static final List<String> BRIDGE_PRIORITY_PREFIXES = List.of(
             "BridgeCompletenessLevel:",
@@ -335,8 +363,35 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 "Authentication context retained assurance and session-state anchors while compacting duplicate request detail.");
         records.addAll(authentication.records());
 
-        PromptTransformResult resource = compactSectionByPriority(
+        PromptTransformResult deviceContext = compactSectionByPriority(
                 authentication.text(),
+                DEVICE_CONTEXT_HEADER,
+                DEVICE_PRIORITY_PREFIXES,
+                DEVICE_SECTION_MAX_LINES,
+                "DEVICE_CONTEXT",
+                "Device context retained operating-system, browser, and fingerprint anchors while compacting lower-value device detail.");
+        records.addAll(deviceContext.records());
+
+        PromptTransformResult locationContext = compactSectionByPriority(
+                deviceContext.text(),
+                LOCATION_CONTEXT_HEADER,
+                LOCATION_PRIORITY_PREFIXES,
+                LOCATION_SECTION_MAX_LINES,
+                "LOCATION_CONTEXT",
+                "Location context retained country, city, IP band, and ASN anchors while compacting redundant geography detail.");
+        records.addAll(locationContext.records());
+
+        PromptTransformResult intentContext = compactSectionByPriority(
+                locationContext.text(),
+                INTENT_CONTEXT_HEADER,
+                INTENT_PRIORITY_PREFIXES,
+                INTENT_SECTION_MAX_LINES,
+                "INTENT_SIGNAL_CONTEXT",
+                "Intent context retained explicit request-intent signals while compacting lower-value signal detail.");
+        records.addAll(intentContext.records());
+
+        PromptTransformResult resource = compactSectionByPriority(
+                intentContext.text(),
                 RESOURCE_ACTION_HEADER,
                 RESOURCE_PRIORITY_PREFIXES,
                 RESOURCE_SECTION_MAX_LINES,
@@ -1001,6 +1056,36 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 "Budget enforcement retained only assurance and session-state anchors.");
         current = compactAuthentication.text();
         records.addAll(compactAuthentication.records());
+
+        PromptTransformResult compactDevice = compactSectionByPriority(
+                current,
+                DEVICE_CONTEXT_HEADER,
+                DEVICE_PRIORITY_PREFIXES,
+                COMPACT_DEVICE_SECTION_MAX_LINES,
+                "DEVICE_CONTEXT_BUDGET",
+                "Budget enforcement retained only the decisive device anchors.");
+        current = compactDevice.text();
+        records.addAll(compactDevice.records());
+
+        PromptTransformResult compactLocation = compactSectionByPriority(
+                current,
+                LOCATION_CONTEXT_HEADER,
+                LOCATION_PRIORITY_PREFIXES,
+                COMPACT_LOCATION_SECTION_MAX_LINES,
+                "LOCATION_CONTEXT_BUDGET",
+                "Budget enforcement retained only the decisive location anchors.");
+        current = compactLocation.text();
+        records.addAll(compactLocation.records());
+
+        PromptTransformResult compactIntent = compactSectionByPriority(
+                current,
+                INTENT_CONTEXT_HEADER,
+                INTENT_PRIORITY_PREFIXES,
+                COMPACT_INTENT_SECTION_MAX_LINES,
+                "INTENT_SIGNAL_CONTEXT_BUDGET",
+                "Budget enforcement retained only the decisive request-intent anchors.");
+        current = compactIntent.text();
+        records.addAll(compactIntent.records());
 
         PromptTransformResult compactResource = compactSectionByPriority(
                 current,
