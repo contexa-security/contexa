@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -372,6 +373,10 @@ public class SecurityDecisionPostProcessor {
         }
         if (event.getUserId() != null) {
             metadata.put("userId", event.getUserId());
+            String organizationId = resolveOrganizationId(event);
+            if (organizationId != null) {
+                metadata.put(VectorDocumentMetadata.ORGANIZATION_ID, organizationId);
+            }
         }
         if (event.getSourceIp() != null) {
             metadata.put("sourceIp", event.getSourceIp());
@@ -443,11 +448,23 @@ public class SecurityDecisionPostProcessor {
         String requestPath = extractPath(event);
         if (requestPath != null) {
             metadata.put("requestPath", requestPath);
+            String pathFamily = SecuritySemanticNormalizer.normalizePathFamily(requestPath);
+            if (pathFamily != null) {
+                metadata.put("pathFamily", pathFamily);
+            }
         }
 
         String httpMethod = extractMetaString(event, "httpMethod");
         if (httpMethod != null) {
             metadata.put("httpMethod", httpMethod);
+            String normalizedActionFamily = SecuritySemanticNormalizer.normalizeActionFamily(
+                    extractMetaString(event, "actionFamily"),
+                    httpMethod,
+                    metadata.get("action"),
+                    metadata.get("proposedAction"));
+            if (normalizedActionFamily != null) {
+                metadata.put("actionFamily", normalizedActionFamily);
+            }
         }
 
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
@@ -465,6 +482,37 @@ public class SecurityDecisionPostProcessor {
 
         Map<String, Object> eventMeta = event.getMetadata();
         if (eventMeta != null) {
+            copyIfPresent(eventMeta, metadata, "resourceId");
+            copyIfPresent(eventMeta, metadata, "requestedResourceId");
+            copyIfPresent(eventMeta, metadata, "protectedResourceId");
+            copyIfPresent(eventMeta, metadata, "resourceType");
+            copyIfPresent(eventMeta, metadata, "resourceCategory");
+            copyIfPresent(eventMeta, metadata, "resourceSensitivity");
+            copyIfPresent(eventMeta, metadata, "resourceBusinessLabel");
+            copyIfPresent(eventMeta, metadata, "resourceLabel");
+            copyIfPresent(eventMeta, metadata, "businessLabel");
+            copyIfPresent(eventMeta, metadata, "authenticationType");
+            copyIfPresent(eventMeta, metadata, "mfaVerified");
+            copyIfPresent(eventMeta, metadata, "currentAccessHour");
+            copyIfPresent(eventMeta, metadata, "concurrentSessions");
+            copyIfPresent(eventMeta, metadata, "passwordAgeDays");
+            copyIfPresent(eventMeta, metadata, "sessionAgeMinutes");
+            copyIfPresent(eventMeta, metadata, "country");
+            copyIfPresent(eventMeta, metadata, "city");
+            copyIfPresent(eventMeta, metadata, "ipBand");
+            copyIfPresent(eventMeta, metadata, "asn");
+            copyIfPresent(eventMeta, metadata, "deviceOs");
+            copyIfPresent(eventMeta, metadata, "deviceOsVersion");
+            copyIfPresent(eventMeta, metadata, "deviceBrowser");
+            copyIfPresent(eventMeta, metadata, "deviceBrowserVersion");
+            copyIfPresent(eventMeta, metadata, "deviceScreenResolution");
+            copyIfPresent(eventMeta, metadata, "deviceLanguage");
+            copyIfPresent(eventMeta, metadata, "deviceFingerprintMatch");
+            copyIfPresent(eventMeta, metadata, "intentBotUserAgent");
+            copyIfPresent(eventMeta, metadata, "intentMissingReferer");
+            copyIfPresent(eventMeta, metadata, "intentLanguageMismatch");
+            copyIfPresent(eventMeta, metadata, "intentTlsFingerprintAltered");
+            copyIfPresent(eventMeta, metadata, "intentAbnormalHeaderOrder");
             copyIfPresent(eventMeta, metadata, "isSensitiveResource");
             copyIfPresent(eventMeta, metadata, "geoCountry");
             copyIfPresent(eventMeta, metadata, "geoCity");
@@ -476,6 +524,27 @@ public class SecurityDecisionPostProcessor {
                 copyIfPresent(eventMeta, metadata, "travelElapsedMinutes");
                 copyIfPresent(eventMeta, metadata, "previousLocation");
             }
+        }
+
+        String normalizedAuthenticationType = SecuritySemanticNormalizer.normalizeAuthenticationType(
+                metadata.get("authenticationType"),
+                eventMeta != null ? eventMeta.get("authMethod") : null);
+        if (normalizedAuthenticationType != null) {
+            metadata.put("authenticationType", normalizedAuthenticationType);
+        }
+        String normalizedResourceFamily = SecuritySemanticNormalizer.normalizeResourceFamily(
+                metadata.get("resourceFamily"),
+                metadata.get("resourceType"),
+                metadata.get("resourceCategory"),
+                metadata.get("resourceSensitivity"));
+        if (normalizedResourceFamily != null) {
+            metadata.put("resourceFamily", normalizedResourceFamily);
+        }
+        String normalizedNetwork = SecuritySemanticNormalizer.normalizeNetwork(
+                textValue(metadata.get("sourceIp")),
+                textValue(metadata.get("ipBand")));
+        if (normalizedNetwork != null) {
+            metadata.put("ipBand", normalizedNetwork);
         }
 
         return metadata;
@@ -512,6 +581,44 @@ public class SecurityDecisionPostProcessor {
     private static String formatScore(Double score) {
         if (score == null || Double.isNaN(score)) return "N/A";
         return String.format("%.2f", score);
+    }
+
+    private static String resolveOrganizationId(SecurityEvent event) {
+        if (event == null) {
+            return null;
+        }
+        Map<String, Object> eventMeta = event.getMetadata();
+        if (eventMeta != null) {
+            String metadataOrganizationId = firstNonBlankText(
+                    textValue(eventMeta.get(VectorDocumentMetadata.ORGANIZATION_ID)),
+                    textValue(eventMeta.get("organizationId")),
+                    textValue(eventMeta.get("tenantId")),
+                    textValue(eventMeta.get("orgId")));
+            if (metadataOrganizationId != null) {
+                return metadataOrganizationId;
+            }
+        }
+        return null;
+    }
+
+    private static String textValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private static String firstNonBlankText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static Double resolveEffectiveRiskScore(SecurityDecision decision) {

@@ -16,6 +16,7 @@ public class TieredStrategyProperties {
     private Truncation truncation = new Truncation();
     private Security security = new Security();
     private PromptCompression promptCompression = new PromptCompression();
+    private PromptRuntime promptRuntime = new PromptRuntime();
 
     @Data
     public static class Security {
@@ -35,6 +36,32 @@ public class TieredStrategyProperties {
     }
 
     @Data
+    public static class PromptRuntime {
+        /**
+         * When disabled, runtime falls back to validated converter mode but never re-enables raw semantic fallback.
+         */
+        private boolean nativeStructuredOutputEnabled = true;
+        private List<String> nativeStructuredOutputDisabledProfiles = Collections.emptyList();
+        /**
+         * Prompt runtime telemetry remains on by default for official verification and rollout diagnostics.
+         */
+        private boolean telemetryEnabled = true;
+
+        public boolean isNativeStructuredOutputEnabledForProfile(String profileKey) {
+            if (!nativeStructuredOutputEnabled) {
+                return false;
+            }
+            if (profileKey == null || profileKey.isBlank()) {
+                return true;
+            }
+            return nativeStructuredOutputDisabledProfiles == null
+                    || nativeStructuredOutputDisabledProfiles.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .noneMatch(value -> value.trim().equalsIgnoreCase(profileKey.trim()));
+        }
+    }
+
+    @Data
     public static class Truncation {
         private Layer1Truncation layer1 = new Layer1Truncation();
         private Layer2Truncation layer2 = new Layer2Truncation();
@@ -43,7 +70,7 @@ public class TieredStrategyProperties {
         public static class Layer1Truncation {
             private int userAgent = 150;
             private int payload = 200;
-            private int ragDocument = 300;
+            private int ragDocument = 180;
         }
 
         @Data
@@ -72,15 +99,15 @@ public class TieredStrategyProperties {
         private Cache cache = new Cache();
         private Timeout timeout = new Timeout();
         private Prompt prompt = new Prompt();
-        private int vectorSearchLimit = 12;
-        private String defaultBudgetProfile = "CORTEX_L1_STANDARD";
+        private int vectorSearchLimit = 3;
+        private String defaultBudgetProfile = "CORTEX_L1_INTERACTIVE_STRICT";
 
         @Data
         public static class Prompt {
 
-            private int maxSimilarEvents = 3;
+            private int maxSimilarEvents = 2;
 
-            private int maxRagDocuments = 12;
+            private int maxRagDocuments = 3;
 
             private boolean includeEventId = false;
 
@@ -94,11 +121,11 @@ public class TieredStrategyProperties {
         @Data
         public static class Timeout {
 
-            private long totalMs = 4500000;
+            private long totalMs = 5000;
 
-            private long llmMs = 3000000;
+            private long llmMs = 3200;
 
-            private long ragMs = 1000000;
+            private long ragMs = 900;
         }
 
         @Data
@@ -127,10 +154,10 @@ public class TieredStrategyProperties {
         private Rag rag = new Rag();
         private Cache cache = new Cache();
 
-        private long timeoutMs = 100000;
+        private long timeoutMs = 7000;
         private boolean enableSoar = false;
-        private int ragTopK = 10;
-        private String defaultBudgetProfile = "CORTEX_L2_STANDARD";
+        private int ragTopK = 5;
+        private String defaultBudgetProfile = "CORTEX_L2_EXPERT_STRICT";
 
         @Data
         public static class Cache {

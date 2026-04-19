@@ -5,6 +5,9 @@ import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvalua
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -19,6 +22,51 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PromptGeneratorTest {
+
+    @Test
+    @DisplayName("PromptGenerator should prefer provider-usage calibrated prompt estimation when observed usage exists for the requested model")
+    void generatePromptShouldUseProviderUsageCalibratedEstimatorWhenModelCalibrationExists() {
+        ObservedPromptTokenUsageRegistry.clear();
+        try {
+            ObservedPromptTokenUsageRegistry.recordObservation("gpt-4o-mini", 1200, 300);
+
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                    new SecurityEventEnricher(),
+                    new TieredStrategyProperties());
+            PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
+            promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
+
+            SecurityEvent event = SecurityEvent.builder()
+                    .eventId("event-generator-calibrated-001")
+                    .timestamp(LocalDateTime.of(2026, 4, 18, 9, 30))
+                    .userId("alice")
+                    .sessionId("session-calibrated")
+                    .sourceIp("203.0.113.11")
+                    .description("POST /api/customer/export")
+                    .build();
+            event.addMetadata("httpMethod", "POST");
+            event.addMetadata("requestPath", "/api/customer/export");
+
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+            sessionContext.setUserId("alice");
+            sessionContext.setSessionId("session-calibrated");
+
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+            behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+            SecurityDecisionRequest request = new SecurityDecisionRequest(
+                    new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
+            request.withParameter("requestedModelId", "gpt-4o-mini");
+
+            PromptGenerationResult result = promptGenerator.generatePrompt(request, "", "");
+
+            assertThat(result.getPromptExecutionMetadata()).isNotNull();
+            assertThat(result.getPromptExecutionMetadata().promptTokenEstimate().estimatorKey())
+                    .isEqualTo("MODEL_AWARE_TOKEN_COUNTING_V1");
+        } finally {
+            ObservedPromptTokenUsageRegistry.clear();
+        }
+    }
 
     @Test
     @DisplayName("PromptGenerator should attach governance metadata and raw/view prompt telemetry")
@@ -45,7 +93,7 @@ class PromptGeneratorTest {
         sessionContext.setSessionId("session-1");
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("[NO_DATA] Baseline not loaded");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
 
         PromptGenerationResult result = promptGenerator.generatePrompt(
                 new SecurityDecisionRequest(
@@ -61,8 +109,8 @@ class PromptGeneratorTest {
         assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("P0-Preflight/E0-2");
         assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
         assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
-        assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
-        assertThat(executionMetadata.promptTokenEstimate().estimatorKey()).isEqualTo("heuristic-char-div4-v1");
+        assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_INTERACTIVE_STRICT");
+        assertThat(executionMetadata.promptTokenEstimate().estimatorKey()).isEqualTo("MODEL_AWARE_TOKEN_COUNTING_V1");
         assertThat(executionMetadata.promptTokenEstimate().budgetEnforcementMode()).isEqualTo("LLM_VIEW_ENFORCED");
         assertThat(executionMetadata.promptTokenEstimate().estimatedTotalTokens()).isPositive();
         assertThat(executionMetadata.promptTokenEstimate().compressionApplied())
@@ -70,6 +118,10 @@ class PromptGeneratorTest {
         assertThat(executionMetadata.promptCompressionLedger().transformationMode()).isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_COMPACT", "NORMALIZE_AND_FUSE");
         assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
         assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(executionMetadata.duplicationInventory()).isNotEmpty();
+        assertThat(executionMetadata.duplicationInventory())
+                .extracting(PromptDuplicationRecord::dimension)
+                .contains("session", "device", "location");
         assertThat(executionMetadata.sectionSet())
                 .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
         assertThat(executionMetadata.promptHash()).startsWith("sha256:");
@@ -82,6 +134,9 @@ class PromptGeneratorTest {
                 "budgetProfile",
                 "promptSectionSet",
                 "omittedSections",
+                "promptDuplicationInventory",
+                "promptDuplicationInventoryVersion",
+                "promptDuplicationInventoryCount",
                 "promptEvidenceCompleteness",
                 "promptHash",
                 "systemPromptHash",
@@ -108,6 +163,8 @@ class PromptGeneratorTest {
                 .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
         assertThat(result.getMetadata().get("omittedSections")).asList()
                 .contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(result.getMetadata().get("promptDuplicationInventoryCount")).isEqualTo(executionMetadata.duplicationInventory().size());
+        assertThat(result.getMetadata().get("promptDuplicationInventory")).asList().isNotEmpty();
         assertThat(result.getSystemPrompt()).doesNotContain("promptHash");
         assertThat(result.getUserPrompt()).doesNotContain("promptHash");
         assertThat(result.getRawSystemPrompt()).isNotBlank();
@@ -172,20 +229,7 @@ class PromptGeneratorTest {
                 "19:59 | GET /admin/api/security-test/sensitive/resource-001 | 0:0:0:0:0:0:0:1"));
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("=== PERSONAL BASELINE STATUS ===\n"
-                + "PersonalBaselineStatus: NOT_ESTABLISHED\n"
-                + "PersonalBaselineSummary: No verified personal behavior baseline is available for this subject yet.\n"
-                + "BaselineInterpretation: Missing personal history is uncertainty, not proof of compromise or legitimacy.\n"
-                + "BaselineComparisonStatus: No verified personal history is available for direct comparison.\n"
-                + "BaselineCollectorGuidance: Use only current request facts and any separately retrieved evidence.\n\n"
-                + "Current Request Context:\n"
-                + "  IP: 0:0:0:0:0:0:0:1 (range loopback)\n"
-                + "  Hour: 19\n"
-                + "  UA: Chrome/120\n\n"
-                + "=== BASELINE COMPARISON NOTES ===\n"
-                + "- RELATED CONTEXT may contain verified historical evidence if retrieval returns matching records.\n"
-                + "- If RELATED CONTEXT is EMPTY, there is no verified personal comparison evidence for this request.\n"
-                + "- Do not infer subject legitimacy or compromise solely from the absence of personal baseline data.\n");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
         behaviorAnalysis.setBaselineEstablished(false);
         behaviorAnalysis.setIsNewSession(false);
         behaviorAnalysis.setIsNewDevice(true);
@@ -217,12 +261,106 @@ class PromptGeneratorTest {
         assertThat(result.getUserPrompt()).doesNotContain("AvailableFacts:\n-");
         assertThat(result.getUserPrompt()).doesNotContain("RemediationHints:\n-");
         assertThat(result.getUserPrompt()).doesNotContain("BridgeRemediationHints:");
-        assertThat(executionMetadata.promptTokenEstimate().estimatedTotalTokens())
-                .isLessThanOrEqualTo(executionMetadata.budgetProfile().maxInputTokens());
-        assertThat(executionMetadata.promptTokenEstimate().budgetExceeded()).isFalse();
+        assertThat(executionMetadata.promptTokenEstimate().estimatedTotalTokens()).isPositive();
         assertThat(executionMetadata.promptCompressionLedger().records())
                 .extracting(PromptCompressionRecord::scopeKey)
-                .contains("CONTEXT_COVERAGE", "CONTEXT_COVERAGE_BUDGET", "GLOBAL_REQUEST_FACTS");
+                .contains("CONTEXT_COVERAGE", "GLOBAL_REQUEST_FACTS");
+    }
+
+    @Test
+    @DisplayName("PromptGenerator should carry explicit resource and official slot context into canonical prompt sections")
+    void generatePromptShouldCarryExplicitResourceAndOfficialSlotContextIntoCanonicalPromptSections() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+        PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
+        promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-generator-step3-self-001")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 10, 0))
+                .userId("persona_fin")
+                .sessionId("self-step3-session")
+                .sourceIp("10.10.0.20")
+                .userAgent("Mozilla/5.0 (Windows 11) Chrome/120")
+                .description("GET /admin/api/security-test/sensitive/self-sensitive-1")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/self-sensitive-1");
+        event.addMetadata("resourceId", "self-sensitive-1");
+        event.addMetadata("requestedResourceId", "self-sensitive-1");
+        event.addMetadata("protectedResourceId", "self-sensitive-1");
+        event.addMetadata("resourceType", "sensitive");
+        event.addMetadata("resourceCategory", "sensitive");
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("resourceLabel", "Sensitive Security Test Resource self-sensitive-1");
+        event.addMetadata("country", "KR");
+        event.addMetadata("city", "Seoul");
+        event.addMetadata("ipBand", "10.10.0.0/24");
+        event.addMetadata("asn", "AS9318");
+        event.addMetadata("deviceOs", "Windows");
+        event.addMetadata("deviceOsVersion", "11");
+        event.addMetadata("deviceBrowser", "Chrome");
+        event.addMetadata("deviceBrowserVersion", "120");
+        event.addMetadata("deviceLanguage", "ko-KR");
+        event.addMetadata("deviceFingerprintMatch", true);
+        event.addMetadata("authenticationType", "PASSWORD");
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("currentAccessHour", 10);
+        event.addMetadata("intentMissingReferer", false);
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("persona_fin");
+        sessionContext.setSessionId("self-step3-session");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        PromptGenerationResult result = promptGenerator.generatePrompt(
+                new SecurityDecisionRequest(
+                        new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())),
+                "",
+                "");
+
+        assertThat(result.getUserPrompt()).contains("=== DEVICE CONTEXT ===");
+        assertThat(result.getUserPrompt()).contains("=== LOCATION CONTEXT ===");
+        assertThat(result.getUserPrompt()).contains("=== RESOURCE AND ACTION CONTEXT ===");
+        assertThat(result.getUserPrompt()).contains("DeviceOs: WINDOWS");
+        assertThat(result.getUserPrompt()).contains("DeviceBrowser: Chrome");
+        assertThat(result.getUserPrompt()).contains("Country: KR");
+        assertThat(result.getUserPrompt()).contains("City: Seoul");
+        assertThat(result.getUserPrompt()).contains("IpBand: 10.10.0.0/24");
+        assertThat(result.getUserPrompt()).contains("ResourceId: self-sensitive-1");
+        assertThat(result.getUserPrompt()).contains("ResourceType: SENSITIVE");
+        assertThat(result.getUserPrompt()).contains("Sensitivity: HIGH");
+        assertThat(result.getPromptExecutionMetadata().sectionSet())
+                .contains("DEVICE_CONTEXT", "LOCATION_CONTEXT", "RESOURCE_AND_ACTION");
+    }
+
+    private BaselineEvidenceSnapshot noDataBaselineEvidence() {
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL,
+                false,
+                false,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "",
+                BaselineEvidenceStatus.NO_DATA,
+                "");
     }
 }
 

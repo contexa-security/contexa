@@ -113,6 +113,19 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .omittedSections(extractStringList(eventMetadata.get("omittedSections")))
                 .promptOmissionCount(extractInteger(eventMetadata, "promptOmissionCount"))
                 .promptGeneratedAtEpochMs(extractLong(eventMetadata, "promptGeneratedAtEpochMs"))
+                .structuredOutputMode(extractText(eventMetadata, "structuredOutputMode"))
+                .structuredOutputPolicy(extractText(eventMetadata, "structuredOutputPolicy"))
+                .structuredOutputFailureCategory(extractText(eventMetadata, "structuredOutputFailureCategory"))
+                .promptCacheHit(extractNullableBoolean(eventMetadata, "promptCacheHit"))
+                .cachedPromptTokens(extractInteger(eventMetadata, "cachedPromptTokens"))
+                .actualPromptTokens(extractInteger(eventMetadata, "actualPromptTokens"))
+                .actualCompletionTokens(extractInteger(eventMetadata, "actualCompletionTokens"))
+                .actualTotalTokens(extractInteger(eventMetadata, "actualTotalTokens"))
+                .actualTokenUsageAvailable(extractNullableBoolean(eventMetadata, "actualTokenUsageAvailable"))
+                .technicalFallbackApplied(result.getTechnicalFallbackApplied())
+                .technicalFallbackCategory(result.getTechnicalFallbackCategory())
+                .technicalFallbackReason(result.getTechnicalFallbackReason())
+                .technicalFallbackAction(result.getTechnicalFallbackAction())
                 .promptRuntimeTelemetry(extractPromptRuntimeTelemetry(eventMetadata))
                 .requestPath(extractRequestPath(eventMetadata))
                 .geoCountry(extractText(eventMetadata, "geoCountry"))
@@ -509,6 +522,11 @@ public class SecurityDecisionForwardingPayloadMapper {
     }
 
     private boolean extractBoolean(Map<String, Object> source, String key) {
+        Boolean extracted = extractNullableBoolean(source, key);
+        return Boolean.TRUE.equals(extracted);
+    }
+
+    private Boolean extractNullableBoolean(Map<String, Object> source, String key) {
         Object value = source.get(key);
         if (value instanceof Boolean bool) {
             return bool;
@@ -516,7 +534,7 @@ public class SecurityDecisionForwardingPayloadMapper {
         if (value instanceof String text) {
             return Boolean.parseBoolean(text);
         }
-        return false;
+        return null;
     }
 
     private double extractDouble(Map<String, Object> source, String key) {

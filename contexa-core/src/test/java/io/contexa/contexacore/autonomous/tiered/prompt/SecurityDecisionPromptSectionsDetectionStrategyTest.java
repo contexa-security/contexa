@@ -50,7 +50,7 @@ class SecurityDecisionPromptSectionsDetectionStrategyTest {
         assertThat(section).contains("PROMOTED DETECTION STRATEGIES");
         assertThat(section).contains("supporting context only");
         assertThat(section).contains("POST_MFA_SURFACE_JUMP");
-        assertThat(section).contains("Required signals");
+        assertThat(section).contains("RequiredSignals:");
         assertThat(section).contains("Observed higher takeover detection");
     }
 }

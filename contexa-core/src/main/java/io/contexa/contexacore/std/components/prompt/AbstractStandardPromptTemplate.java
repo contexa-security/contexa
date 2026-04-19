@@ -87,9 +87,10 @@ public abstract class AbstractStandardPromptTemplate<T> extends AbstractBaseProm
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         String domainPrompt = generateDomainSystemPrompt(request, systemMetadata);
-        String formatInstructions = getFormatInstructions();
+        String formatInstructions = shouldIncludeFormatInstructions(request) ? getFormatInstructions() : null;
+        String effectiveSystemMetadata = shouldIncludeSystemMetadata(request) ? systemMetadata : null;
 
-        return assembleSystemPrompt(domainPrompt, formatInstructions, systemMetadata);
+        return assembleSystemPrompt(domainPrompt, formatInstructions, effectiveSystemMetadata);
     }
 
     /**
@@ -169,6 +170,14 @@ public abstract class AbstractStandardPromptTemplate<T> extends AbstractBaseProm
      */
     protected String getFormatInstructions() {
         return converter.getFormat();
+    }
+
+    protected boolean shouldIncludeFormatInstructions(AIRequest<? extends DomainContext> request) {
+        return true;
+    }
+
+    protected boolean shouldIncludeSystemMetadata(AIRequest<? extends DomainContext> request) {
+        return true;
     }
 
     /**

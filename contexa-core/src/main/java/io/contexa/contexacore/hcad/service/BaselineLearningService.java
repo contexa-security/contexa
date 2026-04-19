@@ -2,12 +2,17 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.*;
@@ -25,6 +30,11 @@ public class BaselineLearningService {
     private static final String FREQ_PREFIX_PATH = "path:";
     private static final String FREQ_PREFIX_HOUR = "hour:";
     private static final String FREQ_PREFIX_DAY = "day:";
+    private static final String FREQ_PREFIX_BROWSER = "browser:";
+    private static final String FREQ_PREFIX_IP_BAND = "ipBand:";
+    private static final String FREQ_PREFIX_AUTH = "auth:";
+    private static final String FREQ_PREFIX_ACTION = "action:";
+    private static final String FREQ_PREFIX_RESOURCE = "resource:";
     private static final List<String> COHORT_SUPPORT_DIMENSIONS = List.of(
             "ACCESS_HOURS",
             "ACCESS_DAYS",
@@ -42,7 +52,7 @@ public class BaselineLearningService {
             BaselineVector currentBaseline = getBaseline(userId);
             BaselineVector newBaseline = updateWithEMAFromSecurityEvent(currentBaseline, userId, decision, event);
             baselineDataStore.saveUserBaseline(userId, newBaseline);
-            updateOrganizationBaseline(userId, newBaseline);
+            updateOrganizationBaseline(userId, event, newBaseline);
             return true;
 
         } catch (Exception e) {
@@ -63,8 +73,14 @@ public class BaselineLearningService {
         String currentIp = event != null ? event.getSourceIp() : null;
         Integer currentHour = extractHourFromSecurityEvent(event);
         Integer currentDay = extractDayFromSecurityEvent(event);
-        String currentPath = extractPath(event);
+        String currentPath = extractPathFamily(event);
         String currentUserAgent = event != null ? event.getUserAgent() : null;
+        String currentBrowser = extractBrowser(event);
+        String currentIpBand = SecuritySemanticNormalizer.normalizeNetwork(currentIp, extractMetadataText(event, "ipBand"));
+        String currentAuthenticationType = SecuritySemanticNormalizer.normalizeAuthenticationType(
+                extractMetadataText(event, "authenticationType", "authMethod"));
+        String currentActionFamily = extractActionFamily(event);
+        String currentResourceFamily = extractResourceFamily(event);
 
         if (currentUserAgent == null || currentUserAgent.isEmpty()) {
             log.error("[Baseline] UA missing - learning blocked: userId={}", userId);
@@ -106,6 +122,26 @@ public class BaselineLearningService {
                 builder.frequentPaths(new String[]{currentPath});
                 frequencies.put(FREQ_PREFIX_PATH + currentPath, 1L);
             }
+            if (currentBrowser != null) {
+                builder.normalBrowsers(new String[]{currentBrowser});
+                frequencies.put(FREQ_PREFIX_BROWSER + currentBrowser, 1L);
+            }
+            if (currentIpBand != null) {
+                builder.normalIpBands(new String[]{currentIpBand});
+                frequencies.put(FREQ_PREFIX_IP_BAND + currentIpBand, 1L);
+            }
+            if (currentAuthenticationType != null) {
+                builder.normalAuthenticationTypes(new String[]{currentAuthenticationType});
+                frequencies.put(FREQ_PREFIX_AUTH + currentAuthenticationType, 1L);
+            }
+            if (currentActionFamily != null) {
+                builder.frequentActionFamilies(new String[]{currentActionFamily});
+                frequencies.put(FREQ_PREFIX_ACTION + currentActionFamily, 1L);
+            }
+            if (currentResourceFamily != null) {
+                builder.frequentResourceFamilies(new String[]{currentResourceFamily});
+                frequencies.put(FREQ_PREFIX_RESOURCE + currentResourceFamily, 1L);
+            }
 
             String uaSignature = extractUASignature(currentUserAgent);
             if (uaSignature != null && !uaSignature.equals("unknown") &&
@@ -146,6 +182,11 @@ public class BaselineLearningService {
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour, frequencies);
         Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay, frequencies);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
+        String[] normalBrowsers = updateNormalBrowsers(current.getNormalBrowsers(), currentBrowser, frequencies);
+        String[] normalIpBands = updateNormalIpBands(current.getNormalIpBands(), currentIpBand, frequencies);
+        String[] normalAuthenticationTypes = updateNormalAuthenticationTypes(current.getNormalAuthenticationTypes(), currentAuthenticationType, frequencies);
+        String[] frequentActionFamilies = updateFrequentActionFamilies(current.getFrequentActionFamilies(), currentActionFamily, frequencies);
+        String[] frequentResourceFamilies = updateFrequentResourceFamilies(current.getFrequentResourceFamilies(), currentResourceFamily, frequencies);
 
         String normalizedUA = extractUASignature(currentUserAgent);
         String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
@@ -170,6 +211,11 @@ public class BaselineLearningService {
                 .frequentPaths(frequentPaths)
                 .normalUserAgents(normalUserAgents)
                 .normalOperatingSystems(normalOperatingSystems)
+                .normalBrowsers(normalBrowsers)
+                .normalIpBands(normalIpBands)
+                .normalAuthenticationTypes(normalAuthenticationTypes)
+                .frequentActionFamilies(frequentActionFamilies)
+                .frequentResourceFamilies(frequentResourceFamilies)
                 .elementFrequencies(frequencies)
                 .build();
     }
@@ -463,6 +509,76 @@ public class BaselineLearningService {
         return updated;
     }
 
+    private String[] updateNormalBrowsers(String[] current, String newBrowser, Map<String, Long> frequencies) {
+        if (!StringUtils.hasText(newBrowser)) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_BROWSER + newBrowser, 1L, Long::sum);
+        return mergeFrequentStringDimension(current, newBrowser, frequencies, FREQ_PREFIX_BROWSER, 5);
+    }
+
+    private String[] updateNormalIpBands(String[] current, String newIpBand, Map<String, Long> frequencies) {
+        if (!StringUtils.hasText(newIpBand)) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_IP_BAND + newIpBand, 1L, Long::sum);
+        return mergeFrequentStringDimension(current, newIpBand, frequencies, FREQ_PREFIX_IP_BAND, 5);
+    }
+
+    private String[] updateNormalAuthenticationTypes(String[] current, String newAuthenticationType, Map<String, Long> frequencies) {
+        if (!StringUtils.hasText(newAuthenticationType)) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_AUTH + newAuthenticationType, 1L, Long::sum);
+        return mergeFrequentStringDimension(current, newAuthenticationType, frequencies, FREQ_PREFIX_AUTH, 5);
+    }
+
+    private String[] updateFrequentActionFamilies(String[] current, String newActionFamily, Map<String, Long> frequencies) {
+        if (!StringUtils.hasText(newActionFamily)) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_ACTION + newActionFamily, 1L, Long::sum);
+        return mergeFrequentStringDimension(current, newActionFamily, frequencies, FREQ_PREFIX_ACTION, 8);
+    }
+
+    private String[] updateFrequentResourceFamilies(String[] current, String newResourceFamily, Map<String, Long> frequencies) {
+        if (!StringUtils.hasText(newResourceFamily)) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_RESOURCE + newResourceFamily, 1L, Long::sum);
+        return mergeFrequentStringDimension(current, newResourceFamily, frequencies, FREQ_PREFIX_RESOURCE, 8);
+    }
+
+    private String[] mergeFrequentStringDimension(
+            String[] current,
+            String newValue,
+            Map<String, Long> frequencies,
+            String frequencyPrefix,
+            int maxSize) {
+        if (!StringUtils.hasText(newValue)) {
+            return current;
+        }
+        if (current == null || current.length == 0) {
+            return new String[]{newValue};
+        }
+        for (String existing : current) {
+            if (newValue.equals(existing)) {
+                return current;
+            }
+        }
+        if (current.length >= maxSize) {
+            int lfuIndex = findLeastFrequentIndex(current, frequencyPrefix, frequencies);
+            frequencies.remove(frequencyPrefix + current[lfuIndex]);
+            String[] updated = Arrays.copyOf(current, current.length);
+            updated[lfuIndex] = newValue;
+            return updated;
+        }
+        String[] updated = new String[current.length + 1];
+        System.arraycopy(current, 0, updated, 0, current.length);
+        updated[current.length] = newValue;
+        return updated;
+    }
+
     private int findLeastFrequentIndex(String[] elements, String freqPrefix, Map<String, Long> frequencies) {
         int minIndex = 0;
         long minFreq = Long.MAX_VALUE;
@@ -501,6 +617,11 @@ public class BaselineLearningService {
                     .frequentPaths(orgBaseline.getFrequentPaths())
                     .normalUserAgents(orgBaseline.getNormalUserAgents())
                     .normalOperatingSystems(orgBaseline.getNormalOperatingSystems())
+                    .normalBrowsers(orgBaseline.getNormalBrowsers())
+                    .normalIpBands(orgBaseline.getNormalIpBands())
+                    .normalAuthenticationTypes(orgBaseline.getNormalAuthenticationTypes())
+                    .frequentActionFamilies(orgBaseline.getFrequentActionFamilies())
+                    .frequentResourceFamilies(orgBaseline.getFrequentResourceFamilies())
                     .elementFrequencies(orgBaseline.getElementFrequencies() != null
                             ? new HashMap<>(orgBaseline.getElementFrequencies())
                             : new HashMap<>())
@@ -528,9 +649,20 @@ public class BaselineLearningService {
         return baselineDataStore.getOrganizationBaseline(organizationId);
     }
 
+    public BaselineVector getOrganizationBaseline(String organizationId) {
+        if (baselineDataStore == null || !StringUtils.hasText(organizationId)) {
+            return null;
+        }
+        return baselineDataStore.getOrganizationBaseline(organizationId);
+    }
+
     public BaselineMaturitySnapshot describeBaselineMaturity(String userId) {
+        return describeBaselineMaturity(userId, null);
+    }
+
+    public BaselineMaturitySnapshot describeBaselineMaturity(String userId, String organizationId) {
         BaselineVector personalBaseline = getPersonalBaseline(userId);
-        BaselineVector organizationBaseline = getOrganizationBaselineForUser(userId);
+        BaselineVector organizationBaseline = resolveOrganizationBaseline(userId, organizationId);
         boolean personalAvailable = personalBaseline != null;
         boolean organizationAvailable = organizationBaseline != null;
         boolean personalEstablished = isPersonalBaselineEstablished(personalBaseline);
@@ -556,11 +688,154 @@ public class BaselineLearningService {
                 supportingDimensions);
     }
 
+    public BaselineEvidenceSnapshot buildBaselineEvidenceSnapshot(String userId, SecurityEvent currentEvent) {
+        if (!StringUtils.hasText(userId)) {
+            return new BaselineEvidenceSnapshot(
+                    LearningEvidenceScope.PERSONAL,
+                    false,
+                    false,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    "",
+                    BaselineEvidenceStatus.MISSING_USER_ID,
+                    "Cannot lookup baseline without user identifier");
+        }
+        BaselineVector personalBaseline = getPersonalBaseline(userId);
+        BaselineMaturitySnapshot maturity = describeBaselineMaturity(userId, resolveOrganizationId(currentEvent, userId));
+        if (personalBaseline == null) {
+            return new BaselineEvidenceSnapshot(
+                    LearningEvidenceScope.PERSONAL,
+                    false,
+                    false,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    buildNewUserWarning(userId, currentEvent),
+                    BaselineEvidenceStatus.NO_DATA,
+                    buildNewUserWarning(userId, currentEvent));
+        }
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL,
+                maturity.personalBaselineAvailable(),
+                maturity.personalBaselineEstablished(),
+                personalBaseline.getUpdateCount(),
+                personalBaseline.getAvgTrustScore(),
+                strings(personalBaseline.getNormalIpRanges()),
+                integers(personalBaseline.getNormalAccessHours()),
+                integers(personalBaseline.getNormalAccessDays()),
+                strings(firstNonEmpty(personalBaseline.getNormalBrowsers(), personalBaseline.getNormalUserAgents())),
+                strings(personalBaseline.getNormalOperatingSystems()),
+                strings(personalBaseline.getFrequentPaths()),
+                strings(personalBaseline.getNormalAuthenticationTypes()),
+                strings(personalBaseline.getFrequentActionFamilies()),
+                strings(personalBaseline.getFrequentResourceFamilies()),
+                buildBaselineEvidenceSummary(
+                        maturity.personalBaselineEstablished(),
+                        personalBaseline),
+                BaselineEvidenceStatus.AVAILABLE,
+                "");
+    }
+
+    public BaselineEvidenceSnapshot buildSupportingBaselineEvidenceSnapshot(String userId) {
+        return buildSupportingBaselineEvidenceSnapshot(userId, null);
+    }
+
+    public BaselineEvidenceSnapshot buildSupportingBaselineEvidenceSnapshot(String userId, String organizationId) {
+        BaselineVector organizationBaseline = resolveOrganizationBaseline(userId, organizationId);
+        BaselineMaturitySnapshot maturity = describeBaselineMaturity(userId, organizationId);
+        if (organizationBaseline == null) {
+            return new BaselineEvidenceSnapshot(
+                    LearningEvidenceScope.SUPPORTING,
+                    false,
+                    false,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    "",
+                    BaselineEvidenceStatus.NO_DATA,
+                    "supporting baseline unavailable");
+        }
+
+        StringBuilder summary = new StringBuilder();
+        summary.append("organization baseline available");
+        if (maturity.organizationBaselineEstablished()) {
+            summary.append(" | organization baseline established");
+        }
+        List<String> supportingDimensions = maturity.supportingDimensions();
+        if (supportingDimensions != null && !supportingDimensions.isEmpty()) {
+            summary.append(" | supportingDimensions=").append(String.join(", ", supportingDimensions));
+        }
+
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.SUPPORTING,
+                maturity.organizationBaselineAvailable(),
+                maturity.organizationBaselineEstablished(),
+                organizationBaseline.getUpdateCount(),
+                organizationBaseline.getAvgTrustScore(),
+                strings(organizationBaseline.getNormalIpRanges()),
+                integers(organizationBaseline.getNormalAccessHours()),
+                integers(organizationBaseline.getNormalAccessDays()),
+                strings(firstNonEmpty(organizationBaseline.getNormalBrowsers(), organizationBaseline.getNormalUserAgents())),
+                strings(organizationBaseline.getNormalOperatingSystems()),
+                strings(organizationBaseline.getFrequentPaths()),
+                strings(organizationBaseline.getNormalAuthenticationTypes()),
+                strings(organizationBaseline.getFrequentActionFamilies()),
+                strings(organizationBaseline.getFrequentResourceFamilies()),
+                summary.toString(),
+                BaselineEvidenceStatus.AVAILABLE,
+                "");
+    }
+
+    private String buildBaselineEvidenceSummary(boolean established, BaselineVector baseline) {
+        if (baseline == null) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        parts.add(established ? "personal baseline established" : "personal baseline provisional");
+        if (baseline.getUpdateCount() != null) {
+            parts.add("observations=" + baseline.getUpdateCount());
+        }
+        addSummaryPart(parts, "hours", integers(baseline.getNormalAccessHours()));
+        addSummaryPart(parts, "days", integers(baseline.getNormalAccessDays()));
+        addSummaryPart(parts, "networks", strings(baseline.getNormalIpRanges()));
+        addSummaryPart(parts, "browsers", strings(firstNonEmpty(baseline.getNormalBrowsers(), baseline.getNormalUserAgents())));
+        addSummaryPart(parts, "paths", strings(baseline.getFrequentPaths()));
+        addSummaryPart(parts, "auth", strings(baseline.getNormalAuthenticationTypes()));
+        addSummaryPart(parts, "actions", strings(baseline.getFrequentActionFamilies()));
+        addSummaryPart(parts, "resources", strings(baseline.getFrequentResourceFamilies()));
+        return String.join(" | ", parts);
+    }
+
     private static final int ORG_BASELINE_MAX_ARRAY_SIZE = 50;
 
-    private void updateOrganizationBaseline(String userId, BaselineVector userBaseline) {
+    private void updateOrganizationBaseline(String userId, SecurityEvent currentEvent, BaselineVector userBaseline) {
         try {
-            String orgId = extractOrganizationId(userId);
+            String orgId = resolveOrganizationId(currentEvent, userId);
             if (orgId == null) {
                 return;
             }
@@ -581,6 +856,11 @@ public class BaselineLearningService {
                         .frequentPaths(userBaseline.getFrequentPaths())
                         .normalUserAgents(userBaseline.getNormalUserAgents())
                         .normalOperatingSystems(userBaseline.getNormalOperatingSystems())
+                        .normalBrowsers(userBaseline.getNormalBrowsers())
+                        .normalIpBands(userBaseline.getNormalIpBands())
+                        .normalAuthenticationTypes(userBaseline.getNormalAuthenticationTypes())
+                        .frequentActionFamilies(userBaseline.getFrequentActionFamilies())
+                        .frequentResourceFamilies(userBaseline.getFrequentResourceFamilies())
                         .elementFrequencies(userBaseline.getElementFrequencies() != null
                                 ? new HashMap<>(userBaseline.getElementFrequencies()) : new HashMap<>())
                         .build();
@@ -611,6 +891,16 @@ public class BaselineLearningService {
                             orgBaseline.getNormalUserAgents(), userBaseline.getNormalUserAgents()))
                     .normalOperatingSystems(mergeStringArrays(
                             orgBaseline.getNormalOperatingSystems(), userBaseline.getNormalOperatingSystems()))
+                    .normalBrowsers(mergeStringArrays(
+                            orgBaseline.getNormalBrowsers(), userBaseline.getNormalBrowsers()))
+                    .normalIpBands(mergeStringArrays(
+                            orgBaseline.getNormalIpBands(), userBaseline.getNormalIpBands()))
+                    .normalAuthenticationTypes(mergeStringArrays(
+                            orgBaseline.getNormalAuthenticationTypes(), userBaseline.getNormalAuthenticationTypes()))
+                    .frequentActionFamilies(mergeStringArrays(
+                            orgBaseline.getFrequentActionFamilies(), userBaseline.getFrequentActionFamilies()))
+                    .frequentResourceFamilies(mergeStringArrays(
+                            orgBaseline.getFrequentResourceFamilies(), userBaseline.getFrequentResourceFamilies()))
                     .elementFrequencies(mergeFrequencies(
                             orgBaseline.getElementFrequencies(), userBaseline.getElementFrequencies()))
                     .build();
@@ -619,6 +909,23 @@ public class BaselineLearningService {
         } catch (Exception e) {
             log.error("[BaselineLearningService] Organization baseline update failed: userId={}", userId, e);
         }
+    }
+
+    private String resolveOrganizationId(SecurityEvent currentEvent, String userId) {
+        if (currentEvent != null && currentEvent.getMetadata() != null) {
+            String metadataOrganizationId = firstNonBlankText(
+                    textValue(currentEvent.getMetadata().get("organizationId")),
+                    textValue(currentEvent.getMetadata().get("tenantId")),
+                    textValue(currentEvent.getMetadata().get("orgId")));
+            if (StringUtils.hasText(metadataOrganizationId)) {
+                return metadataOrganizationId;
+            }
+        }
+        return null;
+    }
+
+    private BaselineVector resolveOrganizationBaseline(String userId, String organizationId) {
+        return getOrganizationBaseline(organizationId);
     }
 
     private String[] mergeStringArrays(String[] existing, String[] incoming) {
@@ -734,14 +1041,16 @@ public class BaselineLearningService {
     }
 
     public String buildBaselinePromptContext(String userId, SecurityEvent currentEvent) {
+        return buildBaselinePromptContext(userId, resolveOrganizationId(currentEvent, userId), currentEvent);
+    }
+
+    public String buildBaselinePromptContext(String userId, String organizationId, SecurityEvent currentEvent) {
         if (userId == null) {
             return "Baseline: User ID not available";
         }
 
         BaselineVector userBaseline = baselineDataStore.getUserBaseline(userId);
-        String orgId = extractOrganizationId(userId);
-        BaselineVector orgBaseline = orgId != null
-                ? baselineDataStore.getOrganizationBaseline(orgId) : null;
+        BaselineVector orgBaseline = resolveOrganizationBaseline(userId, organizationId);
 
         if (userBaseline == null && orgBaseline == null) {
             return buildNewUserWarning(userId, currentEvent);
@@ -873,6 +1182,54 @@ public class BaselineLearningService {
         return null;
     }
 
+    private String extractBrowser(SecurityEvent event) {
+        if (event == null) {
+            return null;
+        }
+        String explicitBrowser = extractMetadataText(event, "deviceBrowser", "userAgentBrowser");
+        String explicitVersion = extractMetadataText(event, "deviceBrowserVersion");
+        if (StringUtils.hasText(explicitBrowser)) {
+            return StringUtils.hasText(explicitVersion)
+                    ? explicitBrowser + "/" + explicitVersion
+                    : explicitBrowser;
+        }
+        return extractUASignature(event.getUserAgent());
+    }
+
+    private String extractActionFamily(SecurityEvent event) {
+        String explicit = extractMetadataText(event, "actionFamily", "operation", "httpMethod", "method");
+        return SecuritySemanticNormalizer.normalizeActionFamily(explicit);
+    }
+
+    private String extractResourceFamily(SecurityEvent event) {
+        String explicit = extractMetadataText(event, "resourceFamily", "resourceType", "resourceCategory");
+        if (StringUtils.hasText(explicit)) {
+            return SecuritySemanticNormalizer.normalizeResourceFamily(explicit);
+        }
+        return SecuritySemanticNormalizer.normalizePathFamily(extractPath(event));
+    }
+
+    private String extractPathFamily(SecurityEvent event) {
+        return SecuritySemanticNormalizer.normalizePathFamily(extractPath(event));
+    }
+
+    private String extractMetadataText(SecurityEvent event, String... keys) {
+        if (event == null || event.getMetadata() == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = event.getMetadata().get(key);
+            if (value == null) {
+                continue;
+            }
+            String text = String.valueOf(value).trim();
+            if (!text.isEmpty()) {
+                return text;
+            }
+        }
+        return null;
+    }
+
     private String extractOS(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return "Unknown";
@@ -965,6 +1322,58 @@ public class BaselineLearningService {
         String version = userAgent.substring(start, end);
         String browserName = prefix.replace("/", "");
         return browserName + "/" + version;
+    }
+
+    private String[] firstNonEmpty(String[] primary, String[] fallback) {
+        return primary != null && primary.length > 0 ? primary : fallback;
+    }
+
+    private void addSummaryPart(List<String> parts, String label, List<String> values) {
+        if (parts == null || values == null || values.isEmpty()) {
+            return;
+        }
+        parts.add(label + "=" + String.join(", ", values));
+    }
+
+    private List<String> strings(String[] values) {
+        if (values == null || values.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(values)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private List<String> integers(Integer[] values) {
+        if (values == null || values.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(values)
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .distinct()
+                .toList();
+    }
+
+    private String firstNonBlankText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String textValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isEmpty() ? null : text;
     }
 
     public record BaselineMaturitySnapshot(

@@ -17,6 +17,7 @@ public final class SecurityPromptSectionCatalog {
     public static final String RESOURCE_AND_ACTION = "RESOURCE_AND_ACTION";
     public static final String SESSION_NARRATIVE = "SESSION_NARRATIVE";
     public static final String OBSERVED_AND_PERSONAL_WORK_PATTERN = "OBSERVED_AND_PERSONAL_WORK_PATTERN";
+    public static final String SUPPORTING_LEARNING_CONTEXT = "SUPPORTING_LEARNING_CONTEXT";
     public static final String ROLE_SCOPE = "ROLE_SCOPE";
     public static final String FRICTION_AND_APPROVAL = "FRICTION_AND_APPROVAL";
     public static final String DELEGATED_OBJECTIVE = "DELEGATED_OBJECTIVE";
@@ -35,6 +36,7 @@ public final class SecurityPromptSectionCatalog {
     public static final String HEADER_SESSION_NARRATIVE_CONTEXT = "=== SESSION NARRATIVE CONTEXT ===";
     public static final String HEADER_OBSERVED_WORK_PATTERN_CONTEXT = "=== OBSERVED WORK PATTERN CONTEXT ===";
     public static final String HEADER_PERSONAL_WORK_PROFILE = "=== PERSONAL WORK PROFILE ===";
+    public static final String HEADER_SUPPORTING_LEARNING_CONTEXT = "=== SUPPORTING LEARNING CONTEXT ===";
     public static final String HEADER_ROLE_AND_WORK_SCOPE_CONTEXT = "=== ROLE AND WORK SCOPE CONTEXT ===";
     public static final String HEADER_PEER_COHORT_DELTA = "=== PEER COHORT DELTA ===";
     public static final String HEADER_FRICTION_AND_APPROVAL_HISTORY = "=== FRICTION AND APPROVAL HISTORY ===";
@@ -57,6 +59,7 @@ public final class SecurityPromptSectionCatalog {
         headers.put(RESOURCE_AND_ACTION, List.of(HEADER_RESOURCE_AND_ACTION_CONTEXT));
         headers.put(SESSION_NARRATIVE, List.of(HEADER_SESSION_NARRATIVE_CONTEXT));
         headers.put(OBSERVED_AND_PERSONAL_WORK_PATTERN, List.of(HEADER_OBSERVED_WORK_PATTERN_CONTEXT, HEADER_PERSONAL_WORK_PROFILE));
+        headers.put(SUPPORTING_LEARNING_CONTEXT, List.of(HEADER_SUPPORTING_LEARNING_CONTEXT));
         headers.put(ROLE_SCOPE, List.of(HEADER_ROLE_AND_WORK_SCOPE_CONTEXT, HEADER_PEER_COHORT_DELTA));
         headers.put(FRICTION_AND_APPROVAL, List.of(HEADER_FRICTION_AND_APPROVAL_HISTORY));
         headers.put(DELEGATED_OBJECTIVE, List.of(HEADER_DELEGATED_OBJECTIVE_CONTEXT));

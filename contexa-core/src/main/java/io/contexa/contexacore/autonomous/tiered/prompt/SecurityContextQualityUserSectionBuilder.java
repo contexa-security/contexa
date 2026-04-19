@@ -10,7 +10,7 @@ public class SecurityContextQualityUserSectionBuilder implements SecurityPromptS
                 "BaselineGapSupport",
                 template.buildBaselineGapSection(
                         context.getBaselineStatus(),
-                        context.getBaselineContext()
+                        context.getLearningContextEvidence()
                 )
         );
 

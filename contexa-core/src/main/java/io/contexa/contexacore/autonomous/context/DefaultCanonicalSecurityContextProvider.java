@@ -416,9 +416,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private CanonicalSecurityContext.Session resolveSession(SecurityEvent event, Map<String, Object> metadata) {
         Integer accessHour = resolveInteger(
+                event != null && event.getTimestamp() != null ? event.getTimestamp().getHour() : null,
                 metadata.get("currentAccessHour"),
-                metadata.get("accessHour"),
-                event != null && event.getTimestamp() != null ? event.getTimestamp().getHour() : null);
+                metadata.get("accessHour"));
         return CanonicalSecurityContext.Session.builder()
                 .sessionId(firstText(event.getSessionId(), metadata.get("sessionId")))
                 .clientIp(firstText(event.getSourceIp(), metadata.get("clientIp")))

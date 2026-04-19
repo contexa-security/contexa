@@ -24,18 +24,7 @@ public class PreprocessingStep implements PipelineStep {
     }
 
     protected <T extends DomainContext> String buildSystemMetadata(AIRequest<T> request) {
-        return String.format("""
-            System Information:
-            - Request ID: %s
-            - Request Type: %s
-            - Context Type: %s
-            - Processing Time: %s
-            """,
-            request.getRequestId(),
-            request.getClass().getSimpleName(),
-            request.getContext().getClass().getSimpleName(),
-            java.time.LocalDateTime.now()
-        );
+        return "";
     }
 
     @Override

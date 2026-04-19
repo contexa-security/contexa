@@ -12,7 +12,11 @@ public final class HeuristicPromptTokenEstimator implements PromptTokenEstimator
     static final String ENFORCEMENT_MODE = "OBSERVE_ONLY";
 
     @Override
-    public PromptTokenEstimate estimate(String systemPrompt, String userPrompt, PromptBudgetProfile budgetProfile) {
+    public PromptTokenEstimate estimate(
+            String modelHint,
+            String systemPrompt,
+            String userPrompt,
+            PromptBudgetProfile budgetProfile) {
         String normalizedSystemPrompt = normalize(systemPrompt);
         String normalizedUserPrompt = normalize(userPrompt);
         int estimatedSystemTokens = estimateTextTokens(normalizedSystemPrompt);

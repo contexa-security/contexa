@@ -31,7 +31,7 @@ class PostprocessingStepTest {
         context.addMetadata("promptSectionSet", List.of("CURRENT_REQUEST", "SESSION_NARRATIVE"));
         context.addMetadata("omittedSections", List.of("RAG_CONTEXT"));
         context.addMetadata("promptOmissionCount", 1);
-        context.addMetadata("promptTokenEstimator", "heuristic-char-div4-v1");
+        context.addMetadata("promptTokenEstimator", "MODEL_AWARE_TOKEN_COUNTING_V1");
         context.addMetadata("estimatedSystemTokens", 120);
         context.addMetadata("estimatedUserTokens", 330);
         context.addMetadata("estimatedTotalTokens", 451);
@@ -52,7 +52,7 @@ class PostprocessingStepTest {
         assertThat(response.getMetadata("promptOmissionCount", Integer.class)).isEqualTo(1);
         assertThat(response.getMetadata("promptSectionSet", List.class)).contains("CURRENT_REQUEST", "SESSION_NARRATIVE");
         assertThat(response.getMetadata("omittedSections", List.class)).contains("RAG_CONTEXT");
-        assertThat(response.getMetadata("promptTokenEstimator", String.class)).isEqualTo("heuristic-char-div4-v1");
+        assertThat(response.getMetadata("promptTokenEstimator", String.class)).isEqualTo("MODEL_AWARE_TOKEN_COUNTING_V1");
         assertThat(response.getMetadata("estimatedTotalTokens", Integer.class)).isEqualTo(451);
         assertThat(response.getMetadata("promptBudgetRemainingTokens", Integer.class)).isEqualTo(1549);
         assertThat(response.getMetadata("promptBudgetUtilizationRate", Double.class)).isEqualTo(0.2255d);

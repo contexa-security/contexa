@@ -395,20 +395,63 @@ public class HCADContextExtractor {
                                         HttpServletRequest request) {
         try {
             String path = request.getRequestURI();
+            String explicitResourceId = firstNonBlankAttribute(request,
+                    "hcad.resource_id",
+                    "hcad.resourceId",
+                    "resourceId",
+                    "requestedResourceId",
+                    "protectedResourceId");
+            String explicitResourceType = firstNonBlankAttribute(request,
+                    "hcad.resource_type",
+                    "hcad.resourceType",
+                    "resourceType",
+                    "resourceCategory",
+                    "endpointKey");
+            String explicitBusinessLabel = firstNonBlankAttribute(request,
+                    "hcad.resource_business_label",
+                    "hcad.resourceBusinessLabel",
+                    "resourceBusinessLabel",
+                    "resourceLabel",
+                    "businessLabel");
+            String explicitSensitivity = firstNonBlankAttribute(request,
+                    "hcad.resource_sensitivity",
+                    "hcad.resourceSensitivity",
+                    "resourceSensitivity",
+                    "sensitivity");
 
-            String[] segments = path.split("/");
-            String firstSegment = segments.length > 1 ? segments[1] : "";
-            context.setResourceType(firstSegment);
+            context.setResourceType(StringUtils.hasText(explicitResourceType)
+                    ? explicitResourceType
+                    : resolveResourceTypeFromPath(path));
 
-            context.setIsSensitiveResource(matchesSensitiveResource(path));
+            Boolean sensitiveResource = matchesSensitiveResource(path);
+            if (!StringUtils.hasText(explicitSensitivity) && Boolean.TRUE.equals(sensitiveResource)) {
+                explicitSensitivity = "HIGH";
+            }
+            context.setIsSensitiveResource(Boolean.TRUE.equals(sensitiveResource)
+                    || "HIGH".equalsIgnoreCase(explicitSensitivity)
+                    || "CRITICAL".equalsIgnoreCase(explicitSensitivity));
 
             Map<String, Object> additionalAttrs = context.getAdditionalAttributes();
             if (additionalAttrs == null) {
                 additionalAttrs = new HashMap<>();
             }
-            String resourceSensitivity = resolveResourceSensitivity(path, context.getIsSensitiveResource());
+            String resourceSensitivity = StringUtils.hasText(explicitSensitivity)
+                    ? explicitSensitivity
+                    : resolveResourceSensitivity(path, context.getIsSensitiveResource());
+            if (StringUtils.hasText(explicitResourceId)) {
+                additionalAttrs.put("resourceId", explicitResourceId);
+            }
+            if (StringUtils.hasText(context.getResourceType())) {
+                additionalAttrs.put("resourceType", context.getResourceType());
+                additionalAttrs.put("resourceCategory", context.getResourceType());
+            }
             if (resourceSensitivity != null) {
                 additionalAttrs.put("resourceSensitivity", resourceSensitivity);
+            }
+            if (StringUtils.hasText(explicitBusinessLabel)) {
+                additionalAttrs.put("resourceBusinessLabel", explicitBusinessLabel);
+                additionalAttrs.put("resourceLabel", explicitBusinessLabel);
+                additionalAttrs.put("businessLabel", explicitBusinessLabel);
             }
             additionalAttrs.put("contentType", request.getContentType());
             additionalAttrs.put("queryString", request.getQueryString());
@@ -564,6 +607,40 @@ public class HCADContextExtractor {
             String[] ipv6 = normalized.split(":");
             if (ipv6.length >= 4) {
                 return String.join(":", ipv6[0], ipv6[1], ipv6[2], ipv6[3]) + "::/64";
+            }
+        }
+        return null;
+    }
+
+    private String resolveResourceTypeFromPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+        String[] rawSegments = path.split("/");
+        java.util.ArrayList<String> segments = new java.util.ArrayList<>();
+        for (String rawSegment : rawSegments) {
+            if (StringUtils.hasText(rawSegment)) {
+                segments.add(rawSegment.trim());
+            }
+        }
+        if (segments.isEmpty()) {
+            return null;
+        }
+        if (segments.size() == 1) {
+            return segments.get(0);
+        }
+        return segments.get(segments.size() - 2);
+    }
+
+    private String firstNonBlankAttribute(HttpServletRequest request, String... names) {
+        if (request == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            Object value = request.getAttribute(name);
+            String text = text(value);
+            if (StringUtils.hasText(text)) {
+                return text;
             }
         }
         return null;

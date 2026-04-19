@@ -45,6 +45,11 @@ public class ProcessingResult {
      * Raw confidence proposed by the LLM.
      */
     private Double llmAuditConfidence;
+    private Boolean llmDecisionPresent;
+    private Boolean technicalFallbackApplied;
+    private String technicalFallbackCategory;
+    private String technicalFallbackReason;
+    private String technicalFallbackAction;
 
     private String reasoning;
 

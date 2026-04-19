@@ -18,6 +18,7 @@ public class DefaultPromptConfidenceGuardrail implements PromptConfidenceGuardra
     static final double HIGH_CONFIDENCE_THRESHOLD = 0.85d;
     static final double MODERATE_CONFIDENCE_CAP = 0.74d;
     static final double LOW_CONFIDENCE_CAP = 0.54d;
+    static final double SENSITIVE_PROVISIONAL_ALLOW_CAP = 0.70d;
 
     @Override
     public PromptDecisionAdjustment evaluate(CanonicalSecurityContext context, ProposedPromptDecision decision) {
@@ -64,6 +65,11 @@ public class DefaultPromptConfidenceGuardrail implements PromptConfidenceGuardra
         if (isHighConfidenceAllowWithUnknownObjectiveDrift(context, originalAction, effectiveConfidence)) {
             effectiveConfidence = capConfidence(effectiveConfidence, MODERATE_CONFIDENCE_CAP);
             reasons.add("Delegated objective alignment evidence is still incomplete; high-confidence ALLOW is not permitted.");
+        }
+
+        if (isSensitiveAllowWithProvisionalRoleScope(context, originalAction, effectiveConfidence)) {
+            effectiveConfidence = capConfidence(effectiveConfidence, SENSITIVE_PROVISIONAL_ALLOW_CAP);
+            reasons.add("Sensitive access still has provisional role-scope evidence; ALLOW confidence cannot exceed 0.70.");
         }
 
         if (reasons.isEmpty()) {
@@ -115,6 +121,18 @@ public class DefaultPromptConfidenceGuardrail implements PromptConfidenceGuardra
         return delegation != null
                 && hasDelegatedObjective(delegation)
                 && delegation.getObjectiveDrift() == null;
+    }
+
+    private boolean isSensitiveAllowWithProvisionalRoleScope(
+            CanonicalSecurityContext context,
+            ZeroTrustAction action,
+            Double confidence) {
+        return action == ZeroTrustAction.ALLOW
+                && confidence != null
+                && confidence > SENSITIVE_PROVISIONAL_ALLOW_CAP
+                && context != null
+                && isSensitiveResource(context.getResource())
+                && CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context);
     }
 
     private boolean requiresSensitiveApprovalOverride(CanonicalSecurityContext context, ZeroTrustAction action) {

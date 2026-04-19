@@ -37,22 +37,35 @@ public class PostprocessingStep implements PipelineStep {
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
         return Mono.fromCallable(() -> {
+            long stepStartTime = System.currentTimeMillis();
             Class<?> targetResponseType = context.getMetadata("targetResponseType", Class.class);
             Object parsedResponse = context.getStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, Object.class);
+            boolean strictPostprocessingRequired = resolveStrictPostprocessingRequired(request, context);
 
             if (parsedResponse == null ||
                     (parsedResponse instanceof String && ((String) parsedResponse).trim().isEmpty())) {
                 log.error("[{}] Response is empty, creating enhanced fallback response", getStepName());
+                if (strictPostprocessingRequired) {
+                    throw new IllegalStateException("Strict postprocessing required but parsed response is empty");
+                }
                 return createEnhancedFallbackResponse(request, context);
             }
             Object wrappedResponse;
             if (targetResponseType != null && targetResponseType.isInstance(parsedResponse)) {
                 wrappedResponse = parsedResponse;
             } else {
-                wrappedResponse = tryWrapWithDomainProcessor(parsedResponse, request, context);
+                wrappedResponse = tryWrapWithDomainProcessor(parsedResponse, request, context, strictPostprocessingRequired);
+                if (strictPostprocessingRequired
+                        && targetResponseType != null
+                        && !targetResponseType.isInstance(wrappedResponse)) {
+                    throw new IllegalStateException(
+                            "Strict postprocessing required but wrapped response did not match target type: "
+                                    + targetResponseType.getName());
+                }
             }
 
             enrichWithMetadata(wrappedResponse, request, context);
+            context.addMetadata("postprocessingLatencyMs", System.currentTimeMillis() - stepStartTime);
             context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, wrappedResponse);
             return wrappedResponse;
 
@@ -60,11 +73,17 @@ public class PostprocessingStep implements PipelineStep {
     }
 
     private <T extends DomainContext> Object tryWrapWithDomainProcessor(
-            Object parsedResponse, AIRequest<T> request, PipelineExecutionContext context) {
+            Object parsedResponse,
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            boolean strictPostprocessingRequired) {
 
         String templateKey = PromptGenerator.determineTemplateKey(request);
 
         if (templateKey == null) {
+            if (strictPostprocessingRequired) {
+                throw new IllegalStateException("Strict postprocessing required but template key is unavailable");
+            }
             return parsedResponse;
         }
 
@@ -80,11 +99,32 @@ public class PostprocessingStep implements PipelineStep {
 
                 } catch (Exception e) {
                     log.error("[{}] Domain processor execution failed: {}", getStepName(), e.getMessage(), e);
+                    if (strictPostprocessingRequired) {
+                        throw new IllegalStateException("Strict postprocessing failed", e);
+                    }
                 }
             }
         }
 
+        if (strictPostprocessingRequired) {
+            throw new IllegalStateException(
+                    "Strict postprocessing required but no domain response processor matched the parsed response");
+        }
         return parsedResponse;
+    }
+
+    private boolean resolveStrictPostprocessingRequired(AIRequest<?> request, PipelineExecutionContext context) {
+        if (request != null && request.getParameters().containsKey("strictResponsePostprocessing")) {
+            Object value = request.getParameters().get("strictResponsePostprocessing");
+            if (value instanceof Boolean bool) {
+                return bool;
+            }
+            if (value != null) {
+                return Boolean.parseBoolean(value.toString());
+            }
+        }
+        Boolean metadataValue = context != null ? context.getMetadata("strictResponsePostprocessing", Boolean.class) : null;
+        return Boolean.TRUE.equals(metadataValue);
     }
 
     private void enrichWithMetadata(Object response, AIRequest<?> request, PipelineExecutionContext context) {

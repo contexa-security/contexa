@@ -12,7 +12,11 @@ public interface GovernedPromptTemplate extends PromptTemplate {
             AIRequest<? extends DomainContext> request,
             String systemPrompt,
             String userPrompt) {
-        return buildPromptExecutionMetadata(systemPrompt, userPrompt);
+        return PromptGovernanceSupport.buildExecutionMetadata(
+                getPromptGovernanceDescriptor(),
+                PromptGovernanceSupport.resolveRequestedModelHint(request),
+                systemPrompt,
+                userPrompt);
     }
 
     default PromptExecutionMetadata buildPromptExecutionMetadata(String systemPrompt, String userPrompt) {
@@ -32,11 +36,14 @@ public interface GovernedPromptTemplate extends PromptTemplate {
                 baseMetadata.sectionSet(),
                 baseMetadata.omittedSections(),
                 baseMetadata.omissionLedger(),
+                baseMetadata.duplicationInventory(),
                 baseMetadata.promptEvidenceCompleteness(),
+                PromptGovernanceSupport.resolveRequestedModelHint(request),
                 promptViewComposition.llmSystemPrompt(),
                 promptViewComposition.llmUserPrompt(),
                 promptViewComposition.rawSystemPrompt(),
                 promptViewComposition.rawUserPrompt(),
-                promptViewComposition.compressionLedger());
+                promptViewComposition.compressionLedger(),
+                baseMetadata.supplementalMetadata());
     }
 }

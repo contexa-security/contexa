@@ -138,6 +138,18 @@ class ZeroTrustEventPublisherTest {
         request.setAttribute("hcad.resource_sensitivity", "HIGH");
         request.setAttribute("hcad.previous_path", "/admin/api/security-test/sensitive/resource-000");
         request.setAttribute("hcad.last_request_interval_ms", 4_200L);
+        request.setAttribute("currentResourceFamily", "SENSITIVE");
+        request.setAttribute("currentActionFamily", "READ");
+        request.setAttribute("expectedResourceFamilies", List.of("SENSITIVE"));
+        request.setAttribute("expectedActionFamilies", List.of("READ"));
+        request.setAttribute("recentPermissionChanges", List.of("NONE_RECORDED"));
+        request.setAttribute("approvalRequired", false);
+        request.setAttribute("approvalGranted", false);
+        request.setAttribute("approvalMissing", false);
+        request.setAttribute("approvalStatus", "NOT_APPLICABLE");
+        request.setAttribute("delegated", false);
+        request.setAttribute("objectiveDrift", false);
+        request.setAttribute("objectiveDriftSummary", "NOT_APPLICABLE: direct user request is not delegated.");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -162,8 +174,20 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("resourceSensitivity", "HIGH")
                 .containsEntry("previousPath", "/admin/api/security-test/sensitive/resource-000")
                 .containsEntry("lastRequestIntervalMs", 4_200L)
+                .containsEntry("currentResourceFamily", "SENSITIVE")
+                .containsEntry("currentActionFamily", "READ")
+                .containsEntry("approvalRequired", false)
+                .containsEntry("approvalGranted", false)
+                .containsEntry("approvalMissing", false)
+                .containsEntry("approvalStatus", "NOT_APPLICABLE")
+                .containsEntry("delegated", false)
+                .containsEntry("objectiveDrift", false)
+                .containsEntry("objectiveDriftSummary", "NOT_APPLICABLE: direct user request is not delegated.")
                 .containsEntry("authorizationEffect", "ALLOW")
                 .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+        assertThat((List<String>) event.getPayload().get("expectedResourceFamilies")).containsExactly("SENSITIVE");
+        assertThat((List<String>) event.getPayload().get("expectedActionFamilies")).containsExactly("READ");
+        assertThat((List<String>) event.getPayload().get("recentPermissionChanges")).containsExactly("NONE_RECORDED");
         assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("ANALYST");
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("authorities")).contains("ROLE_ANALYST", "report.export", "MFA_VERIFIED");

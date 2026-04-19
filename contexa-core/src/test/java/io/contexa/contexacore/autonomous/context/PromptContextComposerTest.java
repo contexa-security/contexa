@@ -310,6 +310,9 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("ApprovalRequired: true");
         assertThat(promptSection).contains("CurrentResourceFamily: REPORT");
         assertThat(promptSection).contains("CurrentResourcePresentInObservedHistory: true");
+        assertThat(promptSection).contains("RoleScopeDeltaCount: 0");
+        assertThat(promptSection).contains("StrongestRoleScopeDelta: none");
+        assertThat(promptSection).contains("RoleScopeDeltaSummary: no direct current-vs-scope mismatch detected");
         assertThat(promptSection).contains("CurrentResourceFamilyPresentInExpectedRoleScope: true");
         assertThat(promptSection).contains("CurrentActionFamilyPresentInExpectedRoleScope: true");
         assertThat(promptSection).contains("TemporaryElevationReason: Emergency customer export review");
@@ -330,6 +333,27 @@ class PromptContextComposerTest {
         assertThat(promptSection).doesNotContain("ObjectiveDrift:");
         assertThat(promptSection).doesNotContain("OutlierAgainstCohort:");
         assertThat(promptSection).doesNotContain("ContextTrust: ");
+    }
+
+    @Test
+    void composeShouldRenderDirectUserDelegationAsNotApplicable() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .delegation(CanonicalSecurityContext.Delegation.builder()
+                        .delegated(false)
+                        .objectiveDrift(false)
+                        .objectiveDriftSummary("NOT_APPLICABLE: direct user request is not delegated.")
+                        .build())
+                .build();
+
+        String promptSection = new PromptContextComposer().compose(context);
+
+        assertThat(promptSection).contains("=== DELEGATED OBJECTIVE CONTEXT ===");
+        assertThat(promptSection).contains("Delegated: false");
+        assertThat(promptSection).contains("ObjectiveFamily: NOT_APPLICABLE");
+        assertThat(promptSection).contains("ObjectiveSummary: NOT_APPLICABLE");
+        assertThat(promptSection).contains("ObjectiveAlignmentEvidence: NOT_APPLICABLE: direct user request is not delegated.");
+        assertThat(promptSection).doesNotContain("ObjectiveFamily: UNKNOWN");
+        assertThat(promptSection).doesNotContain("ObjectiveSummary: UNKNOWN");
     }
 
     @Test

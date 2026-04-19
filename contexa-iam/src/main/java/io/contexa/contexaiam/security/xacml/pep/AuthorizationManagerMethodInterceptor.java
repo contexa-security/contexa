@@ -77,11 +77,11 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {
                     if (isEnforcementDisabled()) {
                         log.info("[ZeroTrust][SHADOW] sync Protectable decision observed but not enforced. resource={}, action={}",
-                                buildResourceId(mi), syncDecision.action());
+                                buildResourceId(mi, protectable), syncDecision.action());
                         publishEvent = false;
                     } else {
                         publishEvent = false;
-                        throw toZeroTrustAccessDeniedException(syncDecision, buildResourceId(mi));
+                        throw toZeroTrustAccessDeniedException(syncDecision, buildResourceId(mi, protectable));
                     }
                 } else {
                     publishEvent = false;
@@ -169,7 +169,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             MethodInvocation mi,
             Authentication authentication) {
         if (synchronousProtectableDecisionService == null) {
-            throw ZeroTrustAccessDeniedException.analysisRequired(buildResourceId(mi));
+            throw ZeroTrustAccessDeniedException.analysisRequired(buildResourceId(mi, resolveProtectable(mi)));
         }
         return synchronousProtectableDecisionService.analyze(mi, authentication);
     }
@@ -189,6 +189,13 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     }
 
     private String buildResourceId(MethodInvocation mi) {
+        return buildResourceId(mi, resolveProtectable(mi));
+    }
+
+    private String buildResourceId(MethodInvocation mi, Protectable protectable) {
+        if (protectable != null && protectable.resourceId() != null && !protectable.resourceId().isBlank()) {
+            return protectable.resourceId().trim();
+        }
         return mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
     }
 

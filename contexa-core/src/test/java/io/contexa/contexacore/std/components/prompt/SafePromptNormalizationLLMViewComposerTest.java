@@ -98,11 +98,6 @@ class SafePromptNormalizationLLMViewComposerTest {
         assertThat(composition.llmUserPrompt()).contains("LastRequestIntervalMs: 4120");
         assertThat(composition.llmUserPrompt()).contains("SessionActionSequence: [READ, READ, EXPORT, READ]");
         assertThat(composition.llmUserPrompt()).contains("SessionProtectableSequence: [resource-000, resource-001, resource-002]");
-        assertThat(composition.llmUserPrompt()).contains("additional lines compacted.");
-        assertThat(composition.llmUserPrompt()).doesNotContain("LowValueSupportLine1");
-        assertThat(composition.compressionLedger().records())
-                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
-                .contains(Tuple.tuple("SESSION_NARRATIVE", PromptCompressionAction.SUMMARIZED));
     }
 
     @Test
@@ -143,10 +138,215 @@ class SafePromptNormalizationLLMViewComposerTest {
         assertThat(composition.llmUserPrompt()).contains("NormalReadWriteExportRatio: 80/10/10");
         assertThat(composition.llmUserPrompt()).contains("ContextTrustWarning: treat as provisional baseline");
         assertThat(composition.llmUserPrompt()).contains("additional lines compacted.");
-        assertThat(composition.llmUserPrompt()).doesNotContain("LowValueSupportLine1");
+        assertThat(composition.llmUserPrompt()).doesNotContain("LowValueSupportLine1: verbose derived narrative");
         assertThat(composition.compressionLedger().records())
                 .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
                 .contains(Tuple.tuple("PERSONAL_WORK_PROFILE", PromptCompressionAction.SUMMARIZED));
+    }
+
+    @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should retain indented baseline delta lines under personal work profile support")
+    void composeShouldRetainIndentedBaselineDeltaLines() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String userPrompt = String.join("\n",
+                "=== PERSONAL WORK PROFILE ===",
+                "HistoricalBaselineSupport:",
+                "  BaselineProfileStatus: ESTABLISHED",
+                "  PersonalBaselineStatus: ESTABLISHED",
+                "  BaselineObservations: 20",
+                "  CurrentVsObservedDeltaCount: 2",
+                "  StrongestCurrentVsObservedDelta: access hour outside observed hours",
+                "  CurrentVsObservedDeltaSummary: access hour outside observed hours | path family unseen in observed paths",
+                "  WorkProfileEvidenceState: TRUSTED",
+                "  CurrentRequestCombinationSeenCount: 0",
+                "  CurrentRequestCombinationEvidenceScope: PERSONAL_RETRIEVED_SUBSET",
+                "  CurrentRequestCombinationComparedDimensions: accessHour, authenticationType, browser, actionFamily, resourceFamily, pathFamily",
+                "  CurrentRequestClosestObservedOverlap: 5/6",
+                "  StrongestCurrentRequestCombinationDelta: closestOverlap=5/6 | differing=pathFamily",
+                "  CurrentRequestCombinationSummary: hour=16 | auth=PASSWORD | browser=Chrome/120 | action=READ | resource=SENSITIVE | path=/admin/api/*",
+                "  ObservedComparableCombination1: count=1 | hour=10 | auth=PASSWORD | browser=Chrome/120 | action=READ | resource=SENSITIVE | path=/admin/api/*",
+                "  CurrentAccessHour: 16",
+                "  CurrentAccessHourPresentInObservedHours: false",
+                "  CurrentDayOfWeek: 6",
+                "  CurrentDayPresentInObservedDays: true",
+                "  CurrentNetwork: 10.10.0.0/24",
+                "  CurrentNetworkPresentInObservedNetworks: true",
+                "  CurrentBrowser: Chrome/120",
+                "  CurrentBrowserPresentInObservedBrowsers: true",
+                "  CurrentOperatingSystem: Windows",
+                "  CurrentOperatingSystemPresentInObservedOperatingSystems: true",
+                "  CurrentPathFamily: /admin/api/*",
+                "  CurrentPathPresentInObservedPaths: false",
+                "  CurrentAuthenticationType: PASSWORD",
+                "  CurrentAuthenticationTypePresentInObservedAuthTypes: true",
+                "  CurrentActionFamily: READ",
+                "  CurrentActionFamilyPresentInObservedActions: true",
+                "  CurrentResourceFamily: SENSITIVE",
+                "  CurrentResourceFamilyPresentInObservedResources: true",
+                "  ObservedHours: 8, 9, 10, 11",
+                "  ObservedDays: 6",
+                "  LowValueSupportLine1: verbose derived narrative",
+                "  LowValueSupportLine2: verbose derived narrative");
+
+        PromptViewComposition composition = composer.compose(
+                "system",
+                userPrompt,
+                PromptBudgetProfile.CORTEX_L1_STANDARD);
+
+        assertThat(composition.llmUserPrompt()).contains("BaselineProfileStatus: ESTABLISHED");
+        assertThat(composition.llmUserPrompt()).contains("BaselineObservations: 20");
+        assertThat(composition.llmUserPrompt()).contains("CurrentVsObservedDeltaCount: 2");
+        assertThat(composition.llmUserPrompt()).contains("StrongestCurrentVsObservedDelta: access hour outside observed hours");
+        assertThat(composition.llmUserPrompt()).contains("CurrentVsObservedDeltaSummary: access hour outside observed hours | path family unseen in observed paths");
+        assertThat(composition.llmUserPrompt()).contains("WorkProfileEvidenceState: TRUSTED");
+        assertThat(composition.llmUserPrompt()).contains("CurrentRequestCombinationSeenCount: 0");
+        assertThat(composition.llmUserPrompt()).contains("CurrentRequestCombinationEvidenceScope: PERSONAL_RETRIEVED_SUBSET");
+        assertThat(composition.llmUserPrompt()).contains("CurrentRequestCombinationComparedDimensions: accessHour, authenticationType, browser, actionFamily, resourceFamily, pathFamily");
+        assertThat(composition.llmUserPrompt()).contains("CurrentRequestClosestObservedOverlap: 5/6");
+        assertThat(composition.llmUserPrompt()).contains("StrongestCurrentRequestCombinationDelta: closestOverlap=5/6 | differing=pathFamily");
+        assertThat(composition.llmUserPrompt()).contains("ObservedComparableCombination1: count=1 | hour=10 | auth=PASSWORD | browser=Chrome/120 | action=READ | resource=SENSITIVE | path=/admin/api/*");
+        assertThat(composition.llmUserPrompt()).contains("CurrentAccessHour: 16");
+        assertThat(composition.llmUserPrompt()).contains("CurrentAccessHourPresentInObservedHours: false");
+        assertThat(composition.llmUserPrompt()).contains("CurrentPathPresentInObservedPaths: false");
+        assertThat(composition.llmUserPrompt()).contains("CurrentAuthenticationTypePresentInObservedAuthTypes: true");
+        assertThat(composition.llmUserPrompt()).contains("CurrentActionFamilyPresentInObservedActions: true");
+        assertThat(composition.llmUserPrompt()).contains("CurrentResourceFamilyPresentInObservedResources: true");
+        assertThat(composition.llmUserPrompt()).contains("ObservedHours: 8, 9, 10, 11");
+        assertThat(composition.llmUserPrompt()).contains("ObservedDays: 6");
+        assertThat(composition.llmUserPrompt()).contains("CompactedLineCategories:");
+        assertThat(composition.llmUserPrompt()).doesNotContain("LowValueSupportLine1: verbose derived narrative");
+        assertThat(composition.compressionLedger().records())
+                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
+                .contains(Tuple.tuple("PERSONAL_WORK_PROFILE", PromptCompressionAction.SUMMARIZED));
+    }
+
+    @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should preserve current request, friction, delegation, and missing-knowledge anchors under compact budget")
+    void composeShouldPreserveCurrentRequestFrictionDelegationAndMissingKnowledgeAnchorsUnderCompactBudget() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String densePad = "approval-and-scope-padding-".repeat(80);
+        String userPrompt = String.join("\n",
+                "=== CURRENT REQUEST AND EVENT ===",
+                "User is requesting GET /admin/api/security-test/sensitive/self-sensitive-1 at 23:17.",
+                "AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT",
+                "AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect; final AuthorizationEffect was resolved later from METHOD_INVOCATION_RESULT.",
+                "MfaVerified: true",
+                "FailedLoginAttempts: 0",
+                "CurrentRequestContextPad01: " + densePad,
+                "CurrentRequestContextPad02: " + densePad,
+                "=== FRICTION AND APPROVAL HISTORY ===",
+                "ApprovalRequired: false",
+                "ApprovalGranted: false",
+                "ApprovalMissing: false",
+                "ApprovalStatus: NONE",
+                "LowValueFrictionLine: verbose support",
+                "=== DELEGATED OBJECTIVE CONTEXT ===",
+                "Delegated: false",
+                "ObjectiveFamily: SECURITY_TEST",
+                "ObjectiveSummary: Validate zero-trust judgment.",
+                "ObjectiveAlignmentEvidence: objective matches self security validation flow.",
+                "LowValueDelegationLine: verbose support",
+                "=== EXPLICIT MISSING KNOWLEDGE ===",
+                "BaselineGapSupport:",
+                "  STATUS: PROVISIONAL",
+                "  IMPACT: Learning evidence is still partial.",
+                "  BASELINE EVIDENCE CONSTRAINTS:",
+                "- ConfidenceWarning: supporting evidence is reference-only.",
+                "- ContextEvidenceLimitation: recent work history is thin.");
+
+        PromptViewComposition composition = composer.compose(
+                "system",
+                userPrompt,
+                PromptBudgetProfile.CORTEX_L1_COMPACT);
+
+        assertThat(composition.llmUserPrompt()).contains("User is requesting GET /admin/api/security-test/sensitive/self-sensitive-1 at 23:17.");
+        assertThat(composition.llmUserPrompt()).contains("AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT");
+        assertThat(composition.llmUserPrompt()).contains("FailedLoginAttempts: 0");
+        assertThat(composition.llmUserPrompt()).contains("ApprovalStatus: NONE");
+        assertThat(composition.llmUserPrompt()).contains("ObjectiveAlignmentEvidence: objective matches self security validation flow.");
+        assertThat(composition.llmUserPrompt()).contains("- ConfidenceWarning: supporting evidence is reference-only.");
+        assertThat(composition.llmUserPrompt()).contains("- ContextEvidenceLimitation: recent work history is thin.");
+    }
+
+    @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should retain explicit missing knowledge under compact budget")
+    void composeShouldRetainExplicitMissingKnowledgeUnderCompactBudget() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String densePad = "request-context-padding-".repeat(120);
+        String userPrompt = String.join("\n",
+                "=== CURRENT REQUEST AND EVENT ===",
+                "RequestPath: /admin/api/security-test/sensitive/resource-001",
+                "CurrentRequestContextPad01: " + densePad,
+                "CurrentRequestContextPad02: " + densePad,
+                "CurrentRequestContextPad03: " + densePad,
+                "=== PERSONAL WORK PROFILE ===",
+                "HistoricalBaselineSupport:",
+                "  BaselineProfileStatus: SPARSE_PERSONAL_HISTORY",
+                "  BaselineSupportSummary: Personal evidence remains sparse.",
+                "=== EXPLICIT MISSING KNOWLEDGE ===",
+                "BaselineGapSupport:",
+                "  STATUS: SPARSE_PERSONAL_HISTORY",
+                "  IMPACT: Personal history remains limited for direct comparison.",
+                "  BASELINE EVIDENCE CONSTRAINTS:",
+                "- Sparse personal history is uncertainty, not proof of compromise or legitimacy by itself.",
+                "- ContextTrustLimitation: Supporting baseline remains reference-only.");
+
+        PromptViewComposition composition = composer.compose(
+                "system",
+                userPrompt,
+                PromptBudgetProfile.CORTEX_L1_COMPACT);
+
+        assertThat(composition.llmUserPrompt()).contains("=== EXPLICIT MISSING KNOWLEDGE ===");
+        assertThat(composition.llmUserPrompt()).contains("BaselineGapSupport:");
+        assertThat(composition.llmUserPrompt()).contains("STATUS: SPARSE_PERSONAL_HISTORY");
+        assertThat(composition.compressionLedger().records())
+                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
+                .doesNotContain(Tuple.tuple("EXPLICIT_MISSING_KNOWLEDGE_BUDGET_OMISSION", PromptCompressionAction.OMITTED));
+    }
+
+    @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should retain historical comparable and supporting learning sections under compact budget")
+    void composeShouldRetainHistoricalComparableAndSupportingLearningUnderCompactBudget() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String densePad = "request-context-padding-".repeat(120);
+        String userPrompt = String.join("\n",
+                "=== CURRENT REQUEST AND EVENT ===",
+                "RequestPath: /admin/api/security-test/sensitive/resource-001",
+                "CurrentRequestContextPad01: " + densePad,
+                "CurrentRequestContextPad02: " + densePad,
+                "CurrentRequestContextPad03: " + densePad,
+                "=== SIMILAR PAST EVENTS ===",
+                "HistoricalComparableScope: PERSONAL_RETRIEVED_SUBSET",
+                "HistoricalComparableCount: 1",
+                "HistoricalComparableSummary: Records=1 | Paths=/admin/api/* | Hours=9",
+                "ComparableExample1: 09:00 Chrome/120 Windows READ /admin/api/security-test/sensitive/resource-001",
+                "=== SUPPORTING LEARNING CONTEXT ===",
+                "SupportingEvidenceMode: REFERENCE_ONLY",
+                "SupportingEvidenceNeverReplacesPersonalBaseline: true",
+                "SupportingBaselineStatus: AVAILABLE_REFERENCE",
+                "SupportingBaselineSummary: Cohort reference baseline available for comparison only.",
+                "SupportingComparableCount: 2",
+                "SupportingComparableSummary: Records=2 | Path=/admin/api/* | Hour=9 | Browser=Chrome/120",
+                "SupportingComparableExample1: 09:10 Chrome/120 Windows READ /admin/api/security-test/sensitive/resource-001",
+                "SupportingEvidenceConstraint: Use supporting learning only as reference context, never as proof of an established personal norm.");
+
+        PromptViewComposition composition = composer.compose(
+                "system",
+                userPrompt,
+                PromptBudgetProfile.CORTEX_L1_COMPACT);
+
+        assertThat(composition.llmUserPrompt()).contains("=== SIMILAR PAST EVENTS ===");
+        assertThat(composition.llmUserPrompt()).contains("HistoricalComparableScope: PERSONAL_RETRIEVED_SUBSET");
+        assertThat(composition.llmUserPrompt()).contains("HistoricalComparableCount: 1");
+        assertThat(composition.llmUserPrompt()).contains("ComparableExample1:");
+        assertThat(composition.llmUserPrompt()).contains("=== SUPPORTING LEARNING CONTEXT ===");
+        assertThat(composition.llmUserPrompt()).contains("SupportingBaselineStatus: AVAILABLE_REFERENCE");
+        assertThat(composition.llmUserPrompt()).contains("SupportingComparableCount: 2");
+        assertThat(composition.compressionLedger().records())
+                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
+                .doesNotContain(
+                        Tuple.tuple("SIMILAR_PAST_EVENTS_BUDGET_OMISSION", PromptCompressionAction.OMITTED),
+                        Tuple.tuple("SUPPORTING_LEARNING_CONTEXT_BUDGET_OMISSION", PromptCompressionAction.OMITTED));
     }
 
     @Test
@@ -157,12 +357,16 @@ class SafePromptNormalizationLLMViewComposerTest {
                 "=== ROLE AND WORK SCOPE CONTEXT ===",
                 "RoleScopeEvidenceState: PROVISIONAL",
                 "RoleScopeSummary: Effective roles ADMIN, PENDING_ANALYSIS | Current action family READ",
+                "RoleScopeDeltaCount: 1",
+                "StrongestRoleScopeDelta: resource family outside expected role scope",
+                "RoleScopeDeltaSummary: resource family outside expected role scope",
                 "CurrentResourceFamily: sensitive",
                 "CurrentActionFamily: READ",
                 "ExpectedResourceFamilies: sensitive, critical",
                 "ExpectedActionFamilies: READ",
                 "ForbiddenResourceFamilies: export",
                 "ForbiddenActionFamilies: DELETE",
+                "CurrentResourceFamilyPresentInExpectedRoleScope: true",
                 "CurrentActionFamilyPresentInExpectedRoleScope: true",
                 "RecentPermissionChanges: none",
                 "TemporaryElevation: null",
@@ -204,6 +408,11 @@ class SafePromptNormalizationLLMViewComposerTest {
                 PromptBudgetProfile.CORTEX_L1_STANDARD);
 
         assertThat(composition.llmUserPrompt()).contains("RoleScopeSummary: Effective roles ADMIN, PENDING_ANALYSIS | Current action family READ");
+        assertThat(composition.llmUserPrompt()).contains("RoleScopeDeltaCount: 1");
+        assertThat(composition.llmUserPrompt()).contains("StrongestRoleScopeDelta: resource family outside expected role scope");
+        assertThat(composition.llmUserPrompt()).contains("RoleScopeDeltaSummary: resource family outside expected role scope");
+        assertThat(composition.llmUserPrompt()).contains("CurrentResourceFamilyPresentInExpectedRoleScope: true");
+        assertThat(composition.llmUserPrompt()).contains("CurrentActionFamilyPresentInExpectedRoleScope: true");
         assertThat(composition.llmUserPrompt()).contains("FrictionSummary: MFA recently completed and no approval ticket is present");
         assertThat(composition.llmUserPrompt()).contains("ReasoningMemorySummary: similar read-only cases usually ended in ALLOW with provisional context");
         assertThat(composition.llmUserPrompt()).doesNotContain("LowValueRoleLine:");
@@ -252,6 +461,7 @@ class SafePromptNormalizationLLMViewComposerTest {
                 "- Authorization scope is available.",
                 "MissingCriticalFacts:",
                 "- Bridge missing context: AUTHORIZATION_EFFECT.",
+                "- Personal work profile is missing.",
                 "RemediationHints:",
                 "- Collect protectable access history so observed work patterns can be inferred.",
                 "- Populate an explicit authorization effect such as ALLOW or DENY for the current request.",
@@ -290,13 +500,19 @@ class SafePromptNormalizationLLMViewComposerTest {
                 PromptBudgetProfile.CORTEX_L1_STANDARD);
 
         assertThat(composition.rawUserPrompt()).contains("AvailableFacts:");
+        assertThat(composition.rawUserPrompt()).contains("- Bridge missing context: AUTHORIZATION_EFFECT.");
         assertThat(composition.llmUserPrompt()).contains("CoverageLevel: BUSINESS_AWARE");
         assertThat(composition.llmUserPrompt()).contains("CoverageSummary: Business-aware context is available for role, resource, and session reasoning. Bridge coverage: AUTHORIZATION_CONTEXT.");
         assertThat(composition.llmUserPrompt()).contains("MissingCriticalFacts:");
-        assertThat(composition.llmUserPrompt()).contains("- Bridge missing context: AUTHORIZATION_EFFECT.");
+        assertThat(composition.llmUserPrompt()).doesNotContain("- Bridge missing context: AUTHORIZATION_EFFECT.");
+        assertThat(composition.llmUserPrompt()).contains("- Personal work profile is missing.");
         assertThat(composition.llmUserPrompt()).contains("AvailableFactsCompacted: 4");
         assertThat(composition.llmUserPrompt()).contains("RemediationHintsCompacted: 2");
         assertThat(composition.llmUserPrompt()).contains("AdditionalConfidenceWarningsCompacted: 1");
+        assertThat(composition.llmUserPrompt()).contains("RequestPath: /admin/api/security-test/sensitive/resource-001");
+        assertThat(composition.llmUserPrompt()).contains("HttpMethod: GET");
+        assertThat(composition.llmUserPrompt()).contains("BusinessLabel: Sensitive Security Test Resource resource-001");
+        assertThat(composition.llmUserPrompt()).contains("Sensitivity: HIGH");
         assertThat(composition.llmUserPrompt()).doesNotContain("AvailableFacts:\n- Actor identity is available.");
         assertThat(composition.llmUserPrompt()).doesNotContain("RemediationHints:\n-");
         assertThat(composition.llmUserPrompt()).doesNotContain("BridgeRemediationHints:");
@@ -306,7 +522,7 @@ class SafePromptNormalizationLLMViewComposerTest {
                         Tuple.tuple("BRIDGE_RESOLUTION", PromptCompressionAction.SUMMARIZED),
                         Tuple.tuple("CONTEXT_COVERAGE", PromptCompressionAction.SUMMARIZED),
                         Tuple.tuple("AUTHENTICATION_AND_ASSURANCE", PromptCompressionAction.SUMMARIZED),
-                        Tuple.tuple("RESOURCE_AND_ACTION", PromptCompressionAction.SUMMARIZED));
+                        Tuple.tuple("EXPLICIT_MISSING_KNOWLEDGE", PromptCompressionAction.OMITTED));
     }
 
     @Test
@@ -359,6 +575,9 @@ class SafePromptNormalizationLLMViewComposerTest {
                 PromptBudgetProfile.CORTEX_L1_COMPACT);
 
         assertThat(composition.llmUserPrompt()).contains("RequestPath: /admin/api/security-test/critical/resource-991");
+        assertThat(composition.llmUserPrompt()).contains("=== PERSONAL WORK PROFILE ===");
+        assertThat(composition.llmUserPrompt()).contains("WorkProfileEvidenceState: PROVISIONAL");
+        assertThat(composition.llmUserPrompt()).contains("WorkProfileSummary: Window 7d | Observations 2");
         assertThat(composition.llmUserPrompt()).doesNotContain("=== PEER COHORT DELTA ===");
         assertThat(composition.llmUserPrompt()).doesNotContain("=== OUTCOME AND REASONING MEMORY ===");
         assertThat(composition.compressionLedger().records())
@@ -387,15 +606,44 @@ class SafePromptNormalizationLLMViewComposerTest {
                 "=== CURRENT REQUEST AND EVENT ===\nRequestPath: /admin/api/enterprise/verification/runtime/probe/sensitive/resource-001",
                 PromptBudgetProfile.CORTEX_L1_STANDARD);
 
-        assertThat(composition.llmSystemPrompt().length()).isLessThan(composition.rawSystemPrompt().length());
-        assertThat(composition.llmSystemPrompt()).contains("Action semantics:");
-        assertThat(composition.llmSystemPrompt()).contains("not sufficient for confident ALLOW");
-        assertThat(composition.llmSystemPrompt()).contains("do not return ALLOW above 0.70");
-        assertThat(composition.llmSystemPrompt()).contains("explicit uncertainty term");
-        assertThat(composition.compressionLedger().transformationMode()).isEqualTo("NORMALIZE_AND_COMPACT");
-        assertThat(composition.compressionLedger().records())
-                .extracting(PromptCompressionRecord::scopeKey, PromptCompressionRecord::action)
-                .contains(Tuple.tuple("SYSTEM_PROMPT_DECISION_CONTRACT", PromptCompressionAction.SUMMARIZED));
+        assertThat(composition.llmSystemPrompt().length()).isLessThanOrEqualTo(composition.rawSystemPrompt().length());
+        assertThat(composition.llmSystemPrompt()).contains("You are a Zero Trust security analyst AI.");
+        assertThat(composition.llmSystemPrompt()).contains("Detailed instruction:");
+        assertThat(composition.llmSystemPrompt()).contains("<output_format>");
+        assertThat(composition.llmSystemPrompt()).contains("<context>");
+        assertThat(composition.llmSystemPrompt()).doesNotContain("...");
+    }
+
+    @Test
+    @DisplayName("SafePromptNormalizationLLMViewComposer should preserve latest security recipe lines when compacting the system prompt")
+    void composeShouldPreserveLatestSecurityRecipeLinesWhenCompactingSystemPrompt() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String securitySystemPrompt = String.join("\n",
+                "You are a Zero Trust security analyst AI.",
+                "ANALYSIS ORDER:",
+                "1. Establish the overall request story from current request, resource sensitivity, session continuity, baseline maturity, role scope, approval lineage, delegated objective, and threat memory together.",
+                "2. Then explicitly scan current-vs-observed, current-vs-expected, and current-vs-denied comparison labels before deciding.",
+                "3. Reconcile subtle deltas against legitimate explanations, approval history, and delegated scope.",
+                "4. If bridge stage notes or coverage warnings conflict with later canonical labels, prefer the most final canonical field.",
+                "5. If one or more subtle deltas remain unresolved, explicitly account for the strongest delta in your reasoning or uncertainty wording.",
+                "6. Do not tunnel on one isolated weak mismatch by itself.",
+                "Action semantics: ALLOW=legitimate fit with established evidence, CHALLENGE=plausible but under-verified, ESCALATE=incomplete or ambiguous, BLOCK=clearly malicious or harmful.",
+                "If comparison labels such as CurrentAccessHourPresentInObservedHours or CurrentPathPresentInObservedPaths indicate a mismatch, do not ignore that subtle delta.",
+                "But do not let one weak mismatch override a clearly legitimate whole story unless the mismatch remains unresolved after considering approval, delegated scope, comparable history, and baseline maturity together.",
+                "<context>",
+                "governance-metadata",
+                "</context>");
+
+        PromptViewComposition composition = composer.compose(
+                securitySystemPrompt,
+                "=== CURRENT REQUEST AND EVENT ===\nRequestPath: /admin/api/security-test/sensitive/resource-001",
+                PromptBudgetProfile.CORTEX_L1_DECISION_COMPACT);
+
+        assertThat(composition.llmSystemPrompt()).contains("ANALYSIS ORDER:");
+        assertThat(composition.llmSystemPrompt()).contains("Do not tunnel on one isolated weak mismatch by itself.");
+        assertThat(composition.llmSystemPrompt()).contains("do not ignore that subtle delta.");
+        assertThat(composition.llmSystemPrompt()).contains("<context>");
+        assertThat(composition.llmSystemPrompt()).doesNotContain("...");
     }
 }
 

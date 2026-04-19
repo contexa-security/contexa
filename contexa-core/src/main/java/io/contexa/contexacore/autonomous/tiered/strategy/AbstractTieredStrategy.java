@@ -8,6 +8,9 @@ import io.contexa.contexacore.autonomous.context.inference.DefaultPromptConfiden
 import io.contexa.contexacore.autonomous.context.inference.PromptConfidenceGuardrail;
 import io.contexa.contexacore.autonomous.context.model.PromptDecisionAdjustment;
 import io.contexa.contexacore.autonomous.context.model.ProposedPromptDecision;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
@@ -30,9 +33,15 @@ import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
+import io.contexa.contexacore.std.pipeline.PipelineFailurePolicy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.std.pipeline.step.StructuredOutputExecutionException;
+import io.contexa.contexacore.std.pipeline.step.StructuredOutputPolicy;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
@@ -75,6 +84,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
     protected final PromptContextAuditForwardingService promptContextAuditForwardingService;
     protected final PromptConfidenceGuardrail promptConfidenceGuardrail;
+    protected final StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry;
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             Caffeine.newBuilder()
                     .maximumSize(1000)
@@ -102,6 +112,28 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             PromptContextAuthorizationService promptContextAuthorizationService,
             PromptContextAuditForwardingService promptContextAuditForwardingService,
             TieredStrategyProperties tieredStrategyProperties) {
+        this(
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                unifiedVectorService,
+                baselineLearningService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                tieredStrategyProperties,
+                StructuredOutputCapabilityRegistry.defaultRegistry());
+    }
+
+    protected AbstractTieredStrategy(
+            SecurityEventEnricher eventEnricher,
+            SecurityDecisionStandardPromptTemplate promptTemplate,
+            BehaviorVectorService behaviorVectorService,
+            UnifiedVectorService unifiedVectorService,
+            BaselineLearningService baselineLearningService,
+            PromptContextAuthorizationService promptContextAuthorizationService,
+            PromptContextAuditForwardingService promptContextAuditForwardingService,
+            TieredStrategyProperties tieredStrategyProperties,
+            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate
             : new SecurityDecisionStandardPromptTemplate(this.eventEnricher, tieredStrategyProperties);
@@ -114,6 +146,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 : new PromptContextAuthorizationService();
         this.promptContextAuditForwardingService = promptContextAuditForwardingService;
         this.promptConfidenceGuardrail = new DefaultPromptConfidenceGuardrail();
+        this.structuredOutputCapabilityRegistry = structuredOutputCapabilityRegistry != null
+                ? structuredOutputCapabilityRegistry
+                : StructuredOutputCapabilityRegistry.defaultRegistry();
     }
 
     protected abstract String getLayerName();
@@ -185,6 +220,61 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .reasoning("[AI Native] " + getLayerName() + " LLM analysis unavailable")
                 .mitre(null)
                 .build();
+    }
+
+    protected SecurityDecision createTechnicalFallbackDecision(
+            SecurityEvent event,
+            ZeroTrustAction fallbackAction,
+            String fallbackReason,
+            String fallbackCategory,
+            long startTime,
+            int processingLayer) {
+        return createTechnicalFallbackDecision(
+                event,
+                fallbackAction,
+                fallbackReason,
+                fallbackCategory,
+                startTime,
+                processingLayer,
+                false,
+                null);
+    }
+
+    protected SecurityDecision createTechnicalFallbackDecision(
+            SecurityEvent event,
+            ZeroTrustAction fallbackAction,
+            String fallbackReason,
+            String fallbackCategory,
+            long startTime,
+            int processingLayer,
+            boolean requiresApproval,
+            String expertRecommendation) {
+        return SecurityDecision.builder()
+                .action(fallbackAction)
+                .autonomousAction(fallbackAction)
+                .llmDecisionPresent(false)
+                .technicalFallbackApplied(true)
+                .technicalFallbackCategory(fallbackCategory)
+                .technicalFallbackReason(fallbackReason)
+                .technicalFallbackAction(fallbackAction != null ? fallbackAction.name() : null)
+                .analysisTime(startTime)
+                .processingTimeMs(System.currentTimeMillis() - startTime)
+                .processingLayer(processingLayer)
+                .eventId(event != null ? event.getEventId() : "unknown")
+                .reasoning(fallbackReason)
+                .requiresApproval(requiresApproval)
+                .expertRecommendation(expertRecommendation)
+                .build();
+    }
+
+    protected String resolveTechnicalFailureCategory(Throwable throwable) {
+        if (throwable == null) {
+            return "UNKNOWN";
+        }
+        if (throwable instanceof StructuredOutputExecutionException structuredOutputExecutionException) {
+            return structuredOutputExecutionException.getCategory().name();
+        }
+        return throwable.getClass().getSimpleName();
     }
 
     protected SecurityDecision convertToSecurityDecisionBase(SecurityResponse response, SecurityEvent event) {
@@ -352,27 +442,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         String userId = event.getUserId();
         analysis.setSimilarEvents(similarEvents != null ? similarEvents : Collections.emptyList());
         if (baselineLearningService == null) {
-            analysis.setBaselineContext("[SERVICE_UNAVAILABLE] Baseline learning service not configured");
             analysis.setBaselineEstablished(false);
         } else if (userId == null) {
             log.error("[{}][SYSTEM_ERROR] userId is null - authentication system failure", getLayerName());
-            analysis.setBaselineContext("[SYSTEM_ERROR] Authentication failure - userId unavailable. " +
-                "This should not happen in authenticated platform. Recommend ESCALATE.");
             analysis.setBaselineEstablished(false);
         } else {
             try {
-                String baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
-
-                if (baselineContext == null || baselineContext.isEmpty()) {
-                    analysis.setBaselineContext("[NO_DATA] Baseline service returned empty response");
-                } else {
-                    analysis.setBaselineContext(baselineContext);
-                }
-                analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
+                analysis.setBaselineEstablished(baselineLearningService.getPersonalBaseline(userId) != null);
 
             } catch (Exception e) {
                 log.error("[{}] Baseline service error for user {}: {}", getLayerName(), userId, e.getMessage());
-                analysis.setBaselineContext("[SERVICE_ERROR] Baseline service error: " + e.getMessage());
                 analysis.setBaselineEstablished(false);
             }
         }
@@ -474,7 +553,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
             SecurityEvent event,
             SaasBaselineSeedService baselineSeedService) {
-        if (context == null || event == null || event.getUserId() == null || baselineLearningService == null) {
+        if (context == null || event == null) {
+            return;
+        }
+        if (baselineLearningService == null) {
+            applyUnavailableBaselineEvidence(
+                    context,
+                    BaselineEvidenceStatus.SERVICE_UNAVAILABLE,
+                    "baseline service unavailable");
+            return;
+        }
+        if (!StringUtils.hasText(event.getUserId())) {
+            applyUnavailableBaselineEvidence(
+                    context,
+                    BaselineEvidenceStatus.MISSING_USER_ID,
+                    "missing user identifier for baseline lookup");
             return;
         }
         event.addMetadata("baselineSeedApplied", false);
@@ -483,25 +576,40 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         event.addMetadata("personalBaselineEstablished", false);
         event.addMetadata("organizationBaselineEstablished", false);
         try {
-            BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
-            if (baseline != null) {
-                context.setBaselineIpRanges(baseline.getNormalIpRanges());
-                context.setBaselineOperatingSystems(baseline.getNormalOperatingSystems());
-                context.setBaselineUserAgents(baseline.getNormalUserAgents());
-                context.setBaselineFrequentPaths(baseline.getFrequentPaths());
-                context.setBaselineAccessHours(baseline.getNormalAccessHours());
-                context.setBaselineAccessDays(baseline.getNormalAccessDays());
-                context.setBaselineUpdateCount(baseline.getUpdateCount());
-                context.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
-                if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
-                    context.setPreviousUserAgentBrowser(baseline.getNormalUserAgents()[0]);
+            BaselineVector personalBaseline = baselineLearningService.getPersonalBaseline(event.getUserId());
+            if (personalBaseline != null) {
+                context.setBaselineIpRanges(personalBaseline.getNormalIpRanges());
+                context.setBaselineOperatingSystems(personalBaseline.getNormalOperatingSystems());
+                context.setBaselineUserAgents(personalBaseline.getNormalUserAgents());
+                context.setBaselineFrequentPaths(personalBaseline.getFrequentPaths());
+                context.setBaselineAccessHours(personalBaseline.getNormalAccessHours());
+                context.setBaselineAccessDays(personalBaseline.getNormalAccessDays());
+                context.setBaselineBrowsers(personalBaseline.getNormalBrowsers());
+                context.setBaselineIpBands(personalBaseline.getNormalIpBands());
+                context.setBaselineAuthenticationTypes(personalBaseline.getNormalAuthenticationTypes());
+                context.setBaselineActionFamilies(personalBaseline.getFrequentActionFamilies());
+                context.setBaselineResourceFamilies(personalBaseline.getFrequentResourceFamilies());
+                context.setBaselineUpdateCount(personalBaseline.getUpdateCount());
+                context.setBaselineAvgTrustScore(personalBaseline.getAvgTrustScore());
+                if (personalBaseline.getNormalUserAgents() != null && personalBaseline.getNormalUserAgents().length > 0) {
+                    context.setPreviousUserAgentBrowser(personalBaseline.getNormalUserAgents()[0]);
                 }
             }
             BaselineLearningService.BaselineMaturitySnapshot maturity =
-                    baselineLearningService.describeBaselineMaturity(event.getUserId());
+                    baselineLearningService.describeBaselineMaturity(event.getUserId(), resolveOrganizationId(event));
             if (maturity == null) {
+                applyUnavailableBaselineEvidence(
+                        context,
+                        BaselineEvidenceStatus.ANALYSIS_UNAVAILABLE,
+                        "baseline analysis unavailable");
                 return;
             }
+            context.setPersonalBaselineEvidence(
+                    baselineLearningService.buildBaselineEvidenceSnapshot(event.getUserId(), event));
+            context.setSupportingBaselineEvidence(
+                    baselineLearningService.buildSupportingBaselineEvidenceSnapshot(
+                            event.getUserId(),
+                            resolveOrganizationId(event)));
             context.setPersonalBaselineAvailable(maturity.personalBaselineAvailable());
             context.setPersonalBaselineEstablished(maturity.personalBaselineEstablished());
             context.setOrganizationBaselineAvailable(maturity.organizationBaselineAvailable());
@@ -535,9 +643,49 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 event.addMetadata("baselineSeedPolicyFacts", List.copyOf(seedDecision.policyFacts()));
             }
         } catch (Exception ex) {
+            applyUnavailableBaselineEvidence(
+                    context,
+                    BaselineEvidenceStatus.SERVICE_UNAVAILABLE,
+                    firstNonBlankTextValue(ex.getMessage(), "baseline service unavailable"));
             log.error("[{}] Failed to enrich baseline support context for user {}",
                     getLayerName(), event.getUserId(), ex);
         }
+    }
+
+    private void applyUnavailableBaselineEvidence(
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
+            BaselineEvidenceStatus status,
+            String diagnostic) {
+        context.setPersonalBaselineEvidence(unavailableBaseline(LearningEvidenceScope.PERSONAL, status, diagnostic));
+        context.setSupportingBaselineEvidence(unavailableBaseline(LearningEvidenceScope.SUPPORTING, status, diagnostic));
+        context.setPersonalBaselineAvailable(false);
+        context.setPersonalBaselineEstablished(false);
+        context.setOrganizationBaselineAvailable(false);
+        context.setOrganizationBaselineEstablished(false);
+    }
+
+    private BaselineEvidenceSnapshot unavailableBaseline(
+            LearningEvidenceScope scope,
+            BaselineEvidenceStatus status,
+            String diagnostic) {
+        return new BaselineEvidenceSnapshot(
+                scope,
+                false,
+                false,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "",
+                status,
+                diagnostic);
     }
 
     protected void hydrateBehaviorAnalysisRuntimeFacts(
@@ -667,28 +815,35 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 return Collections.emptyList();
             }
 
-            FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
-            List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
-            predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
-            predicates.add(filterBuilder.eq("userId", userId));
-            if (StringUtils.hasText(retrievalPurpose)) {
-                predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
+            List<Document> personalDocuments = searchBehaviorDocuments(
+                    query,
+                    requestedTopK,
+                    similarityThreshold,
+                    buildBehaviorFilterForUser(userId, retrievalPurpose));
+
+            List<Document> mergedDocuments = new ArrayList<>(personalDocuments);
+            boolean personalBaselineEstablished = baselineLearningService != null
+                    && baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event))
+                    .personalBaselineEstablished();
+            boolean needSupportingEvidence = personalDocuments.size() < 3 || !personalBaselineEstablished;
+            if (needSupportingEvidence) {
+                String organizationId = resolveOrganizationId(event);
+                if (StringUtils.hasText(organizationId)) {
+                    int supportingTopK = Math.max(1, Math.min(requestedTopK, 2));
+                    List<Document> supportingDocuments = searchSupportingBehaviorDocuments(
+                            query,
+                            supportingTopK,
+                            similarityThreshold,
+                            organizationId,
+                            retrievalPurpose,
+                            userId);
+                    supportingDocuments.stream()
+                            .filter(document -> !userId.equalsIgnoreCase(documentUserId(document)))
+                            .forEach(mergedDocuments::add);
+                }
             }
 
-            FilterExpressionBuilder.Op combinedPredicate = predicates.getFirst();
-            for (int index = 1; index < predicates.size(); index++) {
-                combinedPredicate = filterBuilder.and(combinedPredicate, predicates.get(index));
-            }
-            Filter.Expression filter = combinedPredicate.build();
-
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query(query)
-                    .topK(topK)
-                    .similarityThreshold(similarityThreshold)
-                    .filterExpression(filter)
-                    .build();
-
-            List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+            List<Document> documents = dedupeDocuments(mergedDocuments, requestedTopK);
             AuthorizedPromptContext limitedAuthorizedPromptContext;
             if (documents == null || documents.isEmpty()) {
                 limitedAuthorizedPromptContext = limitAuthorizedPromptContext(null, requestedTopK);
@@ -704,10 +859,207 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
         } catch (Exception e) {
             log.error("[{}] Vector store context search failed", getLayerName(), e);
+            markRagRetrievalUnavailable(event, requestedTopK, e);
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                     "VECTOR_STORE_SEARCH_FAILED", e);
             return Collections.emptyList();
         }
+    }
+
+    private void markRagRetrievalUnavailable(SecurityEvent event, int requestedTopK, Exception exception) {
+        if (event == null) {
+            return;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null) {
+            metadata = new LinkedHashMap<>();
+            event.setMetadata(metadata);
+        }
+        metadata.put("ragUnavailable", true);
+        metadata.put("ragTimedOut", false);
+        metadata.put("relatedDocumentsCount", 0);
+        metadata.put("ragFailureType", exception != null ? exception.getClass().getName() : "unknown");
+        metadata.put("ragFailureMessage",
+                exception != null && StringUtils.hasText(exception.getMessage())
+                        ? exception.getMessage()
+                        : "RAG retrieval unavailable");
+        metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+    }
+
+    private List<Document> searchBehaviorDocuments(
+            String query,
+            int topK,
+            double similarityThreshold,
+            Filter.Expression filterExpression) {
+        SearchRequest searchRequest = SearchRequest.builder()
+                .query(query)
+                .topK(Math.max(1, topK))
+                .similarityThreshold(similarityThreshold)
+                .filterExpression(filterExpression)
+                .build();
+        List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+        return documents == null ? List.of() : documents;
+    }
+
+    private List<Document> searchSupportingBehaviorDocuments(
+            String query,
+            int topK,
+            double similarityThreshold,
+            String organizationId,
+            String retrievalPurpose,
+            String currentUserId) {
+        List<Document> byOrganizationMetadata = searchBehaviorDocuments(
+                query,
+                topK,
+                similarityThreshold,
+                buildBehaviorFilterForOrganization(organizationId, retrievalPurpose));
+        if (!byOrganizationMetadata.isEmpty()) {
+            return byOrganizationMetadata.stream()
+                    .filter(document -> belongsToOrganization(document, organizationId))
+                    .filter(document -> !currentUserId.equalsIgnoreCase(documentUserId(document)))
+                    .toList();
+        }
+
+        int fallbackTopK = Math.max(topK * 4, 8);
+        return searchBehaviorDocuments(
+                query,
+                fallbackTopK,
+                similarityThreshold,
+                buildBehaviorFilterForSupportingFallback(retrievalPurpose)).stream()
+                .filter(document -> belongsToOrganization(document, organizationId))
+                .filter(document -> !currentUserId.equalsIgnoreCase(documentUserId(document)))
+                .limit(topK)
+                .toList();
+    }
+
+    private Filter.Expression buildBehaviorFilterForUser(String userId, String retrievalPurpose) {
+        FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
+        List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
+        predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
+        predicates.add(filterBuilder.eq(VectorDocumentMetadata.USER_ID, userId));
+        if (StringUtils.hasText(retrievalPurpose)) {
+            predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
+        }
+        return combinePredicates(filterBuilder, predicates);
+    }
+
+    private Filter.Expression buildBehaviorFilterForOrganization(String organizationId, String retrievalPurpose) {
+        FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
+        List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
+        predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
+        predicates.add(filterBuilder.eq(VectorDocumentMetadata.ORGANIZATION_ID, organizationId));
+        if (StringUtils.hasText(retrievalPurpose)) {
+            predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
+        }
+        return combinePredicates(filterBuilder, predicates);
+    }
+
+    private Filter.Expression buildBehaviorFilterForSupportingFallback(String retrievalPurpose) {
+        FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
+        List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
+        predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
+        if (StringUtils.hasText(retrievalPurpose)) {
+            predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
+        }
+        return combinePredicates(filterBuilder, predicates);
+    }
+
+    private Filter.Expression combinePredicates(
+            FilterExpressionBuilder filterBuilder,
+            List<FilterExpressionBuilder.Op> predicates) {
+        FilterExpressionBuilder.Op combinedPredicate = predicates.getFirst();
+        for (int index = 1; index < predicates.size(); index++) {
+            combinedPredicate = filterBuilder.and(combinedPredicate, predicates.get(index));
+        }
+        return combinedPredicate.build();
+    }
+
+    private List<Document> dedupeDocuments(List<Document> documents, int maxDocuments) {
+        if (documents == null || documents.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashMap<String, Document> deduped = new LinkedHashMap<>();
+        for (Document document : documents) {
+            if (document == null) {
+                continue;
+            }
+            String key = firstNonBlankTextValue(
+                    textValue(document.getMetadata() != null ? document.getMetadata().get(VectorDocumentMetadata.ID) : null),
+                    textValue(document.getMetadata() != null ? document.getMetadata().get(VectorDocumentMetadata.ARTIFACT_ID) : null),
+                    textValue(document.getMetadata() != null ? document.getMetadata().get(VectorDocumentMetadata.EVENT_ID) : null),
+                    textValue(document.getMetadata() != null ? document.getMetadata().get("requestPath") : null),
+                    document.getText());
+            if (!StringUtils.hasText(key) || !deduped.containsKey(key)) {
+                deduped.put(key, document);
+            }
+            if (deduped.size() >= maxDocuments) {
+                break;
+            }
+        }
+        return List.copyOf(deduped.values());
+    }
+
+    private String documentUserId(Document document) {
+        if (document == null || document.getMetadata() == null) {
+            return null;
+        }
+        return textValue(document.getMetadata().get(VectorDocumentMetadata.USER_ID));
+    }
+
+    private String documentOrganizationId(Document document) {
+        if (document == null || document.getMetadata() == null) {
+            return null;
+        }
+        String metadataOrganizationId = firstNonBlankTextValue(
+                textValue(document.getMetadata().get(VectorDocumentMetadata.ORGANIZATION_ID)),
+                textValue(document.getMetadata().get("organizationId")),
+                textValue(document.getMetadata().get("tenantId")),
+                textValue(document.getMetadata().get("orgId")));
+        return metadataOrganizationId;
+    }
+
+    private boolean belongsToOrganization(Document document, String organizationId) {
+        if (!StringUtils.hasText(organizationId)) {
+            return false;
+        }
+        return organizationId.equalsIgnoreCase(documentOrganizationId(document));
+    }
+
+    private String resolveOrganizationId(SecurityEvent event) {
+        if (event == null) {
+            return null;
+        }
+        if (event.getMetadata() != null) {
+            String metadataOrganizationId = firstNonBlankTextValue(
+                    textValue(event.getMetadata().get(VectorDocumentMetadata.ORGANIZATION_ID)),
+                    textValue(event.getMetadata().get("organizationId")),
+                    textValue(event.getMetadata().get("tenantId")),
+                    textValue(event.getMetadata().get("orgId")));
+            if (StringUtils.hasText(metadataOrganizationId)) {
+                return metadataOrganizationId;
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlankTextValue(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String textValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String rendered = String.valueOf(value).trim();
+        return rendered.isEmpty() ? null : rendered;
     }
 
     private void capturePromptContextAudit(
@@ -838,14 +1190,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     protected static class BaseBehaviorAnalysis {
         protected List<String> similarEvents = new ArrayList<>();
-        protected String baselineContext;
         protected boolean baselineEstablished;
 
         public List<String> getSimilarEvents() { return similarEvents; }
         public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
-
-        public String getBaselineContext() { return baselineContext; }
-        public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
 
         public boolean isBaselineEstablished() { return baselineEstablished; }
         public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
@@ -934,10 +1282,72 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         behaviorAnalysis,
                         relatedDocuments
                 ));
+        PromptBudgetProfile promptBudgetProfile = resolvePromptBudgetProfile(event);
         request.withParameter("responseType", SecurityDecisionResponse.class);
-        request.withParameter("promptBudgetProfile", resolvePromptBudgetProfile(event).profileKey());
+        request.withParameter("promptBudgetProfile", promptBudgetProfile.profileKey());
+        StructuredOutputCapability structuredOutputCapability = resolveStructuredOutputCapability(event);
+        request.withParameter("structuredOutputMode", resolveStructuredOutputMode(event, structuredOutputCapability).name());
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
+        request.withParameter("structuredOutputValidationMaxAttempts", 1);
+        request.withParameter("strictResponsePostprocessing", true);
+        request.withParameter("pipelineFailurePolicy", PipelineFailurePolicy.PROPAGATE_ERROR.name());
+        request.withParameter(
+                "nativeStructuredOutputEnabled",
+                tieredStrategyProperties.getPromptRuntime().isNativeStructuredOutputEnabledForProfile(promptBudgetProfile.profileKey()));
+        request.withParameter("structuredOutputProviderFamily", structuredOutputCapability.providerFamily());
+        request.withParameter("structuredOutputNativeSupported", structuredOutputCapability.nativeStructuredSupported());
+        request.withParameter("structuredOutputValidationAdvisorSupported", structuredOutputCapability.validationAdvisorSupported());
+        request.withParameter("structuredOutputCapabilitySource", structuredOutputCapability.resolutionSource());
         applyRuntimeSelectionOptions(request, event);
         return request;
+    }
+
+    protected StructuredOutputMode resolveStructuredOutputMode(SecurityEvent event, StructuredOutputCapability capability) {
+        if (event != null && event.getMetadata() != null) {
+            StructuredOutputMode explicit = StructuredOutputMode.fromValue(
+                    event.getMetadata().get("structuredOutputMode"),
+                    null);
+            if (explicit != null) {
+                return explicit;
+            }
+            Object nativeStructuredEnabled = event.getMetadata().get("nativeStructuredOutputEnabled");
+            if (nativeStructuredEnabled instanceof Boolean enabled && !enabled) {
+                return StructuredOutputMode.VALIDATED_CONVERTER;
+            }
+        }
+        return capability.resolvePreferredMode();
+    }
+
+    protected StructuredOutputCapability resolveStructuredOutputCapability(SecurityEvent event) {
+        String modelHint = null;
+        String providerHint = null;
+        if (event != null && event.getMetadata() != null) {
+            modelHint = firstNonBlank(
+                    event.getMetadata().get("requestedModelId"),
+                    event.getMetadata().get("preferredModel"),
+                    event.getMetadata().get("runtimeModelId"),
+                    event.getMetadata().get("officialVerificationPinnedModelId"));
+            providerHint = firstNonBlank(
+                    event.getMetadata().get("selectedModelProvider"),
+                    event.getMetadata().get("providerResponseModel"));
+        }
+        return structuredOutputCapabilityRegistry.resolve(modelHint, providerHint, true);
+    }
+
+    private String firstNonBlank(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            String text = String.valueOf(value).trim();
+            if (!text.isEmpty()) {
+                return text;
+            }
+        }
+        return null;
     }
 
     protected void applyRuntimeSelectionOptions(SecurityDecisionRequest request, SecurityEvent event) {
@@ -1015,12 +1425,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             String configuredProfile = tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
                     ? tieredStrategyProperties.getLayer2().getDefaultBudgetProfile()
                     : null;
-            return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L2_STANDARD);
+            return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT);
         }
         String configuredProfile = tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
                 ? tieredStrategyProperties.getLayer1().getDefaultBudgetProfile()
                 : null;
-        return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L1_STANDARD);
+        return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
     }
 
     protected void clearPromptRuntimeTelemetry(SecurityEvent event) {

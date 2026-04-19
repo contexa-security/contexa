@@ -51,10 +51,13 @@ public class PromptGenerator {
         PromptTemplate template = promptTemplates.get(templateKey);
         String rawSystemPrompt = template.generateSystemPrompt(request, systemMetadata);
         String rawUserPrompt = template.generateUserPrompt(request, contextInfo);
+        PromptBudgetProfile effectiveBudgetProfile = resolveBudgetProfile(request, template, rawSystemPrompt, rawUserPrompt);
+        String modelHint = PromptGovernanceSupport.resolveRequestedModelHint(request);
         PromptViewComposition promptViewComposition = llmViewComposer.compose(
                 rawSystemPrompt,
                 rawUserPrompt,
-                resolveBudgetProfile(request));
+                effectiveBudgetProfile,
+                modelHint);
         String systemPrompt = promptViewComposition.llmSystemPrompt();
         String userPrompt = promptViewComposition.llmUserPrompt();
 
@@ -117,11 +120,15 @@ public class PromptGenerator {
                 PromptGovernanceSupport.buildDefaultDescriptor(templateKey, template.getClass());
         return PromptGovernanceSupport.buildExecutionMetadata(
                 descriptor,
-                resolveBudgetProfile(request),
+                resolveBudgetProfile(request, template,
+                        promptViewComposition.rawSystemPrompt(),
+                        promptViewComposition.rawUserPrompt()),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 PromptEvidenceCompleteness.SUFFICIENT,
+                PromptGovernanceSupport.resolveRequestedModelHint(request),
                 promptViewComposition.llmSystemPrompt(),
                 promptViewComposition.llmUserPrompt(),
                 promptViewComposition.rawSystemPrompt(),
@@ -129,17 +136,27 @@ public class PromptGenerator {
                 promptViewComposition.compressionLedger());
     }
 
-    private PromptBudgetProfile resolveBudgetProfile(AIRequest<? extends DomainContext> request) {
+    private PromptBudgetProfile resolveBudgetProfile(
+            AIRequest<? extends DomainContext> request,
+            PromptTemplate template,
+            String systemPrompt,
+            String userPrompt) {
         if (request == null) {
-            return PromptBudgetProfile.CORTEX_L1_STANDARD;
+            return PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
         }
         Object parameter = request.getParameter("promptBudgetProfile", Object.class);
         if (parameter instanceof PromptBudgetProfile profile) {
             return profile;
         }
         if (parameter instanceof String profileKey) {
-            return PromptBudgetProfile.fromKey(profileKey, PromptBudgetProfile.CORTEX_L1_STANDARD);
+            return PromptBudgetProfile.fromKey(profileKey, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
         }
-        return PromptBudgetProfile.CORTEX_L1_STANDARD;
+        if (template instanceof GovernedPromptTemplate governedPromptTemplate) {
+            PromptExecutionMetadata metadata = governedPromptTemplate.buildPromptExecutionMetadata(request, systemPrompt, userPrompt);
+            if (metadata != null && metadata.budgetProfile() != null) {
+                return metadata.budgetProfile();
+            }
+        }
+        return PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     }
 }

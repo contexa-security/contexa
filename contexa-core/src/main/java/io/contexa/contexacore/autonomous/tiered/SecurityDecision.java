@@ -53,6 +53,11 @@ public class SecurityDecision {
      * When null, the proposed action is also the enforced action.
      */
     private ZeroTrustAction autonomousAction;
+    private Boolean llmDecisionPresent;
+    private Boolean technicalFallbackApplied;
+    private String technicalFallbackCategory;
+    private String technicalFallbackReason;
+    private String technicalFallbackAction;
     private Boolean autonomyConstraintApplied;
     @Builder.Default
     private List<String> autonomyConstraintReasons = new ArrayList<>();

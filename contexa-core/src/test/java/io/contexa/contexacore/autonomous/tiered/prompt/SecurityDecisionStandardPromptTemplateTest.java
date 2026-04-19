@@ -3,6 +3,9 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -16,6 +19,7 @@ import org.springframework.ai.document.Document;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,7 +49,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setRequestCount(5);
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("[NO_DATA] Baseline not loaded");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
 
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())
@@ -63,26 +67,27 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
         assertThat(systemPrompt).contains("<output_format>");
-        assertThat(systemPrompt).contains("The reasoning field must be exactly one short sentence, no more than 24 words.");
-        assertThat(systemPrompt).contains("Do not repeat the same factor in different wording.");
-        assertThat(systemPrompt).contains("If any of those labels is false, you must not claim the opposite.");
-        assertThat(systemPrompt).contains("If NewUser is false, do not say \"new user\".");
-        assertThat(systemPrompt).contains("PersonalBaselineStatus: NOT_ESTABLISHED");
-        assertThat(systemPrompt).contains("Treat the CURRENT REQUEST sensitivity label as authoritative.");
-        assertThat(systemPrompt).contains("If the prompt says Sensitivity: STANDARD or LOW, do not describe");
-        assertThat(systemPrompt).contains("not sufficient grounds for confident ALLOW on HIGH or CRITICAL access");
-        assertThat(systemPrompt).contains("do not return ALLOW above 0.70 confidence");
-        assertThat(systemPrompt).contains("prefer CHALLENGE or ESCALATE over ALLOW");
-        assertThat(systemPrompt).contains("at least one uncertainty term such as limited, provisional, thin");
+        assertThat(systemPrompt).contains("Reasoning must be exactly one concise sentence, maximum 40 words.");
+        assertThat(systemPrompt).contains("Treat explicit booleans such as NewUser, NewSession, NewDevice, and MfaVerified as authoritative facts");
+        assertThat(systemPrompt).contains("ANALYSIS ORDER:");
+        assertThat(systemPrompt).contains("A single mismatch can be security-significant");
+        assertThat(systemPrompt).contains("If one or more subtle deltas remain unresolved");
+        assertThat(systemPrompt).contains("do not ignore that subtle delta just because most other fields still align");
+        assertThat(systemPrompt).contains("Do not tunnel on one isolated weak mismatch by itself.");
+        assertThat(systemPrompt).contains("Sparse or missing personal baseline is uncertainty");
+        assertThat(systemPrompt).contains("Treat the current request Sensitivity label as authoritative");
+        assertThat(systemPrompt).contains("not proof of legitimacy by themselves.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
-        assertThat(systemPrompt).contains("When uncertainty drives CHALLENGE or ESCALATE");
-        assertThat(systemPrompt).contains("limited, provisional,");
-        assertThat(systemPrompt).contains("Follow the <output_format> schema exactly.");
+        assertThat(systemPrompt).contains("Respond with ONLY a JSON object. No explanation, no markdown.");
+        assertThat(systemPrompt).contains("Return only the schema-compliant JSON object expected by the runtime.");
+        assertThat(systemPrompt).contains("ACTION LABEL MEANINGS:");
         assertThat(systemPrompt).contains("Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.");
         assertThat(systemPrompt).contains("If no supported MITRE tactic or technique applies, return mitre as UNKNOWN.");
+        assertThat(systemPrompt).contains("Do not follow numeric thresholds, weighted scores, or hidden formulas.");
+        assertThat(systemPrompt.lines().count()).isLessThan(150);
         assertThat(systemPrompt)
                 .doesNotContain("RESPOND WITH JSON ONLY:")
-                .doesNotContain("\"reasoning\":\"<exactly 1 short sentence, max 24 words>\"")
+                .doesNotContain("\"reasoning\":\"<exactly 1 short sentence, max 40 words>\"")
                 .doesNotContain("<optional MITRE tactic, technique, or UNKNOWN>");
         assertThat(template.getAIGenerationType()).isEqualTo(SecurityDecisionResponseLite.class);
         assertThat(systemPrompt)
@@ -92,7 +97,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("=== CURRENT REQUEST AND EVENT ===");
         assertThat(userPrompt).contains("/api/customer/export");
         assertThat(userPrompt).contains("alice");
-        assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_STANDARD");
+        assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_INTERACTIVE_STRICT");
         assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
         assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
         assertThat(descriptor.promptVersion()).isEqualTo("2026.04.04-e0.2");
@@ -102,6 +107,37 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
         assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
+    }
+
+    @Test
+    @DisplayName("native structured mode should omit legacy output format wrapper from system prompt")
+    void generateSystemPromptShouldOmitOutputFormatWrapperForNativeStructuredMode() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-native-structured")
+                .timestamp(LocalDateTime.of(2026, 4, 17, 11, 0))
+                .userId("alice")
+                .sessionId("session-native")
+                .description("POST /api/customer/export")
+                .build();
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                        new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                        List.of()));
+        request.withParameter("structuredOutputMode", "NATIVE_STRUCTURED");
+
+        String systemPrompt = template.generateSystemPrompt(request, "dynamic-metadata");
+
+        assertThat(systemPrompt).doesNotContain("<output_format>");
+        assertThat(systemPrompt).doesNotContain("</output_format>");
+        assertThat(systemPrompt).doesNotContain("<context>");
+        assertThat(systemPrompt).contains("Return only the schema-compliant JSON object expected by the runtime.");
     }
 
 
@@ -131,11 +167,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setRequestCount(1);
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("=== PERSONAL BASELINE STATUS ===\n"
-                + "PersonalBaselineStatus: NOT_ESTABLISHED\n"
-                + "PersonalBaselineSummary: No verified personal behavior baseline is available for this subject yet.\n"
-                + "BaselineInterpretation: Missing personal history is uncertainty, not proof of compromise or legitimacy.\n"
-                + "BaselineComparisonStatus: No verified personal history is available for direct comparison.\n");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
         behaviorAnalysis.setPersonalBaselineAvailable(false);
         behaviorAnalysis.setPersonalBaselineEstablished(false);
 
@@ -235,10 +267,10 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         String userPrompt = template.generateUserPrompt(request, "");
 
-        assertThat(userPrompt).contains("Previous request path: /admin/api/security-test/sensitive/resource-001.");
-        assertThat(userPrompt).contains("Time since last request: 42 seconds.");
-        assertThat(userPrompt).doesNotContain("Previous request path: /admin/api/security-test/evidence/server-truth.");
-        assertThat(userPrompt).doesNotContain("Time since last request: 0 seconds.");
+        assertThat(userPrompt).contains("PreviousPath: /admin/api/security-test/sensitive/resource-001");
+        assertThat(userPrompt).contains("LastRequestIntervalMs: 42000");
+        assertThat(userPrompt).doesNotContain("PreviousPath: /admin/api/security-test/evidence/server-truth");
+        assertThat(userPrompt).doesNotContain("LastRequestIntervalMs: 0");
     }
 
     @Test
@@ -264,11 +296,11 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setSessionId("session-1");
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon)");
         behaviorAnalysis.setBaselineEstablished(true);
         behaviorAnalysis.setPersonalBaselineAvailable(true);
         behaviorAnalysis.setPersonalBaselineEstablished(false);
         behaviorAnalysis.setBaselineUpdateCount(1L);
+        behaviorAnalysis.setPersonalBaselineEvidence(personalBaselineEvidence(false, 1L));
 
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())
@@ -276,10 +308,12 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         String userPrompt = template.generateUserPrompt(request, "");
 
-        assertThat(userPrompt).contains("Provisional baseline evidence (learning in progress):");
+        assertThat(userPrompt).contains("BaselineProfileStatus: PROVISIONAL");
+        assertThat(userPrompt).contains("PersonalBaselineStatus: LEARNING_IN_PROGRESS");
+        assertThat(userPrompt).contains("BaselineContextSummary:");
         assertThat(userPrompt).doesNotContain("This user normally");
         assertThat(userPrompt).doesNotContain("Frequent paths:");
-        assertThat(userPrompt).doesNotContain("Established baseline (from learned behavior):");
+        assertThat(userPrompt).doesNotContain("BaselineProfileStatus: ESTABLISHED");
     }
 
     @Test
@@ -306,26 +340,78 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setSessionId("session-2");
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("""
-                [NO_PERSONAL_BASELINE] This user has no personal behavioral history.
-
-                Organization Baseline (reference only - NOT this user's personal patterns):
-                Known Hours: 9, 10, 11
-                Frequent Paths: /admin/api/security-test/sensitive/resource-001
-                """);
         behaviorAnalysis.setPersonalBaselineAvailable(false);
         behaviorAnalysis.setPersonalBaselineEstablished(false);
         behaviorAnalysis.setOrganizationBaselineAvailable(true);
         behaviorAnalysis.setOrganizationBaselineEstablished(true);
         behaviorAnalysis.setBaselineUpdateCount(1L);
+        behaviorAnalysis.setSupportingBaselineEvidence(supportingBaselineEvidence());
 
         String userPrompt = template.generateUserPrompt(new SecurityDecisionRequest(
                 new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())), "");
 
         assertThat(userPrompt).contains("NewUser: false");
-        assertThat(userPrompt).contains("This user is not marked as new, but personal behavioral history is still sparse.");
+        assertThat(userPrompt).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
+        assertThat(userPrompt).contains("BaselineSupportSummary: Personal history is still sparse;");
+        assertThat(userPrompt).contains("SupportingBaselineStatus: AVAILABLE_REFERENCE");
+        assertThat(userPrompt).contains("SupportingBaselineSummary: organization baseline available");
         assertThat(userPrompt).doesNotContain("This is a new user without established behavioral baseline.");
         assertThat(userPrompt).doesNotContain("Personal behavioral baseline is not established yet.");
+    }
+
+    @Test
+    @DisplayName("typed supporting comparable evidence should render historical scope even without legacy similarEvents")
+    void generateUserPromptShouldRenderSupportingComparableEvidenceFromTypedLearningContext() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-supporting-comparables")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 16, 0))
+                .userId("alice")
+                .sessionId("session-supporting")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineAvailable(false);
+        behaviorAnalysis.setPersonalBaselineEstablished(false);
+        behaviorAnalysis.setOrganizationBaselineAvailable(true);
+        behaviorAnalysis.setOrganizationBaselineEstablished(true);
+        behaviorAnalysis.setSupportingBaselineEvidence(supportingBaselineEvidence());
+
+        Document supportingDoc = new Document(
+                "Reference access from a related cohort user to the same sensitive resource.",
+                Map.ofEntries(
+                        Map.entry("documentType", "behavior"),
+                        Map.entry("userId", "bob@corp"),
+                        Map.entry("organizationId", "corp"),
+                        Map.entry("requestPath", "/admin/api/security-test/sensitive/resource-001"),
+                        Map.entry("hour", 10),
+                        Map.entry("dayOfWeek", 1),
+                        Map.entry("userAgentBrowser", "Chrome/120"),
+                        Map.entry("userAgentOS", "Windows"),
+                        Map.entry("authenticationType", "PASSWORD"),
+                        Map.entry("actionFamily", "READ"),
+                        Map.entry("resourceFamily", "sensitive")));
+
+        String userPrompt = template.generateUserPrompt(new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                        behaviorAnalysis,
+                        List.of(supportingDoc))), "");
+
+        assertThat(userPrompt).contains("HistoricalComparableEvents:");
+        assertThat(userPrompt).contains("HistoricalComparableScope: NO_DIRECT_PERSONAL_COMPARABLE");
+        assertThat(userPrompt).contains("HistoricalComparableCount: 0");
+        assertThat(userPrompt).contains("HistoricalComparableSummary: Records=0 | NoDirectPersonalComparableEvidence");
+        assertThat(userPrompt).contains("=== SUPPORTING LEARNING CONTEXT ===");
+        assertThat(userPrompt).contains("SupportingComparableCount: 1");
+        assertThat(userPrompt).contains("SupportingComparableExample1:");
     }
 
     @Test
@@ -350,20 +436,156 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setSessionId("session-1");
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("[NO_DATA] Baseline not loaded");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
 
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(
                         event,
                         sessionContext,
                         behaviorAnalysis,
-                        List.of(new Document("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon)"))));
+                        List.of(
+                                new Document("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon). Decision: proposedAction=ALLOW"),
+                                new Document("Follow-up access revisited /admin/api/security-test/sensitive/resource-001 from the same managed browser."))));
 
         String userPrompt = template.generateUserPrompt(request, "");
 
         assertThat(userPrompt).contains("HistoricalComparableEvents:");
-        assertThat(userPrompt).contains("Historical records for context:");
+        assertThat(userPrompt).contains("SupportingComparableCount: 2");
+        assertThat(userPrompt).contains("SupportingComparableSummary: Records=2");
+        assertThat(userPrompt).contains("SupportingComparableExample1:");
         assertThat(userPrompt).contains("/admin/api/security-test/sensitive/resource-001");
+        assertThat(userPrompt).doesNotContain("Decision:");
+        assertThat(userPrompt).doesNotContain("proposedAction=");
+        assertThat(userPrompt).doesNotContain("SupportingComparableExample2:");
+    }
+
+    @Test
+    @DisplayName("current request rendering should avoid contradictory duplicate hour and sensitivity narratives")
+    void generateUserPromptShouldAvoidContradictoryCurrentHourAndSensitivityNarrative() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-current-request-normalization")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 15, 10))
+                .userId("alice")
+                .sessionId("session-normalized")
+                .sourceIp("203.0.113.10")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("currentAccessHour", 15);
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("userRoles", List.of("ADMIN"));
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                        new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                        List.of()));
+
+        String userPrompt = template.generateUserPrompt(request, "");
+
+        assertThat(userPrompt).contains("CurrentAccessHour: 15");
+        assertThat(userPrompt).doesNotContain("CurrentHour:");
+        assertThat(userPrompt).doesNotContain("This is a SENSITIVE resource.");
+    }
+
+    @Test
+    @DisplayName("current request rendering should normalize raw authentication vocabulary into semantic labels")
+    void generateUserPromptShouldNormalizeAuthenticationVocabulary() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-auth-normalization")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10))
+                .userId("alice")
+                .sessionId("session-auth-normalized")
+                .sourceIp("203.0.113.10")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("authenticationType", "UsernamePasswordAuthenticationToken");
+        event.addMetadata("authMethod", "UsernamePasswordAuthenticationToken");
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("userRoles", List.of("ADMIN"));
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                        new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                        List.of()));
+
+        String userPrompt = template.generateUserPrompt(request, "");
+
+        assertThat(userPrompt).contains("AuthenticationType: PASSWORD");
+        assertThat(userPrompt).doesNotContain("USERNAMEPASSWORDAUTHENTICATIONTOKEN");
+    }
+
+    @Test
+    @DisplayName("prompt execution metadata should preserve prompt contract audit fields through final metadata build")
+    void buildPromptExecutionMetadataShouldPreservePromptContractAuditFields() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-contract-metadata")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10))
+                .userId("alice")
+                .sessionId("session-contract-metadata")
+                .sourceIp("203.0.113.10")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("resourceSensitivity", "HIGH");
+        event.addMetadata("mfaVerified", true);
+        event.addMetadata("userRoles", List.of("ADMIN"));
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                        new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                        List.of()));
+
+        String systemPrompt = template.generateSystemPrompt(request, "");
+        String userPrompt = template.generateUserPrompt(request, "");
+        PromptExecutionMetadata metadata = template.buildPromptExecutionMetadata(request, systemPrompt, userPrompt);
+
+        assertThat(metadata.toMetadataMap())
+                .containsKeys(
+                        "renderedRequestSnapshot",
+                        "renderedLearningSnapshot",
+                        "renderedLabelMatrix",
+                        "compactedLineCountBySection",
+                        "promptContractViolations",
+                        "promptContractViolationCount");
     }
 
     @Test
@@ -414,7 +636,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setRequestCount(2);
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("[NO_DATA] Baseline not loaded");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
 
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(
@@ -464,23 +686,23 @@ class SecurityDecisionStandardPromptTemplateTest {
         sessionContext.setSessionId("session-1");
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis round1 = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        round1.setBaselineContext("[NO_DATA] Baseline not loaded");
+        round1.setPersonalBaselineEvidence(noDataBaselineEvidence());
         round1.setPersonalBaselineAvailable(false);
         round1.setPersonalBaselineEstablished(false);
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis round2 = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        round2.setBaselineContext("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon)");
         round2.setBaselineEstablished(true);
         round2.setPersonalBaselineAvailable(true);
         round2.setPersonalBaselineEstablished(false);
         round2.setBaselineUpdateCount(1L);
+        round2.setPersonalBaselineEvidence(personalBaselineEvidence(false, 1L));
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis round3 = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        round3.setBaselineContext("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon)");
         round3.setBaselineEstablished(true);
         round3.setPersonalBaselineAvailable(true);
         round3.setPersonalBaselineEstablished(true);
         round3.setBaselineUpdateCount(5L);
+        round3.setPersonalBaselineEvidence(personalBaselineEvidence(true, 5L));
 
         String round1Prompt = template.generateUserPrompt(new SecurityDecisionRequest(
                 new SecurityDecisionContext(event, sessionContext, round1, List.of())), "");
@@ -501,12 +723,13 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         assertThat(round1Prompt).doesNotContain("HistoricalComparableEvents:");
         assertThat(round2Prompt).contains("HistoricalComparableEvents:");
-        assertThat(round2Prompt).contains("Provisional baseline evidence (learning in progress):");
+        assertThat(round2Prompt).contains("BaselineProfileStatus: PROVISIONAL");
+        assertThat(round2Prompt).contains("BaselineContextSummary:");
         assertThat(round3Prompt).contains("HistoricalComparableEvents:");
-        assertThat(round3Prompt).contains("Established baseline (from learned behavior):");
-        assertThat(round3Prompt).doesNotContain("Provisional baseline evidence (learning in progress):");
+        assertThat(round3Prompt).contains("BaselineProfileStatus: ESTABLISHED");
+        assertThat(round3Prompt).doesNotContain("BaselineProfileStatus: PROVISIONAL");
         assertThat(countOccurrences(round2Prompt, "Round2:")).isGreaterThanOrEqualTo(1);
-        assertThat(countOccurrences(round3Prompt, "Round")).isGreaterThanOrEqualTo(2);
+        assertThat(countOccurrences(round3Prompt, "Round")).isGreaterThanOrEqualTo(1);
     }
 
     private int countOccurrences(String text, String token) {
@@ -520,6 +743,67 @@ class SecurityDecisionStandardPromptTemplateTest {
             }
         }
         return count;
+    }
+
+    private BaselineEvidenceSnapshot personalBaselineEvidence(boolean established, Long observations) {
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL,
+                true,
+                established,
+                observations,
+                0.92d,
+                List.of("192.168.1"),
+                List.of("11"),
+                List.of("1"),
+                List.of("Chrome/120"),
+                List.of("Windows"),
+                List.of("/admin/api/*"),
+                List.of("PASSWORD"),
+                List.of("READ"),
+                List.of("sensitive"),
+                established
+                        ? "personal baseline established | observations=" + observations
+                        : "personal baseline provisional | observations=" + observations);
+    }
+
+    private BaselineEvidenceSnapshot noDataBaselineEvidence() {
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL,
+                false,
+                false,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "",
+                BaselineEvidenceStatus.NO_DATA,
+                "");
+    }
+
+    private BaselineEvidenceSnapshot supportingBaselineEvidence() {
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.SUPPORTING,
+                true,
+                true,
+                8L,
+                0.88d,
+                List.of("192.168.1"),
+                List.of("9", "10", "11"),
+                List.of("1", "2", "3", "4", "5"),
+                List.of("Chrome/120"),
+                List.of("Windows"),
+                List.of("/admin/api/*"),
+                List.of("PASSWORD"),
+                List.of("READ"),
+                List.of("sensitive"),
+                "organization baseline available | organization baseline established | supportingDimensions=ACCESS_HOURS, ACCESS_DAYS, OPERATING_SYSTEMS");
     }
 }
 

@@ -30,6 +30,7 @@ public class PromptGenerationStep implements PipelineStep {
             PipelineExecutionContext context) {
 
         return Mono.fromCallable(() -> {
+            long stepStartTime = System.currentTimeMillis();
 
             ContextRetriever.ContextRetrievalResult contextResult =
                     context.getStepResult(
@@ -57,6 +58,7 @@ public class PromptGenerationStep implements PipelineStep {
                         .forEach(context::addMetadata);
             }
             captureSecurityDecisionPromptLineage(request, promptResult);
+            context.addMetadata("promptBuildLatencyMs", System.currentTimeMillis() - stepStartTime);
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
             return promptResult;

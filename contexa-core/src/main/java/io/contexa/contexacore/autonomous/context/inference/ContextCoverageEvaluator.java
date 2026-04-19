@@ -127,6 +127,11 @@ public class ContextCoverageEvaluator {
         if (CanonicalContextFieldPolicy.hasObservedScope(context)) {
             availableFacts.add("Observed work pattern is available.");
         }
+        else if (CanonicalContextFieldPolicy.hasWorkProfile(context)
+                || CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)
+                || CanonicalContextFieldPolicy.hasWorkProfileEvidence(context)) {
+            availableFacts.add("Observed work pattern evidence is available through personal work profile signals.");
+        }
         else {
             remediationHints.add("Collect protectable access history so observed work patterns can be inferred.");
             confidenceWarnings.add("Observed work pattern is missing; comparisons against previously seen resources or action families remain limited.");

@@ -37,6 +37,11 @@ public class ThreatAssessment {
      * Final action used for autonomous execution. Null means the proposal stands as-is.
      */
     private String autonomousAction;
+    private Boolean llmDecisionPresent;
+    private Boolean technicalFallbackApplied;
+    private String technicalFallbackCategory;
+    private String technicalFallbackReason;
+    private String technicalFallbackAction;
     private String reasoning;
     private Boolean autonomyConstraintApplied;
     private List<String> autonomyConstraintReasons;

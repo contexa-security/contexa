@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
@@ -378,6 +379,7 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SecurityDecisionCalibrationService> securityDecisionCalibrationService,
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
+            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
                 unifiedVectorService,
@@ -395,7 +397,8 @@ public class CoreAutonomousAutoConfiguration {
                 promptContextAuditForwardingService.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
                 tieredStrategyProperties,
-                securityDecisionCalibrationService.getIfAvailable());
+                securityDecisionCalibrationService.getIfAvailable(),
+                structuredOutputCapabilityRegistry);
     }
 
     @Bean
@@ -418,7 +421,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
             ObjectProvider<SecurityDecisionCalibrationService> securityDecisionCalibrationService,
             PromptContextAuthorizationService promptContextAuthorizationService,
-            ObjectProvider<PipelineOrchestrator> pipelineOrchestrator) {
+            ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
+            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
         return new Layer2ExpertStrategy(
                 approvalService,
                 dataStore,
@@ -436,7 +440,8 @@ public class CoreAutonomousAutoConfiguration {
                 promptContextAuthorizationService,
                 promptContextAuditForwardingService.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
-                securityDecisionCalibrationService.getIfAvailable());
+                securityDecisionCalibrationService.getIfAvailable(),
+                structuredOutputCapabilityRegistry);
     }
 
     @Bean

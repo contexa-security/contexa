@@ -22,6 +22,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -140,9 +141,49 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 PromptContextAuditForwardingService promptContextAuditForwardingService,
                                 PipelineOrchestrator pipelineOrchestrator,
                                 SecurityDecisionCalibrationService securityDecisionCalibrationService) {
+        this(
+                approvalService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                unifiedVectorService,
+                behaviorVectorService,
+                baselineLearningService,
+                tieredStrategyProperties,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                securityDecisionCalibrationService,
+                null);
+    }
+
+    public Layer2ExpertStrategy(ApprovalService approvalService,
+                                SecurityContextDataStore dataStore,
+                                SecurityEventEnricher eventEnricher,
+                                SecurityDecisionStandardPromptTemplate promptTemplate,
+                                UnifiedVectorService unifiedVectorService,
+                                BehaviorVectorService behaviorVectorService,
+                                BaselineLearningService baselineLearningService,
+                                TieredStrategyProperties tieredStrategyProperties,
+                                SecurityLearningService securityLearningService,
+                                SaasBaselineSeedService baselineSeedService,
+                                SaasThreatIntelligenceService threatIntelligenceService,
+                                SaasThreatKnowledgePackService threatKnowledgePackService,
+                                SaasDetectionStrategyPackService detectionStrategyPackService,
+                                PromptContextAuthorizationService promptContextAuthorizationService,
+                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PipelineOrchestrator pipelineOrchestrator,
+                                SecurityDecisionCalibrationService securityDecisionCalibrationService,
+                                StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
         super(eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
-              promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
+              promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties,
+              structuredOutputCapabilityRegistry);
 
         this.approvalService = approvalService;
         this.dataStore = dataStore;
@@ -158,8 +199,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
         SecurityDecision expertDecision = performDeepAnalysis(event);
-        String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
         ZeroTrustAction autonomousAction = expertDecision.resolveAutonomousAction();
+        String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : null;
 
         return ThreatAssessment.builder()
                 .riskScore(null)
@@ -173,6 +214,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .shouldEscalate(false)
                 .action(action)
                 .autonomousAction(autonomousAction != null ? autonomousAction.name() : null)
+                .llmDecisionPresent(expertDecision.getLlmDecisionPresent())
+                .technicalFallbackApplied(expertDecision.getTechnicalFallbackApplied())
+                .technicalFallbackCategory(expertDecision.getTechnicalFallbackCategory())
+                .technicalFallbackReason(expertDecision.getTechnicalFallbackReason())
+                .technicalFallbackAction(expertDecision.getTechnicalFallbackAction())
                 .reasoning(expertDecision.getReasoning())
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
@@ -190,7 +236,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     public SecurityDecision performDeepAnalysis(SecurityEvent event) {
         if (event == null) {
             log.error("[Layer2] Analysis failed: event is null");
-            return createFailsafeDecision(null, System.currentTimeMillis());
+            return createFailsafeDecision(null, System.currentTimeMillis(), "NULL_EVENT");
         }
 
         long startTime = System.currentTimeMillis();
@@ -209,25 +255,21 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-                        .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
-                        .onErrorResume(Exception.class, e -> {
-                            log.error("[Layer2] Standard security pipeline failed, applying failsafe blocking: {}", event.getEventId(), e);
-                            return Mono.just(SecurityDecisionResponse.fromSecurityResponse(createLayer2PipelineFallbackResponse()));
-                        })
+//                        .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .block();
-                response = validateAndFixResponse(
-                        pipelineResponse != null
-                                ? pipelineResponse.toSecurityResponse()
-                                : createLayer2PipelineFallbackResponse()
-                );
+                if (pipelineResponse == null) {
+                    throw new IllegalStateException("Layer2 structured security decision pipeline returned null");
+                }
+                response = validateAndFixResponse(pipelineResponse.toSecurityResponse());
                 capturePromptRuntimeTelemetry(event, pipelineResponse);
             } else {
-                log.error("[Layer2] PipelineOrchestrator not available");
-                response = createLayer2PipelineFallbackResponse();
+                throw new IllegalStateException("Layer2 PipelineOrchestrator not available");
             }
 
             SecurityDecision expertDecision = applyPromptConfidenceGuardrail(convertToSecurityDecision(response, event), event);
             expertDecision = applyRuntimeCalibration(expertDecision, event, behaviorCtx, securityDecisionCalibrationService);
+            expertDecision.setLlmDecisionPresent(true);
+            expertDecision.setTechnicalFallbackApplied(false);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
@@ -248,16 +290,17 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
         } catch (Exception e) {
             log.error("[Layer2] Expert analysis failed for event {}", event.getEventId() != null ? event.getEventId() : "unknown", e);
-            return createFailsafeDecision(event, startTime);
+            return createFailsafeDecision(event, startTime, resolveTechnicalFailureCategory(e));
         }
     }
 
     public Mono<SecurityDecision> performDeepAnalysisAsync(SecurityEvent event) {
+        long startTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> performDeepAnalysis(event))
                 .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                 .onErrorResume(throwable -> {
                     log.error("[Layer2] Async analysis failed or timed out", throwable);
-                    return Mono.just(createFailsafeDecision(event, System.currentTimeMillis()));
+                    return Mono.just(createFailsafeDecision(event, startTime, resolveTechnicalFailureCategory(throwable)));
                 });
     }
 
@@ -306,8 +349,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         BaseBehaviorAnalysis base = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis ctx = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        ctx.setSimilarEvents(base.getSimilarEvents());
-        ctx.setBaselineContext(base.getBaselineContext());
         ctx.setBaselineEstablished(base.isBaselineEstablished());
 
         enrichBehaviorAnalysisWithRuntimeLearningSupport(
@@ -412,27 +453,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
     }
 
-    private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime) {
-        return SecurityDecision.builder()
-                .action(ZeroTrustAction.BLOCK)
-                .analysisTime(startTime)
-                .processingTimeMs(System.currentTimeMillis() - startTime)
-                .processingLayer(2)
-                .eventId(event != null ? event.getEventId() : "unknown")
-                .reasoning("[AI Native] Layer 2 LLM analysis failed - applying failsafe blocking")
-                .requiresApproval(true)
-                .expertRecommendation("Manual review required - LLM analysis failed")
-                .build();
-    }
-
-    private SecurityResponse createLayer2PipelineFallbackResponse() {
-        return SecurityResponse.builder()
-                .riskScore(null)
-                .confidence(null)
-                .action(ZeroTrustAction.BLOCK.name())
-                .reasoning("[AI Native] Layer 2 pipeline unavailable - applying failsafe blocking")
-                .mitre("UNKNOWN")
-                .build();
+    private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime, String fallbackCategory) {
+        return createTechnicalFallbackDecision(
+                event,
+                ZeroTrustAction.BLOCK,
+                "[AI Native] Layer 2 analysis failed - applying failsafe blocking",
+                fallbackCategory,
+                startTime,
+                2,
+                true,
+                "Manual review required - LLM analysis failed");
     }
 
     @Override

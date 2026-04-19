@@ -3,8 +3,6 @@ package io.contexa.contexacore.std.pipeline.step;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -18,32 +16,10 @@ import org.springframework.core.convert.support.DefaultConversionService;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 public class ResponseParsingStep implements PipelineStep {
-
-    private static final Pattern EXPLICIT_ACTION_PATTERN = Pattern.compile(
-            "(?is)(?:\\\"action\\\"\\s*:\\s*\\\"|\\\"decision\\\"\\s*:\\s*\\\"|\\bfinal\\s+decision\\b\\s*[:=-]?\\s*|\\brecommended\\s+action\\b\\s*[:=-]?\\s*|\\baction\\b\\s*[:=-]\\s*|\\bdecision\\b\\s*[:=-]\\s*)([`\"'*\\s]*)(ALLOW|CHALLENGE|BLOCK|ESCALATE|DENY|DENIED|REJECT|REJECTED|REVIEW)\\b");
-    private static final Pattern EXPLICIT_CONFIDENCE_PATTERN = Pattern.compile(
-            "(?is)(?:\\\"confidence\\\"\\s*:\\s*|\\bconfidence\\b\\s*[:=-]\\s*)([0-9]+(?:\\.[0-9]+)?)");
-    private static final Pattern EXPLICIT_RISK_PATTERN = Pattern.compile(
-            "(?is)(?:\\\"riskScore\\\"\\s*:\\s*|\\brisk\\s*score\\b\\s*[:=-]\\s*)([0-9]+(?:\\.[0-9]+)?)");
-    private static final Pattern EXPLICIT_CONFIDENCE_LABEL_PATTERN = Pattern.compile(
-            "(?is)(?:\\\"confidence\\\"\\s*:\\s*\\\"|\\bconfidence\\b\\s*[:=-]\\s*)(LOW|MODERATE|MEDIUM|HIGH|VERY_HIGH|CRITICAL)\\b");
-    private static final Pattern EXPLICIT_RISK_LABEL_PATTERN = Pattern.compile(
-            "(?is)(?:\\\"riskScore\\\"\\s*:\\s*\\\"|\\brisk\\s*score\\b\\s*[:=-]\\s*)(LOW|MODERATE|MEDIUM|HIGH|VERY_HIGH|CRITICAL)\\b");
-    private static final Pattern EXPLICIT_REASONING_JSON_PATTERN = Pattern.compile(
-            "(?is)\\\"reasoning\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-    private static final Pattern EXPLICIT_REASONING_TEXT_PATTERN = Pattern.compile(
-            "(?im)^\\s*reasoning\\s*[:=-]\\s*(.+)$");
-    private static final Pattern EXPLICIT_MITRE_JSON_PATTERN = Pattern.compile(
-            "(?is)\\\"mitre\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-    private static final Pattern EXPLICIT_MITRE_TEXT_PATTERN = Pattern.compile(
-            "(?is)(?:\\bmitre\\b\\s*[:=-]\\s*)([A-Z0-9_.-]+)");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final DefaultConversionService conversionService = new DefaultConversionService();
@@ -59,11 +35,17 @@ public class ResponseParsingStep implements PipelineStep {
                 return soarResponse;
             }
 
+            StructuredOutputPolicy structuredOutputPolicy = resolveStructuredOutputPolicy(request, context);
             Boolean structuredComplete = context.getMetadata("structuredOutputComplete", Boolean.class);
             if (Boolean.TRUE.equals(structuredComplete)) {
                 Object structuredResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, Object.class);
                 context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, structuredResponse);
                 context.addMetadata("parsingComplete", true);
+                if (!structuredOutputPolicy.allowsRawFallback()) {
+                    context.addMetadata("llmDecisionPresent", true);
+                    context.addMetadata("securityDecisionParsingFallbackApplied", false);
+                    context.addMetadata("syntheticSecurityDecisionApplied", false);
+                }
                 context.addMetadata("responseType", structuredResponse != null ? structuredResponse.getClass().getSimpleName() : "unknown");
                 return structuredResponse;
             }
@@ -72,26 +54,31 @@ public class ResponseParsingStep implements PipelineStep {
             String llmResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, String.class);
             if (llmResponse == null || llmResponse.trim().isEmpty()) {
                 log.error("[{}] LLM response is empty", getStepName());
+                if (!structuredOutputPolicy.allowsRawFallback()) {
+                    context.addMetadata("llmDecisionPresent", false);
+                    context.addMetadata("securityDecisionParsingFallbackApplied", false);
+                    context.addMetadata("syntheticSecurityDecisionApplied", false);
+                    throw new StructuredOutputExecutionException(
+                            StructuredOutputFailureCategory.EMPTY_RESPONSE,
+                            "Structured response is missing");
+                }
                 return createFallbackResponse(request, context, targetTypeInfo);
             }
 
-            Class<?> decisionTarget = resolveSecurityDecisionTargetClass(targetTypeInfo);
-            if (decisionTarget != null) {
-                SecurityDecisionResponseLite directDecision = parseSecurityDecisionLite(llmResponse);
-                if (directDecision != null) {
-                    Object decisionResult = toRequestedSecurityDecisionResponse(directDecision, decisionTarget);
-                    context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, decisionResult);
-                    enrichWithMetadata(decisionResult, request, context);
-                    context.addMetadata("parsingComplete", true);
-                    context.addMetadata("securityDecisionDirectParsingApplied", true);
-                    context.addMetadata("parsedResponseType", decisionResult.getClass());
-                    context.addMetadata("responseType", decisionResult.getClass().getSimpleName());
-                    return decisionResult;
-                }
+            if (!structuredOutputPolicy.allowsRawFallback()) {
+                context.addMetadata("llmDecisionPresent", false);
+                context.addMetadata("securityDecisionParsingFallbackApplied", false);
+                context.addMetadata("syntheticSecurityDecisionApplied", false);
+                StructuredOutputFailureCategory failureCategory = Boolean.TRUE.equals(context.getMetadata("rawExecutionAttempted", Boolean.class))
+                        ? StructuredOutputFailureCategory.RAW_EXECUTION_FORBIDDEN
+                        : StructuredOutputFailureCategory.STRUCTURED_OUTPUT_MISSING;
+                throw new StructuredOutputExecutionException(
+                        failureCategory,
+                        "Raw parsing is forbidden; structured output is required");
             }
 
             Object result = convertWithSpringAI(llmResponse, targetTypeInfo, context);
-            result = coerceTargetResponse(result, llmResponse, targetTypeInfo, context);
+            result = validateStructuredOutputResult(result, targetTypeInfo, structuredOutputPolicy, context);
 
             context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, result);
             enrichWithMetadata(result, request, context);
@@ -156,338 +143,33 @@ public class ResponseParsingStep implements PipelineStep {
         }
     }
 
-    private Object coerceTargetResponse(Object result, String llmResponse, Object targetTypeInfo, PipelineExecutionContext context) {
-        Class<?> decisionTarget = resolveSecurityDecisionTargetClass(targetTypeInfo);
-        if (decisionTarget == null) {
+    private Object validateStructuredOutputResult(
+            Object result,
+            Object targetTypeInfo,
+            StructuredOutputPolicy structuredOutputPolicy,
+            PipelineExecutionContext context) {
+        if (structuredOutputPolicy.allowsRawFallback()) {
             return result;
         }
-
-        SecurityDecisionResponseLite lite = toSecurityDecisionLite(result, llmResponse);
-        if (lite == null || normalizeAction(lite.getAction()) == null) {
-            context.addMetadata("securityDecisionParsingFallbackApplied", true);
-            lite = buildFallbackSecurityDecisionLite(llmResponse);
+        if (result == null) {
+            context.addMetadata("llmDecisionPresent", false);
+            throw new StructuredOutputExecutionException(
+                    StructuredOutputFailureCategory.VALIDATION_FAILED,
+                    "Structured response is null");
         }
-
-        return toRequestedSecurityDecisionResponse(lite, decisionTarget);
-    }
-
-    private Class<?> resolveSecurityDecisionTargetClass(Object targetTypeInfo) {
-        if (!(targetTypeInfo instanceof Class<?> targetClass)) {
-            return null;
+        if (targetTypeInfo instanceof Class<?> targetClass && !targetClass.isInstance(result)) {
+            context.addMetadata("llmDecisionPresent", false);
+            throw new StructuredOutputExecutionException(
+                    StructuredOutputFailureCategory.VALIDATION_FAILED,
+                    "Structured response did not map to the requested target type: " + targetClass.getName());
         }
-        if (SecurityDecisionResponse.class.isAssignableFrom(targetClass)
-                || SecurityDecisionResponseLite.class.isAssignableFrom(targetClass)) {
-            return targetClass;
+        if (result instanceof String) {
+            context.addMetadata("llmDecisionPresent", false);
+            throw new StructuredOutputExecutionException(
+                    StructuredOutputFailureCategory.VALIDATION_FAILED,
+                    "Structured response degraded to raw text");
         }
-        return null;
-    }
-
-    private Object toRequestedSecurityDecisionResponse(SecurityDecisionResponseLite lite, Class<?> targetClass) {
-        if (SecurityDecisionResponse.class.equals(targetClass)) {
-            return SecurityDecisionResponse.fromLite(lite);
-        }
-        return lite;
-    }
-
-    private SecurityDecisionResponseLite toSecurityDecisionLite(Object candidate, String originalResponse) {
-        if (candidate instanceof SecurityDecisionResponse fullResponse) {
-            SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-            lite.setRiskScore(fullResponse.getRiskScore());
-            lite.setConfidence(fullResponse.getConfidence());
-            lite.setAction(fullResponse.getAction());
-            lite.setReasoning(fullResponse.getReasoning());
-            lite.setMitre(fullResponse.getMitre());
-            return normalizeSecurityDecisionLite(lite, originalResponse);
-        }
-        if (candidate instanceof SecurityDecisionResponseLite liteResponse) {
-            return normalizeSecurityDecisionLite(liteResponse, originalResponse);
-        }
-        if (candidate instanceof Map<?, ?> mapCandidate) {
-            try {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> stringKeyMap = (Map<String, Object>) mapCandidate;
-                SecurityDecisionResponseLite lite = securityDecisionLiteFromMap(stringKeyMap);
-                return normalizeSecurityDecisionLite(lite, originalResponse);
-            } catch (IllegalArgumentException ignored) {
-                // fall through to text parsing
-            }
-        }
-        if (candidate instanceof String textCandidate) {
-            SecurityDecisionResponseLite parsed = parseSecurityDecisionLite(textCandidate);
-            if (parsed != null) {
-                return parsed;
-            }
-        }
-        return parseSecurityDecisionLite(originalResponse);
-    }
-
-    private SecurityDecisionResponseLite parseSecurityDecisionLite(String response) {
-        if (response == null || response.trim().isEmpty()) {
-            return null;
-        }
-
-        try {
-            String cleanJson = extractJson(response);
-            if (cleanJson != null && cleanJson.trim().startsWith("{")) {
-                SecurityDecisionResponseLite lite = securityDecisionLiteFromMap(
-                        objectMapper.readValue(cleanJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
-                        }));
-                SecurityDecisionResponseLite normalized = normalizeSecurityDecisionLite(lite, response);
-                if (normalized != null && normalizeAction(normalized.getAction()) != null) {
-                    return normalized;
-                }
-            }
-        } catch (Exception ignored) {
-            // fall through to best-effort parsing
-        }
-
-        String normalizedText = normalizeHumanText(response);
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction(extractExplicitAction(normalizedText));
-        lite.setConfidence(extractExplicitDouble(EXPLICIT_CONFIDENCE_PATTERN, normalizedText));
-        if (lite.getConfidence() == null) {
-            lite.setConfidence(extractExplicitScoreLabel(EXPLICIT_CONFIDENCE_LABEL_PATTERN, normalizedText));
-        }
-        lite.setRiskScore(extractExplicitDouble(EXPLICIT_RISK_PATTERN, normalizedText));
-        if (lite.getRiskScore() == null) {
-            lite.setRiskScore(extractExplicitScoreLabel(EXPLICIT_RISK_LABEL_PATTERN, normalizedText));
-        }
-        lite.setMitre(extractExplicitText(EXPLICIT_MITRE_JSON_PATTERN, normalizedText));
-        if (lite.getMitre() == null) {
-            lite.setMitre(extractExplicitText(EXPLICIT_MITRE_TEXT_PATTERN, normalizedText));
-        }
-        lite.setReasoning(extractReasoning(normalizedText));
-        return normalizeSecurityDecisionLite(lite, response);
-    }
-
-    private SecurityDecisionResponseLite normalizeSecurityDecisionLite(SecurityDecisionResponseLite lite, String originalResponse) {
-        if (lite == null) {
-            return null;
-        }
-
-        SecurityDecisionResponseLite normalized = new SecurityDecisionResponseLite();
-        normalized.setRiskScore(lite.getRiskScore());
-        normalized.setConfidence(lite.getConfidence());
-        normalized.setAction(normalizeAction(lite.getAction()));
-        normalized.setMitre(normalizeMitre(lite.getMitre()));
-
-        String reasoning = lite.getReasoning();
-        if ((reasoning == null || reasoning.isBlank()) && originalResponse != null && !originalResponse.isBlank()) {
-            reasoning = extractReasoning(normalizeHumanText(originalResponse));
-        }
-        normalized.setReasoning(trimReasoning(reasoning));
-
-        if (normalized.getRiskScore() == null
-                && normalized.getConfidence() == null
-                && normalized.getAction() == null
-                && normalized.getMitre() == null
-                && (normalized.getReasoning() == null || normalized.getReasoning().isBlank())) {
-            return null;
-        }
-
-        return normalized;
-    }
-
-    private SecurityDecisionResponseLite buildFallbackSecurityDecisionLite(String response) {
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction("BLOCK");
-        lite.setMitre("UNKNOWN");
-        String reasoning = extractReasoning(normalizeHumanText(response));
-        if (reasoning == null || reasoning.isBlank()) {
-            reasoning = "[AI Native] Structured decision response parsing fallback applied";
-        }
-        lite.setReasoning(trimReasoning(reasoning));
-        return lite;
-    }
-
-    private String normalizeAction(String action) {
-        if (action == null || action.isBlank()) {
-            return null;
-        }
-        String normalized = action.trim().toUpperCase(Locale.ROOT);
-        return switch (normalized) {
-            case "ALLOW", "CHALLENGE", "BLOCK", "ESCALATE" -> normalized;
-            case "DENY", "DENIED", "REJECT", "REJECTED" -> "BLOCK";
-            case "REVIEW" -> "ESCALATE";
-            default -> null;
-        };
-    }
-
-    private String normalizeMitre(String mitre) {
-        if (mitre == null || mitre.isBlank()) {
-            return null;
-        }
-        return mitre.trim();
-    }
-
-    private String extractExplicitAction(String text) {
-        Matcher matcher = EXPLICIT_ACTION_PATTERN.matcher(text);
-        if (matcher.find()) {
-            return normalizeAction(matcher.group(2));
-        }
-        return null;
-    }
-
-    private Double extractExplicitDouble(Pattern pattern, String text) {
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            try {
-                return Double.parseDouble(matcher.group(1));
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private Double extractExplicitScoreLabel(Pattern pattern, String text) {
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            return normalizeScoreLabel(matcher.group(1));
-        }
-        return null;
-    }
-
-    private String extractExplicitText(Pattern pattern, String text) {
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            for (int i = 1; i <= matcher.groupCount(); i++) {
-                String value = matcher.group(i);
-                if (value != null && !value.isBlank()) {
-                    return value.trim();
-                }
-            }
-        }
-        return null;
-    }
-
-    private String extractReasoning(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        String reasoning = extractExplicitText(EXPLICIT_REASONING_JSON_PATTERN, text);
-        if (reasoning == null) {
-            reasoning = extractExplicitText(EXPLICIT_REASONING_TEXT_PATTERN, text);
-        }
-        if (reasoning != null && !reasoning.isBlank()) {
-            return trimReasoning(reasoning);
-        }
-        String cleaned = normalizeHumanText(text);
-        if (cleaned.isBlank()) {
-            return null;
-        }
-        if ((cleaned.startsWith("{") && cleaned.endsWith("}"))
-                || (cleaned.startsWith("[") && cleaned.endsWith("]"))) {
-            return null;
-        }
-        return trimReasoning(cleaned);
-    }
-
-    private String trimReasoning(String reasoning) {
-        if (reasoning == null || reasoning.isBlank()) {
-            return null;
-        }
-        String normalized = normalizeHumanText(reasoning);
-        if (normalized.length() <= 280) {
-            return normalized;
-        }
-        return normalized.substring(0, 280).trim();
-    }
-
-    private String normalizeHumanText(String response) {
-        if (response == null) {
-            return "";
-        }
-        String cleaned = response
-                .replace("```json", " ")
-                .replace("```", " ")
-                .replace("**", " ")
-                .replace("__", " ")
-                .replace("`", " ")
-                .replaceAll("(?m)^\\s*[#>*-]+\\s*", "")
-                .replaceAll("\\s+", " ")
-                .trim();
-        return cleaned;
-    }
-
-    private SecurityDecisionResponseLite securityDecisionLiteFromMap(Map<String, Object> payload) {
-        if (payload == null || payload.isEmpty()) {
-            return null;
-        }
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction(extractActionFromMap(payload));
-        lite.setConfidence(extractScoreFromMap(payload, "confidence", "confidenceScore", "decisionConfidence"));
-        lite.setRiskScore(extractScoreFromMap(payload, "riskScore", "risk", "risk_score"));
-        lite.setReasoning(extractTextFromMap(payload, "reasoning", "analysis", "summary", "decisionReasoning"));
-        lite.setMitre(extractTextFromMap(payload, "mitre", "mitreAttack", "mitre_attack", "mitreTechnique"));
-        return lite;
-    }
-
-    private String extractActionFromMap(Map<String, Object> payload) {
-        String direct = extractTextFromMap(payload, "action", "decision", "recommendedAction", "finalDecision");
-        return normalizeAction(direct);
-    }
-
-    private Double extractScoreFromMap(Map<String, Object> payload, String... keys) {
-        for (String key : keys) {
-            Double parsed = coerceScore(payload.get(key));
-            if (parsed != null) {
-                return parsed;
-            }
-        }
-        return null;
-    }
-
-    private String extractTextFromMap(Map<String, Object> payload, String... keys) {
-        for (String key : keys) {
-            Object value = payload.get(key);
-            if (value instanceof String text && !text.isBlank()) {
-                return text.trim();
-            }
-        }
-        return null;
-    }
-
-    private Double coerceScore(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return normalizeNumericScore(number.doubleValue());
-        }
-        if (value instanceof String text) {
-            String normalized = text.trim();
-            if (normalized.isEmpty()) {
-                return null;
-            }
-            try {
-                return normalizeNumericScore(Double.parseDouble(normalized));
-            } catch (NumberFormatException ignored) {
-                return normalizeScoreLabel(normalized);
-            }
-        }
-        return null;
-    }
-
-    private Double normalizeNumericScore(Double score) {
-        if (score == null || !Double.isFinite(score)) {
-            return null;
-        }
-        return Math.max(0.0d, Math.min(1.0d, score));
-    }
-
-    private Double normalizeScoreLabel(String label) {
-        if (label == null || label.isBlank()) {
-            return null;
-        }
-        String normalized = label.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
-        return switch (normalized) {
-            case "LOW" -> 0.54d;
-            case "MODERATE", "MEDIUM" -> 0.74d;
-            case "HIGH" -> 0.85d;
-            case "VERY_HIGH", "CRITICAL" -> 0.95d;
-            default -> null;
-        };
+        return result;
     }
 
     private String extractJson(String response) {
@@ -657,6 +339,17 @@ public class ResponseParsingStep implements PipelineStep {
         return Map.class;
     }
 
+    private StructuredOutputPolicy resolveStructuredOutputPolicy(AIRequest<?> request, PipelineExecutionContext context) {
+        Object configuredPolicy = null;
+        if (request != null && request.getParameters().containsKey("structuredOutputPolicy")) {
+            configuredPolicy = request.getParameters().get("structuredOutputPolicy");
+        }
+        if (configuredPolicy == null && context != null) {
+            configuredPolicy = context.getMetadata("structuredOutputPolicy", Object.class);
+        }
+        return StructuredOutputPolicy.fromValue(configuredPolicy, StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+    }
+
     private void enrichWithMetadata(Object response, AIRequest<?> request, PipelineExecutionContext context) {
         Long startTime = context.getMetadata("startTime", Long.class);
         if (startTime != null) {
@@ -674,14 +367,13 @@ public class ResponseParsingStep implements PipelineStep {
 
     private Object createFallbackResponse(AIRequest<?> request, PipelineExecutionContext context, Object targetTypeInfo) {
         log.error("[{}] Creating fallback response", getStepName());
-        Class<?> decisionTarget = resolveSecurityDecisionTargetClass(targetTypeInfo);
-        if (decisionTarget != null) {
-            Object fallback = toRequestedSecurityDecisionResponse(
-                    buildFallbackSecurityDecisionLite("[AI Native] No response from LLM"),
-                    decisionTarget);
-            enrichWithMetadata(fallback, request, context);
-            context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, fallback);
-            return fallback;
+        if (!resolveStructuredOutputPolicy(request, context).allowsRawFallback()) {
+            context.addMetadata("llmDecisionPresent", false);
+            context.addMetadata("securityDecisionParsingFallbackApplied", false);
+            context.addMetadata("syntheticSecurityDecisionApplied", false);
+            throw new StructuredOutputExecutionException(
+                    StructuredOutputFailureCategory.EMPTY_RESPONSE,
+                    "Structured output fallback synthesis is forbidden");
         }
 
         DefaultAIResponse fallback = new DefaultAIResponse(Map.of("error", "No response from LLM", "status", "fallback"));
@@ -699,5 +391,6 @@ public class ResponseParsingStep implements PipelineStep {
     public int getOrder() {
         return 5;
     }
+
 }
 

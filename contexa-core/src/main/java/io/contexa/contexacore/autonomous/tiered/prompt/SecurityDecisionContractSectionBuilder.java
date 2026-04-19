@@ -4,6 +4,6 @@ public class SecurityDecisionContractSectionBuilder implements SecurityPromptSec
 
     @Override
     public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
-        return template.buildDecisionSection();
+        return template.buildDecisionSection(context.getStructuredOutputMode());
     }
 }

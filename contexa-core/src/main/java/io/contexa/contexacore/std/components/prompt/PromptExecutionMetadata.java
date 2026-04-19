@@ -13,6 +13,7 @@ public record PromptExecutionMetadata(
         List<String> sectionSet,
         List<String> omittedSections,
         List<PromptOmissionRecord> omissionLedger,
+        List<PromptDuplicationRecord> duplicationInventory,
         PromptEvidenceCompleteness promptEvidenceCompleteness,
         String promptHash,
         String systemPromptHash,
@@ -26,7 +27,8 @@ public record PromptExecutionMetadata(
         int rawSystemPromptLength,
         int rawUserPromptLength,
         int rawTotalPromptLength,
-        long generatedAtEpochMs) {
+        long generatedAtEpochMs,
+        Map<String, Object> supplementalMetadata) {
 
     public PromptExecutionMetadata {
         governanceDescriptor = Objects.requireNonNull(governanceDescriptor, "governanceDescriptor");
@@ -36,6 +38,7 @@ public record PromptExecutionMetadata(
         sectionSet = sectionSet == null ? List.of() : List.copyOf(sectionSet);
         omittedSections = omittedSections == null ? List.of() : List.copyOf(omittedSections);
         omissionLedger = omissionLedger == null ? List.of() : List.copyOf(omissionLedger);
+        duplicationInventory = duplicationInventory == null ? List.of() : List.copyOf(duplicationInventory);
         promptEvidenceCompleteness = Objects.requireNonNull(promptEvidenceCompleteness, "promptEvidenceCompleteness");
         promptHash = requireText(promptHash, "promptHash");
         systemPromptHash = requireText(systemPromptHash, "systemPromptHash");
@@ -51,6 +54,7 @@ public record PromptExecutionMetadata(
                 || rawTotalPromptLength < 0) {
             throw new IllegalArgumentException("Prompt lengths must not be negative");
         }
+        supplementalMetadata = supplementalMetadata == null ? Map.of() : Map.copyOf(supplementalMetadata);
     }
 
     public Map<String, Object> toMetadataMap() {
@@ -61,11 +65,16 @@ public record PromptExecutionMetadata(
         metadata.put("promptSectionSet", sectionSet);
         metadata.put("omittedSections", omittedSections);
         metadata.put("omissionLedger", omissionLedger.stream().map(PromptOmissionRecord::toMetadataMap).toList());
+        metadata.put("promptDuplicationInventoryVersion", "P1-SECTION-DUPLICATION-V1");
+        metadata.put("promptDuplicationInventory", duplicationInventory.stream().map(PromptDuplicationRecord::toMetadataMap).toList());
+        metadata.put("promptDuplicationInventoryCount", duplicationInventory.size());
         metadata.put("promptEvidenceCompleteness", promptEvidenceCompleteness.name());
         metadata.put("promptOmissionCount", omissionLedger.size());
         metadata.put("promptHash", promptHash);
         metadata.put("systemPromptHash", systemPromptHash);
         metadata.put("userPromptHash", userPromptHash);
+        metadata.put("staticPromptPrefixHash", systemPromptHash);
+        metadata.put("promptCacheEligible", true);
         metadata.put("rawPromptHash", rawPromptHash);
         metadata.put("rawSystemPromptHash", rawSystemPromptHash);
         metadata.put("rawUserPromptHash", rawUserPromptHash);
@@ -76,6 +85,7 @@ public record PromptExecutionMetadata(
         metadata.put("rawUserPromptLength", rawUserPromptLength);
         metadata.put("rawTotalPromptLength", rawTotalPromptLength);
         metadata.put("promptGeneratedAtEpochMs", generatedAtEpochMs);
+        metadata.putAll(supplementalMetadata);
         return metadata;
     }
 

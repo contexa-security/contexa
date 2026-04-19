@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.std.labs.DefaultAILabFactory;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
@@ -91,6 +92,12 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public PromptGenerator promptGenerator(List<PromptTemplate> promptTemplates, LLMViewComposer llmViewComposer) {
         return new PromptGenerator(promptTemplates, llmViewComposer);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry() {
+        return StructuredOutputCapabilityRegistry.defaultRegistry();
     }
 
     @Bean
@@ -210,8 +217,10 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @Qualifier("llmExecutionStep")
     @ConditionalOnBean(UnifiedLLMOrchestrator.class)
-    public LLMExecutionStep llmExecutionStep(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        return new LLMExecutionStep(unifiedLLMOrchestrator);
+    public LLMExecutionStep llmExecutionStep(
+            UnifiedLLMOrchestrator unifiedLLMOrchestrator,
+            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
+        return new LLMExecutionStep(unifiedLLMOrchestrator, structuredOutputCapabilityRegistry);
     }
     @Bean
     @ConditionalOnMissingBean

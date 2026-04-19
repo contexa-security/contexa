@@ -11,8 +11,17 @@ import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 
 public class PromptContextComposer {
+
+    public static final String PRODUCER_DEVICE_SECTION = "PromptContextComposer.composeDeviceSection";
+    public static final String PRODUCER_LOCATION_SECTION = "PromptContextComposer.composeLocationSection";
+    public static final String PRODUCER_INTENT_SECTION = "PromptContextComposer.composeIntentSection";
+    public static final String PRODUCER_SESSION_SECTION = "PromptContextComposer.composeSessionNarrativeSection";
+    public static final String PRODUCER_RESOURCE_SECTION = "PromptContextComposer.composeResourceSection";
+    public static final String PRODUCER_ROLE_SCOPE_SECTION = "PromptContextComposer.composeRoleScopeSection";
+    public static final String PRODUCER_THREAT_SECTION = "PromptContextComposer.composeReasoningMemorySection";
 
     private static final int MAX_TRUST_SCOPE_LIMITATIONS = 2;
     private static final int MAX_TRUST_QUALITY_WARNINGS = 3;
@@ -46,7 +55,7 @@ public class PromptContextComposer {
     }
 
     public String composeBridgeSection(CanonicalSecurityContext context) {
-        return composeSection(context, section -> appendBridgeSection(section, context.getBridge()));
+        return composeSection(context, section -> appendBridgeSection(section, context));
     }
 
     public String composeCoverageSection(CanonicalSecurityContext context) {
@@ -132,8 +141,9 @@ public class PromptContextComposer {
         }
     }
 
-    private void appendBridgeSection(StringBuilder section, CanonicalSecurityContext.Bridge bridge) {
+    private void appendBridgeSection(StringBuilder section, CanonicalSecurityContext context) {
         section.append("\n=== BRIDGE RESOLUTION CONTEXT ===\n");
+        CanonicalSecurityContext.Bridge bridge = context != null ? context.getBridge() : null;
         if (bridge == null) {
             appendLine(section, "BridgeCompletenessLevel", "UNAVAILABLE");
             appendLine(section, "BridgeCompletenessSummary", "Bridge-derived identity and authorization context was not attached to this request.");
@@ -144,8 +154,26 @@ public class PromptContextComposer {
         appendLine(section, "BridgeAuthenticationSource", bridge.getAuthenticationSource());
         appendLine(section, "BridgeAuthorizationSource", bridge.getAuthorizationSource());
         appendLine(section, "BridgeDelegationSource", bridge.getDelegationSource());
-        appendList(section, "BridgeMissingContexts", bridge.getMissingContexts());
+        appendList(section, "BridgeMissingContexts", sanitizeBridgeMissingContexts(context, bridge.getMissingContexts()));
         appendList(section, "BridgeRemediationHints", bridge.getRemediationHints());
+    }
+
+    private List<String> sanitizeBridgeMissingContexts(
+            CanonicalSecurityContext context,
+            List<String> missingContexts) {
+        if (missingContexts == null || missingContexts.isEmpty()) {
+            return missingContexts;
+        }
+        boolean hasResolvedAuthorizationEffect = context != null
+                && context.getAuthorization() != null
+                && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect());
+        if (!hasResolvedAuthorizationEffect) {
+            return missingContexts;
+        }
+        return missingContexts.stream()
+                .filter(StringUtils::hasText)
+                .filter(value -> !"AUTHORIZATION_EFFECT".equalsIgnoreCase(value))
+                .toList();
     }
 
     private void appendCoverageSection(StringBuilder section, ContextCoverageReport coverage) {
@@ -427,6 +455,17 @@ public class PromptContextComposer {
         if (roleScopeProfile == null) {
             return;
         }
+        CanonicalSecurityContext.Resource resource = context != null ? context.getResource() : null;
+        String currentResourceFamily = firstText(
+                roleScopeProfile.getCurrentResourceFamily(),
+                SecuritySemanticNormalizer.normalizeResourceFamily(
+                        resource != null ? resource.getResourceType() : null,
+                        resource != null ? resource.getSensitivity() : null));
+        String currentActionFamily = firstText(
+                roleScopeProfile.getCurrentActionFamily(),
+                SecuritySemanticNormalizer.normalizeActionFamily(
+                        resource != null ? resource.getActionFamily() : null,
+                        resource != null ? resource.getHttpMethod() : null));
 
         section.append("\n=== ROLE AND WORK SCOPE CONTEXT ===\n");
         appendEvidenceState(section, "RoleScopeEvidenceState",
@@ -434,55 +473,97 @@ public class PromptContextComposer {
                 CanonicalContextFieldPolicy.hasRoleScopeProfile(context),
                 CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context));
         appendLine(section, "RoleScopeSummary", roleScopeProfile.getSummary());
-        appendLine(section, "CurrentResourceFamily", roleScopeProfile.getCurrentResourceFamily());
-        appendLine(section, "CurrentActionFamily", roleScopeProfile.getCurrentActionFamily());
+        appendLine(section, "CurrentResourceFamily", currentResourceFamily);
+        appendLine(section, "CurrentActionFamily", currentActionFamily);
         appendList(section, "ExpectedResourceFamilies", roleScopeProfile.getExpectedResourceFamilies());
         appendList(section, "ExpectedActionFamilies", roleScopeProfile.getExpectedActionFamilies());
         appendList(section, "ForbiddenResourceFamilies", roleScopeProfile.getForbiddenResourceFamilies());
         appendList(section, "ForbiddenActionFamilies", roleScopeProfile.getForbiddenActionFamilies());
         appendList(section, "NormalApprovalPatterns", roleScopeProfile.getNormalApprovalPatterns());
         appendList(section, "NormalEscalationPatterns", roleScopeProfile.getNormalEscalationPatterns());
-        appendList(section, "RecentPermissionChanges", roleScopeProfile.getRecentPermissionChanges());
+        if (roleScopeProfile.getRecentPermissionChanges() == null || roleScopeProfile.getRecentPermissionChanges().isEmpty()) {
+            appendLine(section, "RecentPermissionChanges", "UNKNOWN");
+        } else {
+            appendList(section, "RecentPermissionChanges", roleScopeProfile.getRecentPermissionChanges());
+        }
+        Boolean currentResourcePresentInExpectedRoleScope = !roleScopeProfile.getExpectedResourceFamilies().isEmpty()
+                ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
+                currentResourceFamily,
+                roleScopeProfile.getExpectedResourceFamilies())
+                : null;
+        Boolean currentResourcePresentInDeniedRoleScope = !roleScopeProfile.getForbiddenResourceFamilies().isEmpty()
+                ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
+                currentResourceFamily,
+                roleScopeProfile.getForbiddenResourceFamilies())
+                : null;
+        Boolean currentActionPresentInExpectedRoleScope = !roleScopeProfile.getExpectedActionFamilies().isEmpty()
+                ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
+                currentActionFamily,
+                roleScopeProfile.getExpectedActionFamilies())
+                : null;
+        Boolean currentActionPresentInDeniedRoleScope = !roleScopeProfile.getForbiddenActionFamilies().isEmpty()
+                ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
+                currentActionFamily,
+                roleScopeProfile.getForbiddenActionFamilies())
+                : null;
+        List<String> roleScopeDeltas = new ArrayList<>();
+        if (Boolean.FALSE.equals(currentResourcePresentInExpectedRoleScope)) {
+            roleScopeDeltas.add("resource family outside expected role scope");
+        }
+        if (Boolean.TRUE.equals(currentResourcePresentInDeniedRoleScope)) {
+            roleScopeDeltas.add("resource family present in denied role scope");
+        }
+        if (Boolean.FALSE.equals(currentActionPresentInExpectedRoleScope)) {
+            roleScopeDeltas.add("action family outside expected role scope");
+        }
+        if (Boolean.TRUE.equals(currentActionPresentInDeniedRoleScope)) {
+            roleScopeDeltas.add("action family present in denied role scope");
+        }
+        boolean hasDirectScopeEvidence = !roleScopeProfile.getExpectedResourceFamilies().isEmpty()
+                || !roleScopeProfile.getExpectedActionFamilies().isEmpty()
+                || !roleScopeProfile.getForbiddenResourceFamilies().isEmpty()
+                || !roleScopeProfile.getForbiddenActionFamilies().isEmpty();
+        boolean unreliableRoleScope = CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)
+                || (!CanonicalContextFieldPolicy.hasRoleScopeTrustAssessment(context) && !hasDirectScopeEvidence);
+        if (roleScopeDeltas.isEmpty() && unreliableRoleScope) {
+            appendLine(section, "RoleScopeDeltaCount", "UNKNOWN");
+            appendLine(section, "StrongestRoleScopeDelta", "insufficient scope evidence");
+            appendLine(section, "RoleScopeDeltaSummary", "current-vs-scope comparison not reliable");
+        } else {
+            appendLine(section, "RoleScopeDeltaCount", roleScopeDeltas.size());
+            appendLine(section, "StrongestRoleScopeDelta",
+                    roleScopeDeltas.isEmpty()
+                            ? "none"
+                            : roleScopeDeltas.getFirst());
+            appendLine(section, "RoleScopeDeltaSummary",
+                    roleScopeDeltas.isEmpty()
+                            ? "no direct current-vs-scope mismatch detected"
+                            : String.join(" | ", roleScopeDeltas));
+        }
         appendComparisonEvidence(
                 section,
                 "CurrentResourceFamilyPresentInExpectedRoleScope",
-                roleScopeProfile.getCurrentResourceFamily(),
+                currentResourceFamily,
                 roleScopeProfile.getExpectedResourceFamilies(),
-                !roleScopeProfile.getExpectedResourceFamilies().isEmpty()
-                        ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
-                        roleScopeProfile.getCurrentResourceFamily(),
-                        roleScopeProfile.getExpectedResourceFamilies())
-                        : null);
+                currentResourcePresentInExpectedRoleScope);
         appendComparisonEvidence(
                 section,
                 "CurrentResourceFamilyPresentInDeniedRoleScope",
-                roleScopeProfile.getCurrentResourceFamily(),
+                currentResourceFamily,
                 roleScopeProfile.getForbiddenResourceFamilies(),
-                !roleScopeProfile.getForbiddenResourceFamilies().isEmpty()
-                        ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
-                        roleScopeProfile.getCurrentResourceFamily(),
-                        roleScopeProfile.getForbiddenResourceFamilies())
-                        : null);
+                currentResourcePresentInDeniedRoleScope);
         appendComparisonEvidence(
                 section,
                 "CurrentActionFamilyPresentInExpectedRoleScope",
-                roleScopeProfile.getCurrentActionFamily(),
+                currentActionFamily,
                 roleScopeProfile.getExpectedActionFamilies(),
-                !roleScopeProfile.getExpectedActionFamilies().isEmpty()
-                        ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
-                        roleScopeProfile.getCurrentActionFamily(),
-                        roleScopeProfile.getExpectedActionFamilies())
-                        : null);
+                currentActionPresentInExpectedRoleScope);
         appendComparisonEvidence(
                 section,
                 "CurrentActionFamilyPresentInDeniedRoleScope",
-                roleScopeProfile.getCurrentActionFamily(),
+                currentActionFamily,
                 roleScopeProfile.getForbiddenActionFamilies(),
-                !roleScopeProfile.getForbiddenActionFamilies().isEmpty()
-                        ? ContextSemanticBoundaryPolicy.comparisonIncludesCurrent(
-                        roleScopeProfile.getCurrentActionFamily(),
-                        roleScopeProfile.getForbiddenActionFamilies())
-                        : null);
+                currentActionPresentInDeniedRoleScope);
         appendLine(section, "TemporaryElevation", roleScopeProfile.getTemporaryElevation());
         appendLine(section, "TemporaryElevationReason", roleScopeProfile.getTemporaryElevationReason());
         appendLine(section, "ElevatedPrivilegeWindowActive", roleScopeProfile.getElevatedPrivilegeWindowActive());
@@ -521,19 +602,22 @@ public class PromptContextComposer {
     }
 
     private void appendFrictionSection(StringBuilder section, CanonicalSecurityContext.FrictionProfile frictionProfile) {
+        section.append("\n=== FRICTION AND APPROVAL HISTORY ===\n");
         if (frictionProfile == null) {
+            appendLine(section, "ApprovalRequired", "UNKNOWN");
+            appendLine(section, "ApprovalGranted", "UNKNOWN");
+            appendLine(section, "ApprovalMissing", "UNKNOWN");
+            appendLine(section, "ApprovalStatus", "UNKNOWN");
             return;
         }
-
-        section.append("\n=== FRICTION AND APPROVAL HISTORY ===\n");
         appendLine(section, "FrictionSummary", frictionProfile.getSummary());
         appendLine(section, "RecentChallengeCount", frictionProfile.getRecentChallengeCount());
         appendLine(section, "RecentBlockCount", frictionProfile.getRecentBlockCount());
         appendLine(section, "RecentEscalationCount", frictionProfile.getRecentEscalationCount());
-        appendLine(section, "ApprovalRequired", frictionProfile.getApprovalRequired());
-        appendLine(section, "ApprovalGranted", frictionProfile.getApprovalGranted());
-        appendLine(section, "ApprovalMissing", frictionProfile.getApprovalMissing());
-        appendLine(section, "ApprovalStatus", frictionProfile.getApprovalStatus());
+        appendLineOrUnknown(section, "ApprovalRequired", frictionProfile.getApprovalRequired());
+        appendLineOrUnknown(section, "ApprovalGranted", frictionProfile.getApprovalGranted());
+        appendLineOrUnknown(section, "ApprovalMissing", frictionProfile.getApprovalMissing());
+        appendLineOrUnknown(section, "ApprovalStatus", frictionProfile.getApprovalStatus());
         appendList(section, "ApprovalLineage", frictionProfile.getApprovalLineage());
         appendList(section, "PendingApproverRoles", frictionProfile.getPendingApproverRoles());
         appendLine(section, "ApprovalTicketId", frictionProfile.getApprovalTicketId());
@@ -544,22 +628,40 @@ public class PromptContextComposer {
     }
 
     private void appendDelegationSection(StringBuilder section, CanonicalSecurityContext.Delegation delegation) {
+        section.append("\n=== DELEGATED OBJECTIVE CONTEXT ===\n");
         if (delegation == null || !hasDelegationData(delegation)) {
+            appendLine(section, "Delegated", "UNKNOWN");
+            appendLine(section, "ObjectiveFamily", "UNKNOWN");
+            appendLine(section, "ObjectiveSummary", "UNKNOWN");
+            appendLine(section, "ObjectiveAlignmentEvidence", "UNKNOWN");
             return;
         }
-
-        section.append("\n=== DELEGATED OBJECTIVE CONTEXT ===\n");
-        appendLine(section, "Delegated", delegation.getDelegated());
+        if (Boolean.FALSE.equals(delegation.getDelegated())) {
+            appendLine(section, "Delegated", false);
+            appendLine(section, "AgentId", delegation.getAgentId());
+            appendLine(section, "ObjectiveId", delegation.getObjectiveId());
+            appendLine(section, "ObjectiveFamily", "NOT_APPLICABLE");
+            appendLine(section, "ObjectiveSummary", "NOT_APPLICABLE");
+            appendList(section, "AllowedOperations", delegation.getAllowedOperations());
+            appendList(section, "AllowedResources", delegation.getAllowedResources());
+            appendLine(section, "ApprovalRequired", delegation.getApprovalRequired());
+            appendLine(section, "PrivilegedExportAllowed", delegation.getPrivilegedExportAllowed());
+            appendLine(section, "ContainmentOnly", delegation.getContainmentOnly());
+            appendLine(section, "ObjectiveAlignmentEvidence",
+                    firstText(delegation.getObjectiveDriftSummary(), "NOT_APPLICABLE"));
+            return;
+        }
+        appendLineOrUnknown(section, "Delegated", delegation.getDelegated());
         appendLine(section, "AgentId", delegation.getAgentId());
         appendLine(section, "ObjectiveId", delegation.getObjectiveId());
-        appendLine(section, "ObjectiveFamily", delegation.getObjectiveFamily());
-        appendLine(section, "ObjectiveSummary", delegation.getObjectiveSummary());
+        appendLineOrUnknown(section, "ObjectiveFamily", delegation.getObjectiveFamily());
+        appendLineOrUnknown(section, "ObjectiveSummary", delegation.getObjectiveSummary());
         appendList(section, "AllowedOperations", delegation.getAllowedOperations());
         appendList(section, "AllowedResources", delegation.getAllowedResources());
         appendLine(section, "ApprovalRequired", delegation.getApprovalRequired());
         appendLine(section, "PrivilegedExportAllowed", delegation.getPrivilegedExportAllowed());
         appendLine(section, "ContainmentOnly", delegation.getContainmentOnly());
-        appendLine(section, "ObjectiveAlignmentEvidence", delegation.getObjectiveDriftSummary());
+        appendLineOrUnknown(section, "ObjectiveAlignmentEvidence", delegation.getObjectiveDriftSummary());
     }
 
     private void appendReasoningMemorySection(StringBuilder section, CanonicalSecurityContext.ReasoningMemoryProfile reasoningMemoryProfile) {
@@ -599,8 +701,15 @@ public class PromptContextComposer {
 
         section.append("\n=== EXPLICIT MISSING KNOWLEDGE ===\n");
         int compactedTrustLines = 0;
+        boolean hasResolvedAuthorizationEffect = context != null
+                && context.getAuthorization() != null
+                && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect());
         if (coverage != null) {
             for (String fact : coverage.missingCriticalFacts()) {
+                if (hasResolvedAuthorizationEffect
+                        && "Bridge missing context: AUTHORIZATION_EFFECT.".equals(fact)) {
+                    continue;
+                }
                 section.append("- ").append(fact).append("\n");
             }
         }
@@ -777,6 +886,19 @@ public class PromptContextComposer {
                 .append("\n");
     }
 
+    private void appendLineOrUnknown(StringBuilder section, String label, Object value) {
+        if (value == null) {
+            appendLine(section, label, "UNKNOWN");
+            return;
+        }
+        String text = value.toString();
+        if (!StringUtils.hasText(text)) {
+            appendLine(section, label, "UNKNOWN");
+            return;
+        }
+        appendLine(section, label, text);
+    }
+
     private String formatPercent(Double value) {
         if (value == null) {
             return "0%";
@@ -790,7 +912,11 @@ public class PromptContextComposer {
             String currentValue,
             List<String> comparedValues,
             Boolean present) {
-        if (!StringUtils.hasText(currentValue) || comparedValues == null || comparedValues.isEmpty() || present == null) {
+        if (!StringUtils.hasText(currentValue)) {
+            return;
+        }
+        if (comparedValues == null || comparedValues.isEmpty() || present == null) {
+            appendLine(section, label, "UNKNOWN");
             return;
         }
         appendLine(section, label, present);

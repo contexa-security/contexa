@@ -117,6 +117,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
             additionalFields.put("llmProposedAction", result.getProposedAction());
         }
+        putIfPresent(additionalFields, "llmDecisionPresent", result.getLlmDecisionPresent());
+        putIfPresent(additionalFields, "technicalFallbackApplied", result.getTechnicalFallbackApplied());
+        putIfPresent(additionalFields, "technicalFallbackCategory", result.getTechnicalFallbackCategory());
+        putIfPresent(additionalFields, "technicalFallbackReason", result.getTechnicalFallbackReason());
+        putIfPresent(additionalFields, "technicalFallbackAction", result.getTechnicalFallbackAction());
         if (Boolean.TRUE.equals(result.getAutonomyConstraintApplied())) {
             additionalFields.put("autonomyConstraintApplied", true);
             additionalFields.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
@@ -227,6 +232,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         return SecurityDecision.builder()
                 .action(proposedAction)
                 .autonomousAction(enforcedAction)
+                .llmDecisionPresent(result.getLlmDecisionPresent())
+                .technicalFallbackApplied(result.getTechnicalFallbackApplied())
+                .technicalFallbackCategory(result.getTechnicalFallbackCategory())
+                .technicalFallbackReason(result.getTechnicalFallbackReason())
+                .technicalFallbackAction(result.getTechnicalFallbackAction())
                 .confidence(result.getConfidence())
                 .llmAuditConfidence(result.resolveAuditConfidence())
                 .iocIndicators(indicators)

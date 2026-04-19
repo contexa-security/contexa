@@ -37,18 +37,4 @@ public enum BaselineStatus {
     public boolean isZeroTrustViolation() {
         return this != ESTABLISHED;
     }
-
-    public String buildPromptSection(String baselineContext) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== BASELINE ===\n");
-        sb.append("STATUS: ").append(statusLabel).append("\n");
-
-        if ((this == ESTABLISHED || this == PROVISIONAL) && baselineContext != null) {
-            sb.append(baselineContext).append("\n");
-        } else {
-            sb.append("IMPACT: ").append(impactDescription).append("\n");
-        }
-
-        return sb.toString();
-    }
 }

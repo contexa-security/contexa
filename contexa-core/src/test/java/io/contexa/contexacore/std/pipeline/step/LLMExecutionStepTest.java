@@ -4,10 +4,12 @@ import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
+import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -19,6 +21,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LLMExecutionStepTest {
 
@@ -76,8 +79,15 @@ class LLMExecutionStepTest {
     }
 
     @Test
-    void executeShouldPreferRawExecutionForSecurityDecisionTargets() {
+    void executeShouldUseEntityOnlyExecutionForSecurityDecisionTargets() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction("ALLOW");
+        lite.setConfidence(0.82d);
+        lite.setRiskScore(0.18d);
+        lite.setReasoning("Verified identity, scope, and low-risk context align with the request.");
+        lite.setMitre("UNKNOWN");
+        llmClient.entityResponse = lite;
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
         PipelineExecutionContext context = new PipelineExecutionContext("exec-security-decision-raw");
         context.addStepResult(
@@ -89,13 +99,127 @@ class LLMExecutionStepTest {
         domainContext.setUserId("user-1");
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
         request.withParameter("requestedModelId", "qwen3:8b");
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
 
         Object response = step.execute(request, context).block();
 
-        assertThat(response).isEqualTo("raw-response");
-        assertThat(context.getMetadata("structuredOutputComplete", Boolean.class)).isFalse();
-        assertThat(llmClient.rawExecutions).isEqualTo(1);
-        assertThat(llmClient.entityExecutions).isZero();
+        assertThat(response).isInstanceOf(SecurityDecisionResponseLite.class);
+        assertThat(context.getMetadata("structuredOutputComplete", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("structuredOutputPolicy", String.class)).isEqualTo(StructuredOutputPolicy.RAW_FORBIDDEN.name());
+        assertThat(context.getMetadata("structuredOutputMode", String.class)).isEqualTo(StructuredOutputMode.VALIDATED_CONVERTER.name());
+        assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isTrue();
+        assertThat(llmClient.rawExecutions).isZero();
+        assertThat(llmClient.entityExecutions).isEqualTo(1);
+        assertThat(llmClient.lastExecutionContext.getAdvisors()).hasSize(1);
+    }
+
+    @Test
+    void executeShouldDeriveActualPromptBudgetTelemetryFromProviderUsage() {
+        ObservedPromptTokenUsageRegistry.clear();
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction("ALLOW");
+        lite.setConfidence(0.91d);
+        lite.setRiskScore(0.08d);
+        lite.setReasoning("Verified runtime evidence remained consistent with a low-risk follow-up request.");
+        lite.setMitre("UNKNOWN");
+        llmClient.entityResponse = lite;
+        llmClient.actualPromptTokens = 930;
+        llmClient.actualCompletionTokens = 42;
+        llmClient.actualTotalTokens = 972;
+        llmClient.actualTokenUsageAvailable = true;
+
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-actual-token-usage");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+        context.addMetadata("budgetMaxInputTokens", 1500);
+        context.addMetadata("llmTotalPromptLength", 1860);
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("requestedModelId", "gpt-4o-mini");
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
+
+        try {
+            Object response = step.execute(request, context).block();
+
+            assertThat(response).isInstanceOf(SecurityDecisionResponseLite.class);
+            assertThat(context.getMetadata("actualPromptTokens", Number.class)).isEqualTo(930);
+            assertThat(context.getMetadata("actualPromptBudgetRemainingTokens", Number.class)).isEqualTo(570);
+            assertThat(context.getMetadata("actualPromptBudgetExceeded", Boolean.class)).isFalse();
+            assertThat(context.getMetadata("actualPromptUsageSource", String.class)).isEqualTo("PROVIDER_USAGE");
+            assertThat(context.getMetadata("actualPromptBudgetUtilizationRate", Double.class)).isEqualTo(0.62d);
+            assertThat(ObservedPromptTokenUsageRegistry.hasCalibration("gpt-4o-mini")).isTrue();
+        } finally {
+            ObservedPromptTokenUsageRegistry.clear();
+        }
+    }
+
+    @Test
+    void executeShouldRejectSecurityDecisionEntityFailureWithoutRawFallback() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.entityError = new IllegalStateException("schema mismatch");
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-decision-failure");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("requestedModelId", "qwen3:8b");
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
+
+        assertThatThrownBy(() -> step.execute(request, context).block())
+                .isInstanceOfSatisfying(StructuredOutputExecutionException.class, exception -> {
+                    assertThat(exception.getCategory()).isEqualTo(StructuredOutputFailureCategory.ENTITY_EXECUTION_FAILED);
+                    assertThat(exception.getFailure()).isNotNull();
+                    assertThat(exception.getFailure().category()).isEqualTo(DecisionFailureCategory.ENTITY_EXECUTION_FAILED);
+                    assertThat(exception.getFailure().technicalFallbackAction()).isNull();
+                    assertThat(exception.getFailure().message()).contains("Structured output execution failed");
+                })
+                .hasMessageContaining("Structured output execution failed");
+        assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("rawExecutionAttempted", Boolean.class)).isFalse();
+        assertThat(llmClient.rawExecutions).isZero();
+        assertThat(llmClient.entityExecutions).isEqualTo(1);
+    }
+
+    @Test
+    void executeShouldUseValidatedConverterWhenNativeStructuredOutputIsDisabled() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction("ALLOW");
+        lite.setConfidence(0.77d);
+        lite.setRiskScore(0.14d);
+        lite.setReasoning("Validated converter path preserved the structured security decision.");
+        lite.setMitre("UNKNOWN");
+        llmClient.entityResponse = lite;
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-native-disabled");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("requestedModelId", "gpt-4o-mini");
+        request.withParameter("nativeStructuredOutputEnabled", false);
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isInstanceOf(SecurityDecisionResponseLite.class);
+        assertThat(context.getMetadata("structuredOutputMode", String.class))
+                .isEqualTo(StructuredOutputMode.VALIDATED_CONVERTER.name());
+        assertThat(llmClient.lastExecutionContext.getAdvisors()).hasSize(1);
+        assertThat(llmClient.rawExecutions).isZero();
+        assertThat(llmClient.entityExecutions).isEqualTo(1);
     }
 
     @Test
@@ -127,11 +251,18 @@ class LLMExecutionStepTest {
         private ExecutionContext lastExecutionContext;
         private int rawExecutions;
         private int entityExecutions;
+        private SecurityDecisionResponseLite entityResponse;
+        private Throwable entityError;
+        private Integer actualPromptTokens;
+        private Integer actualCompletionTokens;
+        private Integer actualTotalTokens;
+        private Boolean actualTokenUsageAvailable;
 
         @Override
         public Mono<String> execute(ExecutionContext context) {
             this.lastExecutionContext = context;
             this.rawExecutions++;
+            applyUsageMetadata(context);
             return Mono.just("raw-response");
         }
 
@@ -145,7 +276,11 @@ class LLMExecutionStepTest {
         public <T> Mono<T> executeEntity(ExecutionContext context, Class<T> targetType) {
             this.lastExecutionContext = context;
             this.entityExecutions++;
-            return Mono.empty();
+            applyUsageMetadata(context);
+            if (entityError != null) {
+                return Mono.error(entityError);
+            }
+            return Mono.just(targetType.cast(entityResponse));
         }
 
         @Override
@@ -156,12 +291,33 @@ class LLMExecutionStepTest {
         @Override
         public <T> Mono<T> entity(Prompt prompt, Class<T> targetType) {
             this.entityExecutions++;
-            return Mono.empty();
+            if (entityError != null) {
+                return Mono.error(entityError);
+            }
+            return Mono.just(targetType.cast(entityResponse));
         }
 
         @Override
         public Flux<String> stream(Prompt prompt) {
             return Flux.just("legacy-stream-response");
+        }
+
+        private void applyUsageMetadata(ExecutionContext context) {
+            if (context == null) {
+                return;
+            }
+            if (actualPromptTokens != null) {
+                context.addMetadata("actualPromptTokens", actualPromptTokens);
+            }
+            if (actualCompletionTokens != null) {
+                context.addMetadata("actualCompletionTokens", actualCompletionTokens);
+            }
+            if (actualTotalTokens != null) {
+                context.addMetadata("actualTotalTokens", actualTotalTokens);
+            }
+            if (actualTokenUsageAvailable != null) {
+                context.addMetadata("actualTokenUsageAvailable", actualTokenUsageAvailable);
+            }
         }
     }
 

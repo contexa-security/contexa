@@ -33,6 +33,18 @@ class RequestInfoExtractorTest {
         request.setAttribute("hcad.mfa_verified", true);
         request.setAttribute("hcad.previous_path", "/admin/api/security-test/sensitive/resource-000");
         request.setAttribute("hcad.last_request_interval_ms", 4_200L);
+        request.setAttribute("currentResourceFamily", "SENSITIVE");
+        request.setAttribute("currentActionFamily", "READ");
+        request.setAttribute("expectedResourceFamilies", List.of("SENSITIVE"));
+        request.setAttribute("expectedActionFamilies", List.of("READ"));
+        request.setAttribute("recentPermissionChanges", List.of("NONE_RECORDED"));
+        request.setAttribute("approvalRequired", false);
+        request.setAttribute("approvalGranted", false);
+        request.setAttribute("approvalMissing", false);
+        request.setAttribute("approvalStatus", "NOT_APPLICABLE");
+        request.setAttribute("delegated", false);
+        request.setAttribute("objectiveDrift", false);
+        request.setAttribute("objectiveDriftSummary", "NOT_APPLICABLE: direct user request is not delegated.");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
@@ -44,6 +56,18 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getPreviousPath()).isEqualTo("/admin/api/security-test/sensitive/resource-000");
         assertThat(requestInfo.getLastRequestIntervalMs()).isEqualTo(4_200L);
         assertThat(requestInfo.getUserAgent()).contains("Chrome/120");
+        assertThat(requestInfo.getCurrentResourceFamily()).isEqualTo("SENSITIVE");
+        assertThat(requestInfo.getCurrentActionFamily()).isEqualTo("READ");
+        assertThat(requestInfo.getExpectedResourceFamilies()).containsExactly("SENSITIVE");
+        assertThat(requestInfo.getExpectedActionFamilies()).containsExactly("READ");
+        assertThat(requestInfo.getRecentPermissionChanges()).containsExactly("NONE_RECORDED");
+        assertThat(requestInfo.getApprovalRequired()).isFalse();
+        assertThat(requestInfo.getApprovalGranted()).isFalse();
+        assertThat(requestInfo.getApprovalMissing()).isFalse();
+        assertThat(requestInfo.getApprovalStatus()).isEqualTo("NOT_APPLICABLE");
+        assertThat(requestInfo.getDelegated()).isFalse();
+        assertThat(requestInfo.getObjectiveDrift()).isFalse();
+        assertThat(requestInfo.getObjectiveDriftSummary()).isEqualTo("NOT_APPLICABLE: direct user request is not delegated.");
     }
 
     @Test
@@ -164,5 +188,18 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getRuntimeMaxTokens()).isEqualTo(96);
         assertThat(requestInfo.getRuntimeDisableRetries()).isTrue();
         assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isTrue();
+    }
+
+    @Test
+    @DisplayName("organization scope hints should flow into request info")
+    void extractShouldIncludeOrganizationScopeFromGenericRequestAttributes() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-org-scope");
+        request.setAttribute("organizationId", "tenant-acme");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("tenant-acme");
     }
 }

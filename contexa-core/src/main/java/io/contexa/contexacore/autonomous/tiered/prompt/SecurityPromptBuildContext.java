@@ -2,6 +2,8 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
+import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import lombok.Getter;
 import org.springframework.ai.document.Document;
 
@@ -16,9 +18,10 @@ public class SecurityPromptBuildContext {
     private final List<Document> relatedDocuments;
     private final CanonicalSecurityContext canonicalSecurityContext;
     private final String userId;
-    private final String baselineContext;
     private final BaselineStatus baselineStatus;
     private final SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns;
+    private final LearningContextEvidence learningContextEvidence;
+    private final StructuredOutputMode structuredOutputMode;
 
     public SecurityPromptBuildContext(SecurityEvent event,
                                       SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
@@ -26,17 +29,19 @@ public class SecurityPromptBuildContext {
                                       List<Document> relatedDocuments,
                                       CanonicalSecurityContext canonicalSecurityContext,
                                       String userId,
-                                      String baselineContext,
                                       BaselineStatus baselineStatus,
-                                      SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns) {
+                                      SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns,
+                                      LearningContextEvidence learningContextEvidence,
+                                      StructuredOutputMode structuredOutputMode) {
         this.event = event;
         this.sessionContext = sessionContext;
         this.behaviorAnalysis = behaviorAnalysis;
         this.relatedDocuments = relatedDocuments != null ? List.copyOf(relatedDocuments) : List.of();
         this.canonicalSecurityContext = canonicalSecurityContext;
         this.userId = userId;
-        this.baselineContext = baselineContext;
         this.baselineStatus = baselineStatus;
         this.detectedPatterns = detectedPatterns;
+        this.learningContextEvidence = learningContextEvidence;
+        this.structuredOutputMode = structuredOutputMode;
     }
 }

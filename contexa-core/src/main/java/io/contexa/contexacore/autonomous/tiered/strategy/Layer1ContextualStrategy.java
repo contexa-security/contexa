@@ -22,12 +22,14 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -138,9 +140,47 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties,
                                     SecurityDecisionCalibrationService securityDecisionCalibrationService) {
+        this(
+                unifiedVectorService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                baselineLearningService,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                tieredStrategyProperties,
+                securityDecisionCalibrationService,
+                null);
+    }
+
+    public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
+                                    SecurityContextDataStore dataStore,
+                                    SecurityEventEnricher eventEnricher,
+                                    SecurityDecisionStandardPromptTemplate promptTemplate,
+                                    BehaviorVectorService behaviorVectorService,
+                                    BaselineLearningService baselineLearningService,
+                                    SecurityLearningService securityLearningService,
+                                    SaasBaselineSeedService baselineSeedService,
+                                    SaasThreatIntelligenceService threatIntelligenceService,
+                                    SaasThreatKnowledgePackService threatKnowledgePackService,
+                                    SaasDetectionStrategyPackService detectionStrategyPackService,
+                                    PromptContextAuthorizationService promptContextAuthorizationService,
+                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PipelineOrchestrator pipelineOrchestrator,
+                                    TieredStrategyProperties tieredStrategyProperties,
+                                    SecurityDecisionCalibrationService securityDecisionCalibrationService,
+                                    StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
         super(eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
-                promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
+                promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties,
+                structuredOutputCapabilityRegistry);
         this.dataStore = dataStore;
         this.securityLearningService = securityLearningService;
         this.baselineSeedService = baselineSeedService;
@@ -162,9 +202,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     public ThreatAssessment evaluate(SecurityEvent event) {
 
         SecurityDecision decision = analyzeWithContext(event);
-        boolean shouldEscalate = decision.getAction() == ZeroTrustAction.ESCALATE;
-        String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
         ZeroTrustAction autonomousAction = decision.resolveAutonomousAction();
+        boolean shouldEscalate = autonomousAction == ZeroTrustAction.ESCALATE;
+        String action = decision.getAction() != null ? decision.getAction().name() : null;
 
         return ThreatAssessment.builder()
                 .eventId(event.getEventId())
@@ -179,6 +219,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .shouldEscalate(shouldEscalate)
                 .action(action)
                 .autonomousAction(autonomousAction.name())
+                .llmDecisionPresent(decision.getLlmDecisionPresent())
+                .technicalFallbackApplied(decision.getTechnicalFallbackApplied())
+                .technicalFallbackCategory(decision.getTechnicalFallbackCategory())
+                .technicalFallbackReason(decision.getTechnicalFallbackReason())
+                .technicalFallbackAction(decision.getTechnicalFallbackAction())
                 .reasoning(decision.getReasoning())
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
@@ -239,29 +284,26 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-                        .timeout(Duration.ofMillis(llmTimeoutMs))
-                        .onErrorResume(Exception.class, e -> {
-                            log.error("[Layer1] Standard security pipeline failed, escalating to Layer 2: {}", event.getEventId(), e);
-                            return Mono.just(SecurityDecisionResponse.fromSecurityResponse(createDefaultResponse()));
-                        })
+//                        .timeout(Duration.ofMillis(llmTimeoutMs))
                         .block();
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
+                if (pipelineResponse == null) {
+                    throw new IllegalStateException("Layer1 structured security decision pipeline returned null");
+                }
+
                 long responseParseStart = System.currentTimeMillis();
-                response = validateAndFixResponse(
-                        pipelineResponse != null
-                                ? pipelineResponse.toSecurityResponse()
-                                : createDefaultResponse()
-                );
+                response = validateAndFixResponse(pipelineResponse.toSecurityResponse());
                 responseParseMs = System.currentTimeMillis() - responseParseStart;
                 capturePromptRuntimeTelemetry(event, pipelineResponse);
             } else {
-                log.error("[Layer1] PipelineOrchestrator not available");
-                response = createDefaultResponse();
+                throw new IllegalStateException("Layer1 PipelineOrchestrator not available");
             }
 
             SecurityDecision decision = applyPromptConfidenceGuardrail(convertToSecurityDecision(response, event), event);
             decision = applyRuntimeCalibration(decision, event, behaviorCtx, securityDecisionCalibrationService);
+            decision.setLlmDecisionPresent(true);
+            decision.setTechnicalFallbackApplied(false);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
@@ -287,18 +329,31 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         } catch (Exception e) {
             log.error("Layer 1 analysis failed for event {}", event.getEventId(), e);
-            return createFallbackDecision(startTime);
+            return createTechnicalFallbackDecision(
+                    event,
+                    ZeroTrustAction.ESCALATE,
+                    "[AI Native] Layer 1 analysis failed - escalating to Layer 2",
+                    resolveTechnicalFailureCategory(e),
+                    startTime,
+                    1);
         }
     }
 
     public Mono<SecurityDecision> analyzeWithContextAsync(SecurityEvent event) {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
+        long startTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> analyzeWithContext(event))
-                .timeout(Duration.ofMillis(totalTimeoutMs))
+//                .timeout(Duration.ofMillis(totalTimeoutMs))
                 .onErrorResume(throwable -> {
                     log.error("[Layer1][AI Native v4.3.0] Async analysis failed or timed out ({}ms)",
                             totalTimeoutMs, throwable);
-                    return Mono.just(createFallbackDecision(System.currentTimeMillis()));
+                    return Mono.just(createTechnicalFallbackDecision(
+                            event,
+                            ZeroTrustAction.ESCALATE,
+                            "[AI Native] Layer 1 async analysis failed - escalating to Layer 2",
+                            resolveTechnicalFailureCategory(throwable),
+                            startTime,
+                            1));
                 });
     }
 
@@ -376,7 +431,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }, executor);
 
             RagRetrievalOutcome outcome = future.get(ragTimeoutMs, TimeUnit.MILLISECONDS);
-            annotateRagRetrievalResult(event, outcome.relatedDocuments(), false, null, false);
+            if (!hasRagUnavailableMetadata(event)) {
+                annotateRagRetrievalResult(event, outcome.relatedDocuments(), false, null, false);
+            }
             return outcome;
         } catch (TimeoutException timeoutException) {
             if (future != null) {
@@ -433,14 +490,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             BaseBehaviorAnalysis behaviorAnalysis,
             SecurityEvent event) {
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis ctx = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
-        ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
-
-        if (behaviorAnalysis.getBaselineContext() != null) {
-            String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
-            ctx.setPreviousUserAgentOS(baselineOS);
-        }
 
         enrichBehaviorAnalysisWithRuntimeLearningSupport(
                 ctx,
@@ -450,46 +500,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 detectionStrategyPackService);
 
+        if (!StringUtils.hasText(ctx.getPreviousUserAgentOS())
+                && ctx.getPersonalBaselineEvidence() != null
+                && !ctx.getPersonalBaselineEvidence().operatingSystems().isEmpty()) {
+            ctx.setPreviousUserAgentOS(ctx.getPersonalBaselineEvidence().operatingSystems().getFirst());
+        }
+
         return ctx;
-    }
-
-    private String extractOSFromBaselineContext(String baselineContext) {
-        if (baselineContext == null || baselineContext.isEmpty()) {
-            return null;
-        }
-
-        try {
-            int uaRowIdx = baselineContext.indexOf("| UA");
-            if (uaRowIdx != -1) {
-
-                int rowEndIdx = baselineContext.indexOf("\n", uaRowIdx);
-                if (rowEndIdx == -1) rowEndIdx = baselineContext.length();
-                String uaRow = baselineContext.substring(uaRowIdx, rowEndIdx);
-                String[] columns = uaRow.split("\\|");
-                if (columns.length >= 4) {
-
-                    String baselineColumn = columns[3].trim();
-                    int startParen = baselineColumn.lastIndexOf("(");
-                    int endParen = baselineColumn.lastIndexOf(")");
-                    if (startParen != -1 && endParen > startParen) {
-                        String os = baselineColumn.substring(startParen + 1, endParen);
-                        return os.replace("...", "");
-                    }
-                }
-            }
-
-            int baselineIdx = baselineContext.indexOf("\"baseline\":");
-            if (baselineIdx != -1) {
-                int startParen = baselineContext.indexOf("(", baselineIdx);
-                int endParen = baselineContext.indexOf(")", startParen);
-                if (startParen != -1 && endParen > startParen) {
-                    return baselineContext.substring(startParen + 1, endParen);
-                }
-            }
-        } catch (Exception e) {
-            log.error("[Layer1] Failed to extract OS from baseline context: {}", e.getMessage());
-        }
-        return null;
     }
 
     private SecurityDecision convertToSecurityDecision(SecurityResponse response,
@@ -535,6 +552,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
+    private boolean hasRagUnavailableMetadata(SecurityEvent event) {
+        return event != null
+                && event.getMetadata() != null
+                && Boolean.TRUE.equals(event.getMetadata().get("ragUnavailable"));
+    }
+
     private void enrichDecisionWithContext(SecurityDecision decision,
                                            SessionContext sessionContext,
                                            BaseBehaviorAnalysis behaviorAnalysis,
@@ -565,16 +588,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             decision.setBehaviorPatterns(new ArrayList<>());
         }
         decision.getBehaviorPatterns().addAll(behaviorAnalysis.getSimilarEvents());
-    }
-
-    private SecurityDecision createFallbackDecision(long startTime) {
-        return SecurityDecision.builder()
-                .action(ZeroTrustAction.ESCALATE)
-                .analysisTime(startTime)
-                .processingTimeMs(System.currentTimeMillis() - startTime)
-                .processingLayer(1)
-                .reasoning("[AI Native] Layer 1 analysis failed - escalating to Layer 2")
-                .build();
     }
 
     @Override

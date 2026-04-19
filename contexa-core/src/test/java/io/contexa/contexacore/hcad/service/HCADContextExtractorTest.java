@@ -234,4 +234,30 @@ class HCADContextExtractorTest {
         assertThat(context.getRequestPath()).isEqualTo("/api/error");
         assertThat(context.getHttpMethod()).isEqualTo("GET");
     }
+
+    @Test
+    @DisplayName("Should prefer explicit resource hints over generic path segments")
+    void shouldPreferExplicitResourceHintsOverGenericPathSegments() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/admin/api/security-test/sensitive/self-sensitive-1");
+        request.setMethod("GET");
+        request.setRemoteAddr("10.0.0.11");
+        request.addHeader("User-Agent", "Browser/1.0");
+        request.setAttribute("resourceId", "self-sensitive-1");
+        request.setAttribute("resourceType", "sensitive");
+        request.setAttribute("resourceSensitivity", "HIGH");
+        request.setAttribute("resourceBusinessLabel", "Sensitive Security Test Resource self-sensitive-1");
+
+        Authentication auth = new TestingAuthenticationToken("admin", "password", "ROLE_ADMIN");
+
+        HCADContext context = extractor.extractContext(request, auth);
+
+        assertThat(context.getResourceType()).isEqualTo("sensitive");
+        assertThat(context.getIsSensitiveResource()).isTrue();
+        assertThat(context.getAdditionalAttributes())
+                .containsEntry("resourceId", "self-sensitive-1")
+                .containsEntry("resourceType", "sensitive")
+                .containsEntry("resourceSensitivity", "HIGH")
+                .containsEntry("resourceBusinessLabel", "Sensitive Security Test Resource self-sensitive-1");
+    }
 }

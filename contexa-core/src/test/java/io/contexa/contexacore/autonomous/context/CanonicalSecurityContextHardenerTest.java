@@ -56,6 +56,10 @@ class CanonicalSecurityContextHardenerTest {
                         .recentDeniedAccessCount(-1)
                         .frequentResources(List.of("/a", " /a ", ""))
                         .build())
+                .sessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile.builder()
+                        .summary("Session age 0m | previous path /admin/api/security-test/sensitive/resource-001")
+                        .sessionAgeMinutes(600)
+                        .build())
                 .build();
 
         CanonicalSecurityContext hardened = new CanonicalSecurityContextHardener().harden(context);
@@ -86,5 +90,8 @@ class CanonicalSecurityContextHardenerTest {
         assertThat(hardened.getObservedScope().getProfileSource()).isEqualTo("PROTECTABLE_ACCESS_HISTORY");
         assertThat(hardened.getObservedScope().getRecentDeniedAccessCount()).isZero();
         assertThat(hardened.getObservedScope().getFrequentResources()).containsExactly("/a");
+        assertThat(hardened.getSessionNarrativeProfile().getSessionAgeMinutes()).isEqualTo(600);
+        assertThat(hardened.getSessionNarrativeProfile().getSummary()).contains("Session age 600m");
+        assertThat(hardened.getSessionNarrativeProfile().getSummary()).doesNotContain("Session age 0m");
     }
 }

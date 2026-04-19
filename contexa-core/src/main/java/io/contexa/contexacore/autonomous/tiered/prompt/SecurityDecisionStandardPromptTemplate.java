@@ -5,6 +5,8 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
@@ -22,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
+import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.ai.document.Document;
@@ -97,6 +100,16 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     }
 
     @Override
+    protected boolean shouldIncludeFormatInstructions(AIRequest<? extends DomainContext> request) {
+        return resolveStructuredOutputMode(request) != StructuredOutputMode.NATIVE_STRUCTURED;
+    }
+
+    @Override
+    protected boolean shouldIncludeSystemMetadata(AIRequest<? extends DomainContext> request) {
+        return false;
+    }
+
+    @Override
     public TemplateType getSupportedType() {
         return SecurityDecisionRequest.TEMPLATE_TYPE;
     }
@@ -125,12 +138,19 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                     baseMetadata.sectionSet(),
                     baseMetadata.omittedSections(),
                     baseMetadata.omissionLedger(),
+                    baseMetadata.duplicationInventory(),
                     baseMetadata.promptEvidenceCompleteness(),
+                    io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.resolveRequestedModelHint(request),
                     systemPrompt,
-                    userPrompt);
+                    userPrompt,
+                    systemPrompt,
+                    userPrompt,
+                    baseMetadata.promptCompressionLedger(),
+                    baseMetadata.supplementalMetadata());
         }
         return io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.buildExecutionMetadata(
                 getPromptGovernanceDescriptor(),
+                io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.resolveRequestedModelHint(request),
                 systemPrompt,
                 userPrompt);
     }
@@ -150,6 +170,22 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             List<Document> relatedDocuments,
             PromptBudgetProfile budgetProfile) {
         return promptSections.buildStructuredPrompt(event, sessionContext, behaviorAnalysis, relatedDocuments, budgetProfile);
+    }
+
+    public StructuredPrompt buildStructuredPrompt(
+            SecurityEvent event,
+            SessionContext sessionContext,
+            BehaviorAnalysis behaviorAnalysis,
+            List<Document> relatedDocuments,
+            PromptBudgetProfile budgetProfile,
+            StructuredOutputMode structuredOutputMode) {
+        return promptSections.buildStructuredPrompt(
+                event,
+                sessionContext,
+                behaviorAnalysis,
+                relatedDocuments,
+                budgetProfile,
+                structuredOutputMode);
     }
 
     public String buildPrompt(
@@ -178,15 +214,26 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         PromptBudgetProfile budgetProfile = PromptBudgetProfile.fromKey(
                 securityDecisionRequest.getParameter("promptBudgetProfile", String.class),
                 null);
+        StructuredOutputMode structuredOutputMode = resolveStructuredOutputMode(securityDecisionRequest);
         StructuredPrompt structuredPrompt = buildStructuredPrompt(
                 context.getSecurityEvent(),
                 context.getSessionContext(),
                 context.getBehaviorAnalysis(),
                 context.getRelatedDocuments(),
-                budgetProfile
+                budgetProfile,
+                structuredOutputMode
         );
         request.withParameter(STRUCTURED_PROMPT_CACHE_KEY, structuredPrompt);
         return structuredPrompt;
+    }
+
+    private StructuredOutputMode resolveStructuredOutputMode(AIRequest<? extends DomainContext> request) {
+        if (request == null) {
+            return StructuredOutputMode.VALIDATED_CONVERTER;
+        }
+        return StructuredOutputMode.fromValue(
+                request.getParameter("structuredOutputMode", Object.class),
+                StructuredOutputMode.VALIDATED_CONVERTER);
     }
 
     public record StructuredPrompt(
@@ -227,8 +274,6 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
     @Setter
     public static class BehaviorAnalysis {
-        private List<String> similarEvents = List.of();
-        private String baselineContext;
         private boolean baselineEstablished;
         private List<ThreatIntelligenceSnapshot.ThreatSignalItem> activeThreatSignals = List.of();
         private ThreatIntelligenceMatchContext threatIntelligenceMatchContext;
@@ -246,6 +291,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private String[] baselineFrequentPaths;
         private Integer[] baselineAccessHours;
         private Integer[] baselineAccessDays;
+        private String[] baselineBrowsers;
+        private String[] baselineIpBands;
+        private String[] baselineAuthenticationTypes;
+        private String[] baselineActionFamilies;
+        private String[] baselineResourceFamilies;
         private Long baselineUpdateCount;
         private Double baselineAvgTrustScore;
         private String previousUserAgentBrowser;
@@ -265,14 +315,9 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private double cohortSeedWeight;
         private String cohortSeedWeightState;
         private List<String> cohortSeedPolicyFacts = List.of();
-
-        public List<String> getSimilarEvents() {
-            return similarEvents != null ? similarEvents : List.of();
-        }
-
-        public String getBaselineContext() {
-            return baselineContext;
-        }
+        private BaselineEvidenceSnapshot personalBaselineEvidence;
+        private BaselineEvidenceSnapshot supportingBaselineEvidence;
+        private LearningContextEvidence learningContextEvidence;
 
         public boolean isBaselineEstablished() {
             return baselineEstablished;
@@ -340,6 +385,26 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
         public Integer[] getBaselineAccessDays() {
             return baselineAccessDays;
+        }
+
+        public String[] getBaselineBrowsers() {
+            return baselineBrowsers;
+        }
+
+        public String[] getBaselineIpBands() {
+            return baselineIpBands;
+        }
+
+        public String[] getBaselineAuthenticationTypes() {
+            return baselineAuthenticationTypes;
+        }
+
+        public String[] getBaselineActionFamilies() {
+            return baselineActionFamilies;
+        }
+
+        public String[] getBaselineResourceFamilies() {
+            return baselineResourceFamilies;
         }
 
         public Long getBaselineUpdateCount() {
@@ -416,6 +481,18 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
         public List<String> getCohortSeedPolicyFacts() {
             return cohortSeedPolicyFacts != null ? cohortSeedPolicyFacts : List.of();
+        }
+
+        public BaselineEvidenceSnapshot getPersonalBaselineEvidence() {
+            return personalBaselineEvidence;
+        }
+
+        public BaselineEvidenceSnapshot getSupportingBaselineEvidence() {
+            return supportingBaselineEvidence;
+        }
+
+        public LearningContextEvidence getLearningContextEvidence() {
+            return learningContextEvidence;
         }
     }
 }

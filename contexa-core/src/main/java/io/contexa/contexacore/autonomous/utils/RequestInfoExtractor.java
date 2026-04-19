@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +48,9 @@ public final class RequestInfoExtractor {
         Boolean runtimeDisableOllamaThinking = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
+        String organizationId = firstNonBlankText(
+                extractHeaderOrAttribute(request, "X-Contexa-Organization-Id", "organizationId", "orgId", "tenantId"),
+                authenticationStampOrganizationId(request));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
                 requestedModelId,
@@ -109,6 +113,46 @@ public final class RequestInfoExtractor {
                         "resourceId",
                         "requestedResourceId",
                         "protectedResourceId"))
+                .currentResourceFamily(extractAttributeText(request,
+                        "currentResourceFamily",
+                        "current_resource_family"))
+                .currentActionFamily(extractAttributeText(request,
+                        "currentActionFamily",
+                        "current_action_family"))
+                .expectedResourceFamilies(extractAttributeStrings(request,
+                        "expectedResourceFamilies",
+                        "allowedResourceFamilies"))
+                .expectedActionFamilies(extractAttributeStrings(request,
+                        "expectedActionFamilies",
+                        "allowedActionFamilies"))
+                .recentPermissionChanges(extractAttributeStrings(request,
+                        "recentPermissionChanges",
+                        "permissionChangeEvents"))
+                .approvalRequired(castToBoolean(firstNonNullAttribute(request,
+                        "approvalRequired",
+                        "approval_required")))
+                .approvalGranted(castToBoolean(firstNonNullAttribute(request,
+                        "approvalGranted",
+                        "approval_granted")))
+                .approvalMissing(castToBoolean(firstNonNullAttribute(request,
+                        "approvalMissing",
+                        "approval_missing")))
+                .approvalStatus(extractAttributeText(request,
+                        "approvalStatus",
+                        "approval_status"))
+                .delegated(castToBoolean(firstNonNullAttribute(request,
+                        "delegated",
+                        "isDelegated",
+                        "agentDelegated")))
+                .objectiveDrift(castToBoolean(firstNonNullAttribute(request,
+                        "objectiveDrift",
+                        "objective_drift",
+                        "delegationObjectiveDrift")))
+                .objectiveDriftSummary(extractAttributeText(request,
+                        "objectiveDriftSummary",
+                        "objective_drift_summary",
+                        "delegationObjectiveDriftSummary"))
+                .organizationId(organizationId)
                 .mfaVerified(castToBoolean(officialContextFields.get("mfaVerified")))
                 .previousPath(extractAttributeText(request,
                         "hcad.previous_path",
@@ -347,6 +391,20 @@ public final class RequestInfoExtractor {
         return (value != null && !value.isBlank()) ? value.trim() : null;
     }
 
+    private static String authenticationStampOrganizationId(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP);
+        if (rawStamp instanceof AuthenticationStamp stamp && stamp.attributes() != null) {
+            return firstNonBlankText(
+                    castToText(stamp.attributes().get("organizationId")),
+                    castToText(stamp.attributes().get("orgId")),
+                    castToText(stamp.attributes().get("tenantId")));
+        }
+        return null;
+    }
+
 
     private static String extractHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
         String value = extractHeader(request, headerName);
@@ -504,6 +562,39 @@ public final class RequestInfoExtractor {
         return null;
     }
 
+    private static List<String> extractAttributeStrings(HttpServletRequest request, String... names) {
+        Object value = firstNonNullAttribute(request, names);
+        if (value == null) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                addText(values, item);
+            }
+        } else if (value instanceof Object[] array) {
+            for (Object item : array) {
+                addText(values, item);
+            }
+        } else {
+            String text = String.valueOf(value);
+            for (String token : text.split(",")) {
+                addText(values, token);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private static void addText(List<String> values, Object value) {
+        if (values == null || value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isBlank()) {
+            values.add(text);
+        }
+    }
+
     private static String extractClientIpLegacy(HttpServletRequest request) {
         return SessionFingerprintUtil.extractClientIp(request);
     }
@@ -619,6 +710,19 @@ public final class RequestInfoExtractor {
         private final String resourceSensitivity;
         private final String resourceBusinessLabel;
         private final String resourceId;
+        private final String currentResourceFamily;
+        private final String currentActionFamily;
+        private final List<String> expectedResourceFamilies;
+        private final List<String> expectedActionFamilies;
+        private final List<String> recentPermissionChanges;
+        private final Boolean approvalRequired;
+        private final Boolean approvalGranted;
+        private final Boolean approvalMissing;
+        private final String approvalStatus;
+        private final Boolean delegated;
+        private final Boolean objectiveDrift;
+        private final String objectiveDriftSummary;
+        private final String organizationId;
         private final Boolean mfaVerified;
         private final String previousPath;
         private final Long lastRequestIntervalMs;

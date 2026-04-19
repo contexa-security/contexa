@@ -31,6 +31,11 @@ public class BaselineVector implements Serializable {
     private String[] frequentPaths;       
     private String[] normalUserAgents;    
     private String[] normalOperatingSystems;  
+    private String[] normalBrowsers;
+    private String[] normalIpBands;
+    private String[] normalAuthenticationTypes;
+    private String[] frequentActionFamilies;
+    private String[] frequentResourceFamilies;
 
     
     @Builder.Default

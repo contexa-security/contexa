@@ -1,6 +1,9 @@
 package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -45,7 +48,7 @@ class PromptGenerationStepTest {
         sessionContext.setSessionId("session-1");
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setBaselineContext("[NO_DATA] Baseline not loaded");
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
 
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
@@ -60,7 +63,7 @@ class PromptGenerationStepTest {
         Object result = step.execute(request, context).block();
 
         assertThat(result).isNotNull();
-        assertThat(context.getMetadata("promptTokenEstimator", String.class)).isEqualTo("heuristic-char-div4-v1");
+        assertThat(context.getMetadata("promptTokenEstimator", String.class)).isEqualTo("MODEL_AWARE_TOKEN_COUNTING_V1");
         assertThat(context.getMetadata("estimatedSystemTokens", Integer.class)).isPositive();
         assertThat(context.getMetadata("estimatedUserTokens", Integer.class)).isPositive();
         assertThat(context.getMetadata("estimatedTotalTokens", Integer.class)).isPositive();
@@ -73,5 +76,26 @@ class PromptGenerationStepTest {
         PromptExecutionMetadata executionMetadata = context.getMetadata("promptExecutionMetadata", PromptExecutionMetadata.class);
         assertThat(context.getMetadata("promptCompressionApplied", Boolean.class))
                 .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
+    }
+
+    private BaselineEvidenceSnapshot noDataBaselineEvidence() {
+        return new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL,
+                false,
+                false,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "",
+                BaselineEvidenceStatus.NO_DATA,
+                "");
     }
 }

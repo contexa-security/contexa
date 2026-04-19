@@ -7,7 +7,11 @@ import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ResponseEntity;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -21,6 +25,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -47,53 +53,14 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         Mono<String> execution = Mono.fromCallable(() -> {
-
-                    ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
-
-                    if (selectedModel == null) {
-                        throw new IllegalStateException(
-                                "No LLM model configured. " +
-                                        "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
-                    }
-
-                    ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
-
-                    ChatClient.ChatClientRequestSpec promptSpec = chatClient.prompt(context.getPrompt());
-
-                    String eventUserId = context.getUserId();
-                    String eventSessionId = context.getSessionId();
-                    if (isAdvisorEnabled(context)
-                            && ((eventUserId != null && !eventUserId.isEmpty()) || (eventSessionId != null && !eventSessionId.isEmpty()))) {
-                        promptSpec = promptSpec.advisors(spec -> {
-                            if (eventUserId != null && !eventUserId.isEmpty()) {
-                                spec.param("event.userId", eventUserId);
-                            }
-                            if (eventSessionId != null && !eventSessionId.isEmpty()) {
-                                spec.param("event.sessionId", eventSessionId);
-                            }
-                        });
-                    }
-
-                    promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
-
-                    if (context.getToolExecutionEnabled() != null && context.getToolExecutionEnabled()) {
-
-                        if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
-                            promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
-                        } else if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
-                            promptSpec = promptSpec.tools(context.getToolProviders().toArray());
-                        }
-                    }
-
-                    String response = promptSpec.call().content();
-
+                    ChatResponse chatResponse = executeForChatResponse(context);
+                    String response = extractResponseText(chatResponse);
                     if (response == null || response.isBlank()) {
                         String requestId = context.getRequestId();
                         log.error("LLM response is null or empty - RequestId: {}", requestId);
                         throw new IllegalStateException("LLM response is null or empty"
                                 + (requestId != null && !requestId.isBlank() ? " - RequestId: " + requestId : ""));
                     }
-
                     return response;
                 })
                 .doOnError(error -> log.error("LLM execution failed - RequestId: {}", context.getRequestId(), error));
@@ -144,37 +111,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return Mono.fromCallable(() -> {
-
-                    ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
-
-                    if (selectedModel == null) {
-                        throw new IllegalStateException(
-                                "No LLM model configured. " +
-                                        "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
+                    ResponseEntity<ChatResponse, T> responseEntity = executeForResponseEntity(context, targetType);
+                    T entity = responseEntity.getEntity();
+                    if (entity == null) {
+                        throw new IllegalStateException("Structured output entity is null");
                     }
-
-                    ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
-
-                    var promptSpec = chatClient.prompt(context.getPrompt());
-
-                    String eventUserId = context.getUserId();
-                    String eventSessionId = context.getSessionId();
-                    if (isAdvisorEnabled(context)
-                            && ((eventUserId != null && !eventUserId.isEmpty())
-                            || (eventSessionId != null && !eventSessionId.isEmpty()))) {
-                        promptSpec = promptSpec.advisors(spec -> {
-                            if (eventUserId != null && !eventUserId.isEmpty()) {
-                                spec.param("event.userId", eventUserId);
-                            }
-                            if (eventSessionId != null && !eventSessionId.isEmpty()) {
-                                spec.param("event.sessionId", eventSessionId);
-                            }
-                        });
-                    }
-
-                    promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
-
-                    return (T) promptSpec.call().entity(targetType);
+                    return entity;
                 })
                 .doOnError(error -> log.error("LLM Entity execution failed - RequestId: {}", context.getRequestId(),
                         error))
@@ -251,6 +193,233 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return promptSpec.options(buildGenericChatOptions(context));
+    }
+
+    private ChatResponse executeForChatResponse(ExecutionContext context) {
+        ChatModel selectedModel = requireSelectedModel(context);
+        ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
+        ChatClient.ChatClientRequestSpec promptSpec = preparePromptSpec(chatClient, context, selectedModel);
+        ChatResponse chatResponse = promptSpec.call().chatResponse();
+        captureResponseMetadata(context, selectedModel, chatResponse);
+        return chatResponse;
+    }
+
+    private <T> ResponseEntity<ChatResponse, T> executeForResponseEntity(ExecutionContext context, Class<T> targetType) {
+        ChatModel selectedModel = requireSelectedModel(context);
+        ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
+        ChatClient.ChatClientRequestSpec promptSpec = preparePromptSpec(chatClient, context, selectedModel);
+        ResponseEntity<ChatResponse, T> responseEntity = promptSpec.call().responseEntity(targetType);
+        captureResponseMetadata(context, selectedModel, responseEntity.getResponse());
+        return responseEntity;
+    }
+
+    private ChatModel requireSelectedModel(ExecutionContext context) {
+        ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
+        if (selectedModel == null) {
+            throw new IllegalStateException(
+                    "No LLM model configured. " +
+                            "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
+        }
+        return selectedModel;
+    }
+
+    private ChatClient.ChatClientRequestSpec preparePromptSpec(ChatClient chatClient,
+                                                               ExecutionContext context,
+                                                               ChatModel selectedModel) {
+        ChatClient.ChatClientRequestSpec promptSpec = chatClient.prompt(context.getPrompt());
+        promptSpec = applyAdvisorConfiguration(promptSpec, context);
+        promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
+
+        if (Boolean.TRUE.equals(context.getToolExecutionEnabled())) {
+            if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
+                promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
+            } else if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
+                promptSpec = promptSpec.tools(context.getToolProviders().toArray());
+            }
+        }
+        return promptSpec;
+    }
+
+    private ChatClient.ChatClientRequestSpec applyAdvisorConfiguration(ChatClient.ChatClientRequestSpec promptSpec,
+                                                                      ExecutionContext context) {
+        if (context == null) {
+            return promptSpec;
+        }
+
+        boolean advisorEnabled = isAdvisorEnabled(context);
+        boolean nativeStructuredOutput = resolveStructuredOutputMode(context) == StructuredOutputMode.NATIVE_STRUCTURED;
+        String eventUserId = context.getUserId();
+        String eventSessionId = context.getSessionId();
+        boolean shouldApplyRuntimeAdvisorParams = nativeStructuredOutput
+                || (advisorEnabled && ((eventUserId != null && !eventUserId.isEmpty())
+                || (eventSessionId != null && !eventSessionId.isEmpty())));
+        if (shouldApplyRuntimeAdvisorParams) {
+            promptSpec = promptSpec.advisors(spec -> {
+                if (advisorEnabled && eventUserId != null && !eventUserId.isEmpty()) {
+                    spec.param("event.userId", eventUserId);
+                }
+                if (advisorEnabled && eventSessionId != null && !eventSessionId.isEmpty()) {
+                    spec.param("event.sessionId", eventSessionId);
+                }
+                if (nativeStructuredOutput) {
+                    AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT.accept(spec);
+                }
+            });
+        }
+
+        if (context.getAdvisors() != null && !context.getAdvisors().isEmpty()) {
+            promptSpec = promptSpec.advisors(context.getAdvisors());
+        }
+        return promptSpec;
+    }
+
+    private StructuredOutputMode resolveStructuredOutputMode(ExecutionContext context) {
+        if (context == null || context.getMetadata() == null) {
+            return StructuredOutputMode.LEGACY_RAW;
+        }
+        return StructuredOutputMode.fromValue(
+                context.getMetadata().get("structuredOutputMode"),
+                StructuredOutputMode.LEGACY_RAW);
+    }
+
+    private String extractResponseText(ChatResponse chatResponse) {
+        if (chatResponse == null || chatResponse.getResult() == null || chatResponse.getResult().getOutput() == null) {
+            return null;
+        }
+        return chatResponse.getResult().getOutput().getText();
+    }
+
+    private void captureResponseMetadata(ExecutionContext context, ChatModel selectedModel, ChatResponse chatResponse) {
+        if (context == null) {
+            return;
+        }
+        if (chatResponse == null) {
+            context.addMetadata("actualTokenUsageAvailable", false);
+            return;
+        }
+
+        ChatResponseMetadata metadata = chatResponse.getMetadata();
+        if (metadata == null) {
+            context.addMetadata("actualTokenUsageAvailable", false);
+            return;
+        }
+
+        if (metadata.getId() != null && !metadata.getId().isBlank()) {
+            context.addMetadata("providerResponseId", metadata.getId());
+        }
+        String providerModel = metadata.getModel();
+        if (providerModel == null || providerModel.isBlank()) {
+            providerModel = resolveSelectedModelId(context);
+        }
+        if ((providerModel == null || providerModel.isBlank()) && selectedModel != null) {
+            providerModel = selectedModel.getClass().getSimpleName();
+        }
+        if (providerModel != null && !providerModel.isBlank()) {
+            context.addMetadata("providerResponseModel", providerModel);
+        }
+
+        Usage usage = metadata.getUsage();
+        Integer promptTokens = usage != null ? usage.getPromptTokens() : null;
+        Integer completionTokens = usage != null ? usage.getCompletionTokens() : null;
+        Integer totalTokens = usage != null ? usage.getTotalTokens() : null;
+        boolean usageAvailable = promptTokens != null || completionTokens != null || totalTokens != null;
+        context.addMetadata("actualTokenUsageAvailable", usageAvailable);
+        if (promptTokens != null) {
+            context.addMetadata("actualPromptTokens", promptTokens);
+        }
+        if (completionTokens != null) {
+            context.addMetadata("actualCompletionTokens", completionTokens);
+        }
+        if (totalTokens != null) {
+            context.addMetadata("actualTotalTokens", totalTokens);
+        }
+
+        Integer cachedPromptTokens = extractCachedPromptTokens(metadata, usage);
+        if (cachedPromptTokens != null) {
+            context.addMetadata("cachedPromptTokens", cachedPromptTokens);
+            context.addMetadata("promptCacheHit", cachedPromptTokens > 0);
+        } else if (context.getMetadata().containsKey("promptCacheEligible")) {
+            context.addMetadata("promptCacheHit", false);
+        }
+    }
+
+    private Integer extractCachedPromptTokens(ChatResponseMetadata metadata, Usage usage) {
+        Integer fromUsage = extractCachedPromptTokensFromNativeUsage(usage != null ? usage.getNativeUsage() : null);
+        if (fromUsage != null) {
+            return fromUsage;
+        }
+        if (metadata == null) {
+            return null;
+        }
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            Integer extracted = extractCachedPromptTokensFromUnknown(entry.getValue());
+            if (extracted != null) {
+                return extracted;
+            }
+            if (entry.getKey() != null && entry.getKey().toLowerCase(Locale.ROOT).contains("cached")
+                    && entry.getValue() instanceof Number number) {
+                return number.intValue();
+            }
+        }
+        return null;
+    }
+
+    private Integer extractCachedPromptTokensFromNativeUsage(Object nativeUsage) {
+        if (nativeUsage == null) {
+            return null;
+        }
+        return extractCachedPromptTokensFromUnknown(nativeUsage);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Integer extractCachedPromptTokensFromUnknown(Object source) {
+        if (source == null) {
+            return null;
+        }
+        if (source instanceof Number number) {
+            return number.intValue();
+        }
+        if (source instanceof Map<?, ?> map) {
+            for (String key : List.of("cached_tokens", "cachedTokens")) {
+                Object value = map.get(key);
+                if (value instanceof Number number) {
+                    return number.intValue();
+                }
+            }
+            Object nested = map.get("prompt_tokens_details");
+            Integer nestedCached = extractCachedPromptTokensFromUnknown(nested);
+            if (nestedCached != null) {
+                return nestedCached;
+            }
+            nested = map.get("promptTokensDetails");
+            return extractCachedPromptTokensFromUnknown(nested);
+        }
+        try {
+            Object promptTokensDetails = source.getClass().getMethod("promptTokensDetails").invoke(source);
+            Integer cached = extractCachedPromptTokensFromUnknown(promptTokensDetails);
+            if (cached != null) {
+                return cached;
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            Object promptTokensDetails = source.getClass().getMethod("getPromptTokensDetails").invoke(source);
+            Integer cached = extractCachedPromptTokensFromUnknown(promptTokensDetails);
+            if (cached != null) {
+                return cached;
+            }
+        } catch (Exception ignored) {
+        }
+        for (String methodName : List.of("cachedTokens", "getCachedTokens")) {
+            try {
+                Object value = source.getClass().getMethod(methodName).invoke(source);
+                if (value instanceof Number number) {
+                    return number.intValue();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     private String resolveConfiguredModelNameForTier(Integer tier) {

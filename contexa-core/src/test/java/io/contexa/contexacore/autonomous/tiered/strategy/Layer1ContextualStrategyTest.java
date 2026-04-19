@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -134,7 +135,7 @@ class Layer1ContextualStrategyTest {
         Document brokenDocument = mock(Document.class);
 
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenReturn(List.of(brokenDocument));
-        when(authorizationService.authorize(any(), any(), ArgumentMatchers.<List<Document>>any()))
+        lenient().when(authorizationService.authorize(any(), any(), ArgumentMatchers.<List<Document>>any()))
                 .thenReturn(new AuthorizedPromptContext(
                         List.of(brokenDocument),
                         1,

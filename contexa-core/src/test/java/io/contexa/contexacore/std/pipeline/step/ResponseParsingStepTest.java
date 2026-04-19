@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ResponseParsingStepTest {
 
@@ -32,80 +33,71 @@ class ResponseParsingStepTest {
     }
 
     @Test
-    void executeShouldCoerceRawSecurityDecisionTextIntoLiteResponse() {
+    void executeShouldRejectRawSecurityDecisionTextWhenStructuredOutputIsMissing() {
         ResponseParsingStep step = new ResponseParsingStep();
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(null, null, null, List.of()));
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         context.addStepResult(
                 PipelineConfiguration.PipelineStep.LLM_EXECUTION,
                 "Action: CHALLENGE\nConfidence: 0.65\nReasoning: Sparse baseline and high-value access require additional verification.\nMITRE: UNKNOWN");
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+        context.addMetadata("rawExecutionAttempted", true);
 
-        Object result = step.execute(request, context).block();
-
-        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
-        SecurityDecisionResponseLite lite = (SecurityDecisionResponseLite) result;
-        assertThat(lite.getAction()).isEqualTo("CHALLENGE");
-        assertThat(lite.getConfidence()).isEqualTo(0.65d);
-        assertThat(lite.getReasoning()).contains("additional verification");
-        assertThat(lite.getMitre()).isEqualTo("UNKNOWN");
+        assertThatThrownBy(() -> step.execute(request, context).block())
+                .isInstanceOfSatisfying(StructuredOutputExecutionException.class, exception -> {
+                    assertThat(exception.getCategory()).isEqualTo(StructuredOutputFailureCategory.RAW_EXECUTION_FORBIDDEN);
+                    assertThat(exception.getFailure()).isNotNull();
+                    assertThat(exception.getFailure().category()).isEqualTo(DecisionFailureCategory.RAW_EXECUTION_FORBIDDEN);
+                })
+                .hasMessageContaining("Raw parsing is forbidden");
     }
 
     @Test
-    void executeShouldReturnSafeFallbackForEmptySecurityDecisionResponse() {
+    void executeShouldRejectEmptySecurityDecisionResponse() {
         ResponseParsingStep step = new ResponseParsingStep();
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(null, null, null, List.of()));
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, "");
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
 
-        Object result = step.execute(request, context).block();
-
-        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
-        SecurityDecisionResponseLite lite = (SecurityDecisionResponseLite) result;
-        assertThat(lite.getAction()).isEqualTo("BLOCK");
-        assertThat(lite.getReasoning()).contains("No response from LLM");
+        assertThatThrownBy(() -> step.execute(request, context).block())
+                .isInstanceOfSatisfying(StructuredOutputExecutionException.class, exception -> {
+                    assertThat(exception.getCategory()).isEqualTo(StructuredOutputFailureCategory.EMPTY_RESPONSE);
+                    assertThat(exception.getFailure()).isNotNull();
+                    assertThat(exception.getFailure().category()).isEqualTo(DecisionFailureCategory.EMPTY_RESPONSE);
+                })
+                .hasMessageContaining("Structured response is missing");
     }
 
     @Test
-    void executeShouldNormalizeMarkdownFinalDecisionIntoCanonicalAction() {
+    void executeShouldPassThroughStructuredSecurityDecisionResponse() {
         ResponseParsingStep step = new ResponseParsingStep();
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(null, null, null, List.of()));
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
-        context.addStepResult(
-                PipelineConfiguration.PipelineStep.LLM_EXECUTION,
-                "**Final Decision:** DENY\nConfidence: HIGH\nReasoning: Approval lineage is absent for this sensitive request.\nMITRE: UNKNOWN");
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction("ALLOW");
+        lite.setConfidence(0.74d);
+        lite.setRiskScore(0.22d);
+        lite.setReasoning("Verified identity, scope, and low-risk context align with the request.");
+        lite.setMitre("UNKNOWN");
+        context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, lite);
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+        context.addMetadata("structuredOutputComplete", true);
 
         Object result = step.execute(request, context).block();
 
         assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
-        SecurityDecisionResponseLite lite = (SecurityDecisionResponseLite) result;
-        assertThat(lite.getAction()).isEqualTo("BLOCK");
-        assertThat(lite.getConfidence()).isEqualTo(0.85d);
-        assertThat(lite.getReasoning()).contains("Approval lineage is absent");
-    }
-
-    @Test
-    void executeShouldCoerceLabeledConfidenceFromJsonDecisionPayload() {
-        ResponseParsingStep step = new ResponseParsingStep();
-        SecurityDecisionRequest request = new SecurityDecisionRequest(
-                new SecurityDecisionContext(null, null, null, List.of()));
-        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
-        context.addStepResult(
-                PipelineConfiguration.PipelineStep.LLM_EXECUTION,
-                "{\"action\":\"ALLOW\",\"confidence\":\"MODERATE\",\"riskScore\":\"LOW\",\"reasoning\":\"Baseline aligns with the restored session.\",\"mitre\":\"UNKNOWN\"}");
-        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
-
-        Object result = step.execute(request, context).block();
-
-        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
-        SecurityDecisionResponseLite lite = (SecurityDecisionResponseLite) result;
-        assertThat(lite.getAction()).isEqualTo("ALLOW");
-        assertThat(lite.getConfidence()).isEqualTo(0.74d);
-        assertThat(lite.getRiskScore()).isEqualTo(0.54d);
+        SecurityDecisionResponseLite parsed = (SecurityDecisionResponseLite) result;
+        assertThat(parsed.getAction()).isEqualTo("ALLOW");
+        assertThat(parsed.getConfidence()).isEqualTo(0.74d);
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isFalse();
     }
 }

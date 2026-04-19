@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
@@ -16,6 +17,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -441,6 +443,48 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("buildSecurityDecisionRequest should disable native structured output for explicitly disabled prompt profiles")
+    void buildSecurityDecisionRequest_shouldDisableNativeStructuredOutputForDisabledProfile() {
+        tieredStrategyProperties.getPromptRuntime()
+                .setNativeStructuredOutputDisabledProfiles(List.of("CORTEX_L1_COMPACT"));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-native-disabled-profile")
+                .metadata(new LinkedHashMap<>(Map.of("promptBudgetProfile", "CORTEX_L1_COMPACT")))
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("nativeStructuredOutputEnabled", Boolean.class)).isFalse();
+        assertThat(request.getParameter("structuredOutputMode", String.class))
+                .isEqualTo(StructuredOutputMode.VALIDATED_CONVERTER.name());
+    }
+
+    @Test
+    @DisplayName("buildSecurityDecisionRequest should keep native structured output enabled for allowed prompt profiles")
+    void buildSecurityDecisionRequest_shouldKeepNativeStructuredOutputEnabledForAllowedProfile() {
+        tieredStrategyProperties.getPromptRuntime()
+                .setNativeStructuredOutputDisabledProfiles(List.of("CORTEX_L2_EXPERT_STRICT"));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-native-enabled-profile")
+                .metadata(new LinkedHashMap<>(Map.of("promptBudgetProfile", "CORTEX_L1_INTERACTIVE_STRICT")))
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("nativeStructuredOutputEnabled", Boolean.class)).isTrue();
+        assertThat(request.getParameter("structuredOutputMode", String.class))
+                .isIn(StructuredOutputMode.NATIVE_STRUCTURED.name(), StructuredOutputMode.VALIDATED_CONVERTER.name());
+    }
+
+    @Test
     @DisplayName("searchRelatedContextBase should capture prompt audit fallback when vector search fails")
     void searchRelatedContextBase_vectorFailure_capturesPromptAuditFallback() {
         SecurityEvent event = SecurityEvent.builder()
@@ -509,7 +553,7 @@ class AbstractTieredStrategyTest {
                 java.time.LocalDate.of(2026, 4, 8), java.time.LocalDateTime.of(2026, 4, 8, 12, 0));
         SaasBaselineSeedService baselineSeedService = org.mockito.Mockito.mock(SaasBaselineSeedService.class);
         when(baselineLearningService.getBaseline("user-123")).thenReturn(null);
-        when(baselineLearningService.describeBaselineMaturity("user-123"))
+        when(baselineLearningService.describeBaselineMaturity("user-123", null))
                 .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
                         true,
                         true,
@@ -535,6 +579,55 @@ class AbstractTieredStrategyTest {
                 .containsEntry("baselineSeedApplied", true)
                 .containsEntry("baselineSeedWeight", 0.15d)
                 .containsEntry("baselineSeedWeightState", "DEGRADED_ESTABLISHED_BASELINES");
+    }
+
+    @Test
+    @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should set typed service unavailable evidence when baseline service is missing")
+    void enrichBehaviorAnalysisWithBaselineSupport_missingService_setsTypedUnavailableEvidence() {
+        ConcreteStrategy strategyWithoutBaselineService = new ConcreteStrategy(
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                unifiedVectorService,
+                null,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                tieredStrategyProperties
+        );
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        strategyWithoutBaselineService.enrichBehaviorAnalysisWithBaselineSupportForTest(behaviorAnalysis, event, null);
+
+        assertThat(behaviorAnalysis.getPersonalBaselineEvidence()).isNotNull();
+        assertThat(behaviorAnalysis.getPersonalBaselineEvidence().status())
+                .isEqualTo(BaselineEvidenceStatus.SERVICE_UNAVAILABLE);
+        assertThat(behaviorAnalysis.getSupportingBaselineEvidence()).isNotNull();
+        assertThat(behaviorAnalysis.getSupportingBaselineEvidence().status())
+                .isEqualTo(BaselineEvidenceStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should set typed missing-user-id evidence when userId is absent")
+    void enrichBehaviorAnalysisWithBaselineSupport_missingUserId_setsTypedMissingUserEvidence() {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        strategy.enrichBehaviorAnalysisWithBaselineSupportForTest(behaviorAnalysis, event, null);
+
+        assertThat(behaviorAnalysis.getPersonalBaselineEvidence()).isNotNull();
+        assertThat(behaviorAnalysis.getPersonalBaselineEvidence().status())
+                .isEqualTo(BaselineEvidenceStatus.MISSING_USER_ID);
+        assertThat(behaviorAnalysis.getSupportingBaselineEvidence()).isNotNull();
+        assertThat(behaviorAnalysis.getSupportingBaselineEvidence().status())
+                .isEqualTo(BaselineEvidenceStatus.MISSING_USER_ID);
     }
 
     // -- Concrete test implementation of the abstract class --

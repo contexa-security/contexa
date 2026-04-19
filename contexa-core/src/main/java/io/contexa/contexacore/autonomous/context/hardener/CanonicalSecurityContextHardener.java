@@ -1,12 +1,13 @@
 package io.contexa.contexacore.autonomous.context.hardener;
 
-import org.springframework.util.StringUtils;
-
-import java.util.*;
 import io.contexa.contexacore.autonomous.context.model.ContextEvidenceRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import org.springframework.util.StringUtils;
+
+import java.util.*;
 
 public class CanonicalSecurityContextHardener {
 
@@ -90,7 +91,7 @@ public class CanonicalSecurityContextHardener {
         session.setSessionId(normalizeText(session.getSessionId()));
         session.setClientIp(normalizeText(session.getClientIp()));
         session.setUserAgent(normalizeText(session.getUserAgent()));
-        session.setAuthenticationType(normalizeUpperText(session.getAuthenticationType()));
+        session.setAuthenticationType(SecuritySemanticNormalizer.normalizeAuthenticationType(session.getAuthenticationType()));
         session.setAuthenticationAssurance(normalizeUpperText(session.getAuthenticationAssurance()));
         session.setRecentMfaFailureCount(normalizeInteger(session.getRecentMfaFailureCount()));
         session.setLastMfaUsedAt(normalizeText(session.getLastMfaUsedAt()));
@@ -127,10 +128,10 @@ public class CanonicalSecurityContextHardener {
         resource.setResourceId(normalizeText(resource.getResourceId()));
         resource.setResourceType(normalizeUpperText(resource.getResourceType()));
         resource.setBusinessLabel(normalizeText(resource.getBusinessLabel()));
-        resource.setSensitivity(normalizeUpperText(resource.getSensitivity()));
+        resource.setSensitivity(SecuritySemanticNormalizer.normalizeSensitivity(resource.getSensitivity()));
         resource.setRequestPath(normalizeText(resource.getRequestPath()));
         resource.setHttpMethod(normalizeUpperText(resource.getHttpMethod()));
-        resource.setActionFamily(normalizeUpperText(resource.getActionFamily()));
+        resource.setActionFamily(SecuritySemanticNormalizer.normalizeActionFamily(resource.getActionFamily(), resource.getHttpMethod()));
     }
 
     private void hardenAuthorization(CanonicalSecurityContext.Authorization authorization) {
@@ -165,6 +166,7 @@ public class CanonicalSecurityContextHardener {
     private void hardenSessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile) {
         sessionNarrativeProfile.setSummary(normalizeText(sessionNarrativeProfile.getSummary()));
         sessionNarrativeProfile.setSessionAgeMinutes(normalizeInteger(sessionNarrativeProfile.getSessionAgeMinutes()));
+        reconcileSessionAgeSummary(sessionNarrativeProfile);
         sessionNarrativeProfile.setPreviousPath(normalizeText(sessionNarrativeProfile.getPreviousPath()));
         sessionNarrativeProfile.setPreviousActionFamily(normalizeUpperText(sessionNarrativeProfile.getPreviousActionFamily()));
         sessionNarrativeProfile.setLastRequestIntervalMs(normalizeLong(sessionNarrativeProfile.getLastRequestIntervalMs()));
@@ -202,6 +204,22 @@ public class CanonicalSecurityContextHardener {
         roleScopeProfile.setRecentPermissionChanges(normalizeList(roleScopeProfile.getRecentPermissionChanges()));
         roleScopeProfile.setTemporaryElevationReason(normalizeText(roleScopeProfile.getTemporaryElevationReason()));
         roleScopeProfile.setElevationWindowSummary(normalizeText(roleScopeProfile.getElevationWindowSummary()));
+    }
+
+    private void reconcileSessionAgeSummary(CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile) {
+        if (sessionNarrativeProfile == null || sessionNarrativeProfile.getSessionAgeMinutes() == null) {
+            return;
+        }
+        String summary = sessionNarrativeProfile.getSummary();
+        String canonicalAge = String.valueOf(sessionNarrativeProfile.getSessionAgeMinutes());
+        if (!StringUtils.hasText(summary)) {
+            sessionNarrativeProfile.setSummary("Session age " + canonicalAge + "m");
+            return;
+        }
+        String reconciled = summary
+                .replaceAll("(?i)Session age \\d+m", "Session age " + canonicalAge + "m")
+                .replaceAll("(?i)Session age minutes: \\d+", "Session age minutes: " + canonicalAge);
+        sessionNarrativeProfile.setSummary(reconciled);
     }
 
     private void hardenPeerCohortProfile(CanonicalSecurityContext.PeerCohortProfile peerCohortProfile) {

@@ -18,10 +18,10 @@ public class SecuritySessionUserSectionBuilder implements SecurityPromptSectionB
                 template.buildSessionDeviceChangeSection(context.getBehaviorAnalysis())
         );
         String historicalComparableSupport = null;
-        boolean hasHistoricalComparables =
-                (context.getBehaviorAnalysis() != null && !context.getBehaviorAnalysis().getSimilarEvents().isEmpty())
-                        || (context.getDetectedPatterns() != null && context.getDetectedPatterns().hasRelatedDocs);
-        if (hasHistoricalComparables) {
+        boolean hasTypedComparables =
+                context.getLearningContextEvidence() != null
+                        && context.getLearningContextEvidence().hasComparableEvidence();
+        if (hasTypedComparables) {
             historicalComparableSupport = template.buildSupportingPromptBlock(
                     "HistoricalComparableEvents",
                     template.buildSimilarEventsSection(

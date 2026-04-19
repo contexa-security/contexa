@@ -255,6 +255,9 @@ public class ZeroTrustEventPublisher {
                 payload.put("requestedResourceId", requestInfo.getResourceId());
                 payload.put("protectedResourceId", requestInfo.getResourceId());
             }
+            if (requestInfo.getOrganizationId() != null) {
+                payload.put("organizationId", requestInfo.getOrganizationId());
+            }
             payload.put("mfaVerified", requestInfo.getMfaVerified());
             if (requestInfo.getPreviousPath() != null) {
                 payload.put("previousPath", requestInfo.getPreviousPath());
@@ -270,6 +273,7 @@ public class ZeroTrustEventPublisher {
                 payload.put("queryString", requestInfo.getQueryString());
             }
             populateBridgePayload(requestInfo, payload);
+            populateRequestContextHints(requestInfo, payload);
 
             if (requestInfo.getGeoCountry() != null) {
                 payload.put("geoCountry", requestInfo.getGeoCountry());
@@ -489,6 +493,24 @@ public class ZeroTrustEventPublisher {
                 payload.putIfAbsent("allowedResources", delegationStamp.allowedResources());
             }
         }
+    }
+
+    private void populateRequestContextHints(RequestInfo requestInfo, Map<String, Object> payload) {
+        if (requestInfo == null || payload == null) {
+            return;
+        }
+        putIfAbsent(payload, "currentResourceFamily", requestInfo.getCurrentResourceFamily());
+        putIfAbsent(payload, "currentActionFamily", requestInfo.getCurrentActionFamily());
+        putListIfAbsent(payload, "expectedResourceFamilies", requestInfo.getExpectedResourceFamilies());
+        putListIfAbsent(payload, "expectedActionFamilies", requestInfo.getExpectedActionFamilies());
+        putListIfAbsent(payload, "recentPermissionChanges", requestInfo.getRecentPermissionChanges());
+        putIfAbsent(payload, "approvalRequired", requestInfo.getApprovalRequired());
+        putIfAbsent(payload, "approvalGranted", requestInfo.getApprovalGranted());
+        putIfAbsent(payload, "approvalMissing", requestInfo.getApprovalMissing());
+        putIfAbsent(payload, "approvalStatus", requestInfo.getApprovalStatus());
+        putIfAbsent(payload, "delegated", requestInfo.getDelegated());
+        putIfAbsent(payload, "objectiveDrift", requestInfo.getObjectiveDrift());
+        putIfAbsent(payload, "objectiveDriftSummary", requestInfo.getObjectiveDriftSummary());
     }
 
     private void promoteOfficialContextFields(RequestInfo requestInfo, Map<String, Object> payload) {
@@ -789,6 +811,12 @@ public class ZeroTrustEventPublisher {
     private void putIfAbsent(Map<String, Object> payload, String key, Object value) {
         if (value != null) {
             payload.putIfAbsent(key, value);
+        }
+    }
+
+    private void putListIfAbsent(Map<String, Object> payload, String key, List<String> values) {
+        if (values != null && !values.isEmpty()) {
+            payload.putIfAbsent(key, values);
         }
     }
 

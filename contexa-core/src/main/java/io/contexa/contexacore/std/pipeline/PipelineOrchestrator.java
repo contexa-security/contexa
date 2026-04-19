@@ -37,6 +37,7 @@ public class PipelineOrchestrator {
             PipelineConfiguration config,
             Class<R> responseType) {
 
+        PipelineFailurePolicy failurePolicy = resolveFailurePolicy(request);
         return Mono.fromCallable(() -> config)
                 .flatMap(finalConfig -> selectExecutor(request, finalConfig)
                         .flatMap(executor -> executor.execute(request, finalConfig, responseType))
@@ -44,7 +45,9 @@ public class PipelineOrchestrator {
                 .doOnError(error ->
                         log.error("[Orchestrator] Pipeline failed: {} - {}",
                                 request.getRequestId(), error.getMessage(), error))
-                .onErrorResume(error -> createFallbackResponse(request, responseType, error));
+                .onErrorResume(error -> failurePolicy.propagatesError()
+                        ? Mono.error(error)
+                        : createFallbackResponse(request, responseType, error));
     }
 
     public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request) {
@@ -153,5 +156,13 @@ public class PipelineOrchestrator {
                                 ". Expected either () or (String, ExecutionStatus)", ex);
             }
         }
+    }
+
+    private PipelineFailurePolicy resolveFailurePolicy(AIRequest<?> request) {
+        if (request == null) {
+            return PipelineFailurePolicy.SYNTHETIC_FALLBACK_RESPONSE;
+        }
+        Object configured = request.getParameters().get("pipelineFailurePolicy");
+        return PipelineFailurePolicy.fromValue(configured, PipelineFailurePolicy.SYNTHETIC_FALLBACK_RESPONSE);
     }
 }
