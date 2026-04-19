@@ -20,7 +20,7 @@ public interface ProtectableResourceCertificationGate {
     ) {
 
         public static CertificationDecision allowed(String message) {
-            return new CertificationDecision(true, "ZERO_TRUST_ALLOWED", message);
+            return new CertificationDecision(true, "ZERO_TRUST_ENABLED", message);
         }
 
         public static CertificationDecision blocked(String state, String message) {
