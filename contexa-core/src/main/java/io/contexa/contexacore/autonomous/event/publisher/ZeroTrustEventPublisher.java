@@ -179,7 +179,15 @@ public class ZeroTrustEventPublisher {
 
         Protectable protectable = resolveProtectable(methodInvocation);
         if (protectable != null) {
+            payload.put("protectableDeclared", true);
             payload.put("protectableSync", protectable.sync());
+            payload.put("protectableResourceId", protectable.resourceId());
+            payload.put("protectableResourceUrl", protectable.resourceUrl());
+            payload.put("protectableHttpMethod", protectable.httpMethod());
+            payload.put("protectableCriticality", protectable.criticality());
+            payload.put("protectableVerificationRequired", protectable.verificationRequired());
+            payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
+                    + "." + methodInvocation.getMethod().getName());
         }
 
         if (requestInfo != null) {
