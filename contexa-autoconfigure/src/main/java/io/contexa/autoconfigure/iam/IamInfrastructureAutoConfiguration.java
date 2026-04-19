@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionS
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
+import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.Pointcut;
@@ -86,6 +87,7 @@ public class IamInfrastructureAutoConfiguration {
             ProtectableRapidReentryGuard protectableRapidReentryGuard,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider,
+            ObjectProvider<ProtectableResourceCertificationGate> protectableResourceCertificationGateProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
@@ -97,6 +99,10 @@ public class IamInfrastructureAutoConfiguration {
         SynchronousProtectableDecisionService synchronousProtectableDecisionService = synchronousProtectableDecisionServiceProvider.getIfAvailable();
         if (synchronousProtectableDecisionService != null) {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+        }
+        ProtectableResourceCertificationGate protectableResourceCertificationGate = protectableResourceCertificationGateProvider.getIfAvailable();
+        if (protectableResourceCertificationGate != null) {
+            interceptor.setProtectableResourceCertificationGate(protectableResourceCertificationGate);
         }
         interceptor.setSecurityZeroTrustProperties(securityZeroTrustProperties);
         return interceptor;

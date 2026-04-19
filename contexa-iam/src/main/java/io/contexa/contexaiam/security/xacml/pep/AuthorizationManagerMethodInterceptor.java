@@ -42,6 +42,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private AuthorizationMetrics metricsCollector;
     private SynchronousProtectableDecisionService synchronousProtectableDecisionService;
     private SecurityZeroTrustProperties securityZeroTrustProperties;
+    private ProtectableResourceCertificationGate protectableResourceCertificationGate;
 
     public AuthorizationManagerMethodInterceptor(
             Pointcut pointcut,
@@ -71,6 +72,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             }
 
             authorizationManager.protectable(() -> authentication, mi);
+            enforcePromptQualityCertificateGate(mi, authentication, protectable);
 
             if (isSyncProtectable(protectable)) {
                 SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
@@ -165,6 +167,33 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         return protectable != null && protectable.sync();
     }
 
+    private void enforcePromptQualityCertificateGate(
+            MethodInvocation mi,
+            Authentication authentication,
+            Protectable protectable) {
+        if (protectable == null || !protectable.verificationRequired() || protectableResourceCertificationGate == null) {
+            return;
+        }
+        String resourceId = buildResourceId(mi, protectable);
+        ProtectableResourceCertificationGate.CertificationDecision decision =
+                protectableResourceCertificationGate.evaluate(mi, authentication, protectable, resourceId);
+        if (decision == null || decision.allowed()) {
+            return;
+        }
+        if (isEnforcementDisabled()) {
+            log.info("[ZeroTrust][SHADOW] Protectable resource is not prompt-quality certified. resource={}, state={}, message={}",
+                    resourceId,
+                    decision.state(),
+                    decision.message());
+            return;
+        }
+        log.warn("[ZeroTrust] Blocking uncertified Protectable resource. resource={}, state={}, message={}",
+                resourceId,
+                decision.state(),
+                decision.message());
+        throw ZeroTrustAccessDeniedException.pendingReview(resourceId);
+    }
+
     private SynchronousProtectableDecisionService.SyncDecisionResult evaluateSynchronousProtectable(
             MethodInvocation mi,
             Authentication authentication) {
@@ -219,6 +248,11 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     public void setSynchronousProtectableDecisionService(
             SynchronousProtectableDecisionService synchronousProtectableDecisionService) {
         this.synchronousProtectableDecisionService = synchronousProtectableDecisionService;
+    }
+
+    public void setProtectableResourceCertificationGate(
+            ProtectableResourceCertificationGate protectableResourceCertificationGate) {
+        this.protectableResourceCertificationGate = protectableResourceCertificationGate;
     }
 
     public void setSecurityZeroTrustProperties(SecurityZeroTrustProperties securityZeroTrustProperties) {
