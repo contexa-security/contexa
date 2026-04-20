@@ -95,6 +95,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         synchronizeResourcePolicyStatus();
     }
 
+
     private void synchronizeResourcePolicyStatus() {
         List<ManagedResource> connectedResources = managedResourceRepository
                 .findByStatusInWithPermission(List.of(ManagedResource.Status.POLICY_CONNECTED));
