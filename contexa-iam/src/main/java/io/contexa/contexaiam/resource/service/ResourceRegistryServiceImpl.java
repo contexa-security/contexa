@@ -43,6 +43,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private final AICoreOperations<ResourceNamingContext> aiNativeProcessor;
     private final AutoConditionTemplateService autoConditionTemplateService;
     private final PolicyRepository policyRepository;
+    private final IamAdminProperties iamAdminProperties;
 
     @Async
     @Override
@@ -59,7 +60,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         groupedByIdentifier.forEach((identifier, list) -> {
             if (list.size() > 1) {
-                log.info("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
+                log.error("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
             }
         });
 
@@ -86,9 +87,12 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
             resourceBatches.forEach(this::processResourceBatch);
         }
-//        autoConditionTemplateService.generateConditionTemplates();
+        if (iamAdminProperties.getConditionTemplates().isEnabled()) {
+            autoConditionTemplateService.generateConditionTemplates();
+        }
         synchronizeResourcePolicyStatus();
     }
+
 
     private void synchronizeResourcePolicyStatus() {
         List<ManagedResource> connectedResources = managedResourceRepository
@@ -97,11 +101,11 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         Set<String> allPolicyTargets = policyRepository.findAllWithDetails().stream()
                 .flatMap(p -> p.getTargets().stream())
-                .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier())
+                .map(ResourceTargetKey::ofPolicyTarget)
                 .collect(Collectors.toSet());
 
         for (ManagedResource resource : connectedResources) {
-            String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
+            String key = ResourceTargetKey.ofResource(resource);
             if (!allPolicyTargets.contains(key)) {
                 resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
                 managedResourceRepository.save(resource);
