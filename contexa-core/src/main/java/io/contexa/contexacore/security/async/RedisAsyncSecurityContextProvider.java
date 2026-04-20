@@ -14,16 +14,23 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
 
     private static final String AUTH_KEY_PREFIX = "async:auth:";
     private static final String SESSION_KEY_PREFIX = "async:auth:session:";
-    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
+    private static final Duration DEFAULT_LOCAL_CACHE_TTL = Duration.ofMinutes(5);
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final Duration localCacheTtl;
     private final Cache<String, Optional<AsyncAuthenticationData>> authCache;
 
     public RedisAsyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+        this(redisTemplate, DEFAULT_LOCAL_CACHE_TTL);
+    }
+
+    public RedisAsyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate,
+                                             Duration localCacheTtl) {
+        this.redisTemplate = java.util.Objects.requireNonNull(redisTemplate, "redisTemplate");
+        this.localCacheTtl = java.util.Objects.requireNonNull(localCacheTtl, "localCacheTtl");
         this.authCache = Caffeine.newBuilder()
                 .maximumSize(1000)
-                .expireAfterWrite(CACHE_TTL)
+                .expireAfterWrite(this.localCacheTtl)
                 .build();
     }
 

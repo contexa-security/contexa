@@ -50,6 +50,7 @@ import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationSe
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
+import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -522,6 +523,13 @@ public class CoreAutonomousAutoConfiguration {
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
                 RedisTemplate<String, Object> redisTemplate) {
             return new RedisSecurityContextDataStore(redisTemplate);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(DistributedLockService.class)
+        public RedisDistributedLockService redisDistributedLockService(
+                RedisTemplate<String, Object> redisTemplate) {
+            return new RedisDistributedLockService(redisTemplate);
         }
     }
 

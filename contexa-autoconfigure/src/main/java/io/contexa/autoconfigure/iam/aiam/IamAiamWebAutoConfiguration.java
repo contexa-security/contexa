@@ -68,8 +68,9 @@ public class IamAiamWebAutoConfiguration {
 
         @Bean
         @ConditionalOnMissingBean(BlockMfaStateStore.class)
-        public RedisBlockMfaStateStore redisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate) {
-            return new RedisBlockMfaStateStore(stringRedisTemplate);
+        public RedisBlockMfaStateStore redisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
+                                                               ZeroTrustActionRepository actionRepository) {
+            return new RedisBlockMfaStateStore(stringRedisTemplate, actionRepository);
         }
     }
 

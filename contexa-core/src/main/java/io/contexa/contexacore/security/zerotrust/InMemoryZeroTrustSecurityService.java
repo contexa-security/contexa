@@ -5,22 +5,53 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityService {
 
-    private final Set<String> invalidatedSessions = ConcurrentHashMap.newKeySet();
+    private static final Duration DEFAULT_INVALIDATION_TTL = Duration.ofHours(24);
+
+    private final ConcurrentHashMap<String, Instant> invalidatedSessionExpiry = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userSessions = new ConcurrentHashMap<>();
+    private final Duration invalidationTtl;
+    private final Clock clock;
 
     public InMemoryZeroTrustSecurityService(
             ThreatScoreUtil threatScoreUtil,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ZeroTrustActionRepository actionRepository,
             BlockingSignalBroadcaster blockingSignalBroadcaster) {
+        this(threatScoreUtil, securityZeroTrustProperties, actionRepository,
+                blockingSignalBroadcaster, DEFAULT_INVALIDATION_TTL, Clock.systemUTC());
+    }
+
+    public InMemoryZeroTrustSecurityService(
+            ThreatScoreUtil threatScoreUtil,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ZeroTrustActionRepository actionRepository,
+            BlockingSignalBroadcaster blockingSignalBroadcaster,
+            Duration invalidationTtl) {
+        this(threatScoreUtil, securityZeroTrustProperties, actionRepository,
+                blockingSignalBroadcaster, invalidationTtl, Clock.systemUTC());
+    }
+
+    public InMemoryZeroTrustSecurityService(
+            ThreatScoreUtil threatScoreUtil,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ZeroTrustActionRepository actionRepository,
+            BlockingSignalBroadcaster blockingSignalBroadcaster,
+            Duration invalidationTtl,
+            Clock clock) {
         super(threatScoreUtil, securityZeroTrustProperties, actionRepository);
         this.blockingSignalBroadcaster = blockingSignalBroadcaster;
+        this.invalidationTtl = Objects.requireNonNull(invalidationTtl, "invalidationTtl");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -28,7 +59,7 @@ public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityS
         if (sessionId == null) {
             return;
         }
-        invalidatedSessions.add(sessionId);
+        invalidatedSessionExpiry.put(sessionId, clock.instant().plus(invalidationTtl));
     }
 
     @Override
@@ -36,7 +67,15 @@ public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityS
         if (sessionId == null) {
             return false;
         }
-        return invalidatedSessions.contains(sessionId);
+        Instant expiresAt = invalidatedSessionExpiry.get(sessionId);
+        if (expiresAt == null) {
+            return false;
+        }
+        if (clock.instant().isAfter(expiresAt)) {
+            invalidatedSessionExpiry.remove(sessionId, expiresAt);
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -47,7 +86,7 @@ public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityS
     @Override
     protected void doCleanupSessionData(String userId, String sessionId) {
         if (sessionId != null) {
-            invalidatedSessions.remove(sessionId);
+            invalidatedSessionExpiry.remove(sessionId);
             Set<String> sessions = userSessions.get(userId);
             if (sessions != null) {
                 sessions.remove(sessionId);

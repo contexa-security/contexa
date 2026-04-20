@@ -1,23 +1,33 @@
 package io.contexa.contexacore.hcad.store;
 
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
-@RequiredArgsConstructor
 public class RedisHCADDataStore implements HCADDataStore {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final Duration mfaVerifiedTtl;
 
     private static final Duration SESSION_TTL = Duration.ofHours(24);
     private static final Duration DEVICE_TTL = Duration.ofDays(30);
+    private static final Duration DEFAULT_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int MAX_DEVICES = 10;
+
+    public RedisHCADDataStore(RedisTemplate<String, Object> redisTemplate) {
+        this(redisTemplate, DEFAULT_MFA_VERIFIED_TTL);
+    }
+
+    public RedisHCADDataStore(RedisTemplate<String, Object> redisTemplate, Duration mfaVerifiedTtl) {
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate");
+        this.mfaVerifiedTtl = Objects.requireNonNull(mfaVerifiedTtl, "mfaVerifiedTtl");
+    }
 
     @Override
     public Map<Object, Object> getSessionMetadata(String sessionId) {
@@ -45,8 +55,8 @@ public class RedisHCADDataStore implements HCADDataStore {
     public boolean isDeviceRegistered(String userId, String device) {
         try {
             String key = ZeroTrustRedisKeys.userDevices(userId);
-            Boolean isMember = redisTemplate.opsForSet().isMember(key, device);
-            return Boolean.TRUE.equals(isMember);
+            Double score = redisTemplate.opsForZSet().score(key, device);
+            return score != null;
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to check device registration: userId={}", userId, e);
             return false;
@@ -57,15 +67,14 @@ public class RedisHCADDataStore implements HCADDataStore {
     public void registerDevice(String userId, String device) {
         try {
             String key = ZeroTrustRedisKeys.userDevices(userId);
-            redisTemplate.opsForSet().add(key, device);
+            double registrationOrder = System.nanoTime();
+            redisTemplate.opsForZSet().add(key, device, registrationOrder);
             redisTemplate.expire(key, DEVICE_TTL);
 
-            Long size = redisTemplate.opsForSet().size(key);
+            Long size = redisTemplate.opsForZSet().zCard(key);
             if (size != null && size > MAX_DEVICES) {
-                Object oldDevice = redisTemplate.opsForSet().randomMember(key);
-                if (oldDevice != null && !oldDevice.equals(device)) {
-                    redisTemplate.opsForSet().remove(key, oldDevice);
-                }
+                long excess = size - MAX_DEVICES;
+                redisTemplate.opsForZSet().removeRange(key, 0, excess - 1);
             }
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to register device: userId={}", userId, e);
@@ -133,7 +142,7 @@ public class RedisHCADDataStore implements HCADDataStore {
     public void markMfaVerified(String userId) {
         try {
             String key = "security:mfa:verified:" + userId;
-            redisTemplate.opsForValue().set(key, "true");
+            redisTemplate.opsForValue().set(key, "true", mfaVerifiedTtl);
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to mark MFA verified: userId={}", userId, e);
         }
