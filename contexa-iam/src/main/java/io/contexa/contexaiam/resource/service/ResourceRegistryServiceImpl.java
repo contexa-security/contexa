@@ -66,6 +66,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             }
         });
 
+
         Map<String, ManagedResource> discoveredResourcesMap = groupedByIdentifier.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFirst()));
 
