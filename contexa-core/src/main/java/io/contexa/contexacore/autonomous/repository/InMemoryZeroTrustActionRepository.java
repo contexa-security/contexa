@@ -23,12 +23,28 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, ActionEntry> lastVerifiedStore = new ConcurrentHashMap<>();
     private final Set<String> blockedUsers = ConcurrentHashMap.newKeySet();
     private static final Duration MFA_PENDING_TTL = Duration.ofMinutes(10);
-    private static final Duration FAIL_COUNT_TTL = Duration.ofHours(24);
+    private static final Duration DEFAULT_FAIL_COUNT_TTL = Duration.ofHours(24);
 
     private final ConcurrentHashMap<String, FailCountEntry> mfaFailCounts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> mfaPendingExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> escalateRetries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> userLocks = new ConcurrentHashMap<>();
+
+    private final Duration failCountTtl;
+    private final java.time.Clock clock;
+
+    public InMemoryZeroTrustActionRepository() {
+        this(DEFAULT_FAIL_COUNT_TTL, java.time.Clock.systemUTC());
+    }
+
+    public InMemoryZeroTrustActionRepository(Duration failCountTtl) {
+        this(failCountTtl, java.time.Clock.systemUTC());
+    }
+
+    public InMemoryZeroTrustActionRepository(Duration failCountTtl, java.time.Clock clock) {
+        this.failCountTtl = java.util.Objects.requireNonNull(failCountTtl, "failCountTtl");
+        this.clock = java.util.Objects.requireNonNull(clock, "clock");
+    }
 
     @Override
     public ZeroTrustAction getCurrentAction(String userId) {
@@ -159,7 +175,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (entry == null) {
             return 0;
         }
-        if (Instant.now().isAfter(entry.expiresAt)) {
+        if (clock.instant().isAfter(entry.expiresAt)) {
             mfaFailCounts.remove(userId);
             return 0;
         }
@@ -383,8 +399,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return 0;
         }
         FailCountEntry entry = mfaFailCounts.compute(userId, (k, v) -> {
-            if (v == null || Instant.now().isAfter(v.expiresAt)) {
-                return new FailCountEntry(new AtomicLong(1), Instant.now().plus(FAIL_COUNT_TTL));
+            if (v == null || clock.instant().isAfter(v.expiresAt)) {
+                return new FailCountEntry(new AtomicLong(1), clock.instant().plus(failCountTtl));
             }
             v.count.incrementAndGet();
             return v;

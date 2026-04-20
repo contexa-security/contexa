@@ -15,9 +15,11 @@ import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResp
 import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
 import io.contexa.contexaiam.domain.dto.ResourceMetadataDto;
 import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
+import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
+import io.contexa.contexaiam.resource.util.ResourceTargetKey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -63,6 +65,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 log.error("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
             }
         });
+
 
         Map<String, ManagedResource> discoveredResourcesMap = groupedByIdentifier.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFirst()));

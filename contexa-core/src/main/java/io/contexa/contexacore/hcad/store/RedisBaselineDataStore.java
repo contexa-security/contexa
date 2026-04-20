@@ -7,8 +7,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -25,27 +29,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public BaselineVector getUserBaseline(String userId) {
         try {
             String key = BASELINE_KEY_PREFIX + userId;
-            Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
-
-            if (data.isEmpty()) {
-                return null;
-            }
-
-            return BaselineVector.builder()
-                    .userId(userId)
-                    .avgTrustScore(parseDouble(data.get("avgTrustScore")))
-                    .avgRequestCount(parseLong(data.get("avgRequestCount")))
-                    .updateCount(parseLong(data.get("updateCount")))
-                    .lastUpdated(parseInstant(data.get("lastUpdated")))
-                    .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
-                    .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
-                    .normalAccessDays(parseIntegerArray(data.get("normalAccessDays")))
-                    .frequentPaths(parseStringArray(data.get("frequentPaths")))
-                    .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
-                    .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
-                    .elementFrequencies(parseFrequencyMap(data.get("elementFrequencies")))
-                    .build();
-
+            return loadBaselineFromHash(key, userId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] User baseline retrieval failed: userId={}", userId, e);
             return null;
@@ -56,47 +40,10 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public void saveUserBaseline(String userId, BaselineVector baseline) {
         try {
             String key = BASELINE_KEY_PREFIX + userId;
-            Map<String, Object> data = new HashMap<>();
-            data.put("userId", userId);
-            data.put("avgTrustScore", baseline.getAvgTrustScore());
-            data.put("avgRequestCount", baseline.getAvgRequestCount());
-            data.put("updateCount", baseline.getUpdateCount());
-
-            data.put("lastUpdated", baseline.getLastUpdated() != null ?
-                    baseline.getLastUpdated().toString() : Instant.now().toString());
-
-            if (baseline.getNormalIpRanges() != null && baseline.getNormalIpRanges().length > 0) {
-                data.put("normalIpRanges", String.join(",", baseline.getNormalIpRanges()));
-            }
-            if (baseline.getNormalAccessHours() != null && baseline.getNormalAccessHours().length > 0) {
-                data.put("normalAccessHours", Arrays.stream(baseline.getNormalAccessHours())
-                        .map(String::valueOf)
-                        .collect(Collectors.joining(",")));
-            }
-            if (baseline.getNormalAccessDays() != null && baseline.getNormalAccessDays().length > 0) {
-                data.put("normalAccessDays", Arrays.stream(baseline.getNormalAccessDays())
-                        .map(String::valueOf)
-                        .collect(Collectors.joining(",")));
-            }
-            if (baseline.getFrequentPaths() != null && baseline.getFrequentPaths().length > 0) {
-                data.put("frequentPaths", String.join(",", baseline.getFrequentPaths()));
-            }
-            if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
-                data.put("normalUserAgents", String.join(",", baseline.getNormalUserAgents()));
-            }
-            if (baseline.getNormalOperatingSystems() != null && baseline.getNormalOperatingSystems().length > 0) {
-                data.put("normalOperatingSystems", String.join(",", baseline.getNormalOperatingSystems()));
-            }
-
-            String serializedFrequencies = serializeFrequencyMap(baseline.getElementFrequencies());
-            if (serializedFrequencies != null) {
-                data.put("elementFrequencies", serializedFrequencies);
-            }
-
+            Map<String, Object> data = buildBaselineHash(userId, baseline);
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
             redisTemplate.opsForSet().add(USER_BASELINE_INDEX_KEY, userId);
-
         } catch (Exception e) {
             log.error("[BaselineDataStore] Baseline save failed: userId={}", userId, e);
         }
@@ -106,27 +53,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public BaselineVector getOrganizationBaseline(String organizationId) {
         try {
             String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
-            Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
-
-            if (data == null || data.isEmpty()) {
-                return null;
-            }
-
-            return BaselineVector.builder()
-                    .userId("org:" + organizationId)
-                    .avgTrustScore(parseDouble(data.get("avgTrustScore")))
-                    .avgRequestCount(parseLong(data.get("avgRequestCount")))
-                    .updateCount(parseLong(data.get("updateCount")))
-                    .lastUpdated(parseInstant(data.get("lastUpdated")))
-                    .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
-                    .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
-                    .normalAccessDays(parseIntegerArray(data.get("normalAccessDays")))
-                    .frequentPaths(parseStringArray(data.get("frequentPaths")))
-                    .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
-                    .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
-                    .elementFrequencies(parseFrequencyMap(data.get("elementFrequencies")))
-                    .build();
-
+            return loadBaselineFromHash(key, "org:" + organizationId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline retrieval failed: organizationId={}", organizationId, e);
             return null;
@@ -137,46 +64,10 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public void saveOrganizationBaseline(String organizationId, BaselineVector baseline) {
         try {
             String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
-            Map<String, Object> data = new HashMap<>();
-            data.put("userId", "org:" + organizationId);
-            data.put("avgTrustScore", baseline.getAvgTrustScore());
-            data.put("avgRequestCount", baseline.getAvgRequestCount());
-            data.put("updateCount", baseline.getUpdateCount());
-            data.put("lastUpdated", baseline.getLastUpdated() != null ?
-                    baseline.getLastUpdated().toString() : Instant.now().toString());
-
-            if (baseline.getNormalIpRanges() != null && baseline.getNormalIpRanges().length > 0) {
-                data.put("normalIpRanges", String.join(",", baseline.getNormalIpRanges()));
-            }
-            if (baseline.getNormalAccessHours() != null && baseline.getNormalAccessHours().length > 0) {
-                data.put("normalAccessHours", Arrays.stream(baseline.getNormalAccessHours())
-                        .map(String::valueOf)
-                        .collect(Collectors.joining(",")));
-            }
-            if (baseline.getNormalAccessDays() != null && baseline.getNormalAccessDays().length > 0) {
-                data.put("normalAccessDays", Arrays.stream(baseline.getNormalAccessDays())
-                        .map(String::valueOf)
-                        .collect(Collectors.joining(",")));
-            }
-            if (baseline.getFrequentPaths() != null && baseline.getFrequentPaths().length > 0) {
-                data.put("frequentPaths", String.join(",", baseline.getFrequentPaths()));
-            }
-            if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
-                data.put("normalUserAgents", String.join(",", baseline.getNormalUserAgents()));
-            }
-            if (baseline.getNormalOperatingSystems() != null && baseline.getNormalOperatingSystems().length > 0) {
-                data.put("normalOperatingSystems", String.join(",", baseline.getNormalOperatingSystems()));
-            }
-
-            String serializedFrequencies = serializeFrequencyMap(baseline.getElementFrequencies());
-            if (serializedFrequencies != null) {
-                data.put("elementFrequencies", serializedFrequencies);
-            }
-
+            Map<String, Object> data = buildBaselineHash("org:" + organizationId, baseline);
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
             redisTemplate.opsForSet().add(ORG_BASELINE_INDEX_KEY, organizationId);
-
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline save failed: organizationId={}", organizationId, e);
         }
@@ -187,29 +78,20 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         LinkedHashMap<String, BaselineVector> baselines = new LinkedHashMap<>();
         try {
             Set<Object> organizationIds = redisTemplate.opsForSet().members(ORG_BASELINE_INDEX_KEY);
-            if (organizationIds != null && !organizationIds.isEmpty()) {
-                for (Object organizationId : organizationIds) {
-                    if (organizationId != null) {
-                        BaselineVector baseline = getOrganizationBaseline(String.valueOf(organizationId));
-                        if (baseline != null) {
-                            baselines.put(String.valueOf(organizationId), baseline);
-                        }
-                    }
-                }
-                return baselines.values();
-            }
-            Set<String> keys = redisTemplate.keys(BASELINE_KEY_PREFIX + "org:*");
-            if (keys == null || keys.isEmpty()) {
+            if (organizationIds == null || organizationIds.isEmpty()) {
                 return List.of();
             }
-            for (String key : keys) {
-                if (key.endsWith(":index")) {
+            for (Object organizationId : organizationIds) {
+                if (organizationId == null) {
                     continue;
                 }
-                String organizationId = key.substring((BASELINE_KEY_PREFIX + "org:").length());
-                BaselineVector baseline = getOrganizationBaseline(organizationId);
+                String id = String.valueOf(organizationId);
+                BaselineVector baseline = getOrganizationBaseline(id);
                 if (baseline != null) {
-                    baselines.put(organizationId, baseline);
+                    baselines.put(id, baseline);
+                } else {
+                    // Self-heal: remove stale entry from the index when the backing Hash has been evicted.
+                    redisTemplate.opsForSet().remove(ORG_BASELINE_INDEX_KEY, id);
                 }
             }
             return baselines.values();
@@ -223,30 +105,73 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public long countUserBaselines() {
         try {
             Long size = redisTemplate.opsForSet().size(USER_BASELINE_INDEX_KEY);
-            if (size != null && size > 0) {
-                return size;
-            }
-            Set<String> keys = redisTemplate.keys(BASELINE_KEY_PREFIX + "*");
-            if (keys == null || keys.isEmpty()) {
-                return 0L;
-            }
-            return keys.stream()
-                    .filter(key -> !key.contains("org:"))
-                    .filter(key -> !key.endsWith(":index"))
-                    .count();
+            return size != null ? size : 0L;
         } catch (Exception e) {
             log.error("[BaselineDataStore] User baseline count failed", e);
             return 0L;
         }
     }
 
-    private double parseDouble(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+    private Map<String, Object> buildBaselineHash(String userId, BaselineVector baseline) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("userId", userId);
+        putIfNotNull(data, "avgTrustScore", baseline.getAvgTrustScore());
+        putIfNotNull(data, "avgRequestCount", baseline.getAvgRequestCount());
+        putIfNotNull(data, "updateCount", baseline.getUpdateCount());
+        data.put("lastUpdated", baseline.getLastUpdated() != null ?
+                baseline.getLastUpdated().toString() : Instant.now().toString());
+        putIfNonEmpty(data, "normalIpRanges", baseline.getNormalIpRanges());
+        putIfNonEmpty(data, "normalAccessHours", baseline.getNormalAccessHours());
+        putIfNonEmpty(data, "normalAccessDays", baseline.getNormalAccessDays());
+        putIfNonEmpty(data, "frequentPaths", baseline.getFrequentPaths());
+        putIfNonEmpty(data, "normalUserAgents", baseline.getNormalUserAgents());
+        putIfNonEmpty(data, "normalOperatingSystems", baseline.getNormalOperatingSystems());
+        if (baseline.getElementFrequencies() != null && !baseline.getElementFrequencies().isEmpty()) {
+            data.put("elementFrequencies", baseline.getElementFrequencies());
         }
-        if (value instanceof String) {
+        return data;
+    }
+
+    private static void putIfNotNull(Map<String, Object> data, String field, Object value) {
+        if (value != null) {
+            data.put(field, value);
+        }
+    }
+
+    private BaselineVector loadBaselineFromHash(String key, String canonicalUserId) {
+        Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
+        if (data == null || data.isEmpty()) {
+            return null;
+        }
+        return BaselineVector.builder()
+                .userId(canonicalUserId)
+                .avgTrustScore(parseDouble(data.get("avgTrustScore")))
+                .avgRequestCount(parseLong(data.get("avgRequestCount")))
+                .updateCount(parseLong(data.get("updateCount")))
+                .lastUpdated(parseInstant(data.get("lastUpdated")))
+                .normalIpRanges(toStringArray(data.get("normalIpRanges")))
+                .normalAccessHours(toIntegerArray(data.get("normalAccessHours")))
+                .normalAccessDays(toIntegerArray(data.get("normalAccessDays")))
+                .frequentPaths(toStringArray(data.get("frequentPaths")))
+                .normalUserAgents(toStringArray(data.get("normalUserAgents")))
+                .normalOperatingSystems(toStringArray(data.get("normalOperatingSystems")))
+                .elementFrequencies(toFrequencyMap(data.get("elementFrequencies")))
+                .build();
+    }
+
+    private static void putIfNonEmpty(Map<String, Object> data, String field, Object[] array) {
+        if (array != null && array.length > 0) {
+            data.put(field, new java.util.ArrayList<>(Arrays.asList(array)));
+        }
+    }
+
+    private double parseDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String s) {
             try {
-                return Double.parseDouble((String) value);
+                return Double.parseDouble(s);
             } catch (NumberFormatException e) {
                 return 0.0;
             }
@@ -255,12 +180,12 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     }
 
     private long parseLong(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
+        if (value instanceof Number number) {
+            return number.longValue();
         }
-        if (value instanceof String) {
+        if (value instanceof String s) {
             try {
-                return Long.parseLong((String) value);
+                return Long.parseLong(s);
             } catch (NumberFormatException e) {
                 return 0L;
             }
@@ -269,9 +194,9 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     }
 
     private Instant parseInstant(Object value) {
-        if (value instanceof String) {
+        if (value instanceof String s) {
             try {
-                return Instant.parse((String) value);
+                return Instant.parse(s);
             } catch (Exception e) {
                 return Instant.now();
             }
@@ -279,55 +204,86 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         return Instant.now();
     }
 
-    private String[] parseStringArray(Object value) {
-        if (value instanceof String && !((String) value).isEmpty()) {
-            String[] parts = ((String) value).split(",");
-            return Arrays.stream(parts)
-                    .filter(s -> !s.isEmpty())
-                    .toArray(String[]::new);
+    @SuppressWarnings("unchecked")
+    private String[] toStringArray(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String[] strArr) {
+            return strArr;
+        }
+        if (value instanceof Object[] objArr) {
+            return Arrays.stream(objArr).map(String::valueOf).toArray(String[]::new);
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toArray(String[]::new);
         }
         return null;
     }
 
-    private Integer[] parseIntegerArray(Object value) {
-        if (value instanceof String && !((String) value).isEmpty()) {
+    @SuppressWarnings("unchecked")
+    private Integer[] toIntegerArray(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Integer[] intArr) {
+            return intArr;
+        }
+        if (value instanceof Object[] objArr) {
+            return Arrays.stream(objArr)
+                    .map(this::coerceInteger)
+                    .filter(java.util.Objects::nonNull)
+                    .toArray(Integer[]::new);
+        }
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .map(this::coerceInteger)
+                    .filter(java.util.Objects::nonNull)
+                    .toArray(Integer[]::new);
+        }
+        return null;
+    }
+
+    private Integer coerceInteger(Object o) {
+        if (o instanceof Number n) {
+            return n.intValue();
+        }
+        if (o instanceof String s) {
             try {
-                return Arrays.stream(((String) value).split(","))
-                        .filter(s -> !s.isEmpty())
-                        .map(String::trim)
-                        .map(Integer::parseInt)
-                        .toArray(Integer[]::new);
+                return Integer.parseInt(s);
             } catch (NumberFormatException e) {
-                log.error("[BaselineDataStore] Integer array parsing failed: {}", value);
                 return null;
             }
         }
         return null;
     }
 
-    private Map<String, Long> parseFrequencyMap(Object value) {
-        if (value instanceof String && !((String) value).isEmpty()) {
-            Map<String, Long> map = new HashMap<>();
-            for (String entry : ((String) value).split(",")) {
-                int eqIdx = entry.lastIndexOf('=');
-                if (eqIdx > 0 && eqIdx < entry.length() - 1) {
+    @SuppressWarnings("unchecked")
+    private Map<String, Long> toFrequencyMap(Object value) {
+        if (value == null) {
+            return new HashMap<>();
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Long> result = new HashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (e.getKey() == null) {
+                    continue;
+                }
+                Long v = null;
+                if (e.getValue() instanceof Number n) {
+                    v = n.longValue();
+                } else if (e.getValue() instanceof String s) {
                     try {
-                        map.put(entry.substring(0, eqIdx), Long.parseLong(entry.substring(eqIdx + 1)));
+                        v = Long.parseLong(s);
                     } catch (NumberFormatException ignored) {
                     }
                 }
+                if (v != null) {
+                    result.put(String.valueOf(e.getKey()), v);
+                }
             }
-            return map;
+            return result;
         }
         return new HashMap<>();
-    }
-
-    private String serializeFrequencyMap(Map<String, Long> frequencies) {
-        if (frequencies == null || frequencies.isEmpty()) {
-            return null;
-        }
-        return frequencies.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .collect(Collectors.joining(","));
     }
 }

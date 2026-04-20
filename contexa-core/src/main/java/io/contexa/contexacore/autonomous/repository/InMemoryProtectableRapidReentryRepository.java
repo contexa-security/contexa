@@ -41,7 +41,8 @@ public class InMemoryProtectableRapidReentryRepository implements ProtectableRap
     }
 
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {
-        return userId + ":" + contextBindingHash + ":" + resourceKey;
+        // Use NUL byte as delimiter to avoid raw-concatenation collisions across different logical inputs.
+        return userId + "\u0000" + contextBindingHash + "\u0000" + resourceKey;
     }
 
     private boolean isInvalid(String value) {

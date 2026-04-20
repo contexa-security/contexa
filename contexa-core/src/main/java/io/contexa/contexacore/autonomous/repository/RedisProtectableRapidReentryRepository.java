@@ -33,7 +33,8 @@ public class RedisProtectableRapidReentryRepository implements ProtectableRapidR
     }
 
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {
-        String raw = userId + ":" + contextBindingHash + ":" + resourceKey;
+        // Use NUL byte delimiter to avoid raw-concatenation collisions across different logical inputs.
+        String raw = userId + "\u0000" + contextBindingHash + "\u0000" + resourceKey;
         String digest = DigestUtils.md5DigestAsHex(raw.getBytes(StandardCharsets.UTF_8));
         return KEY_PREFIX + digest;
     }

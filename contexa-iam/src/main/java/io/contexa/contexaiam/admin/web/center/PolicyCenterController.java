@@ -175,14 +175,14 @@ public class PolicyCenterController {
         try {
             Set<String> allPolicyTargets = policyService.getAllPolicies().stream()
                     .flatMap(p -> p.getTargets().stream())
-                    .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier())
+                    .map(io.contexa.contexaiam.resource.util.ResourceTargetKey::ofPolicyTarget)
                     .collect(java.util.stream.Collectors.toSet());
 
             // Downgrade: POLICY_CONNECTED -> PERMISSION_CREATED if no policy targets
             managedResourceRepository.findByStatusInWithPermission(
                     List.of(ManagedResource.Status.POLICY_CONNECTED)
             ).forEach(resource -> {
-                String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
+                String key = io.contexa.contexaiam.resource.util.ResourceTargetKey.ofResource(resource);
                 if (!allPolicyTargets.contains(key)) {
                     resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
                     managedResourceRepository.save(resource);
@@ -193,7 +193,7 @@ public class PolicyCenterController {
             managedResourceRepository.findByStatusInWithPermission(
                     List.of(ManagedResource.Status.PERMISSION_CREATED)
             ).forEach(resource -> {
-                String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
+                String key = io.contexa.contexaiam.resource.util.ResourceTargetKey.ofResource(resource);
                 if (allPolicyTargets.contains(key)) {
                     resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
                     managedResourceRepository.save(resource);

@@ -1,10 +1,15 @@
 package io.contexa.contexacore.autonomous.store;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,6 +22,35 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final int MAX_PROCESSED_EVENTS = 50_000;
     private static final int MAX_SOAR_EXECUTIONS = 10_000;
     private static final int MAX_SESSION_ENTRIES = 10_000;
+
+    private static final Duration DEFAULT_EVENT_PROCESSED_TTL = Duration.ofHours(24);
+    private static final Duration DEFAULT_SOAR_TTL = Duration.ofDays(7);
+    private static final Duration DEFAULT_USER_SESSIONS_TTL = Duration.ofDays(7);
+
+    private final Duration eventProcessedTtl;
+    private final Duration soarTtl;
+    private final Duration userSessionsTtl;
+    private final Clock clock;
+
+    public InMemorySecurityContextDataStore() {
+        this(DEFAULT_EVENT_PROCESSED_TTL, DEFAULT_SOAR_TTL, DEFAULT_USER_SESSIONS_TTL, Clock.systemUTC());
+    }
+
+    public InMemorySecurityContextDataStore(Duration eventProcessedTtl,
+                                            Duration soarTtl,
+                                            Duration userSessionsTtl) {
+        this(eventProcessedTtl, soarTtl, userSessionsTtl, Clock.systemUTC());
+    }
+
+    public InMemorySecurityContextDataStore(Duration eventProcessedTtl,
+                                            Duration soarTtl,
+                                            Duration userSessionsTtl,
+                                            Clock clock) {
+        this.eventProcessedTtl = Objects.requireNonNull(eventProcessedTtl, "eventProcessedTtl");
+        this.soarTtl = Objects.requireNonNull(soarTtl, "soarTtl");
+        this.userSessionsTtl = Objects.requireNonNull(userSessionsTtl, "userSessionsTtl");
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
 
     private final ConcurrentHashMap<String, List<String>> sessionActions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> sessionNarrativeActionFamilies = new ConcurrentHashMap<>();
@@ -34,21 +68,32 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, String> previousPaths = new ConcurrentHashMap<>();
     private final Object eventProcessingLock = new Object();
     private final Set<String> processingEvents = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Set<String> processedEvents = Collections.newSetFromMap(
-            Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, false) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-                    return size() > MAX_PROCESSED_EVENTS;
-                }
-            }));
-    private final Map<String, Object> soarExecutions = Collections.synchronizedMap(
+    private final Map<String, Instant> processedEventExpiry = Collections.synchronizedMap(
             new LinkedHashMap<>(16, 0.75f, false) {
                 @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Object> eldest) {
+                protected boolean removeEldestEntry(Map.Entry<String, Instant> eldest) {
+                    return size() > MAX_PROCESSED_EVENTS;
+                }
+            });
+    private final Map<String, SoarEntry> soarExecutions = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, SoarEntry> eldest) {
                     return size() > MAX_SOAR_EXECUTIONS;
                 }
             });
     private final ConcurrentHashMap<String, Set<String>> userSessions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Instant> userSessionsExpiry = new ConcurrentHashMap<>();
+
+    private static final class SoarEntry {
+        final Object data;
+        final Instant expiresAt;
+
+        SoarEntry(Object data, Instant expiresAt) {
+            this.data = data;
+            this.expiresAt = expiresAt;
+        }
+    }
 
     @Override
     public void addSessionAction(String sessionId, String action) {
@@ -218,8 +263,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public EventProcessingClaim claimEventProcessing(String eventId) {
         synchronized (eventProcessingLock) {
-            if (processedEvents.contains(eventId)) {
-                return EventProcessingClaim.PROCESSED;
+            Instant expiresAt = processedEventExpiry.get(eventId);
+            if (expiresAt != null) {
+                if (clock.instant().isBefore(expiresAt)) {
+                    return EventProcessingClaim.PROCESSED;
+                }
+                processedEventExpiry.remove(eventId);
             }
             if (!processingEvents.add(eventId)) {
                 return EventProcessingClaim.IN_FLIGHT;
@@ -232,7 +281,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     public void markEventProcessed(String eventId) {
         synchronized (eventProcessingLock) {
             processingEvents.remove(eventId);
-            processedEvents.add(eventId);
+            processedEventExpiry.put(eventId, clock.instant().plus(eventProcessedTtl));
         }
     }
 
@@ -245,13 +294,40 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public void storeSoarExecution(String eventId, Object data) {
-        soarExecutions.put(eventId, data);
+        soarExecutions.put(eventId, new SoarEntry(data, clock.instant().plus(soarTtl)));
     }
 
     @Override
     public void trackUserSession(String userId, String sessionId) {
         userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
+        userSessionsExpiry.put(userId, clock.instant().plus(userSessionsTtl));
         evictIfOversized();
+    }
+
+    Object peekSoarExecution(String eventId) {
+        SoarEntry entry = soarExecutions.get(eventId);
+        if (entry == null) {
+            return null;
+        }
+        if (clock.instant().isAfter(entry.expiresAt)) {
+            soarExecutions.remove(eventId);
+            return null;
+        }
+        return entry.data;
+    }
+
+    Set<String> peekUserSessions(String userId) {
+        Instant expiresAt = userSessionsExpiry.get(userId);
+        if (expiresAt == null) {
+            return Collections.emptySet();
+        }
+        if (clock.instant().isAfter(expiresAt)) {
+            userSessionsExpiry.remove(userId);
+            userSessions.remove(userId);
+            return Collections.emptySet();
+        }
+        Set<String> sessions = userSessions.get(userId);
+        return sessions == null ? Collections.emptySet() : Collections.unmodifiableSet(sessions);
     }
 
     private void appendToStringSequence(

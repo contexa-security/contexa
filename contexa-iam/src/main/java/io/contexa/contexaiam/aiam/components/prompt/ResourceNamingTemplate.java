@@ -5,6 +5,9 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.components.prompt.AbstractBasePromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
+import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionRequest;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,9 +27,28 @@ import java.util.stream.IntStream;
 @Slf4j
 public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
 
+    private static final int MAX_BATCH_SIZE = 20;
+
     @Override
     public TemplateType getSupportedType() {
         return new TemplateType("ResourceNaming");
+    }
+
+    @Override
+    public PromptGovernanceDescriptor getPromptGovernanceDescriptor() {
+        return new PromptGovernanceDescriptor(
+                "ResourceNaming",
+                "ResourceNaming",
+                "1.0.0",
+                "1.0",
+                PromptReleaseStatus.PRODUCTION,
+                "IAM Team",
+                "N/A",
+                "N/A",
+                "N/A",
+                "Initial governed release of the resource-naming prompt template.",
+                List.of("claude-sonnet-4-6", "claude-opus-4-7"),
+                getClass().getName());
     }
 
     @Override
@@ -36,7 +58,7 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        String domainPrompt = generateDomainSystemPrompt();
+        String domainPrompt = generateDomainSystemPrompt(resolveLanguage(request));
         String jsonSchema = getJsonSchemaExample();
 
         StringBuilder prompt = new StringBuilder();
@@ -62,13 +84,29 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
      *
      * @return the domain-specific system prompt content
      */
-    private String generateDomainSystemPrompt() {
+    // Resolve the caller-requested output language from the AI request context.
+    // Defaults to English when no ResourceNamingContext is attached.
+    private String resolveLanguage(AIRequest<? extends DomainContext> request) {
+        if (request == null) {
+            return "English";
+        }
+        DomainContext context = request.getContext();
+        if (context instanceof ResourceNamingContext namingContext && namingContext.isAllowKoreanNames()) {
+            return "Korean";
+        }
+        return "English";
+    }
+
+    private String generateDomainSystemPrompt(String language) {
         return """
             You are a resource naming specialist AI that converts technical identifiers into business-friendly names and descriptions.
 
             Important: The response must be in pure JSON format.
-            Language: All names and descriptions must be written in English.
-            Required: You must respond to all input items without exception.
+            Language: All names and descriptions must be written in %s.
+            Required: You must respond to all input items without exception.""".formatted(language) + """
+
+
+
 
             Absolute rules (system error on violation):
             1. Process 100% of input items - no exceptions
@@ -99,9 +137,9 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
 
             Each suggestion must include:
             - identifier: Original technical identifier
-            - friendlyName: Business-friendly name
-            - description: Clear description
-            - confidence: AI confidence score (0.0-1.0)
+            - friendlyName: Business-friendly name, max 50 characters
+            - description: Clear description, max 300 characters
+            - confidence: AI confidence score, a decimal between 0.0 and 1.0
             """;
     }
 
@@ -120,6 +158,22 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
               "/api/groups": {
                 "friendlyName": "Group API",
                 "description": "API endpoint for creating, reading, updating, and deleting user group information."
+              },
+              "/api/users/{id}": {
+                "friendlyName": "User Detail",
+                "description": "Retrieve or update a single user account identified by the path parameter."
+              },
+              "/api/orders:POST": {
+                "friendlyName": "Create Order",
+                "description": "Submit a new order request into the commerce pipeline."
+              },
+              "/api/permissions:PATCH": {
+                "friendlyName": "Update Permissions",
+                "description": "Patch fine-grained permission grants on an existing subject."
+              },
+              "/api/reports?range=daily": {
+                "friendlyName": "Daily Reports",
+                "description": "Fetch pre-aggregated report snapshots scoped by the range query parameter."
               }
             }
             """;
@@ -146,19 +200,37 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
                      .append("\n\n");
         }
 
+        if (identifiers.size() > MAX_BATCH_SIZE) {
+            log.error("ResourceNamingTemplate batch size {} exceeds recommended MAX_BATCH_SIZE={}. Prompt may breach the model token budget.",
+                    identifiers.size(), MAX_BATCH_SIZE);
+        }
+
         userPrompt.append("**Required:** Respond to **exactly ").append(identifiers.size()).append("** items below **without any exception**!\n\n");
         userPrompt.append("**Important:** ").append(identifiers.size()).append(" inputs -> ").append(identifiers.size()).append(" outputs required. Missing items will cause system error!\n\n");
 
         IntStream.range(0, identifiers.size())
                 .forEach(i -> {
-                    userPrompt.append(i + 1)
-                             .append(". ")
-                             .append(identifiers.get(i))
-                             .append("\n");
+                    int ordinal = i + 1;
+                    userPrompt.append(ordinal).append(". ")
+                             .append("[RESOURCE_START_").append(ordinal).append("]\n")
+                             .append(escapeForPrompt(identifiers.get(i)))
+                             .append("\n[RESOURCE_END_").append(ordinal).append("]\n");
                 });
 
         userPrompt.append("\n**Confirm again:** Provide friendlyName and description for **all ").append(identifiers.size()).append(" items** above!");
 
         return userPrompt.toString();
+    }
+
+    // Escape characters that could otherwise break the RESOURCE_START / RESOURCE_END marker structure
+    // or be used as prompt-injection vectors inside an identifier payload.
+    private String escapeForPrompt(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input.replace("\\", "\\\\")
+                    .replace("\r", "\\r")
+                    .replace("\n", "\\n")
+                    .replace("\"", "\\\"");
     }
 }

@@ -1,26 +1,40 @@
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
+import java.util.Objects;
 
 @Slf4j
-@RequiredArgsConstructor
 public class RedisBlockMfaStateStore implements BlockMfaStateStore {
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final ZeroTrustActionRepository actionRepository;
+    private final Duration verifiedTtl;
 
-    private static final Duration VERIFIED_TTL = Duration.ofHours(1);
-    private static final Duration PENDING_TTL = Duration.ofMinutes(10);
+    private static final Duration DEFAULT_VERIFIED_TTL = Duration.ofHours(1);
+
+    public RedisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
+                                   ZeroTrustActionRepository actionRepository) {
+        this(stringRedisTemplate, actionRepository, DEFAULT_VERIFIED_TTL);
+    }
+
+    public RedisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
+                                   ZeroTrustActionRepository actionRepository,
+                                   Duration verifiedTtl) {
+        this.stringRedisTemplate = Objects.requireNonNull(stringRedisTemplate, "stringRedisTemplate");
+        this.actionRepository = Objects.requireNonNull(actionRepository, "actionRepository");
+        this.verifiedTtl = Objects.requireNonNull(verifiedTtl, "verifiedTtl");
+    }
 
     @Override
     public void setVerified(String userId) {
         try {
             String key = ZeroTrustRedisKeys.blockMfaVerified(userId);
-            stringRedisTemplate.opsForValue().set(key, "true", VERIFIED_TTL);
+            stringRedisTemplate.opsForValue().set(key, "true", verifiedTtl);
         } catch (Exception e) {
             log.error("[BlockMfaStateStore] Failed to set verified: userId={}", userId, e);
         }
@@ -39,33 +53,16 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
 
     @Override
     public void setPending(String userId) {
-        try {
-            String key = ZeroTrustRedisKeys.blockMfaPending(userId);
-            stringRedisTemplate.opsForValue().set(key, "true", PENDING_TTL);
-        } catch (Exception e) {
-            log.error("[BlockMfaStateStore] Failed to set pending: userId={}", userId, e);
-        }
+        actionRepository.setBlockMfaPending(userId);
     }
 
     @Override
     public void clearPending(String userId) {
-        try {
-            String key = ZeroTrustRedisKeys.blockMfaPending(userId);
-            stringRedisTemplate.delete(key);
-        } catch (Exception e) {
-            log.error("[BlockMfaStateStore] Failed to clear pending: userId={}", userId, e);
-        }
+        actionRepository.clearBlockMfaPending(userId);
     }
 
     @Override
     public int getFailCount(String userId) {
-        try {
-            String key = ZeroTrustRedisKeys.blockMfaFailCount(userId);
-            String value = stringRedisTemplate.opsForValue().get(key);
-            return value != null ? Integer.parseInt(value) : 0;
-        } catch (Exception e) {
-            log.error("[BlockMfaStateStore] Failed to get fail count: userId={}", userId, e);
-            return 0;
-        }
+        return (int) actionRepository.getBlockMfaFailCount(userId);
     }
 }

@@ -1,18 +1,37 @@
 package io.contexa.contexacore.hcad.store;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemoryHCADDataStore implements HCADDataStore {
 
     private static final int MAX_DEVICES = 10;
+    private static final Duration DEFAULT_MFA_VERIFIED_TTL = Duration.ofHours(1);
 
     private final ConcurrentHashMap<String, Map<String, Object>> sessionMetadata = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<String>> userDevices = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TreeMap<Long, String>> requestCounters = new ConcurrentHashMap<>();
     private final Set<String> registeredUsers = ConcurrentHashMap.newKeySet();
-    private final Set<String> mfaVerifiedUsers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<Object, Object>> hcadAnalysis = new ConcurrentHashMap<>();
+
+    private final Duration mfaVerifiedTtl;
+    private final Clock clock;
+
+    public InMemoryHCADDataStore() {
+        this(DEFAULT_MFA_VERIFIED_TTL, Clock.systemUTC());
+    }
+
+    public InMemoryHCADDataStore(Duration mfaVerifiedTtl) {
+        this(mfaVerifiedTtl, Clock.systemUTC());
+    }
+
+    public InMemoryHCADDataStore(Duration mfaVerifiedTtl, Clock clock) {
+        this.mfaVerifiedTtl = Objects.requireNonNull(mfaVerifiedTtl, "mfaVerifiedTtl");
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
 
     @Override
     public Map<Object, Object> getSessionMetadata(String sessionId) {
@@ -31,24 +50,28 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     @Override
     public boolean isDeviceRegistered(String userId, String device) {
         Set<String> devices = userDevices.get(userId);
-        return devices != null && devices.contains(device);
+        if (devices == null) {
+            return false;
+        }
+        synchronized (devices) {
+            return devices.contains(device);
+        }
     }
 
     @Override
     public void registerDevice(String userId, String device) {
         userDevices.compute(userId, (key, devices) -> {
-            if (devices == null) {
-                devices = ConcurrentHashMap.newKeySet();
-            }
-            devices.add(device);
-            if (devices.size() > MAX_DEVICES) {
-                Iterator<String> it = devices.iterator();
-                String first = it.next();
-                if (!first.equals(device)) {
+            Set<String> orderedDevices = devices != null ? devices : new LinkedHashSet<>();
+            synchronized (orderedDevices) {
+                orderedDevices.remove(device);
+                orderedDevices.add(device);
+                while (orderedDevices.size() > MAX_DEVICES) {
+                    Iterator<String> it = orderedDevices.iterator();
+                    it.next();
                     it.remove();
                 }
             }
-            return devices;
+            return orderedDevices;
         });
     }
 
@@ -88,12 +111,20 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public boolean isMfaVerified(String userId) {
-        return mfaVerifiedUsers.contains(userId);
+        Long expiresAt = mfaVerifiedExpiry.get(userId);
+        if (expiresAt == null) {
+            return false;
+        }
+        if (clock.millis() >= expiresAt) {
+            mfaVerifiedExpiry.remove(userId, expiresAt);
+            return false;
+        }
+        return true;
     }
 
     @Override
     public void markMfaVerified(String userId) {
-        mfaVerifiedUsers.add(userId);
+        mfaVerifiedExpiry.put(userId, clock.millis() + mfaVerifiedTtl.toMillis());
     }
 
     @Override

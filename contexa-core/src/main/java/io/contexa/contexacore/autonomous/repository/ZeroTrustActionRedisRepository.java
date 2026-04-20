@@ -3,7 +3,6 @@ package io.contexa.contexacore.autonomous.repository;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
@@ -20,13 +19,27 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequiredArgsConstructor
 public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository {
 
     private static final Duration LAST_VERIFIED_ACTION_TTL = Duration.ofHours(24);
+    private static final Duration DEFAULT_FAIL_COUNT_TTL = Duration.ofHours(24);
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
+    private final Duration failCountTtl;
+
+    public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
+                                          StringRedisTemplate stringRedisTemplate) {
+        this(redisTemplate, stringRedisTemplate, DEFAULT_FAIL_COUNT_TTL);
+    }
+
+    public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
+                                          StringRedisTemplate stringRedisTemplate,
+                                          Duration failCountTtl) {
+        this.redisTemplate = java.util.Objects.requireNonNull(redisTemplate, "redisTemplate");
+        this.stringRedisTemplate = java.util.Objects.requireNonNull(stringRedisTemplate, "stringRedisTemplate");
+        this.failCountTtl = java.util.Objects.requireNonNull(failCountTtl, "failCountTtl");
+    }
 
     public ZeroTrustAction getCurrentAction(String userId) {
         if (userId == null || userId.isBlank()) {
@@ -337,12 +350,21 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
 
-            redisTemplate.opsForHash().putAll(analysisKey, fields);
-
             Duration ttl = newAction.getDefaultTtl();
-            if (ttl != null) {
-                redisTemplate.expire(analysisKey, ttl);
-            }
+
+            // Bundle putAll + expire into a single MULTI/EXEC transaction so the hash update and
+            // its TTL land as one atomic unit even if the client fails between calls.
+            redisTemplate.execute(new SessionCallback<>() {
+                @Override
+                public Object execute(RedisOperations operations) throws DataAccessException {
+                    operations.multi();
+                    operations.opsForHash().putAll(analysisKey, fields);
+                    if (ttl != null) {
+                        operations.expire(analysisKey, ttl);
+                    }
+                    return operations.exec();
+                }
+            });
 
             String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
@@ -432,7 +454,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         try {
             String key = ZeroTrustRedisKeys.blockMfaFailCount(userId);
             Long count = stringRedisTemplate.opsForValue().increment(key);
-            stringRedisTemplate.expire(key, LAST_VERIFIED_ACTION_TTL);
+            stringRedisTemplate.expire(key, failCountTtl);
             return count != null ? count : 0;
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to increment block MFA fail count: userId={}", userId, e);
