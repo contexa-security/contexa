@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * In-memory release ledger storage used as the default implementation.
@@ -15,12 +16,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Component
 public class InMemoryLearningArtifactReleaseLedgerStore implements LearningArtifactReleaseLedgerStore {
 
-    private final Map<String, CopyOnWriteArrayList<LearningArtifactReleaseLedgerEntry>> entries = new ConcurrentHashMap<>();
+    private static final Comparator<StoredLedgerEntry> CHRONOLOGICAL_ORDER =
+            Comparator.comparing((StoredLedgerEntry stored) -> stored.entry().createdAt())
+                    .thenComparingLong(StoredLedgerEntry::sequence);
+
+    private final AtomicLong sequence = new AtomicLong();
+    private final Map<String, CopyOnWriteArrayList<StoredLedgerEntry>> entries = new ConcurrentHashMap<>();
 
     @Override
     public LearningArtifactReleaseLedgerEntry save(LearningArtifactReleaseLedgerEntry entry) {
         entries.computeIfAbsent(key(entry.tenantId(), entry.artifactType(), entry.artifactKey()), ignored -> new CopyOnWriteArrayList<>())
-                .add(entry);
+                .add(new StoredLedgerEntry(entry, sequence.incrementAndGet()));
         return entry;
     }
 
@@ -34,8 +40,8 @@ public class InMemoryLearningArtifactReleaseLedgerStore implements LearningArtif
         int safeLimit = Math.max(limit, 0);
         return entries.getOrDefault(key(tenantId, artifactType, artifactKey), new CopyOnWriteArrayList<>())
                 .stream()
-                .sorted(Comparator.comparing(LearningArtifactReleaseLedgerEntry::createdAt).reversed()
-                        .thenComparing(LearningArtifactReleaseLedgerEntry::ledgerId, Comparator.reverseOrder()))
+                .sorted(CHRONOLOGICAL_ORDER.reversed())
+                .map(StoredLedgerEntry::entry)
                 .limit(safeLimit)
                 .toList();
     }
@@ -44,12 +50,11 @@ public class InMemoryLearningArtifactReleaseLedgerStore implements LearningArtif
     public List<LearningArtifactReleaseLedgerEntry> findLatestByArtifact(String artifactType, String artifactKey) {
         return entries.values().stream()
                 .map(list -> list.stream()
-                        .filter(entry -> matches(entry, artifactType, artifactKey))
-                        .max(Comparator.comparing(LearningArtifactReleaseLedgerEntry::createdAt)
-                                .thenComparing(LearningArtifactReleaseLedgerEntry::ledgerId)))
+                        .filter(stored -> matches(stored.entry(), artifactType, artifactKey))
+                        .max(CHRONOLOGICAL_ORDER))
                 .flatMap(Optional::stream)
-                .sorted(Comparator.comparing(LearningArtifactReleaseLedgerEntry::createdAt).reversed()
-                        .thenComparing(LearningArtifactReleaseLedgerEntry::ledgerId, Comparator.reverseOrder()))
+                .sorted(CHRONOLOGICAL_ORDER.reversed())
+                .map(StoredLedgerEntry::entry)
                 .toList();
     }
 
@@ -58,9 +63,9 @@ public class InMemoryLearningArtifactReleaseLedgerStore implements LearningArtif
         int safeLimit = Math.max(limit, 0);
         return entries.values().stream()
                 .flatMap(List::stream)
-                .filter(entry -> matches(entry, artifactType, artifactKey))
-                .sorted(Comparator.comparing(LearningArtifactReleaseLedgerEntry::createdAt).reversed()
-                        .thenComparing(LearningArtifactReleaseLedgerEntry::ledgerId, Comparator.reverseOrder()))
+                .filter(stored -> matches(stored.entry(), artifactType, artifactKey))
+                .sorted(CHRONOLOGICAL_ORDER.reversed())
+                .map(StoredLedgerEntry::entry)
                 .limit(safeLimit)
                 .toList();
     }
@@ -71,5 +76,8 @@ public class InMemoryLearningArtifactReleaseLedgerStore implements LearningArtif
 
     private String key(String tenantId, String artifactType, String artifactKey) {
         return tenantId + "|" + artifactType + "|" + artifactKey;
+    }
+
+    private record StoredLedgerEntry(LearningArtifactReleaseLedgerEntry entry, long sequence) {
     }
 }
