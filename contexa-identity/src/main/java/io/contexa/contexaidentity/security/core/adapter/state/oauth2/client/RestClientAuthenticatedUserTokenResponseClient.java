@@ -123,7 +123,8 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                     grantRequest.getUsername(),
                     grantRequest.getDeviceId(),
                     clientRegistration.getClientId(),
-                    clientRegistration.getClientSecret());
+                    clientRegistration.getClientSecret(),
+                    clientRegistration.getScopes());
 
             if (clientSecretBasicConverter == null) {
                 throw new OAuth2AuthorizationException(

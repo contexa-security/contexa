@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.statemachine.core.service;
 
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
+import io.contexa.contexaidentity.security.statemachine.core.persist.InMemoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import org.springframework.statemachine.config.StateMachineFactory;
@@ -17,12 +18,15 @@ import java.util.concurrent.locks.ReentrantLock;
 public class StandaloneMfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
 
     private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final InMemoryStateMachinePersist inMemoryStateMachinePersist;
 
     public StandaloneMfaStateMachineServiceImpl(
             StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
             StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
-            StateMachineProperties properties) {
+            StateMachineProperties properties,
+            InMemoryStateMachinePersist inMemoryStateMachinePersist) {
         super(stateMachineFactory, stateMachinePersister, properties);
+        this.inMemoryStateMachinePersist = inMemoryStateMachinePersist;
     }
 
     @Override
@@ -42,10 +46,12 @@ public class StandaloneMfaStateMachineServiceImpl extends AbstractMfaStateMachin
     @Override
     protected void onReleaseStateMachine(String sessionId) {
         locks.remove(sessionId);
+        inMemoryStateMachinePersist.delete(sessionId);
     }
 
     @Override
     public void releaseStateMachine(String sessionId) {
         locks.remove(sessionId);
+        inMemoryStateMachinePersist.delete(sessionId);
     }
 }

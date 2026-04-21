@@ -12,6 +12,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
     private final String deviceId;
     private final String clientId;
     private final String clientSecret;
+    private final Set<String> scopes;
     private final Map<String, String[]> oauth2Parameters;
 
     public OAuth2TokenRequestWrapper(
@@ -19,13 +20,15 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
             String username,
             String deviceId,
             String clientId,
-            String clientSecret) {
+            String clientSecret,
+            Set<String> scopes) {
 
         super(request);
         this.username = username;
         this.deviceId = deviceId;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+        this.scopes = scopes != null ? Set.copyOf(scopes) : Collections.emptySet();
         this.oauth2Parameters = buildOAuth2Parameters();
     }
 
@@ -38,6 +41,9 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
         if (deviceId != null) {
             params.put("device_id", new String[]{deviceId});
+        }
+        if (!scopes.isEmpty()) {
+            params.put("scope", new String[]{String.join(" ", scopes)});
         }
 
         return params;

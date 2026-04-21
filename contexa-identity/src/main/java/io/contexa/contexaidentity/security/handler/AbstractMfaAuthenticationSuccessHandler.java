@@ -138,7 +138,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             String userId = finalAuthentication.getName();
             if (factorContext != null && factorContext.isCompleted()) {
-                log.error("[MFA-TEST1] completed but factorContext is not null: {}", factorContext.isCompleted());
+                log.error("completed but factorContext is not null: {}", factorContext.isCompleted());
                 Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
                 if (Boolean.TRUE.equals(blockMfaFlow)) {
                     handleBlockMfaSuccess(userId, request, response);
@@ -150,7 +150,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 resetActionOnMfaSuccess(userId, request, factorContext);
                 successStage = "recordMfaCompletionInSession";
                 recordMfaCompletionInSession(request, factorContext);
-                log.error("[MFA-TEST1] Action: {}", actionRedisRepository.getCurrentAction(userId));
+                log.error("Action: {}", actionRedisRepository.getCurrentAction(userId));
             }
 
             successStage = "buildResponseData";

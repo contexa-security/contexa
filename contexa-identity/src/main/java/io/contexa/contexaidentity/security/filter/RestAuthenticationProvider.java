@@ -51,8 +51,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             throw new CredentialsExpiredException("Password has expired");
         }
 
-        UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
-        return RestAuthenticationToken.authenticated(customUserDetails, customUserDetails.getAuthorities());
+//        UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
+        return RestAuthenticationToken.authenticated(userDetails, userDetails.getAuthorities());
     }
 
     @Override

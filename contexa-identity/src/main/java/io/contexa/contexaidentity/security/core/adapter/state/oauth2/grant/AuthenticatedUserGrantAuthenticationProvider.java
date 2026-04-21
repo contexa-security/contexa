@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class AuthenticatedUserGrantAuthenticationProvider implements AuthenticationProvider {
 
     private static final String ERROR_URI = "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2";
+    private static final String DEFAULT_SCOPE = "read";
 
     private final OAuth2TokenGenerator<?> tokenGenerator;
     private final OAuth2AuthorizationService authorizationService;
@@ -174,19 +175,27 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
     }
 
     private Set<String> resolveAuthorizedScopes(AuthenticatedUserGrantAuthenticationToken token,
-                                                RegisteredClient registeredClient) {
+                                                 RegisteredClient registeredClient) {
         Set<String> allowedScopes = registeredClient.getScopes();
         Object scopeParam = token.getAdditionalParameters().get("scope");
         if (scopeParam instanceof String scopeStr && !scopeStr.isBlank()) {
-            Set<String> requestedScopes = new LinkedHashSet<>(Arrays.asList(scopeStr.split("\\s+")));
-            Set<String> intersected = requestedScopes.stream()
-                    .filter(allowedScopes::contains)
-                    .collect(Collectors.toSet());
-            if (!intersected.isEmpty()) {
-                return intersected;
+            Set<String> requestedScopes = new LinkedHashSet<>(Arrays.asList(scopeStr.trim().split("\\s+")));
+            Set<String> invalidScopes = requestedScopes.stream()
+                    .filter(scope -> !allowedScopes.contains(scope))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (!invalidScopes.isEmpty()) {
+                OAuth2Error error = new OAuth2Error(
+                        OAuth2ErrorCodes.INVALID_SCOPE,
+                        "Invalid scope(s): " + String.join(" ", invalidScopes),
+                        ERROR_URI);
+                throw new OAuth2AuthenticationException(error);
             }
+            return requestedScopes;
         }
-        return allowedScopes;
+        if (allowedScopes.contains(DEFAULT_SCOPE)) {
+            return Set.of(DEFAULT_SCOPE);
+        }
+        return Collections.emptySet();
     }
 
     private Users loadUserFromDatabase(String username) {

@@ -197,9 +197,10 @@ public class IdentityStateMachineAutoConfiguration {
         public MfaStateMachineService mfaStateMachineService(
                 StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
                 StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
-                StateMachineProperties properties) {
+                StateMachineProperties properties,
+                InMemoryStateMachinePersist persist) {
             return new StandaloneMfaStateMachineServiceImpl(
-                    stateMachineFactory, stateMachinePersister, properties);
+                    stateMachineFactory, stateMachinePersister, properties, persist);
         }
     }
 

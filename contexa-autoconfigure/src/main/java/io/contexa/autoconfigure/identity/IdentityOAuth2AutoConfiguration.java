@@ -58,7 +58,6 @@ import org.springframework.security.oauth2.client.web.HttpSessionOAuth2Authorize
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
@@ -80,6 +79,7 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.io.InputStream;
@@ -90,9 +90,12 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -105,6 +108,10 @@ public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
     private final AuthContextProperties authContextProperties;
+    private volatile String generatedInternalClientSecret;
+
+    private static final String NOOP_SECRET_PREFIX = "{noop}";
+    private static final String DEFAULT_SCOPE = "read";
 
     @Bean
     @ConditionalOnMissingBean(OAuth2StateAdapter.class)
@@ -130,12 +137,13 @@ public class IdentityOAuth2AutoConfiguration {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
         String keyStorePath = oauth2.getJwkKeyStorePath();
 
-        if (keyStorePath != null && !keyStorePath.isBlank()) {
+        if (StringUtils.hasText(keyStorePath)) {
             return loadJwkFromKeyStore(oauth2);
         }
 
-        log.error("[OAuth2] JWK KeyStore not configured (spring.auth.oauth2.jwk-key-store-path) - using ephemeral RSA key. "
-                + "Tokens will be invalidated on restart");
+        log.warn("[OAuth2] JWK KeyStore not configured (spring.auth.oauth2.jwk-key-store-path) - using an ephemeral RSA signing key "
+                + "for the internal token engine. Tokens will be invalidated on restart; configure a persistent key for "
+                + "multi-instance deployments or restart-stable token verification.");
 
         KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
@@ -223,12 +231,7 @@ public class IdentityOAuth2AutoConfiguration {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
         String clientId = oauth2.getClientId();
 
-        String clientSecret = oauth2.getClientSecret();
-        if (clientSecret == null || clientSecret.isBlank()) {
-            clientSecret = UUID.randomUUID().toString();
-            log.error("[OAuth2] Client secret not configured (spring.auth.oauth2.client-secret) - generated random secret. "
-                    + "Configure explicitly for production");
-        }
+        String clientSecret = resolveConfiguredOrInternalClientSecret(oauth2);
 
         String redirectUri = oauth2.getRedirectUri();
         String authorizedUri = oauth2.getAuthorizedUri();
@@ -250,11 +253,6 @@ public class IdentityOAuth2AutoConfiguration {
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                     .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                     .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
-                    .scope("read")
-                    .scope("write")
-                    .scope("admin")
-                    .scope(OidcScopes.OPENID)
-                    .scope(OidcScopes.PROFILE)
                     .clientSettings(ClientSettings.builder()
                             .requireAuthorizationConsent(false)
                             .requireProofKey(false)
@@ -265,10 +263,14 @@ public class IdentityOAuth2AutoConfiguration {
                             .reuseRefreshTokens(false)
                             .build());
 
-            if (redirectUri != null && !redirectUri.isBlank()) {
+            for (String scope : resolveConfiguredClientScopes(oauth2)) {
+                builder.scope(scope);
+            }
+
+            if (StringUtils.hasText(redirectUri)) {
                 builder.redirectUri(redirectUri);
             }
-            if (authorizedUri != null && !authorizedUri.isBlank()) {
+            if (StringUtils.hasText(authorizedUri)) {
                 builder.redirectUri(authorizedUri);
             }
 
@@ -299,11 +301,6 @@ public class IdentityOAuth2AutoConfiguration {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
         String issuerUri = oauth2.getIssuerUri();
 
-        if (issuerUri == null || issuerUri.isBlank()) {
-            log.error("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - "
-                    + "authorization server may not function correctly");
-        }
-
         AuthorizationServerSettings.Builder builder = AuthorizationServerSettings.builder()
                 .authorizationEndpoint("/oauth2/authorize")
                 .tokenEndpoint("/oauth2/token")
@@ -313,8 +310,11 @@ public class IdentityOAuth2AutoConfiguration {
                 .oidcClientRegistrationEndpoint("/connect/register")
                 .oidcUserInfoEndpoint("/userinfo");
 
-        if (issuerUri != null && !issuerUri.isBlank()) {
+        if (StringUtils.hasText(issuerUri)) {
             builder.issuer(issuerUri);
+        } else {
+            log.warn("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
+                    + "resolve the issuer from the current request for the internal token engine.");
         }
 
         return builder.build();
@@ -435,17 +435,16 @@ public class IdentityOAuth2AutoConfiguration {
     @Primary
     @Bean
     @ConditionalOnMissingBean(name = "clientRegistrationRepository")
-    public ClientRegistrationRepository clientRegistrationRepository() {
+    public ClientRegistrationRepository clientRegistrationRepository(
+            RegisteredClientRepository registeredClientRepository) {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
 
         String registrationId = "aidc-internal";
         String clientId = oauth2.getClientId();
-        String clientSecret = oauth2.getClientSecret() != null ? oauth2.getClientSecret() : "";
-        String tokenUri = oauth2.getIssuerUri() != null
-                ? oauth2.getIssuerUri() + oauth2.getTokenEndpoint()
-                : oauth2.getTokenEndpoint();
+        String clientSecret = resolveClientRegistrationSecret(oauth2, registeredClientRepository);
+        String tokenUri = resolveTokenUri(oauth2);
 
-        String[] scopes = oauth2.getScope() != null ? oauth2.getScope().split(",") : new String[]{"read"};
+        String[] scopes = resolveConfiguredClientScopes(oauth2).toArray(String[]::new);
 
         ClientRegistration registration = ClientRegistration
                 .withRegistrationId(registrationId)
@@ -458,6 +457,66 @@ public class IdentityOAuth2AutoConfiguration {
                 .build();
 
         return new InMemoryClientRegistrationRepository(registration);
+    }
+
+    private String resolveConfiguredOrInternalClientSecret(OAuth2TokenSettings oauth2) {
+        String clientSecret = oauth2.getClientSecret();
+        if (StringUtils.hasText(clientSecret)) {
+            return clientSecret;
+        }
+        if (generatedInternalClientSecret == null) {
+            synchronized (this) {
+                if (generatedInternalClientSecret == null) {
+                    generatedInternalClientSecret = UUID.randomUUID().toString();
+                    log.warn("[OAuth2] Client secret not configured (spring.auth.oauth2.client-secret) - generated an in-memory "
+                            + "internal client secret. Configure explicitly if external clients call the token endpoint or "
+                            + "client authentication must remain stable across restarts.");
+                }
+            }
+        }
+        return generatedInternalClientSecret;
+    }
+
+    private String resolveClientRegistrationSecret(
+            OAuth2TokenSettings oauth2,
+            RegisteredClientRepository registeredClientRepository) {
+
+        if (StringUtils.hasText(oauth2.getClientSecret())) {
+            return oauth2.getClientSecret();
+        }
+
+        RegisteredClient registeredClient = registeredClientRepository.findByClientId(oauth2.getClientId());
+        if (registeredClient != null && StringUtils.hasText(registeredClient.getClientSecret())) {
+            String storedSecret = registeredClient.getClientSecret();
+            if (storedSecret.startsWith(NOOP_SECRET_PREFIX)) {
+                return storedSecret.substring(NOOP_SECRET_PREFIX.length());
+            }
+            throw new IllegalStateException("[OAuth2] spring.auth.oauth2.client-secret is required because the stored client secret is encoded and cannot be reused for the internal client registration");
+        }
+
+        return resolveConfiguredOrInternalClientSecret(oauth2);
+    }
+
+    private String resolveTokenUri(OAuth2TokenSettings oauth2) {
+        String tokenEndpoint = StringUtils.hasText(oauth2.getTokenEndpoint())
+                ? oauth2.getTokenEndpoint()
+                : "/oauth2/token";
+        String issuerUri = oauth2.getIssuerUri();
+        if (StringUtils.hasText(issuerUri)) {
+            return issuerUri + tokenEndpoint;
+        }
+        return tokenEndpoint;
+    }
+
+    private Set<String> resolveConfiguredClientScopes(OAuth2TokenSettings oauth2) {
+        String configuredScopes = oauth2.getScope();
+        if (!StringUtils.hasText(configuredScopes)) {
+            return Set.of(DEFAULT_SCOPE);
+        }
+        Set<String> scopes = Arrays.stream(configuredScopes.trim().split("[,\\s]+"))
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return scopes.isEmpty() ? Set.of(DEFAULT_SCOPE) : scopes;
     }
 
     @Primary

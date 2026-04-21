@@ -5,6 +5,8 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
+import java.util.Set;
+
 public final class AuthenticatedUserTokenRequestParametersConverter
         implements Converter<OAuth2AuthenticatedUserGrantRequest, MultiValueMap<String, String>> {
 
@@ -26,6 +28,11 @@ public final class AuthenticatedUserTokenRequestParametersConverter
                 grantRequest.getClientRegistration().getClientId());
         parameters.add(OAuth2ParameterNames.CLIENT_SECRET,
                 grantRequest.getClientRegistration().getClientSecret());
+
+        Set<String> scopes = grantRequest.getClientRegistration().getScopes();
+        if (scopes != null && !scopes.isEmpty()) {
+            parameters.add(OAuth2ParameterNames.SCOPE, String.join(" ", scopes));
+        }
 
         return parameters;
     }
