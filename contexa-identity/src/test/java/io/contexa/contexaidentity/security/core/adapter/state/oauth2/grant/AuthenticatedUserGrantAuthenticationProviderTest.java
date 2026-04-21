@@ -53,7 +53,7 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
     private OAuth2AuthorizationService authorizationService;
 
     @Mock
-    private OAuth2TokenGenerator<?> tokenGenerator;
+    private OAuth2TokenGenerator<OAuth2Token> tokenGenerator;
 
     @Mock
     private UserRepository userRepository;
@@ -234,8 +234,8 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
     class ScopeTests {
 
         @Test
-        @DisplayName("Requested scopes should be intersected with allowed scopes")
-        void requestedScopesIntersectedWithAllowed() {
+        @DisplayName("Requested scopes should be accepted when all are allowed")
+        void requestedScopesAcceptedWhenAllowed() {
             RegisteredClient registeredClient = createValidRegisteredClient();
             when(registeredClient.getScopes()).thenReturn(Set.of("read", "write", "admin"));
 
@@ -248,11 +248,11 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
             when(userRepository.findByUsernameWithGroupsRolesAndPermissions("testuser"))
                     .thenReturn(Optional.of(user));
 
-            OAuth2AccessToken generatedAccessToken = createMockAccessToken(Set.of("read"));
+            OAuth2AccessToken generatedAccessToken = createMockAccessToken(Set.of("read", "write"));
             when(tokenGenerator.generate(any(OAuth2TokenContext.class))).thenReturn(generatedAccessToken);
 
             Map<String, Object> additionalParams = new HashMap<>();
-            additionalParams.put("scope", "read delete");
+            additionalParams.put("scope", "read write");
 
             AuthenticatedUserGrantAuthenticationToken token = new AuthenticatedUserGrantAuthenticationToken(
                     clientPrincipal, "testuser", null, additionalParams);
@@ -262,14 +262,40 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
             assertThat(result).isInstanceOf(OAuth2AccessTokenAuthenticationToken.class);
             OAuth2AccessTokenAuthenticationToken accessTokenResult =
                     (OAuth2AccessTokenAuthenticationToken) result;
-            // "delete" is not in allowed scopes, only "read" should remain
-            assertThat(accessTokenResult.getAccessToken().getScopes()).contains("read");
-            assertThat(accessTokenResult.getAccessToken().getScopes()).doesNotContain("delete");
+            assertThat(accessTokenResult.getAccessToken().getScopes())
+                    .containsExactlyInAnyOrder("read", "write");
         }
 
         @Test
-        @DisplayName("No requested scope should use all allowed scopes")
-        void noRequestedScopeUsesAllAllowed() {
+        @DisplayName("Invalid requested scope should throw INVALID_SCOPE")
+        void invalidRequestedScopeThrows() {
+            RegisteredClient registeredClient = createValidRegisteredClient();
+            when(registeredClient.getScopes()).thenReturn(Set.of("read", "write", "admin"));
+
+            OAuth2ClientAuthenticationToken clientPrincipal = createAuthenticatedClient(registeredClient);
+
+            Users user = createMockUser("testuser");
+            when(userRepository.findByUsernameWithGroupsRolesAndPermissions("testuser"))
+                    .thenReturn(Optional.of(user));
+
+            Map<String, Object> additionalParams = new HashMap<>();
+            additionalParams.put("scope", "read delete");
+
+            AuthenticatedUserGrantAuthenticationToken token = new AuthenticatedUserGrantAuthenticationToken(
+                    clientPrincipal, "testuser", null, additionalParams);
+
+            assertThatThrownBy(() -> provider.authenticate(token))
+                    .isInstanceOf(OAuth2AuthenticationException.class)
+                    .satisfies(ex -> {
+                        OAuth2AuthenticationException oauthEx = (OAuth2AuthenticationException) ex;
+                        assertThat(oauthEx.getError().getErrorCode()).isEqualTo("invalid_scope");
+                        assertThat(oauthEx.getError().getDescription()).contains("delete");
+                    });
+        }
+
+        @Test
+        @DisplayName("No requested scope should use default read scope")
+        void noRequestedScopeUsesDefaultReadScope() {
             RegisteredClient registeredClient = createValidRegisteredClient();
             when(registeredClient.getScopes()).thenReturn(Set.of("read", "write"));
 
@@ -281,7 +307,7 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
             when(userRepository.findByUsernameWithGroupsRolesAndPermissions("testuser"))
                     .thenReturn(Optional.of(user));
 
-            OAuth2AccessToken generatedAccessToken = createMockAccessToken(Set.of("read", "write"));
+            OAuth2AccessToken generatedAccessToken = createMockAccessToken(Set.of("read"));
             when(tokenGenerator.generate(any(OAuth2TokenContext.class))).thenReturn(generatedAccessToken);
 
             AuthenticatedUserGrantAuthenticationToken token = new AuthenticatedUserGrantAuthenticationToken(
@@ -293,7 +319,7 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
             OAuth2AccessTokenAuthenticationToken accessTokenResult =
                     (OAuth2AccessTokenAuthenticationToken) result;
             assertThat(accessTokenResult.getAccessToken().getScopes())
-                    .containsExactlyInAnyOrder("read", "write");
+                    .containsExactly("read");
         }
     }
 
