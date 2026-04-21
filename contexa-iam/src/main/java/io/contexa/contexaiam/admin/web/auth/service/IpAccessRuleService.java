@@ -148,7 +148,7 @@ public class IpAccessRuleService {
 
         LocalDateTime now = LocalDateTime.now();
         for (IpAccessRule rule : getDenyRules()) {
-            if (rule.getExpiresAt() != null && rule.getExpiresAt().isBefore(now)) {
+            if (!isRuleActive(rule, now)) {
                 continue;
             }
             if (matchesIpOrCidr(clientIp, rule.getIpAddress())) {
@@ -165,7 +165,7 @@ public class IpAccessRuleService {
 
         LocalDateTime now = LocalDateTime.now();
         for (IpAccessRule rule : getAllowRules()) {
-            if (rule.getExpiresAt() != null && rule.getExpiresAt().isBefore(now)) {
+            if (!isRuleActive(rule, now)) {
                 continue;
             }
             if (matchesIpOrCidr(clientIp, rule.getIpAddress())) {
@@ -173,6 +173,11 @@ public class IpAccessRuleService {
             }
         }
         return false;
+    }
+
+    public boolean hasActiveAllowRules() {
+        LocalDateTime now = LocalDateTime.now();
+        return getAllowRules().stream().anyMatch(rule -> isRuleActive(rule, now));
     }
 
     @Transactional(readOnly = true)
@@ -235,5 +240,9 @@ public class IpAccessRuleService {
             log.error("IP matching error: clientIp={}, ruleIp={}", clientIp, ruleIp, e);
             return false;
         }
+    }
+
+    private boolean isRuleActive(IpAccessRule rule, LocalDateTime now) {
+        return rule.getExpiresAt() == null || !rule.getExpiresAt().isBefore(now);
     }
 }

@@ -1,35 +1,48 @@
 package io.contexa.contexaiam.admin.web.auth.filter;
 
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
 @Slf4j
-@RequiredArgsConstructor
 public class IpAccessFilter extends OncePerRequestFilter {
 
     private final IpAccessRuleService ipAccessRuleService;
+    private final TieredStrategyProperties.Security securityProperties;
+
+    public IpAccessFilter(IpAccessRuleService ipAccessRuleService) {
+        this(ipAccessRuleService, new TieredStrategyProperties.Security());
+    }
+
+    public IpAccessFilter(IpAccessRuleService ipAccessRuleService,
+                          TieredStrategyProperties.Security securityProperties) {
+        this.ipAccessRuleService = ipAccessRuleService;
+        this.securityProperties = securityProperties != null
+                ? securityProperties
+                : new TieredStrategyProperties.Security();
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        String clientIp = request.getRemoteAddr();
-
-        // Check X-Forwarded-For header for proxied requests
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            clientIp = forwarded.split(",")[0].trim();
-        }
+        String clientIp = RequestInfoExtractor.extractClientIp(request, securityProperties);
 
         if (ipAccessRuleService.isIpDenied(clientIp)) {
             log.error("IP access denied for: {}", clientIp);
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
+            return;
+        }
+
+        if (ipAccessRuleService.hasActiveAllowRules() && !ipAccessRuleService.isIpAllowed(clientIp)) {
+            log.error("IP access rejected by allow-list: {}", clientIp);
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
             return;
         }

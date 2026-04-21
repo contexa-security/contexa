@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.IpManagementController;
 import io.contexa.contexaiam.admin.web.auth.filter.IpAccessFilter;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
@@ -7,11 +8,13 @@ import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
+@EnableConfigurationProperties(TieredStrategyProperties.class)
 public class IamAdminIpAutoConfiguration {
 
     @Bean
@@ -31,9 +34,10 @@ public class IamAdminIpAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(IpAccessFilter.class)
-    public FilterRegistrationBean<IpAccessFilter> ipAccessFilter(IpAccessRuleService ipAccessRuleService) {
+    public FilterRegistrationBean<IpAccessFilter> ipAccessFilter(IpAccessRuleService ipAccessRuleService,
+                                                                 TieredStrategyProperties tieredStrategyProperties) {
         FilterRegistrationBean<IpAccessFilter> reg = new FilterRegistrationBean<>();
-        reg.setFilter(new IpAccessFilter(ipAccessRuleService));
+        reg.setFilter(new IpAccessFilter(ipAccessRuleService, tieredStrategyProperties.getSecurity()));
         reg.addUrlPatterns("/*");
         reg.setName("ipAccessFilter");
         reg.setOrder(50);
