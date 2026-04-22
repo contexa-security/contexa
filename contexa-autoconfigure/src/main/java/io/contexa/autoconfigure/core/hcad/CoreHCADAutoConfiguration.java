@@ -24,6 +24,7 @@ import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.hcad.trigger.store.InMemoryAnalysisTriggerStateRepository;
 import io.contexa.contexacore.hcad.trigger.store.RedisAnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -43,7 +44,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class })
+@EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class, TieredStrategyProperties.class })
 public class CoreHCADAutoConfiguration {
 
     @Bean
@@ -52,6 +53,7 @@ public class CoreHCADAutoConfiguration {
             HCADDataStore hcadDataStore,
             SecurityContextDataStore securityContextDataStore,
             HcadProperties hcadProperties,
+            TieredStrategyProperties tieredStrategyProperties,
             ObjectProvider<BlockMfaStateStore> blockMfaStateStoreProvider,
             ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
             ObjectProvider<GeoIpService> geoIpServiceProvider) {
@@ -59,6 +61,7 @@ public class CoreHCADAutoConfiguration {
         extractor.setBlockMfaStateStore(blockMfaStateStoreProvider.getIfAvailable());
         extractor.setBaselineLearningService(baselineLearningServiceProvider.getIfAvailable());
         extractor.setGeoIpService(geoIpServiceProvider.getIfAvailable());
+        extractor.setTrustedProxySecurity(tieredStrategyProperties.getSecurity());
         return extractor;
     }
 

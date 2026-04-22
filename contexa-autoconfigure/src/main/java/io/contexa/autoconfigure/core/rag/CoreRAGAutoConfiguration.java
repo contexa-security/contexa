@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
@@ -36,10 +37,16 @@ import org.springframework.context.annotation.Primary;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter(io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration.class)
+@AutoConfigureAfter(CoreAdvisorAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({ContexaProperties.class, PgVectorStoreProperties.class, ContexaRagProperties.class})
 public class CoreRAGAutoConfiguration {
@@ -52,6 +59,7 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -67,19 +75,44 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
     public VectorStoreCacheLayer vectorStoreCacheLayer(
             VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
         return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
     }
 
+    @Bean(destroyMethod = "shutdown")
+    @ConditionalOnMissingBean(name = "vectorOperationExecutor")
+    public ExecutorService vectorOperationExecutor() {
+        return new ThreadPoolExecutor(
+                2,
+                8,
+                60L,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(1000),
+                namedThreadFactory("Vector-Operation-"),
+                new ThreadPoolExecutor.AbortPolicy());
+    }
+
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
     public UnifiedVectorService unifiedVectorService(
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
-            VectorStore vectorStore) {
-        return new UnifiedVectorService(properties, cacheLayer, vectorStore);
+            VectorStore vectorStore,
+            @Qualifier("vectorOperationExecutor") ExecutorService vectorOperationExecutor) {
+        return new UnifiedVectorService(properties, cacheLayer, vectorStore, vectorOperationExecutor);
+    }
+
+    private ThreadFactory namedThreadFactory(String prefix) {
+        AtomicInteger threadNumber = new AtomicInteger(1);
+        return runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setName(prefix + threadNumber.getAndIncrement());
+            return thread;
+        };
     }
 
     @Bean
@@ -93,7 +126,7 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnBean(name = "behaviorQueryTransformer")
+    @ConditionalOnBean(value = VectorStore.class, name = "behaviorQueryTransformer")
     @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(
             VectorStore vectorStore,
@@ -122,7 +155,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(name = "riskQueryTransformer")
+    @ConditionalOnBean(value = VectorStore.class, name = "riskQueryTransformer")
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
@@ -147,7 +180,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(name = "policyQueryTransformer")
+    @ConditionalOnBean(value = VectorStore.class, name = "policyQueryTransformer")
     @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
             VectorStore vectorStore,

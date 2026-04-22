@@ -29,8 +29,10 @@ import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -69,8 +71,8 @@ class UserManagementControllerTest {
                     String key = inv.getArgument(0);
                     Object[] args = inv.getArgument(1);
                     if (args != null && args.length > 0) {
-                        return key + " " + java.util.Arrays.stream(args)
-                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                        return key + " " + Arrays.stream(args)
+                                .map(String::valueOf).collect(Collectors.joining(" "));
                     }
                     return key;
                 });
@@ -137,8 +139,9 @@ class UserManagementControllerTest {
             when(userManagementService.getUser(1L)).thenReturn(userDto);
             when(roleService.getRolesWithoutExpression()).thenReturn(roles);
             when(groupService.getAllGroups()).thenReturn(groups);
+            RedirectAttributes ra = new RedirectAttributesModelMap();
 
-            String view = controller.getUser(1L, model);
+            String view = controller.getUser(1L, model, ra);
 
             assertThat(view).isEqualTo("admin/userdetails");
             assertThat(model.getAttribute("user")).isEqualTo(userDto);
@@ -156,11 +159,25 @@ class UserManagementControllerTest {
             when(userManagementService.getUser(1L)).thenReturn(userDto);
             when(roleService.getRolesWithoutExpression()).thenReturn(List.of());
             when(groupService.getAllGroups()).thenReturn(List.of());
+            RedirectAttributes ra = new RedirectAttributesModelMap();
 
-            String view = controller.getUser(1L, model);
+            String view = controller.getUser(1L, model, ra);
 
             assertThat(view).isEqualTo("admin/userdetails");
             assertThat(model.getAttribute("selectedGroupIds")).isEqualTo(List.of());
+        }
+
+        @Test
+        @DisplayName("should redirect with error when user cannot be loaded")
+        void loadError() {
+            Model model = new ConcurrentModel();
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            when(userManagementService.getUser(999L)).thenThrow(new IllegalArgumentException("Not found"));
+
+            String view = controller.getUser(999L, model, ra);
+
+            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
         }
     }
 

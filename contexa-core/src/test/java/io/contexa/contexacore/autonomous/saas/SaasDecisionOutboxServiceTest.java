@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Map;
 import java.util.Optional;
@@ -78,5 +79,36 @@ class SaasDecisionOutboxServiceTest {
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.getUpdatedAt()).isNotNull();
         verify(dispatcher).dispatch(31L);
+    }
+
+    @Test
+    void captureDispatchesExistingRecordWhenCorrelationInsertRaces() throws Exception {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-002")
+                .metadata(Map.of("tenantId", "tenant-acme"))
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        SecurityDecisionForwardingPayload payload = SecurityDecisionForwardingPayload.builder()
+                .correlationId("corr-002")
+                .decision("BLOCK")
+                .build();
+        when(payloadMapper.map(context)).thenReturn(payload);
+        when(repository.findByCorrelationId("corr-002")).thenReturn(Optional.empty());
+        when(objectMapper.writeValueAsString(payload)).thenReturn("{\"correlationId\":\"corr-002\"}");
+        when(repository.saveAndFlush(any(SecurityDecisionForwardingOutboxRecord.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate correlation"));
+        when(repository.findTopByCorrelationIdOrderByIdDesc("corr-002")).thenReturn(Optional.of(SecurityDecisionForwardingOutboxRecord.builder()
+                .id(41L)
+                .correlationId("corr-002")
+                .tenantExternalRef("tenant-acme")
+                .payloadJson("{}")
+                .status(SecurityDecisionForwardingOutboxRecord.STATUS_PENDING)
+                .build()));
+
+        service.capture(context);
+
+        verify(dispatcher).dispatch(41L);
     }
 }

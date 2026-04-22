@@ -25,9 +25,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -60,8 +62,8 @@ class BlacklistControllerTest {
                     String key = inv.getArgument(0);
                     Object[] args = inv.getArgument(1);
                     if (args != null && args.length > 0) {
-                        return key + " " + java.util.Arrays.stream(args)
-                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                        return key + " " + Arrays.stream(args)
+                                .map(String::valueOf).collect(Collectors.joining(" "));
                     }
                     return key;
                 });

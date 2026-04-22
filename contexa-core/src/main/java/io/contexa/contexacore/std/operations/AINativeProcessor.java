@@ -13,7 +13,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 final public class AINativeProcessor<T extends DomainContext> implements AICoreOperations<T> {
@@ -128,10 +133,45 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
 
     private String generateStrategyId(AIRequest<T> request, Class<?> responseType) {
-        return String.format("strategy-%s-%s-%s",
-                request.getClass().getSimpleName(),
-                responseType.getSimpleName(),
-                UUID.randomUUID().toString().substring(0, 8));
+        String identity = String.join("|",
+                safe(responseType.getName()),
+                safe(request.getPromptTemplate() != null ? request.getPromptTemplate().name() : null),
+                safe(request.getDiagnosisType() != null ? request.getDiagnosisType().name() : null),
+                safe(request.getNaturalLanguageQuery()),
+                safe(request.getContext() != null ? request.getContext().getDomainType() : null),
+                safe(request.getContext() != null ? request.getContext().getUserId() : null),
+                safe(request.getContext() != null ? request.getContext().getSessionId() : null),
+                safe(request.getContext() != null ? request.getContext().getOrganizationId() : null),
+                stableParameters(request.getParameters()));
+        return "strategy-" + responseType.getSimpleName() + "-" + sha256Prefix(identity);
+    }
+
+    private String stableParameters(Map<String, Object> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return "";
+        }
+        return parameters.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> safe(entry.getKey()) + "=" + safe(entry.getValue()))
+                .collect(Collectors.joining("&"));
+    }
+
+    private String safe(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private String sha256Prefix(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < 8 && i < hash.length; i++) {
+                builder.append(String.format("%02x", hash[i]));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
     }
 
     private String getNodeId() {

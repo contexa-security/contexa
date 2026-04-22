@@ -28,6 +28,10 @@ class PromptContextAuditPayloadMapperTest {
                         Map.entry("tenantId", "tenant-acme"),
                         Map.entry("correlationId", "corr-001"),
                         Map.entry("executionId", "exec-001"),
+                        Map.entry("systemPrompt", "do not forward raw system prompt"),
+                        Map.entry("userPrompt", "do not forward raw user prompt"),
+                        Map.entry("systemPromptHash", "sha256:system"),
+                        Map.entry("userPromptHash", "sha256:user"),
                         Map.entry("officialVerificationPinnedModelId", "qwen3:8b"),
                         Map.entry("officialVerificationTemperature", 0.0d),
                         Map.entry("officialVerificationTopP", 0.2d),
@@ -70,6 +74,10 @@ class PromptContextAuditPayloadMapperTest {
         assertThat(payload.getContexts().getFirst().getAuthorizationDecision()).isEqualTo("ALLOW");
         assertThat(payload.getContexts().getFirst().isTenantBound()).isTrue();
         assertThat(payload.getContexts().getFirst().getSimilarityScore()).isEqualTo(0.84);
+        assertThat(payload.getSystemPrompt()).isNull();
+        assertThat(payload.getUserPrompt()).isNull();
+        assertThat(payload.getSystemPromptHash()).isEqualTo("sha256:system");
+        assertThat(payload.getUserPromptHash()).isEqualTo("sha256:user");
         assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationPinnedModelId", "qwen3:8b");
         assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationTemperature", 0.0d);
         assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationTopP", 0.2d);

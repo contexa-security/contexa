@@ -75,6 +75,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.DefaultRoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrativeCollector;
@@ -342,6 +348,19 @@ public class CoreAutonomousAutoConfiguration {
         return new CalibrationDecisionApplier();
     }
 
+    @Bean(destroyMethod = "shutdown")
+    @ConditionalOnMissingBean(name = "layer1RagRetrievalExecutor")
+    public ExecutorService layer1RagRetrievalExecutor() {
+        return new ThreadPoolExecutor(
+                2,
+                8,
+                60L,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(500),
+                namedThreadFactory("Layer1-RAG-"),
+                new ThreadPoolExecutor.AbortPolicy());
+    }
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasCalibrationProfilePackService.class)
@@ -381,6 +400,7 @@ public class CoreAutonomousAutoConfiguration {
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
+            @Qualifier("layer1RagRetrievalExecutor") ExecutorService layer1RagRetrievalExecutor,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
                 unifiedVectorService,
@@ -399,7 +419,17 @@ public class CoreAutonomousAutoConfiguration {
                 pipelineOrchestrator.getIfAvailable(),
                 tieredStrategyProperties,
                 securityDecisionCalibrationService.getIfAvailable(),
-                structuredOutputCapabilityRegistry);
+                structuredOutputCapabilityRegistry,
+                layer1RagRetrievalExecutor);
+    }
+
+    private ThreadFactory namedThreadFactory(String prefix) {
+        AtomicInteger threadNumber = new AtomicInteger(1);
+        return runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setName(prefix + threadNumber.getAndIncrement());
+            return thread;
+        };
     }
 
     @Bean

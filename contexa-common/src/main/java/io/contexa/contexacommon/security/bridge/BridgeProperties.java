@@ -26,6 +26,9 @@ public class BridgeProperties {
     @NestedConfigurationProperty
     private Sync sync = new Sync();
 
+    @NestedConfigurationProperty
+    private Network network = new Network();
+
     public boolean isEnabled() {
         return true;
     }
@@ -249,5 +252,11 @@ public class BridgeProperties {
         private boolean enabled = true;
         private long minRefreshIntervalSeconds = 60;
         private String syntheticEmailDomain = "shadow.contexa.local";
+    }
+
+    @Data
+    public static class Network {
+        private boolean trustedProxyValidationEnabled = true;
+        private List<String> trustedProxies = List.of();
     }
 }

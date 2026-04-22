@@ -2,14 +2,17 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import jakarta.servlet.http.HttpServletRequest;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -18,9 +21,11 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.StringUtils;
 import org.springframework.util.AntPathMatcher;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +49,9 @@ public class HCADContextExtractor {
 
     @Setter
     private GeoIpService geoIpService;
+
+    @Setter
+    private TieredStrategyProperties.Security trustedProxySecurity;
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
@@ -101,6 +109,9 @@ public class HCADContextExtractor {
 
         } catch (Exception e) {
             log.error("[HCAD] Context extraction failed", e);
+            Map<String, Object> failureAttributes = new HashMap<>();
+            failureAttributes.put("contextExtractionFailed", true);
+            failureAttributes.put("contextExtractionFailureType", e.getClass().getSimpleName());
 
             return HCADContext.builder()
                     .userId(authentication != null ? extractUserId(request, authentication) : "unknown")
@@ -109,9 +120,10 @@ public class HCADContextExtractor {
                     .httpMethod(request.getMethod())
                     .remoteIp(request.getRemoteAddr())
                     .timestamp(resolveObservedAt(request))
-                    .isNewSession(true)
-                    .isNewUser(true)
-                    .isNewDevice(true)
+                    .isNewSession(false)
+                    .isNewUser(false)
+                    .isNewDevice(false)
+                    .additionalAttributes(failureAttributes)
                     .build();
         }
     }
@@ -135,7 +147,7 @@ public class HCADContextExtractor {
         if (principal != null && principal.getClass().getSimpleName().contains("UserDto")) {
             try {
 
-                java.lang.reflect.Method getUsernameMethod = principal.getClass().getMethod("getUsername");
+                Method getUsernameMethod = principal.getClass().getMethod("getUsername");
                 Object username = getUsernameMethod.invoke(principal);
                 return username != null ? username.toString() : authentication.getName();
             } catch (Exception e) {
@@ -157,27 +169,11 @@ public class HCADContextExtractor {
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        String[] headers = {
-                "X-Forwarded-For",
-                "X-Real-IP",
-                "Proxy-Client-IP",
-                "WL-Proxy-Client-IP",
-                "HTTP_CLIENT_IP",
-                "HTTP_X_FORWARDED_FOR"
-        };
-
-        for (String header : headers) {
-            String ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-
-                if (ip.contains(",")) {
-                    return ip.split(",")[0].trim();
-                }
-                return ip.trim();
-            }
+        if (trustedProxySecurity != null) {
+            return RequestInfoExtractor.extractClientIp(request, trustedProxySecurity);
         }
 
-        return request.getRemoteAddr();
+        return ClientIpResolver.resolveLegacy(request);
     }
 
     private void enrichWithSessionInfo(HCADContext context,
@@ -210,9 +206,11 @@ public class HCADContextExtractor {
             }
 
         } catch (Exception e) {
-            context.setIsNewSession(true);
-            context.setIsNewDevice(true);
+            context.setIsNewSession(false);
+            context.setIsNewDevice(false);
             context.setSessionAgeMinutes(0);
+            putAdditionalAttribute(context, "sessionInfoUnavailable", true);
+            putAdditionalAttribute(context, "sessionInfoFailureType", e.getClass().getSimpleName());
         }
     }
 
@@ -231,7 +229,7 @@ public class HCADContextExtractor {
                 return true;
             }
         } catch (Exception e) {
-            return true;
+            return false;
         }
     }
 
@@ -339,7 +337,9 @@ public class HCADContextExtractor {
             context.setBaselineConfidence(Double.NaN);
             context.setFailedLoginAttempts(0);
             context.setHasValidMFA(false);
-            context.setNewUser(true);
+            context.setNewUser(false);
+            putAdditionalAttribute(context, "securityInfoUnavailable", true);
+            putAdditionalAttribute(context, "securityInfoFailureType", e.getClass().getSimpleName());
         }
     }
 
@@ -467,7 +467,7 @@ public class HCADContextExtractor {
     }
 
     private Instant resolveObservedAt(HttpServletRequest request) {
-        Instant observedAt = io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.extractObservedAt(request);
+        Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
         return observedAt != null ? observedAt : Instant.now();
     }
 
@@ -617,7 +617,7 @@ public class HCADContextExtractor {
             return null;
         }
         String[] rawSegments = path.split("/");
-        java.util.ArrayList<String> segments = new java.util.ArrayList<>();
+        ArrayList<String> segments = new ArrayList<>();
         for (String rawSegment : rawSegments) {
             if (StringUtils.hasText(rawSegment)) {
                 segments.add(rawSegment.trim());
@@ -721,7 +721,7 @@ public class HCADContextExtractor {
             if (GeoIpService.isImpossibleTravel(distanceKm, elapsedMs)) {
                 Map<String, Object> attrs = context.getAdditionalAttributes();
                 if (attrs == null) {
-                    attrs = new java.util.HashMap<>();
+                    attrs = new HashMap<>();
                     context.setAdditionalAttributes(attrs);
                 }
                 attrs.put("impossibleTravel", true);
@@ -748,6 +748,15 @@ public class HCADContextExtractor {
             }
         }
         return false;
+    }
+
+    private void putAdditionalAttribute(HCADContext context, String key, Object value) {
+        Map<String, Object> attrs = context.getAdditionalAttributes();
+        if (attrs == null) {
+            attrs = new HashMap<>();
+            context.setAdditionalAttributes(attrs);
+        }
+        attrs.put(key, value);
     }
 }
 

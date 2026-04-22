@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.entity.PasswordPolicy;
+import io.contexa.contexaiam.admin.web.auth.dto.PasswordPolicyDtos.PasswordPolicyForm;
+import io.contexa.contexaiam.admin.web.auth.dto.PasswordPolicyDtos.PasswordPolicyRulesResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
@@ -14,9 +15,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Controller
 @RequestMapping("/admin/password-policy")
@@ -32,15 +30,15 @@ public class PasswordPolicyController {
 
     @GetMapping
     public String showPolicy(Model model) {
-        model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
+        model.addAttribute("policy", PasswordPolicyForm.from(passwordPolicyService.getCurrentPolicy()));
         model.addAttribute("activePage", "password-policy");
         return "admin/password-policy";
     }
 
     @PostMapping
-    public String updatePolicy(@ModelAttribute PasswordPolicy policy, RedirectAttributes ra) {
+    public String updatePolicy(@ModelAttribute PasswordPolicyForm policy, RedirectAttributes ra) {
         try {
-            passwordPolicyService.updatePolicy(policy);
+            passwordPolicyService.updatePolicy(policy.toPasswordPolicy());
             ra.addFlashAttribute("message", msg("msg.password.policy.updated"));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.policy.update.error", e.getMessage()));
@@ -50,15 +48,7 @@ public class PasswordPolicyController {
 
     @GetMapping("/api/rules")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> getPolicyRules() {
-        PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
-        Map<String, Object> rules = new LinkedHashMap<>();
-        rules.put("minLength", policy.getMinLength());
-        rules.put("maxLength", policy.getMaxLength());
-        rules.put("requireUppercase", policy.isRequireUppercase());
-        rules.put("requireLowercase", policy.isRequireLowercase());
-        rules.put("requireDigit", policy.isRequireDigit());
-        rules.put("requireSpecialChar", policy.isRequireSpecialChar());
-        return ResponseEntity.ok(rules);
+    public ResponseEntity<PasswordPolicyRulesResponse> getPolicyRules() {
+        return ResponseEntity.ok(PasswordPolicyRulesResponse.from(passwordPolicyService.getCurrentPolicy()));
     }
 }

@@ -20,6 +20,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -119,6 +122,47 @@ class SecurityDecisionEnforcementHandlerTest {
         assertThat(result).isTrue();
         verify(actionRepository).saveAction(eq("user-2"), eq(ZeroTrustAction.ALLOW), anyMap());
         verify(actionRepository, never()).setBlockedFlag(anyString());
+    }
+
+    @Test
+    @DisplayName("ALLOW decision should schedule baseline learning on the supplied executor")
+    void allowDecision_shouldUseConfiguredBaselineLearningExecutor() {
+        List<Runnable> submittedTasks = new ArrayList<>();
+        Executor capturingExecutor = submittedTasks::add;
+        SecurityDecisionEnforcementHandler executorBackedHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository,
+                null,
+                capturingExecutor);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-executor")
+                .sourceIp("10.0.0.2")
+                .userAgent("TestAgent")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.ALLOW.name())
+                .riskScore(0.1)
+                .confidence(0.95)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        boolean result = executorBackedHandler.handle(context);
+
+        assertThat(result).isTrue();
+        assertThat(submittedTasks).hasSize(1);
+        verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), any());
+
+        submittedTasks.getFirst().run();
+
+        verify(securityLearningService).learnBaselineOnly(eq("user-executor"), any(), eq(event));
     }
 
     @Test

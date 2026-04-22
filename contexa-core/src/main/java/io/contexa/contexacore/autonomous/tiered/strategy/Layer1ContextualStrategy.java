@@ -36,11 +36,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -55,6 +57,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final SaasDetectionStrategyPackService detectionStrategyPackService;
     private final PipelineOrchestrator pipelineOrchestrator;
     private final SecurityDecisionCalibrationService securityDecisionCalibrationService;
+    private final ExecutorService ragRetrievalExecutor;
     private final Cache<String, SessionContext> sessionContextCache;
 
     public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
@@ -173,10 +176,49 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SaasDetectionStrategyPackService detectionStrategyPackService,
                                     PromptContextAuthorizationService promptContextAuthorizationService,
                                     PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                     PipelineOrchestrator pipelineOrchestrator,
+                                     TieredStrategyProperties tieredStrategyProperties,
+                                     SecurityDecisionCalibrationService securityDecisionCalibrationService,
+                                     StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
+        this(
+                unifiedVectorService,
+                dataStore,
+                eventEnricher,
+                promptTemplate,
+                behaviorVectorService,
+                baselineLearningService,
+                securityLearningService,
+                baselineSeedService,
+                threatIntelligenceService,
+                threatKnowledgePackService,
+                detectionStrategyPackService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
+                pipelineOrchestrator,
+                tieredStrategyProperties,
+                securityDecisionCalibrationService,
+                structuredOutputCapabilityRegistry,
+                ForkJoinPool.commonPool());
+    }
+
+    public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
+                                    SecurityContextDataStore dataStore,
+                                    SecurityEventEnricher eventEnricher,
+                                    SecurityDecisionStandardPromptTemplate promptTemplate,
+                                    BehaviorVectorService behaviorVectorService,
+                                    BaselineLearningService baselineLearningService,
+                                    SecurityLearningService securityLearningService,
+                                    SaasBaselineSeedService baselineSeedService,
+                                    SaasThreatIntelligenceService threatIntelligenceService,
+                                    SaasThreatKnowledgePackService threatKnowledgePackService,
+                                    SaasDetectionStrategyPackService detectionStrategyPackService,
+                                    PromptContextAuthorizationService promptContextAuthorizationService,
+                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties,
                                     SecurityDecisionCalibrationService securityDecisionCalibrationService,
-                                    StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
+                                    StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
+                                    ExecutorService ragRetrievalExecutor) {
         super(eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
                 promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties,
@@ -189,6 +231,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.detectionStrategyPackService = detectionStrategyPackService;
         this.pipelineOrchestrator = pipelineOrchestrator;
         this.securityDecisionCalibrationService = securityDecisionCalibrationService;
+        this.ragRetrievalExecutor = ragRetrievalExecutor != null ? ragRetrievalExecutor : ForkJoinPool.commonPool();
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -284,7 +327,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-//                        .timeout(Duration.ofMillis(llmTimeoutMs))
+                        .timeout(Duration.ofMillis(llmTimeoutMs))
                         .block();
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
@@ -343,7 +386,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
         long startTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> analyzeWithContext(event))
-//                .timeout(Duration.ofMillis(totalTimeoutMs))
+                .timeout(Duration.ofMillis(totalTimeoutMs))
                 .onErrorResume(throwable -> {
                     log.error("[Layer1][AI Native v4.3.0] Async analysis failed or timed out ({}ms)",
                             totalTimeoutMs, throwable);
@@ -421,14 +464,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private RagRetrievalOutcome retrieveRelatedContextWithinBudget(SecurityEvent event) {
         long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());
-        var executor = Executors.newVirtualThreadPerTaskExecutor();
-        CompletableFuture<RagRetrievalOutcome> future = null;
+        Future<RagRetrievalOutcome> future = null;
         try {
-            future = CompletableFuture.supplyAsync(() -> {
+            future = ragRetrievalExecutor.submit(() -> {
                 List<Document> relatedDocuments = searchRelatedContext(event);
                 List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
                 return new RagRetrievalOutcome(relatedDocuments, similarEvents);
-            }, executor);
+            });
 
             RagRetrievalOutcome outcome = future.get(ragTimeoutMs, TimeUnit.MILLISECONDS);
             if (!hasRagUnavailableMetadata(event)) {
@@ -463,8 +505,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     event != null ? event.getEventId() : "unknown",
                     ragFailure);
             return RagRetrievalOutcome.empty();
-        } finally {
-            executor.shutdownNow();
         }
     }
 
@@ -525,10 +565,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
         Map<String, Object> metadata = event.getMetadata();
         if (metadata == null) {
-            metadata = new java.util.LinkedHashMap<>();
+            metadata = new LinkedHashMap<>();
             event.setMetadata(metadata);
-        } else if (!(metadata instanceof HashMap) && !(metadata instanceof java.util.LinkedHashMap)) {
-            metadata = new java.util.LinkedHashMap<>(metadata);
+        } else if (!(metadata instanceof HashMap)) {
+            metadata = new LinkedHashMap<>(metadata);
             event.setMetadata(metadata);
         }
 

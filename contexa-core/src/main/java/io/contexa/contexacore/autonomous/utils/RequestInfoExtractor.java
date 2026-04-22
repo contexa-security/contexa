@@ -8,13 +8,13 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
+import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 
-import java.net.InetAddress;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -25,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-@Slf4j
 public final class RequestInfoExtractor {
     private static final String REQUEST_ID_ATTRIBUTE = "contexa.requestId";
     private RequestInfoExtractor() {
@@ -266,37 +265,18 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractClientIp(HttpServletRequest request, TieredStrategyProperties.Security security) {
-        String remoteAddr = request.getRemoteAddr();
-
         if (isOfficialVerificationRequest(request)) {
-            return extractClientIpLegacy(request);
+            return ClientIpResolver.resolveLegacy(request);
         }
 
-        if (security == null || !security.isTrustedProxyValidationEnabled()) {
-            return extractClientIpLegacy(request);
+        if (security == null) {
+            return ClientIpResolver.resolveLegacy(request);
         }
 
-        List<String> trustedProxies = security.getTrustedProxies();
-
-        if (trustedProxies == null || trustedProxies.isEmpty()) {
-            return remoteAddr;
-        }
-
-        if (isTrustedProxy(remoteAddr, trustedProxies)) {
-
-            String xForwardedFor = request.getHeader("X-Forwarded-For");
-            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-                String clientIp = xForwardedFor.split(",")[0].trim();
-                return clientIp;
-            }
-
-            String xRealIp = request.getHeader("X-Real-IP");
-            if (xRealIp != null && !xRealIp.isEmpty()) {
-                return xRealIp;
-            }
-        }
-
-        return remoteAddr;
+        return ClientIpResolver.resolve(request, ClientIpResolutionPolicy.of(
+                security.isTrustedProxyValidationEnabled(),
+                security.getTrustedProxies()
+        ));
     }
 
     private static boolean isOfficialVerificationRequest(HttpServletRequest request) {
@@ -592,78 +572,6 @@ public final class RequestInfoExtractor {
         String text = String.valueOf(value).trim();
         if (!text.isBlank()) {
             values.add(text);
-        }
-    }
-
-    private static String extractClientIpLegacy(HttpServletRequest request) {
-        return SessionFingerprintUtil.extractClientIp(request);
-    }
-
-    private static boolean isTrustedProxy(String ip, List<String> trustedProxies) {
-        if (ip == null || trustedProxies == null) {
-            return false;
-        }
-
-        for (String trusted : trustedProxies) {
-            if (trusted == null || trusted.isEmpty()) {
-                continue;
-            }
-
-            try {
-                if (trusted.contains("/")) {
-                    if (isIpInCidr(ip, trusted)) {
-                        return true;
-                    }
-                } else {
-                    if (trusted.equals(ip)) {
-                        return true;
-                    }
-                }
-            } catch (Exception e) {
-                log.error("[RequestInfoExtractor] Invalid trusted proxy format: {}", trusted, e);
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean isIpInCidr(String ip, String cidr) {
-        try {
-            String[] parts = cidr.split("/");
-            if (parts.length != 2) {
-                return false;
-            }
-
-            String networkAddress = parts[0];
-            int prefixLength = Integer.parseInt(parts[1]);
-
-            InetAddress inetIp = InetAddress.getByName(ip);
-            InetAddress inetNetwork = InetAddress.getByName(networkAddress);
-
-            byte[] ipBytes = inetIp.getAddress();
-            byte[] networkBytes = inetNetwork.getAddress();
-
-            if (ipBytes.length != networkBytes.length) {
-                return false;
-            }
-
-            int fullBytes = prefixLength / 8;
-            int remainingBits = prefixLength % 8;
-
-            for (int i = 0; i < fullBytes; i++) {
-                if (ipBytes[i] != networkBytes[i]) {
-                    return false;
-                }
-            }
-
-            if (remainingBits > 0 && fullBytes < ipBytes.length) {
-                int mask = (0xFF << (8 - remainingBits)) & 0xFF;
-                return (ipBytes[fullBytes] & mask) == (networkBytes[fullBytes] & mask);
-            }
-
-            return true;
-        } catch (Exception e) {
-            return false;
         }
     }
 

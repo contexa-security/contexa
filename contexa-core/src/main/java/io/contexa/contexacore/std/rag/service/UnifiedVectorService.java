@@ -14,8 +14,18 @@ import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreExcept
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class UnifiedVectorService implements VectorOperations {
@@ -23,6 +33,7 @@ public class UnifiedVectorService implements VectorOperations {
     private final PgVectorStoreProperties properties;
     private final VectorStoreCacheLayer cacheLayer;
     private final VectorStore vectorStore;
+    private final ExecutorService vectorOperationExecutor;
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final int DEFAULT_MAX_CONCURRENT_VECTOR_OPERATIONS = 1;
@@ -39,9 +50,18 @@ public class UnifiedVectorService implements VectorOperations {
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore) {
+        this(properties, cacheLayer, vectorStore, ForkJoinPool.commonPool());
+    }
+
+    public UnifiedVectorService(
+            PgVectorStoreProperties properties,
+            VectorStoreCacheLayer cacheLayer,
+            VectorStore vectorStore,
+            ExecutorService vectorOperationExecutor) {
         this.properties = properties;
         this.cacheLayer = cacheLayer;
         this.vectorStore = vectorStore;
+        this.vectorOperationExecutor = vectorOperationExecutor != null ? vectorOperationExecutor : ForkJoinPool.commonPool();
     }
 
     @Override
@@ -116,11 +136,7 @@ public class UnifiedVectorService implements VectorOperations {
     }
 
     private String buildFilterExpression(Map<String, Object> filters) {
-        StringJoiner joiner = new StringJoiner(" && ");
-        for (Map.Entry<String, Object> entry : filters.entrySet()) {
-            joiner.add(entry.getKey() + " == '" + entry.getValue() + "'");
-        }
-        return joiner.toString();
+        return VectorFilterExpressionBuilder.buildEqualityExpression(filters);
     }
 
     @Override
@@ -261,22 +277,13 @@ public class UnifiedVectorService implements VectorOperations {
 
     private <T> T executeWithinTimeout(Callable<T> operation, long timeoutMs, String operationLabel) {
         SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
-        var executor = Executors.newVirtualThreadPerTaskExecutor();
-        CompletableFuture<T> future = null;
+        Future<T> future = null;
         long effectiveTimeoutMs = Math.max(100L, timeoutMs);
         boolean permitAcquired = false;
         try {
             acquireVectorOperationPermit(operationLabel);
             permitAcquired = true;
-            future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return operation.call();
-                } catch (RuntimeException runtimeException) {
-                    throw runtimeException;
-                } catch (Exception checkedException) {
-                    throw new RuntimeException(checkedException);
-                }
-            }, executor);
+            future = vectorOperationExecutor.submit(operation);
             return future.get(effectiveTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException timeoutException) {
             future.cancel(true);
@@ -296,7 +303,6 @@ public class UnifiedVectorService implements VectorOperations {
             if (permitAcquired) {
                 VECTOR_OPERATION_GATE.release();
             }
-            executor.shutdownNow();
         }
     }
 
@@ -306,4 +312,3 @@ public class UnifiedVectorService implements VectorOperations {
         SecurityEventTelemetryContext.put("vectorOperationLabel", operationLabel);
     }
 }
-

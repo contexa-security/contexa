@@ -86,4 +86,46 @@ class Layer1ContextualStrategyPipelineTest {
         assertThat(decision.resolveAuditRiskScore()).isEqualTo(0.22);
         assertThat(decision.resolveAuditConfidence()).isEqualTo(0.83);
     }
+
+    @Test
+    @DisplayName("Layer1 pipeline should fail closed when LLM execution exceeds layer budget")
+    void analyzeWithContext_pipelineTimeout_returnsEscalationFallback() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getTimeout().setLlmMs(10);
+
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.never());
+
+        Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
+                null,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                properties
+        );
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-layer1-timeout-001")
+                .timestamp(LocalDateTime.of(2026, 4, 22, 10, 0))
+                .userId("alice")
+                .sessionId("session-timeout")
+                .sourceIp("203.0.113.10")
+                .description("POST /api/customer/export")
+                .build();
+
+        SecurityDecision decision = strategy.analyzeWithContext(event);
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getProcessingLayer()).isEqualTo(1);
+    }
 }

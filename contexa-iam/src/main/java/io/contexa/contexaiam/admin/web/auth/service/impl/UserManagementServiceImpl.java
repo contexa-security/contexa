@@ -9,20 +9,27 @@ import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;
+import io.contexa.contexacommon.entity.UserRole;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,12 +39,12 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
-    private final io.contexa.contexacommon.repository.RoleRepository roleRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ModelMapper modelMapper;
     private final CentralAuditFacade centralAuditFacade;
-    private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
-    private final io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService;
+    private final PasswordPolicyService passwordPolicyService;
+    private final SystemSettingsService systemSettingsService;
 
     @Override
     @Transactional
@@ -51,7 +58,7 @@ public class UserManagementServiceImpl implements UserManagementService {
             throw new IllegalArgumentException("Password is required for new user");
         }
 
-        java.util.List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
+        List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
         if (!violations.isEmpty()) {
             throw new IllegalArgumentException("Password policy violation: " + String.join(", ", violations));
         }
@@ -68,7 +75,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         users.setMfaEnabled(userDto.isMfaEnabled());
         users.setLocale(userDto.getLocale());
         users.setTimezone(userDto.getTimezone());
-        users.setPasswordChangedAt(java.time.LocalDateTime.now());
+        users.setPasswordChangedAt(LocalDateTime.now());
 
         Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null
                 ? new HashSet<>(userDto.getSelectedGroupIds())
@@ -89,7 +96,7 @@ public class UserManagementServiceImpl implements UserManagementService {
             String defaultRoleName = systemSettingsService.getSettings().getDefaultRole();
             if (StringUtils.hasText(defaultRoleName)) {
                 roleRepository.findByRoleName(defaultRoleName).ifPresent(role -> {
-                    io.contexa.contexacommon.entity.UserRole userRole = io.contexa.contexacommon.entity.UserRole.builder()
+                    UserRole userRole = UserRole.builder()
                             .user(users).role(role).build();
                     users.getUserRoles().add(userRole);
                 });
@@ -102,7 +109,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         try {
             String admin = "SYSTEM";
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) admin = auth.getName();
 
             centralAuditFacade.recordAsync(AuditRecord.builder()
@@ -113,7 +120,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .action("USER_CREATED")
                     .decision("SUCCESS")
                     .outcome("SUCCESS")
-                    .details(java.util.Map.of(
+                    .details(Map.of(
                             "userId", users.getId() != null ? users.getId() : 0L,
                             "username", users.getUsername() != null ? users.getUsername() : ""))
                     .build());
@@ -142,7 +149,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         users.setLocale(userDto.getLocale());
         users.setTimezone(userDto.getTimezone());
         if (StringUtils.hasText(userDto.getPassword())) {
-            java.util.List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
+            List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
             if (!violations.isEmpty()) {
                 throw new IllegalArgumentException("Password policy violation: " + String.join(", ", violations));
             }
@@ -169,7 +176,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         try {
             String admin = "SYSTEM";
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) admin = auth.getName();
 
             centralAuditFacade.recordAsync(AuditRecord.builder()
@@ -180,7 +187,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .action("USER_MODIFIED")
                     .decision("SUCCESS")
                     .outcome("SUCCESS")
-                    .details(java.util.Map.of(
+                    .details(Map.of(
                             "userId", users.getId() != null ? users.getId() : 0L,
                             "username", users.getUsername() != null ? users.getUsername() : "",
                             "passwordChanged", StringUtils.hasText(userDto.getPassword())))
@@ -234,7 +241,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     public void deleteUser(Long id) {
         try {
             String admin = "SYSTEM";
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) admin = auth.getName();
             final String auditAdmin = admin;
 
@@ -247,7 +254,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                             .action("USER_DELETED")
                             .decision("SUCCESS")
                             .outcome("SUCCESS")
-                            .details(java.util.Map.of(
+                            .details(Map.of(
                                     "userId", user.getId() != null ? user.getId() : 0L,
                                     "username", user.getUsername() != null ? user.getUsername() : ""))
                             .build()));

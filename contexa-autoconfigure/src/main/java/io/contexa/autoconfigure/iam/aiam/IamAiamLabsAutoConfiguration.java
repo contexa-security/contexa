@@ -5,6 +5,7 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
@@ -19,9 +20,14 @@ import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 
 @AutoConfiguration
@@ -33,8 +39,23 @@ public class IamAiamLabsAutoConfiguration {
     public PolicyGenerationVectorService policyGenerationVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
-            io.contexa.contexacore.properties.ContexaRagProperties ragProperties) {
+            ContexaRagProperties ragProperties) {
         return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics, ragProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "policyGenerationCollectionExecutor")
+    public Executor policyGenerationCollectionExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(6);
+        executor.setQueueCapacity(300);
+        executor.setThreadNamePrefix("Policy-Collection-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
     }
 
     @Bean
@@ -44,10 +65,11 @@ public class IamAiamLabsAutoConfiguration {
             PermissionCatalogService permissionCatalogService,
             ConditionTemplateRepository conditionTemplateRepository,
             PolicyRepository policyRepository,
-            RoleHierarchyService roleHierarchyService) {
+            RoleHierarchyService roleHierarchyService,
+            @Qualifier("policyGenerationCollectionExecutor") Executor policyGenerationCollectionExecutor) {
         return new PolicyGenerationCollectionService(
                 roleService, permissionCatalogService, conditionTemplateRepository,
-                policyRepository, roleHierarchyService);
+                policyRepository, roleHierarchyService, policyGenerationCollectionExecutor);
     }
 
     @Bean

@@ -147,7 +147,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             PipelineStep actualStep = resolveActualStep(step, isSoar);
             PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(actualStep, isSoar);
 
-            if (configuration.hasStep(configStep)) {
+            if (configuration.hasStep(configStep) && actualStep.canExecute(request)) {
                 final String stepName = actualStep.getStepName();
                 final int stepOrder = actualStep.getOrder();
 

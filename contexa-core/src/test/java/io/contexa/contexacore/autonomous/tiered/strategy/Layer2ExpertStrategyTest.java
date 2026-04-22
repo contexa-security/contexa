@@ -105,6 +105,57 @@ class Layer2ExpertStrategyTest {
     }
 
     @Test
+    @DisplayName("performDeepAnalysis should return failsafe BLOCK when pipeline exceeds layer budget")
+    void performDeepAnalysis_pipelineTimeout_returnsFailsafeBlock() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setTimeoutMs(10);
+        strategy = new Layer2ExpertStrategy(
+                approvalService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                properties,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
+        SecurityEvent event = buildTestEvent();
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.never());
+
+        SecurityDecision decision = strategy.performDeepAnalysis(event);
+
+        assertThat(decision).isNotNull();
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getProcessingLayer()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("resolveOrganizationId should use event tenant metadata and never hard-code default organization")
+    void resolveOrganizationId_shouldUseTenantMetadata() {
+        SecurityEvent event = buildTestEvent();
+        event.addMetadata("tenantId", "tenant-a");
+
+        assertThat(strategy.resolveOrganizationId(event)).isEqualTo("tenant-a");
+    }
+
+    @Test
+    @DisplayName("resolveOrganizationId should isolate unresolved events instead of returning shared default")
+    void resolveOrganizationId_missingTenant_shouldUseEventScopedFallback() {
+        SecurityEvent event = buildTestEvent();
+
+        assertThat(strategy.resolveOrganizationId(event)).isEqualTo("unresolved:event:test-event-layer2");
+    }
+
+    @Test
     @DisplayName("performDeepAnalysis should return failsafe BLOCK for null event")
     void performDeepAnalysis_nullEvent_returnsFailsafeBlock() {
         SecurityDecision decision = strategy.performDeepAnalysis(null);

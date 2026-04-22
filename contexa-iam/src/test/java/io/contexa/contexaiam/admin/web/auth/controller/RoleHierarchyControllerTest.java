@@ -3,6 +3,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
+import io.contexa.contexaiam.admin.web.auth.dto.RoleHierarchyDtos.ActiveHierarchyView;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
@@ -28,10 +29,12 @@ import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,8 +74,8 @@ class RoleHierarchyControllerTest {
                     String key = inv.getArgument(0);
                     Object[] args = inv.getArgument(1);
                     if (args != null && args.length > 0) {
-                        return key + " " + java.util.Arrays.stream(args)
-                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                        return key + " " + Arrays.stream(args)
+                                .map(String::valueOf).collect(Collectors.joining(" "));
                     }
                     return key;
                 });
@@ -273,6 +276,33 @@ class RoleHierarchyControllerTest {
             RoleHierarchyDto resultDto = (RoleHierarchyDto) model.getAttribute("hierarchy");
             assertThat(resultDto.getHierarchyPairs()).hasSize(2);
         }
+
+        @Test
+        @DisplayName("should expose active hierarchies as typed DTOs and exclude current hierarchy")
+        void shouldExposeTypedActiveHierarchies() {
+            RoleHierarchyEntity current = buildEntity(1L, "ROLE_ADMIN > ROLE_USER", "Current", true);
+            RoleHierarchyEntity active = buildEntity(2L, "ROLE_MANAGER > ROLE_USER", null, true);
+            RoleHierarchyEntity inactive = buildEntity(3L, "ROLE_A > ROLE_B", "Inactive", false);
+            when(roleHierarchyService.getRoleHierarchy(1L)).thenReturn(Optional.of(current));
+            when(modelMapper.map(any(RoleHierarchyEntity.class), eq(RoleHierarchyDto.class)))
+                    .thenReturn(buildDto(1L, "ROLE_ADMIN > ROLE_USER", "Current", true));
+            when(groupService.getAllGroups()).thenReturn(Collections.emptyList());
+            when(roleService.getRolesWithoutExpression()).thenReturn(Collections.emptyList());
+            when(roleHierarchyService.getAllRoleHierarchies()).thenReturn(List.of(current, active, inactive));
+
+            Model model = new ConcurrentModel();
+            String viewName = controller.roleHierarchyDetails(1L, model);
+
+            assertThat(viewName).isEqualTo("admin/role-hierarchy-details");
+            @SuppressWarnings("unchecked")
+            List<ActiveHierarchyView> activeHierarchies =
+                    (List<ActiveHierarchyView>) model.getAttribute("activeHierarchies");
+            assertThat(activeHierarchies).hasSize(1);
+            assertThat(activeHierarchies.get(0)).isInstanceOf(ActiveHierarchyView.class);
+            assertThat(activeHierarchies.get(0).id()).isEqualTo(2L);
+            assertThat(activeHierarchies.get(0).description()).isEmpty();
+            assertThat(activeHierarchies.get(0).hierarchyString()).isEqualTo("ROLE_MANAGER > ROLE_USER");
+        }
     }
 
     // =========================================================================
@@ -346,6 +376,18 @@ class RoleHierarchyControllerTest {
             assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
             verify(roleHierarchyService).deleteRoleHierarchy(1L);
             assertThat(ra.getFlashAttributes().get("message").toString()).contains("1");
+        }
+
+        @Test
+        @DisplayName("should redirect with error when delete fails")
+        void shouldRedirectWithErrorOnFailure() {
+            doThrow(new IllegalArgumentException("Not found")).when(roleHierarchyService).deleteRoleHierarchy(999L);
+
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            String viewName = controller.deleteRoleHierarchy(999L, ra);
+
+            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(ra.getFlashAttributes().get("error")).asString().contains("Not found");
         }
     }
 

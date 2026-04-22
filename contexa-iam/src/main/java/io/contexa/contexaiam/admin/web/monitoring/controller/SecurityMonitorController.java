@@ -4,6 +4,7 @@ import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,14 +18,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -82,13 +82,9 @@ public class SecurityMonitorController {
                 List<Object[]> ipRows = auditLogRepository.findIpGroupsSince(since, ipSize, ipPage * ipSize);
                 long totalIpGroups = auditLogRepository.countDistinctIpGroupsSince(since);
 
-                List<Map<String, Object>> ipGroups = new ArrayList<>();
+                List<IpGroupView> ipGroups = new ArrayList<>();
                 for (Object[] row : ipRows) {
-                    Map<String, Object> group = new LinkedHashMap<>();
-                    group.put("ip", row[0]);
-                    group.put("count", ((Number) row[1]).longValue());
-                    group.put("lastAccess", row[2]);
-                    ipGroups.add(group);
+                    ipGroups.add(IpGroupView.fromRow(row));
                 }
                 model.addAttribute("ipGroups", ipGroups);
                 model.addAttribute("totalIpGroups", totalIpGroups);
@@ -129,11 +125,16 @@ public class SecurityMonitorController {
     }
 
     @GetMapping("/{id}")
-    public String detail(@PathVariable Long id, Model model) {
+    public String detail(@PathVariable Long id, Model model, RedirectAttributes ra) {
         model.addAttribute("activePage", "security-monitor");
 
-        AuditLog auditLog = auditLogRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Audit log not found: " + id));
+        AuditLog auditLog = auditLogRepository.findById(id).orElse(null);
+        if (auditLog == null) {
+            String message = "Audit log not found: " + id;
+            ra.addFlashAttribute("errorMessage", message);
+            log.warn(message);
+            return "redirect:/admin/security-monitor";
+        }
 
         model.addAttribute("log", auditLog);
         return "admin/security-monitor-detail";

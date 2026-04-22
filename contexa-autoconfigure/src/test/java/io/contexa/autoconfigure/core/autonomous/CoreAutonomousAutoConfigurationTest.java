@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.lang.reflect.Method;
@@ -63,18 +64,19 @@ class CoreAutonomousAutoConfigurationTest {
         }
 
         @Test
-        @DisplayName("Should have StandaloneRepositoryConfiguration with standalone mode and matchIfMissing=true")
-        void shouldHaveStandaloneConfigWithDefaultMode() throws Exception {
-            Class<?> standaloneClass = Class.forName(
-                    CoreAutonomousAutoConfiguration.class.getName() + "$StandaloneRepositoryConfiguration");
+        @DisplayName("Should declare in-memory standalone fallback beans")
+        void shouldDeclareStandaloneFallbackBeans() throws Exception {
+            assertInMemoryFallback("inMemoryZeroTrustActionRepository");
+            assertInMemoryFallback("inMemoryProtectableRapidReentryRepository");
+            assertInMemoryFallback("inMemoryDistributedLockService");
+            assertInMemoryFallback("inMemorySecurityContextDataStore");
+        }
 
-            ConditionalOnProperty annotation = standaloneClass
-                    .getAnnotation(ConditionalOnProperty.class);
+        private void assertInMemoryFallback(String methodName) throws Exception {
+            Method method = CoreAutonomousAutoConfiguration.class.getDeclaredMethod(methodName);
 
-            assertThat(annotation).isNotNull();
-            assertThat(annotation.name()).containsExactly("contexa.infrastructure.mode");
-            assertThat(annotation.havingValue()).isEqualTo("standalone");
-            assertThat(annotation.matchIfMissing()).isTrue();
+            assertThat(method.getReturnType().getSimpleName()).startsWith("InMemory");
+            assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
         }
     }
 

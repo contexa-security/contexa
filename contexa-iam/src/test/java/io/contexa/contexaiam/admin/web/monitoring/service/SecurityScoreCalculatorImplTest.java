@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -432,7 +433,7 @@ class SecurityScoreCalculatorImplTest {
     }
 
     private List<AuditLog> createAuditLogs(int total, int denyCount) {
-        List<AuditLog> logs = new java.util.ArrayList<>();
+        List<AuditLog> logs = new ArrayList<>();
         for (int i = 0; i < total; i++) {
             AuditLog log = mock(AuditLog.class);
             if (i < denyCount) {

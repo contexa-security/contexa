@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.security.network.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
@@ -145,19 +146,6 @@ public class SessionFingerprintUtil {
     }
 
     public static String extractClientIp(HttpServletRequest request) {
-        String[] headers = {
-                "X-Forwarded-For", "X-Real-IP", "Proxy-Client-IP",
-                "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"
-        };
-        for (String header : headers) {
-            String ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                if (ip.contains(",")) {
-                    return ip.split(",")[0].trim();
-                }
-                return ip.trim();
-            }
-        }
-        return request.getRemoteAddr();
+        return ClientIpResolver.resolveLegacy(request);
     }
 }

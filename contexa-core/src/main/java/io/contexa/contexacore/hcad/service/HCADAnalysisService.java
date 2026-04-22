@@ -69,10 +69,14 @@ public class HCADAnalysisService {
             log.error("[HCADAnalysisService] Analysis failed: request={}", request.getRequestURI(), e);
 
             HCADContext errorContext = new HCADContext();
-            errorContext.setIsNewSession(true);
-            errorContext.setNewUser(true);
-            errorContext.setIsNewDevice(true);
+            errorContext.setIsNewSession(false);
+            errorContext.setNewUser(false);
+            errorContext.setIsNewDevice(false);
             errorContext.setRecentRequestCount(0);
+            Map<String, Object> errorAttributes = new LinkedHashMap<>();
+            errorAttributes.put("analysisFailed", true);
+            errorAttributes.put("analysisFailureType", e.getClass().getSimpleName());
+            errorContext.setAdditionalAttributes(errorAttributes);
 
             return HCADAnalysisResult.builder()
                     .userId("error")

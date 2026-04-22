@@ -4,7 +4,9 @@ import io.contexa.contexacore.autonomous.saas.client.SaasDecisionHttpClient;
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -34,8 +36,7 @@ public class SaasDecisionDispatcher {
 
     public void dispatch(Long outboxId) {
         SecurityDecisionForwardingOutboxRecord record = repository.findById(outboxId).orElse(null);
-        if (record == null || SecurityDecisionForwardingOutboxRecord.STATUS_DELIVERED.equals(record.getStatus())
-                || SecurityDecisionForwardingOutboxRecord.STATUS_DEAD_LETTER.equals(record.getStatus())) {
+        if (!isDispatchable(record)) {
             return;
         }
         doDispatch(record);
@@ -54,7 +55,12 @@ public class SaasDecisionDispatcher {
 
     private void doDispatch(SecurityDecisionForwardingOutboxRecord record) {
         record.markDispatching();
-        repository.save(record);
+        try {
+            repository.saveAndFlush(record);
+        }
+        catch (OptimisticLockException | OptimisticLockingFailureException ex) {
+            return;
+        }
         try {
             httpClient.send(record.getCorrelationId(), record.getPayloadJson());
             record.markDelivered(LocalDateTime.now());
@@ -77,6 +83,10 @@ public class SaasDecisionDispatcher {
             scheduleRetry(record, exception);
         }
         repository.save(record);
+    }
+
+    private boolean isDispatchable(SecurityDecisionForwardingOutboxRecord record) {
+        return record != null && DISPATCHABLE_STATUSES.contains(record.getStatus());
     }
 
     private void scheduleRetry(SecurityDecisionForwardingOutboxRecord record, Exception exception) {

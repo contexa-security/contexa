@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -33,8 +35,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     private static final int ESCALATE_SAMPLE_WINDOW = 100;
     private static final double ESCALATE_RATE_THRESHOLD = 0.5;
-    private final AtomicInteger escalateCount = new AtomicInteger(0);
-    private final AtomicInteger totalAnalysisCount = new AtomicInteger(0);
+    private final ConcurrentMap<String, EscalationProtectionWindow> escalationProtectionWindows = new ConcurrentHashMap<>();
 
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
@@ -206,15 +207,11 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setDecisionAppliedStage("LAYER1_ESCALATED");
             }
 
-            int total = totalAnalysisCount.incrementAndGet();
-            if (total >= ESCALATE_SAMPLE_WINDOW) {
-                totalAnalysisCount.set(0);
-                escalateCount.set(0);
-            }
-
             if (layer1Assessment != null && layer1Assessment.isShouldEscalate()) {
-                int escalates = escalateCount.incrementAndGet();
-                double escalateRate = (double) escalates / total;
+                EscalationProtectionSample sample = recordEscalationProtectionSample(event, requestPath);
+                int escalates = sample.escalates();
+                int total = sample.total();
+                double escalateRate = sample.escalateRate();
                 if (!isOfficialVerificationRuntime(event) && escalateRate > ESCALATE_RATE_THRESHOLD && total > 10) {
                     log.error("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
                             escalates, total, String.format("%.1f", escalateRate * 100), event.getEventId());
@@ -344,6 +341,67 @@ public class ColdPathEventProcessor implements IPathProcessor {
             }
             result.setAnalysisDepth(layer1Assessment != null ? 1 : 0);
             return result;
+        }
+    }
+
+    private EscalationProtectionSample recordEscalationProtectionSample(SecurityEvent event, String requestPath) {
+        String key = resolveEscalationProtectionKey(event, requestPath);
+        EscalationProtectionWindow window = escalationProtectionWindows.computeIfAbsent(
+                key,
+                ignored -> new EscalationProtectionWindow());
+        return window.record();
+    }
+
+    private String resolveEscalationProtectionKey(SecurityEvent event, String requestPath) {
+        if (event == null) {
+            return "unknown|unknown";
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        String scope = firstText(metadata, "organizationId", "orgId", "tenantId", "tenant", "organization");
+        if (scope == null || scope.isBlank()) {
+            scope = event.getUserId() != null && !event.getUserId().isBlank()
+                    ? "user:" + event.getUserId()
+                    : "ip:" + event.getSourceIp();
+        }
+        String scenario = firstText(metadata, "scenario", "scenarioClass", "calibrationScenarioClass", "threatScenario");
+        if (scenario == null || scenario.isBlank()) {
+            scenario = requestPath != null && !requestPath.isBlank() ? requestPath : "unknown";
+        }
+        return scope + "|" + scenario;
+    }
+
+    private String firstText(Map<String, Object> metadata, String... keys) {
+        if (metadata == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = metadata.get(key);
+            if (value instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        }
+        return null;
+    }
+
+    private static final class EscalationProtectionWindow {
+        private final AtomicInteger escalateCount = new AtomicInteger(0);
+        private final AtomicInteger totalAnalysisCount = new AtomicInteger(0);
+
+        synchronized EscalationProtectionSample record() {
+            int total = totalAnalysisCount.incrementAndGet();
+            if (total >= ESCALATE_SAMPLE_WINDOW) {
+                totalAnalysisCount.set(1);
+                escalateCount.set(0);
+                total = 1;
+            }
+            int escalates = escalateCount.incrementAndGet();
+            return new EscalationProtectionSample(escalates, total);
+        }
+    }
+
+    private record EscalationProtectionSample(int escalates, int total) {
+        private double escalateRate() {
+            return total <= 0 ? 0.0d : (double) escalates / total;
         }
     }
 

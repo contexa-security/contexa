@@ -1,10 +1,11 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
-import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
@@ -25,7 +26,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Controller
@@ -110,23 +110,17 @@ public class RoleController {
 
 	@GetMapping("/api/{id}/affected-policies")
 	@ResponseBody
-	public ResponseEntity<Map<String, Object>> getAffectedPolicies(@PathVariable Long id) {
+	public ResponseEntity<AffectedPoliciesResponse> getAffectedPolicies(@PathVariable Long id) {
 		Role role = roleRepository.findById(id).orElse(null);
 		if (role == null) {
 			return ResponseEntity.notFound().build();
 		}
-		List<Policy> affected = policyRepository.findActivePoliciesReferencingExpression(role.getRoleName());
-		List<Map<String, Object>> policyList = affected.stream()
-				.map(p -> Map.<String, Object>of(
-						"id", p.getId(),
-						"name", p.getName(),
-						"effect", p.getEffect().name(),
-						"active", p.getIsActive()))
+		List<AffectedPolicyResponse> policyList = policyRepository
+				.findActivePoliciesReferencingExpression(role.getRoleName())
+				.stream()
+				.map(AffectedPolicyResponse::from)
 				.toList();
-		return ResponseEntity.ok(Map.of(
-				"entityName", role.getRoleName(),
-				"policies", policyList,
-				"policyCount", policyList.size()));
+		return ResponseEntity.ok(AffectedPoliciesResponse.forRole(role.getRoleName(), policyList));
 	}
 
 	@PostMapping("/delete/{id}")

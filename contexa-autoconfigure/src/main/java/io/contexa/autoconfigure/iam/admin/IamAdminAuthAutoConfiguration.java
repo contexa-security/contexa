@@ -7,15 +7,19 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.auth.controller.*;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.*;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -40,9 +44,9 @@ public class IamAdminAuthAutoConfiguration {
             UserRepository userRepository,
             ModelMapper modelMapper,
             PasswordEncoder passwordEncoder,
-            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
+            PasswordPolicyService passwordPolicyService,
             MessageSource messageSource,
-            io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService) {
+            SystemSettingsService systemSettingsService) {
         return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService, messageSource, systemSettingsService);
     }
 
@@ -53,7 +57,7 @@ public class IamAdminAuthAutoConfiguration {
             RoleService roleService,
             GroupService groupService,
             UserRepository userRepository,
-            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
+            PasswordPolicyService passwordPolicyService,
             MessageSource messageSource) {
         return new UserManagementController(userManagementService, roleService, groupService, userRepository, passwordPolicyService, messageSource);
     }
@@ -65,7 +69,7 @@ public class IamAdminAuthAutoConfiguration {
             PermissionService permissionService,
             ModelMapper modelMapper,
             RoleRepository roleRepository,
-            io.contexa.contexaiam.repository.PolicyRepository policyRepository,
+            PolicyRepository policyRepository,
             MessageSource messageSource) {
         return new RoleController(roleService, permissionService, modelMapper, roleRepository, policyRepository, messageSource);
     }
@@ -101,7 +105,7 @@ public class IamAdminAuthAutoConfiguration {
             ModelMapper modelMapper,
             FunctionCatalogService functionCatalogService,
             PermissionRepository permissionRepository,
-            io.contexa.contexaiam.repository.PolicyRepository policyRepository,
+            PolicyRepository policyRepository,
             MessageSource messageSource) {
         return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository, policyRepository, messageSource);
     }
@@ -111,12 +115,12 @@ public class IamAdminAuthAutoConfiguration {
     public UserManagementService userManagementService(
             UserRepository userRepository,
             GroupRepository groupRepository,
-            io.contexa.contexacommon.repository.RoleRepository roleRepository,
+            RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
             ModelMapper modelMapper,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
-            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
-            io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService systemSettingsService) {
+            CentralAuditFacade centralAuditFacade,
+            PasswordPolicyService passwordPolicyService,
+            SystemSettingsService systemSettingsService) {
         return new UserManagementServiceImpl(
                 userRepository, groupRepository, roleRepository, passwordEncoder, modelMapper,
                 centralAuditFacade, passwordPolicyService, systemSettingsService);
@@ -128,9 +132,9 @@ public class IamAdminAuthAutoConfiguration {
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             IntegrationEventBus eventBus,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
-            io.contexa.contexaiam.repository.RoleHierarchyRepository roleHierarchyRepository,
-            io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService policySynchronizationService) {
+            CentralAuditFacade centralAuditFacade,
+            RoleHierarchyRepository roleHierarchyRepository,
+            PolicySynchronizationService policySynchronizationService) {
         return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade, roleHierarchyRepository, policySynchronizationService);
     }
 
@@ -139,7 +143,7 @@ public class IamAdminAuthAutoConfiguration {
     public GroupService groupService(
             GroupRepository groupRepository,
             RoleRepository roleRepository,
-            io.contexa.contexaiam.repository.RoleHierarchyRepository roleHierarchyRepository) {
+            RoleHierarchyRepository roleHierarchyRepository) {
         return new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository);
     }
 

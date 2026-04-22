@@ -1,11 +1,8 @@
 package io.contexa.contexaiam.security.xacml.pap.controller;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
-import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.domain.dto.ConditionTemplateDto;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
@@ -14,20 +11,23 @@ import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyBuilderDtos.PolicyBuilderConditionStatistics;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyBuilderDtos.PolicyBuilderResourceContext;
 import io.contexa.contexacommon.entity.ManagedResource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
+import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Controller;
 
 @Controller
 @RequestMapping("/admin/policy-builder")
@@ -70,9 +70,8 @@ public class PolicyBuilderController {
         model.addAttribute("allPermissions", permissionDtos);
 
         if (!model.containsAttribute("resourceContext")) {
-            Map<String, Object> defaultContext = createDefaultResourceContext();
-            model.addAttribute("resourceContext", defaultContext);
-                    }
+            model.addAttribute("resourceContext", PolicyBuilderResourceContext.defaultContext());
+        }
 
         addContextAwareConditionsToModel(model);
 
@@ -80,26 +79,8 @@ public class PolicyBuilderController {
         return "admin/policy-builder";
     }
 
-    private Map<String, Object> createDefaultResourceContext() {
-        Map<String, Object> context = new HashMap<>();
-        context.put("resourceIdentifier", "GENERAL_POLICY");
-        context.put("resourceType", "GENERAL");
-        context.put("friendlyName", "General Policy");
-        context.put("description", "A general policy not dependent on a specific resource");
-        context.put("parameterTypes", "");
-        context.put("returnType", "void");
-        context.put("isDirectAccess", true);
-        return context;
-    }
-
     private void addContextAwareConditionsToModel(Model model) {
         List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
-
-        Map<ConditionTemplate.ConditionClassification, List<ConditionTemplate>> classifiedConditions =
-                allConditions.stream()
-                        .collect(Collectors.groupingBy(
-                                cond -> cond.getClassification() != null ?
-                                        cond.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL));
 
         List<ConditionTemplateDto> conditionDtos = allConditions.stream().map(cond -> {
                     
@@ -136,7 +117,7 @@ public class PolicyBuilderController {
                 .toList();
 
         model.addAttribute("allConditions", conditionDtos);
-        model.addAttribute("conditionStatistics", calculateConditionStatistics(allConditions));
+        model.addAttribute("conditionStatistics", PolicyBuilderConditionStatistics.from(allConditions));
     }
     private String enhanceConditionDescriptionV2(ConditionTemplate cond) {
         StringBuilder desc = new StringBuilder();
@@ -188,34 +169,6 @@ public class PolicyBuilderController {
             case CONTEXT_DEPENDENT -> 2;
             case CUSTOM_COMPLEX -> 3;
         };
-    }
-
-    private Map<String, Object> calculateConditionStatistics(List<ConditionTemplate> conditions) {
-        Map<String, Object> stats = new HashMap<>();
-
-        Map<ConditionTemplate.ConditionClassification, Long> byClassification =
-                conditions.stream()
-                        .collect(Collectors.groupingBy(
-                                c -> c.getClassification() != null ? c.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL,
-                                Collectors.counting()));
-
-        Map<ConditionTemplate.ConditionClassification, Long> byClassification2 =
-                conditions.stream()
-                        .collect(Collectors.groupingBy(
-                                c -> c.getClassification() != null ? c.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL,
-                                Collectors.counting()));
-
-        stats.put("total", conditions.size());
-        stats.put("byClassification", byClassification);
-        stats.put("byClassification", byClassification2);
-        stats.put("averageComplexity", conditions.stream()
-                .mapToInt(c -> c.getComplexityScore() != null ? c.getComplexityScore() : 1)
-                .average().orElse(0.0));
-        stats.put("requireApproval", conditions.stream()
-                .mapToLong(c -> Boolean.TRUE.equals(c.getApprovalRequired()) ? 1 : 0)
-                .sum());
-
-        return stats;
     }
 
     private ConditionTemplate findConditionById(List<ConditionTemplate> conditions, Long id) {
@@ -276,17 +229,15 @@ public class PolicyBuilderController {
                 .toList();
 
         model.addAttribute("allConditions", conditionDtos);
-        model.addAttribute("conditionStatistics", calculateConditionStatistics(compatibleConditions));
+        model.addAttribute("conditionStatistics", PolicyBuilderConditionStatistics.from(compatibleConditions));
 
-        Map<String, Object> resourceContext = new HashMap<>();
-        resourceContext.put("resourceIdentifier", resource.getResourceIdentifier());
+        Object parameterTypes;
         try {
-            resourceContext.put("parameterTypes", objectMapper.readValue(resource.getParameterTypes(), new TypeReference<>() {}));
+            parameterTypes = objectMapper.readValue(resource.getParameterTypes(), Object.class);
         } catch (Exception e) {
-            resourceContext.put("parameterTypes", Collections.emptyList());
+            parameterTypes = Collections.emptyList();
         }
-        resourceContext.put("returnObjectType", resource.getReturnType());
-        model.addAttribute("resourceContext", resourceContext);
+        model.addAttribute("resourceContext", PolicyBuilderResourceContext.fromResource(resource, parameterTypes));
 
         permissionService.getPermission(permissionId)
                 .ifPresent(permission -> {

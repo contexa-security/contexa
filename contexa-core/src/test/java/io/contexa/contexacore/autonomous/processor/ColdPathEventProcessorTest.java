@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -212,7 +213,54 @@ class ColdPathEventProcessorTest {
         assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
         assertThat(result.getReasoning()).isEqualTo("Thin evidence requires challenge");
         assertThat(result.getAnalysisData()).containsEntry("decisionAppliedStage", "LAYER2");
-        verify(expertStrategy, org.mockito.Mockito.times(11)).evaluate(any(SecurityEvent.class));
+        verify(expertStrategy, times(11)).evaluate(any(SecurityEvent.class));
+    }
+
+    @Test
+    @DisplayName("escalate overload protection should be isolated by tenant and scenario")
+    void escalateProtection_shouldBeIsolatedByTenantAndScenario() {
+        ThreatAssessment layer1Assessment = ThreatAssessment.builder()
+                .riskScore(0.6)
+                .confidence(0.4)
+                .action(ZeroTrustAction.ESCALATE.name())
+                .reasoning("Escalate")
+                .shouldEscalate(true)
+                .build();
+
+        ThreatAssessment layer2Assessment = ThreatAssessment.builder()
+                .riskScore(0.8)
+                .confidence(0.9)
+                .action(ZeroTrustAction.BLOCK.name())
+                .reasoning("Confirmed tenant-scoped threat")
+                .shouldEscalate(false)
+                .build();
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
+        when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer2Assessment);
+
+        for (int index = 0; index < 11; index++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .userId("tenant-a-user-" + index)
+                    .sourceIp("10.0.2." + index)
+                    .build();
+            event.addMetadata("tenantId", "tenant-a");
+            event.addMetadata("scenario", "EXPORT_SURGE");
+            event.addMetadata("requestPath", "/api/export");
+            processor.processEvent(event, 0.5);
+        }
+
+        SecurityEvent tenantBEvent = SecurityEvent.builder()
+                .userId("tenant-b-user")
+                .sourceIp("10.0.3.1")
+                .build();
+        tenantBEvent.addMetadata("tenantId", "tenant-b");
+        tenantBEvent.addMetadata("scenario", "EXPORT_SURGE");
+        tenantBEvent.addMetadata("requestPath", "/api/export");
+
+        ProcessingResult result = processor.processEvent(tenantBEvent, 0.5);
+
+        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
+        verify(expertStrategy, times(11)).evaluate(any(SecurityEvent.class));
     }
 
     @Test

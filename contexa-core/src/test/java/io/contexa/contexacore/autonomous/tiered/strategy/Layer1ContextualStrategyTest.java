@@ -27,6 +27,10 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -209,37 +213,51 @@ class Layer1ContextualStrategyTest {
         when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
 
-        Layer1ContextualStrategy ragTimeoutStrategy = new Layer1ContextualStrategy(
-                vectorService,
-                null,
-                new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                authorizationService,
-                null,
-                pipelineOrchestrator,
-                properties
-        );
+        ExecutorService ragExecutor = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>());
+        try {
+            Layer1ContextualStrategy ragTimeoutStrategy = new Layer1ContextualStrategy(
+                    vectorService,
+                    null,
+                    new SecurityEventEnricher(),
+                    new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    authorizationService,
+                    null,
+                    pipelineOrchestrator,
+                    properties,
+                    null,
+                    null,
+                    ragExecutor
+            );
 
-        SecurityEvent event = buildTestEvent();
+            SecurityEvent event = buildTestEvent();
 
-        ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
+            ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
 
-        assertThat(assessment).isNotNull();
-        assertThat(assessment.getAction()).isEqualTo("ALLOW");
-        assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
-        assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
-        assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
-        assertThat(event.getMetadata()).containsEntry("relatedDocumentsCount", 0);
-        assertThat(event.getMetadata()).containsKey("ragFailureType");
-        assertThat(event.getMetadata()).containsKey("ragFailureMessage");
-        assertThat(interrupted.get()).isTrue();
-        verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+            assertThat(assessment).isNotNull();
+            assertThat(assessment.getAction()).isEqualTo("ALLOW");
+            assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
+            assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
+            assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
+            assertThat(event.getMetadata()).containsEntry("relatedDocumentsCount", 0);
+            assertThat(event.getMetadata()).containsKey("ragFailureType");
+            assertThat(event.getMetadata()).containsKey("ragFailureMessage");
+            assertThat(interrupted.get()).isTrue();
+            verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+        } finally {
+            ragExecutor.shutdownNow();
+        }
     }
 
     private SecurityEvent buildTestEvent() {

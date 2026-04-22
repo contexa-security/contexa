@@ -15,6 +15,7 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
+import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
@@ -38,8 +39,12 @@ public class AiBridgeConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public RequestContextCollector requestContextCollector() {
-        return new RequestContextCollector();
+    public RequestContextCollector requestContextCollector(BridgeProperties properties) {
+        BridgeProperties.Network network = properties.getNetwork();
+        return new RequestContextCollector(ClientIpResolutionPolicy.of(
+                network.isTrustedProxyValidationEnabled(),
+                network.getTrustedProxies()
+        ));
     }
 
     @Bean
@@ -199,7 +204,8 @@ public class AiBridgeConfiguration {
             ObjectProvider<AuthorizationStampResolver> authorizationStampResolvers,
             ObjectProvider<DelegationStampResolver> delegationStampResolvers,
             BridgeCoverageEvaluator bridgeCoverageEvaluator,
-            ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService) {
+            ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService,
+            BridgeRuntimeSupport bridgeRuntimeSupport) {
         return new BridgeResolutionFilter(
                 properties,
                 requestContextCollector,
@@ -207,7 +213,9 @@ public class AiBridgeConfiguration {
                 authorizationStampResolvers.orderedStream().toList(),
                 delegationStampResolvers.orderedStream().toList(),
                 bridgeCoverageEvaluator,
-                bridgeUserMirrorSyncService.getIfAvailable()
+                bridgeUserMirrorSyncService.getIfAvailable(),
+                bridgeRuntimeSupport,
+                null
         );
     }
 

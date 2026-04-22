@@ -5,6 +5,7 @@ import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
@@ -106,5 +107,34 @@ class UnifiedVectorServiceTest {
 
         verify(vectorStore, times(2)).add(any());
         verify(cacheLayer).invalidateAll();
+    }
+
+    @Test
+    @DisplayName("searchSimilar should escape literal filter values before building a vector filter expression")
+    void searchSimilar_shouldEscapeLiteralFilterValues() {
+        PgVectorStoreProperties properties = new PgVectorStoreProperties();
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
+        when(cacheLayer.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+
+        unifiedVectorService.searchSimilar("query", Map.of("userId", "alice' || true || 'x"));
+
+        ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(cacheLayer).similaritySearch(captor.capture());
+        assertThat(captor.getValue().getFilterExpression().toString())
+                .contains("type=EQ")
+                .contains("value=alice\\' || true || \\'x")
+                .doesNotContain("type=OR");
+    }
+
+    @Test
+    @DisplayName("searchSimilar should reject unsafe vector filter keys")
+    void searchSimilar_shouldRejectUnsafeFilterKeys() {
+        PgVectorStoreProperties properties = new PgVectorStoreProperties();
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(properties, cacheLayer, vectorStore);
+
+        assertThatThrownBy(() -> unifiedVectorService.searchSimilar("query", Map.of("userId || true", "alice")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsafe vector filter key");
+        verify(cacheLayer, never()).similaritySearch(any(SearchRequest.class));
     }
 }

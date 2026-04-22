@@ -2,10 +2,15 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterController;
+import io.contexa.contexaiam.admin.web.center.service.PolicyCenterAnalysisService;
+import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
+import io.contexa.contexaiam.admin.web.center.service.PolicyCenterPageService;
+import io.contexa.contexaiam.admin.web.center.service.PolicyCenterQueryService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
@@ -31,31 +36,99 @@ public class IamAdminCenterAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PolicyCenterController policyCenterController(
+    public PolicyCenterQueryService policyCenterQueryService(
+            ResourceRegistryService resourceRegistryService,
+            RoleService roleService,
+            PermissionCatalogService permissionCatalogService,
+            ConditionTemplateRepository conditionTemplateRepository,
+            ManagedResourceRepository managedResourceRepository,
+            SecuritySpelRepository securitySpelRepository,
+            PolicyRepository policyRepository,
+            PolicyService policyService,
+            PolicyVersionService policyVersionService) {
+        return new PolicyCenterQueryService(
+                resourceRegistryService,
+                roleService,
+                permissionCatalogService,
+                conditionTemplateRepository,
+                managedResourceRepository,
+                securitySpelRepository,
+                policyRepository,
+                policyService,
+                policyVersionService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyCenterPageService policyCenterPageService(
+            ResourceRegistryService resourceRegistryService,
+            PolicyService policyService,
+            PolicyCombiningProperties policyCombiningProperties) {
+        return new PolicyCenterPageService(
+                resourceRegistryService,
+                policyService,
+                policyCombiningProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyCenterCommandService policyCenterCommandService(
             ResourceRegistryService resourceRegistryService,
             PolicyService policyService,
             PolicyRepository policyRepository,
             RoleService roleService,
-            PermissionCatalogService permissionCatalogService,
             BusinessPolicyService businessPolicyService,
-            ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
-            MessageSource messageSource,
+            PermissionRepository permissionRepository,
+            PolicyValidationService policyValidationService,
+            PolicyEnrichmentService policyEnrichmentService,
+            PolicyVersionService policyVersionService,
+            CustomDynamicAuthorizationManager authorizationManager,
+            CentralAuditFacade centralAuditFacade,
+            MessageSource messageSource) {
+        return new PolicyCenterCommandService(
+                resourceRegistryService,
+                policyService,
+                policyRepository,
+                roleService,
+                businessPolicyService,
+                managedResourceRepository,
+                permissionRepository,
+                policyValidationService,
+                policyEnrichmentService,
+                policyVersionService,
+                authorizationManager,
+                centralAuditFacade,
+                messageSource);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyCenterAnalysisService policyCenterAnalysisService(
+            PolicyService policyService,
             PolicyValidationService policyValidationService,
             PermissionRepository permissionRepository,
-            PolicyVersionService policyVersionService,
-            PolicyMatrixService policyMatrixService,
-            PolicyCombiningProperties policyCombiningProperties,
-            PolicyEnrichmentService policyEnrichmentService,
-            CustomDynamicAuthorizationManager authorizationManager,
-            CentralAuditFacade centralAuditFacade) {
+            PolicyMatrixService policyMatrixService) {
+        return new PolicyCenterAnalysisService(
+                policyService,
+                policyValidationService,
+                permissionRepository,
+                policyMatrixService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyCenterController policyCenterController(
+            MessageSource messageSource,
+            PolicyCenterPageService policyCenterPageService,
+            PolicyCenterQueryService policyCenterQueryService,
+            PolicyCenterCommandService policyCenterCommandService,
+            PolicyCenterAnalysisService policyCenterAnalysisService) {
         return new PolicyCenterController(
-                resourceRegistryService, policyService, policyRepository, roleService,
-                permissionCatalogService, businessPolicyService, conditionTemplateRepository,
-                managedResourceRepository, securitySpelRepository, messageSource,
-                policyValidationService, permissionRepository, policyEnrichmentService,
-                policyVersionService, policyMatrixService, policyCombiningProperties,
-                authorizationManager, centralAuditFacade);
+                messageSource,
+                policyCenterPageService,
+                policyCenterQueryService,
+                policyCenterCommandService,
+                policyCenterAnalysisService);
     }
 }

@@ -1,9 +1,14 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
@@ -23,15 +28,21 @@ import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -55,6 +66,9 @@ class RoleControllerTest {
     private RoleRepository roleRepository;
 
     @Mock
+    private PolicyRepository policyRepository;
+
+    @Mock
     private MessageSource messageSource;
 
     @InjectMocks
@@ -67,8 +81,8 @@ class RoleControllerTest {
                     String key = inv.getArgument(0);
                     Object[] args = inv.getArgument(1);
                     if (args != null && args.length > 0) {
-                        return key + " " + java.util.Arrays.stream(args)
-                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                        return key + " " + Arrays.stream(args)
+                                .map(String::valueOf).collect(Collectors.joining(" "));
                     }
                     return key;
                 });
@@ -222,6 +236,83 @@ class RoleControllerTest {
             assertThat(view).isEqualTo("redirect:/admin/roles");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.deleted");
             verify(roleService).deleteRole(1L);
+        }
+    }
+
+    @Nested
+    @DisplayName("affected policies API")
+    class AffectedPoliciesApi {
+
+        @Test
+        @DisplayName("public signature does not expose Map")
+        void publicSignatureDoesNotExposeMap() throws Exception {
+            Method method = RoleController.class.getDeclaredMethod("getAffectedPolicies", Long.class);
+
+            assertThat(method.getGenericReturnType().getTypeName())
+                    .doesNotContain("java.util.Map");
+        }
+
+        @Test
+        @DisplayName("should preserve existing response fields")
+        void success() {
+            Role role = Role.builder()
+                    .id(10L)
+                    .roleName("ADMIN")
+                    .build();
+            Policy policy = Policy.builder()
+                    .id(20L)
+                    .name("AdminPolicy")
+                    .effect(Policy.Effect.DENY)
+                    .isActive(true)
+                    .build();
+            when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
+            when(policyRepository.findActivePoliciesReferencingExpression("ADMIN")).thenReturn(List.of(policy));
+
+            ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            Map<String, Object> body = toMap(response.getBody());
+            assertThat(body).containsEntry("entityName", "ADMIN");
+            assertThat(body).containsEntry("policyCount", 1);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> policies = (List<Map<String, Object>>) body.get("policies");
+            assertThat(policies).hasSize(1);
+            assertThat(((Number) policies.get(0).get("id")).longValue()).isEqualTo(20L);
+            assertThat(policies.get(0)).containsEntry("name", "AdminPolicy");
+            assertThat(policies.get(0)).containsEntry("effect", "DENY");
+            assertThat(policies.get(0)).containsEntry("active", true);
+        }
+
+        @Test
+        @DisplayName("should handle legacy policies without effect")
+        void legacyPolicyWithoutEffect() {
+            Role role = Role.builder()
+                    .id(10L)
+                    .roleName("ADMIN")
+                    .build();
+            Policy policy = Policy.builder()
+                    .id(20L)
+                    .name("LegacyPolicy")
+                    .effect(null)
+                    .isActive(true)
+                    .build();
+            when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
+            when(policyRepository.findActivePoliciesReferencingExpression("ADMIN")).thenReturn(List.of(policy));
+
+            ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            Map<String, Object> body = toMap(response.getBody());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> policies = (List<Map<String, Object>>) body.get("policies");
+            assertThat(policies).hasSize(1);
+            assertThat(policies.get(0)).containsEntry("name", "LegacyPolicy");
+            assertThat(policies.get(0)).containsEntry("effect", null);
+        }
+
+        private Map<String, Object> toMap(Object body) {
+            return new ObjectMapper().convertValue(body, new TypeReference<>() {
+            });
         }
     }
 }

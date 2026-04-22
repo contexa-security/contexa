@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -57,7 +58,7 @@ class RoleHierarchyServiceTest {
     }
 
     private void stubRolesExist(String... roleNames) {
-        List<Role> roles = new java.util.ArrayList<>();
+        List<Role> roles = new ArrayList<>();
         for (String name : roleNames) {
             roles.add(buildRole(name));
         }

@@ -1,28 +1,32 @@
 package io.contexa.contexaiam.admin.web.metadata.controller;
 
-import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
-import io.contexa.contexaiam.domain.dto.ResourceMetadataDto;
-import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
-import io.contexa.contexaiam.resource.service.ResourceRegistryService;
-import io.contexa.contexacommon.entity.ManagedResource;
-import io.contexa.contexacommon.entity.Permission;
-import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceBatchDefineRequest;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceBatchDefineResult;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceDefineResponse;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceManagementForm;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceMetadataForm;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceSearchForm;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceStatusResponse;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceWorkbenchPageModel;
+import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.*;
-
-import org.springframework.stereotype.Controller;
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin/workbench/resources")
@@ -30,153 +34,90 @@ import org.springframework.stereotype.Controller;
 @Slf4j
 public class ResourceAdminController {
 
-    private final ResourceRegistryService resourceRegistryService;
-    private final ManagedResourceRepository managedResourceRepository;
-    private final MessageSource messageSource;
-
-    private String msg(String key, Object... args) {
-        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
-    }
+    private final ResourceAdminService resourceAdminService;
 
     @GetMapping
     public String resourceWorkbenchPage(
-            @ModelAttribute("criteria") ResourceSearchCriteria criteria,
+            @ModelAttribute("criteria") ResourceSearchForm criteria,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             Model model) {
 
         model.addAttribute("activePage", "policy-center");
-        Page<ManagedResource> resourcePage = resourceRegistryService.findResources(criteria, pageable);
-        Set<String> serviceOwners = resourceRegistryService.getAllServiceOwners();
+        ResourceWorkbenchPageModel pageModel = resourceAdminService.getWorkbenchPage(criteria, pageable);
 
-        model.addAttribute("resourcePage", resourcePage);
-        model.addAttribute("serviceOwners", serviceOwners);
-        model.addAttribute("criteria", criteria);
+        model.addAttribute("resourcePage", pageModel.resourcePage());
+        model.addAttribute("serviceOwners", pageModel.serviceOwners());
+        model.addAttribute("criteria", pageModel.criteria());
         return "admin/resource-workbench";
     }
 
     @PostMapping("/refresh")
     public String refreshResources(RedirectAttributes ra) {
         try {
-            resourceRegistryService.refreshAndSynchronizeResources();
-            ra.addFlashAttribute("message", msg("msg.resource.refreshed"));
+            resourceAdminService.refreshResources();
+            ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.refreshed"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.resource.refresh.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.refresh.error", e.getMessage()));
         }
         return "redirect:/admin/workbench/resources";
     }
 
     @PostMapping("/{id}/define")
-    @ResponseBody 
-    public ResponseEntity<Map<String, Object>> defineResourceAsPermissionApi(@PathVariable Long id, @ModelAttribute ResourceMetadataDto metadataDto) {
+    @ResponseBody
+    public ResponseEntity<ResourceDefineResponse> defineResourceAsPermissionApi(
+            @PathVariable Long id,
+            @ModelAttribute ResourceMetadataForm metadataForm) {
         try {
-            
-            Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
-
-            Map<String, Object> response = Map.of(
-                    "message", msg("msg.resource.permission.created"),
-                    "permissionId", newPermission.getId(),
-                    "permissionName", newPermission.getFriendlyName()
-            );
-            return ResponseEntity.ok(response);
-
+            return ResponseEntity.ok(resourceAdminService.defineResourceAsPermission(id, metadataForm));
         } catch (Exception e) {
             log.error("Permission definition API failed for resource ID: {}", id, e);
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ResourceDefineResponse.error(e.getMessage()));
         }
     }
 
     @PostMapping("/define-batch")
     @ResponseBody
-    public ResponseEntity<List<Map<String, Object>>> defineResourcesBatch(@RequestBody List<Map<String, Object>> requests) {
-        List<Map<String, Object>> results = new ArrayList<>();
-        for (Map<String, Object> req : requests) {
-            Object resourceIdObj = req.get("resourceId");
-            if (resourceIdObj == null) {
-                Map<String, Object> errorResult = new HashMap<>();
-                errorResult.put("error", "resourceId is required");
-                errorResult.put("skipped", true);
-                results.add(errorResult);
-                continue;
-            }
-            Long resourceId = ((Number) resourceIdObj).longValue();
-            String friendlyName = (String) req.get("friendlyName");
-            String description = (String) req.get("description");
-            try {
-                // If resource already has permission, return existing without overwriting friendlyName
-                ManagedResource resource = managedResourceRepository.findById(resourceId).orElse(null);
-                if (resource != null && resource.getPermission() != null) {
-                    Permission existing = resource.getPermission();
-                    results.add(Map.of(
-                            "resourceId", resourceId,
-                            "permissionId", existing.getId(),
-                            "permissionName", existing.getFriendlyName() != null ? existing.getFriendlyName() : "",
-                            "skipped", true
-                    ));
-                    continue;
-                }
-                ResourceMetadataDto dto = new ResourceMetadataDto();
-                dto.setFriendlyName(friendlyName);
-                dto.setDescription(description);
-                Permission perm = resourceRegistryService.defineResourceAsPermission(resourceId, dto);
-                results.add(Map.of(
-                        "resourceId", resourceId,
-                        "permissionId", perm.getId(),
-                        "permissionName", perm.getFriendlyName(),
-                        "skipped", false
-                ));
-            } catch (Exception e) {
-                log.error("Batch define failed for resource ID: {}", resourceId, e);
-                Map<String, Object> errorResult = new HashMap<>();
-                errorResult.put("resourceId", resourceId);
-                errorResult.put("error", e.getMessage());
-                errorResult.put("skipped", true);
-                results.add(errorResult);
-            }
+    public ResponseEntity<List<ResourceBatchDefineResult>> defineResourcesBatch(
+            @RequestBody(required = false) List<ResourceBatchDefineRequest> requests) {
+        if (requests == null) {
+            return ResponseEntity.badRequest()
+                    .body(List.of(ResourceBatchDefineResult.error(null, "request body is required")));
         }
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(resourceAdminService.defineResourcesBatch(requests));
     }
 
     @PostMapping("/{id}/restore")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> restoreResource(@PathVariable Long id) {
+    public ResponseEntity<ResourceStatusResponse> restoreResource(@PathVariable Long id) {
         try {
-            ResourceManagementDto dto = new ResourceManagementDto();
-            dto.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
-            resourceRegistryService.updateResourceManagementStatus(id, dto);
-            return ResponseEntity.ok(Map.of(
-                    "message", "Resource restored to management",
-                    "resourceId", id,
-                    "newStatus", "NEEDS_DEFINITION"
-            ));
+            return ResponseEntity.ok(resourceAdminService.restoreResource(id));
         } catch (Exception e) {
             log.error("Resource restore failed for ID: {}", id, e);
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ResourceStatusResponse.error(e.getMessage()));
         }
     }
 
     @PostMapping("/{id}/exclude")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> excludeResource(@PathVariable Long id) {
+    public ResponseEntity<ResourceStatusResponse> excludeResource(@PathVariable Long id) {
         try {
-            resourceRegistryService.excludeResourceFromManagement(id);
-            return ResponseEntity.ok(Map.of(
-                    "message", "Resource excluded from management",
-                    "resourceId", id,
-                    "newStatus", "EXCLUDED"
-            ));
+            return ResponseEntity.ok(resourceAdminService.excludeResource(id));
         } catch (Exception e) {
             log.error("Resource exclude failed for ID: {}", id, e);
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.badRequest().body(ResourceStatusResponse.error(e.getMessage()));
         }
     }
 
     @PostMapping("/{id}/manage")
-    public String updateManagementStatus(@PathVariable Long id, @ModelAttribute ResourceManagementDto managementDto, RedirectAttributes ra) {
+    public String updateManagementStatus(
+            @PathVariable Long id,
+            @ModelAttribute ResourceManagementForm managementForm,
+            RedirectAttributes ra) {
         try {
-            resourceRegistryService.updateResourceManagementStatus(id, managementDto);
-            ra.addFlashAttribute("message", msg("msg.resource.status.changed", id));
+            resourceAdminService.updateManagementStatus(id, managementForm);
+            ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.status.changed", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.resource.status.change.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.status.change.error", e.getMessage()));
         }
         return "redirect:/admin/workbench/resources";
     }

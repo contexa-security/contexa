@@ -3,7 +3,10 @@ package io.contexa.autoconfigure.core.hcad;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
+import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,15 +46,18 @@ class CoreHCADAutoConfigurationTest {
         }
 
         @Test
-        @DisplayName("Should have StandaloneHCADConfig inner class with @ConditionalOnProperty for standalone mode")
-        void shouldHaveStandaloneInnerClass() throws Exception {
-            Class<?> standaloneClass = Class.forName(
-                    CoreHCADAutoConfiguration.class.getName() + "$StandaloneHCADConfig");
+        @DisplayName("Should declare in-memory standalone fallback beans")
+        void shouldDeclareStandaloneFallbackBeans() throws Exception {
+            assertInMemoryFallback("hcadDataStore");
+            assertInMemoryFallback("baselineDataStore");
+            assertInMemoryFallback("analysisTriggerStateRepository");
+        }
 
-            assertThat(standaloneClass).isNotNull();
-            assertThat(standaloneClass.getAnnotation(
-                    org.springframework.boot.autoconfigure.condition.ConditionalOnProperty.class))
-                    .isNotNull();
+        private void assertInMemoryFallback(String methodName) throws Exception {
+            Method method = CoreHCADAutoConfiguration.class.getDeclaredMethod(methodName);
+
+            assertThat(method.getReturnType().getSimpleName()).startsWith("InMemory");
+            assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
         }
     }
 }

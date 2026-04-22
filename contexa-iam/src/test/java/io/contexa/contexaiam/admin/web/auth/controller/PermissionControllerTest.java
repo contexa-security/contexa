@@ -1,8 +1,13 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -21,16 +26,22 @@ import org.springframework.context.MessageSource;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -52,6 +63,9 @@ class PermissionControllerTest {
     private PermissionRepository permissionRepository;
 
     @Mock
+    private PolicyRepository policyRepository;
+
+    @Mock
     private MessageSource messageSource;
 
     @InjectMocks
@@ -64,8 +78,8 @@ class PermissionControllerTest {
                     String key = inv.getArgument(0);
                     Object[] args = inv.getArgument(1);
                     if (args != null && args.length > 0) {
-                        return key + " " + java.util.Arrays.stream(args)
-                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                        return key + " " + Arrays.stream(args)
+                                .map(String::valueOf).collect(Collectors.joining(" "));
                     }
                     return key;
                 });
@@ -180,7 +194,7 @@ class PermissionControllerTest {
             Model model = new ConcurrentModel();
             when(permissionService.getPermission(999L)).thenReturn(Optional.empty());
 
-            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+            assertThrows(IllegalArgumentException.class,
                     () -> controller.permissionDetails(999L, model));
         }
     }
@@ -247,6 +261,84 @@ class PermissionControllerTest {
             assertThat(view).isEqualTo("redirect:/admin/permissions");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString()
                     .contains("Permission not found");
+        }
+    }
+
+    @Nested
+    @DisplayName("affected policies API")
+    class AffectedPoliciesApi {
+
+        @Test
+        @DisplayName("public signature does not expose Map")
+        void publicSignatureDoesNotExposeMap() throws Exception {
+            Method method = PermissionController.class.getDeclaredMethod("getAffectedPolicies", Long.class);
+
+            assertThat(method.getGenericReturnType().getTypeName())
+                    .doesNotContain("java.util.Map");
+        }
+
+        @Test
+        @DisplayName("should preserve existing response fields")
+        void success() {
+            Permission permission = new Permission();
+            permission.setId(10L);
+            permission.setName("READ_ORDER");
+            Policy policy = Policy.builder()
+                    .id(20L)
+                    .name("OrderPolicy")
+                    .effect(Policy.Effect.ALLOW)
+                    .isActive(true)
+                    .build();
+            when(permissionRepository.findById(10L)).thenReturn(Optional.of(permission));
+            when(policyRepository.findActivePoliciesReferencingExpression("READ_ORDER")).thenReturn(List.of(policy));
+            when(permissionRepository.countRoleAssignments(10L)).thenReturn(3L);
+
+            ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            Map<String, Object> body = toMap(response.getBody());
+            assertThat(body).containsEntry("entityName", "READ_ORDER");
+            assertThat(body).containsEntry("policyCount", 1);
+            assertThat(body).containsEntry("roleCount", 3L);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> policies = (List<Map<String, Object>>) body.get("policies");
+            assertThat(policies).hasSize(1);
+            assertThat(((Number) policies.get(0).get("id")).longValue()).isEqualTo(20L);
+            assertThat(policies.get(0)).containsEntry("name", "OrderPolicy");
+            assertThat(policies.get(0)).containsEntry("effect", "ALLOW");
+            assertThat(policies.get(0)).containsEntry("active", true);
+        }
+
+        @Test
+        @DisplayName("should handle legacy policies without effect")
+        void legacyPolicyWithoutEffect() {
+            Permission permission = new Permission();
+            permission.setId(10L);
+            permission.setName("READ_ORDER");
+            Policy policy = Policy.builder()
+                    .id(20L)
+                    .name("LegacyPolicy")
+                    .effect(null)
+                    .isActive(true)
+                    .build();
+            when(permissionRepository.findById(10L)).thenReturn(Optional.of(permission));
+            when(policyRepository.findActivePoliciesReferencingExpression("READ_ORDER")).thenReturn(List.of(policy));
+            when(permissionRepository.countRoleAssignments(10L)).thenReturn(0L);
+
+            ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            Map<String, Object> body = toMap(response.getBody());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> policies = (List<Map<String, Object>>) body.get("policies");
+            assertThat(policies).hasSize(1);
+            assertThat(policies.get(0)).containsEntry("name", "LegacyPolicy");
+            assertThat(policies.get(0)).containsEntry("effect", null);
+        }
+
+        private Map<String, Object> toMap(Object body) {
+            return new ObjectMapper().convertValue(body, new TypeReference<>() {
+            });
         }
     }
 }

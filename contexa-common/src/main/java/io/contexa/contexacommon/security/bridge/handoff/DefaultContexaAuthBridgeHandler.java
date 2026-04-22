@@ -84,7 +84,7 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
             bridgeRuntimeSupport.writeResolutionAttributes(webContext.request(), resolutionResult, userMirrorSyncResult);
         }
 
-        bridgeRuntimeSupport.populateSecurityContext(authenticationStamp, resolutionResult, userMirrorSyncResult, true);
+        bridgeRuntimeSupport.populateSecurityContext(authenticationStamp, resolutionResult, userMirrorSyncResult, false);
         bridgeRuntimeSupport.persistSecurityContext(securityContextRepository, webContext.request(), webContext.response());
         return new ContexaAuthHandoffResult(resolutionResult, userMirrorSyncResult);
     }

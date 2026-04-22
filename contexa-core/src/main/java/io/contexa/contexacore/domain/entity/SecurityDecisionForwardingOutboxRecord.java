@@ -31,6 +31,11 @@ public class SecurityDecisionForwardingOutboxRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
+
     @Column(name = "correlation_id", nullable = false, length = 64)
     private String correlationId;
 

@@ -15,8 +15,13 @@ import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Slf4j
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
@@ -26,6 +31,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private final Executor baselineLearningExecutor;
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
@@ -48,12 +54,31 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             BlockingSignalBroadcaster blockingDecisionRegistry,
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
+        this(
+                actionRedisRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingDecisionRegistry,
+                analysisTriggerStateRepository,
+                securityZeroTrustProperties,
+                Runnable::run);
+    }
+
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Executor baselineLearningExecutor) {
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.blockedUserRecorder = blockedUserRecorder;
         this.blockingDecisionRegistry = blockingDecisionRegistry;
         this.analysisTriggerStateRepository = analysisTriggerStateRepository;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
+        this.baselineLearningExecutor = baselineLearningExecutor != null ? baselineLearningExecutor : Runnable::run;
     }
 
     private boolean isEnforcementDisabled() {
@@ -85,7 +110,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         if (ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
-            CompletableFuture.runAsync(() -> learnFromResult(userId, event, result))
+            CompletableFuture.runAsync(() -> learnFromResult(userId, event, result), baselineLearningExecutor)
                     .exceptionally(ex -> {
                         log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);
                         return null;

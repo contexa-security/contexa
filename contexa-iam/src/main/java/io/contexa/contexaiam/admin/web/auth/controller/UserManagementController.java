@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexacommon.domain.UserDto;
@@ -34,7 +35,7 @@ public class UserManagementController {
 	private final RoleService roleService;
 	private final GroupService groupService;
 	private final UserRepository userRepository;
-	private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
+	private final PasswordPolicyService passwordPolicyService;
 	private final MessageSource messageSource;
 
 	private String msg(String key, Object... args) {
@@ -83,23 +84,32 @@ public class UserManagementController {
 	}
 
 	@GetMapping("/{id}")
-	public String getUser(@PathVariable Long id, Model model) {
-		UserDto userDto = userManagementService.getUser(id);
-		List<Role> roleList = roleService.getRolesWithoutExpression();
-		List<Group> groupList = groupService.getAllGroups();
+	public String getUser(@PathVariable Long id, Model model, RedirectAttributes ra) {
+		try {
+			UserDto userDto = userManagementService.getUser(id);
+			List<Role> roleList = roleService.getRolesWithoutExpression();
+			List<Group> groupList = groupService.getAllGroups();
 
-		List<Long> selectedGroupIds = userDto.getSelectedGroupIds();
-		if (selectedGroupIds == null) {
-			selectedGroupIds = List.of();
+			List<Long> selectedGroupIds = userDto.getSelectedGroupIds();
+			if (selectedGroupIds == null) {
+				selectedGroupIds = List.of();
+			}
+
+			model.addAttribute("user", userDto);
+			model.addAttribute("roleList", roleList);
+			model.addAttribute("groupList", groupList);
+			model.addAttribute("selectedGroupIds", selectedGroupIds);
+			model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
+
+			return "admin/userdetails";
+		} catch (IllegalArgumentException e) {
+			ra.addFlashAttribute("errorMessage", e.getMessage());
+			log.warn("Failed to load user details: {}", e.getMessage());
+		} catch (Exception e) {
+			ra.addFlashAttribute("errorMessage", "Failed to load user: " + e.getMessage());
+			log.error("Error loading user details for ID: {}", id, e);
 		}
-
-		model.addAttribute("user", userDto);
-		model.addAttribute("roleList", roleList);
-		model.addAttribute("groupList", groupList);
-		model.addAttribute("selectedGroupIds", selectedGroupIds);
-		model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
-
-		return "admin/userdetails";
+		return "redirect:/admin/users";
 	}
 
 	@PutMapping("/{id}")

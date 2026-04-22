@@ -158,8 +158,8 @@ public class RoleServiceImpl implements RoleService {
             String hs = hierarchy.getHierarchyString();
             if (hs != null) {
                 String normalized = hs.replace("\\n", "\n");
-                boolean referenced = java.util.Arrays.stream(normalized.split("[\\r\\n]+"))
-                        .flatMap(line -> java.util.Arrays.stream(line.split("\\s*>\\s*")))
+                boolean referenced = Arrays.stream(normalized.split("[\\r\\n]+"))
+                        .flatMap(line -> Arrays.stream(line.split("\\s*>\\s*")))
                         .map(String::trim)
                         .anyMatch(token -> token.equals(role.getRoleName()));
                 if (referenced) {

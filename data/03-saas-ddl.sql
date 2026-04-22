@@ -670,6 +670,10 @@ create index idx_usage_meter_period
 create index idx_usage_meter_key
     on usage_meter_events (tenant_id, meter_key, billing_period);
 
+create unique index uk_usage_meter_event_source_ref
+    on usage_meter_events (tenant_id, meter_key, billing_period, source_ref)
+    where source_ref is not null;
+
 create index idx_usage_tenant_period
     on usage_meter_events (tenant_id, billing_period);
 

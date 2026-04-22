@@ -7,6 +7,7 @@ import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataServiceI
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogServiceImpl;
+import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
 import io.contexa.contexaiam.repository.BusinessActionRepository;
 import io.contexa.contexaiam.repository.BusinessResourceRepository;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
@@ -29,11 +30,17 @@ public class IamAdminMetadataAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ResourceAdminController resourceAdminController(
+    public ResourceAdminService resourceAdminService(
             ResourceRegistryService resourceRegistryService,
             ManagedResourceRepository managedResourceRepository,
             MessageSource messageSource) {
-        return new ResourceAdminController(resourceRegistryService, managedResourceRepository, messageSource);
+        return new ResourceAdminService(resourceRegistryService, managedResourceRepository, messageSource);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ResourceAdminController resourceAdminController(ResourceAdminService resourceAdminService) {
+        return new ResourceAdminController(resourceAdminService);
     }
 
     @Bean

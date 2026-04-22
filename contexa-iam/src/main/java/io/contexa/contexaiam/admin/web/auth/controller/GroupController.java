@@ -91,23 +91,36 @@ public class GroupController {
     }
 
     @GetMapping("/{id}")
-    public String getGroupDetails(@PathVariable Long id, Model model) {
-        
-        Group group = groupService.getGroup(id).orElseThrow(() -> new IllegalArgumentException("Invalid group ID: " + id));
-        List<Role> roles = roleService.getRoles();
+    public String getGroupDetails(@PathVariable Long id, Model model, RedirectAttributes ra) {
+        try {
+            Group group = groupService.getGroup(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid group ID: " + id));
+            List<Role> roles = roleService.getRoles();
 
-        GroupDto groupDto = modelMapper.map(group, GroupDto.class);
-        List<Long> selectedRoleIds = group.getGroupRoles().stream().map(gr -> gr.getRole().getId()).collect(Collectors.toList());
-        groupDto.setSelectedRoleIds(selectedRoleIds);
+            GroupDto groupDto = modelMapper.map(group, GroupDto.class);
+            List<Long> selectedRoleIds = group.getGroupRoles() == null ? List.of() :
+                    group.getGroupRoles().stream()
+                            .filter(gr -> gr.getRole() != null && gr.getRole().getId() != null)
+                            .map(gr -> gr.getRole().getId())
+                            .collect(Collectors.toList());
+            groupDto.setSelectedRoleIds(selectedRoleIds);
 
-        List<RoleMetadataDto> roleListDtos = roles.stream()
-                .map(role -> modelMapper.map(role, RoleMetadataDto.class))
-                .collect(Collectors.toList());
+            List<RoleMetadataDto> roleListDtos = roles.stream()
+                    .map(role -> modelMapper.map(role, RoleMetadataDto.class))
+                    .collect(Collectors.toList());
 
-        model.addAttribute("group", groupDto);
-        model.addAttribute("roleList", roleListDtos);
-        model.addAttribute("selectedRoleIds", selectedRoleIds);
-        return "admin/groupdetails";
+            model.addAttribute("group", groupDto);
+            model.addAttribute("roleList", roleListDtos);
+            model.addAttribute("selectedRoleIds", selectedRoleIds);
+            return "admin/groupdetails";
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMessage", e.getMessage());
+            log.warn("Failed to load group details: {}", e.getMessage());
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", "Failed to load group: " + e.getMessage());
+            log.error("Error loading group details for ID: {}", id, e);
+        }
+        return "redirect:/admin/groups";
     }
 
     @PostMapping("/{id}/edit")

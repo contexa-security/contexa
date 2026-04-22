@@ -9,7 +9,6 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -17,21 +16,49 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequiredArgsConstructor
 public class PolicyGenerationCollectionService {
-
-    private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private final RoleService roleService;
     private final PermissionCatalogService permissionCatalogService;
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final PolicyRepository policyRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final Executor collectionExecutor;
+
+    public PolicyGenerationCollectionService(
+            RoleService roleService,
+            PermissionCatalogService permissionCatalogService,
+            ConditionTemplateRepository conditionTemplateRepository,
+            PolicyRepository policyRepository,
+            RoleHierarchyService roleHierarchyService) {
+        this(
+                roleService,
+                permissionCatalogService,
+                conditionTemplateRepository,
+                policyRepository,
+                roleHierarchyService,
+                ForkJoinPool.commonPool());
+    }
+
+    public PolicyGenerationCollectionService(
+            RoleService roleService,
+            PermissionCatalogService permissionCatalogService,
+            ConditionTemplateRepository conditionTemplateRepository,
+            PolicyRepository policyRepository,
+            RoleHierarchyService roleHierarchyService,
+            Executor collectionExecutor) {
+        this.roleService = roleService;
+        this.permissionCatalogService = permissionCatalogService;
+        this.conditionTemplateRepository = conditionTemplateRepository;
+        this.policyRepository = policyRepository;
+        this.roleHierarchyService = roleHierarchyService;
+        this.collectionExecutor = collectionExecutor != null ? collectionExecutor : ForkJoinPool.commonPool();
+    }
 
     @Transactional(readOnly = true)
     public PolicyGenerationItem.AvailableItems collectData() {
@@ -40,7 +67,7 @@ public class PolicyGenerationCollectionService {
             return roleService.getRolesWithoutExpression().stream()
                     .map(role -> new PolicyGenerationItem.RoleItem(role.getId(), role.getRoleName(), role.getRoleDesc()))
                     .toList();
-        }, VIRTUAL_EXECUTOR);
+        }, collectionExecutor);
 
         CompletableFuture<List<PolicyGenerationItem.PermissionItem>> permissions = CompletableFuture.supplyAsync(() -> {
             return permissionCatalogService.getAvailablePermissions().stream()
@@ -52,10 +79,10 @@ public class PolicyGenerationCollectionService {
                             permission.getManagedResourceIdentifier(),
                             permission.getActionType()))
                     .toList();
-        }, VIRTUAL_EXECUTOR);
+        }, collectionExecutor);
 
         CompletableFuture<List<PolicyGenerationItem.ConditionItem>> conditions = CompletableFuture.supplyAsync(
-                this::addContextAwareConditionsToModel, VIRTUAL_EXECUTOR
+                this::addContextAwareConditionsToModel, collectionExecutor
         );
 
         CompletableFuture.allOf(roles, permissions, conditions).join();

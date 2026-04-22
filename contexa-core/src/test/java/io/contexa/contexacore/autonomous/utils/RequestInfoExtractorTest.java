@@ -202,4 +202,42 @@ class RequestInfoExtractorTest {
 
         assertThat(requestInfo.getOrganizationId()).isEqualTo("tenant-acme");
     }
+
+    @Test
+    @DisplayName("client IP should ignore forwarded header when trusted proxy list is empty")
+    void extractClientIpShouldIgnoreForwardedHeaderWhenTrustedProxyListIsEmpty() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "203.0.113.10");
+
+        String clientIp = RequestInfoExtractor.extractClientIp(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(clientIp).isEqualTo("10.0.0.10");
+    }
+
+    @Test
+    @DisplayName("client IP should use forwarded header from configured trusted proxy")
+    void extractClientIpShouldUseForwardedHeaderFromTrustedProxy() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.10");
+        TieredStrategyProperties.Security security = new TieredStrategyProperties.Security();
+        security.setTrustedProxies(List.of("10.0.0.0/24"));
+
+        String clientIp = RequestInfoExtractor.extractClientIp(request, security);
+
+        assertThat(clientIp).isEqualTo("203.0.113.10");
+    }
+
+    @Test
+    @DisplayName("client IP should preserve legacy forwarded header behavior when security is absent")
+    void extractClientIpShouldPreserveLegacyBehaviorWhenSecurityIsAbsent() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "203.0.113.10");
+
+        String clientIp = RequestInfoExtractor.extractClientIp(request, null);
+
+        assertThat(clientIp).isEqualTo("203.0.113.10");
+    }
 }

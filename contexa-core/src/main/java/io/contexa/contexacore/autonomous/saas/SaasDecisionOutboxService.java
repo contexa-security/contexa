@@ -8,6 +8,9 @@ import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayl
 import io.contexa.contexacore.autonomous.saas.mapper.SecurityDecisionForwardingPayloadMapper;
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -37,25 +40,44 @@ public class SaasDecisionOutboxService {
     public void capture(SecurityEventContext context) {
         SecurityDecisionForwardingPayload payload = payloadMapper.map(context);
         repository.findByCorrelationId(payload.getCorrelationId()).ifPresentOrElse(
-                existing -> dispatchAsync(existing.getId()),
+                existing -> dispatchAfterCommit(existing.getId()),
                 () -> saveAndDispatch(context.getSecurityEvent(), payload));
     }
 
     private void saveAndDispatch(SecurityEvent event, SecurityDecisionForwardingPayload payload) {
         LocalDateTime now = LocalDateTime.now();
-        SecurityDecisionForwardingOutboxRecord saved = repository.saveAndFlush(SecurityDecisionForwardingOutboxRecord.builder()
-                .correlationId(payload.getCorrelationId())
-                .tenantExternalRef(resolveTenantExternalRef(event))
-                .payloadJson(writePayload(payload))
-                .status(SecurityDecisionForwardingOutboxRecord.STATUS_PENDING)
-                .createdAt(now)
-                .updatedAt(now)
-                .build());
-        dispatchAsync(saved.getId());
+        try {
+            SecurityDecisionForwardingOutboxRecord saved = repository.saveAndFlush(SecurityDecisionForwardingOutboxRecord.builder()
+                    .correlationId(payload.getCorrelationId())
+                    .tenantExternalRef(resolveTenantExternalRef(event))
+                    .payloadJson(writePayload(payload))
+                    .status(SecurityDecisionForwardingOutboxRecord.STATUS_PENDING)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build());
+            dispatchAfterCommit(saved.getId());
+        }
+        catch (DataIntegrityViolationException duplicate) {
+            repository.findTopByCorrelationIdOrderByIdDesc(payload.getCorrelationId())
+                    .ifPresent(existing -> dispatchAfterCommit(existing.getId()));
+        }
     }
 
     private void dispatchAsync(Long outboxId) {
         executor.execute(() -> dispatcher.dispatch(outboxId));
+    }
+
+    private void dispatchAfterCommit(Long outboxId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispatchAsync(outboxId);
+                }
+            });
+            return;
+        }
+        dispatchAsync(outboxId);
     }
 
     private String resolveTenantExternalRef(SecurityEvent event) {

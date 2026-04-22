@@ -255,7 +255,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-//                        .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
+                        .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .block();
                 if (pipelineResponse == null) {
                     throw new IllegalStateException("Layer2 structured security decision pipeline returned null");
@@ -431,7 +431,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         try {
             SoarContext soarContext = new SoarContext();
             soarContext.setSessionId(event.getSessionId());
-            soarContext.setOrganizationId("default");
+            soarContext.setOrganizationId(resolveOrganizationId(event));
             soarContext.setCreatedAt(LocalDateTime.now());
 
             Map<String, Object> metadata = Map.of(
@@ -451,6 +451,41 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         } catch (Exception e) {
             log.error("[Layer2] Failed to request approval", e);
         }
+    }
+
+    String resolveOrganizationId(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return "unresolved:unknown";
+        }
+        Object organizationId = firstPresentMetadata(
+                event.getMetadata(),
+                "organizationId",
+                "orgId",
+                "tenantId",
+                "tenant",
+                "organization");
+        if (organizationId instanceof String value && !value.isBlank()) {
+            return value.trim();
+        }
+        String eventId = event.getEventId();
+        if (eventId != null && !eventId.isBlank()) {
+            return "unresolved:event:" + eventId.trim();
+        }
+        String userId = event.getUserId();
+        if (userId != null && !userId.isBlank()) {
+            return "unresolved:user:" + userId.trim();
+        }
+        return "unresolved:unknown";
+    }
+
+    private Object firstPresentMetadata(Map<String, Object> metadata, String... keys) {
+        for (String key : keys) {
+            Object value = metadata.get(key);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime, String fallbackCategory) {

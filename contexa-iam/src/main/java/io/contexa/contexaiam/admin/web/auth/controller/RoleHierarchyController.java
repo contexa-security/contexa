@@ -1,17 +1,19 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import io.contexa.contexaiam.admin.web.auth.dto.RoleHierarchyDtos.ActiveHierarchyView;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.domain.dto.RoleDetailDto;
+import io.contexa.contexaiam.domain.dto.GroupWithRolesDto;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
-import io.contexa.contexaiam.domain.dto.*;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.entity.RolePermission;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -26,7 +28,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Controller
@@ -148,8 +152,13 @@ public class RoleHierarchyController {
 
     @PostMapping("/delete/{id}")
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
-        roleHierarchyService.deleteRoleHierarchy(id);
-        ra.addFlashAttribute("message", msg("msg.hierarchy.deleted", id));
+        try {
+            roleHierarchyService.deleteRoleHierarchy(id);
+            ra.addFlashAttribute("message", msg("msg.hierarchy.deleted", id));
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", e.getMessage());
+            log.error("Error deleting role hierarchy ID: {}", id, e);
+        }
         return "redirect:/admin/role-hierarchies";
     }
 
@@ -177,7 +186,7 @@ public class RoleHierarchyController {
                         gwrDto.setGroupName(group.getName());
                         gwrDto.setGroupDescription(group.getDescription());
 
-                        List<RoleDetailDto> roleDetails = group.getGroupRoles().stream()
+                        List<RoleDetailDto> roleDetails = groupRoles(group).stream()
                                 .map(GroupRole::getRole)
                                 .filter(role -> role != null && !role.isExpression())
                                 .map(role -> {
@@ -186,7 +195,7 @@ public class RoleHierarchyController {
                                     rdDto.setRoleName(role.getRoleName());
                                     rdDto.setRoleDesc(role.getRoleDesc() != null ? role.getRoleDesc() : role.getRoleName());
 
-                                    List<String> permissions = role.getRolePermissions().stream()
+                                    List<String> permissions = rolePermissions(role).stream()
                                             .filter(rp -> rp.getPermission() != null)
                                             .map(rp -> rp.getPermission().getFriendlyName())
                                             .filter(name -> name != null)
@@ -206,7 +215,7 @@ public class RoleHierarchyController {
 
             List<RoleMetadataDto> ungroupedRoles = roleService.getRolesWithoutExpression().stream()
                     .filter(role -> allGroups.stream()
-                            .noneMatch(group -> group.getGroupRoles().stream()
+                            .noneMatch(group -> groupRoles(group).stream()
                                     .anyMatch(gr -> gr.getRole() != null && gr.getRole().getId().equals(role.getId()))))
                     .map(role -> modelMapper.map(role, RoleMetadataDto.class))
                     .collect(Collectors.toList());
@@ -222,16 +231,10 @@ public class RoleHierarchyController {
             model.addAttribute("allRoles", allRoles);
 
             // Active hierarchies for client-side cross-validation (exclude current editing hierarchy)
-            List<Map<String, Object>> activeHierarchies = roleHierarchyService.getAllRoleHierarchies().stream()
+            List<ActiveHierarchyView> activeHierarchies = roleHierarchyService.getAllRoleHierarchies().stream()
                     .filter(h -> Boolean.TRUE.equals(h.getIsActive()))
                     .filter(h -> excludeId == null || !excludeId.equals(h.getId()))
-                    .map(h -> {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("id", h.getId());
-                        map.put("description", h.getDescription() != null ? h.getDescription() : "");
-                        map.put("hierarchyString", h.getHierarchyString());
-                        return map;
-                    })
+                    .map(h -> new ActiveHierarchyView(h.getId(), h.getDescription(), h.getHierarchyString()))
                     .collect(Collectors.toList());
             model.addAttribute("activeHierarchies", activeHierarchies);
 
@@ -242,5 +245,13 @@ public class RoleHierarchyController {
             model.addAttribute("allRoles", new ArrayList<>());
             model.addAttribute("activeHierarchies", new ArrayList<>());
         }
+    }
+
+    private Collection<GroupRole> groupRoles(Group group) {
+        return group.getGroupRoles() != null ? group.getGroupRoles() : List.of();
+    }
+
+    private Collection<RolePermission> rolePermissions(Role role) {
+        return role.getRolePermissions() != null ? role.getRolePermissions() : List.of();
     }
 }

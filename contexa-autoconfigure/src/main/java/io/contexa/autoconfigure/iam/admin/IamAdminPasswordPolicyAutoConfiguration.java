@@ -1,14 +1,18 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.PasswordHistoryRepository;
 import io.contexa.contexacommon.repository.PasswordPolicyRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.admin.web.auth.service.AuditLogRetentionScheduler;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordPolicyController;
 import io.contexa.contexaiam.admin.web.auth.controller.SystemSettingsController;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
@@ -54,15 +58,15 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public SystemSettingsController systemSettingsController(
             SystemSettingsService systemSettingsService,
             MessageSource messageSource,
-            org.springframework.beans.factory.ObjectProvider<io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager> authManagerProvider) {
+            ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider) {
         return new SystemSettingsController(systemSettingsService, messageSource, authManagerProvider.getIfAvailable());
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexaiam.admin.web.auth.service.AuditLogRetentionScheduler auditLogRetentionScheduler(
-            io.contexa.contexacommon.repository.AuditLogRepository auditLogRepository,
+    public AuditLogRetentionScheduler auditLogRetentionScheduler(
+            AuditLogRepository auditLogRepository,
             SystemSettingsService systemSettingsService) {
-        return new io.contexa.contexaiam.admin.web.auth.service.AuditLogRetentionScheduler(auditLogRepository, systemSettingsService);
+        return new AuditLogRetentionScheduler(auditLogRepository, systemSettingsService);
     }
 }

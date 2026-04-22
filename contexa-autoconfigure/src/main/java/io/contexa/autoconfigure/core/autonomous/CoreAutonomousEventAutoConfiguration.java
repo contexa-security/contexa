@@ -30,6 +30,7 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -40,8 +41,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration")
@@ -147,6 +151,21 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(name = "securityBaselineLearningExecutor")
+    public Executor securityBaselineLearningExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("Security-Baseline-Learning-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
@@ -155,6 +174,7 @@ public class CoreAutonomousEventAutoConfiguration {
             IBlockedUserRecorder blockedUserRecorder,
             BlockingSignalBroadcaster blockingSignalBroadcaster,
             ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
+            @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository,
@@ -162,7 +182,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 blockedUserRecorder,
                 blockingSignalBroadcaster,
                 analysisTriggerStateRepositoryProvider.getIfAvailable(),
-                securityZeroTrustProperties);
+                securityZeroTrustProperties,
+                baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()));
     }
 
     @Bean

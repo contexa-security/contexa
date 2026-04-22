@@ -3,6 +3,7 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,12 +17,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -149,15 +152,21 @@ class SecurityMonitorControllerTest {
                     any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(Page.empty());
             when(auditLogRepository.findIpGroupsSince(any(LocalDateTime.class), anyInt(), anyInt()))
-                    .thenReturn(java.util.List.of());
+                    .thenReturn(List.<Object[]>of(new Object[]{"10.0.0.1", 7L, "2026-04-21 10:00:00"}));
             when(auditLogRepository.countDistinctIpGroupsSince(any(LocalDateTime.class)))
-                    .thenReturn(0L);
+                    .thenReturn(1L);
 
             String view = controller.monitor(null, "DISTINCT_IP", null, 24, 0, model);
 
             assertThat(view).isEqualTo("admin/security-monitor");
-            assertThat(model.getAttribute("ipGroups")).isNotNull();
-            assertThat(model.getAttribute("totalIpGroups")).isEqualTo(0L);
+            @SuppressWarnings("unchecked")
+            List<IpGroupView> ipGroups = (List<IpGroupView>) model.getAttribute("ipGroups");
+            assertThat(ipGroups).hasSize(1);
+            assertThat(ipGroups.get(0)).isInstanceOf(IpGroupView.class);
+            assertThat(ipGroups.get(0).ip()).isEqualTo("10.0.0.1");
+            assertThat(ipGroups.get(0).count()).isEqualTo(7L);
+            assertThat(ipGroups.get(0).lastAccess()).isEqualTo("2026-04-21 10:00:00");
+            assertThat(model.getAttribute("totalIpGroups")).isEqualTo(1L);
         }
 
         @Test
@@ -215,8 +224,9 @@ class SecurityMonitorControllerTest {
                     .eventCategory("AUTHENTICATION_SUCCESS")
                     .build();
             when(auditLogRepository.findById(1L)).thenReturn(Optional.of(auditLog));
+            RedirectAttributes ra = new RedirectAttributesModelMap();
 
-            String view = controller.detail(1L, model);
+            String view = controller.detail(1L, model, ra);
 
             assertThat(view).isEqualTo("admin/security-monitor-detail");
             assertThat(model.getAttribute("log")).isEqualTo(auditLog);
@@ -224,13 +234,16 @@ class SecurityMonitorControllerTest {
         }
 
         @Test
-        @DisplayName("should throw exception when audit log not found")
+        @DisplayName("should redirect with error when audit log not found")
         void notFound() {
             Model model = new ConcurrentModel();
+            RedirectAttributes ra = new RedirectAttributesModelMap();
             when(auditLogRepository.findById(999L)).thenReturn(Optional.empty());
 
-            assertThrows(IllegalArgumentException.class,
-                    () -> controller.detail(999L, model));
+            String view = controller.detail(999L, model, ra);
+
+            assertThat(view).isEqualTo("redirect:/admin/security-monitor");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999");
         }
     }
 }

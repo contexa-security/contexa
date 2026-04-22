@@ -3,6 +3,7 @@ package io.contexa.contexacore.std.components.retriever;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.properties.ContexaRagProperties;
+import io.contexa.contexacore.std.rag.service.VectorFilterExpressionBuilder;
 import io.contexa.contexacore.std.rag.service.VectorOperations;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -100,10 +101,7 @@ public class ContextRetriever {
         public List<Document> searchSimilar(String query, Map<String, Object> filters) {
             SearchRequest.Builder builder = SearchRequest.builder().query(query).topK(5);
             if (filters != null && !filters.isEmpty()) {
-                String filterExpression = filters.entrySet().stream()
-                        .map(entry -> entry.getKey() + " == '" + entry.getValue() + "'")
-                        .reduce((left, right) -> left + " && " + right)
-                        .orElse(null);
+                String filterExpression = VectorFilterExpressionBuilder.buildEqualityExpression(filters);
                 if (filterExpression != null) {
                     builder.filterExpression(filterExpression);
                 }

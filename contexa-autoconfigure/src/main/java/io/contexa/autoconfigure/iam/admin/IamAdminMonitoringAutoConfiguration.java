@@ -3,6 +3,9 @@ package io.contexa.autoconfigure.iam.admin;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
+import io.contexa.contexaiam.admin.web.menu.controller.AdminMenuController;
+import io.contexa.contexaiam.admin.web.menu.service.AdminMenuManagementService;
+import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -13,6 +16,9 @@ import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -53,8 +59,8 @@ public class IamAdminMonitoringAutoConfiguration {
             PermissionMatrixService permissionMatrixService,
             ManagedResourceRepository managedResourceRepository,
             BlockedUserJpaRepository blockedUserJpaRepository,
-            io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService policyValidationService,
-            io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties policyCombiningProperties) {
+            PolicyValidationService policyValidationService,
+            PolicyCombiningProperties policyCombiningProperties) {
         return new DashboardServiceImpl(
                 userRepository,
                 groupRepository,
@@ -98,7 +104,7 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public AdminEnterpriseModelAdvice adminEnterpriseModelAdvice(
             ContexaProperties contexaProperties,
-            org.springframework.beans.factory.ObjectProvider<io.contexa.contexaiam.admin.web.menu.service.AdminMenuService> adminMenuServiceProvider) {
+            ObjectProvider<AdminMenuService> adminMenuServiceProvider) {
         return new AdminEnterpriseModelAdvice(
                 contexaProperties.getEnterprise().isEnabled(),
                 contexaProperties.getSaas().isEnabled(),
@@ -107,11 +113,11 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexaiam.admin.web.menu.service.AdminMenuService adminMenuService(
-            io.contexa.contexacommon.repository.AdminMenuRepository adminMenuRepository,
+    public AdminMenuService adminMenuService(
+            AdminMenuRepository adminMenuRepository,
             ContexaProperties contexaProperties) {
-        io.contexa.contexaiam.admin.web.menu.service.AdminMenuService service =
-                new io.contexa.contexaiam.admin.web.menu.service.AdminMenuService(
+        AdminMenuService service =
+                new AdminMenuService(
                         adminMenuRepository,
                         contexaProperties.getEnterprise().isEnabled(),
                         contexaProperties.getSaas().isEnabled());
@@ -121,9 +127,18 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexaiam.admin.web.menu.controller.AdminMenuController adminMenuController(
-            io.contexa.contexaiam.admin.web.menu.service.AdminMenuService adminMenuService,
-            io.contexa.contexacommon.repository.RoleRepository roleRepository) {
-        return new io.contexa.contexaiam.admin.web.menu.controller.AdminMenuController(adminMenuService, roleRepository);
+    public AdminMenuManagementService adminMenuManagementService(
+            AdminMenuService adminMenuService,
+            RoleRepository roleRepository) {
+        return new AdminMenuManagementService(
+                adminMenuService,
+                roleRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminMenuController adminMenuController(
+            AdminMenuManagementService adminMenuManagementService) {
+        return new AdminMenuController(adminMenuManagementService);
     }
 }

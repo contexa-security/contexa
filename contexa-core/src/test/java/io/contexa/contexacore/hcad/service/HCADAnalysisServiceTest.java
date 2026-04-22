@@ -151,7 +151,10 @@ class HCADAnalysisServiceTest {
         assertThat(Double.isNaN(result.getTrustScore())).isTrue();
         assertThat(Double.isNaN(result.getAnomalyScore())).isTrue();
         assertThat(result.getContext()).isNotNull();
-        assertThat(result.getContext().getIsNewSession()).isTrue();
+        assertThat(result.getContext().getIsNewSession()).isFalse();
+        assertThat(result.getContext().getIsNewDevice()).isFalse();
+        assertThat(result.getContext().getIsNewUser()).isFalse();
+        assertThat(result.getContext().getAdditionalAttributes()).containsEntry("analysisFailed", true);
     }
 
     @Test

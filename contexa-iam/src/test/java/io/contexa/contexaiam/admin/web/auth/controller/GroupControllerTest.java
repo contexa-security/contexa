@@ -31,10 +31,12 @@ import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -70,8 +72,8 @@ class GroupControllerTest {
                     String key = inv.getArgument(0);
                     Object[] args = inv.getArgument(1);
                     if (args != null && args.length > 0) {
-                        return key + " " + java.util.Arrays.stream(args)
-                                .map(String::valueOf).collect(java.util.stream.Collectors.joining(" "));
+                        return key + " " + Arrays.stream(args)
+                                .map(String::valueOf).collect(Collectors.joining(" "));
                     }
                     return key;
                 });
@@ -216,8 +218,9 @@ class GroupControllerTest {
             when(roleService.getRoles()).thenReturn(List.of(role));
             when(modelMapper.map(group, GroupDto.class)).thenReturn(groupDto);
             when(modelMapper.map(role, RoleMetadataDto.class)).thenReturn(roleMetaDto);
+            RedirectAttributes ra = new RedirectAttributesModelMap();
 
-            String view = controller.getGroupDetails(1L, model);
+            String view = controller.getGroupDetails(1L, model, ra);
 
             assertThat(view).isEqualTo("admin/groupdetails");
             assertThat(model.getAttribute("group")).isEqualTo(groupDto);
@@ -226,13 +229,34 @@ class GroupControllerTest {
         }
 
         @Test
-        @DisplayName("should throw exception for invalid group ID")
+        @DisplayName("should redirect with error for invalid group ID")
         void invalidId() {
             Model model = new ConcurrentModel();
+            RedirectAttributes ra = new RedirectAttributesModelMap();
             when(groupService.getGroup(999L)).thenReturn(Optional.empty());
 
-            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                    () -> controller.getGroupDetails(999L, model));
+            String view = controller.getGroupDetails(999L, model, ra);
+
+            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999");
+        }
+
+        @Test
+        @DisplayName("should return group details when group roles are null")
+        void nullGroupRoles() {
+            Model model = new ConcurrentModel();
+            Group group = new Group();
+            group.setGroupRoles(null);
+            GroupDto groupDto = GroupDto.builder().name("NoRoles").build();
+            when(groupService.getGroup(1L)).thenReturn(Optional.of(group));
+            when(roleService.getRoles()).thenReturn(List.of());
+            when(modelMapper.map(group, GroupDto.class)).thenReturn(groupDto);
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+
+            String view = controller.getGroupDetails(1L, model, ra);
+
+            assertThat(view).isEqualTo("admin/groupdetails");
+            assertThat(model.getAttribute("selectedRoleIds")).isEqualTo(List.of());
         }
     }
 

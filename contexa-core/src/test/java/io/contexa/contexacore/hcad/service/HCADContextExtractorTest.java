@@ -4,6 +4,7 @@ import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.springframework.security.core.Authentication;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,6 +98,48 @@ class HCADContextExtractorTest {
         HCADContext context = extractor.extractContext(request, auth);
 
         // then
+        assertThat(context.getRemoteIp()).isEqualTo("203.0.113.50");
+    }
+
+    @Test
+    @DisplayName("Should ignore forwarded IP headers from untrusted remote address")
+    void shouldIgnoreForwardedIpFromUntrustedRemoteAddress() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/data");
+        request.setMethod("POST");
+        request.setRemoteAddr("198.51.100.9");
+        request.addHeader("X-Forwarded-For", "203.0.113.50, 70.41.3.18");
+        request.addHeader("User-Agent", "TestClient");
+
+        TieredStrategyProperties.Security security = new TieredStrategyProperties.Security();
+        security.setTrustedProxies(List.of("127.0.0.1"));
+        extractor.setTrustedProxySecurity(security);
+
+        Authentication auth = new TestingAuthenticationToken("proxyuser", "password", "ROLE_USER");
+
+        HCADContext context = extractor.extractContext(request, auth);
+
+        assertThat(context.getRemoteIp()).isEqualTo("198.51.100.9");
+    }
+
+    @Test
+    @DisplayName("Should accept forwarded IP headers from configured trusted proxy")
+    void shouldAcceptForwardedIpFromTrustedProxy() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/data");
+        request.setMethod("POST");
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("X-Forwarded-For", "203.0.113.50, 70.41.3.18");
+        request.addHeader("User-Agent", "TestClient");
+
+        TieredStrategyProperties.Security security = new TieredStrategyProperties.Security();
+        security.setTrustedProxies(List.of("127.0.0.1"));
+        extractor.setTrustedProxySecurity(security);
+
+        Authentication auth = new TestingAuthenticationToken("proxyuser", "password", "ROLE_USER");
+
+        HCADContext context = extractor.extractContext(request, auth);
+
         assertThat(context.getRemoteIp()).isEqualTo("203.0.113.50");
     }
 
@@ -229,10 +273,16 @@ class HCADContextExtractorTest {
         // when
         HCADContext context = extractor.extractContext(request, auth);
 
-        // then - should return a valid context (either enriched or fallback)
+        // then - should return a valid context with conservative unknown defaults
         assertThat(context).isNotNull();
         assertThat(context.getRequestPath()).isEqualTo("/api/error");
         assertThat(context.getHttpMethod()).isEqualTo("GET");
+        assertThat(context.getIsNewSession()).isFalse();
+        assertThat(context.getIsNewDevice()).isFalse();
+        assertThat(context.getIsNewUser()).isFalse();
+        assertThat(context.getAdditionalAttributes())
+                .containsEntry("sessionInfoUnavailable", true)
+                .containsEntry("securityInfoUnavailable", true);
     }
 
     @Test

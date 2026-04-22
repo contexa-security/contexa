@@ -1,12 +1,27 @@
 package io.contexa.contexacommon.security.bridge.sensor;
 
+import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
+import io.contexa.contexacommon.security.network.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public class RequestContextCollector {
+
+    private final ClientIpResolutionPolicy clientIpResolutionPolicy;
+
+    public RequestContextCollector() {
+        this(ClientIpResolutionPolicy.trustedProxy(List.of()));
+    }
+
+    public RequestContextCollector(ClientIpResolutionPolicy clientIpResolutionPolicy) {
+        this.clientIpResolutionPolicy = clientIpResolutionPolicy != null
+                ? clientIpResolutionPolicy
+                : ClientIpResolutionPolicy.trustedProxy(List.of());
+    }
 
     public RequestContextSnapshot collect(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
@@ -25,15 +40,7 @@ public class RequestContextCollector {
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
+        return ClientIpResolver.resolve(request, clientIpResolutionPolicy);
     }
 
     private String extractUserAgent(HttpServletRequest request) {
