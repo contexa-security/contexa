@@ -10,7 +10,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
 
-    compileOnly 'org.springframework.statemachine:spring-statemachine-starter'
+    compileOnly 'org.springframework.statemachine:spring-statemachine-core:4.0.0'
     compileOnly 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
 
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
@@ -26,7 +26,7 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-mail'
     compileOnly("org.springframework.kafka:spring-kafka")
     compileOnly 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
-    compileOnly("org.redisson:redisson-spring-boot-starter:3.48.0")
+    compileOnly("org.redisson:redisson:3.48.0")
 
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
 

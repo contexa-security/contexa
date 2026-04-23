@@ -31,12 +31,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.data.redis.RedisPersistingStateMachineInterceptor;
 import org.springframework.statemachine.data.redis.RedisRepositoryStateMachinePersist;
 import org.springframework.statemachine.data.redis.RedisStateMachineRepository;
+import org.springframework.statemachine.data.redis.RedisStateRepository;
 import org.springframework.statemachine.persist.DefaultStateMachinePersister;
 import org.springframework.statemachine.persist.StateMachinePersister;
 
@@ -147,6 +149,7 @@ public class IdentityStateMachineAutoConfiguration {
 
     @Configuration
     @ConditionalOnBean(RedissonClient.class)
+    @EnableRedisRepositories(basePackageClasses = RedisStateRepository.class)
     static class DistributedStateMachineConfig {
 
         @Bean

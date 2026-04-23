@@ -22,7 +22,7 @@ dependencies {
     implementation 'com.webauthn4j:webauthn4j-core:0.29.7.RELEASE'
 //    implementation 'org.springframework.security:spring-security-webauthn'
 
-    implementation("org.redisson:redisson-spring-boot-starter:3.48.0")
+    implementation("org.redisson:redisson:3.48.0")
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
@@ -31,7 +31,7 @@ dependencies {
 
     implementation 'org.springframework.statemachine:spring-statemachine-kryo:4.0.0'
     implementation 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
-    implementation 'org.springframework.statemachine:spring-statemachine-starter'
+    implementation 'org.springframework.statemachine:spring-statemachine-core:4.0.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
