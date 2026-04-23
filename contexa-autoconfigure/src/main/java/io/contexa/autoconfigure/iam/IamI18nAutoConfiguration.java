@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
@@ -43,3 +44,4 @@ public class IamI18nAutoConfiguration implements WebMvcConfigurer {
         registry.addInterceptor(interceptor);
     }
 }
+

@@ -22,6 +22,8 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -31,11 +33,13 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 
 @AutoConfiguration
+@AutoConfigureAfter(name = "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration")
 public class IamAiamLabsAutoConfiguration {
 
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({VectorStore.class, ContexaRagProperties.class})
     public PolicyGenerationVectorService policyGenerationVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -81,6 +85,7 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(PolicyGenerationVectorService.class)
     public AdvancedPolicyGenerationLab advancedPolicyGenerationLab(
             PipelineOrchestrator orchestrator,
             IAMDataCollectionService dataCollectionService,
@@ -102,3 +107,4 @@ public class IamAiamLabsAutoConfiguration {
         return new ConditionTemplateGenerationLab(orchestrator);
     }
 }
+

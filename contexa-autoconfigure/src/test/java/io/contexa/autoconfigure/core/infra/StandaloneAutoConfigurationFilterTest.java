@@ -24,6 +24,17 @@ class StandaloneAutoConfigurationFilterTest {
         return filter;
     }
 
+    private StandaloneAutoConfigurationFilter createActiveFilter(String mode) {
+        StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
+        MockEnvironment env = new MockEnvironment();
+        if (mode != null) {
+            env.setProperty("contexa.infrastructure.mode", mode);
+        }
+        env.setProperty("contexa.ai.security.mode", "SANDBOX");
+        filter.setEnvironment(env);
+        return filter;
+    }
+
     @Nested
     @DisplayName("Standalone mode filtering")
     class StandaloneModeFiltering {
@@ -64,7 +75,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should allow non-Redis/Kafka/Redisson configs in standalone mode")
         void shouldAllowOtherConfigs() {
-            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {
                     "org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration",
                     "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
@@ -95,7 +106,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should allow all auto-configurations in distributed mode")
         void shouldAllowAllInDistributed() {
-            StandaloneAutoConfigurationFilter filter = createFilter("distributed");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("distributed");
             String[] classes = {
                     "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                     "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
@@ -116,7 +127,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should handle null class name gracefully")
         void shouldHandleNullClassName() {
-            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {null, "org.springframework.boot.autoconfigure.web.WebAutoConfig"};
 
             boolean[] result = filter.match(classes, metadata);
@@ -129,13 +140,51 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should handle case-insensitive pattern matching")
         void shouldMatchCaseInsensitive() {
-            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {"com.example.REDIS_Configuration", "com.example.KafkaProducer"};
 
             boolean[] result = filter.match(classes, metadata);
 
             assertThat(result[0]).isFalse();
             assertThat(result[1]).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("Contexa platform activation")
+    class ContexaPlatformActivation {
+
+        @Test
+        @DisplayName("Should exclude Contexa auto-configurations when @EnableAISecurity did not activate the platform")
+        void shouldExcludeContexaAutoConfigurationsWhenPlatformIsInactive() {
+            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            String[] classes = {
+                    "io.contexa.autoconfigure.core.CoreDataAutoConfiguration",
+                    "io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration",
+                    "io.contexa.contexacore.config.CoreSecurityAutoConfiguration",
+                    "io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(false, false, false, false, true);
+        }
+
+        @Test
+        @DisplayName("Should allow Contexa auto-configurations after @EnableAISecurity activates the platform")
+        void shouldAllowContexaAutoConfigurationsWhenPlatformIsActive() {
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("distributed");
+            String[] classes = {
+                    "io.contexa.autoconfigure.core.CoreDataAutoConfiguration",
+                    "io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration",
+                    "io.contexa.contexacore.config.CoreSecurityAutoConfiguration",
+                    "io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(true, true, true, true);
         }
     }
 }

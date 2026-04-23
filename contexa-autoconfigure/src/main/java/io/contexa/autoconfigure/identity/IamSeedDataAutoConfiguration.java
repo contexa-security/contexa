@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -24,19 +25,21 @@ import javax.sql.DataSource;
 @ConditionalOnProperty(prefix = "contexa.iam.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IamSeedDataAutoConfiguration {
 
+    static final String IAM_SEED_DATA_LOCATION = "contexa/iam/data.sql";
+
     @Bean
-    public ApplicationRunner iamSeedDataRunner(DataSource dataSource) {
+    public ApplicationRunner iamSeedDataRunner(@Qualifier("contexaDataSource") DataSource dataSource) {
         return (ApplicationArguments args) -> {
-            Resource seed = new ClassPathResource("data.sql");
+            Resource seed = new ClassPathResource(IAM_SEED_DATA_LOCATION);
             if (!seed.exists()) {
-                log.warn("[IamSeedData] classpath:data.sql not found, skipping seed");
+                log.warn("[IamSeedData] classpath:{} not found, skipping seed", IAM_SEED_DATA_LOCATION);
                 return;
             }
             var populator = new ResourceDatabasePopulator();
             populator.setContinueOnError(true);
             populator.addScript(seed);
             populator.execute(dataSource);
-            log.info("[IamSeedData] data.sql executed");
+            log.info("[IamSeedData] {} executed", IAM_SEED_DATA_LOCATION);
         };
     }
 }

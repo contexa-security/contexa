@@ -4,8 +4,14 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.jdbc.core.JdbcOperations;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,6 +47,36 @@ class IdentitySecurityCoreAutoConfigurationTest {
                     .run(context -> {
                         assertThat(context).doesNotHaveBean(IdentitySecurityCoreAutoConfiguration.class);
                     });
+        }
+    }
+
+    @Nested
+    @DisplayName("Contexa datasource isolation")
+    class ContexaDatasourceIsolation {
+
+        @Test
+        @DisplayName("Should bind WebAuthn repositories to contexaJdbcTemplate")
+        void shouldBindWebAuthnRepositoriesToContexaJdbcTemplate() throws Exception {
+            assertContexaJdbcTemplateBinding(IdentitySecurityCoreAutoConfiguration.class,
+                    "publicKeyCredentialUserEntityRepository");
+            assertContexaJdbcTemplateBinding(IdentitySecurityCoreAutoConfiguration.class,
+                    "userCredentialRepository");
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.class,
+                    "publicKeyCredentialUserEntityRepository");
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.class,
+                    "userCredentialRepository");
+        }
+
+        private void assertContexaJdbcTemplateBinding(Class<?> configurationClass, String methodName) throws Exception {
+            Method method = configurationClass.getMethod(methodName, JdbcOperations.class);
+            ConditionalOnBean conditionalOnBean = method.getAnnotation(ConditionalOnBean.class);
+            Parameter parameter = method.getParameters()[0];
+            Qualifier qualifier = parameter.getAnnotation(Qualifier.class);
+
+            assertThat(conditionalOnBean).isNotNull();
+            assertThat(conditionalOnBean.name()).contains("contexaJdbcTemplate");
+            assertThat(qualifier).isNotNull();
+            assertThat(qualifier.value()).isEqualTo("contexaJdbcTemplate");
         }
     }
 }

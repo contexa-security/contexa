@@ -11,6 +11,7 @@ import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
@@ -51,3 +52,4 @@ public class IamAdminBlacklistAutoConfiguration {
         return new BlacklistApiController(blockedUserService);
     }
 }
+

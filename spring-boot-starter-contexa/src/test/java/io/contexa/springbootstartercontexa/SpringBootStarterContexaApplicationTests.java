@@ -8,6 +8,7 @@ import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -17,6 +18,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.util.ClassUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -48,6 +50,30 @@ class SpringBootStarterContexaApplicationTests {
         });
     }
 
+    @Test
+    void starterDoesNotExposePgVectorAutoConfiguration() {
+        ClassLoader classLoader = getClass().getClassLoader();
+
+        assertThat(ClassUtils.isPresent(
+                "org.springframework.ai.vectorstore.pgvector.PgVectorStore",
+                classLoader)).isTrue();
+        assertThat(ClassUtils.isPresent(
+                "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration",
+                classLoader)).isFalse();
+    }
+
+    @Test
+    void starterDoesNotExposeMcpClientAutoConfiguration() {
+        ClassLoader classLoader = getClass().getClassLoader();
+
+        assertThat(ClassUtils.isPresent(
+                "org.springframework.ai.mcp.client.common.autoconfigure.McpClientAutoConfiguration",
+                classLoader)).isFalse();
+        assertThat(ClassUtils.isPresent(
+                "org.springframework.ai.mcp.client.httpclient.autoconfigure.SseHttpClientTransportAutoConfiguration",
+                classLoader)).isFalse();
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class TestConfiguration {
 
@@ -74,6 +100,11 @@ class SpringBootStarterContexaApplicationTests {
         @Bean
         ModelSelectionStrategy modelSelectionStrategy() {
             return mock(ModelSelectionStrategy.class);
+        }
+
+        @Bean
+        PlatformConfig platformConfig() {
+            return PlatformConfig.builder().build();
         }
 
         @Bean

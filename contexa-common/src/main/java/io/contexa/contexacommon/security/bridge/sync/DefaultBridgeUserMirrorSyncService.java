@@ -46,7 +46,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     private final CacheManager cacheManager;
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public BridgeUserMirrorSyncResult sync(
             AuthenticationStamp authenticationStamp,
             AuthorizationStamp authorizationStamp,

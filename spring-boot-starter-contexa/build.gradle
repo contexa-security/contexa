@@ -18,8 +18,9 @@ dependencies {
     api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     // Spring AI provider starters are application-level choices and are not forced by the library starter
 
-    // Spring AI vector store starter
-    api 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+    // PgVector implementation only. Do not expose Spring AI's PgVector starter because
+    // its auto-configuration starts in dependency-only customer applications.
+    implementation 'org.springframework.ai:spring-ai-pgvector-store'
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'

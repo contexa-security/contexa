@@ -23,6 +23,7 @@ import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningPropert
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
@@ -132,3 +133,4 @@ public class IamAdminCenterAutoConfiguration {
                 policyCenterAnalysisService);
     }
 }
+

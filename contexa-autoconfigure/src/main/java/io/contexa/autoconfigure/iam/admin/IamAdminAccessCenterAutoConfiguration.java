@@ -5,6 +5,7 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.AccessCenterController;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -36,3 +37,4 @@ public class IamAdminAccessCenterAutoConfiguration {
         return new AccessCenterController(accessCenterService);
     }
 }
+

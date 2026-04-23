@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -19,14 +20,18 @@ public class IdentityWebAuthnAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
+            @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
         return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
     }
 
     @Bean
     @ConditionalOnMissingBean(UserCredentialRepository.class)
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
     public UserCredentialRepository userCredentialRepository(
+            @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
         return new JdbcUserCredentialRepository(jdbcOperations);
     }

@@ -127,3 +127,4 @@ public class IamSecurityCoreAutoConfiguration {
                 threatScoreUtil, securityZeroTrustProperties, actionRepository, blockingSignalBroadcaster);
     }
 }
+

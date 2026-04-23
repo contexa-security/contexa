@@ -9,15 +9,19 @@ import io.contexa.contexaiam.aiam.strategy.ResourceNamingDiagnosisStrategy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
 
 @AutoConfiguration
+@AutoConfigureAfter(name = "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration")
 public class IamAiamServiceStrategyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
     public DataIngestionServiceImpl dataIngestionService(
             VectorStore vectorStore,
             PolicyRepository policyRepository,
@@ -43,3 +47,4 @@ public class IamAiamServiceStrategyAutoConfiguration {
         return new ResourceNamingDiagnosisStrategy(labFactory);
     }
 }
+

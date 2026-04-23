@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexaiam.aiam.config.WebSocketConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Import;
 
@@ -12,3 +13,4 @@ import org.springframework.context.annotation.Import;
 @Import(WebSocketConfig.class)
 public class IamWebSocketAutoConfiguration {
 }
+

@@ -22,6 +22,7 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ class IamAdminCenterAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(IamAdminCenterAutoConfiguration.class))
+            .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
             .withBean(ResourceRegistryService.class, () -> mock(ResourceRegistryService.class))
             .withBean(RoleService.class, () -> mock(RoleService.class))
             .withBean(PermissionCatalogService.class, () -> mock(PermissionCatalogService.class))

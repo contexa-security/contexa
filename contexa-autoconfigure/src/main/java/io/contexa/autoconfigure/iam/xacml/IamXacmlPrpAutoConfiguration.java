@@ -5,6 +5,7 @@ import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.prp.DatabasePolicyRetrievalPoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
@@ -20,3 +21,4 @@ public class IamXacmlPrpAutoConfiguration {
         return new DatabasePolicyRetrievalPoint(policyRepository, cacheService);
     }
 }
+

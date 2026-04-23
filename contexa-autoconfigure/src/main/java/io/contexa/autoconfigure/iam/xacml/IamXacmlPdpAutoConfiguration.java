@@ -10,6 +10,7 @@ import io.contexa.contexaiam.security.xacml.pdp.translator.*;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -129,3 +130,4 @@ public class IamXacmlPdpAutoConfiguration {
         return new CompositePermissionEvaluator(evaluators);
     }
 }
+

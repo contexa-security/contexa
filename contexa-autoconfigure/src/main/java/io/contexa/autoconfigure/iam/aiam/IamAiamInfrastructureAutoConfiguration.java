@@ -53,3 +53,4 @@ public class IamAiamInfrastructureAutoConfiguration {
         return new StompEventListener.StompDisconnectEventListener();
     }
 }
+

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
@@ -77,3 +78,4 @@ public class IamAdminMetadataAutoConfiguration {
                 userRepository, groupRepository, roleService, modelMapper);
     }
 }
+

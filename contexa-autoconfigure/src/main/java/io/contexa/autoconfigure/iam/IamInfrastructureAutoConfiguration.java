@@ -10,12 +10,14 @@ import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationMa
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.Pointcuts;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -27,6 +29,7 @@ import org.springframework.boot.web.reactive.function.client.WebClientCustomizer
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -53,7 +56,9 @@ public class IamInfrastructureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public JPAQueryFactory jpaQueryFactory(EntityManager entityManager) {
+    public JPAQueryFactory jpaQueryFactory(
+            @Qualifier("contexaEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
+        EntityManager entityManager = SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory);
         return new JPAQueryFactory(entityManager);
     }
 
@@ -132,4 +137,5 @@ public class IamInfrastructureAutoConfiguration {
         return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
     }
 }
+
 

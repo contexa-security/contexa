@@ -9,6 +9,7 @@ import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -50,8 +51,8 @@ public class IdentityServiceAutoConfiguration {
     @ConditionalOnMissingBean(OneTimeTokenService.class)
     public EmailOneTimeTokenService oneTimeTokenService(
             EmailService emailService,
-            JdbcTemplate jdbcTemplate,
-            TransactionTemplate transactionTemplate,
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties) {
         return new EmailOneTimeTokenService(
                 emailService,

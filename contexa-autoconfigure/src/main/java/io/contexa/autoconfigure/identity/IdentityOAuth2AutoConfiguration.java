@@ -36,9 +36,9 @@ import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -103,7 +103,6 @@ import java.util.stream.Collectors;
 @AutoConfiguration
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
 @ConditionalOnBean(PlatformConfig.class)
-@RequiredArgsConstructor
 public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
@@ -112,6 +111,13 @@ public class IdentityOAuth2AutoConfiguration {
 
     private static final String NOOP_SECRET_PREFIX = "{noop}";
     private static final String DEFAULT_SCOPE = "read";
+
+    public IdentityOAuth2AutoConfiguration(
+            @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
+            AuthContextProperties authContextProperties) {
+        this.transactionTemplate = transactionTemplate;
+        this.authContextProperties = authContextProperties;
+    }
 
     @Bean
     @ConditionalOnMissingBean(OAuth2StateAdapter.class)
@@ -203,7 +209,7 @@ public class IdentityOAuth2AutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(OAuth2AuthorizationService.class)
     public OAuth2AuthorizationService authorizationService(
-            JdbcTemplate jdbcTemplate,
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             RegisteredClientRepository registeredClientRepository) {
 
         JdbcOAuth2AuthorizationService jdbcService =
@@ -226,7 +232,8 @@ public class IdentityOAuth2AutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(RegisteredClientRepository.class)
-    public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
+    public RegisteredClientRepository registeredClientRepository(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
 
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
         String clientId = oauth2.getClientId();

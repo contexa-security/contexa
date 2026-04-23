@@ -8,6 +8,7 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSe
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -43,3 +44,4 @@ public class IamSecurityAutoConfiguration {
                 actionRedisRepository);
     }
 }
+

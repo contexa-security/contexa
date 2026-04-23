@@ -6,6 +6,7 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.security.xacml.pip.attribute.DatabaseAttributePIP;
 import io.contexa.contexaiam.security.xacml.pip.context.DefaultContextHandler;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
@@ -31,3 +32,4 @@ public class IamXacmlPipAutoConfiguration {
         return new DefaultContextHandler(userRepository, cacheService);
     }
 }
+

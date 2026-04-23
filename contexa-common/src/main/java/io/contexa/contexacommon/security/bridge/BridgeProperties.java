@@ -30,7 +30,7 @@ public class BridgeProperties {
     private Network network = new Network();
 
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
 
     @Data

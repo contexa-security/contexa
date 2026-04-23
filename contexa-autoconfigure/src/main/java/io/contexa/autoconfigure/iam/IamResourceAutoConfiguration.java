@@ -17,6 +17,7 @@ import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryServiceImpl;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -81,3 +82,4 @@ public class IamResourceAutoConfiguration {
         return new WorkbenchInitializer(resourceRegistryService, policyRepository, policyEnrichmentService);
     }
 }
+

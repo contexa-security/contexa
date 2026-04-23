@@ -51,6 +51,7 @@ import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -440,14 +441,18 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
+            @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
         return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
     }
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
     public UserCredentialRepository userCredentialRepository(
+            @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
         return new JdbcUserCredentialRepository(jdbcOperations);
     }

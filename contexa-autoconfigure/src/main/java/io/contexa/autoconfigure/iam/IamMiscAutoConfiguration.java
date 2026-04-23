@@ -11,6 +11,7 @@ import io.contexa.contexaiam.service.PolicyService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.properties.IamAdminProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
@@ -40,3 +41,4 @@ public class IamMiscAutoConfiguration {
         return new UserContextServiceImpl(auditLogRepository);
     }
 }
+

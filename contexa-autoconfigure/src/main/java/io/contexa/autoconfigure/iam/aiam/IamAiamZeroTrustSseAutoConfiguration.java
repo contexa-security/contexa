@@ -6,6 +6,7 @@ import io.contexa.contexaiam.aiam.event.ZeroTrustAnalysisEventListener;
 import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -40,3 +41,4 @@ public class IamAiamZeroTrustSseAutoConfiguration {
         return new ZeroTrustAnalysisEventListener(zeroTrustSsePublisher, delegate);
     }
 }
+

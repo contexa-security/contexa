@@ -257,3 +257,4 @@ public class IamXacmlPapAutoConfiguration {
                 objectMapper, permissionService, conditionCompatibilityService);
     }
 }
+

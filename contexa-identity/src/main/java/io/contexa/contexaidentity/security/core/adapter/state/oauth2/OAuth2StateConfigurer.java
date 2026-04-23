@@ -80,7 +80,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             TransactionTemplate transactionTemplate = null;
             if (appContext != null) {
                 try {
-                    transactionTemplate = appContext.getBean(TransactionTemplate.class);
+                    transactionTemplate = appContext.getBean("contexaTransactionTemplate", TransactionTemplate.class);
                 } catch (Exception e) {
                     log.error("OAuth2StateConfigurer: TransactionTemplate not found - authenticated-user grant type will not be available");
                 }

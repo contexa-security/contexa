@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.core.infra;
 
+import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
 import org.springframework.context.EnvironmentAware;
@@ -15,6 +16,7 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
     private static final String MODE_PROPERTY = "contexa.infrastructure.mode";
 
     private static final String[] EXCLUDE_PATTERNS = {"redis", "kafka", "redisson"};
+    private static final String CONTEXA_PACKAGE_PREFIX = "io.contexa.";
 
     private Environment environment;
 
@@ -22,11 +24,23 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
     public boolean[] match(String[] autoConfigurationClasses, AutoConfigurationMetadata metadata) {
         boolean isStandalone = "standalone".equalsIgnoreCase(
                 environment.getProperty(MODE_PROPERTY, "standalone"));
+        boolean contexaPlatformActive = isContexaPlatformActive();
 
         boolean[] result = new boolean[autoConfigurationClasses.length];
         for (int i = 0; i < autoConfigurationClasses.length; i++) {
-            if (isStandalone && autoConfigurationClasses[i] != null) {
-                String lowerName = autoConfigurationClasses[i].toLowerCase();
+            String autoConfigurationClass = autoConfigurationClasses[i];
+            if (autoConfigurationClass == null) {
+                result[i] = true;
+                continue;
+            }
+
+            if (isContexaAutoConfiguration(autoConfigurationClass) && !contexaPlatformActive) {
+                result[i] = false;
+                continue;
+            }
+
+            if (isStandalone) {
+                String lowerName = autoConfigurationClass.toLowerCase();
                 boolean excluded = false;
                 for (String pattern : EXCLUDE_PATTERNS) {
                     if (lowerName.contains(pattern)) {
@@ -40,6 +54,14 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             }
         }
         return result;
+    }
+
+    private boolean isContexaPlatformActive() {
+        return environment != null && environment.containsProperty(AiSecurityImportSelector.PROP_MODE);
+    }
+
+    private boolean isContexaAutoConfiguration(String autoConfigurationClass) {
+        return autoConfigurationClass.startsWith(CONTEXA_PACKAGE_PREFIX);
     }
 
     @Override

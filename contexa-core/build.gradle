@@ -17,8 +17,6 @@ dependencies {
     api 'org.springframework.ai:spring-ai-advisors-vector-store'
     api 'org.springframework.ai:spring-ai-rag'
 
-    implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
-
     implementation 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3'
 
     implementation 'org.apache.commons:commons-math3:3.6.1'

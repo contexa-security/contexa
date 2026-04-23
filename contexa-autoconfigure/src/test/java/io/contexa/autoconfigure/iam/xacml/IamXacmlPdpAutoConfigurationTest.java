@@ -10,6 +10,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ class IamXacmlPdpAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(IamXacmlPdpAutoConfiguration.class))
+            .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
             .withBean(RoleRepository.class, () -> mock(RoleRepository.class))
             .withBean(GroupRepository.class, () -> mock(GroupRepository.class))
             .withBean(PermissionRepository.class, () -> mock(PermissionRepository.class))

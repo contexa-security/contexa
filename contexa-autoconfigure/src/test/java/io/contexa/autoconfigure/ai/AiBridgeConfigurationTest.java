@@ -49,11 +49,11 @@ class AiBridgeConfigurationTest {
     }
 
     @Test
-    void shouldStillRegisterBridgeFilterWhenDisabledPropertyIsSet() {
+    void shouldRegisterBridgeFilterButKeepDisabledPropertyWhenDisabledPropertyIsSet() {
         contextRunner.withPropertyValues("contexa.bridge.enabled=false")
                 .run(context -> {
                     assertThat(context).hasSingleBean(BridgeResolutionFilter.class);
-                    assertThat(context.getBean(BridgeProperties.class).isEnabled()).isTrue();
+                    assertThat(context.getBean(BridgeProperties.class).isEnabled()).isFalse();
                 });
     }
 
