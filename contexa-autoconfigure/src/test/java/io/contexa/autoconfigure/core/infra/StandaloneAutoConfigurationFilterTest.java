@@ -42,7 +42,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should exclude Redis auto-configuration in standalone mode")
         void shouldExcludeRedis() {
-            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {"org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"};
 
             boolean[] result = filter.match(classes, metadata);
@@ -53,7 +53,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should exclude Kafka auto-configuration in standalone mode")
         void shouldExcludeKafka() {
-            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {"org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration"};
 
             boolean[] result = filter.match(classes, metadata);
@@ -64,7 +64,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should exclude Redisson auto-configuration in standalone mode")
         void shouldExcludeRedisson() {
-            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {"org.redisson.spring.starter.RedissonAutoConfiguration"};
 
             boolean[] result = filter.match(classes, metadata);
@@ -90,7 +90,7 @@ class StandaloneAutoConfigurationFilterTest {
         @Test
         @DisplayName("Should default to standalone when mode property is not set")
         void shouldDefaultToStandalone() {
-            StandaloneAutoConfigurationFilter filter = createFilter(null);
+            StandaloneAutoConfigurationFilter filter = createActiveFilter(null);
             String[] classes = {"org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"};
 
             boolean[] result = filter.match(classes, metadata);
@@ -169,6 +169,21 @@ class StandaloneAutoConfigurationFilterTest {
             boolean[] result = filter.match(classes, metadata);
 
             assertThat(result).containsExactly(false, false, false, false, true);
+        }
+
+        @Test
+        @DisplayName("Should not filter customer Redis/Kafka auto-configurations when @EnableAISecurity did not activate the platform")
+        void shouldNotFilterCustomerInfrastructureAutoConfigurationsWhenPlatformIsInactive() {
+            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            String[] classes = {
+                    "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
+                    "org.redisson.spring.starter.RedissonAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(true, true, true);
         }
 
         @Test

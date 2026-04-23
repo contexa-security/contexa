@@ -34,8 +34,8 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                 continue;
             }
 
-            if (isContexaAutoConfiguration(autoConfigurationClass) && !contexaPlatformActive) {
-                result[i] = false;
+            if (!contexaPlatformActive) {
+                result[i] = !isContexaAutoConfiguration(autoConfigurationClass);
                 continue;
             }
 
