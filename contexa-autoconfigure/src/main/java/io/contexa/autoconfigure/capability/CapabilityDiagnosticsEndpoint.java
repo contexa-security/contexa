@@ -5,6 +5,7 @@ import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 
 import java.util.List;
+import java.util.Optional;
 
 @Endpoint(id = "contexacapabilities")
 public class CapabilityDiagnosticsEndpoint {
@@ -21,7 +22,11 @@ public class CapabilityDiagnosticsEndpoint {
 
     @ReadOperation
     public CapabilityDiagnostics diagnostics() {
-        return new CapabilityDiagnostics(requirementResolver.effectiveMode().name(), registry.lastResults());
+        List<CapabilityCheckResult> visibleResults = registry.lastResults().stream()
+                .map(requirementResolver::visibleIssueForCurrentApplication)
+                .flatMap(Optional::stream)
+                .toList();
+        return new CapabilityDiagnostics(requirementResolver.effectiveMode().name(), visibleResults);
     }
 
     public record CapabilityDiagnostics(String mode, List<CapabilityCheckResult> capabilities) {

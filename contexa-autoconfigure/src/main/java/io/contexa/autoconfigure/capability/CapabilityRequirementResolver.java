@@ -1,12 +1,17 @@
 package io.contexa.autoconfigure.capability;
 
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityMode;
+import io.contexa.contexacommon.autoconfigure.capability.CapabilityCheckResult;
+import io.contexa.contexacommon.autoconfigure.capability.CapabilityStatus;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityRequirement;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.util.ClassUtils;
+
+import java.util.List;
+import java.util.Optional;
 
 public class CapabilityRequirementResolver {
 
@@ -29,6 +34,32 @@ public class CapabilityRequirementResolver {
             return configuredMode;
         }
         return isContexaOwnedApplication() ? CapabilityMode.FAIL_FAST : CapabilityMode.WARN;
+    }
+
+    public Optional<CapabilityCheckResult> visibleIssueForCurrentApplication(CapabilityCheckResult result) {
+        if (!isAbnormal(result.status())) {
+            return Optional.of(result);
+        }
+        CapabilityMode mode = effectiveMode();
+        if (isContexaOwnedApplication()
+                || mode == CapabilityMode.FAIL_FAST
+                || mode == CapabilityMode.STRICT) {
+            return Optional.of(result);
+        }
+
+        List<String> actionableMissingBeans = actionableMissingBeans(result);
+        if (actionableMissingBeans.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new CapabilityCheckResult(
+                result.capability(),
+                result.status(),
+                result.required(),
+                result.reason(),
+                result.presentBeans(),
+                actionableMissingBeans,
+                actionableRecommendations(result.capability())));
     }
 
     public CapabilityRequirement requirement(ContexaCapability capability) {
@@ -104,12 +135,48 @@ public class CapabilityRequirementResolver {
                 : CapabilityRequirement.optional(capability, reason);
     }
 
-    private boolean isContexaOwnedApplication() {
+    public boolean isContexaOwnedApplication() {
         if (getBoolean("contexa.datasource.isolation.contexa-owned-application", false)) {
             return true;
         }
         String applicationName = environment.getProperty("spring.application.name", "");
         return applicationName.startsWith("contexa-");
+    }
+
+    private boolean isAbnormal(CapabilityStatus status) {
+        return status == CapabilityStatus.DEGRADED
+                || status == CapabilityStatus.INACTIVE_UNEXPECTED
+                || status == CapabilityStatus.FAILED;
+    }
+
+    private List<String> actionableMissingBeans(CapabilityCheckResult result) {
+        return switch (result.capability()) {
+            case LLM_RUNTIME -> filterMissingBeans(result, List.of(
+                    "org.springframework.ai.chat.model.ChatModel"));
+            case EMBEDDING_RUNTIME -> filterMissingBeans(result, List.of(
+                    "org.springframework.ai.embedding.EmbeddingModel"));
+            case RAG_VECTOR -> filterMissingBeans(result, List.of(
+                    "org.springframework.ai.vectorstore.VectorStore"));
+            default -> List.of();
+        };
+    }
+
+    private List<String> actionableRecommendations(ContexaCapability capability) {
+        return switch (capability) {
+            case LLM_RUNTIME -> List.of(
+                    "Configure at least one Spring AI ChatModel provider for the application.");
+            case EMBEDDING_RUNTIME -> List.of(
+                    "Configure a Spring AI EmbeddingModel provider before enabling vector-backed retrieval.");
+            case RAG_VECTOR -> List.of(
+                    "Verify the Spring AI PgVector runtime, datasource, and VectorStore prerequisites are configured.");
+            default -> List.of();
+        };
+    }
+
+    private List<String> filterMissingBeans(CapabilityCheckResult result, List<String> beanTypes) {
+        return beanTypes.stream()
+                .filter(result.missingBeans()::contains)
+                .toList();
     }
 
     private boolean getBoolean(String key, boolean defaultValue) {

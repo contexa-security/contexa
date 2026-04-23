@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class ContexaAutoConfigurationIntegrityVerifier implements SmartInitializingSingleton {
@@ -36,6 +37,8 @@ public class ContexaAutoConfigurationIntegrityVerifier implements SmartInitializ
                 .filter(result -> result.status() == CapabilityStatus.DEGRADED
                         || result.status() == CapabilityStatus.INACTIVE_UNEXPECTED
                         || result.status() == CapabilityStatus.FAILED)
+                .map(requirementResolver::visibleIssueForCurrentApplication)
+                .flatMap(Optional::stream)
                 .filter(result -> result.required() || mode == CapabilityMode.STRICT)
                 .toList();
 
@@ -50,6 +53,8 @@ public class ContexaAutoConfigurationIntegrityVerifier implements SmartInitializ
         }
 
         List<CapabilityCheckResult> failures = results.stream()
+                .map(requirementResolver::visibleIssueForCurrentApplication)
+                .flatMap(Optional::stream)
                 .filter(result -> result.shouldFail(mode))
                 .toList();
         if (!failures.isEmpty()) {

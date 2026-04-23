@@ -6,11 +6,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+@ExtendWith(OutputCaptureExtension.class)
 class ContexaCapabilityAutoConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
@@ -61,5 +66,94 @@ class ContexaCapabilityAutoConfigurationTest {
                         "contexa.capability.mode=fail-fast",
                         "contexa.capability.required.rag-vector=true")
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    @DisplayName("AUTO mode fails fast for Contexa-owned applications without verbose required properties")
+    void autoModeFailsFastForContexaOwnedApplication() {
+        contextRunner
+                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("spring.application.name=contexa-site")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    @DisplayName("customer applications suppress internal-only warnings by default")
+    void suppressesInternalOnlyWarningsForCustomerApplications(CapturedOutput output) {
+        contextRunner
+                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.mode=warn",
+                        "contexa.capability.required.rag-vector=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(output.getOut()).doesNotContain("[ContexaCapability] rag-vector");
+                });
+    }
+
+    @Test
+    @DisplayName("customer applications still see actionable capability warnings")
+    void keepsActionableWarningsForCustomerApplications(CapturedOutput output) {
+        contextRunner
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.mode=warn",
+                        "contexa.capability.required.rag-vector=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(output.getOut()).contains("[ContexaCapability] rag-vector");
+                    assertThat(output.getOut()).contains("org.springframework.ai.vectorstore.VectorStore");
+                    assertThat(output.getOut()).doesNotContain("io.contexa.contexacore.std.rag.service.UnifiedVectorService");
+                });
+    }
+
+    @Test
+    @DisplayName("customer diagnostics endpoint hides internal-only capability defects")
+    void customerDiagnosticsHideInternalOnlyCapabilityDefects() {
+        contextRunner
+                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.mode=warn",
+                        "contexa.capability.required.rag-vector=true")
+                .run(context -> {
+                    CapabilityDiagnosticsEndpoint endpoint = context.getBean(CapabilityDiagnosticsEndpoint.class);
+
+                    assertThat(endpoint.diagnostics().capabilities())
+                            .filteredOn(result -> result.capability() == ContexaCapability.RAG_VECTOR)
+                            .isEmpty();
+                });
+    }
+
+    @Test
+    @DisplayName("Contexa-owned diagnostics endpoint keeps full internal defect detail")
+    void contexaOwnedDiagnosticsKeepFullInternalDefectDetail() {
+        contextRunner
+                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues(
+                        "spring.application.name=contexa-site",
+                        "contexa.capability.mode=warn",
+                        "contexa.capability.required.rag-vector=true")
+                .run(context -> {
+                    CapabilityDiagnosticsEndpoint endpoint = context.getBean(CapabilityDiagnosticsEndpoint.class);
+
+                    assertThat(endpoint.diagnostics().capabilities())
+                            .filteredOn(result -> result.capability() == ContexaCapability.RAG_VECTOR)
+                            .singleElement()
+                            .satisfies(result -> assertThat(result.missingBeans())
+                                    .contains("io.contexa.contexacore.std.rag.service.UnifiedVectorService"));
+                });
+    }
+
+    @Test
+    @DisplayName("diagnostics endpoint backs off when Actuator is not on the classpath")
+    void diagnosticsEndpointBacksOffWithoutActuator() {
+        contextRunner
+                .withClassLoader(new FilteredClassLoader("org.springframework.boot.actuate"))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean("capabilityDiagnosticsEndpoint");
+                });
     }
 }
