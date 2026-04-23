@@ -2,11 +2,14 @@ package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.std.components.event.AuditLogger;
+import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,5 +35,29 @@ class CoreRAGAutoConfigurationGuardTest {
             assertThat(context).doesNotHaveBean("policyGenerationRagAdvisor");
             assertThat(context).doesNotHaveBean(UnifiedVectorService.class);
         });
+    }
+
+    @Test
+    @DisplayName("CoreRAGAutoConfiguration runs after embedding/vector-store auto-configuration")
+    void coreRagAutoConfigurationRunsAfterVectorStoreAutoConfiguration() {
+        AutoConfigureAfter annotation = CoreRAGAutoConfiguration.class.getAnnotation(AutoConfigureAfter.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.name()).contains(
+                "io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration",
+                "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
+                "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration");
+    }
+
+    @Test
+    @DisplayName("vector services are created when VectorStore is available")
+    void vectorServicesAreCreatedWhenVectorStoreIsAvailable() {
+        contextRunner
+                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(BehaviorVectorService.class);
+                    assertThat(context).hasSingleBean(UnifiedVectorService.class);
+                    assertThat(context).hasBean("vectorStoreCacheLayer");
+                });
     }
 }

@@ -36,6 +36,9 @@ io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreSaasForwardingAutoConfiguration
 
+# Capability diagnostics
+io.contexa.autoconfigure.capability.ContexaCapabilityAutoConfiguration
+
 # Identity StateMachine
 io.contexa.autoconfigure.identity.IdentityStateMachineAutoConfiguration
 

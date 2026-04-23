@@ -1,7 +1,6 @@
 package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
@@ -46,9 +45,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter(CoreAdvisorAutoConfiguration.class)
+@AutoConfigureAfter(name = {
+        "io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration",
+        "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
+        "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
+})
 @ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ContexaProperties.class, PgVectorStoreProperties.class, ContexaRagProperties.class})
+@EnableConfigurationProperties({
+        ContexaProperties.class,
+        PgVectorStoreProperties.class,
+        ContexaRagProperties.class,
+        TieredStrategyProperties.class
+})
 public class CoreRAGAutoConfiguration {
 
     private final ContexaRagProperties ragProps;
