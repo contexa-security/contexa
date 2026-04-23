@@ -5,11 +5,14 @@ import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -39,6 +42,18 @@ class CoreAutonomousAutoConfigurationTest {
             assertThat(annotation.name()).containsExactly("enabled");
             assertThat(annotation.havingValue()).isEqualTo("true");
             assertThat(annotation.matchIfMissing()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Should only create VectorStoreCacheLayer when VectorStore is available")
+        void shouldGuardVectorStoreCacheLayerWithVectorStoreBean() throws Exception {
+            Method method = CoreAutonomousAutoConfiguration.class
+                    .getDeclaredMethod("vectorStoreCacheLayer", VectorStore.class, TieredStrategyProperties.class);
+
+            assertThat(method.getReturnType()).isEqualTo(VectorStoreCacheLayer.class);
+            ConditionalOnBean annotation = method.getAnnotation(ConditionalOnBean.class);
+            assertThat(annotation).isNotNull();
+            assertThat(annotation.value()).containsExactly(VectorStore.class);
         }
     }
 

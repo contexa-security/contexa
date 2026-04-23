@@ -316,6 +316,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
     public VectorStoreCacheLayer vectorStoreCacheLayer(
             VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
