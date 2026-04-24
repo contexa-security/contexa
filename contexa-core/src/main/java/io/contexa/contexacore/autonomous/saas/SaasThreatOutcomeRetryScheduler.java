@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 
 public class SaasThreatOutcomeRetryScheduler {
@@ -16,6 +17,7 @@ public class SaasThreatOutcomeRetryScheduler {
     }
 
     @Scheduled(fixedDelayString = "${contexa.saas.dispatch-interval-ms:30000}")
+    @SchedulerLock(name = "saasThreatOutcomeRetry", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5S")
     public void dispatchPendingThreatOutcomes() {
         if (!properties.isEnabled()
                 || properties.getThreatOutcome() == null

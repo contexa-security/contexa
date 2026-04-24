@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 
 public class SaasThreatKnowledgePackPullScheduler {
@@ -18,6 +19,7 @@ public class SaasThreatKnowledgePackPullScheduler {
     @Scheduled(
             initialDelayString = "${contexa.saas.threat-knowledge.initial-delay-ms:0}",
             fixedDelayString = "${contexa.saas.threat-knowledge.pull-interval-ms:3600000}")
+    @SchedulerLock(name = "saasThreatKnowledgePackPull", lockAtMostFor = "PT10M", lockAtLeastFor = "PT10S")
     public void refreshThreatKnowledgePack() {
         if (!properties.isEnabled()
                 || properties.getThreatKnowledge() == null

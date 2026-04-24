@@ -297,3 +297,15 @@ CREATE TABLE IF NOT EXISTS group_role_permissions (
     assigned_by   VARCHAR(100),
     PRIMARY KEY (group_id, role_id, permission_id)
 );
+
+-- ShedLock keeps @Scheduled methods exclusive across JVM instances. Each row
+-- represents a single lock name (typically the scheduled method) with the
+-- current holder and the expiry timestamp. The table is managed by
+-- JdbcTemplateLockProvider; application code must not write to it directly.
+CREATE TABLE IF NOT EXISTS shedlock (
+    name       VARCHAR(64)  NOT NULL,
+    lock_until TIMESTAMP    NOT NULL,
+    locked_at  TIMESTAMP    NOT NULL,
+    locked_by  VARCHAR(255) NOT NULL,
+    PRIMARY KEY (name)
+);

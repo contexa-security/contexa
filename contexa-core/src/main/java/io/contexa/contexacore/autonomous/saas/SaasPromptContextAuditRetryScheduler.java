@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 
 public class SaasPromptContextAuditRetryScheduler {
@@ -16,6 +17,7 @@ public class SaasPromptContextAuditRetryScheduler {
     }
 
     @Scheduled(fixedDelayString = "#{@saasForwardingProperties.dispatchIntervalMs}")
+    @SchedulerLock(name = "saasPromptContextAuditRetry", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5S")
     public void dispatchPendingAudits() {
         if (!properties.isEnabled()) {
             return;

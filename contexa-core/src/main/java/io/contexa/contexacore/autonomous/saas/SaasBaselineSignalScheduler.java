@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 
 public class SaasBaselineSignalScheduler {
@@ -21,6 +22,7 @@ public class SaasBaselineSignalScheduler {
     @Scheduled(
             initialDelayString = "${contexa.saas.baseline-signal.initial-delay-ms:300000}",
             fixedDelayString = "${contexa.saas.baseline-signal.publish-interval-ms:86400000}")
+    @SchedulerLock(name = "saasBaselineSignal", lockAtMostFor = "PT15M", lockAtLeastFor = "PT30S")
     public void captureAndDispatch() {
         if (!properties.isEnabled()
                 || properties.getBaselineSignal() == null

@@ -9,6 +9,7 @@ import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -35,6 +36,7 @@ public class BlockedUserTimeoutScheduler {
     private final CentralAuditFacade centralAuditFacade;
 
     @Scheduled(fixedDelay = 3600000)
+    @SchedulerLock(name = "blockedUserTimeoutCheck", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void checkBlockedUserTimeout() {
         LocalDateTime threshold = LocalDateTime.now().minusHours(TIMEOUT_HOURS);
         List<BlockedUser> timedOut = blockedUserJpaRepository

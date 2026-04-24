@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 
 public class SaasCalibrationProfilePackPullScheduler {
@@ -18,6 +19,7 @@ public class SaasCalibrationProfilePackPullScheduler {
     @Scheduled(
             initialDelayString = "",
             fixedDelayString = "")
+    @SchedulerLock(name = "saasCalibrationProfilePackPull", lockAtMostFor = "PT10M", lockAtLeastFor = "PT10S")
     public void refreshCalibrationProfilePack() {
         if (!properties.isEnabled()
                 || properties.getCalibrationProfile() == null

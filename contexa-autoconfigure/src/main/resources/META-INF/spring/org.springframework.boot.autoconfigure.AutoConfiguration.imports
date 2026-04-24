@@ -4,6 +4,7 @@
 # Core Infrastructure
 io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration
 io.contexa.autoconfigure.core.infra.CoreInfrastructureExtendedAutoConfiguration
+io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration
 
 # Core JPA (Repository & Entity)
 io.contexa.autoconfigure.core.CoreDataAutoConfiguration

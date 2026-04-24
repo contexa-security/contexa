@@ -1120,3 +1120,15 @@ create table security_spel
     created_at  timestamp default now()
 );
 
+-- ShedLock keeps @Scheduled methods exclusive across JVM instances. Every row
+-- corresponds to one lock name (the scheduler method) and carries the expiry
+-- timestamp. JdbcTemplateLockProvider manages inserts and updates; application
+-- code should never write to this table directly.
+create table if not exists shedlock
+(
+    name       varchar(64)  not null primary key,
+    lock_until timestamp    not null,
+    locked_at  timestamp    not null,
+    locked_by  varchar(255) not null
+);
+
