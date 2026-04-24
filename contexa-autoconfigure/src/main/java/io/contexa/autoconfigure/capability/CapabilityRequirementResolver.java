@@ -10,6 +10,7 @@ import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.util.ClassUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -162,21 +163,82 @@ public class CapabilityRequirementResolver {
     }
 
     private List<String> actionableRecommendations(ContexaCapability capability) {
-        return switch (capability) {
-            case LLM_RUNTIME -> List.of(
-                    "Configure at least one Spring AI ChatModel provider for the application.");
-            case EMBEDDING_RUNTIME -> List.of(
-                    "Configure a Spring AI EmbeddingModel provider before enabling vector-backed retrieval.");
-            case RAG_VECTOR -> List.of(
-                    "Verify the Spring AI PgVector runtime, datasource, and VectorStore prerequisites are configured.");
-            default -> List.of();
-        };
+        return guidanceFor(capability, List.of(), true);
     }
 
     private List<String> filterMissingBeans(CapabilityCheckResult result, List<String> beanTypes) {
         return beanTypes.stream()
                 .filter(result.missingBeans()::contains)
                 .toList();
+    }
+
+    List<String> operatorRecommendations(ContexaCapability capability, List<String> missingBeans) {
+        return guidanceFor(capability, missingBeans, false);
+    }
+
+    private List<String> guidanceFor(
+            ContexaCapability capability,
+            List<String> missingBeans,
+            boolean customerFacing) {
+        List<String> guidance = new ArrayList<>();
+        switch (capability) {
+            case LLM_RUNTIME -> {
+                guidance.add("Configure at least one Spring AI ChatModel provider for the application.");
+                if (!hasBean("org.springframework.ai.chat.model.ChatModel")) {
+                    guidance.add("Verify the selected LLM provider properties and API keys are configured.");
+                }
+            }
+            case EMBEDDING_RUNTIME -> {
+                guidance.add("Configure a Spring AI EmbeddingModel provider before enabling vector-backed retrieval.");
+                if (!hasBean("org.springframework.ai.embedding.EmbeddingModel")) {
+                    guidance.add("Verify the embedding provider properties and credentials are configured.");
+                }
+            }
+            case RAG_VECTOR -> appendRagVectorGuidance(guidance, missingBeans, customerFacing);
+            case SECURITY_LEARNING -> appendSecurityLearningGuidance(guidance, missingBeans);
+            case AUTONOMOUS_DECISION -> {
+                guidance.add("Verify autonomous decision auto-configuration completed and required LLM/RAG dependencies are active.");
+            }
+            case BRIDGE -> guidance.add("Verify AI security bridge configuration is active before invoking protected resources.");
+            case PQA_ENGINE -> guidance.add("Enable enterprise mode and include the enterprise verification modules before using the PQA engine.");
+            case ENTERPRISE_SOAR -> guidance.add("Enable enterprise mode and include the enterprise SOAR module on the runtime classpath.");
+            case ENTERPRISE_MCP -> guidance.add("Include the enterprise MCP server module before enabling MCP capability.");
+            case ENTERPRISE_DASHBOARD -> guidance.add("Enable enterprise mode and include enterprise dashboard metrics modules on the runtime classpath.");
+        }
+        return guidance.stream().distinct().toList();
+    }
+
+    private void appendRagVectorGuidance(List<String> guidance, List<String> missingBeans, boolean customerFacing) {
+        boolean pgVectorStarterPresent = classPresent("org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration");
+        boolean vectorStoreMissing = missingBeans.isEmpty()
+                || missingBeans.contains("org.springframework.ai.vectorstore.VectorStore");
+        boolean cacheLayerMissing = missingBeans.contains("io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer");
+        boolean unifiedVectorServiceMissing = missingBeans.contains("io.contexa.contexacore.std.rag.service.UnifiedVectorService");
+
+        if (vectorStoreMissing && !pgVectorStarterPresent) {
+            guidance.add("Add `implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'` to the application runtime.");
+        }
+        if (vectorStoreMissing && !hasBean("org.springframework.ai.embedding.EmbeddingModel")) {
+            guidance.add("Configure a Spring AI EmbeddingModel before VectorStore auto-configuration starts.");
+        }
+        if (vectorStoreMissing) {
+            guidance.add("Verify datasource connectivity and that the PostgreSQL `vector` extension is installed before startup.");
+        }
+        if (!customerFacing && (cacheLayerMissing || unifiedVectorServiceMissing)) {
+            guidance.add("Verify CoreRAGAutoConfiguration completed after PgVectorStoreAutoConfiguration and produced the Contexa RAG chain.");
+        }
+        if (customerFacing) {
+            guidance.add("Verify the Spring AI PgVector runtime, datasource, and VectorStore prerequisites are configured.");
+        }
+    }
+
+    private void appendSecurityLearningGuidance(List<String> guidance, List<String> missingBeans) {
+        if (missingBeans.contains("io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor")) {
+            guidance.add("Resolve `rag-vector` first; SecurityDecisionPostProcessor is created only after UnifiedVectorService is available.");
+        }
+        if (missingBeans.contains("io.contexa.contexacore.autonomous.service.SecurityLearningService")) {
+            guidance.add("Verify CoreAutonomousAutoConfiguration completed and security learning is enabled for post-authentication monitoring.");
+        }
     }
 
     private boolean getBoolean(String key, boolean defaultValue) {

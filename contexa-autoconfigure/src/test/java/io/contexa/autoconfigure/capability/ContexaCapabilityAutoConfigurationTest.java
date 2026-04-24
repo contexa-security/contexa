@@ -69,6 +69,31 @@ class ContexaCapabilityAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("fail-fast message and console logs include actionable guidance")
+    void failFastMessageAndConsoleLogsIncludeActionableGuidance(CapturedOutput output) {
+        contextRunner
+                .withPropertyValues(
+                        "spring.application.name=contexa-demo",
+                        "contexa.capability.mode=fail-fast",
+                        "contexa.capability.required.llm-runtime=false",
+                        "contexa.capability.required.embedding-runtime=false",
+                        "contexa.autonomous.enabled=false",
+                        "contexa.capability.required.rag-vector=true")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasMessageContaining("rag-vector")
+                            .hasMessageContaining("spring-ai-starter-vector-store-pgvector")
+                            .hasMessageContaining("Verify datasource connectivity");
+                    assertThat(output.getOut())
+                            .contains("[ContexaCapability] rag-vector")
+                            .contains("Recommended actions")
+                            .contains("spring-ai-starter-vector-store-pgvector")
+                            .contains("Verify datasource connectivity");
+                });
+    }
+
+    @Test
     @DisplayName("AUTO mode fails fast for Contexa-owned applications without verbose required properties")
     void autoModeFailsFastForContexaOwnedApplication() {
         contextRunner
@@ -104,6 +129,7 @@ class ContexaCapabilityAutoConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(output.getOut()).contains("[ContexaCapability] rag-vector");
                     assertThat(output.getOut()).contains("org.springframework.ai.vectorstore.VectorStore");
+                    assertThat(output.getOut()).contains("spring-ai-starter-vector-store-pgvector");
                     assertThat(output.getOut()).doesNotContain("io.contexa.contexacore.std.rag.service.UnifiedVectorService");
                 });
     }

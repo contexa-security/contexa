@@ -43,13 +43,12 @@ public class ContexaAutoConfigurationIntegrityVerifier implements SmartInitializ
                 .toList();
 
         for (CapabilityCheckResult result : abnormalResults) {
-            log.warn("[ContexaCapability] {} status={} required={} missing={} reason={} recommendations={}",
-                    result.capability().propertyKey(),
-                    result.status(),
-                    result.required(),
-                    result.missingBeans(),
-                    result.reason(),
-                    result.recommendations());
+            String diagnostic = diagnosticMessage(result);
+            if (result.shouldFail(mode)) {
+                log.error(diagnostic);
+            } else {
+                log.warn(diagnostic);
+            }
         }
 
         List<CapabilityCheckResult> failures = results.stream()
@@ -58,10 +57,46 @@ public class ContexaAutoConfigurationIntegrityVerifier implements SmartInitializ
                 .filter(result -> result.shouldFail(mode))
                 .toList();
         if (!failures.isEmpty()) {
-            throw new IllegalStateException("Contexa required capability check failed: "
+            throw new IllegalStateException("Contexa required capability check failed.\n"
                     + failures.stream()
-                    .map(result -> result.capability().propertyKey() + " missing=" + result.missingBeans())
-                    .collect(Collectors.joining("; ")));
+                    .map(this::failureBlock)
+                    .collect(Collectors.joining("\n")));
         }
+    }
+
+    private String diagnosticMessage(CapabilityCheckResult result) {
+        return "[ContexaCapability] " + result.capability().propertyKey()
+                + " status=" + result.status()
+                + " required=" + result.required()
+                + "\n  Reason: " + safe(result.reason())
+                + "\n  Missing beans: " + formatBeans(result.missingBeans())
+                + "\n  Recommended actions:\n" + formatRecommendations(result.recommendations());
+    }
+
+    private String failureBlock(CapabilityCheckResult result) {
+        return "- capability: " + result.capability().propertyKey()
+                + "\n  reason: " + safe(result.reason())
+                + "\n  missing beans: " + formatBeans(result.missingBeans())
+                + "\n  recommended actions:\n" + formatRecommendations(result.recommendations());
+    }
+
+    private String formatBeans(List<String> beans) {
+        if (beans == null || beans.isEmpty()) {
+            return "[]";
+        }
+        return beans.stream().collect(Collectors.joining(", ", "[", "]"));
+    }
+
+    private String formatRecommendations(List<String> recommendations) {
+        if (recommendations == null || recommendations.isEmpty()) {
+            return "    - Inspect the auto-configuration conditions for the missing bean chain.";
+        }
+        return recommendations.stream()
+                .map(recommendation -> "    - " + recommendation)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String safe(String value) {
+        return value == null || value.isBlank() ? "-" : value;
     }
 }

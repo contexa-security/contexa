@@ -109,20 +109,11 @@ public class CoreCapabilityContributor implements CapabilityContributor {
         if (missingBeans.isEmpty()) {
             return List.of();
         }
-        return switch (capability) {
-            case RAG_VECTOR -> List.of(
-                    "Verify Spring AI PgVector starter is on the runtime classpath.",
-                    "Verify EmbeddingModel, JdbcTemplate/DataSource, and PgVectorStoreAutoConfiguration are active.",
-                    "Verify CoreRAGAutoConfiguration runs after PgVectorStoreAutoConfiguration.");
-            case SECURITY_LEARNING -> List.of(
-                    "Verify UnifiedVectorService is active when vector-backed post-authentication learning is required.",
-                    "Verify CoreAutonomousAutoConfiguration runs after CoreRAGAutoConfiguration.");
-            case LLM_RUNTIME -> List.of(
-                    "Configure at least one Spring AI ChatModel provider and CONTEXA LLM selection.");
-            case EMBEDDING_RUNTIME -> List.of(
-                    "Configure a Spring AI EmbeddingModel provider before PgVectorStoreAutoConfiguration.");
-            default -> List.of("Inspect auto-configuration conditions and missing bean chain for " + capability.propertyKey() + ".");
-        };
+        List<String> recommendations = requirementResolver.operatorRecommendations(capability, missingBeans);
+        if (!recommendations.isEmpty()) {
+            return recommendations;
+        }
+        return List.of("Inspect auto-configuration conditions and missing bean chain for " + capability.propertyKey() + ".");
     }
 
     private boolean hasBean(String className) {
