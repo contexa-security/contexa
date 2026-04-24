@@ -3,7 +3,6 @@ package io.contexa.contexaiam.admin.web.menu.service;
 import io.contexa.contexacommon.entity.AdminMenu;
 import io.contexa.contexacommon.entity.AdminMenuRole;
 import io.contexa.contexacommon.repository.AdminMenuRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,12 +13,22 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@RequiredArgsConstructor
 public class AdminMenuService {
 
     private final AdminMenuRepository menuRepository;
+    private final AdminMenuQueryCache menuQueryCache;
     private final boolean enterpriseEnabled;
     private final boolean saasEnabled;
+
+    public AdminMenuService(AdminMenuRepository menuRepository,
+                            AdminMenuQueryCache menuQueryCache,
+                            boolean enterpriseEnabled,
+                            boolean saasEnabled) {
+        this.menuRepository = menuRepository;
+        this.menuQueryCache = menuQueryCache;
+        this.enterpriseEnabled = enterpriseEnabled;
+        this.saasEnabled = saasEnabled;
+    }
 
     /**
      * Initialize default menus if the table is empty and backfill new enterprise/saas menus in existing deployments.
@@ -82,7 +91,9 @@ public class AdminMenuService {
                 .name(name).url(url).icon(icon).parentId(parentId)
                 .menuOrder(order).menuType(type).dataPage(dataPage).enabled(true)
                 .build();
-        return menuRepository.save(menu).getId();
+        Long id = menuRepository.save(menu).getId();
+        menuQueryCache.invalidate();
+        return id;
     }
 
     private Long ensureMenu(String name, String url, String icon, Long parentId, int order, String type, String dataPage) {
@@ -97,7 +108,9 @@ public class AdminMenuService {
             menu.setMenuType(type);
             menu.setDataPage(dataPage);
             menu.setEnabled(true);
-            return menuRepository.save(menu).getId();
+            Long id = menuRepository.save(menu).getId();
+            menuQueryCache.invalidate();
+            return id;
         }
         return createMenu(name, url, icon, parentId, order, type, dataPage);
     }
@@ -119,7 +132,7 @@ public class AdminMenuService {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toSet());
 
-        List<AdminMenu> allMenus = menuRepository.findAllWithRolesOrderByMenuOrder();
+        List<AdminMenu> allMenus = menuQueryCache.findAllWithRoles();
 
         List<AdminMenu> filtered = allMenus.stream()
                 .filter(AdminMenu::isEnabled)
@@ -135,7 +148,7 @@ public class AdminMenuService {
      */
     @Transactional(readOnly = true)
     public List<AdminMenu> getAllMenus() {
-        return menuRepository.findAllWithRolesOrderByMenuOrder().stream()
+        return menuQueryCache.findAllWithRoles().stream()
                 .filter(m -> isMenuTypeAllowed(m.getMenuType()))
                 .toList();
     }
@@ -147,13 +160,16 @@ public class AdminMenuService {
 
     @Transactional
     public AdminMenu saveMenu(AdminMenu menu) {
-        return menuRepository.save(menu);
+        AdminMenu saved = menuRepository.save(menu);
+        menuQueryCache.invalidate();
+        return saved;
     }
 
     @Transactional
     public void deleteMenu(Long id) {
         menuRepository.deleteByParentId(id);
         menuRepository.deleteById(id);
+        menuQueryCache.invalidate();
     }
 
     @Transactional
@@ -161,6 +177,7 @@ public class AdminMenuService {
         menuRepository.findById(menuId).ifPresent(menu -> {
             menu.setMenuOrder(newOrder);
             menuRepository.save(menu);
+            menuQueryCache.invalidate();
         });
     }
 
@@ -169,6 +186,7 @@ public class AdminMenuService {
         menuRepository.findById(menuId).ifPresent(menu -> {
             menu.setEnabled(!menu.isEnabled());
             menuRepository.save(menu);
+            menuQueryCache.invalidate();
         });
     }
 
@@ -180,6 +198,7 @@ public class AdminMenuService {
                 roleNames.forEach(menu::addRole);
             }
             menuRepository.save(menu);
+            menuQueryCache.invalidate();
         });
     }
 

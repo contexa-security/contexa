@@ -5,6 +5,7 @@ import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.menu.controller.AdminMenuController;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuManagementService;
+import io.contexa.contexaiam.admin.web.menu.service.AdminMenuQueryCache;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
@@ -114,12 +115,20 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public AdminMenuQueryCache adminMenuQueryCache(AdminMenuRepository adminMenuRepository) {
+        return new AdminMenuQueryCache(adminMenuRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public AdminMenuService adminMenuService(
             AdminMenuRepository adminMenuRepository,
+            AdminMenuQueryCache adminMenuQueryCache,
             ContexaProperties contexaProperties) {
         AdminMenuService service =
                 new AdminMenuService(
                         adminMenuRepository,
+                        adminMenuQueryCache,
                         contexaProperties.getEnterprise().isEnabled(),
                         contexaProperties.getSaas().isEnabled());
         service.initializeDefaultMenusIfEmpty();
