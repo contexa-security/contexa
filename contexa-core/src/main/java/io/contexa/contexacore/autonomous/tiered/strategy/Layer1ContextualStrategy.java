@@ -327,7 +327,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-                        .timeout(Duration.ofMillis(llmTimeoutMs))
+//                        .timeout(Duration.ofMillis(llmTimeoutMs))
                         .block();
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
