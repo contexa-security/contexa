@@ -13,7 +13,8 @@ dependencies {
     api 'org.springframework.ai:spring-ai-model'
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    api 'org.springframework.boot:spring-boot-starter-data-redis'
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     implementation 'com.querydsl:querydsl-core:5.1.0'
     annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"
