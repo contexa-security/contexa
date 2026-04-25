@@ -84,7 +84,7 @@ public class RedisHCADDataStore implements HCADDataStore {
     @Override
     public void recordRequest(String userId, long currentTimeMs) {
         try {
-            String key = "hcad:request:counter:" + userId;
+            String key = ZeroTrustRedisKeys.userRequestCounter(userId);
             redisTemplate.opsForZSet().add(key, Long.toString(currentTimeMs), currentTimeMs);
 
             long fiveMinutesAgo = currentTimeMs - (5 * 60 * 1000);
@@ -97,7 +97,7 @@ public class RedisHCADDataStore implements HCADDataStore {
     @Override
     public int getRecentRequestCount(String userId, long windowStartMs, long currentTimeMs) {
         try {
-            String key = "hcad:request:counter:" + userId;
+            String key = ZeroTrustRedisKeys.userRequestCounter(userId);
             Long count = redisTemplate.opsForZSet().count(key, windowStartMs, currentTimeMs);
             return count != null ? count.intValue() : 0;
         } catch (Exception e) {
@@ -130,7 +130,7 @@ public class RedisHCADDataStore implements HCADDataStore {
     @Override
     public boolean isMfaVerified(String userId) {
         try {
-            String key = "security:mfa:verified:" + userId;
+            String key = ZeroTrustRedisKeys.hcadMfaVerified(userId);
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to check MFA verification: userId={}", userId, e);
@@ -141,7 +141,7 @@ public class RedisHCADDataStore implements HCADDataStore {
     @Override
     public void markMfaVerified(String userId) {
         try {
-            String key = "security:mfa:verified:" + userId;
+            String key = ZeroTrustRedisKeys.hcadMfaVerified(userId);
             redisTemplate.opsForValue().set(key, "true", mfaVerifiedTtl);
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to mark MFA verified: userId={}", userId, e);

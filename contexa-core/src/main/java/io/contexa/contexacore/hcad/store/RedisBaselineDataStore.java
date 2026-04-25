@@ -126,6 +126,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         putIfNonEmpty(data, "frequentPaths", baseline.getFrequentPaths());
         putIfNonEmpty(data, "normalUserAgents", baseline.getNormalUserAgents());
         putIfNonEmpty(data, "normalOperatingSystems", baseline.getNormalOperatingSystems());
+        putIfNonEmpty(data, "normalBrowsers", baseline.getNormalBrowsers());
+        putIfNonEmpty(data, "normalIpBands", baseline.getNormalIpBands());
+        putIfNonEmpty(data, "normalAuthenticationTypes", baseline.getNormalAuthenticationTypes());
+        putIfNonEmpty(data, "frequentActionFamilies", baseline.getFrequentActionFamilies());
+        putIfNonEmpty(data, "frequentResourceFamilies", baseline.getFrequentResourceFamilies());
         if (baseline.getElementFrequencies() != null && !baseline.getElementFrequencies().isEmpty()) {
             data.put("elementFrequencies", baseline.getElementFrequencies());
         }
@@ -155,6 +160,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 .frequentPaths(toStringArray(data.get("frequentPaths")))
                 .normalUserAgents(toStringArray(data.get("normalUserAgents")))
                 .normalOperatingSystems(toStringArray(data.get("normalOperatingSystems")))
+                .normalBrowsers(toStringArray(data.get("normalBrowsers")))
+                .normalIpBands(toStringArray(data.get("normalIpBands")))
+                .normalAuthenticationTypes(toStringArray(data.get("normalAuthenticationTypes")))
+                .frequentActionFamilies(toStringArray(data.get("frequentActionFamilies")))
+                .frequentResourceFamilies(toStringArray(data.get("frequentResourceFamilies")))
                 .elementFrequencies(toFrequencyMap(data.get("elementFrequencies")))
                 .build();
     }

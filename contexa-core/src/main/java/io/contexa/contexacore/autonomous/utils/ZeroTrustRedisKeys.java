@@ -59,6 +59,27 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:block:mfa:failCount:%s", NAMESPACE, userId);
     }
 
+    /**
+     * MFA verified key for HCAD/CHALLENGE flow.
+     * Intentionally distinct from {@link #blockMfaVerified(String)} which is reserved
+     * for the BLOCK MFA recovery flow. CHALLENGE MFA writes to this key so the LLM
+     * prompt can read MfaVerified independently of BLOCK state.
+     * Prefix is kept without NAMESPACE for backward compatibility with existing data.
+     */
+    public static String hcadMfaVerified(String userId) {
+        validateUserId(userId);
+        return "security:mfa:verified:" + userId;
+    }
+
+    /**
+     * Per-user request counter ZSet key (5-minute sliding window) used by HCAD.
+     * Prefix is kept without NAMESPACE for backward compatibility with existing data.
+     */
+    public static String userRequestCounter(String userId) {
+        validateUserId(userId);
+        return "hcad:request:counter:" + userId;
+    }
+
     public static String soarExecution(String eventId) {
         if (eventId == null || eventId.trim().isEmpty()) {
             throw new IllegalArgumentException("Event ID cannot be null or empty");
