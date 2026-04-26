@@ -23,27 +23,27 @@ public class SessionManagementService {
 
     private final ActiveSessionRepository activeSessionRepository;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<ActiveSession> getActiveSessions(Pageable pageable) {
         return activeSessionRepository.findByExpiredFalse(pageable);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<ActiveSession> getSessionsByUser(String userId) {
         return activeSessionRepository.findByUserIdAndExpiredFalse(userId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public long getActiveSessionCount() {
         return activeSessionRepository.countByExpiredFalse();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void invalidateSession(String sessionId) {
         activeSessionRepository.expireSession(sessionId);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void invalidateAllSessionsForUser(String userId) {
         activeSessionRepository.expireAllSessionsForUser(userId);
     }
@@ -52,7 +52,7 @@ public class SessionManagementService {
      * Track or update a session record.
      * Only updates last_accessed_at if the threshold (60s) has passed to reduce DB overhead.
      */
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void trackSession(String sessionId, String userId, String username,
                              String clientIp, String userAgent) {
         activeSessionRepository.findById(sessionId).ifPresentOrElse(
@@ -79,7 +79,7 @@ public class SessionManagementService {
         );
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateLastAccessed(String sessionId) {
         activeSessionRepository.findById(sessionId).ifPresent(session -> {
             if (!session.isExpired()) {
@@ -89,7 +89,7 @@ public class SessionManagementService {
         });
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void markExpired(String sessionId) {
         activeSessionRepository.expireSession(sessionId);
     }
@@ -97,13 +97,13 @@ public class SessionManagementService {
     /**
      * Delete expired sessions older than 7 days.
      */
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void cleanupExpiredSessions() {
         LocalDateTime threshold = LocalDateTime.now().minusDays(CLEANUP_RETENTION_DAYS);
         activeSessionRepository.deleteExpiredBefore(threshold);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<ActiveSession> getAllActiveSessions() {
         return activeSessionRepository.findByExpiredFalseOrderByLastAccessedAtDesc();
     }

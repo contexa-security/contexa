@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "contexaTransactionManager")
 public class DefaultPolicyService implements PolicyService {
 
     private final PolicyRepository policyRepository;
@@ -80,27 +80,27 @@ public class DefaultPolicyService implements PolicyService {
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<Policy> getAllPolicies() {
         return policyRepository.findAllWithDetails();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<Policy> searchPolicies(String keyword, Pageable pageable) {
         String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
         return policyRepository.searchByKeyword(pattern, pageable);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable) {
         String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
         return policyRepository.searchByFilters(pattern, approvalStatus, activeFilter, pageable);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Policy findById(Long id) {
         return policyRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", id)));
@@ -341,7 +341,7 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<PolicyConflictDto> detectConflicts(PolicyDto policyDto) {
         Policy policy = convertDtoToEntity(policyDto);
         if (policyDto.getId() != null) {
@@ -351,7 +351,7 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<PolicyVersion> getVersions(Long policyId) {
         return policyVersionService.getVersions(policyId);
     }
@@ -386,7 +386,7 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PolicyValidationReport validateBeforeCreate(PolicyDto policyDto) {
         Policy policy = convertDtoToEntity(policyDto);
         if (policyDto.getId() != null) {
@@ -396,7 +396,7 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PolicyImpactReport analyzeImpact(PolicyDto policyDto) {
         Policy policy = convertDtoToEntity(policyDto);
         if (policyDto.getId() != null) {
@@ -406,14 +406,14 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public AIPolicyValidationReport validateAIPolicy(Long policyId) {
         Policy policy = findById(policyId);
         return aiPolicyValidator.validate(policy);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public SimulationReport simulate(PolicyDto candidatePolicy, List<SimulationTestCase> testCases) {
         Policy candidate = null;
         if (candidatePolicy != null) {

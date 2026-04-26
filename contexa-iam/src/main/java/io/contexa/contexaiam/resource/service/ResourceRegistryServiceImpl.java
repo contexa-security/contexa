@@ -49,7 +49,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
     @Async
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void refreshAndSynchronizeResources() {
 
         List<ManagedResource> discoveredResources = scanners.stream()
@@ -198,7 +198,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public Permission defineResourceAsPermission(Long resourceId, ResourceMetadataDto metadataDto) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
@@ -213,7 +213,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateResourceManagementStatus(Long resourceId, ResourceManagementDto managedDto) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
@@ -222,13 +222,13 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<ManagedResource> findResources(ResourceSearchCriteria criteria, Pageable pageable) {
         return managedResourceRepository.findByCriteria(criteria, pageable);
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void excludeResourceFromManagement(Long resourceId) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
@@ -240,13 +240,13 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Set<String> getAllServiceOwners() {
         return managedResourceRepository.findAllServiceOwners();
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void batchUpdateStatus(List<Long> ids, ManagedResource.Status status) {
         if (CollectionUtils.isEmpty(ids)) {
             return;

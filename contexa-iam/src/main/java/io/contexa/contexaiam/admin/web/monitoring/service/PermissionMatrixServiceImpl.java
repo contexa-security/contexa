@@ -23,13 +23,13 @@ public class PermissionMatrixServiceImpl implements PermissionMatrixService {
     private final PermissionCatalogService permissionCatalogService;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PermissionMatrixDto getPermissionMatrix() {
         return getPermissionMatrix(new MatrixFilter(null, null, null));
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PermissionMatrixDto getPermissionMatrix(MatrixFilter filter) {
         List<Group> subjects = (filter != null && !CollectionUtils.isEmpty(filter.subjectIds()))
                 ? groupRepository.findAllById(filter.subjectIds())

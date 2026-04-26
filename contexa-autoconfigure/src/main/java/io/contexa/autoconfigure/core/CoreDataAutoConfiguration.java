@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -92,6 +93,7 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
 
     @Bean
     @ConditionalOnMissingBean(TransactionTemplate.class)
+    @ConditionalOnProperty(prefix = "contexa.datasource.isolation", name = "contexa-owned-application", havingValue = "true")
     public TransactionTemplate transactionTemplate(
             @Qualifier("contexaTransactionManager") PlatformTransactionManager transactionManager) {
         return new TransactionTemplate(transactionManager);
@@ -111,6 +113,7 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
 
     @Bean
     @ConditionalOnMissingBean(JdbcTemplate.class)
+    @ConditionalOnProperty(prefix = "contexa.datasource.isolation", name = "contexa-owned-application", havingValue = "true")
     public JdbcTemplate jdbcTemplate(@Qualifier("contexaDataSource") DataSource dataSource) {
         return contexaJdbcTemplate(dataSource);
     }

@@ -177,6 +177,36 @@ class CoreDataAutoConfigurationTest {
                 });
     }
 
+    @Test
+    @DisplayName("Contexa-owned applications should boot with only contexa.datasource")
+    void contexaOwnedApplicationUsesContexaDatasourceAsDefaultWhenSpringDatasourceIsAbsent() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(TestApplicationPackage.class)
+                .withConfiguration(AutoConfigurations.of(
+                        ContexaOwnedDataSourceAutoConfiguration.class,
+                        DataSourceAutoConfiguration.class,
+                        JdbcTemplateAutoConfiguration.class,
+                        HibernateJpaAutoConfiguration.class,
+                        CoreDataAutoConfiguration.class))
+                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
+                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withPropertyValues(
+                        "spring.jpa.hibernate.ddl-auto=none",
+                        "spring.sql.init.mode=never",
+                        "contexa.datasource.url=jdbc:h2:mem:contexa-owned-default;DB_CLOSE_DELAY=-1",
+                        "contexa.datasource.driver-class-name=org.h2.Driver",
+                        "contexa.datasource.isolation.contexa-owned-application=true",
+                        "contexa.jpa.hibernate.ddl-auto=none")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasBean("dataSource");
+                    assertThat(context).hasBean("contexaDataSource");
+                    assertThat(context.getBean("dataSource", DataSource.class))
+                            .isSameAs(context.getBean("contexaDataSource", DataSource.class));
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     @AutoConfigurationPackage
     static class TestApplicationPackage {

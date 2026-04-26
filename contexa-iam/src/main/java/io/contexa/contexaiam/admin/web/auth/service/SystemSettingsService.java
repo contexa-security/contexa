@@ -10,14 +10,14 @@ public class SystemSettingsService {
 
     private final SystemSettingsRepository repository;
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public SystemSettings getSettings() {
         return repository.findAll().stream()
                 .findFirst()
                 .orElseGet(() -> repository.save(SystemSettings.builder().build()));
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public SystemSettings updateSettings(SystemSettings settings) {
         SystemSettings existing = getSettings();
         existing.setAuditLogRetentionDays(settings.getAuditLogRetentionDays());

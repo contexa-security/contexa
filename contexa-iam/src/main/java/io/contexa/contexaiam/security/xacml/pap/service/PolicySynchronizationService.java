@@ -31,7 +31,7 @@ public class PolicySynchronizationService {
 
     @Async
     @EventListener
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void handleRolePermissionsChange(RolePermissionsChangedEvent event) {
 
         Role role = roleRepository.findByIdWithPermissionsAndResources(event.getRoleId())
@@ -40,7 +40,7 @@ public class PolicySynchronizationService {
         synchronizePolicyForRole(role);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void cleanupAutoPolicy(String roleName) {
         String policyName = "AUTO_POLICY_FOR_" + roleName;
         policyRepository.findByName(policyName).ifPresent(policy -> {

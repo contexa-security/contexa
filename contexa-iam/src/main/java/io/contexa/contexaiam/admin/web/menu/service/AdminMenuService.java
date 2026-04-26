@@ -33,7 +33,7 @@ public class AdminMenuService {
     /**
      * Initialize default menus if the table is empty and backfill new enterprise/saas menus in existing deployments.
      */
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void initializeDefaultMenusIfEmpty() {
         if (menuRepository.count() == 0) {
             Long dashId = createMenu("menu.dashboard", "/admin/dashboard", svgHome(), null, 1, "CORE", "dashboard");
@@ -126,7 +126,7 @@ public class AdminMenuService {
     /**
      * Get menu tree filtered by user authorities and feature flags.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<MenuNode> getMenuTreeForUser(Collection<? extends GrantedAuthority> authorities) {
         Set<String> userAuthorities = authorities.stream()
                 .map(GrantedAuthority::getAuthority)
@@ -146,33 +146,33 @@ public class AdminMenuService {
     /**
      * Get all menus for management, filtered by enabled feature flags (enterprise/saas).
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<AdminMenu> getAllMenus() {
         return menuQueryCache.findAllWithRoles().stream()
                 .filter(m -> isMenuTypeAllowed(m.getMenuType()))
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Optional<AdminMenu> getMenuById(Long id) {
         return menuRepository.findById(id);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenu saveMenu(AdminMenu menu) {
         AdminMenu saved = menuRepository.save(menu);
         menuQueryCache.invalidate();
         return saved;
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteMenu(Long id) {
         menuRepository.deleteByParentId(id);
         menuRepository.deleteById(id);
         menuQueryCache.invalidate();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateMenuOrder(Long menuId, int newOrder) {
         menuRepository.findById(menuId).ifPresent(menu -> {
             menu.setMenuOrder(newOrder);
@@ -181,7 +181,7 @@ public class AdminMenuService {
         });
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void toggleEnabled(Long menuId) {
         menuRepository.findById(menuId).ifPresent(menu -> {
             menu.setEnabled(!menu.isEnabled());
@@ -190,7 +190,7 @@ public class AdminMenuService {
         });
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateMenuRoles(Long menuId, Set<String> roleNames) {
         menuRepository.findById(menuId).ifPresent(menu -> {
             menu.clearRoles();

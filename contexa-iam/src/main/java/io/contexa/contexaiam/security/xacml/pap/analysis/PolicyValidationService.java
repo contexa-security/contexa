@@ -34,7 +34,7 @@ public class PolicyValidationService {
      * Validate a candidate policy before creation or update.
      * Returns conflicts, duplicates, and whether creation is allowed.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PolicyValidationReport validate(Policy candidate) {
         List<PolicyConflictDto> conflicts = conflictAnalyzer.analyze(candidate);
         List<DuplicatePolicyDto> duplicates = duplicateDetector.detect(candidate);
@@ -85,7 +85,7 @@ public class PolicyValidationService {
      * Validate all existing policies against each other.
      * Returns full system health report for admin dashboard.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public FullValidationReport validateAll() {
         List<Policy> allPolicies = policyRepository.findAllWithDetails();
         List<PolicyConflictDto> allConflicts = new ArrayList<>();

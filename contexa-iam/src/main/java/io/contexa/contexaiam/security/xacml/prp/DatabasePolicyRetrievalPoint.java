@@ -13,7 +13,7 @@ import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
 
     private static final String CACHE_DOMAIN = "policies";

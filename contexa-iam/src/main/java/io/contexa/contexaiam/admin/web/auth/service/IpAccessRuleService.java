@@ -48,17 +48,17 @@ public class IpAccessRuleService {
         return cached;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<IpAccessRule> getAllRules(Pageable pageable) {
         return ipAccessRuleRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<IpAccessRule> getRulesByType(IpAccessRule.RuleType type, Pageable pageable) {
         return ipAccessRuleRepository.findByRuleTypeOrderByCreatedAtDesc(type, pageable);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public IpAccessRule createRule(String ipAddress, IpAccessRule.RuleType ruleType,
                                    String description, String createdBy,
                                    LocalDateTime expiresAt) {
@@ -75,13 +75,13 @@ public class IpAccessRuleService {
         return saved;
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteRule(Long id) {
         ipAccessRuleRepository.deleteById(id);
         invalidateCache();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void toggleRule(Long id) {
         ipAccessRuleRepository.findById(id).ifPresent(rule -> {
             rule.setEnabled(!rule.isEnabled());
@@ -90,17 +90,17 @@ public class IpAccessRuleService {
         invalidateCache();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public long countAllowRules() {
         return ipAccessRuleRepository.countByRuleTypeAndEnabledTrue(IpAccessRule.RuleType.ALLOW);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public long countDenyRules() {
         return ipAccessRuleRepository.countByRuleTypeAndEnabledTrue(IpAccessRule.RuleType.DENY);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public boolean existsByIpAndType(String ipAddress, IpAccessRule.RuleType ruleType) {
         return ipAccessRuleRepository.existsByIpAddressAndRuleType(ipAddress, ruleType);
     }
@@ -180,12 +180,12 @@ public class IpAccessRuleService {
         return getAllowRules().stream().anyMatch(rule -> isRuleActive(rule, now));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<IpAccessRule> findAllEnabledRules() {
         return ipAccessRuleRepository.findByEnabledTrueOrderByCreatedAtDesc();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<IpAccessRule> findAllRules() {
         return ipAccessRuleRepository.findAll();
     }

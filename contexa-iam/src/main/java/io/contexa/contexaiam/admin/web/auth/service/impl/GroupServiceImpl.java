@@ -19,13 +19,13 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class GroupServiceImpl implements GroupService {
     private final GroupRepository groupRepository;
     private final RoleRepository roleRepository;
     private final RoleHierarchyRepository roleHierarchyRepository;
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public Group createGroup(Group group, List<Long> selectedRoleIds) {
@@ -55,14 +55,14 @@ public class GroupServiceImpl implements GroupService {
         return groupRepository.findAllWithRolesAndUsers();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public void deleteGroup(Long id) {
         groupRepository.deleteById(id);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {

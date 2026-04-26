@@ -60,7 +60,7 @@ public class PolicyGenerationCollectionService {
         this.collectionExecutor = collectionExecutor != null ? collectionExecutor : ForkJoinPool.commonPool();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PolicyGenerationItem.AvailableItems collectData() {
 
         CompletableFuture<List<PolicyGenerationItem.RoleItem>> roles = CompletableFuture.supplyAsync(() -> {
@@ -117,7 +117,7 @@ public class PolicyGenerationCollectionService {
      * Collect existing active policies summary for LLM context.
      * Helps AI avoid generating conflicting or duplicate policies.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public String collectExistingPoliciesSummary() {
         List<Policy> policies = policyRepository.findAllWithDetails();
         if (policies.isEmpty()) return "";

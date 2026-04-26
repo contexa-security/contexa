@@ -47,7 +47,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void storeDocument(Document document) {
         long startTime = System.currentTimeMillis();
 
@@ -78,7 +78,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void storeDocuments(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
             return;
@@ -190,7 +190,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteDocuments(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
             return;

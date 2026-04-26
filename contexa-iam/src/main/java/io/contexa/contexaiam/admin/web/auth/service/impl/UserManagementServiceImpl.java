@@ -47,7 +47,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final SystemSettingsService systemSettingsService;
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void createUser(UserDto userDto) {
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
@@ -129,7 +129,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Override
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
 //    @Protectable
@@ -197,7 +197,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 //    @Protectable
     public UserDto getUser(Long id) {
         log.error("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
@@ -220,7 +220,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         return userDto;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 //    @Protectable
     public List<UserListDto> getUsers() {
         return userRepository.findAllWithDetails().stream()
@@ -235,7 +235,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable(ownerField = "username")
     public void deleteUser(Long id) {

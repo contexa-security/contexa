@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -38,7 +39,7 @@ public class CoreSchedulerLockAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(LockProvider.class)
     public LockProvider shedLockProvider(
-            DataSource dataSource,
+            @Qualifier("contexaDataSource") DataSource dataSource,
             ContexaSchedulerLockProperties properties) {
         JdbcTemplateLockProvider.Configuration.Builder builder =
                 JdbcTemplateLockProvider.Configuration.builder()

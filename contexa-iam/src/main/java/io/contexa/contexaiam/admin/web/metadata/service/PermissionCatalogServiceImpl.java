@@ -26,7 +26,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     private final PolicyService policyService;
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public Permission synchronizePermissionFor(ManagedResource resource) {
         if (resource.getStatus() == ManagedResource.Status.NEEDS_DEFINITION) {
             throw new IllegalStateException("Cannot create permission from a resource that needs definition. Resource ID: " + resource.getId());
@@ -54,7 +54,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<PermissionDto> getAvailablePermissions() {
         return permissionRepository.findDefinedPermissionsWithDetails().stream()
                 .map(p -> modelMapper.map(p, PermissionDto.class))
@@ -62,7 +62,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<PermissionDto> searchAvailablePermissions(String keyword, Collection<Long> excludeIds, Pageable pageable) {
         Collection<Long> safeExcludeIds = (excludeIds == null || excludeIds.isEmpty())
                 ? Collections.singleton(-1L) : excludeIds;

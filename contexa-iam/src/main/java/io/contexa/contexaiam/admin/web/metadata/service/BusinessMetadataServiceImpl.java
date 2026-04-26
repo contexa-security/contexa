@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class BusinessMetadataServiceImpl implements BusinessMetadataService {
 
     private final BusinessResourceRepository businessResourceRepository;

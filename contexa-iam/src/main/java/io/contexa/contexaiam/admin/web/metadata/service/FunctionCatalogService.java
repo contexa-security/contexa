@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class FunctionCatalogService {
 
     private final FunctionCatalogRepository functionCatalogRepository;
@@ -37,7 +37,7 @@ public class FunctionCatalogService {
         return functionGroupRepository.findAll();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void confirmFunction(Long catalogId, Long groupId) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
                 .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + catalogId));
@@ -55,7 +55,7 @@ public class FunctionCatalogService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateCatalog(Long id, FunctionCatalogUpdateDto dto) {
         FunctionCatalog catalog = functionCatalogRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + id));
@@ -69,7 +69,7 @@ public class FunctionCatalogService {
         functionCatalogRepository.save(catalog);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateSingleStatus(Long catalogId, String status) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
                 .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + catalogId));
@@ -93,7 +93,7 @@ public class FunctionCatalogService {
         return new GroupedFunctionCatalogDto(grouped);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void confirmBatch(List<Map<String, Long>> payload) {
         for (Map<String, Long> item : payload) {
             Long catalogId = item.get("catalogId");
@@ -102,7 +102,7 @@ public class FunctionCatalogService {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void batchUpdateStatus(List<Long> ids, String status) {
         FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
         List<FunctionCatalog> catalogs = functionCatalogRepository.findAllById(ids);

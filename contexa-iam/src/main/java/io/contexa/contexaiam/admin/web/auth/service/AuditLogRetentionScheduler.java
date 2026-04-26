@@ -21,7 +21,7 @@ public class AuditLogRetentionScheduler {
 
     @Scheduled(cron = "0 0 2 * * *")
     @SchedulerLock(name = "auditLogRetentionCleanup", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void cleanupExpiredAuditLogs() {
         int retentionDays = systemSettingsService.getSettings().getAuditLogRetentionDays();
         if (retentionDays <= 0) {

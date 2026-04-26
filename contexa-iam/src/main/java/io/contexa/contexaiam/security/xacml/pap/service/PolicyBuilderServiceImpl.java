@@ -47,7 +47,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<PolicyTemplateDto> getAvailableTemplates(PolicyContext context) {
         List<PolicyTemplate> templates = policyTemplateRepository.findAll();
         return templates.stream()
@@ -57,7 +57,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public Policy buildPolicyFromVisualComponents(VisualPolicyDto dto) {
         Policy policy = Policy.builder()
                 .name(dto.name()).description(dto.description()).effect(dto.effect()).priority(500).build();

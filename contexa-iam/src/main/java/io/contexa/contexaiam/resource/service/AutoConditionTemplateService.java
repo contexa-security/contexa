@@ -29,7 +29,7 @@ public class AutoConditionTemplateService {
 
     private static final int BATCH_SIZE = 10;
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public List<ConditionTemplate> generateConditionTemplates() {
 
         List<ManagedResource> methodResources = managedResourceRepository.findByResourceType(ManagedResource.ResourceType.METHOD);
@@ -180,7 +180,7 @@ public class AutoConditionTemplateService {
         return templates;
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public List<ConditionTemplate> saveDedupedTemplates(List<ConditionTemplate> templates) {
 
         List<ConditionTemplate> allExistingTemplates = conditionTemplateRepository.findAll();

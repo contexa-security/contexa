@@ -11,12 +11,12 @@ public class IAMDataCollectionService {
 
     private final PolicyGenerationCollectionService policyGenerationCollectionService;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public PolicyGenerationItem.AvailableItems policyCollectData() {
         return policyGenerationCollectionService.collectData();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public String collectExistingPoliciesSummary() {
         return policyGenerationCollectionService.collectExistingPoliciesSummary();
     }

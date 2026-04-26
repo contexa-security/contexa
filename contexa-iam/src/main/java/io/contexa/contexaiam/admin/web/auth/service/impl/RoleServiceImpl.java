@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
@@ -39,32 +39,32 @@ public class RoleServiceImpl implements RoleService {
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final PolicySynchronizationService policySynchronizationService;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     @Cacheable(value = "roles", key = "#id")
     public Role getRole(long id) {
         return roleRepository.findByIdWithPermissions(id)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     @Cacheable(value = "roles", key = "'allRoles'")
     public List<Role> getRoles() {
         return roleRepository.findAllWithPermissions();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     @Cacheable(value = "rolesWithoutExpression", key = "'allRolesWithoutExpression'")
     public List<Role> getRolesWithoutExpression() {
         return roleRepository.findAllRolesWithoutExpression();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<Role> searchRoles(String keyword, Pageable pageable) {
         return roleRepository.searchByKeyword(keyword, pageable);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Caching(
             evict = {
                     @CacheEvict(value = "usersWithAuthorities", allEntries = true),
@@ -99,7 +99,7 @@ public class RoleServiceImpl implements RoleService {
         return saved;
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Caching(
             evict = {
                     @CacheEvict(value = "usersWithAuthorities", allEntries = true),
@@ -140,7 +140,7 @@ public class RoleServiceImpl implements RoleService {
         return savedRole;
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Caching(
             evict = {
                     @CacheEvict(value = "usersWithAuthorities", allEntries = true),

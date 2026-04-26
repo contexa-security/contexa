@@ -18,14 +18,14 @@ public class PasswordPolicyService {
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PasswordPolicy getCurrentPolicy() {
         return repository.findAll().stream()
                 .findFirst()
                 .orElseGet(() -> repository.save(PasswordPolicy.builder().build()));
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PasswordPolicy updatePolicy(PasswordPolicy policy) {
         PasswordPolicy existing = getCurrentPolicy();
         existing.setMinLength(policy.getMinLength());
@@ -96,7 +96,7 @@ public class PasswordPolicyService {
     /**
      * Records the current password in history before changing it.
      */
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void recordPasswordHistory(Long userId, String encodedPassword) {
         passwordHistoryRepository.save(PasswordHistory.builder()
                 .userId(userId)

@@ -23,7 +23,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Caching(
             evict = {@CacheEvict(value = "usersWithAuthorities", allEntries = true)},
             put = {@CachePut(value = "permissions", key = "#result.id")}
@@ -49,7 +49,7 @@ public class PermissionServiceImpl implements PermissionService {
         return permissionRepository.findAll();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Caching(
             evict = {
                     @CacheEvict(value = "usersWithAuthorities", allEntries = true),
@@ -83,7 +83,7 @@ public class PermissionServiceImpl implements PermissionService {
             evict = {@CacheEvict(value = "usersWithAuthorities", allEntries = true)},
             put = {@CachePut(value = "permissions", key = "#result.id")}
     )
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Override
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
         Permission permission = permissionRepository.findById(id)

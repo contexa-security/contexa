@@ -40,7 +40,7 @@ public class PasswordChangeController {
     }
 
     @PostMapping("/password-change")
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public String processPasswordChange(
             @RequestParam String username,

@@ -12,12 +12,12 @@ public class PolicyService {
 
     private final PolicyRepository policyRepository;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Policy findById(Long id) {
         return policyRepository.findById(id).orElse(null);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public Policy save(Policy policy) {
         return policyRepository.save(policy);
     }

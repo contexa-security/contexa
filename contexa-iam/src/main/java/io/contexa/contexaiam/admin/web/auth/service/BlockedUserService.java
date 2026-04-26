@@ -35,7 +35,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void recordBlock(String requestId, String userId, String username,
                             String action, String reasoning,
                             String sourceIp, String userAgent) {
@@ -91,7 +91,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void resolveBlock(String userId, String adminId, String resolvedAction, String reason) {
         Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
                 .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
@@ -104,7 +104,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         applyResolution(blocked, adminId, resolvedAction, reason);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void resolveBlockById(Long id, String adminId, String resolvedAction, String reason) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Blocked user not found: id=" + id));
@@ -143,7 +143,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void requestUnblock(String userId, String reason) {
         Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
                 .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
@@ -171,7 +171,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 .build());
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void requestUnblockWithMfa(String userId, String reason, boolean mfaVerified) {
         Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
                 .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
@@ -192,7 +192,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void markMfaVerified(String userId) {
         blockedUserJpaRepository
                 .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED)
@@ -215,7 +215,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void markMfaFailed(String userId) {
         blockedUserJpaRepository
                 .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED)
@@ -261,27 +261,27 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 });
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<BlockedUser> getUnblockRequested() {
         return blockedUserJpaRepository.findByStatusOrderByBlockedAtDesc(BlockedUserStatus.UNBLOCK_REQUESTED);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<BlockedUser> getBlockedUsers() {
         return blockedUserJpaRepository.findByStatusOrderByBlockedAtDesc(BlockedUserStatus.BLOCKED);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<BlockedUser> getAllBlockHistory() {
         return blockedUserJpaRepository.findAllByOrderByBlockedAtDesc();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Optional<BlockedUser> getBlockDetail(Long id) {
         return blockedUserJpaRepository.findById(id);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteBlockRecord(Long id) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Blocked user not found: id=" + id));

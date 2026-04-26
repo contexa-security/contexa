@@ -17,7 +17,7 @@ public class UserContextServiceImpl implements UserContextService {
 
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<RecentActivityDto> getRecentActivities(String username) {
         return auditLogRepository.findTop5ByPrincipalNameOrderByIdDesc(username).stream()
                 .map(log -> new RecentActivityDto(log.getAction(), log.getResourceIdentifier(), log.getTimestamp()))

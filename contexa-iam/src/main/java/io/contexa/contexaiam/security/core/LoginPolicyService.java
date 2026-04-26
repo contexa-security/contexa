@@ -19,7 +19,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     private final PasswordPolicyService passwordPolicyService;
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void onLoginSuccess(String username, String ip) {
         userRepository.findByUsername(username).ifPresent(user -> {
             user.setFailedLoginAttempts(0);
@@ -30,7 +30,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void onLoginFailure(String username) {
         userRepository.findByUsername(username).ifPresent(user -> {
             int attempts = user.getFailedLoginAttempts() + 1;
@@ -48,7 +48,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public boolean checkAndUnlockIfExpired(String username) {
         return userRepository.findByUsername(username).map(user -> {
             if (user.isAccountLocked() && user.getLockExpiresAt() != null
@@ -64,7 +64,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public boolean isCredentialsExpired(String username) {
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
         if (policy.getPasswordExpiryDays() <= 0) {

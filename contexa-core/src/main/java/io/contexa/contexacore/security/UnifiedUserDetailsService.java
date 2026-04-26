@@ -23,7 +23,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
     private final AuthorityResolver authorityResolver;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
         log.error("[UnifiedUserDetailsService] findByUsernameWithGroupsRolesAndPermissions username={}", username);

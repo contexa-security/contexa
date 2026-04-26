@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Transactional
+@Transactional(transactionManager = "contexaTransactionManager")
 public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
     private final PolicyRepository policyRepository;

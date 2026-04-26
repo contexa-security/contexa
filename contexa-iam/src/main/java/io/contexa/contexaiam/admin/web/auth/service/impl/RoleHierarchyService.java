@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class RoleHierarchyService {
 
     private final RoleHierarchyRepository roleHierarchyRepository;
@@ -53,7 +53,7 @@ public class RoleHierarchyService {
                 .collect(Collectors.joining("\n"));
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
@@ -86,7 +86,7 @@ public class RoleHierarchyService {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
@@ -120,14 +120,14 @@ public class RoleHierarchyService {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void deleteRoleHierarchy(Long id) {
         roleHierarchyRepository.deleteById(id);
         reloadRoleHierarchyBean();
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public boolean activateRoleHierarchy(Long activeId) {
         RoleHierarchyEntity target = roleHierarchyRepository.findById(activeId)

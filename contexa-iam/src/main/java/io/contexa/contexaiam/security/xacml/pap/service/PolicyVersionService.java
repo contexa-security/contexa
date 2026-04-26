@@ -35,7 +35,7 @@ public class PolicyVersionService {
     /**
      * Create a version snapshot for the given policy.
      */
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyVersion createVersion(Policy policy, ChangeType changeType, String reason) {
         int nextVersion = versionRepository.findMaxVersionNumber(policy.getId()) + 1;
 
@@ -65,7 +65,7 @@ public class PolicyVersionService {
     /**
      * Get version history for a policy, ordered by version number descending.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<PolicyVersion> getVersions(Long policyId) {
         return versionRepository.findByPolicyIdOrderByVersionNumberDesc(policyId);
     }
@@ -73,7 +73,7 @@ public class PolicyVersionService {
     /**
      * Get a specific version snapshot.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Optional<PolicyVersion> getVersion(Long policyId, int versionNumber) {
         return versionRepository.findByPolicyIdAndVersionNumber(policyId, versionNumber);
     }
@@ -94,7 +94,7 @@ public class PolicyVersionService {
     /**
      * Compare two versions and return field-level differences.
      */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     @SuppressWarnings("unchecked")
     public List<Map<String, String>> compareVersions(Long policyId, int v1, int v2) {
         PolicyVersion version1 = versionRepository.findByPolicyIdAndVersionNumber(policyId, v1)
@@ -128,7 +128,7 @@ public class PolicyVersionService {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteByPolicyId(Long policyId) {
         versionRepository.deleteByPolicyId(policyId);
     }

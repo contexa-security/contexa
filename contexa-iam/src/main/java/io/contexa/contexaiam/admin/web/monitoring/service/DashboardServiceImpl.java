@@ -55,7 +55,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final PolicyCombiningProperties policyCombiningProperties;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public DashboardDto getDashboardData() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = (authentication != null) ? authentication.getName() : "SYSTEM";

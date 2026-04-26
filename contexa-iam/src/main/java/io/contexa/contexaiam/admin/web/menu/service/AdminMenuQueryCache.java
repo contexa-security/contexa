@@ -27,7 +27,7 @@ public class AdminMenuQueryCache {
     }
 
     @Cacheable(cacheNames = CACHE_NAME, key = CACHE_KEY)
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<AdminMenu> findAllWithRoles() {
         return repository.findAllWithRolesOrderByMenuOrder();
     }
