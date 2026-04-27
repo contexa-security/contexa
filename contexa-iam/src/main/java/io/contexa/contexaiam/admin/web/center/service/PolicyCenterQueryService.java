@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +45,7 @@ import java.util.Set;
 
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PolicyCenterQueryService {
 
     private final ResourceRegistryService resourceRegistryService;
@@ -220,8 +222,8 @@ public class PolicyCenterQueryService {
                 permission.getTargetType(),
                 permission.getActionType(),
                 permission.getConditionExpression(),
-                permission.getManagedResourceId(),
-                permission.getManagedResourceIdentifier()
+                permission.getLinkedResourceId(),
+                permission.getLinkedResourceIdentifier()
         );
     }
 

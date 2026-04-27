@@ -18,6 +18,6 @@ public class PermissionDto {
     private String actionType;
     private String conditionExpression;
 
-    private Long managedResourceId;
-    private String managedResourceIdentifier;
+    private Long linkedResourceId;
+    private String linkedResourceIdentifier;
 }

@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -50,6 +51,7 @@ import java.util.Set;
 
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class AccessCenterService {
 
     private final UserRepository userRepository;
@@ -170,6 +172,7 @@ public class AccessCenterService {
         );
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateUserGroups(Long userId, UpdateUserGroupsRequest request) {
         List<Long> groupIds = request.groupIdsOrEmpty();
         Users user = userRepository.findById(userId)
@@ -186,6 +189,7 @@ public class AccessCenterService {
         return new AccessActionResponse(true, "Groups updated successfully.");
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateUserDirectRoles(Long userId, AccessRoleAssignmentsRequest request) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
@@ -199,6 +203,7 @@ public class AccessCenterService {
             for (var assignment : request.getRoleAssignments()) {
                 Long roleId = assignment.getRoleId();
                 List<String> cruds = assignment.crudPermissionsOrDefault();
+                List<Long> extraPermIds = assignment.extraPermissionIdsOrEmpty();
 
                 Role role = roleRepository.findById(roleId)
                         .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
@@ -218,6 +223,18 @@ public class AccessCenterService {
                         userRolePermissionRepository.save(urp);
                     }
                 }
+
+                for (Long permId : extraPermIds) {
+                    Permission perm = permissionRepository.findById(permId).orElse(null);
+                    if (perm != null) {
+                        UserRolePermission urp = new UserRolePermission();
+                        urp.setUser(user);
+                        urp.setRole(role);
+                        urp.setPermission(perm);
+                        urp.setAssignedBy(principal);
+                        userRolePermissionRepository.save(urp);
+                    }
+                }
             }
         } else {
             for (Long roleId : request.roleIdsOrEmpty()) {
@@ -227,7 +244,7 @@ public class AccessCenterService {
 
                 role.getRolePermissions().forEach(rp -> {
                     Permission perm = rp.getPermission();
-                    if (perm != null && "CRUD".equals(perm.getTargetType())) {
+                    if (isCrudPermission(perm)) {
                         UserRolePermission urp = new UserRolePermission();
                         urp.setUser(user);
                         urp.setRole(role);
@@ -275,6 +292,7 @@ public class AccessCenterService {
         );
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateGroupRoles(Long groupId, AccessRoleAssignmentsRequest request) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
@@ -288,6 +306,7 @@ public class AccessCenterService {
             for (var assignment : request.getRoleAssignments()) {
                 Long roleId = assignment.getRoleId();
                 List<String> cruds = assignment.crudPermissionsOrDefault();
+                List<Long> extraPermIds = assignment.extraPermissionIdsOrEmpty();
 
                 Role role = roleRepository.findById(roleId)
                         .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
@@ -307,6 +326,18 @@ public class AccessCenterService {
                         groupRolePermissionRepository.save(grp);
                     }
                 }
+
+                for (Long permId : extraPermIds) {
+                    Permission perm = permissionRepository.findById(permId).orElse(null);
+                    if (perm != null) {
+                        GroupRolePermission grp = new GroupRolePermission();
+                        grp.setGroup(group);
+                        grp.setRole(role);
+                        grp.setPermission(perm);
+                        grp.setAssignedBy(principal);
+                        groupRolePermissionRepository.save(grp);
+                    }
+                }
             }
         } else {
             for (Long roleId : request.roleIdsOrEmpty()) {
@@ -316,7 +347,7 @@ public class AccessCenterService {
 
                 role.getRolePermissions().forEach(rp -> {
                     Permission perm = rp.getPermission();
-                    if (perm != null && "CRUD".equals(perm.getTargetType())) {
+                    if (isCrudPermission(perm)) {
                         GroupRolePermission grpPerm = new GroupRolePermission();
                         grpPerm.setGroup(group);
                         grpPerm.setRole(role);
@@ -372,27 +403,51 @@ public class AccessCenterService {
         );
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateRolePermissions(Long roleId, UpdateRolePermissionsRequest request) {
         Role role = roleService.getRole(roleId);
         roleService.updateRole(role, request.permissionIdsOrEmpty());
         return new AccessActionResponse(true, "Role permissions updated successfully.");
     }
 
+    private static final java.util.Set<String> CRUD_PERMISSION_NAMES =
+            java.util.Set.of("READ", "WRITE", "UPDATE", "DELETE");
+
+    private static boolean isCrudPermission(Permission p) {
+        return p != null && p.getName() != null && CRUD_PERMISSION_NAMES.contains(p.getName());
+    }
+
     public List<AccessRoleOptionResponse> getAllRolesSimple() {
-        return roleRepository.findAll().stream()
+        return roleRepository.findAllWithPermissions().stream()
                 .map(r -> {
-                    List<String> cruds = r.getRolePermissions() != null
+                    List<Permission> mapped = r.getRolePermissions() != null
                             ? r.getRolePermissions().stream()
-                            .map(rp -> rp.getPermission())
-                            .filter(p -> p != null && "CRUD".equals(p.getTargetType()))
-                            .map(Permission::getName)
-                            .toList()
+                                    .map(rp -> rp.getPermission())
+                                    .filter(java.util.Objects::nonNull)
+                                    .toList()
                             : List.of();
+                    // Classification is name-based (not target_type-based) so admins can
+                    // create non-CRUD permissions with any target_type without breaking the UI
+                    List<String> cruds = mapped.stream()
+                            .filter(AccessCenterService::isCrudPermission)
+                            .map(Permission::getName)
+                            .toList();
+                    List<AccessPermissionSummaryResponse> extras = mapped.stream()
+                            .filter(p -> !isCrudPermission(p))
+                            .map(p -> new AccessPermissionSummaryResponse(
+                                    p.getId(),
+                                    p.getName(),
+                                    p.getFriendlyName(),
+                                    p.getDescription()))
+                            .toList();
+                    // Return only the CRUDs actually mapped to this role.
+                    // Empty list means "no CRUD mapped" — JS shows all 4 chips but only READ default-checked.
                     return new AccessRoleOptionResponse(
                             r.getId(),
                             r.getRoleName(),
                             r.getRoleDesc(),
-                            cruds.isEmpty() ? List.of("READ", "WRITE", "UPDATE", "DELETE") : cruds
+                            cruds,
+                            extras
                     );
                 })
                 .toList();

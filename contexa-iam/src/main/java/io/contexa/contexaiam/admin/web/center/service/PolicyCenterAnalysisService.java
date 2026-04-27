@@ -17,11 +17,13 @@ import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PolicyCenterAnalysisService {
 
     private final PolicyService policyService;

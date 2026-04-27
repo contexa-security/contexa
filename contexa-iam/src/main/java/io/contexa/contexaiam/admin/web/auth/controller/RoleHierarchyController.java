@@ -24,6 +24,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -37,6 +38,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/admin/role-hierarchies")
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class RoleHierarchyController {
 
     private final RoleHierarchyService roleHierarchyService;
@@ -77,6 +79,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String createRoleHierarchy(@ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
         try {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
@@ -137,6 +140,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/{id}/edit")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String updateRoleHierarchy(@PathVariable Long id, @ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
         try {
             hierarchyDto.setId(id);
@@ -151,6 +155,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/delete/{id}")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             roleHierarchyService.deleteRoleHierarchy(id);
@@ -163,6 +168,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/{id}/activate")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             boolean newState = roleHierarchyService.activateRoleHierarchy(id);

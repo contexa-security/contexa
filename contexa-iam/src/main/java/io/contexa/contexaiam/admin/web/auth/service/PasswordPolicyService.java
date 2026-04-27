@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PasswordPolicyService {
 
     private final PasswordPolicyRepository repository;

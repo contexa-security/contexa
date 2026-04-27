@@ -21,11 +21,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 
 @Controller
 @RequestMapping("/admin/policies")
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PolicyController {
 
     private final PolicyService policyService;
@@ -57,6 +59,7 @@ public class PolicyController {
     }
 
     @PostMapping
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyService.createPolicy(policyDto);
@@ -84,6 +87,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/edit")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String updatePolicy(@PathVariable Long id, @ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyDto.setId(id);
@@ -145,6 +149,7 @@ public class PolicyController {
     }
 
     @PostMapping("/delete/{id}")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String deletePolicy(@PathVariable Long id,
                                 @RequestParam(required = false) String changeReason,
                                 RedirectAttributes ra) {
@@ -159,6 +164,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/approve")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String approvePolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             String approver = extractCurrentUsername();
@@ -172,6 +178,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/reject")
+    @Transactional(transactionManager = "contexaTransactionManager")
     public String rejectPolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             String rejector = extractCurrentUsername();

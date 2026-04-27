@@ -76,7 +76,7 @@ public class PolicyGenerationCollectionService {
                             permission.getName(),
                             permission.getDescription(),
                             permission.getTargetType(),
-                            permission.getManagedResourceIdentifier(),
+                            permission.getLinkedResourceIdentifier(),
                             permission.getActionType()))
                     .toList();
         }, collectionExecutor);

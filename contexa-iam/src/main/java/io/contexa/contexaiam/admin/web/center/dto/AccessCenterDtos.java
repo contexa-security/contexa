@@ -101,7 +101,8 @@ public final class AccessCenterDtos {
             Long id,
             String name,
             String desc,
-            List<String> crudPermissions
+            List<String> crudPermissions,
+            List<AccessPermissionSummaryResponse> extraPermissions
     ) {
     }
 
@@ -222,6 +223,7 @@ public final class AccessCenterDtos {
         private Long roleId;
         private List<String> crudPermissions;
         private boolean crudPermissionsSet;
+        private List<Long> extraPermissionIds;
 
         public Long getRoleId() {
             return roleId;
@@ -245,6 +247,18 @@ public final class AccessCenterDtos {
                 throw new IllegalArgumentException("crudPermissions must not be null");
             }
             return crudPermissions != null ? crudPermissions : List.of("READ");
+        }
+
+        public List<Long> getExtraPermissionIds() {
+            return extraPermissionIds;
+        }
+
+        public void setExtraPermissionIds(List<Long> extraPermissionIds) {
+            this.extraPermissionIds = extraPermissionIds;
+        }
+
+        public List<Long> extraPermissionIdsOrEmpty() {
+            return extraPermissionIds != null ? extraPermissionIds : Collections.emptyList();
         }
     }
 }

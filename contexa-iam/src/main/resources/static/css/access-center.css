@@ -997,3 +997,391 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================
+   ROLE CARD (Users 탭 직접 역할) — 역할명 위, CRUD 아래 분리 레이아웃
+   ============================================================ */
+.ac-role-card {
+    position: relative;
+    padding: 1rem 1.125rem;
+    border-radius: 0.875rem;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.65) 100%);
+    border: 1px solid rgba(71, 85, 105, 0.35);
+    margin-bottom: 0.75rem;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.ac-role-card:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+}
+
+.ac-role-card[data-active="true"] {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.35), 0 8px 24px -12px rgba(99, 102, 241, 0.5);
+    background: linear-gradient(180deg, rgba(67, 56, 202, 0.18) 0%, rgba(15, 23, 42, 0.65) 100%);
+}
+
+/* 헤더: 마스터 토글 + 아이콘 + 역할명/설명 */
+.ac-role-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.ac-role-card-head input[type="checkbox"] {
+    accent-color: #6366f1;
+    width: 1.125rem;
+    height: 1.125rem;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.ac-role-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: rgba(99, 102, 241, 0.18);
+    color: #a5b4fc;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.ac-role-card[data-active="true"] .ac-role-card-icon {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.6);
+}
+
+.ac-role-card-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.ac-role-card-name {
+    color: #f1f5f9;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    letter-spacing: 0.01em;
+}
+
+.ac-role-card-desc {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 구분선 */
+.ac-role-card-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.25) 30%, rgba(99, 102, 241, 0.25) 70%, transparent 100%);
+    margin: 0.75rem 0 0.625rem;
+}
+
+/* CRUD 섹션 (역할명 아래) */
+.ac-role-card-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ac-role-card-section-label {
+    color: #818cf8;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.ac-role-card-section-label i {
+    font-size: 0.625rem;
+    opacity: 0.8;
+}
+
+/* CRUD 칩 그룹 — 역할 비활성 시 흐림+잠금 */
+.ac-role-card .ac-crud-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    transition: opacity 0.2s;
+}
+
+.ac-role-card:not([data-active="true"]) .ac-crud-group {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+/* 칩 디자인 — Read/Write/Update/Delete 색상 강조 */
+.ac-crud-chip {
+    --crud-color: #94a3b8;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+}
+
+.ac-crud-chip input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.ac-crud-chip-body {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.18s;
+}
+
+.ac-crud-chip-body i {
+    font-size: 0.6875rem;
+    opacity: 0.7;
+}
+
+.ac-crud-chip:hover .ac-crud-chip-body {
+    border-color: var(--crud-color);
+    color: var(--crud-color);
+}
+
+.ac-crud-chip input[type="checkbox"]:checked + .ac-crud-chip-body {
+    background: color-mix(in srgb, var(--crud-color) 18%, transparent);
+    border-color: var(--crud-color);
+    color: var(--crud-color);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--crud-color) 35%, transparent);
+}
+
+.ac-crud-chip input[type="checkbox"]:checked + .ac-crud-chip-body i {
+    opacity: 1;
+}
+
+.ac-crud-chip input[type="checkbox"]:disabled + .ac-crud-chip-body {
+    cursor: not-allowed;
+    opacity: 0.95;
+}
+
+.ac-crud-chip input[type="checkbox"]:disabled + .ac-crud-chip-body::after {
+    content: "필수";
+    margin-left: 0.25rem;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    padding: 0.0625rem 0.3125rem;
+    border-radius: 0.25rem;
+    background: color-mix(in srgb, var(--crud-color) 22%, transparent);
+    color: var(--crud-color);
+    letter-spacing: 0.04em;
+}
+
+/* 추가 권한 (비-CRUD) 칩 — 보라 계열로 CRUD 와 시각적 구분 */
+.ac-extra-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    transition: opacity 0.2s;
+}
+
+.ac-role-card:not([data-active="true"]) .ac-extra-group {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.ac-extra-chip {
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+}
+
+.ac-extra-chip input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.ac-extra-chip-body {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.18s;
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ac-extra-chip-body i {
+    font-size: 0.625rem;
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+.ac-extra-chip:hover .ac-extra-chip-body {
+    border-color: #a78bfa;
+    color: #c4b5fd;
+}
+
+.ac-extra-chip input[type="checkbox"]:checked + .ac-extra-chip-body {
+    background: rgba(167, 139, 250, 0.18);
+    border-color: #a78bfa;
+    color: #c4b5fd;
+    box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.35);
+}
+
+.ac-extra-chip input[type="checkbox"]:checked + .ac-extra-chip-body i {
+    opacity: 1;
+}
+
+/* 매핑 표시 — 역할에 매핑된 권한 (자동 체크된 상태 또는 체크 권장) */
+.ac-crud-chip.mapped .ac-crud-chip-body,
+.ac-extra-chip.mapped .ac-extra-chip-body {
+    border-style: solid;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--crud-color, #a78bfa) 30%, transparent);
+}
+
+.ac-mapped-mark {
+    margin-left: 0.3125rem;
+    font-size: 0.5625rem !important;
+    opacity: 0.85 !important;
+    color: var(--crud-color, #a78bfa);
+}
+
+/* 권한 더보기 토글 — 접힘 상태 기본, 클릭 시 펼침 */
+.ac-extra-section {
+    overflow: hidden;
+}
+
+.ac-extra-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(167, 139, 250, 0.08);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+    color: #c4b5fd;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.ac-extra-toggle:hover {
+    background: rgba(167, 139, 250, 0.15);
+    border-color: rgba(167, 139, 250, 0.45);
+}
+
+.ac-extra-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+    letter-spacing: 0.02em;
+}
+
+.ac-extra-toggle-label i {
+    font-size: 0.6875rem;
+    opacity: 0.8;
+}
+
+.ac-extra-toggle-arrow {
+    font-size: 0.625rem;
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+}
+
+.ac-extra-section[data-expanded="true"] .ac-extra-toggle-arrow {
+    transform: rotate(180deg);
+}
+
+/* 펼침/접힘 — 그룹 영역 */
+.ac-extra-section .ac-extra-group {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    transition: max-height 0.25s ease, opacity 0.18s ease, margin-top 0.2s ease;
+}
+
+.ac-extra-section[data-expanded="true"] .ac-extra-group {
+    max-height: 32rem;
+    margin-top: 0.625rem;
+    opacity: 1;
+}
+
+/* 권한 할당 헤더 — 안내 문구 */
+.ac-section-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.ac-section-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: #a5b4fc;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.ac-section-hint i {
+    color: #818cf8;
+    font-size: 0.6875rem;
+    opacity: 0.85;
+}
+
+/* 권한 그리드 — 필수 권한 (READ) 강조 + 비활성화 */
+.ac-checkbox-item.required {
+    background: rgba(99, 102, 241, 0.12) !important;
+    border-color: rgba(99, 102, 241, 0.4) !important;
+    cursor: not-allowed;
+}
+
+.ac-checkbox-item.required input[type="checkbox"] {
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.ac-required-badge {
+    display: inline-block;
+    margin-left: 0.375rem;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 0.25rem;
+    background: rgba(99, 102, 241, 0.22);
+    color: #a5b4fc;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}

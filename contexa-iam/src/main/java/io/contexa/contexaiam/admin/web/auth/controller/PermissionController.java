@@ -133,8 +133,8 @@ public class PermissionController {
     private PermissionDto convertToDto(Permission permission) {
         PermissionDto dto = modelMapper.map(permission, PermissionDto.class);
         if (permission.getManagedResource() != null) {
-            dto.setManagedResourceId(permission.getManagedResource().getId());
-            dto.setManagedResourceIdentifier(permission.getManagedResource().getResourceIdentifier());
+            dto.setLinkedResourceId(permission.getManagedResource().getId());
+            dto.setLinkedResourceIdentifier(permission.getManagedResource().getResourceIdentifier());
         }
         return dto;
     }

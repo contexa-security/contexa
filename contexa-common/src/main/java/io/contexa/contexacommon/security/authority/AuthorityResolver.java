@@ -51,7 +51,7 @@ public class AuthorityResolver {
                 loadGroupPermissionsByGroupAndRole(user);
         Map<Long, List<RolePermission>> rolePermissionsByRole = loadRolePermissionsByRole(user);
 
-        // 1. Direct role assignments -> user-specific CRUD permissions
+        // 1. Direct role assignments -> user-specific CRUD permissions + role-mapped non-CRUD permissions
         Optional.ofNullable(user.getUserRoles())
                 .orElse(Collections.emptySet()).stream()
                 .map(UserRole::getRole)
@@ -61,10 +61,10 @@ public class AuthorityResolver {
                     authorities.add(new RoleAuthority(role));
                     List<UserRolePermission> urps = userPermissionsByRole.getOrDefault(role.getId(), Collections.emptyList());
                     if (!urps.isEmpty()) {
+                        // User-specific activations (CRUD subset + selected non-CRUD)
                         urps.forEach(urp -> authorities.add(new PermissionAuthority(urp.getPermission())));
                     } else {
                         // Fallback: if no UserRolePermission entries exist, grant all role permissions
-                        // This ensures backward compatibility during migration
                         rolePermissionsByRole.getOrDefault(role.getId(), Collections.emptyList()).stream()
                                 .map(RolePermission::getPermission)
                                 .filter(Objects::nonNull)

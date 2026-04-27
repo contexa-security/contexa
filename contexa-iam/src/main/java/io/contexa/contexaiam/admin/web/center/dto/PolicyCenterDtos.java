@@ -78,8 +78,8 @@ public final class PolicyCenterDtos {
             String targetType,
             String actionType,
             String conditionExpression,
-            Long managedResourceId,
-            String managedResourceIdentifier
+            Long linkedResourceId,
+            String linkedResourceIdentifier
     ) {
     }
 

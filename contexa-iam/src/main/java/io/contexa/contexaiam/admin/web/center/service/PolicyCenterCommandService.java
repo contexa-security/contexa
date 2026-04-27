@@ -42,6 +42,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +57,7 @@ import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PolicyCenterCommandService {
 
     private final ResourceRegistryService resourceRegistryService;
@@ -72,11 +74,13 @@ public class PolicyCenterCommandService {
     private final CentralAuditFacade centralAuditFacade;
     private final MessageSource messageSource;
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void refreshResources() {
         resourceRegistryService.refreshAndSynchronizeResources();
         synchronizeResourcePolicyStatus();
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyActionResponse createPolicyFromCenter(PolicyCenterPolicyRequest request) {
         try {
             policyService.createPolicy(request.toPolicyDto());
@@ -90,6 +94,7 @@ public class PolicyCenterCommandService {
         }
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyQuickCreateResponse quickCreatePolicy(QuickPolicyRequest request) {
         try {
             BusinessPolicyDto dto = new BusinessPolicyDto();
@@ -139,6 +144,7 @@ public class PolicyCenterCommandService {
         }
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyActionResponse resetPolicyStatus(List<Long> resourceIds) {
         if (resourceIds == null || resourceIds.isEmpty()) {
             return new PolicyActionResponse(false, msg("msg.policy.validation.target.required"), null);
@@ -173,6 +179,7 @@ public class PolicyCenterCommandService {
         return new PolicyActionResponse(true, null, updated);
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyBatchCreateResponse batchCreatePolicies(BatchCreateRequest request) {
         try {
             if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -329,6 +336,7 @@ public class PolicyCenterCommandService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void autoMigratePolicyExpressions() {
         try {
             int migrated = executePolicyMigration();
@@ -340,6 +348,7 @@ public class PolicyCenterCommandService {
         }
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyMigrationResponse migratePolicyExpressionsToCrud() {
         try {
             int migrated = executePolicyMigration();
@@ -350,6 +359,7 @@ public class PolicyCenterCommandService {
         }
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyCleanupResponse cleanupOldAutoCreatedPermissions() {
         try {
             List<Permission> oldPerms = permissionRepository.findAll().stream()
@@ -380,6 +390,7 @@ public class PolicyCenterCommandService {
         }
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyActionResponse rollbackPolicy(
             Long policyId,
             int versionNumber,

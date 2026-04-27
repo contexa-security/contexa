@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -29,6 +30,7 @@ import java.util.List;
 @Controller
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class UserManagementController {
 
 	private final UserManagementService userManagementService;
@@ -113,6 +115,7 @@ public class UserManagementController {
 	}
 
 	@PutMapping("/{id}")
+	@Transactional(transactionManager = "contexaTransactionManager")
 	public String updateUser(@PathVariable Long id,
 							 @ModelAttribute("user") UserDto userDto,
 							 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
@@ -131,6 +134,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("/{id}")
+	@Transactional(transactionManager = "contexaTransactionManager")
 	public String updateUserPost(@PathVariable Long id,
 								 @ModelAttribute("user") UserDto userDto,
 								 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
@@ -139,6 +143,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("")
+	@Transactional(transactionManager = "contexaTransactionManager")
 	public String createUser(@ModelAttribute("user") UserDto userDto,
 							 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
 							 Model model,
@@ -161,6 +166,7 @@ public class UserManagementController {
 	}
 
 	@DeleteMapping("/{id}")
+	@Transactional(transactionManager = "contexaTransactionManager")
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			userManagementService.deleteUser(id);
@@ -173,6 +179,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("/delete/{id}")
+	@Transactional(transactionManager = "contexaTransactionManager")
 	public String removeUserGet(@PathVariable Long id, RedirectAttributes ra) {
 		return removeUser(id, ra);
 	}

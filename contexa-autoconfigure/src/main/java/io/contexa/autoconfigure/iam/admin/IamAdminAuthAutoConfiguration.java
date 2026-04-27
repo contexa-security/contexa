@@ -32,7 +32,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @AutoConfiguration
 public class IamAdminAuthAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public LoginController loginController() {

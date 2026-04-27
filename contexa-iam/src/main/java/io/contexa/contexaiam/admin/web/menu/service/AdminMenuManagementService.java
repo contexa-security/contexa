@@ -12,6 +12,7 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuSaveReque
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuView;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminRoleOptionView;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class AdminMenuManagementService {
 
     private final AdminMenuService adminMenuService;
@@ -46,17 +48,20 @@ public class AdminMenuManagementService {
         return new AdminMenuPageModel(sorted, parentIds, allRoles);
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse toggleMenu(Long id) {
         adminMenuService.toggleEnabled(id);
         return AdminMenuActionResponse.ok();
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse updateRoles(Long id, AdminMenuRolesRequest request) {
         Set<String> roles = request.rolesOrEmpty().stream().collect(Collectors.toSet());
         adminMenuService.updateMenuRoles(id, roles);
         return AdminMenuActionResponse.ok();
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse updateOrder(List<AdminMenuOrderRequest> orders) {
         List<AdminMenuOrderUpdate> updates = orders == null
                 ? List.of()
@@ -69,6 +74,7 @@ public class AdminMenuManagementService {
         return AdminMenuActionResponse.ok();
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse createMenu(AdminMenuSaveRequest request) {
         AdminMenu menu = new AdminMenu();
         menu.setName(request.valueOrDefault("name", ""));
@@ -85,6 +91,7 @@ public class AdminMenuManagementService {
         return AdminMenuActionResponse.created(menu.getId());
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse updateMenu(Long id, AdminMenuSaveRequest request) {
         Optional<AdminMenu> existingMenu = adminMenuService.getMenuById(id);
         if (existingMenu.isEmpty()) {
@@ -107,6 +114,7 @@ public class AdminMenuManagementService {
     private record AdminMenuOrderUpdate(Long menuId, int menuOrder) {
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public Optional<AdminMenuActionResponse> deleteMenu(Long id) {
         return adminMenuService.getMenuById(id).map(menu -> {
             if (menu.getName() != null && menu.getName().startsWith("menu.")) {

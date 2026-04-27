@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @RequiredArgsConstructor
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class IpAccessRuleService {
 
     private final IpAccessRuleRepository ipAccessRuleRepository;

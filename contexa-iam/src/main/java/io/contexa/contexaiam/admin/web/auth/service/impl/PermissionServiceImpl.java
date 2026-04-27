@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RequiredArgsConstructor
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;

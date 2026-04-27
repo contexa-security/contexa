@@ -128,7 +128,8 @@ const AccessCenter = {
             }
 
             listEl.innerHTML = users.map(u =>
-                '<div class="ac-list-item' + (this.selectedUserId === u.id ? ' selected' : '') + '" ' +
+                '<div class="ac-list-item' + (String(this.selectedUserId) === String(u.id) ? ' selected' : '') + '" ' +
+                'data-user-id="' + AccessCenter.escapeHtml(u.id) + '" ' +
                 'onclick="AccessCenter.Users.selectUser(\'' + AccessCenter.escapeHtml(u.id) + '\')">' +
                 '<div class="ac-list-item-icon user-icon"><i class="fas fa-user"></i></div>' +
                 '<div class="ac-list-item-info">' +
@@ -138,17 +139,32 @@ const AccessCenter = {
                 '</div>' +
                 '</div>'
             ).join('');
+            console.log('[AccessCenter.Users.renderUserList] rendered count=', users.length,
+                'selectedUserId=', this.selectedUserId,
+                'ids=', users.map(u => u.id));
         },
 
         async selectUser(userId) {
-            this.selectedUserId = userId;
+            const targetId = String(userId);
+            console.log('[AccessCenter.Users.selectUser] called userId=', userId,
+                'previousSelected=', this.selectedUserId);
+            this.selectedUserId = targetId;
 
-            // Update selection in list
-            document.querySelectorAll('#ac-user-list .ac-list-item').forEach(el => el.classList.remove('selected'));
-            const items = document.querySelectorAll('#ac-user-list .ac-list-item');
-            items.forEach(el => {
-                if (el.getAttribute('onclick')?.includes(userId)) el.classList.add('selected');
+            // Update selection using exact data-user-id match (substring matching on onclick caused multi-select bug)
+            const allItems = document.querySelectorAll('#ac-user-list .ac-list-item');
+            const matchedIds = [];
+            allItems.forEach(el => {
+                const itemId = el.getAttribute('data-user-id');
+                const matched = itemId === targetId;
+                el.classList.toggle('selected', matched);
+                if (matched) matchedIds.push(itemId);
             });
+            console.log('[AccessCenter.Users.selectUser] selection result totalItems=', allItems.length,
+                'matchedCount=', matchedIds.length, 'matchedIds=', matchedIds);
+            if (matchedIds.length > 1) {
+                console.warn('[AccessCenter.Users.selectUser] multi-select detected for targetId=', targetId,
+                    'matchedIds=', matchedIds);
+            }
 
             const detailEl = document.getElementById('ac-user-detail');
             detailEl.innerHTML =
@@ -344,11 +360,16 @@ const AccessCenter = {
             if (!gridEl) return;
 
             try {
-                if (!this.allRolesCache) {
-                    this.allRolesCache = await AccessCenter.fetchJson('/admin/access-center/api/all-roles');
-                }
+                const [roles, allPerms] = await Promise.all([
+                    AccessCenter.fetchJson('/admin/access-center/api/all-roles'),
+                    AccessCenter.fetchJson('/admin/access-center/api/all-permissions')
+                ]);
+                this.allRolesCache = roles || [];
+                // Filter out CRUD permissions (READ/WRITE/UPDATE/DELETE) — only non-CRUD remain
+                const crudNames = new Set(['READ', 'WRITE', 'UPDATE', 'DELETE']);
+                this.allExtraPermsCache = (allPerms || []).filter(p => !crudNames.has(p.name));
                 const directRoles = (this.userDetailCache?.directRoles || []).map(r => String(r.id));
-                this.renderRoleCheckboxes(this.allRolesCache || [], directRoles, gridEl);
+                this.renderRoleCheckboxes(this.allRolesCache, directRoles, gridEl);
             } catch (e) {
                 gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>역할 목록 로드 실패</p></div>';
             }
@@ -360,41 +381,107 @@ const AccessCenter = {
                 return;
             }
             var self = this;
+            // CRUD is always shown in full so administrators can grant any verb to any user
+            const allCruds = ['READ', 'WRITE', 'UPDATE', 'DELETE'];
+            const crudLabels = { READ: 'Read', WRITE: 'Write', UPDATE: 'Update', DELETE: 'Delete' };
+            const crudIcons = { READ: 'fa-eye', WRITE: 'fa-plus', UPDATE: 'fa-pen', DELETE: 'fa-trash' };
+            const crudColors = { READ: '#4ade80', WRITE: '#60a5fa', UPDATE: '#fbbf24', DELETE: '#f87171' };
+
+            // All non-CRUD permissions in the system (always shown, regardless of role mapping)
+            const allExtras = self.allExtraPermsCache || [];
+
             container.innerHTML = allRoles.map(r => {
                 const checked = directRoleIds.includes(String(r.id));
-                // CRUD permissions the role can have (from role_permissions)
-                const roleCruds = (r.crudPermissions || ['READ','WRITE','UPDATE','DELETE']);
-                const crudLabels = { READ: 'R', WRITE: 'W', UPDATE: 'U', DELETE: 'D' };
-                const crudHtml = roleCruds.map(c => {
+                // Mapping sets — these are auto-checked by default; non-mapped are unchecked but still shown
+                const mappedCruds = new Set(r.crudPermissions || []);
+                const mappedExtraIds = new Set((r.extraPermissions || []).map(p => String(p.id)));
+
+                const crudHtml = allCruds.map(c => {
                     const isRead = c === 'READ';
-                    return '<label class="ac-crud-label" title="' + c + '">' +
+                    const color = crudColors[c];
+                    const isMapped = mappedCruds.has(c);
+                    // READ always required (disabled+checked). Mapped CRUDs auto-checked. Non-mapped shown but unchecked.
+                    return '<label class="ac-crud-chip' + (isMapped && !isRead ? ' mapped' : '') + '" data-crud="' + c + '" title="' + c + (isMapped && !isRead ? ' — 역할에 매핑됨' : '') + '">' +
                         '<input type="checkbox" class="ac-crud-cb" data-role-id="' + r.id + '" data-crud="' + c + '"' +
-                        (isRead ? ' checked disabled' : '') +
-                        ' style="accent-color:#6366f1;width:0.875rem;height:0.875rem;">' +
-                        '<span style="font-size:0.6875rem;color:' + (isRead ? '#818cf8' : '#94a3b8') + ';">' + crudLabels[c] + '</span></label>';
+                        (isRead ? ' checked disabled' : (isMapped ? ' checked' : '')) +
+                        '>' +
+                        '<span class="ac-crud-chip-body" style="--crud-color:' + color + ';">' +
+                        '<i class="fas ' + crudIcons[c] + '"></i>' +
+                        '<span>' + crudLabels[c] + '</span>' +
+                        (isMapped && !isRead ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                        '</span>' +
+                        '</label>';
                 }).join('');
-                return '<div class="ac-role-crud-item" data-role-id="' + r.id + '" style="padding:0.75rem;border-radius:0.5rem;background:rgba(30,41,59,0.5);border:1px solid ' + (checked ? '#6366f1' : 'rgba(71,85,105,0.3)') + ';margin-bottom:0.5rem;">' +
-                    '<div style="display:flex;align-items:center;justify-content:space-between;">' +
-                    '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">' +
+
+                // Non-CRUD permissions section — show ALL non-CRUD permissions, mapped ones auto-checked
+                const extrasHtml = allExtras.length
+                    ? '<div class="ac-role-card-divider"></div>' +
+                      '<div class="ac-role-card-section ac-extra-section" data-expanded="false">' +
+                      '<button type="button" class="ac-extra-toggle" onclick="AccessCenter.Users.toggleExtraSection(this)">' +
+                      '<span class="ac-extra-toggle-label">' +
+                      '<i class="fas fa-puzzle-piece"></i> 권한 더보기 (' + allExtras.length + ')' +
+                      '</span>' +
+                      '<i class="fas fa-chevron-down ac-extra-toggle-arrow"></i>' +
+                      '</button>' +
+                      '<div class="ac-extra-group">' +
+                      allExtras.map(p => {
+                          const display = AccessCenter.escapeHtml(p.friendlyName || p.name);
+                          const isMapped = mappedExtraIds.has(String(p.id));
+                          const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' — ' + p.description : '') + (isMapped ? ' — 역할에 매핑됨' : ''));
+                          return '<label class="ac-extra-chip' + (isMapped ? ' mapped' : '') + '" title="' + tooltip + '">' +
+                              '<input type="checkbox" class="ac-extra-cb" data-role-id="' + r.id + '" data-perm-id="' + p.id + '"' + (isMapped ? ' checked' : '') + '>' +
+                              '<span class="ac-extra-chip-body"><i class="fas fa-key"></i>' + display +
+                              (isMapped ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                              '</span></label>';
+                      }).join('') +
+                      '</div></div>'
+                    : '';
+
+                return '<div class="ac-role-card" data-role-id="' + r.id +
+                    '" data-mapped-cruds="' + AccessCenter.escapeHtml(Array.from(mappedCruds).join(',')) + '"' +
+                    ' data-mapped-extra-ids="' + AccessCenter.escapeHtml(Array.from(mappedExtraIds).join(',')) + '"' +
+                    (checked ? ' data-active="true"' : '') + '>' +
+                    // Header: role name + master toggle
+                    '<label class="ac-role-card-head">' +
                     '<input type="checkbox" name="userRole" value="' + r.id + '"' + (checked ? ' checked' : '') +
-                    ' onchange="AccessCenter.Users.toggleRoleCrud(this)" style="accent-color:#6366f1;width:1rem;height:1rem;">' +
-                    '<span style="color:#e2e8f0;font-weight:600;font-size:0.875rem;">' + AccessCenter.escapeHtml(r.name) + '</span>' +
+                    ' onchange="AccessCenter.Users.toggleRoleCrud(this)">' +
+                    '<span class="ac-role-card-icon"><i class="fas fa-user-shield"></i></span>' +
+                    '<span class="ac-role-card-meta">' +
+                    '<span class="ac-role-card-name">' + AccessCenter.escapeHtml(r.name) + '</span>' +
+                    (r.desc ? '<span class="ac-role-card-desc">' + AccessCenter.escapeHtml(r.desc) + '</span>' : '') +
+                    '</span>' +
                     '</label>' +
-                    '<div class="ac-crud-group" style="display:flex;gap:0.5rem;align-items:center;' + (checked ? '' : 'opacity:0.3;pointer-events:none;') + '">' + crudHtml + '</div>' +
+                    // Divider
+                    '<div class="ac-role-card-divider"></div>' +
+                    // CRUD section: label + chip group (separately positioned below the role name)
+                    '<div class="ac-role-card-section">' +
+                    '<span class="ac-role-card-section-label"><i class="fas fa-key"></i> CRUD 권한</span>' +
+                    '<div class="ac-crud-group">' + crudHtml + '</div>' +
                     '</div>' +
-                    (r.desc ? '<div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem;margin-left:1.5rem;">' + AccessCenter.escapeHtml(r.desc) + '</div>' : '') +
+                    extrasHtml +
                     '</div>';
             }).join('');
 
-            // Load existing CRUD selections for checked roles
+            // Load existing CRUD + extra permission selections for checked roles
             if (self.selectedUserId) {
                 directRoleIds.forEach(rid => {
                     AccessCenter.fetchJson('/admin/access-center/api/users/' + self.selectedUserId + '/roles/' + rid + '/cruds')
                         .then(cruds => {
-                            if (!cruds || !cruds.length) return;
+                            if (!cruds) return;
+                            // CRUD names go to ac-crud-cb (READ stays disabled+checked)
                             container.querySelectorAll('.ac-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
                                 if (cb.dataset.crud !== 'READ') {
                                     cb.checked = cruds.includes(cb.dataset.crud);
+                                }
+                            });
+                            // Look up the permission name from ALL non-CRUD permissions (not just role-mapped),
+                            // because the user may have activated a non-mapped permission too
+                            const extrasIndex = new Map();
+                            (self.allExtraPermsCache || []).forEach(pp => extrasIndex.set(String(pp.id), pp));
+                            container.querySelectorAll('.ac-extra-cb[data-role-id="' + rid + '"]').forEach(cb => {
+                                const perm = extrasIndex.get(String(cb.dataset.permId));
+                                if (perm) {
+                                    cb.checked = cruds.includes(perm.name);
                                 }
                             });
                         }).catch(() => {});
@@ -403,24 +490,34 @@ const AccessCenter = {
         },
 
         toggleRoleCrud(roleCheckbox) {
-            const item = roleCheckbox.closest('.ac-role-crud-item');
-            const crudGroup = item.querySelector('.ac-crud-group');
+            const item = roleCheckbox.closest('.ac-role-card');
+            if (!item) return;
             if (roleCheckbox.checked) {
-                crudGroup.style.opacity = '1';
-                crudGroup.style.pointerEvents = 'auto';
-                item.style.borderColor = '#6366f1';
-                // Auto-check READ
-                const readCb = item.querySelector('.ac-crud-cb[data-crud="READ"]');
-                if (readCb) readCb.checked = true;
+                item.setAttribute('data-active', 'true');
+                // Restore mapped-only checked state — non-mapped permissions remain unchecked (admin clicks to add)
+                const mappedCruds = (item.dataset.mappedCruds || '').split(',').filter(Boolean);
+                const mappedExtraIds = (item.dataset.mappedExtraIds || '').split(',').filter(Boolean);
+                item.querySelectorAll('.ac-crud-cb').forEach(cb => {
+                    if (cb.dataset.crud === 'READ') return; // READ always required
+                    cb.checked = mappedCruds.includes(cb.dataset.crud);
+                });
+                item.querySelectorAll('.ac-extra-cb').forEach(cb => {
+                    cb.checked = mappedExtraIds.includes(cb.dataset.permId);
+                });
             } else {
-                crudGroup.style.opacity = '0.3';
-                crudGroup.style.pointerEvents = 'none';
-                item.style.borderColor = 'rgba(71,85,105,0.3)';
-                // Uncheck all CRUDs
+                item.removeAttribute('data-active');
                 item.querySelectorAll('.ac-crud-cb').forEach(cb => {
                     if (cb.dataset.crud !== 'READ') cb.checked = false;
                 });
+                item.querySelectorAll('.ac-extra-cb').forEach(cb => { cb.checked = false; });
             }
+        },
+
+        toggleExtraSection(btn) {
+            const section = btn.closest('.ac-extra-section');
+            if (!section) return;
+            const expanded = section.getAttribute('data-expanded') === 'true';
+            section.setAttribute('data-expanded', expanded ? 'false' : 'true');
         },
 
         async saveGroups() {
@@ -449,15 +546,19 @@ const AccessCenter = {
             const roleAssignments = [];
             document.querySelectorAll('#ac-user-roles-grid input[name="userRole"]:checked').forEach(cb => {
                 const roleId = cb.value;
-                const item = cb.closest('.ac-role-crud-item');
+                const item = cb.closest('.ac-role-card');
                 const cruds = [];
+                const extraIds = [];
                 if (item) {
                     item.querySelectorAll('.ac-crud-cb:checked').forEach(crudCb => {
                         cruds.push(crudCb.dataset.crud);
                     });
+                    item.querySelectorAll('.ac-extra-cb:checked').forEach(extraCb => {
+                        extraIds.push(Number(extraCb.dataset.permId));
+                    });
                 }
                 if (!cruds.includes('READ')) cruds.push('READ');
-                roleAssignments.push({ roleId: Number(roleId), crudPermissions: cruds });
+                roleAssignments.push({ roleId: Number(roleId), crudPermissions: cruds, extraPermissionIds: extraIds });
             });
 
             try {
@@ -539,8 +640,10 @@ const AccessCenter = {
                 return;
             }
 
+            const selectedKey = this.selectedGroupId != null ? String(this.selectedGroupId) : null;
             listEl.innerHTML = groups.map(g =>
-                '<div class="ac-list-item' + (this.selectedGroupId === g.id ? ' selected' : '') + '" ' +
+                '<div class="ac-list-item' + (selectedKey !== null && selectedKey === String(g.id) ? ' selected' : '') + '" ' +
+                'data-group-id="' + AccessCenter.escapeHtml(g.id) + '" ' +
                 'onclick="AccessCenter.Groups.selectGroup(\'' + AccessCenter.escapeHtml(g.id) + '\')">' +
                 '<div class="ac-list-item-icon group-icon"><i class="fas fa-layer-group"></i></div>' +
                 '<div class="ac-list-item-info">' +
@@ -550,11 +653,22 @@ const AccessCenter = {
                 (g.memberCount != null ? '<span class="ac-list-item-badge">' + g.memberCount + '명</span>' : '') +
                 '</div>'
             ).join('');
+            console.log('[AccessCenter.Groups.filterAndRender] rendered count=', groups.length,
+                'selectedGroupId=', this.selectedGroupId,
+                'ids=', groups.map(g => g.id));
         },
 
         async selectGroup(groupId) {
-            this.selectedGroupId = groupId;
+            const targetId = String(groupId);
+            console.log('[AccessCenter.Groups.selectGroup] called groupId=', groupId,
+                'previousSelected=', this.selectedGroupId);
+            this.selectedGroupId = targetId;
             this.filterAndRender();
+            const matchedCount = document.querySelectorAll('#ac-group-list .ac-list-item.selected').length;
+            console.log('[AccessCenter.Groups.selectGroup] selection result matchedCount=', matchedCount);
+            if (matchedCount > 1) {
+                console.warn('[AccessCenter.Groups.selectGroup] multi-select detected for targetId=', targetId);
+            }
 
             const detailEl = document.getElementById('ac-group-detail');
             detailEl.innerHTML =
@@ -626,50 +740,110 @@ const AccessCenter = {
 
             // Load role checkboxes
             try {
-                if (!this.allRolesCache) {
-                    this.allRolesCache = await AccessCenter.fetchJson('/admin/access-center/api/all-roles');
-                }
+                // Always re-fetch + load all non-CRUD permissions (regardless of role mapping)
+                const [roles, allPerms] = await Promise.all([
+                    AccessCenter.fetchJson('/admin/access-center/api/all-roles'),
+                    AccessCenter.fetchJson('/admin/access-center/api/all-permissions')
+                ]);
+                this.allRolesCache = roles || [];
+                const crudNames = new Set(['READ', 'WRITE', 'UPDATE', 'DELETE']);
+                this.allExtraPermsCache = (allPerms || []).filter(p => !crudNames.has(p.name));
+
                 const groupRoleIds = (data.roles || []).map(r => String(r.id));
                 const gridEl = document.getElementById('ac-group-roles-grid');
-                const allRoles = this.allRolesCache || [];
+                const allRoles = this.allRolesCache;
+                const allExtras = this.allExtraPermsCache;
 
                 if (!allRoles.length) {
                     gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>등록된 역할이 없습니다.</p></div>';
                 } else {
                     var self = this;
-                    var crudLabels = { READ: 'R', WRITE: 'W', UPDATE: 'U', DELETE: 'D' };
+                    const allCruds = ['READ', 'WRITE', 'UPDATE', 'DELETE'];
+                    const crudLabels = { READ: 'Read', WRITE: 'Write', UPDATE: 'Update', DELETE: 'Delete' };
+                    const crudIcons = { READ: 'fa-eye', WRITE: 'fa-plus', UPDATE: 'fa-pen', DELETE: 'fa-trash' };
+                    const crudColors = { READ: '#4ade80', WRITE: '#60a5fa', UPDATE: '#fbbf24', DELETE: '#f87171' };
+
                     gridEl.innerHTML = allRoles.map(r => {
                         const checked = groupRoleIds.includes(String(r.id));
-                        const roleCruds = (r.crudPermissions || ['READ','WRITE','UPDATE','DELETE']);
-                        const crudHtml = roleCruds.map(c => {
+                        const mappedCruds = new Set(r.crudPermissions || []);
+                        const mappedExtraIds = new Set((r.extraPermissions || []).map(p => String(p.id)));
+
+                        const crudHtml = allCruds.map(c => {
                             const isRead = c === 'READ';
-                            return '<label class="ac-crud-label" title="' + c + '">' +
+                            const color = crudColors[c];
+                            const isMapped = mappedCruds.has(c);
+                            return '<label class="ac-crud-chip' + (isMapped && !isRead ? ' mapped' : '') + '" data-crud="' + c + '" title="' + c + (isMapped && !isRead ? ' — 역할에 매핑됨' : '') + '">' +
                                 '<input type="checkbox" class="ac-grp-crud-cb" data-role-id="' + r.id + '" data-crud="' + c + '"' +
-                                (isRead ? ' checked disabled' : '') +
-                                ' style="accent-color:#6366f1;width:0.875rem;height:0.875rem;">' +
-                                '<span style="font-size:0.6875rem;color:' + (isRead ? '#818cf8' : '#94a3b8') + ';">' + crudLabels[c] + '</span></label>';
+                                (isRead ? ' checked disabled' : (isMapped ? ' checked' : '')) +
+                                '>' +
+                                '<span class="ac-crud-chip-body" style="--crud-color:' + color + ';">' +
+                                '<i class="fas ' + crudIcons[c] + '"></i>' +
+                                '<span>' + crudLabels[c] + '</span>' +
+                                (isMapped && !isRead ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                                '</span>' +
+                                '</label>';
                         }).join('');
-                        return '<div class="ac-role-crud-item" data-role-id="' + r.id + '" style="padding:0.75rem;border-radius:0.5rem;background:rgba(30,41,59,0.5);border:1px solid ' + (checked ? '#6366f1' : 'rgba(71,85,105,0.3)') + ';margin-bottom:0.5rem;">' +
-                            '<div style="display:flex;align-items:center;justify-content:space-between;">' +
-                            '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">' +
+
+                        const extrasHtml = allExtras.length
+                            ? '<div class="ac-role-card-divider"></div>' +
+                              '<div class="ac-role-card-section ac-extra-section" data-expanded="false">' +
+                              '<button type="button" class="ac-extra-toggle" onclick="AccessCenter.Groups.toggleExtraSection(this)">' +
+                              '<span class="ac-extra-toggle-label">' +
+                              '<i class="fas fa-puzzle-piece"></i> 권한 더보기 (' + allExtras.length + ')' +
+                              '</span>' +
+                              '<i class="fas fa-chevron-down ac-extra-toggle-arrow"></i>' +
+                              '</button>' +
+                              '<div class="ac-extra-group">' +
+                              allExtras.map(p => {
+                                  const display = AccessCenter.escapeHtml(p.friendlyName || p.name);
+                                  const isMapped = mappedExtraIds.has(String(p.id));
+                                  const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' — ' + p.description : '') + (isMapped ? ' — 역할에 매핑됨' : ''));
+                                  return '<label class="ac-extra-chip' + (isMapped ? ' mapped' : '') + '" title="' + tooltip + '">' +
+                                      '<input type="checkbox" class="ac-grp-extra-cb" data-role-id="' + r.id + '" data-perm-id="' + p.id + '"' + (isMapped ? ' checked' : '') + '>' +
+                                      '<span class="ac-extra-chip-body"><i class="fas fa-key"></i>' + display +
+                                      (isMapped ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                                      '</span></label>';
+                              }).join('') +
+                              '</div></div>'
+                            : '';
+
+                        return '<div class="ac-role-card" data-role-id="' + r.id +
+                            '" data-mapped-cruds="' + AccessCenter.escapeHtml(Array.from(mappedCruds).join(',')) + '"' +
+                            ' data-mapped-extra-ids="' + AccessCenter.escapeHtml(Array.from(mappedExtraIds).join(',')) + '"' +
+                            (checked ? ' data-active="true"' : '') + '>' +
+                            '<label class="ac-role-card-head">' +
                             '<input type="checkbox" name="groupRole" value="' + r.id + '"' + (checked ? ' checked' : '') +
-                            ' onchange="AccessCenter.Groups.toggleRoleCrud(this)" style="accent-color:#6366f1;width:1rem;height:1rem;">' +
-                            '<span style="color:#e2e8f0;font-weight:600;font-size:0.875rem;">' + AccessCenter.escapeHtml(r.name) + '</span>' +
+                            ' onchange="AccessCenter.Groups.toggleRoleCrud(this)">' +
+                            '<span class="ac-role-card-icon"><i class="fas fa-user-shield"></i></span>' +
+                            '<span class="ac-role-card-meta">' +
+                            '<span class="ac-role-card-name">' + AccessCenter.escapeHtml(r.name) + '</span>' +
+                            (r.desc ? '<span class="ac-role-card-desc">' + AccessCenter.escapeHtml(r.desc) + '</span>' : '') +
+                            '</span>' +
                             '</label>' +
-                            '<div class="ac-grp-crud-group" style="display:flex;gap:0.5rem;align-items:center;' + (checked ? '' : 'opacity:0.3;pointer-events:none;') + '">' + crudHtml + '</div>' +
+                            '<div class="ac-role-card-divider"></div>' +
+                            '<div class="ac-role-card-section">' +
+                            '<span class="ac-role-card-section-label"><i class="fas fa-key"></i> CRUD 권한</span>' +
+                            '<div class="ac-crud-group">' + crudHtml + '</div>' +
                             '</div>' +
-                            (r.desc ? '<div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem;margin-left:1.5rem;">' + AccessCenter.escapeHtml(r.desc) + '</div>' : '') +
+                            extrasHtml +
                             '</div>';
                     }).join('');
 
-                    // Load existing CRUD selections
+                    // Load existing CRUD + extra selections
                     if (self.selectedGroupId) {
+                        // Build index of all non-CRUD permissions (not just role-mapped) for save-state restoration
+                        const extrasIndex = new Map();
+                        (self.allExtraPermsCache || []).forEach(pp => extrasIndex.set(String(pp.id), pp));
                         groupRoleIds.forEach(rid => {
                             AccessCenter.fetchJson('/admin/access-center/api/groups/' + self.selectedGroupId + '/roles/' + rid + '/cruds')
                                 .then(cruds => {
-                                    if (!cruds || !cruds.length) return;
+                                    if (!cruds) return;
                                     gridEl.querySelectorAll('.ac-grp-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
                                         if (cb.dataset.crud !== 'READ') cb.checked = cruds.includes(cb.dataset.crud);
+                                    });
+                                    gridEl.querySelectorAll('.ac-grp-extra-cb[data-role-id="' + rid + '"]').forEach(cb => {
+                                        const perm = extrasIndex.get(String(cb.dataset.permId));
+                                        if (perm) cb.checked = cruds.includes(perm.name);
                                     });
                                 }).catch(() => {});
                         });
@@ -682,22 +856,29 @@ const AccessCenter = {
         },
 
         toggleRoleCrud(roleCheckbox) {
-            const item = roleCheckbox.closest('.ac-role-crud-item');
-            const crudGroup = item.querySelector('.ac-grp-crud-group');
+            const item = roleCheckbox.closest('.ac-role-card');
+            if (!item) return;
             if (roleCheckbox.checked) {
-                crudGroup.style.opacity = '1';
-                crudGroup.style.pointerEvents = 'auto';
-                item.style.borderColor = '#6366f1';
-                const readCb = item.querySelector('.ac-grp-crud-cb[data-crud="READ"]');
-                if (readCb) readCb.checked = true;
-            } else {
-                crudGroup.style.opacity = '0.3';
-                crudGroup.style.pointerEvents = 'none';
-                item.style.borderColor = 'rgba(71,85,105,0.3)';
+                item.setAttribute('data-active', 'true');
+                // Only READ is auto-checked; admin must click any other CRUD or extra to activate
                 item.querySelectorAll('.ac-grp-crud-cb').forEach(cb => {
                     if (cb.dataset.crud !== 'READ') cb.checked = false;
                 });
+                item.querySelectorAll('.ac-grp-extra-cb').forEach(cb => { cb.checked = false; });
+            } else {
+                item.removeAttribute('data-active');
+                item.querySelectorAll('.ac-grp-crud-cb').forEach(cb => {
+                    if (cb.dataset.crud !== 'READ') cb.checked = false;
+                });
+                item.querySelectorAll('.ac-grp-extra-cb').forEach(cb => { cb.checked = false; });
             }
+        },
+
+        toggleExtraSection(btn) {
+            const section = btn.closest('.ac-extra-section');
+            if (!section) return;
+            const expanded = section.getAttribute('data-expanded') === 'true';
+            section.setAttribute('data-expanded', expanded ? 'false' : 'true');
         },
 
         async saveGroupRoles() {
@@ -705,15 +886,19 @@ const AccessCenter = {
             const roleAssignments = [];
             document.querySelectorAll('#ac-group-roles-grid input[name="groupRole"]:checked').forEach(cb => {
                 const roleId = cb.value;
-                const item = cb.closest('.ac-role-crud-item');
+                const item = cb.closest('.ac-role-card');
                 const cruds = [];
+                const extraIds = [];
                 if (item) {
                     item.querySelectorAll('.ac-grp-crud-cb:checked').forEach(crudCb => {
                         cruds.push(crudCb.dataset.crud);
                     });
+                    item.querySelectorAll('.ac-grp-extra-cb:checked').forEach(extraCb => {
+                        extraIds.push(Number(extraCb.dataset.permId));
+                    });
                 }
                 if (!cruds.includes('READ')) cruds.push('READ');
-                roleAssignments.push({ roleId: Number(roleId), crudPermissions: cruds });
+                roleAssignments.push({ roleId: Number(roleId), crudPermissions: cruds, extraPermissionIds: extraIds });
             });
 
             try {
@@ -791,8 +976,10 @@ const AccessCenter = {
                 return;
             }
 
+            const selectedKey = this.selectedRoleId != null ? String(this.selectedRoleId) : null;
             listEl.innerHTML = roles.map(r =>
-                '<div class="ac-list-item' + (this.selectedRoleId === r.id ? ' selected' : '') + '" ' +
+                '<div class="ac-list-item' + (selectedKey !== null && selectedKey === String(r.id) ? ' selected' : '') + '" ' +
+                'data-role-id="' + AccessCenter.escapeHtml(r.id) + '" ' +
                 'onclick="AccessCenter.Roles.selectRole(\'' + AccessCenter.escapeHtml(r.id) + '\')">' +
                 '<div class="ac-list-item-icon role-icon"><i class="fas fa-user-shield"></i></div>' +
                 '<div class="ac-list-item-info">' +
@@ -802,11 +989,22 @@ const AccessCenter = {
                 (r.permCount != null ? '<span class="ac-list-item-badge">' + r.permCount + '개 권한</span>' : '') +
                 '</div>'
             ).join('');
+            console.log('[AccessCenter.Roles.filterAndRender] rendered count=', roles.length,
+                'selectedRoleId=', this.selectedRoleId,
+                'ids=', roles.map(r => r.id));
         },
 
         async selectRole(roleId) {
-            this.selectedRoleId = roleId;
+            const targetId = String(roleId);
+            console.log('[AccessCenter.Roles.selectRole] called roleId=', roleId,
+                'previousSelected=', this.selectedRoleId);
+            this.selectedRoleId = targetId;
             this.filterAndRender();
+            const matchedCount = document.querySelectorAll('#ac-role-list .ac-list-item.selected').length;
+            console.log('[AccessCenter.Roles.selectRole] selection result matchedCount=', matchedCount);
+            if (matchedCount > 1) {
+                console.warn('[AccessCenter.Roles.selectRole] multi-select detected for targetId=', targetId);
+            }
 
             const detailEl = document.getElementById('ac-role-detail');
             detailEl.innerHTML =
@@ -848,7 +1046,10 @@ const AccessCenter = {
             // Permission assignment
             html +=
                 '<div class="ac-section-header">' +
+                '<div class="ac-section-header-text">' +
                 '<h4>권한 할당</h4>' +
+                '<span class="ac-section-hint"><i class="fas fa-info-circle"></i> 체크된 권한은 사용자의 역할 할당 시 기본적으로 포함됩니다.</span>' +
+                '</div>' +
                 '<button type="button" class="ac-btn-save" onclick="AccessCenter.Roles.saveRolePermissions()">' +
                 '<i class="fas fa-save"></i> 저장</button>' +
                 '</div>';
@@ -924,15 +1125,19 @@ const AccessCenter = {
                 return aC - bC;
             });
             gridEl.innerHTML = filtered.map(p => {
-                const checked = rolePermIds.includes(String(p.id));
+                // READ permission is always required (forced checked + disabled)
+                const isReadPerm = p.name === 'READ';
+                const checked = isReadPerm || rolePermIds.includes(String(p.id));
                 const displayName = AccessCenter.escapeHtml(p.friendlyName || p.name);
-                const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' - ' + p.description : ''));
-                return '<label class="ac-checkbox-item' + (checked ? ' checked' : '') + '" title="' + tooltip + '">' +
+                const baseTooltip = (p.name || '') + (p.description ? ' - ' + p.description : '');
+                const tooltip = AccessCenter.escapeHtml(isReadPerm ? baseTooltip + ' (필수 권한 — 변경 불가)' : baseTooltip);
+                return '<label class="ac-checkbox-item' + (checked ? ' checked' : '') + (isReadPerm ? ' required' : '') + '" title="' + tooltip + '">' +
                     '<input type="checkbox" name="rolePerm" value="' + AccessCenter.escapeHtml(p.id) + '"' +
-                    (checked ? ' checked' : '') +
+                    (checked ? ' checked' : '') + (isReadPerm ? ' disabled' : '') +
                     ' onchange="this.parentElement.classList.toggle(\'checked\', this.checked)">' +
-                    '<div class="ac-checkbox-label-wrap"><div class="ac-checkbox-label-name">' + displayName + '</div>' +
-                    '</div></label>';
+                    '<div class="ac-checkbox-label-wrap"><div class="ac-checkbox-label-name">' + displayName +
+                    (isReadPerm ? ' <span class="ac-required-badge">필수</span>' : '') +
+                    '</div></div></label>';
             }).join('');
         },
 

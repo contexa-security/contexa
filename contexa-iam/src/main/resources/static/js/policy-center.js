@@ -1439,7 +1439,7 @@ const PolicyCenter = {
                 const items = await this.fetchAvailableItems();
                 availableItems = {
                     roles: (items.roles || []).map(r => ({ id: r.id, name: r.roleName || r.name, description: r.roleDesc || r.description || '' })),
-                    permissions: (items.permissions || []).map(p => ({ id: p.id, name: p.friendlyName || p.name, targetType: p.targetType || '', resourceIdentifier: p.managedResourceIdentifier || '', httpMethod: p.actionType || '', description: p.description || '' })),
+                    permissions: (items.permissions || []).map(p => ({ id: p.id, name: p.friendlyName || p.name, targetType: p.targetType || '', resourceIdentifier: p.linkedResourceIdentifier || '', httpMethod: p.actionType || '', description: p.description || '' })),
                     conditions: (items.conditions || []).map(c => ({ id: c.id, name: c.name, description: c.description || '' }))
                 };
             } catch (e) {

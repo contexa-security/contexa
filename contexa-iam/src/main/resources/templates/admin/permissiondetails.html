@@ -98,14 +98,14 @@
                 </div>
 
                 <!-- Managed Resource Section (edit mode, if linked) -->
-                <div th:if="${permission.id != null and permission.managedResourceId != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
+                <div th:if="${permission.id != null and permission.linkedResourceId != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-link" style="color: #818cf8;"></i>
                         <span th:text="#{admin.permissions.detail.linked.resource}">Linked Resource</span>
                     </h3>
                     <div class="p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
-                        <p class="text-sm font-mono" style="color: #94a3b8; word-break: break-all; overflow-wrap: break-word;" th:text="${permission.managedResourceIdentifier}"></p>
-                        <a th:href="@{/admin/policy-center(tab='resources',keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
+                        <p class="text-sm font-mono" style="color: #94a3b8; word-break: break-all; overflow-wrap: break-word;" th:text="${permission.linkedResourceIdentifier}"></p>
+                        <a th:href="@{/admin/policy-center(tab='resources',keyword=${permission.linkedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
                             <i class="fas fa-external-link-alt mr-1"></i> <span th:text="#{admin.permissions.detail.view.policy.center}">View in Policy Center</span>
                         </a>
                     </div>

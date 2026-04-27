@@ -25,6 +25,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +33,7 @@ import java.util.Set;
 
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class ResourceAdminService {
 
     private final ResourceRegistryService resourceRegistryService;
@@ -53,10 +55,12 @@ public class ResourceAdminService {
         return new ResourceWorkbenchPageModel(viewPage, serviceOwners, criteria);
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void refreshResources() {
         resourceRegistryService.refreshAndSynchronizeResources();
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public ResourceDefineResponse defineResourceAsPermission(Long id, ResourceMetadataForm metadataForm) {
         Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, toMetadataDto(metadataForm));
         return new ResourceDefineResponse(
@@ -66,6 +70,7 @@ public class ResourceAdminService {
         );
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public List<ResourceBatchDefineResult> defineResourcesBatch(List<ResourceBatchDefineRequest> requests) {
         List<ResourceBatchDefineResult> results = new ArrayList<>();
         for (ResourceBatchDefineRequest req : requests) {
@@ -104,6 +109,7 @@ public class ResourceAdminService {
         return results;
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public ResourceStatusResponse restoreResource(Long id) {
         ResourceManagementDto dto = new ResourceManagementDto();
         dto.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
@@ -115,6 +121,7 @@ public class ResourceAdminService {
         );
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public ResourceStatusResponse excludeResource(Long id) {
         resourceRegistryService.excludeResourceFromManagement(id);
         return new ResourceStatusResponse(
@@ -124,6 +131,7 @@ public class ResourceAdminService {
         );
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void updateManagementStatus(Long id, ResourceManagementForm managementForm) {
         resourceRegistryService.updateResourceManagementStatus(id, toManagementDto(managementForm));
     }
