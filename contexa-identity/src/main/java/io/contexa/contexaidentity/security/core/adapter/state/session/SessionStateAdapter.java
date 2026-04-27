@@ -39,7 +39,7 @@ public class SessionStateAdapter implements StateAdapter {
             String primaryLoginPage = authProps.getUrls().getPrimary().getFormLoginPage();
             logoutSuccessUrl = urlPrefix + primaryLoginPage;
         } else {
-            logoutSuccessUrl = "/login";
+            logoutSuccessUrl = "/admin/login";
         }
 
         http.logout(logout -> logout

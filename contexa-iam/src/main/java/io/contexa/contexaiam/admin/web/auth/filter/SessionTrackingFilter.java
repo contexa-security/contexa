@@ -79,6 +79,9 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 || uri.startsWith("/img/")
                 || uri.startsWith("/favicon")
                 || uri.startsWith("/webjars/")
-                || uri.startsWith("/actuator/");
+                || uri.startsWith("/actuator/")
+                || uri.startsWith("/demo/")
+                || uri.equals("/admin/test/guided")
+                || uri.startsWith("/admin/api/guided/");
     }
 }

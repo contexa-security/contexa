@@ -47,6 +47,16 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "LEFT JOIN FETCH ug.group g " +
             "LEFT JOIN FETCH g.groupRoles gr " +
             "LEFT JOIN FETCH gr.role r " +
+            "LEFT JOIN FETCH u.userRoles ur " +
+            "LEFT JOIN FETCH ur.role dr " +
+            "WHERE u.username = :username")
+    Optional<Users> findByUsernameWithGroupsAndRoles(@Param("username") String username);
+
+    @Query("SELECT u FROM Users u " +
+            "LEFT JOIN FETCH u.userGroups ug " +
+            "LEFT JOIN FETCH ug.group g " +
+            "LEFT JOIN FETCH g.groupRoles gr " +
+            "LEFT JOIN FETCH gr.role r " +
             "LEFT JOIN FETCH r.rolePermissions rp " +
             "LEFT JOIN FETCH rp.permission p " +
             "LEFT JOIN FETCH u.userRoles ur " +

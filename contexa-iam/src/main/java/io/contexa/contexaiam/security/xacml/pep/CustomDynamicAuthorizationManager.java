@@ -95,7 +95,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     public AuthorizationDecision check(Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context) {
         final HttpServletRequest request = context.getRequest();
         final Authentication authentication = authenticationSupplier.get();
-        final AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
         final boolean firstApplicable = (combiningAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE);
 
         List<AuthorizationDecision> matchedDecisions = new ArrayList<>();
@@ -110,7 +109,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             if (firstApplicable) {
                 assert decision != null;
                 if (!decision.isGranted()) {
-                    logAuthorizationAttempt(authentication, authorizationContext, decision, request);
+                    logAuthorizationAttempt(authentication, createAuthorizationContext(authentication, request), decision, request);
                 }
                 return decision;
             }
@@ -123,11 +122,15 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         AuthorizationDecision finalDecision = combiningEvaluator.evaluate(matchedDecisions, combiningAlgorithm);
         if (!finalDecision.isGranted()) {
-            logAuthorizationAttempt(authentication, authorizationContext, finalDecision, request);
+            logAuthorizationAttempt(authentication, createAuthorizationContext(authentication, request), finalDecision, request);
         }
         return finalDecision;
     }
 
+
+    private AuthorizationContext createAuthorizationContext(Authentication authentication, HttpServletRequest request) {
+        return contextHandler.create(authentication, request);
+    }
 
 
     public String getExpressionFromPolicy(Policy policy) {

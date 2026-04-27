@@ -15,6 +15,9 @@ public class HcadProperties {
     private int filterOrder = 100;
 
     @NestedConfigurationProperty
+    private FilterSettings filter = new FilterSettings();
+
+    @NestedConfigurationProperty
     private ResourceSettings resource = new ResourceSettings();
 
     @NestedConfigurationProperty
@@ -278,6 +281,11 @@ public class HcadProperties {
     @Data
     public static class ResourceSettings {
         private List<String> sensitivePatterns = new ArrayList<>();
+    }
+
+    @Data
+    public static class FilterSettings {
+        private List<String> excludedPatterns = new ArrayList<>();
     }
 
     @Data

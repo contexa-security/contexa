@@ -26,8 +26,8 @@ public class UnifiedUserDetailsService implements UserDetailsService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
-        log.error("[UnifiedUserDetailsService] findByUsernameWithGroupsRolesAndPermissions username={}", username);
-        Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
+        log.debug("[UnifiedUserDetailsService] findByUsernameWithGroupsAndRoles username={}", username);
+        Users user = userRepository.findByUsernameWithGroupsAndRoles(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
         Set<GrantedAuthority> authorities = authorityResolver.resolveAuthorities(user);

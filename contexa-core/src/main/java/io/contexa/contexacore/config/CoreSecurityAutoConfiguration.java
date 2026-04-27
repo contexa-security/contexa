@@ -1,6 +1,7 @@
 package io.contexa.contexacore.config;
 
 import io.contexa.contexacommon.repository.GroupRolePermissionRepository;
+import io.contexa.contexacommon.repository.RolePermissionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.authority.AuthorityResolver;
@@ -31,8 +32,10 @@ public class CoreSecurityAutoConfiguration {
     public AuthorityResolver authorityResolver(
             UserRolePermissionRepository userRolePermissionRepository,
             GroupRolePermissionRepository groupRolePermissionRepository,
+            RolePermissionRepository rolePermissionRepository,
             RoleHierarchy roleHierarchy) {
-        return new AuthorityResolver(userRolePermissionRepository, groupRolePermissionRepository, roleHierarchy);
+        return new AuthorityResolver(userRolePermissionRepository, groupRolePermissionRepository,
+                rolePermissionRepository, roleHierarchy);
     }
 
     @Bean

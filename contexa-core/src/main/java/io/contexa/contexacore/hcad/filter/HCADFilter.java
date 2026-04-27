@@ -14,6 +14,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
@@ -29,6 +30,7 @@ public class HCADFilter extends OncePerRequestFilter {
     private final HCADAnalysisService hcadAnalysisService;
     private final HcadProperties hcadProperties;
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public HCADFilter(HCADAnalysisService hcadAnalysisService, HcadProperties hcadProperties) {
         this.hcadAnalysisService = hcadAnalysisService;
@@ -140,12 +142,27 @@ public class HCADFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/static/") ||
+        return matchesExcludedPattern(path) ||
+               path.startsWith("/static/") ||
                path.startsWith("/css/") ||
                path.startsWith("/js/") ||
                path.startsWith("/images/") ||
                path.equals("/health") ||
                path.startsWith("/actuator/") ||
                path.startsWith("/api/admin/test/vectorstore");
+    }
+
+    private boolean matchesExcludedPattern(String path) {
+        if (path == null || hcadProperties.getFilter() == null
+                || hcadProperties.getFilter().getExcludedPatterns() == null) {
+            return false;
+        }
+        for (String pattern : hcadProperties.getFilter().getExcludedPatterns()) {
+            if (pattern != null && !pattern.isBlank()
+                    && (path.equals(pattern) || pathMatcher.match(pattern, path))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

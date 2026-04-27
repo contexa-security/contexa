@@ -41,7 +41,7 @@
                         <span th:text="#{header.change.password}">Change Password</span>
                         <span class="nav-glow"></span>
                     </a>
-                    <form th:action="@{/admin/logout}" method="post" class="nav-logout-form">
+                    <form th:action="@{/logout}" method="post" class="nav-logout-form">
                         <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                         <button type="submit" class="nav-link group nav-logout">
                             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
