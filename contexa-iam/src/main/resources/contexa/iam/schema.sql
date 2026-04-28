@@ -246,6 +246,23 @@ CREATE TABLE IF NOT EXISTS password_history (
     changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Per-IP failed login throttling counter (Phase 3 — IP-dimension lockout)
+CREATE TABLE IF NOT EXISTS login_attempt_ip (
+    id              BIGSERIAL PRIMARY KEY,
+    ip_address      VARCHAR(64) NOT NULL UNIQUE,
+    failed_attempts INT NOT NULL DEFAULT 0,
+    window_start_at TIMESTAMP NOT NULL,
+    blocked_until   TIMESTAMP,
+    last_failure_at TIMESTAMP,
+    last_username   VARCHAR(255)
+);
+CREATE INDEX IF NOT EXISTS idx_login_attempt_ip_window ON login_attempt_ip (window_start_at);
+CREATE INDEX IF NOT EXISTS idx_login_attempt_ip_blocked ON login_attempt_ip (blocked_until);
+
+-- Add IP-dimension columns to password_policy (idempotent)
+ALTER TABLE password_policy ADD COLUMN IF NOT EXISTS ip_max_failed_attempts INT NOT NULL DEFAULT 30;
+ALTER TABLE password_policy ADD COLUMN IF NOT EXISTS ip_window_minutes      INT NOT NULL DEFAULT 15;
+
 -- System Settings
 CREATE TABLE IF NOT EXISTS system_settings (
     id BIGSERIAL PRIMARY KEY,

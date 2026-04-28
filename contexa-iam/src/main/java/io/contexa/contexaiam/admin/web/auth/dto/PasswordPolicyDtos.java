@@ -18,6 +18,8 @@ public final class PasswordPolicyDtos {
         private boolean requireSpecialChar = false;
         private int maxFailedAttempts = 5;
         private int lockoutDurationMinutes = 30;
+        private int ipMaxFailedAttempts = 30;
+        private int ipWindowMinutes = 15;
         private int passwordExpiryDays = 90;
         private int historyCount = 3;
 
@@ -31,6 +33,8 @@ public final class PasswordPolicyDtos {
             form.setRequireSpecialChar(policy.isRequireSpecialChar());
             form.setMaxFailedAttempts(policy.getMaxFailedAttempts());
             form.setLockoutDurationMinutes(policy.getLockoutDurationMinutes());
+            form.setIpMaxFailedAttempts(policy.getIpMaxFailedAttempts());
+            form.setIpWindowMinutes(policy.getIpWindowMinutes());
             form.setPasswordExpiryDays(policy.getPasswordExpiryDays());
             form.setHistoryCount(policy.getHistoryCount());
             return form;
@@ -46,6 +50,8 @@ public final class PasswordPolicyDtos {
                     .requireSpecialChar(requireSpecialChar)
                     .maxFailedAttempts(maxFailedAttempts)
                     .lockoutDurationMinutes(lockoutDurationMinutes)
+                    .ipMaxFailedAttempts(ipMaxFailedAttempts)
+                    .ipWindowMinutes(ipWindowMinutes)
                     .passwordExpiryDays(passwordExpiryDays)
                     .historyCount(historyCount)
                     .build();

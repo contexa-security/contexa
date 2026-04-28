@@ -37,6 +37,8 @@ public class PasswordPolicyService {
         existing.setRequireSpecialChar(policy.isRequireSpecialChar());
         existing.setMaxFailedAttempts(policy.getMaxFailedAttempts());
         existing.setLockoutDurationMinutes(policy.getLockoutDurationMinutes());
+        existing.setIpMaxFailedAttempts(policy.getIpMaxFailedAttempts());
+        existing.setIpWindowMinutes(policy.getIpWindowMinutes());
         existing.setPasswordExpiryDays(policy.getPasswordExpiryDays());
         existing.setHistoryCount(policy.getHistoryCount());
         return repository.save(existing);

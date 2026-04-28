@@ -18,8 +18,12 @@ import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacore.properties.SecuritySessionProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
+import io.contexa.contexaiam.security.core.LoginAttemptCleanupFilter;
+import io.contexa.contexaiam.security.core.LoginAttemptEventListener;
+import io.contexa.contexaiam.security.core.LoginAttemptIpUpserter;
 import io.contexa.contexaiam.security.core.LoginPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import org.springframework.lang.Nullable;
@@ -31,8 +35,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.RedisTemplate;
 
 @AutoConfiguration
@@ -45,9 +51,41 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public LoginAttemptIpUpserter loginAttemptIpUpserter(LoginAttemptIpRepository loginAttemptIpRepository) {
+        return new LoginAttemptIpUpserter(loginAttemptIpRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public LoginPolicyHandler loginPolicyHandler(UserRepository userRepository,
-                                                  PasswordPolicyService passwordPolicyService) {
-        return new LoginPolicyService(userRepository, passwordPolicyService);
+                                                  LoginAttemptIpRepository loginAttemptIpRepository,
+                                                  PasswordPolicyService passwordPolicyService,
+                                                  LoginAttemptIpUpserter loginAttemptIpUpserter) {
+        return new LoginPolicyService(userRepository, loginAttemptIpRepository,
+                passwordPolicyService, loginAttemptIpUpserter);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public LoginAttemptEventListener loginAttemptEventListener(LoginPolicyHandler loginPolicyHandler) {
+        return new LoginAttemptEventListener(loginPolicyHandler);
+    }
+
+    /**
+     * Explicit registration so the filter's URL pattern, ordering, and name are deterministic
+     * rather than inferred by Spring Boot's automatic Filter-bean detection. Wrapping the
+     * filter in {@link FilterRegistrationBean} also prevents accidental double registration
+     * (the wrapped filter is registered by this bean and skipped by the auto-detection path).
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "loginAttemptCleanupFilterRegistration")
+    public FilterRegistrationBean<LoginAttemptCleanupFilter> loginAttemptCleanupFilterRegistration() {
+        FilterRegistrationBean<LoginAttemptCleanupFilter> registration =
+                new FilterRegistrationBean<>(new LoginAttemptCleanupFilter());
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Ordered.LOWEST_PRECEDENCE);
+        registration.setName("loginAttemptCleanupFilter");
+        return registration;
     }
 
     @Bean

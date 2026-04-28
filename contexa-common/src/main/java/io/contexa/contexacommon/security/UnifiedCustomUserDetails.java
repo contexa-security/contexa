@@ -5,6 +5,7 @@ import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -44,12 +45,28 @@ public class UnifiedCustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return !user.isCredentialsExpired();
+        // Account expiry is a separate concept from credential (password) expiry.
+        // No dedicated field exists today, so the account itself never expires;
+        // password expiry is reported via isCredentialsNonExpired() below.
+        return true;
     }
 
+    /**
+     * Returns whether the account is not locked.
+     * Auto-unlock semantics: when the lock has a {@code lockExpiresAt} in the past,
+     * the account is treated as unlocked at the authentication boundary so that
+     * Spring Security's standard pre-authentication check (DaoAuthenticationProvider
+     * -> AccountStatusUserDetailsChecker) does not throw a stale LockedException.
+     * The actual DB flip is performed by the success/failure handlers
+     * (LoginPolicyService.checkAndUnlockIfExpired / onLoginSuccess).
+     */
     @Override
     public boolean isAccountNonLocked() {
-        return !user.isAccountLocked();
+        if (!user.isAccountLocked()) {
+            return true;
+        }
+        LocalDateTime expiresAt = user.getLockExpiresAt();
+        return expiresAt != null && LocalDateTime.now().isAfter(expiresAt);
     }
 
     @Override

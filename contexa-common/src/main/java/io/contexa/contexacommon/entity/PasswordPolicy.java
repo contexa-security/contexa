@@ -44,6 +44,14 @@ public class PasswordPolicy {
     @Builder.Default
     private int lockoutDurationMinutes = 30;
 
+    /** IP-level threshold (0 disables IP-based throttling). */
+    @Builder.Default
+    private int ipMaxFailedAttempts = 30;
+
+    /** Time window (minutes) used to count IP-level failed attempts. */
+    @Builder.Default
+    private int ipWindowMinutes = 15;
+
     @Builder.Default
     private int passwordExpiryDays = 90;
 

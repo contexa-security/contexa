@@ -23,20 +23,27 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
 
-        // Lockout check is handled by AccountLockoutFilter (before authentication)
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
+        // Pre-authentication checks: replicate DaoAuthenticationProvider's AccountStatusUserDetailsChecker
+        // because this provider implements AuthenticationProvider directly. Without these explicit checks,
+        // a locked / disabled account would still authenticate when the password matches.
         if (!userDetails.isEnabled()) {
             throw new DisabledException("Account is disabled");
         }
+        if (!userDetails.isAccountNonLocked()) {
+            throw new LockedException("Account is locked");
+        }
+        if (!userDetails.isAccountNonExpired()) {
+            throw new AccountExpiredException("Account has expired");
+        }
 
-        // Verify password
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             throw new BadCredentialsException("Invalid password");
         }
 
-        // Check credentials expiry after successful password verification
-        if (loginPolicyService.isCredentialsExpired(loginId)) {
+        // Post-authentication credential check (kept after password match to preserve previous behavior).
+        if (!userDetails.isCredentialsNonExpired() || loginPolicyService.isCredentialsExpired(loginId)) {
             throw new CredentialsExpiredException("Password has expired");
         }
 
