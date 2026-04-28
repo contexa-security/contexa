@@ -259,9 +259,25 @@ CREATE TABLE IF NOT EXISTS login_attempt_ip (
 CREATE INDEX IF NOT EXISTS idx_login_attempt_ip_window ON login_attempt_ip (window_start_at);
 CREATE INDEX IF NOT EXISTS idx_login_attempt_ip_blocked ON login_attempt_ip (blocked_until);
 
--- Add IP-dimension columns to password_policy (idempotent)
-ALTER TABLE password_policy ADD COLUMN IF NOT EXISTS ip_max_failed_attempts INT NOT NULL DEFAULT 30;
-ALTER TABLE password_policy ADD COLUMN IF NOT EXISTS ip_window_minutes      INT NOT NULL DEFAULT 15;
+-- Add IP-dimension columns to password_policy (idempotent, safe across re-runs and
+-- across rows that may have been created without the new columns set).
+--
+-- Done in three steps because "ADD COLUMN IF NOT EXISTS ... NOT NULL DEFAULT" is
+-- skipped entirely when the column already exists, leaving any pre-existing NULL
+-- values in place. Hibernate's NOT NULL validation (driven by the primitive int
+-- field on PasswordPolicy) then fails on startup with:
+--   ERROR: column "ip_window_minutes" of relation "password_policy" contains null values
+-- The sequence below: (1) ensure the column exists as nullable, (2) backfill any
+-- NULL rows with the policy default, (3) promote the column to NOT NULL and set
+-- the column default for future inserts.
+ALTER TABLE password_policy ADD COLUMN IF NOT EXISTS ip_max_failed_attempts INT;
+ALTER TABLE password_policy ADD COLUMN IF NOT EXISTS ip_window_minutes      INT;
+UPDATE password_policy SET ip_max_failed_attempts = 30 WHERE ip_max_failed_attempts IS NULL;
+UPDATE password_policy SET ip_window_minutes      = 15 WHERE ip_window_minutes      IS NULL;
+ALTER TABLE password_policy ALTER COLUMN ip_max_failed_attempts SET NOT NULL;
+ALTER TABLE password_policy ALTER COLUMN ip_window_minutes      SET NOT NULL;
+ALTER TABLE password_policy ALTER COLUMN ip_max_failed_attempts SET DEFAULT 30;
+ALTER TABLE password_policy ALTER COLUMN ip_window_minutes      SET DEFAULT 15;
 
 -- System Settings
 CREATE TABLE IF NOT EXISTS system_settings (
