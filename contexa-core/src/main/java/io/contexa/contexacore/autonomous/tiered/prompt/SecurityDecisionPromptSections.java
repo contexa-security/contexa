@@ -334,7 +334,7 @@ public class SecurityDecisionPromptSections {
                         "PLATFORM_GLOBAL"),
                 promptGovernanceDescriptor.promptKey(),
                 promptGovernanceDescriptor.templateKey(),
-                firstNonBlankText(metadataValue(metadata, "tenantId"), metadataValue(metadata, "organizationId")),
+                firstNonBlankText(metadataValue(metadata, "tenantId"), metadataValue(metadata, "tenant_id")),
                 firstNonBlankText(metadataValue(metadata, "resourceId"),
                         metadataValue(metadata, "managedResourceId"),
                         metadataValue(metadata, "endpointKey")),
@@ -648,6 +648,14 @@ public class SecurityDecisionPromptSections {
 
         Map<String, Object> metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
+            String tenantId = firstNonBlankText(metadataObj.get("tenantId"), metadataObj.get("tenant_id"));
+            if (StringUtils.hasText(tenantId)) {
+                section.append("TenantId: ").append(PromptTemplateUtils.sanitizeUserInput(tenantId)).append("\n");
+            }
+            String organizationId = firstNonBlankText(metadataObj.get("organizationId"), metadataObj.get("orgId"));
+            if (StringUtils.hasText(organizationId)) {
+                section.append("OrganizationId: ").append(PromptTemplateUtils.sanitizeUserInput(organizationId)).append("\n");
+            }
             Object httpMethod = metadataObj.get("httpMethod");
             if (httpMethod != null && !httpMethod.toString().isEmpty()) {
                 section.append("HttpMethod: ").append(httpMethod).append("\n");

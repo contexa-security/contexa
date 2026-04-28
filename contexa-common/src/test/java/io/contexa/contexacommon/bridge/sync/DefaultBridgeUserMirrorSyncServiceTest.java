@@ -68,7 +68,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(savedUser.isExternalAuthOnly()).isTrue();
         assertThat(savedUser.getExternalSubjectId()).isEqualTo("USR001");
         assertThat(savedUser.getAuthenticationSource()).isEqualTo("SESSION");
-        assertThat(savedUser.getOrganizationId()).isEqualTo("tenant-a");
+        assertThat(savedUser.getOrganizationId()).isEqualTo("org-a");
         assertThat(savedUser.getDepartment()).isEqualTo("finance");
         assertThat(savedUser.getPosition()).isEqualTo("manager");
         assertThat(savedUser.getEmail()).endsWith("@shadow.contexa.local");
@@ -110,7 +110,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         AuthenticationStamp authenticationStamp = authenticationStamp();
         AuthorizationStamp authorizationStamp = authorizationStamp();
         RequestContextSnapshot requestContext = requestContext();
-        String bridgeSubjectKey = "brg_" + sha256("SESSION|tenant-a|USR001");
+        String bridgeSubjectKey = "brg_" + sha256("SESSION|org-a|USR001");
 
         Users existingUser = Users.builder()
                 .id(100L)
@@ -126,7 +126,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
                 .externalSubjectId("USR001")
                 .authenticationSource("SESSION")
                 .principalType("USER")
-                .organizationId("tenant-a")
+                .organizationId("org-a")
                 .bridgeSubjectKey(bridgeSubjectKey)
                 .lastLoginIp("10.0.0.10")
                 .lastBridgedAt(LocalDateTime.now())
@@ -159,6 +159,59 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         verify(userRepository, never()).save(any(Users.class));
         verify(bridgeUserProfileRepository, never()).save(any(BridgeUserProfile.class));
         verify(userRepository, times(1)).findByBridgeSubjectKey(anyString());
+    }
+
+    @Test
+    void shouldNotUseTenantIdAsOrganizationScope() {
+        UserRepository userRepository = mock(UserRepository.class);
+        BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
+        BridgeProperties properties = new BridgeProperties();
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
+                userRepository,
+                bridgeUserProfileRepository,
+                properties,
+                new ObjectMapper(),
+                null
+        );
+
+        when(userRepository.findByBridgeSubjectKey(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull(anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(bridgeUserProfileRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> {
+            Users user = invocation.getArgument(0);
+            user.setId(101L);
+            return user;
+        });
+        when(bridgeUserProfileRepository.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthenticationStamp authenticationStamp = new AuthenticationStamp(
+                "USR002",
+                "Bob Lee",
+                "USER",
+                true,
+                "SESSION",
+                "SESSION",
+                "HIGH",
+                true,
+                Instant.parse("2026-03-24T01:00:00Z"),
+                "session-2",
+                List.of("ROLE_USER"),
+                Map.of(
+                        "tenantId", "tenant-only",
+                        "department", "finance"
+                )
+        );
+
+        service.sync(authenticationStamp, authorizationStamp(), requestContext());
+
+        ArgumentCaptor<Users> userCaptor = ArgumentCaptor.forClass(Users.class);
+        verify(userRepository).save(userCaptor.capture());
+        Users savedUser = userCaptor.getValue();
+        assertThat(savedUser.getOrganizationId()).isNull();
+        assertThat(savedUser.getBridgeSubjectKey()).isEqualTo("brg_" + sha256("SESSION|GLOBAL|USR002"));
+        verify(userRepository).findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull("USR002", "SESSION");
+        verify(userRepository, never()).findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(anyString(), anyString(), eq("tenant-only"));
     }
 
     private String extractSyncHash(
@@ -194,7 +247,8 @@ class DefaultBridgeUserMirrorSyncServiceTest {
                 "session-1",
                 List.of("ROLE_ADMIN", "REPORT_EXPORT"),
                 Map.of(
-                        "organizationId", "tenant-a",
+                        "tenantId", "tenant-a",
+                        "organizationId", "org-a",
                         "department", "finance",
                         "position", "manager"
                 )

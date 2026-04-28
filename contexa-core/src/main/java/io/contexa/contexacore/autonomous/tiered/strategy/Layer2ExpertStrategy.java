@@ -461,8 +461,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 event.getMetadata(),
                 "organizationId",
                 "orgId",
-                "tenantId",
-                "tenant",
                 "organization");
         if (organizationId instanceof String value && !value.isBlank()) {
             return value.trim();

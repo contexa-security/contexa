@@ -35,8 +35,14 @@ public class SaasDecisionDispatcher {
     }
 
     public void dispatch(Long outboxId) {
+        if (outboxId == null) {
+            return;
+        }
+        if (!claim(outboxId, LocalDateTime.now())) {
+            return;
+        }
         SecurityDecisionForwardingOutboxRecord record = repository.findById(outboxId).orElse(null);
-        if (!isDispatchable(record)) {
+        if (!isClaimed(record)) {
             return;
         }
         doDispatch(record);
@@ -44,23 +50,25 @@ public class SaasDecisionDispatcher {
 
     public void dispatchPendingBatch() {
         int batchSize = Math.max(1, properties.getOutboxBatchSize());
-        List<SecurityDecisionForwardingOutboxRecord> batch = repository.findDispatchable(
+        List<Long> outboxIds = repository.findDispatchableIds(
                 DISPATCHABLE_STATUSES,
                 LocalDateTime.now(),
                 PageRequest.of(0, batchSize));
-        for (SecurityDecisionForwardingOutboxRecord record : batch) {
-            doDispatch(record);
+        for (Long outboxId : outboxIds) {
+            dispatch(outboxId);
         }
     }
 
+    private boolean claim(Long outboxId, LocalDateTime now) {
+        int claimed = repository.claimForDispatch(
+                outboxId,
+                DISPATCHABLE_STATUSES,
+                SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING,
+                now);
+        return claimed == 1;
+    }
+
     private void doDispatch(SecurityDecisionForwardingOutboxRecord record) {
-        record.markDispatching();
-        try {
-            repository.saveAndFlush(record);
-        }
-        catch (OptimisticLockException | OptimisticLockingFailureException ex) {
-            return;
-        }
         try {
             httpClient.send(record.getCorrelationId(), record.getPayloadJson());
             record.markDelivered(LocalDateTime.now());
@@ -82,11 +90,20 @@ public class SaasDecisionDispatcher {
         catch (Exception exception) {
             scheduleRetry(record, exception);
         }
-        repository.save(record);
+        saveFinalState(record);
     }
 
-    private boolean isDispatchable(SecurityDecisionForwardingOutboxRecord record) {
-        return record != null && DISPATCHABLE_STATUSES.contains(record.getStatus());
+    private boolean isClaimed(SecurityDecisionForwardingOutboxRecord record) {
+        return record != null && SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING.equals(record.getStatus());
+    }
+
+    private void saveFinalState(SecurityDecisionForwardingOutboxRecord record) {
+        try {
+            repository.saveAndFlush(record);
+        }
+        catch (OptimisticLockException | OptimisticLockingFailureException ex) {
+            // The row was deleted or superseded after this worker claimed it. Do not leak scheduler noise to callers.
+        }
     }
 
     private void scheduleRetry(SecurityDecisionForwardingOutboxRecord record, Exception exception) {

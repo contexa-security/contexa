@@ -8,6 +8,7 @@ public record BridgePrincipal(
         String principalId,
         String displayName,
         String principalType,
+        String tenantId,
         String organizationId,
         String orgId,
         String department,

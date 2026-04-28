@@ -292,6 +292,7 @@ class PromptGeneratorTest {
                 .build();
         event.addMetadata("httpMethod", "GET");
         event.addMetadata("requestPath", "/admin/api/security-test/sensitive/self-sensitive-1");
+        event.addMetadata("tenantId", "tenant-acme");
         event.addMetadata("resourceId", "self-sensitive-1");
         event.addMetadata("requestedResourceId", "self-sensitive-1");
         event.addMetadata("protectedResourceId", "self-sensitive-1");
@@ -330,6 +331,7 @@ class PromptGeneratorTest {
         assertThat(result.getUserPrompt()).contains("=== DEVICE CONTEXT ===");
         assertThat(result.getUserPrompt()).contains("=== LOCATION CONTEXT ===");
         assertThat(result.getUserPrompt()).contains("=== RESOURCE AND ACTION CONTEXT ===");
+        assertThat(result.getUserPrompt()).contains("TenantId: tenant-acme");
         assertThat(result.getUserPrompt()).contains("DeviceOs: WINDOWS");
         assertThat(result.getUserPrompt()).contains("DeviceBrowser: Chrome");
         assertThat(result.getUserPrompt()).contains("Country: KR");

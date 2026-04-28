@@ -40,7 +40,8 @@ public final class CanonicalExecutionEventMetadataSupport {
         subject.put("subjectType", subjectType);
         subject.put("actorUserId", firstNonBlank(text(metadata.get("actorUserId")), text(metadata.get("userId"))));
         subject.put("agentId", text(metadata.get("agentId")));
-        subject.put("tenantId", firstNonBlank(text(metadata.get("tenantId")), text(metadata.get("organizationId"))));
+        subject.put("tenantId", firstNonBlank(text(metadata.get("tenantId")), text(metadata.get("tenant_id"))));
+        subject.put("organizationId", firstNonBlank(text(metadata.get("organizationId")), text(metadata.get("orgId"))));
         subject.put("clientId", text(metadata.get("clientId")));
         metadata.putIfAbsent("canonicalExecutionSubject", immutableCopyWithoutNulls(subject));
 

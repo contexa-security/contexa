@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -58,15 +60,15 @@ class SaasDecisionDispatcherTest {
     @Test
     void dispatchMarksRecordDeliveredOnSuccess() {
         SecurityDecisionForwardingOutboxRecord record = record();
+        when(repository.claimForDispatch(eq(1L), anyList(), eq(SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING), any(LocalDateTime.class))).thenReturn(1);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
         when(repository.saveAndFlush(any(SecurityDecisionForwardingOutboxRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(repository.save(any(SecurityDecisionForwardingOutboxRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(httpClient).send(anyString(), anyString());
 
         dispatcher.dispatch(1L);
 
         ArgumentCaptor<SecurityDecisionForwardingOutboxRecord> saveCaptor = ArgumentCaptor.forClass(SecurityDecisionForwardingOutboxRecord.class);
-        verify(repository).save(saveCaptor.capture());
+        verify(repository).saveAndFlush(saveCaptor.capture());
         assertThat(saveCaptor.getValue().getStatus()).isEqualTo(SecurityDecisionForwardingOutboxRecord.STATUS_DELIVERED);
         assertThat(saveCaptor.getValue().getDeliveredAt()).isNotNull();
     }
@@ -74,15 +76,15 @@ class SaasDecisionDispatcherTest {
     @Test
     void dispatchSchedulesRetryOnServerError() {
         SecurityDecisionForwardingOutboxRecord record = record();
+        when(repository.claimForDispatch(eq(1L), anyList(), eq(SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING), any(LocalDateTime.class))).thenReturn(1);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
         when(repository.saveAndFlush(any(SecurityDecisionForwardingOutboxRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(repository.save(any(SecurityDecisionForwardingOutboxRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doThrow(new HttpServerErrorException(HttpStatus.BAD_GATEWAY)).when(httpClient).send(anyString(), anyString());
 
         dispatcher.dispatch(1L);
 
         ArgumentCaptor<SecurityDecisionForwardingOutboxRecord> captor = ArgumentCaptor.forClass(SecurityDecisionForwardingOutboxRecord.class);
-        verify(repository).save(captor.capture());
+        verify(repository).saveAndFlush(captor.capture());
         SecurityDecisionForwardingOutboxRecord failed = captor.getValue();
         assertThat(failed.getStatus()).isEqualTo(SecurityDecisionForwardingOutboxRecord.STATUS_FAILED);
         assertThat(failed.getNextAttemptAt()).isNotNull();
@@ -91,9 +93,9 @@ class SaasDecisionDispatcherTest {
     @Test
     void dispatchMovesRecordToDeadLetterOnNonRetryableClientError() {
         SecurityDecisionForwardingOutboxRecord record = record();
+        when(repository.claimForDispatch(eq(1L), anyList(), eq(SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING), any(LocalDateTime.class))).thenReturn(1);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
         when(repository.saveAndFlush(any(SecurityDecisionForwardingOutboxRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(repository.save(any(SecurityDecisionForwardingOutboxRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doThrow(HttpClientErrorException.create(
                 HttpStatus.FORBIDDEN,
                 "Forbidden",
@@ -104,18 +106,40 @@ class SaasDecisionDispatcherTest {
         dispatcher.dispatch(1L);
 
         ArgumentCaptor<SecurityDecisionForwardingOutboxRecord> captor = ArgumentCaptor.forClass(SecurityDecisionForwardingOutboxRecord.class);
-        verify(repository).save(captor.capture());
+        verify(repository).saveAndFlush(captor.capture());
         SecurityDecisionForwardingOutboxRecord failed = captor.getValue();
         assertThat(failed.getStatus()).isEqualTo(SecurityDecisionForwardingOutboxRecord.STATUS_DEAD_LETTER);
     }
 
     @Test
     void dispatchPendingBatchLoadsDispatchableRecords() {
-        when(repository.findDispatchable(anyList(), any(LocalDateTime.class), any(Pageable.class))).thenReturn(List.of());
+        when(repository.findDispatchableIds(anyList(), any(LocalDateTime.class), any(Pageable.class))).thenReturn(List.of());
 
         dispatcher.dispatchPendingBatch();
 
-        verify(repository).findDispatchable(anyList(), any(LocalDateTime.class), any(Pageable.class));
+        verify(repository).findDispatchableIds(anyList(), any(LocalDateTime.class), any(Pageable.class));
+    }
+
+    @Test
+    void dispatchSkipsWhenAnotherWorkerAlreadyClaimedRow() {
+        when(repository.claimForDispatch(eq(1L), anyList(), eq(SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING), any(LocalDateTime.class))).thenReturn(0);
+
+        dispatcher.dispatch(1L);
+
+        verify(repository, never()).findById(anyLong());
+        verifyNoInteractions(httpClient);
+    }
+
+    @Test
+    void dispatchDoesNotLeakOptimisticLockWhenFinalStateWasSuperseded() {
+        SecurityDecisionForwardingOutboxRecord record = record();
+        when(repository.claimForDispatch(eq(1L), anyList(), eq(SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING), any(LocalDateTime.class))).thenReturn(1);
+        when(repository.findById(1L)).thenReturn(Optional.of(record));
+        doThrow(new OptimisticLockingFailureException("stale")).when(repository).saveAndFlush(any(SecurityDecisionForwardingOutboxRecord.class));
+
+        assertThatCode(() -> dispatcher.dispatch(1L)).doesNotThrowAnyException();
+
+        verify(httpClient).send("corr-001", "{\"correlationId\":\"corr-001\"}");
     }
 
     private SecurityDecisionForwardingOutboxRecord record() {
@@ -124,8 +148,8 @@ class SaasDecisionDispatcherTest {
                 .correlationId("corr-001")
                 .tenantExternalRef("tenant-acme")
                 .payloadJson("{\"correlationId\":\"corr-001\"}")
-                .status(SecurityDecisionForwardingOutboxRecord.STATUS_PENDING)
-                .attemptCount(0)
+                .status(SecurityDecisionForwardingOutboxRecord.STATUS_DISPATCHING)
+                .attemptCount(1)
                 .createdAt(LocalDateTime.now())
                 .build();
     }

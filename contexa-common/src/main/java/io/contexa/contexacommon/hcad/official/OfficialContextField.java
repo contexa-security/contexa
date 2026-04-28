@@ -7,6 +7,21 @@ import java.util.List;
 import java.util.Locale;
 
 public enum OfficialContextField {
+    TENANT_ID(
+            OfficialContextSlot.SECURITY_SCOPE,
+            "tenantId",
+            List.of("tenantId", "ctxa.auth.tenantId", "hcad.tenant_id", "hcad.tenantId"),
+            List.of("tenantId", "ctxa.auth.tenantId", "hcad.tenant_id")),
+    ORGANIZATION_ID(
+            OfficialContextSlot.SECURITY_SCOPE,
+            "organizationId",
+            List.of("organizationId", "ctxa.auth.organizationId", "hcad.organization_id", "hcad.organizationId"),
+            List.of("organizationId", "ctxa.auth.organizationId", "hcad.organization_id")),
+    ORG_ID(
+            OfficialContextSlot.SECURITY_SCOPE,
+            "orgId",
+            List.of("orgId", "ctxa.auth.orgId", "hcad.org_id", "hcad.orgId"),
+            List.of("orgId", "ctxa.auth.orgId", "hcad.org_id")),
     MFA_VERIFIED(
             OfficialContextSlot.SESSION,
             "mfaVerified",

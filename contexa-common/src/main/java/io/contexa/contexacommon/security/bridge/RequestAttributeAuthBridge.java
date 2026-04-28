@@ -76,6 +76,9 @@ public class RequestAttributeAuthBridge implements AuthBridge {
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("bridgeAuthenticationSource", "REQUEST_ATTRIBUTE");
+        putIfPresent(attributes, "tenantId", request.getAttribute(properties.getFlatTenantId()));
+        putIfPresent(attributes, "organizationId", request.getAttribute(properties.getFlatOrganizationId()));
+        putIfPresent(attributes, "orgId", request.getAttribute(properties.getFlatOrgId()));
         putIfPresent(attributes, "authenticationType", request.getAttribute(properties.getFlatAuthenticationType()));
         putIfPresent(attributes, "authenticationAssurance", request.getAttribute(properties.getFlatAuthenticationAssurance()));
         putIfPresent(attributes, "mfaCompleted", request.getAttribute(properties.getFlatMfaCompleted()));

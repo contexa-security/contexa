@@ -66,7 +66,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
                 attribute(authenticationStamp.attributes(), "authenticationSource", "authSource", "sourceSystem"),
                 "BRIDGE"
         );
-        String organizationId = attribute(authenticationStamp.attributes(), "organizationId", "orgId", "tenantId");
+        String organizationId = attribute(authenticationStamp.attributes(), "organizationId", "orgId");
         String bridgeSubjectKey = generateBridgeSubjectKey(authenticationSource, organizationId, externalSubjectId);
         LocalDateTime now = LocalDateTime.now();
 

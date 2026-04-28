@@ -139,12 +139,12 @@ class Layer2ExpertStrategyTest {
     }
 
     @Test
-    @DisplayName("resolveOrganizationId should use event tenant metadata and never hard-code default organization")
-    void resolveOrganizationId_shouldUseTenantMetadata() {
+    @DisplayName("resolveOrganizationId should not use tenant metadata as organization identity")
+    void resolveOrganizationId_shouldNotUseTenantMetadata() {
         SecurityEvent event = buildTestEvent();
         event.addMetadata("tenantId", "tenant-a");
 
-        assertThat(strategy.resolveOrganizationId(event)).isEqualTo("tenant-a");
+        assertThat(strategy.resolveOrganizationId(event)).isEqualTo("unresolved:event:test-event-layer2");
     }
 
     @Test

@@ -915,7 +915,6 @@ public class BaselineLearningService {
         if (currentEvent != null && currentEvent.getMetadata() != null) {
             String metadataOrganizationId = firstNonBlankText(
                     textValue(currentEvent.getMetadata().get("organizationId")),
-                    textValue(currentEvent.getMetadata().get("tenantId")),
                     textValue(currentEvent.getMetadata().get("orgId")));
             if (StringUtils.hasText(metadataOrganizationId)) {
                 return metadataOrganizationId;

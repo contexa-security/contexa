@@ -137,6 +137,9 @@ public class BridgeRuntimeSupport {
             request.setAttribute(requestAttributes.getFlatDisplayName(), authenticationStamp.displayName());
             request.setAttribute(requestAttributes.getFlatAuthenticated(), authenticationStamp.authenticated());
             request.setAttribute(requestAttributes.getFlatAuthorities(), String.join(",", authenticationStamp.authorities()));
+            setAttributeIfPresent(request, requestAttributes.getFlatTenantId(), authenticationStamp.attributes().get("tenantId"));
+            setAttributeIfPresent(request, requestAttributes.getFlatOrganizationId(), authenticationStamp.attributes().get("organizationId"));
+            setAttributeIfPresent(request, requestAttributes.getFlatOrgId(), authenticationStamp.attributes().get("orgId"));
             request.setAttribute(requestAttributes.getFlatAuthenticationType(), authenticationStamp.authenticationType());
             request.setAttribute(requestAttributes.getFlatAuthenticationAssurance(), authenticationStamp.authenticationAssurance());
             request.setAttribute(requestAttributes.getFlatMfaCompleted(), authenticationStamp.mfaCompleted());
@@ -238,6 +241,7 @@ public class BridgeRuntimeSupport {
                 authenticationStamp.authenticationType(),
                 authenticationStamp.authenticationAssurance(),
                 authenticationStamp.mfaCompleted(),
+                text(authenticationStamp.attributes().get("tenantId")),
                 text(authenticationStamp.attributes().get("organizationId")),
                 text(authenticationStamp.attributes().get("orgId")),
                 text(authenticationStamp.attributes().get("department")),
@@ -277,6 +281,7 @@ public class BridgeRuntimeSupport {
                 externalSubjectId,
                 authenticationStamp.displayName(),
                 authenticationStamp.principalType(),
+                text(authenticationStamp.attributes().get("tenantId")),
                 text(authenticationStamp.attributes().get("organizationId")),
                 text(authenticationStamp.attributes().get("orgId")),
                 text(authenticationStamp.attributes().get("department")),
@@ -323,6 +328,12 @@ public class BridgeRuntimeSupport {
             }
         }
         return null;
+    }
+
+    private void setAttributeIfPresent(HttpServletRequest request, String attributeName, Object value) {
+        if (request != null && attributeName != null && !attributeName.isBlank() && value != null) {
+            request.setAttribute(attributeName, value);
+        }
     }
 
     @Nullable

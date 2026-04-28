@@ -70,6 +70,11 @@ public final class OfficialContextRequestAttributes {
         put(snapshot, OfficialContextField.INTENT_ABNORMAL_HEADER_ORDER, context.getIntentAbnormalHeaderOrder());
 
         Map<String, Object> additionalAttributes = context.getAdditionalAttributes();
+        if (additionalAttributes != null) {
+            put(snapshot, OfficialContextField.TENANT_ID, additionalAttributes.get("tenantId"));
+            put(snapshot, OfficialContextField.ORGANIZATION_ID, additionalAttributes.get("organizationId"));
+            put(snapshot, OfficialContextField.ORG_ID, additionalAttributes.get("orgId"));
+        }
         if (additionalAttributes != null && additionalAttributes.get("impossibleTravel") != null) {
             put(snapshot, OfficialContextField.IMPOSSIBLE_TRAVEL, additionalAttributes.get("impossibleTravel"));
         }

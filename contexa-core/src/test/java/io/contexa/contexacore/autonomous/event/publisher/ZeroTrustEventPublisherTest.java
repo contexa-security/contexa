@@ -72,6 +72,8 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("principalType", "USER")
                 .containsEntry("authenticationType", "JWT")
                 .containsEntry("authenticationAssurance", "HIGH")
+                .containsEntry("tenantId", "tenant-a")
+                .containsEntry("organizationId", "org-a")
                 .containsEntry("bridgeCoverageLevel", BridgeCoverageLevel.DELEGATION_CONTEXT.name())
                 .containsEntry("bridgeCoverageScore", 90)
                 .containsEntry("bridgeCoverageSummary", "Bridge resolved authentication, authorization, and delegated execution context for the current request.")
@@ -361,7 +363,9 @@ class ZeroTrustEventPublisherTest {
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
-                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-1", List.of("ROLE_USER"), Map.of("organizationId", "tenant-a")),
+                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-1", List.of("ROLE_USER"), Map.of(
+                        "tenantId", "tenant-a",
+                        "organizationId", "org-a")),
                 new AuthorizationStamp(
                         "alice",
                         "/reports/export",
@@ -392,7 +396,9 @@ class ZeroTrustEventPublisherTest {
     private BridgeResolutionResult createBridgeResolutionResultWithoutDelegatedFlag() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.11", "JUnit", "session-2", "request-2", "/reports/export", null, false, Instant.now()),
-                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-2", List.of("ROLE_USER"), Map.of("organizationId", "tenant-a")),
+                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-2", List.of("ROLE_USER"), Map.of(
+                        "tenantId", "tenant-a",
+                        "organizationId", "org-a")),
                 new AuthorizationStamp(
                         "alice",
                         "/reports/export",

@@ -1,6 +1,7 @@
 package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.official.OfficialContextRequestAttributes;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -309,5 +310,32 @@ class HCADContextExtractorTest {
                 .containsEntry("resourceType", "sensitive")
                 .containsEntry("resourceSensitivity", "HIGH")
                 .containsEntry("resourceBusinessLabel", "Sensitive Security Test Resource self-sensitive-1");
+    }
+
+    @Test
+    @DisplayName("Should preserve tenant and organization scope as explicit official context fields")
+    void shouldPreserveTenantAndOrganizationScope() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/admin/api/security-test/critical/resource-001");
+        request.setMethod("GET");
+        request.setRemoteAddr("10.0.0.11");
+        request.addHeader("User-Agent", "Browser/1.0");
+        request.addHeader("X-Contexa-Tenant-Id", "tenant-acme");
+        request.addHeader("X-Contexa-Organization-Id", "org-finance");
+        request.addHeader("X-Contexa-Org-Id", "org-finance-short");
+
+        Authentication auth = new TestingAuthenticationToken("admin", "password", "ROLE_ADMIN");
+
+        HCADContext context = extractor.extractContext(request, auth);
+        Map<String, Object> snapshot = OfficialContextRequestAttributes.snapshotFrom(context);
+
+        assertThat(context.getAdditionalAttributes())
+                .containsEntry("tenantId", "tenant-acme")
+                .containsEntry("organizationId", "org-finance")
+                .containsEntry("orgId", "org-finance-short");
+        assertThat(snapshot)
+                .containsEntry("tenantId", "tenant-acme")
+                .containsEntry("organizationId", "org-finance")
+                .containsEntry("orgId", "org-finance-short");
     }
 }

@@ -47,9 +47,32 @@ public final class RequestInfoExtractor {
         Boolean runtimeDisableOllamaThinking = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
+        String tenantId = firstNonBlankText(
+                extractHeaderOrAttribute(request,
+                        "X-Contexa-Tenant-Id",
+                        "tenantId",
+                        "ctxa.auth.tenantId",
+                        "hcad.tenant_id",
+                        "hcad.tenantId"),
+                extractHeaderOrAttribute(request, "X-Tenant-Id"),
+                castToText(officialContextFields.get("tenantId")),
+                authenticationStampAttribute(request, "tenantId", "tenant_id"));
         String organizationId = firstNonBlankText(
-                extractHeaderOrAttribute(request, "X-Contexa-Organization-Id", "organizationId", "orgId", "tenantId"),
-                authenticationStampOrganizationId(request));
+                extractHeaderOrAttribute(request,
+                        "X-Contexa-Organization-Id",
+                        "organizationId",
+                        "ctxa.auth.organizationId",
+                        "hcad.organization_id",
+                        "hcad.organizationId"),
+                extractHeaderOrAttribute(request,
+                        "X-Contexa-Org-Id",
+                        "orgId",
+                        "ctxa.auth.orgId",
+                        "hcad.org_id",
+                        "hcad.orgId"),
+                castToText(officialContextFields.get("organizationId")),
+                castToText(officialContextFields.get("orgId")),
+                authenticationStampAttribute(request, "organizationId", "orgId"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
                 requestedModelId,
@@ -151,6 +174,7 @@ public final class RequestInfoExtractor {
                         "objectiveDriftSummary",
                         "objective_drift_summary",
                         "delegationObjectiveDriftSummary"))
+                .tenantId(tenantId)
                 .organizationId(organizationId)
                 .mfaVerified(castToBoolean(officialContextFields.get("mfaVerified")))
                 .previousPath(extractAttributeText(request,
@@ -371,16 +395,21 @@ public final class RequestInfoExtractor {
         return (value != null && !value.isBlank()) ? value.trim() : null;
     }
 
-    private static String authenticationStampOrganizationId(HttpServletRequest request) {
+    private static String authenticationStampAttribute(HttpServletRequest request, String... keys) {
         if (request == null) {
             return null;
         }
         Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP);
         if (rawStamp instanceof AuthenticationStamp stamp && stamp.attributes() != null) {
-            return firstNonBlankText(
-                    castToText(stamp.attributes().get("organizationId")),
-                    castToText(stamp.attributes().get("orgId")),
-                    castToText(stamp.attributes().get("tenantId")));
+            if (keys == null) {
+                return null;
+            }
+            for (String key : keys) {
+                String value = castToText(stamp.attributes().get(key));
+                if (value != null) {
+                    return value;
+                }
+            }
         }
         return null;
     }
@@ -630,6 +659,7 @@ public final class RequestInfoExtractor {
         private final Boolean delegated;
         private final Boolean objectiveDrift;
         private final String objectiveDriftSummary;
+        private final String tenantId;
         private final String organizationId;
         private final Boolean mfaVerified;
         private final String previousPath;

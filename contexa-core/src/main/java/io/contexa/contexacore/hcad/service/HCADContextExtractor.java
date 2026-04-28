@@ -88,6 +88,7 @@ public class HCADContextExtractor {
             context.setTimestamp(observedAt);
             context.setIpBand(deriveIpBand(clientIp));
             context.setCurrentAccessHour(LocalDateTime.ofInstant(observedAt, ZoneId.systemDefault()).getHour());
+            enrichWithSecurityScope(context, request);
             enrichWithDeviceContext(context, request);
             enrichWithIntentSignals(context, request);
 
@@ -506,6 +507,31 @@ public class HCADContextExtractor {
         }
     }
 
+    private void enrichWithSecurityScope(HCADContext context, HttpServletRequest request) {
+        if (context == null || request == null) {
+            return;
+        }
+        String tenantId = firstNonBlank(
+                firstHeader(request, "X-Contexa-Tenant-Id", "X-Tenant-Id"),
+                firstNonBlankAttribute(request, "tenantId", "ctxa.auth.tenantId", "hcad.tenant_id", "hcad.tenantId"));
+        String organizationId = firstNonBlank(
+                firstHeader(request, "X-Contexa-Organization-Id", "X-Organization-Id"),
+                firstNonBlankAttribute(request, "organizationId", "ctxa.auth.organizationId", "hcad.organization_id", "hcad.organizationId"));
+        String orgId = firstNonBlank(
+                firstHeader(request, "X-Contexa-Org-Id", "X-Org-Id"),
+                firstNonBlankAttribute(request, "orgId", "ctxa.auth.orgId", "hcad.org_id", "hcad.orgId"));
+
+        if (StringUtils.hasText(tenantId)) {
+            putAdditionalAttribute(context, "tenantId", tenantId);
+        }
+        if (StringUtils.hasText(organizationId)) {
+            putAdditionalAttribute(context, "organizationId", organizationId);
+        }
+        if (StringUtils.hasText(orgId)) {
+            putAdditionalAttribute(context, "orgId", orgId);
+        }
+    }
+
     private void enrichWithDeviceContext(HCADContext context, HttpServletRequest request) {
         if (context == null) {
             return;
@@ -668,6 +694,18 @@ public class HCADContextExtractor {
             String value = request.getHeader(name);
             if (StringUtils.hasText(value)) {
                 return value;
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
             }
         }
         return null;

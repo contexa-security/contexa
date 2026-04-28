@@ -196,6 +196,27 @@ class BaselineLearningServiceTest {
     }
 
     @Test
+    @DisplayName("Organization baseline should not use tenantId as an organization fallback")
+    void shouldNotUseTenantIdAsOrganizationBaselineScope() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.now())
+                .build();
+        event.addMetadata("tenantId", "tenant-a");
+
+        service.learnIfNormal("org1_user1", decision, event);
+
+        verify(baselineDataStore, never()).getOrganizationBaseline("tenant-a");
+        verify(baselineDataStore, never()).saveOrganizationBaseline(eq("tenant-a"), any());
+    }
+
+    @Test
     @DisplayName("Organization baseline should be used as fallback when user baseline is null")
     void shouldFallbackToOrganizationBaseline() {
         // given

@@ -165,7 +165,7 @@ public class BridgeProperties {
         private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa");
         private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfa_verified");
         private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime");
-        private List<String> attributeKeys = List.of("department", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
+        private List<String> attributeKeys = List.of("department", "tenantId", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
     }
 
     @Data
@@ -182,12 +182,15 @@ public class BridgeProperties {
         private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa");
         private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfa_verified");
         private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime");
-        private List<String> attributeKeys = List.of("department", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
+        private List<String> attributeKeys = List.of("department", "tenantId", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
 
         private String flatPrincipalId = "ctxa.auth.principalId";
         private String flatDisplayName = "ctxa.auth.displayName";
         private String flatAuthenticated = "ctxa.auth.authenticated";
         private String flatAuthorities = "ctxa.auth.authorities";
+        private String flatTenantId = "ctxa.auth.tenantId";
+        private String flatOrganizationId = "ctxa.auth.organizationId";
+        private String flatOrgId = "ctxa.auth.orgId";
         private String flatAuthenticationType = "ctxa.auth.type";
         private String flatAuthenticationAssurance = "ctxa.auth.assurance";
         private String flatMfaCompleted = "ctxa.auth.mfaCompleted";
@@ -221,6 +224,9 @@ public class BridgeProperties {
         private String displayName = "X-Contexa-Principal-Name";
         private String authenticated = "X-Contexa-Authenticated";
         private String authorities = "X-Contexa-Authorities";
+        private String tenantId = "X-Contexa-Tenant-Id";
+        private String organizationId = "X-Contexa-Organization-Id";
+        private String orgId = "X-Contexa-Org-Id";
         private String authenticationType = "X-Contexa-Authentication-Type";
         private String authenticationAssurance = "X-Contexa-Authentication-Assurance";
         private String mfaCompleted = "X-Contexa-Mfa-Completed";

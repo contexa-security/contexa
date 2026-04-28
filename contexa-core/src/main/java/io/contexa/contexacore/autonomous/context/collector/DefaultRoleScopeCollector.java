@@ -1128,7 +1128,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
 
     private String resolveTenantId(SecurityEvent event) {
         Map<String, Object> metadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
-        return firstText(metadata.get("tenantId"), metadata.get("tenant_id"), metadata.get("organizationId"));
+        return firstText(metadata.get("tenantId"), metadata.get("tenant_id"));
     }
 
     private long resolveChangeTimestamp(Map<String, Object> metadata, long currentTimestampMs) {

@@ -29,6 +29,9 @@ public class HeaderAuthBridge implements AuthBridge {
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("bridgeAuthenticationSource", "HEADER");
+        putIfPresent(attributes, "tenantId", request.getHeader(properties.getTenantId()));
+        putIfPresent(attributes, "organizationId", request.getHeader(properties.getOrganizationId()));
+        putIfPresent(attributes, "orgId", request.getHeader(properties.getOrgId()));
         putIfPresent(attributes, "authenticationType", request.getHeader(properties.getAuthenticationType()));
         putIfPresent(attributes, "authenticationAssurance", request.getHeader(properties.getAuthenticationAssurance()));
         putIfPresent(attributes, "mfaCompleted", request.getHeader(properties.getMfaCompleted()));

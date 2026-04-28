@@ -263,6 +263,9 @@ public class ZeroTrustEventPublisher {
                 payload.put("requestedResourceId", requestInfo.getResourceId());
                 payload.put("protectedResourceId", requestInfo.getResourceId());
             }
+            if (requestInfo.getTenantId() != null) {
+                payload.put("tenantId", requestInfo.getTenantId());
+            }
             if (requestInfo.getOrganizationId() != null) {
                 payload.put("organizationId", requestInfo.getOrganizationId());
             }
@@ -455,7 +458,12 @@ public class ZeroTrustEventPublisher {
             if (!authenticationStamp.authorities().isEmpty()) {
                 payload.put("authorities", mergeDistinctStringLists(payload.get("authorities"), authenticationStamp.authorities()));
             }
-            putIfAbsent(payload, "organizationId", authenticationStamp.attributes().get("organizationId"));
+            Object tenantId = authenticationStamp.attributes().get("tenantId");
+            Object organizationId = firstNonNull(
+                    authenticationStamp.attributes().get("organizationId"),
+                    authenticationStamp.attributes().get("orgId"));
+            putIfAbsent(payload, "tenantId", tenantId);
+            putIfAbsent(payload, "organizationId", organizationId);
             putIfAbsent(payload, "orgId", authenticationStamp.attributes().get("orgId"));
             putIfAbsent(payload, "department", authenticationStamp.attributes().get("department"));
         }
@@ -826,6 +834,18 @@ public class ZeroTrustEventPublisher {
         if (values != null && !values.isEmpty()) {
             payload.putIfAbsent(key, values);
         }
+    }
+
+    private Object firstNonNull(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private Protectable resolveProtectable(MethodInvocation methodInvocation) {

@@ -79,7 +79,9 @@ class RequestInfoExtractorTest {
         request.setRequestedSessionId("session-bridge");
         request.setRemoteAddr("203.0.113.30");
         request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP,
-                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.parse("2026-04-04T01:00:00Z"), "session-bridge", List.of("ROLE_USER"), Map.of("organizationId", "tenant-a")));
+                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.parse("2026-04-04T01:00:00Z"), "session-bridge", List.of("ROLE_USER"), Map.of(
+                        "tenantId", "tenant-a",
+                        "organizationId", "org-a")));
         request.setAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP,
                 new AuthorizationStamp("alice", "/reports/export", "GET", AuthorizationEffect.ALLOW, true, List.of("report:export"), "policy-1", null, "HEADER", Instant.parse("2026-04-04T01:00:01Z"), List.of("ROLE_USER"), List.of("REPORT_EXPORT"), Map.of()));
         request.setAttribute(BridgeRequestAttributes.COVERAGE_REPORT,
@@ -96,6 +98,8 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getBridgeResolutionResult().requestContext().requestUri()).isEqualTo("/reports/export");
         assertThat(requestInfo.getBridgeResolutionResult().requestContext().requestId()).isEqualTo("req-bridge-fallback");
         assertThat(requestInfo.getBridgeResolutionResult().coverageReport().missingContexts()).contains(MissingBridgeContext.DELEGATION);
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-a");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-a");
     }
 
     @Test
@@ -201,6 +205,22 @@ class RequestInfoExtractorTest {
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
         assertThat(requestInfo.getOrganizationId()).isEqualTo("tenant-acme");
+        assertThat(requestInfo.getTenantId()).isNull();
+    }
+
+    @Test
+    @DisplayName("tenant and organization scope should remain separate request facts")
+    void extractShouldKeepTenantAndOrganizationScopeSeparate() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
+        request.addHeader("X-Request-ID", "req-scope");
+        request.addHeader("X-Contexa-Tenant-Id", "tenant-acme");
+        request.addHeader("X-Contexa-Organization-Id", "org-finance");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-acme");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-finance");
     }
 
     @Test
