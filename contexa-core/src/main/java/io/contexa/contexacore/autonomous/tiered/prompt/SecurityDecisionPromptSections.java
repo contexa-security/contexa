@@ -29,6 +29,9 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptEvidenceCompleteness;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolution;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.std.components.prompt.PromptDuplicationRecord;
 import io.contexa.contexacore.std.components.prompt.PromptOmissionRecord;
@@ -109,6 +112,7 @@ public class SecurityDecisionPromptSections {
     private final CanonicalSecurityContextProvider canonicalSecurityContextProvider;
     private final PromptContextComposer promptContextComposer;
     private final PromptGovernanceDescriptor promptGovernanceDescriptor;
+    private final PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver;
     private final LearningContextEvidenceAssembler learningContextEvidenceAssembler;
     private final List<PromptSectionPlan> systemSectionPlans;
     private final List<PromptSectionPlan> userSectionPlans;
@@ -121,12 +125,32 @@ public class SecurityDecisionPromptSections {
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptor promptGovernanceDescriptor) {
+        this(eventEnricher,
+                tieredStrategyProperties,
+                mcpSecurityContextProvider,
+                canonicalSecurityContextProvider,
+                promptContextComposer,
+                promptGovernanceDescriptor,
+                null);
+    }
+
+    public SecurityDecisionPromptSections(
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            McpSecurityContextProvider mcpSecurityContextProvider,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer,
+            PromptGovernanceDescriptor promptGovernanceDescriptor,
+            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null ? tieredStrategyProperties : new TieredStrategyProperties();
         this.mcpSecurityContextProvider = mcpSecurityContextProvider;
         this.canonicalSecurityContextProvider = canonicalSecurityContextProvider;
         this.promptContextComposer = promptContextComposer;
         this.promptGovernanceDescriptor = promptGovernanceDescriptor;
+        this.promptGovernanceDescriptorResolver = promptGovernanceDescriptorResolver != null
+                ? promptGovernanceDescriptorResolver
+                : PromptGovernanceDescriptorResolver.identity();
         this.learningContextEvidenceAssembler = new LearningContextEvidenceAssembler();
         this.canonicalSecurityContextCache = Caffeine.newBuilder()
                 .maximumSize(2000)
@@ -237,15 +261,17 @@ public class SecurityDecisionPromptSections {
         String userText = userSections.composedText();
         SecurityPromptContractAudit promptContractAudit = SecurityPromptContractVerifier.audit(systemText, userText, buildContext);
         PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger, promptContractAudit);
+        PromptGovernanceDescriptorResolution governanceResolution = resolvePromptGovernanceDescriptor(buildContext);
         Map<String, Object> supplementalMetadata = new LinkedHashMap<>();
         supplementalMetadata.putAll(buildLearningPromptMetadata(buildContext, sectionSet));
         supplementalMetadata.putAll(buildPromptContractMetadata(promptContractAudit));
+        supplementalMetadata.putAll(governanceResolution.supplementalMetadata());
 
         return new StructuredPrompt(
                 systemText,
                 userText,
                 PromptGovernanceSupport.buildExecutionMetadata(
-                        promptGovernanceDescriptor,
+                        governanceResolution.descriptor(),
                         budgetProfile != null ? budgetProfile : PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
                         sectionSet,
                         omittedSections,
@@ -273,6 +299,52 @@ public class SecurityDecisionPromptSections {
 
         StructuredPrompt structured = buildStructuredPrompt(event, sessionContext, behaviorAnalysis, relatedDocuments);
         return structured.systemText() + structured.userText();
+    }
+
+    private PromptGovernanceDescriptorResolution resolvePromptGovernanceDescriptor(SecurityPromptBuildContext buildContext) {
+        PromptGovernanceResolutionContext resolutionContext = promptGovernanceResolutionContext(buildContext);
+        try {
+            PromptGovernanceDescriptorResolution resolution =
+                    promptGovernanceDescriptorResolver.resolve(promptGovernanceDescriptor, resolutionContext);
+            return resolution != null
+                    ? resolution
+                    : PromptGovernanceDescriptorResolution.fallback(promptGovernanceDescriptor, resolutionContext);
+        }
+        catch (RuntimeException exception) {
+            log.warn("Prompt governance descriptor resolution failed. Falling back to static descriptor.", exception);
+            return PromptGovernanceDescriptorResolution.fallback(promptGovernanceDescriptor, resolutionContext);
+        }
+    }
+
+    private PromptGovernanceResolutionContext promptGovernanceResolutionContext(SecurityPromptBuildContext buildContext) {
+        SecurityEvent event = buildContext != null ? buildContext.getEvent() : null;
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        if (metadata != null) {
+            metadata.forEach((key, value) -> {
+                if (key != null && value != null) {
+                    attributes.put(key, value);
+                }
+            });
+        }
+        return new PromptGovernanceResolutionContext(
+                firstNonBlankText(metadataValue(metadata, "registryScope"),
+                        metadataValue(metadata, "promptRegistryScope"),
+                        metadataValue(metadata, "governanceRegistryScope"),
+                        "PLATFORM_GLOBAL"),
+                promptGovernanceDescriptor.promptKey(),
+                promptGovernanceDescriptor.templateKey(),
+                firstNonBlankText(metadataValue(metadata, "tenantId"), metadataValue(metadata, "organizationId")),
+                firstNonBlankText(metadataValue(metadata, "resourceId"),
+                        metadataValue(metadata, "managedResourceId"),
+                        metadataValue(metadata, "endpointKey")),
+                firstNonBlankText(metadataValue(metadata, "resourceUrl"), extractRequestPath(event)),
+                firstNonBlankText(metadataValue(metadata, "httpMethod"), metadataValue(metadata, "method")),
+                attributes);
+    }
+
+    private Object metadataValue(Map<String, Object> metadata, String key) {
+        return metadata == null ? null : metadata.get(key);
     }
 
     private SecurityPromptBuildContext createBuildContext(SecurityEvent event,

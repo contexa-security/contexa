@@ -59,6 +59,9 @@ public record PromptExecutionMetadata(
 
     public Map<String, Object> toMetadataMap() {
         Map<String, Object> metadata = new LinkedHashMap<>(governanceDescriptor.toMetadataMap());
+        String registryScope = supplementalMetadataValue("registryScope", "PLATFORM_GLOBAL");
+        metadata.put("registryScope", registryScope);
+        metadata.put("governanceDescriptor", governanceDescriptorMap(registryScope));
         metadata.putAll(budgetProfile.toMetadataMap());
         metadata.putAll(promptTokenEstimate.toMetadataMap());
         metadata.putAll(promptCompressionLedger.toMetadataMap());
@@ -87,6 +90,41 @@ public record PromptExecutionMetadata(
         metadata.put("promptGeneratedAtEpochMs", generatedAtEpochMs);
         metadata.putAll(supplementalMetadata);
         return metadata;
+    }
+
+    private Map<String, Object> governanceDescriptorMap(String registryScope) {
+        Map<String, Object> descriptor = new LinkedHashMap<>();
+        descriptor.put("registryScope", registryScope);
+        descriptor.put("promptKey", governanceDescriptor.promptKey());
+        descriptor.put("templateKey", governanceDescriptor.templateKey());
+        descriptor.put("promptVersion", governanceDescriptor.promptVersion());
+        descriptor.put("contractVersion", governanceDescriptor.contractVersion());
+        descriptor.put("releaseStatus", supplementalMetadataValue("releaseStatus", governanceDescriptor.releaseStatus().name()));
+        descriptor.put("releaseApprovalReference", supplementalMetadataValue("releaseApprovalReference", governanceDescriptor.releaseApprovalReference()));
+        descriptor.put("promptArtifactHashSha256", supplementalMetadataValue("promptArtifactHashSha256", governanceDescriptor.artifactHashSha256()));
+        descriptor.put("owner", governanceDescriptor.owner());
+        descriptor.put("evaluationBaselineReference", governanceDescriptor.evaluationBaselineReference());
+        descriptor.put("rollbackPromptVersion", governanceDescriptor.rollbackPromptVersion());
+        descriptor.put("changeSummary", governanceDescriptor.changeSummary());
+        descriptor.put("supportedModelProfiles", governanceDescriptor.supportedModelProfiles());
+        descriptor.put("templateClassName", governanceDescriptor.templateClassName());
+        descriptor.put("recipeId", supplementalMetadataValue("recipeId", null));
+        descriptor.put("recipeVersion", supplementalMetadataValue("recipeVersion", governanceDescriptor.promptVersion()));
+        descriptor.put("systemPromptVersion", supplementalMetadataValue("systemPromptVersion", governanceDescriptor.promptVersion()));
+        descriptor.put("userPromptLayoutVersion", supplementalMetadataValue("userPromptLayoutVersion", governanceDescriptor.promptVersion()));
+        descriptor.put("contextProjectionVersion", supplementalMetadataValue("contextProjectionVersion", governanceDescriptor.promptVersion()));
+        descriptor.put("pqaIssueIds", supplementalMetadata.getOrDefault("pqaIssueIds", List.of()));
+        descriptor.put("pqaRemediationActionIds", supplementalMetadata.getOrDefault("pqaRemediationActionIds", List.of()));
+        return descriptor;
+    }
+
+    private String supplementalMetadataValue(String key, String fallback) {
+        Object value = supplementalMetadata.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? fallback : text;
     }
 
     private static String requireText(String value, String fieldName) {

@@ -23,6 +23,7 @@ import io.contexa.contexacore.std.components.prompt.AbstractStandardPromptTempla
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import lombok.Getter;
@@ -67,13 +68,29 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer) {
+        this(eventEnricher,
+                tieredStrategyProperties,
+                mcpSecurityContextProvider,
+                canonicalSecurityContextProvider,
+                promptContextComposer,
+                null);
+    }
+
+    public SecurityDecisionStandardPromptTemplate(
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            McpSecurityContextProvider mcpSecurityContextProvider,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer,
+            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver) {
         this(new SecurityDecisionPromptSections(
                 eventEnricher,
                 tieredStrategyProperties,
                 mcpSecurityContextProvider,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
-                SECURITY_DECISION_PROMPT_GOVERNANCE));
+                SECURITY_DECISION_PROMPT_GOVERNANCE,
+                promptGovernanceDescriptorResolver));
     }
 
     public SecurityDecisionStandardPromptTemplate(

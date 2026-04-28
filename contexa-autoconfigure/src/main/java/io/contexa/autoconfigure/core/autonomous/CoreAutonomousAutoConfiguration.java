@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.repository.*;
 import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
@@ -230,13 +231,15 @@ public class CoreAutonomousAutoConfiguration {
             TieredStrategyProperties tieredStrategyProperties,
             ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
-            PromptContextComposer promptContextComposer) {
+            PromptContextComposer promptContextComposer,
+            ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver) {
         return new SecurityDecisionStandardPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
                 mcpSecurityContextProvider.getIfAvailable(),
                 canonicalSecurityContextProvider,
-                promptContextComposer);
+                promptContextComposer,
+                promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity));
     }
 
     @Bean
