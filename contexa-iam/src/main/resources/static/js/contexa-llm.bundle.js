@@ -15,9 +15,40 @@
 (function(global) {
     'use strict';
 
-    // ============================================================
-    // UIAdapter - Base Class for UI Adapters
-    // ============================================================
+    /**
+     * Bundled i18n strings. Auto-selected by navigator.language; caller can still
+     * override any key by passing an explicit options.xxxText to the SDK.
+     */
+    const __ContexaLlmI18n = (function() {
+        const messages = {
+            en: {
+                headerText: 'AI Analyzing...',
+                initialLoadingText: 'LLM analysis starting...',
+                generatingResultText: 'Generating result data...',
+                analysisCompleteText: 'LLM analysis complete',
+                finalCompleteText: 'AI analysis complete!',
+                loadingText: 'AI analyzing...',
+                subText: 'Please wait...',
+                modalTitle: 'AI Analyzing...',
+                errorPrefix: 'Error'
+            },
+            ko: {
+                headerText: 'AI 분석 중...',
+                initialLoadingText: 'LLM 분석 시작...',
+                generatingResultText: '결과 데이터 생성 중...',
+                analysisCompleteText: 'LLM 분석 완료',
+                finalCompleteText: 'AI 분석 완료!',
+                loadingText: 'AI 분석 중...',
+                subText: '잠시만 기다려 주세요',
+                modalTitle: 'AI 분석 중...',
+                errorPrefix: '오류'
+            }
+        };
+        const lang = ((typeof navigator !== 'undefined' && navigator.language) || 'en')
+                .slice(0, 2).toLowerCase();
+        return messages[lang] || messages.en;
+    })();
+
     class UIAdapter {
         constructor(options = {}) {
             this.options = options;
@@ -36,9 +67,6 @@
         destroy() {}
     }
 
-    // ============================================================
-    // StreamingClient - SSE Streaming Client
-    // ============================================================
     class StreamingClient {
         static DEFAULT_CONFIG = {
             markers: {
@@ -318,9 +346,6 @@
         }
     }
 
-    // ============================================================
-    // SyncClient - Non-streaming HTTP Client
-    // ============================================================
     class SyncClient {
         static DEFAULT_CONFIG = {
             timeoutMs: 300000
@@ -387,22 +412,19 @@
         }
     }
 
-    // ============================================================
-    // ModalUIAdapter - Modal-based Streaming UI Adapter
-    // ============================================================
     class ModalUIAdapter extends UIAdapter {
         constructor(options = {}) {
             super(options);
             this.modalId = options.modalId || 'llm-modal';
-            this.headerText = options.headerText || 'AI Analyzing...';
+            this.headerText = options.headerText || __ContexaLlmI18n.headerText;
             this.hideDelay = options.hideDelay || 300;
             this.currentModal = null;
             this.initialMessageShown = false;
             this.generatingResultShown = false;
-            this.initialLoadingText = options.initialLoadingText || 'LLM 분석 시작...';
-            this.generatingResultText = options.generatingResultText || '결과 데이터 생성중...';
-            this.analysisCompleteText = options.analysisCompleteText || 'LLM 분석 완료';
-            this.finalCompleteText = options.finalCompleteText || 'AI 분석 완료!';
+            this.initialLoadingText = options.initialLoadingText || __ContexaLlmI18n.initialLoadingText;
+            this.generatingResultText = options.generatingResultText || __ContexaLlmI18n.generatingResultText;
+            this.analysisCompleteText = options.analysisCompleteText || __ContexaLlmI18n.analysisCompleteText;
+            this.finalCompleteText = options.finalCompleteText || __ContexaLlmI18n.finalCompleteText;
         }
 
         onStart(query) {
@@ -633,15 +655,12 @@
         destroy() { this.hide(); }
     }
 
-    // ============================================================
-    // InlineLoadingAdapter - Inline Loading UI for Non-streaming
-    // ============================================================
     class InlineLoadingAdapter extends UIAdapter {
         constructor(options = {}) {
             super(options);
             this.container = options.container || document.body;
-            this.loadingText = options.loadingText || 'AI 분석 중...';
-            this.subText = options.subText || '잠시만 기다려 주세요';
+            this.loadingText = options.loadingText || __ContexaLlmI18n.loadingText;
+            this.subText = options.subText || __ContexaLlmI18n.subText;
             this.loadingElement = null;
         }
 
@@ -665,7 +684,7 @@
             if (this.loadingElement) {
                 const textEl = this.loadingElement.querySelector('.ctx-inline-text');
                 if (textEl) {
-                    textEl.textContent = `Error: ${error.message || error}`;
+                    textEl.textContent = `${__ContexaLlmI18n.errorPrefix}: ${error.message || error}`;
                     textEl.classList.add('ctx-inline-error');
                 }
             }
@@ -738,9 +757,6 @@
         }
     }
 
-    // ============================================================
-    // ContexaLLM - Main API
-    // ============================================================
     const ContexaLLM = {
         UIAdapter,
         StreamingClient,
@@ -760,8 +776,8 @@
                 timeoutMs: options.timeoutMs || 300000,
                 showLoading: options.showLoading !== false,
                 container: options.container || null,
-                loadingText: options.loadingText || 'AI 분석 중...',
-                subText: options.subText || '잠시만 기다려 주세요',
+                loadingText: options.loadingText || __ContexaLlmI18n.loadingText,
+                subText: options.subText || __ContexaLlmI18n.subText,
                 onComplete: options.onComplete || null,
                 onError: options.onError || null
             };
@@ -803,11 +819,11 @@
          */
         async analyzeStreaming(url, requestData, options = {}) {
             const config = {
-                modalTitle: options.modalTitle || 'AI Analyzing...',
-                initialLoadingText: options.initialLoadingText || 'LLM 분석 시작...',
-                analysisCompleteText: options.analysisCompleteText || 'LLM 분석 완료',
-                generatingResultText: options.generatingResultText || '결과 데이터 생성중...',
-                finalCompleteText: options.finalCompleteText || 'AI 분석 완료!',
+                modalTitle: options.modalTitle || __ContexaLlmI18n.modalTitle,
+                initialLoadingText: options.initialLoadingText || __ContexaLlmI18n.initialLoadingText,
+                analysisCompleteText: options.analysisCompleteText || __ContexaLlmI18n.analysisCompleteText,
+                generatingResultText: options.generatingResultText || __ContexaLlmI18n.generatingResultText,
+                finalCompleteText: options.finalCompleteText || __ContexaLlmI18n.finalCompleteText,
                 autoHideDelay: options.autoHideDelay || 1500,
                 timeoutMs: options.timeoutMs || 300000,
                 onProgress: options.onProgress || null,
@@ -867,12 +883,10 @@
         }
     };
 
-    // Browser environment
     if (typeof window !== 'undefined') {
         window.ContexaLLM = ContexaLLM;
     }
 
-    // CommonJS environment
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = ContexaLLM;
     }

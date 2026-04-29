@@ -58,7 +58,6 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
         boolean isSoar = request.getContext() instanceof SoarContext;
         if (isSoar) {
-            // SOAR requests fallback to non-streaming pipeline for approval gate support
             return execute(request, configuration, AIResponse.class)
                     .map(response -> {
                         try {

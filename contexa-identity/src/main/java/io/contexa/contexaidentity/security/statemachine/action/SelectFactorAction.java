@@ -49,7 +49,6 @@ public class SelectFactorAction extends AbstractMfaStateAction {
                     " is not available for user: " + factorContext.getUsername());
         }
 
-        // Prevent selecting the same factor type that is already completed
         boolean alreadyCompleted = factorContext.getCompletedFactors().stream()
                 .anyMatch(step -> authType.name().equalsIgnoreCase(step.getType()));
         if (alreadyCompleted) {

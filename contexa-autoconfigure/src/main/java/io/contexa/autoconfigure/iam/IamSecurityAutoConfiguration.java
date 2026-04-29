@@ -14,8 +14,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
+/**
+ * Activates Spring Security's method-level authorization machinery so {@code @PreAuthorize},
+ * {@code @PostAuthorize}, {@code @Secured}, and JSR-250 annotations on any IAM controller or
+ * service are intercepted. Without this annotation the configured
+ * {@link MethodSecurityExpressionHandler} bean is never wired to a method interceptor and
+ * the annotations on every controller are silently ignored — including the defence-in-depth
+ * guards on the system-settings endpoints.
+ */
 @AutoConfiguration
+@EnableMethodSecurity
 @AutoConfigureAfter(name = {
         "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration",
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",

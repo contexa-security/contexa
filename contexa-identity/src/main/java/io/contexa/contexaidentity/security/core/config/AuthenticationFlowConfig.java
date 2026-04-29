@@ -77,7 +77,6 @@ public final class AuthenticationFlowConfig {
                 .urlPrefix(this.urlPrefix)
                 .requiredFactorCount(this.requiredFactorCount);
         AuthenticationFlowConfig newFlow = new AuthenticationFlowConfig(builder);
-        // Regenerate stepIds with the new typeName
         if (newFlow.stepConfigs != null) {
             for (AuthenticationStepConfig step : newFlow.stepConfigs) {
                 step.setStepId(AuthenticationStepConfig.generateId(newTypeName, step.getType(), step.getOrder()));

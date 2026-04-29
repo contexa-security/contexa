@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "spring.auth")
+@ConfigurationProperties(prefix = "contexa.auth")
 public class AuthContextProperties {
 
     private StateType stateType = StateType.OAUTH2;

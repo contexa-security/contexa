@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@ConditionalOnProperty(name = "security.mfa.session.storage-type", havingValue = "http-session", matchIfMissing = true)
+@ConditionalOnProperty(name = "contexa.auth.mfa.session-storage-type", havingValue = "http-session", matchIfMissing = true)
 public class HttpSessionMfaRepository implements MfaSessionRepository {
 
     private static final String MFA_SESSION_ID_ATTRIBUTE = "MFA_SESSION_ID";

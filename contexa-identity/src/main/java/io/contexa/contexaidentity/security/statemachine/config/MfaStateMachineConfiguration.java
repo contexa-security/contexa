@@ -149,7 +149,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(handleFailureAction)
                 .and()
 
-                // Fallback transition: retry limit exceeded -> terminal state
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
@@ -243,7 +242,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.CHALLENGE_TIMEOUT)
                 .and()
 
-                // Allow user to switch to a different factor from challenge or initiation states
                 .withExternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)

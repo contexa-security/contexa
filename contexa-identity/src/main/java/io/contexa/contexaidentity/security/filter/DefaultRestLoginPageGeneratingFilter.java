@@ -93,7 +93,6 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
 
-        // i18n messages
         String titleText = msg(request, "login.title", "Login");
         String usernamePlaceholder = msg(request, "login.username.placeholder", "Username or Email");
         String passwordPlaceholder = msg(request, "login.password.placeholder", "Password");

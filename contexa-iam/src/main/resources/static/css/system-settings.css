@@ -1,0 +1,210 @@
+/*
+ * /admin/system-settings styles.
+ *
+ * The page reuses .modern-card from policy-center.css for consistency with the rest of the
+ * admin shell, but the global "no cards" rule requires the card shell to be invisible.
+ * This file overrides the visual shell only — background, border, shadow, radius, padding —
+ * while preserving the inner DOM structure (header, fields, pills) intact.
+ *
+ * Beyond the shell removal, the file applies the operator-facing UI principles:
+ *   - per-section colour band on the left edge to distinguish the kind of information
+ *     (audit / access-control / registration)
+ *   - scope pill at the right of each header so the operator sees who or what is affected
+ *   - consistent spacing so labels never sit flush against inputs or section bodies
+ */
+
+/* ---- card shell removal (the global no-card rule) -------------------------------------
+ * !important is applied to the five visual-shell properties because policy-center.css owns
+ * .modern-card and may use stronger selectors (e.g. theme prefix) that would otherwise win
+ * the cascade. The override is intentional and limited to shell visibility — internal layout
+ * properties on .modern-card remain in effect.
+ */
+.system-settings-page .modern-card.system-settings-section {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 0 0 1.25rem !important;
+    margin: 0 0 2.25rem 0;
+}
+
+/* ---- container ------------------------------------------------------------------------ */
+.system-settings-container {
+    max-width: 56rem;
+    margin: 0 auto;
+}
+
+/* ---- heading -------------------------------------------------------------------------- */
+.system-settings-heading {
+    color: #e2e8f0;
+}
+
+.system-settings-heading-icon {
+    color: #818cf8;
+}
+
+/* ---- section header (icon + title + scope pill) ---------------------------------------
+ * The color band on the left edge sits on top of the !important "border: none" override
+ * applied above, so it must also use !important to win the cascade.
+ */
+.system-settings-section {
+    border-left: 3px solid transparent !important;
+}
+
+.system-settings-section--audit {
+    border-left-color: #a78bfa !important;
+}
+
+.system-settings-section--access {
+    border-left-color: #4ade80 !important;
+}
+
+.system-settings-section--registration {
+    border-left-color: #fbbf24 !important;
+}
+
+.system-settings-section__header {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+}
+
+.system-settings-section__title {
+    color: #e2e8f0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+    flex: 0 0 auto;
+}
+
+.system-settings-section__icon {
+    font-size: 1.05rem;
+}
+
+.system-settings-section__icon--audit {
+    color: #a78bfa;
+}
+
+.system-settings-section__icon--access {
+    color: #4ade80;
+}
+
+.system-settings-section__icon--registration {
+    color: #fbbf24;
+}
+
+/* ---- scope pill ----------------------------------------------------------------------- */
+.system-settings-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border-radius: 999px;
+    color: #e2e8f0;
+    background: rgba(148, 163, 184, 0.18);
+    margin-left: auto;
+}
+
+.system-settings-pill--audit {
+    background: rgba(167, 139, 250, 0.18);
+    color: #c4b5fd;
+}
+
+.system-settings-pill--access {
+    background: rgba(74, 222, 128, 0.18);
+    color: #86efac;
+}
+
+.system-settings-pill--registration {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fcd34d;
+}
+
+/* ---- fields --------------------------------------------------------------------------- */
+.system-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem;
+}
+
+@media (max-width: 720px) {
+    .system-settings-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.system-settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.system-settings-label {
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.system-settings-input {
+    max-width: 100%;
+}
+
+.system-settings-help {
+    color: #64748b;
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+/* ---- toggle for boolean settings ------------------------------------------------------ */
+.system-settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.system-settings-toggle__input {
+    accent-color: #6366f1;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.system-settings-toggle__label {
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* ---- save button ---------------------------------------------------------------------- */
+.system-settings-save {
+    width: 100%;
+    justify-content: center;
+    padding: 0.85rem 1rem;
+    margin-top: 0.5rem;
+}
+
+/* ---- flash banners (replaces inline rgba styles) -------------------------------------- */
+.system-settings-banner {
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.5rem;
+    transition: opacity 0.5s ease;
+}
+
+.system-settings-banner-success {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+}
+
+.system-settings-banner-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+
+.system-settings-banner.is-fading {
+    opacity: 0;
+}

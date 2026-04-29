@@ -42,8 +42,6 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             return;
         }
 
-        // OAuth2 failures are from external IdP - username is not available via request parameter.
-        // Login failure tracking is handled by form-based authentication handlers only.
 
         String errorCode = "AUTHENTICATION_FAILED";
         String errorMessage = "Authentication failed. Please check your username or password.";

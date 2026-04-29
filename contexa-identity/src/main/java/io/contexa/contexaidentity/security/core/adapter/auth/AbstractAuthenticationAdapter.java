@@ -87,12 +87,9 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
         if (stateType == StateType.SESSION
                 && http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
-            // Session mode: keep AISessionSecurityContextRepository from global registration
         } else if (securityContextRepository instanceof HttpSessionSecurityContextRepository) {
-            // MFA in-progress: session required regardless of StateType
             http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
         } else if (stateType != StateType.SESSION) {
-            // OAuth2/Stateless (non-MFA or MFA final step): NullSecurityContextRepository
             http.setSharedObject(SecurityContextRepository.class, new NullSecurityContextRepository());
         } else if (!(securityContextRepository instanceof NullSecurityContextRepository)) {
             http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
@@ -219,10 +216,8 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
 
                 if (isFinalStepInMfaFlow) {
-                    // Final step: use StateType-based repository (token or session)
                     return getSecurityContextRepository(stateType, options);
                 } else {
-                    // MFA in-progress: session required to maintain authentication between steps
                     if (options.getSecurityContextRepository() != null) {
                         return options.getSecurityContextRepository();
                     }

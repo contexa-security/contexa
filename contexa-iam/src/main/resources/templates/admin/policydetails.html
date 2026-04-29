@@ -15,7 +15,6 @@
 <main class="flex-1 p-6 md:p-10">
         <div class="w-full max-w-4xl mx-auto space-y-6">
 
-            <!-- Page Header -->
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold" style="color:#f8fafc;">
@@ -29,18 +28,15 @@
                 </a>
             </div>
 
-            <!-- ============ EDIT FORM ============ -->
             <form id="policy-edit-form" th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)">
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
-                <!-- Policy Info -->
                 <div class="modern-card p-6 space-y-4">
                     <h2 class="text-lg font-semibold" style="color:#e2e8f0;">
                         <i class="fas fa-shield-alt mr-2" style="color:#818cf8;"></i>
                         <span th:text="#{admin.policy.detail.policy.info}">Policy Information</span>
                     </h2>
 
-                    <!-- Status Badges (edit mode only) -->
                     <div th:if="${policy.id != null}" class="flex flex-wrap gap-3 items-center mb-2">
                         <span class="status-badge" th:classappend="${policy.effect?.name() == 'ALLOW' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}">
                             <i th:class="${policy.effect?.name() == 'ALLOW' ? 'fas fa-check-circle' : 'fas fa-ban'}"></i>
@@ -58,7 +54,6 @@
                         </span>
                     </div>
 
-                    <!-- Date/Approval Info (edit mode only) -->
                     <div th:if="${policy.id != null}" class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
                         <div style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.625rem;">
                             <span class="text-xs font-semibold" style="color:#64748b;" th:text="#{admin.policy.detail.created.at}">Created</span>
@@ -79,7 +74,6 @@
                         <textarea th:field="*{friendlyDescription}" class="modern-input" rows="2" style="font-size:0.8125rem;"></textarea>
                     </div>
 
-                    <!-- AI Info -->
                     <div th:if="${policy.isAIGenerated()}" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:0.5rem;padding:0.75rem;margin-bottom:0.5rem;">
                         <div class="flex items-center gap-2 text-xs font-semibold mb-2" style="color:#a78bfa;">
                             <i class="fas fa-robot"></i> <span th:text="#{admin.policy.detail.ai.info}">AI Info</span>
@@ -91,7 +85,6 @@
                         <div th:if="${policy.reasoning != null}" style="color:#cbd5e1;font-size:0.8125rem;line-height:1.6;margin-top:0.5rem;white-space:pre-wrap;" th:text="${policy.reasoning}"></div>
                     </div>
 
-                    <!-- Editable Fields -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{admin.policy.center.create.manual.policy.name}">Policy Name</label>
@@ -116,7 +109,6 @@
                     </div>
                 </div>
 
-                <!-- Targets -->
                 <div class="modern-card p-6">
                     <h2 class="text-lg font-semibold mb-4" style="color:#e2e8f0;">
                         <i class="fas fa-crosshairs mr-2" style="color:#818cf8;"></i>
@@ -152,7 +144,7 @@
                             <div class="col-span-2 text-center">
                                 <input type="hidden" th:field="*{targets[__${stat.index}__].sourceType}" />
                                 <span th:if="*{targets[__${stat.index}__].sourceType == 'MANUAL'}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(129,140,248,0.2);color:#818cf8;" th:text="#{admin.policy.center.list.source.manual}">Manual</span>
-                                <span th:if="*{targets[__${stat.index}__].sourceType != 'MANUAL'}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.2);color:#22c55e;">Resource</span>
+                                <span th:if="*{targets[__${stat.index}__].sourceType != 'MANUAL'}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.2);color:#22c55e;" th:text="#{admin.policy.details.resource.badge}">Resource</span>
                             </div>
                             <div class="col-span-1 text-center">
                                 <button type="button" onclick="removeElement(this, '.target-block')" class="remove-btn">&times;</button>
@@ -164,7 +156,6 @@
                     </button>
                 </div>
 
-                <!-- Rules -->
                 <div class="modern-card p-6">
                     <h2 class="text-lg font-semibold mb-4" style="color:#e2e8f0;">
                         <i class="fas fa-gavel mr-2" style="color:#818cf8;"></i>
@@ -207,7 +198,6 @@
                     </button>
                 </div>
 
-                <!-- Change Reason (required for updates) -->
                 <div th:if="${policy.id != null}" class="modern-card p-4">
                     <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                         <i class="fas fa-comment-alt mr-1"></i>
@@ -219,7 +209,6 @@
                               required></textarea>
                 </div>
 
-                <!-- Impact Analysis + Submit -->
                 <div class="flex gap-3">
                     <button type="button" onclick="PolicyDetailUI.runImpactAnalysis()" class="modern-btn-secondary flex-1 justify-center py-3">
                         <i class="fas fa-chart-bar mr-2"></i>
@@ -231,7 +220,6 @@
                     </button>
                 </div>
 
-                <!-- Impact Analysis Results Panel -->
                 <div id="impact-panel" class="hidden mt-4 rounded-xl p-6" style="background:rgba(30,41,59,0.5);border:1px solid rgba(99,102,241,0.3);">
                     <h4 class="text-base font-bold mb-4" style="color:#818cf8;"><i class="fas fa-chart-bar mr-2"></i> <span th:text="#{admin.policy.detail.impact.analysis}">Impact Analysis</span></h4>
                     <div id="impact-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
@@ -239,7 +227,6 @@
                 </div>
             </form>
 
-            <!-- Version History (only for existing policies) -->
             <div th:if="${policy.id != null}" class="modern-card p-6 mt-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold" style="color: #e2e8f0;">
@@ -265,7 +252,6 @@
         </div>
     </main>
 
-<!-- Validation Result Modal -->
 <div id="validation-result-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
     <div class="rounded-2xl p-6 space-y-4" style="background:#1e293b;border:1px solid rgba(99,102,241,0.3);width:36rem;max-height:80vh;overflow-y:auto;">
         <h3 class="text-lg font-bold" style="color:#e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color:#818cf8;"></i> <span th:text="#{msg.policy.validation.title}">Validation Result</span></h3>
@@ -277,10 +263,8 @@
     </div>
 </div>
 
-<!-- Version Snapshot Modal -->
 <div id="version-snapshot-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);">
     <div class="rounded-2xl" style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border:1px solid rgba(56,189,248,0.25);width:48rem;max-height:85vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
-        <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid rgba(56,189,248,0.15);background:rgba(56,189,248,0.04);">
             <div class="flex items-center gap-3">
                 <div style="width:2.5rem;height:2.5rem;border-radius:0.75rem;background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(99,102,241,0.2));display:flex;align-items:center;justify-content:center;">
@@ -293,18 +277,14 @@
             </div>
             <button type="button" onclick="PolicyVersionUI.closeSnapshotModal()" style="width:2rem;height:2rem;border-radius:0.5rem;background:rgba(71,85,105,0.3);border:1px solid rgba(71,85,105,0.4);color:#94a3b8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(71,85,105,0.3)';this.style.color='#94a3b8'">&times;</button>
         </div>
-        <!-- Meta -->
         <div id="snapshot-meta" class="flex flex-wrap gap-3 px-6 py-3 text-xs" style="color:#94a3b8;border-bottom:1px solid rgba(71,85,105,0.2);"></div>
-        <!-- Content -->
         <div id="snapshot-content" class="p-6 space-y-4"></div>
-        <!-- Footer -->
         <div class="flex justify-end px-6 py-4" style="border-top:1px solid rgba(71,85,105,0.2);background:rgba(15,23,42,0.3);">
             <button type="button" onclick="PolicyVersionUI.closeSnapshotModal()" class="dark-btn-secondary px-5 py-2" th:text="#{common.close}">Close</button>
         </div>
     </div>
 </div>
 
-<!-- Rollback Reason Modal -->
 <div id="rollback-reason-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
     <div class="rounded-2xl p-6 space-y-4" style="background:#1e293b;border:1px solid rgba(139,92,246,0.3);width:28rem;">
         <h3 class="text-lg font-bold" style="color:#e2e8f0;"><i class="fas fa-undo mr-2" style="color:#c084fc;"></i> <span th:text="#{msg.policy.version.rollback}">Rollback</span></h3>
@@ -322,6 +302,13 @@
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
 <script th:inline="javascript">
+const PD_I18N = {
+    resourceBadge: /*[[#{admin.policy.details.resource.badge}]]*/ 'Resource',
+    ruleLabel: /*[[#{admin.policy.details.rule.label}]]*/ 'Rule',
+    descriptionLabel: /*[[#{admin.policy.details.rule.description}]]*/ 'Description',
+    conditionsLabel: /*[[#{admin.policy.details.rule.conditions}]]*/ 'Conditions',
+    addCondition: /*[[#{admin.policy.details.add.condition}]]*/ 'Add Condition'
+};
 function addTarget() {
     var c = document.getElementById('targets-container');
     var idx = c.querySelectorAll('.target-block').length;
@@ -331,7 +318,7 @@ function addTarget() {
         + '<div class="col-span-2"><select name="targets['+idx+'].httpMethod" class="http-method-select modern-select"><option value="ALL">ALL</option><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
         + '<div class="col-span-4"><input type="text" name="targets['+idx+'].targetIdentifier" class="modern-input" required /></div>'
         + '<div class="col-span-1"><input type="number" name="targets['+idx+'].targetOrder" class="modern-input text-center" value="0" min="0" max="999" style="padding:0.4rem;" /></div>'
-        + '<div class="col-span-2 text-center"><input type="hidden" name="targets['+idx+'].sourceType" value="RESOURCE" /><span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.2);color:#22c55e;">Resource</span></div>'
+        + '<div class="col-span-2 text-center"><input type="hidden" name="targets['+idx+'].sourceType" value="RESOURCE" /><span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.2);color:#22c55e;">' + PD_I18N.resourceBadge + '</span></div>'
         + '<div class="col-span-1 text-center"><button type="button" onclick="removeElement(this,\'.target-block\')" class="remove-btn">&times;</button></div></div>');
 }
 function toggleHttpMethod(sel) {
@@ -345,10 +332,10 @@ function addRule() {
     c.insertAdjacentHTML('beforeend',
         '<div class="rule-block p-4 rounded-lg space-y-3 relative" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);">'
         + '<button type="button" onclick="removeRule(this)" class="remove-btn">&times;</button>'
-        + '<h3 class="font-semibold" style="color:#e2e8f0;">Rule #'+(idx+1)+'</h3>'
-        + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">Description</label><input type="text" name="rules['+idx+'].description" class="modern-input" /></div>'
-        + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">Conditions</label><div class="conditions-list space-y-2 mt-2"></div>'
-        + '<button type="button" onclick="addCondition(this)" class="add-btn mt-2"><i class="fas fa-plus"></i> Add Condition</button></div></div>');
+        + '<h3 class="font-semibold" style="color:#e2e8f0;">' + PD_I18N.ruleLabel + ' #'+(idx+1)+'</h3>'
+        + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">' + PD_I18N.descriptionLabel + '</label><input type="text" name="rules['+idx+'].description" class="modern-input" /></div>'
+        + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">' + PD_I18N.conditionsLabel + '</label><div class="conditions-list space-y-2 mt-2"></div>'
+        + '<button type="button" onclick="addCondition(this)" class="add-btn mt-2"><i class="fas fa-plus"></i> ' + PD_I18N.addCondition + '</button></div></div>');
 }
 function addCondition(btn) {
     var rb = btn.closest('.rule-block'), cl = rb.querySelector('.conditions-list');
@@ -365,7 +352,7 @@ function removeRule(btn) { btn.closest('.rule-block').remove(); updateIndices();
 function updateIndices() {
     document.querySelectorAll('.target-block').forEach(function(b,i) { b.querySelectorAll('[name]').forEach(function(e) { e.name = e.name.replace(/targets\[\d+\]/,'targets['+i+']'); }); });
     document.querySelectorAll('.rule-block').forEach(function(rb,ri) {
-        rb.querySelector('h3').textContent = 'Rule #'+(ri+1);
+        rb.querySelector('h3').textContent = PD_I18N.ruleLabel + ' #'+(ri+1);
         rb.querySelectorAll('[name]').forEach(function(e) { e.name = e.name.replace(/rules\[\d+\]/,'rules['+ri+']'); });
         rb.querySelectorAll('.condition-block').forEach(function(cb,ci) { cb.querySelectorAll('[name]').forEach(function(e) { e.name = e.name.replace(/conditions\[\d+\]/,'conditions['+ci+']'); }); });
     });

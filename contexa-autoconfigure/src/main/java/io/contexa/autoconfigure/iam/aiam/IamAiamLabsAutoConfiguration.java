@@ -43,8 +43,9 @@ public class IamAiamLabsAutoConfiguration {
     public PolicyGenerationVectorService policyGenerationVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
-            ContexaRagProperties ragProperties) {
-        return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics, ragProperties);
+            ContexaRagProperties ragProperties,
+            org.springframework.context.MessageSource messageSource) {
+        return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics, ragProperties, messageSource);
     }
 
     @Bean

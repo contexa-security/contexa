@@ -2216,7 +2216,6 @@ public class SecurityDecisionPromptSections {
                 try {
                     return Integer.parseInt(currentAccessHour.toString());
                 } catch (NumberFormatException ignored) {
-                    // Fall through to timestamp-derived hour.
                 }
             }
         }
@@ -2436,7 +2435,6 @@ public class SecurityDecisionPromptSections {
                     return explicitNewUser ? BaselineStatus.NEW_USER : BaselineStatus.NOT_LOADED;
                 }
                 default -> {
-                    // Fall through to conservative fallback below.
                 }
             }
         }

@@ -6,6 +6,8 @@ import io.contexa.contexaiam.admin.web.auth.dto.BlacklistApiDtos.ResolveBlockReq
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -21,6 +23,11 @@ import java.util.List;
 public class BlacklistApiController {
 
     private final BlockedUserService blockedUserService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -93,6 +100,6 @@ public class BlacklistApiController {
         if (auth != null && auth.getName() != null) {
             return auth.getName();
         }
-        throw new IllegalStateException("Authenticated user not found");
+        throw new IllegalStateException(msg("msg.auth.user.not.found"));
     }
 }

@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "security.pipeline")
+@ConfigurationProperties(prefix = "contexa.security.pipeline")
 public class SecurityPipelineProperties {
 
     @NestedConfigurationProperty

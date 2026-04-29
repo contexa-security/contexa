@@ -87,7 +87,6 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
             request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
         }
 
-        // Session-based flow routing: skip if this request belongs to a different MFA flow
         if (this.flowTypeName != null && ctx != null
                 && ctx.getFlowTypeName() != null
                 && !this.flowTypeName.equalsIgnoreCase(ctx.getFlowTypeName())) {

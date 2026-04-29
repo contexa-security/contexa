@@ -46,12 +46,10 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
 
         for (Filter filter : getFilters(builtChain)) {
 
-            // WebAuthnAuthenticationFilter - loginProcessingUrl
             if (filter instanceof AbstractAuthenticationProcessingFilter authFilter && isWebAuthnAuth(filter)) {
                 setMatcherIfPresent(authFilter, resolveLoginProcessing(flowUrlProvider, ctx.passkeyOpts(), ctx.authProps()));
             }
 
-            // PublicKeyCredentialRequestOptionsFilter - assertionOptionsEndpoint
             if (filter instanceof PublicKeyCredentialRequestOptionsFilter optionsFilter) {
                 String url = resolveAssertionOptions(flowUrlProvider, ctx.passkeyOpts(), ctx.authProps());
                 if (StringUtils.hasText(url)) {
@@ -59,7 +57,6 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 }
             }
 
-            // PublicKeyCredentialCreationOptionsFilter - registrationOptionsEndpoint
             if (filter instanceof PublicKeyCredentialCreationOptionsFilter creationFilter) {
                 String url = flowUrlProvider.getPasskeyRegistrationOptions();
                 if (StringUtils.hasText(url)) {
@@ -67,7 +64,6 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 }
             }
 
-            // WebAuthnRegistrationFilter - register & remove endpoints
             if (filter instanceof WebAuthnRegistrationFilter regFilter) {
                 String url = flowUrlProvider.getPasskeyRegistrationProcessing();
                 if (StringUtils.hasText(url)) {
@@ -77,7 +73,6 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 }
             }
 
-            // ContexaWebAuthnRegistrationPageFilter - registration page URL + delete action + JS path
             if (filter instanceof ContexaWebAuthnRegistrationPageFilter pageFilter) {
                 String pageUrl = flowUrlProvider.getPasskeyRegistrationPage();
                 if (StringUtils.hasText(pageUrl)) {
@@ -88,7 +83,6 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                     pageFilter.setDeleteActionBase(regUrl);
                     String jsPath = regUrl.replace("/webauthn/register", "/login/webauthn.js");
                     pageFilter.setWebauthnJsPath(jsPath);
-                    // Extract urlPrefix for webauthn.js contextPath (e.g. "/admin")
                     String urlPrefix = regUrl.replace("/webauthn/register", "");
                     if (StringUtils.hasText(urlPrefix)) {
                         pageFilter.setWebauthnContextPath(urlPrefix);
@@ -96,7 +90,6 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 }
             }
 
-            // Replace DefaultResourcesFilter.webauthn() with prefix-aware version
             if (filter instanceof DefaultResourcesFilter resFilter
                     && resFilter.toString().contains("spring-security-webauthn.js")) {
                 String regUrl = flowUrlProvider.getPasskeyRegistrationProcessing();
@@ -178,7 +171,6 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                         appContext.getBean(org.springframework.context.MessageSource.class);
                 contexaFilter.setMessageSource(messageSource);
             } catch (Exception ignored) {
-                // MessageSource not available - use default English strings
             }
 
             List<Filter> filters = builtChain.getFilters();

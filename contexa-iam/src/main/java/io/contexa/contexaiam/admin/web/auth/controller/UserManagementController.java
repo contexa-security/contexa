@@ -108,7 +108,7 @@ public class UserManagementController {
 			ra.addFlashAttribute("errorMessage", e.getMessage());
 			log.warn("Failed to load user details: {}", e.getMessage());
 		} catch (Exception e) {
-			ra.addFlashAttribute("errorMessage", "Failed to load user: " + e.getMessage());
+			ra.addFlashAttribute("errorMessage", msg("msg.user.load.failed", e.getMessage()));
 			log.error("Error loading user details for ID: {}", id, e);
 		}
 		return "redirect:/admin/users";

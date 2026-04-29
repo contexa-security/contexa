@@ -120,7 +120,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to load group details: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Failed to load group: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.group.load.failed", e.getMessage()));
             log.error("Error loading group details for ID: {}", id, e);
         }
         return "redirect:/admin/groups";

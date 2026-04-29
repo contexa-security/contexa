@@ -290,6 +290,13 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMP
 );
 
+-- Seed the singleton row at boot so concurrent application calls cannot race two INSERTs
+-- against a table that has no unique constraint beyond the surrogate primary key. The
+-- WHERE NOT EXISTS guard makes the seed idempotent across restarts.
+INSERT INTO system_settings (audit_log_retention_days, default_role, policy_combining_algorithm, registration_enabled)
+SELECT 90, 'ROLE_USER', 'FIRST_APPLICABLE', FALSE
+WHERE NOT EXISTS (SELECT 1 FROM system_settings);
+
 -- Admin Menu
 CREATE TABLE IF NOT EXISTS admin_menu (
     id BIGSERIAL PRIMARY KEY,

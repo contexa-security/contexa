@@ -62,7 +62,7 @@ class AdminMenuControllerTest {
     @BeforeEach
     void setUp() {
         AdminMenuManagementService adminMenuManagementService =
-                new AdminMenuManagementService(adminMenuService, roleRepository);
+                new AdminMenuManagementService(adminMenuService, roleRepository, new org.springframework.context.support.StaticMessageSource());
         controller = new AdminMenuController(adminMenuManagementService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }

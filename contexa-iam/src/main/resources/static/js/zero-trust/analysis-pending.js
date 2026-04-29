@@ -5,15 +5,21 @@
     var reconnectTimeout = null;
     var noResponseTimeout = null;
 
+    function _i18n(key, fallback) {
+        var el = document.getElementById('i18nZeroTrustPending');
+        if (el && el.dataset[key]) return el.dataset[key];
+        return fallback || key;
+    }
+
     function updateSseStatus(connected) {
         var indicator = document.getElementById('sse-indicator');
         var text = document.getElementById('sse-text');
         if (connected) {
             indicator.style.color = '#4ade80';
-            text.textContent = '실시간 연결됨';
+            text.textContent = _i18n('sseConnected', 'Real-time connected');
         } else {
             indicator.style.color = '#f87171';
-            text.textContent = '연결 끊김 - 재연결 중';
+            text.textContent = _i18n('sseDisconnected', 'Disconnected - reconnecting');
         }
     }
 
@@ -42,7 +48,7 @@
         } else if (action === 'BLOCK') {
             window.location.href = '/zero-trust/blocked';
         } else if (action === 'CHALLENGE') {
-            showError('추가 인증이 필요합니다. MFA 인증 페이지로 이동합니다.');
+            showError(_i18n('mfaRequired', 'Additional authentication required. Redirecting to MFA login page.'));
             setTimeout(function () {
                 var cfg = window.__MFA_CONFIG__;
                 var loginPage = (cfg && cfg.primary && cfg.primary.formLoginPage)
@@ -55,7 +61,7 @@
     function resetNoResponseTimeout() {
         if (noResponseTimeout) clearTimeout(noResponseTimeout);
         noResponseTimeout = setTimeout(function () {
-            showError('분석 응답이 지연되고 있습니다. 페이지를 새로고침 해 주세요.');
+            showError(_i18n('noResponse', 'Analysis is delayed. Please refresh the page.'));
         }, 30000);
     }
 
@@ -83,7 +89,6 @@
                     updateStep('step-decision', 'active');
                 }
             } catch (err) {
-                // ignore parse errors
             }
         });
 
@@ -93,16 +98,16 @@
                 var data = JSON.parse(e.data);
                 handleDecision(data);
             } catch (err) {
-                showError('분석 결과 처리 중 오류가 발생했습니다.');
+                showError(_i18n('decisionError', 'An error occurred while processing the analysis result.'));
             }
         });
 
         eventSource.addEventListener('ERROR', function (e) {
             try {
                 var data = JSON.parse(e.data);
-                showError(data.reasoning || '분석 중 오류가 발생했습니다.');
+                showError(data.reasoning || _i18n('analysisError', 'An error occurred during analysis.'));
             } catch (err) {
-                showError('분석 중 오류가 발생했습니다.');
+                showError(_i18n('analysisError', 'An error occurred during analysis.'));
             }
         });
 

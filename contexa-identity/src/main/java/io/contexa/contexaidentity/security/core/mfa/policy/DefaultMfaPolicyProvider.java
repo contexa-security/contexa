@@ -103,12 +103,10 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return 1;
         }
 
-        // DSL .requiredFactors(n) setting takes precedence
         if (mfaFlowConfig.getRequiredFactorCount() > 0) {
             return mfaFlowConfig.getRequiredFactorCount();
         }
 
-        // Default: all registered factors
         long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
                 .filter(step -> !step.isPrimary())
                 .count();
@@ -139,7 +137,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 .map(AuthType::name)
                 .collect(Collectors.toSet());
 
-        // Find next uncompleted step by order (not by factor type iteration)
         return flowSteps.stream()
                 .filter(step -> !step.isPrimary())
                 .filter(step -> availableTypeNames.contains(step.getType().toUpperCase()))
@@ -152,7 +149,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     @Nullable
     protected AuthenticationFlowConfig findMfaFlowConfig(String flowTypeName) {
         if (flowTypeName == null) {
-            // Single MFA backward compatibility: return first cached flow
             return cachedMfaFlowConfigs.values().stream().findFirst().orElse(null);
         }
         return cachedMfaFlowConfigs.get(flowTypeName.toLowerCase());
@@ -168,7 +164,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return NextFactorDecision.error("MFA flow configuration not found");
         }
 
-        // Check if required number of factors already completed
         long requiredCount = getRequiredFactorCount(ctx.getUsername(), ctx.getFlowTypeName());
         int completedCount = ctx.getCompletedFactors() != null ? ctx.getCompletedFactors().size() : 0;
         if (completedCount >= requiredCount) {

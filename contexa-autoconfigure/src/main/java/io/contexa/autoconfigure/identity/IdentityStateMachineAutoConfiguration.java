@@ -145,7 +145,6 @@ public class IdentityStateMachineAutoConfiguration {
         return new InMemoryStateMachinePersist();
     }
 
-    // --- Distributed mode: Redis/Redisson-based state machine ---
 
     @Configuration
     @ConditionalOnBean(RedissonClient.class)
@@ -182,7 +181,6 @@ public class IdentityStateMachineAutoConfiguration {
         }
     }
 
-    // --- Standalone mode: In-memory state machine ---
 
     @Configuration
     @ConditionalOnMissingBean(RedissonClient.class)
@@ -209,7 +207,7 @@ public class IdentityStateMachineAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "spring.auth.mfa", name = "metrics-enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.auth.mfa", name = "metrics-enabled", havingValue = "true", matchIfMissing = true)
     public MfaStateChangeListener mfaStateChangeListener() {
         return new MfaStateChangeListener();
     }

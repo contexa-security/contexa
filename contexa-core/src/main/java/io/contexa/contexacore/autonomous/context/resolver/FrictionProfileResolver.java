@@ -162,7 +162,6 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
         context.setFrictionProfile(profile);
     }
 
-    // --- Helper methods (moved from DefaultCanonicalSecurityContextProvider) ---
 
     private Boolean resolveApprovalMissing(Boolean approvalRequired, Boolean approvalGranted, String approvalStatus) {
         if (Boolean.FALSE.equals(approvalRequired)) {

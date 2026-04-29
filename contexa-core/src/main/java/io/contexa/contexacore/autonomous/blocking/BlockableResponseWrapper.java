@@ -103,7 +103,6 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
                     setStatus(HttpServletResponse.SC_FORBIDDEN);
                 }
             } catch (Exception ignored) {
-                // Response may already be in an invalid state — setStatus failure is non-critical
             }
             throw new IOException("Response aborted: user " + userId + " blocked by security decision");
         }

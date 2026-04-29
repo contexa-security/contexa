@@ -146,7 +146,6 @@ public abstract class AbstractSessionIdResolver implements SessionIdResolver {
                 return decoded;
             }
         } catch (Exception ignored) {
-            // not URL-safe Base64
         }
 
         try {
@@ -155,7 +154,6 @@ public abstract class AbstractSessionIdResolver implements SessionIdResolver {
                 return decoded;
             }
         } catch (Exception ignored) {
-            // not standard Base64
         }
 
         return value;

@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Data
-@ConfigurationProperties(prefix = "security.stepup")
+@ConfigurationProperties(prefix = "contexa.security.stepup")
 public class SecurityStepUpProperties {
 
     private int maxAttempts = 3;

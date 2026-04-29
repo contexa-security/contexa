@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Slf4j
 @Data
-@ConfigurationProperties(prefix = "spring.ai.security")
+@ConfigurationProperties(prefix = "contexa.security.tiered.llm")
 public class TieredLLMProperties {
 
     public static final String DEFAULT_LAYER1_MODEL = "qwen2.5:14b";

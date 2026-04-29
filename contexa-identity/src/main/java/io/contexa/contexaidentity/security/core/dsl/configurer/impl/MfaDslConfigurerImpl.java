@@ -123,7 +123,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Objects.requireNonNull(factorConfigurerCustomizer, authType.name() + " customizer cannot be null").customize(configurer);
         O_FACTOR factorOptions = configurer.buildConcreteOptions();
 
-        // Remove existing step of the same factor type (last call wins)
         configuredSteps.removeIf(step ->
                 authType.name().equalsIgnoreCase(step.getType()) && !step.isPrimary());
 
@@ -324,12 +323,10 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         try {
             mfaFlowUrlRegistry = this.applicationContext.getBean(MfaFlowUrlRegistry.class);
         } catch (Exception ignored) {
-            // MfaFlowUrlRegistry may not be available
         }
         try {
             stateMachineIntegrator = this.applicationContext.getBean(MfaStateMachineIntegrator.class);
         } catch (Exception ignored) {
-            // MfaStateMachineIntegrator may not be available
         }
 
         return new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl, this.mfaPageConfig,

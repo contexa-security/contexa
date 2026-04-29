@@ -113,7 +113,6 @@ public class WorkProfileResolver extends AbstractProfileResolver<WorkProfile> {
         context.setWorkProfile(profile);
     }
 
-    // --- Helper methods (moved from DefaultCanonicalSecurityContextProvider) ---
 
     private String buildWorkProfileSummary(List<String> frequentResources, List<String> frequentActionFamilies, Double protectableInvocationDensity) {
         List<String> facts = new ArrayList<>();

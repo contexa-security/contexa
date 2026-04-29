@@ -31,7 +31,6 @@ public class HandleFailureAction extends AbstractMfaStateAction {
         int retryCount = factorContext.getRetryCount();
         factorContext.setRetryCount(retryCount + 1);
 
-        // Synchronize factor-specific retry count attribute
         if (factorContext.getCurrentProcessingFactor() != null) {
             String factorName = factorContext.getCurrentProcessingFactor().name();
             factorContext.setAttribute("retryCount_" + factorName,

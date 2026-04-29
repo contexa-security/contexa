@@ -362,7 +362,6 @@ public class HCADContextExtractor {
                     return true;
                 }
             } catch (Exception e) {
-                // fall through
             }
         }
         return hcadDataStore.isMfaVerified(userId);

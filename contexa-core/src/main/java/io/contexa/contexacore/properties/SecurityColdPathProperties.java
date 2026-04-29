@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "security.coldpath")
+@ConfigurationProperties(prefix = "contexa.security.coldpath")
 public class SecurityColdPathProperties {
 
     @NestedConfigurationProperty

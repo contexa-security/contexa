@@ -22,7 +22,6 @@
                 <p class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.subtitle}">Audit log based Zero Trust security event monitoring</p>
             </div>
 
-            <!-- Summary Cards (eventCategory 기반 분류) -->
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
                 <a th:href="@{/admin/security-monitor(hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${totalCount}">0</div>
@@ -54,7 +53,6 @@
                 </a>
             </div>
 
-            <!-- Filter -->
             <div class="flex items-center gap-3 mb-6" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 0.75rem 1rem;">
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.period}">Period:</span>
                 <a th:href="@{/admin/security-monitor(hours=1, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
@@ -111,7 +109,6 @@
                 </a>
             </div>
 
-            <!-- IP Grouping View (DISTINCT_IP filter only) -->
             <div th:if="${filterType == 'DISTINCT_IP' and ipGroups != null}" class="mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-base font-bold" style="color: #22d3ee;"><i class="fas fa-network-wired mr-2"></i><span th:text="#{admin.security.monitor.ip.access}">IP Address Access Status</span></h3>
@@ -130,7 +127,7 @@
                         <tr th:each="group : ${ipGroups}" style="border-bottom: 1px solid rgba(71,85,105,0.2);">
                             <td class="px-4 py-3 text-sm font-mono font-bold" style="color: #22d3ee;" th:text="${group.ip}"></td>
                             <td class="px-4 py-3">
-                                <span class="text-sm font-bold" style="color: #e2e8f0;" th:text="${group.count + '건'}"></span>
+                                <span class="text-sm font-bold" style="color: #e2e8f0;" th:text="${group.count + ' ' + #messages.msg('common.unit.count')}"></span>
                             </td>
                             <td class="px-4 py-3 text-xs" style="color: #94a3b8;" th:text="${group.lastAccess}"></td>
                         </tr>
@@ -140,7 +137,6 @@
                 <p class="text-xs mb-4" style="color: #64748b;" th:text="#{admin.security.monitor.ip.events.below}">Below is the full list of events with recorded IP addresses.</p>
             </div>
 
-            <!-- Event List -->
             <div class="modern-table overflow-x-auto">
                 <table class="w-full">
                     <thead>
@@ -193,7 +189,6 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
             <div th:if="${logPage.totalPages > 1}" class="flex justify-center gap-2 mt-6">
                 <a th:each="i : ${#numbers.sequence(0, logPage.totalPages - 1)}"
                    th:href="@{/admin/security-monitor(page=${i}, hours=${hours}, category=${category}, keyword=${keyword})}"

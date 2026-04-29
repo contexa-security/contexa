@@ -1,6 +1,9 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
+import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -9,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.lang.Nullable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,13 +21,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.Comparator;
+import java.util.List;
+
 @Slf4j
 @Controller
 @RequestMapping("/admin/system-settings")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class SystemSettingsController {
 
     private final SystemSettingsService systemSettingsService;
+    private final RoleRepository roleRepository;
     private final MessageSource messageSource;
     @Nullable
     private final CustomDynamicAuthorizationManager authorizationManager;
@@ -35,30 +44,48 @@ public class SystemSettingsController {
     @GetMapping
     public String showSettings(Model model) {
         model.addAttribute("activePage", "system-settings");
-        model.addAttribute("settings", systemSettingsService.getSettings());
+        model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings()));
+        model.addAttribute("roles", loadRoleOptions());
+        model.addAttribute("algorithms", CombiningAlgorithm.values());
         return "admin/system-settings";
     }
 
     @PostMapping
-    public String updateSettings(@ModelAttribute SystemSettings settings, RedirectAttributes ra) {
+    public String updateSettings(@ModelAttribute("settings") SystemSettingsForm form,
+                                 RedirectAttributes ra) {
         try {
-            systemSettingsService.updateSettings(settings);
+            systemSettingsService.updateSettings(form);
 
-            // Apply combining algorithm change at runtime
+            // Apply combining-algorithm change at runtime so subsequent authorization decisions use it
+            // immediately on this JVM instance. (Distributed propagation is tracked separately.)
             if (authorizationManager != null) {
                 try {
-                    CombiningAlgorithm algorithm = CombiningAlgorithm.valueOf(settings.getPolicyCombiningAlgorithm());
+                    CombiningAlgorithm algorithm = CombiningAlgorithm.valueOf(form.getPolicyCombiningAlgorithm());
                     authorizationManager.setCombiningAlgorithm(algorithm);
                     authorizationManager.reload();
                 } catch (IllegalArgumentException e) {
-                    log.error("Invalid combining algorithm: {}", settings.getPolicyCombiningAlgorithm());
+                    log.error("Invalid combining algorithm: {}", form.getPolicyCombiningAlgorithm());
                 }
             }
 
             ra.addFlashAttribute("message", msg("admin.system.settings.saved"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("admin.system.settings.save.failed") + ": " + e.getMessage());
+            ra.addFlashAttribute("errorMessage",
+                    msg("admin.system.settings.save.failed") + ": " + e.getMessage());
         }
         return "redirect:/admin/system-settings";
+    }
+
+    /**
+     * Builds the option list for the default-role drop-down. Disabled and expression-based
+     * roles are filtered out — operators must not be able to pick them as the default for
+     * new accounts.
+     */
+    private List<RoleOption> loadRoleOptions() {
+        return roleRepository.findAllRolesWithoutExpression().stream()
+                .filter(Role::isEnabled)
+                .sorted(Comparator.comparing(Role::getRoleName, String.CASE_INSENSITIVE_ORDER))
+                .map(role -> RoleOption.of(role.getRoleName(), role.getRoleDesc()))
+                .toList();
     }
 }

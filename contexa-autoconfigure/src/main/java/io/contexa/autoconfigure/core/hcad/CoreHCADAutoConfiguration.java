@@ -43,7 +43,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
-@ConditionalOnProperty(prefix = "hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "contexa.hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class, TieredStrategyProperties.class })
 public class CoreHCADAutoConfiguration {
 
@@ -67,7 +67,7 @@ public class CoreHCADAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "hcad.geoip", name = "enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "contexa.hcad.geoip", name = "enabled", havingValue = "true")
     public GeoIpService geoIpService(HcadProperties hcadProperties) {
         return new GeoIpService(hcadProperties.getGeoip().getDbPath());
     }
@@ -99,7 +99,7 @@ public class CoreHCADAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean({ZeroTrustActionRepository.class, ZeroTrustEventPublisher.class, AnalysisTriggerStateRepository.class})
-    @ConditionalOnProperty(prefix = "hcad.pre-trigger", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.hcad.pre-trigger", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PendingAnomalyEligibilityGate pendingAnomalyEligibilityGate(
             ZeroTrustActionRepository actionRepository,
             AnalysisTriggerStateRepository analysisTriggerStateRepository,

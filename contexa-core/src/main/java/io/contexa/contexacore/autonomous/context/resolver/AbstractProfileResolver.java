@@ -52,7 +52,6 @@ public abstract class AbstractProfileResolver<T> implements ProfileResolver<T> {
      */
     protected abstract String doBuildSummary(T profile, CanonicalSecurityContext context);
 
-    // Common metadata access helpers delegating to MetadataValueResolver
 
     protected String text(Object... values) {
         return MetadataValueResolver.firstText(values);

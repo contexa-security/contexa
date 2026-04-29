@@ -582,7 +582,6 @@ public class LearningContextEvidenceAssembler {
                 return direct;
             }
         } catch (Throwable ignored) {
-            // Ignore provider-specific document score failures.
         }
         Map<String, Object> metadata = document.getMetadata();
         Object score = metadata.get("score");

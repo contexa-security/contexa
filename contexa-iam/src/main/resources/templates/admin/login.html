@@ -8,7 +8,6 @@
     <title>Please sign in</title>
     <link href="/css/main.css" rel="stylesheet" />
     <style>
-        /* 로그인 페이지 필수 스타일 */
         * {
             box-sizing: border-box;
         }
@@ -52,7 +51,6 @@
             margin-bottom: 1.5rem;
         }
 
-        /* 입력 필드 - 다크 배경 강제 적용 */
         .login-form input[type="text"],
         .login-form input[type="password"] {
             width: 100%;
@@ -76,7 +74,6 @@
             outline: none;
         }
 
-        /* 자동완성 시 배경색 유지 */
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
@@ -120,7 +117,6 @@
         }
     </style>
     <script>
-        // 입력 필드 다크 배경 보장
         window.addEventListener('DOMContentLoaded', function() {
             const inputs = document.querySelectorAll('input');
             inputs.forEach(function(input) {
@@ -132,16 +128,16 @@
 <body>
 <div class="content">
     <form class="login-form" method="post" th:action="@{/login}">
-        <h2>Please sign in</h2>
+        <h2 th:text="#{admin.login.heading}">Please sign in</h2>
         <p>
-            <label for="username" class="screenreader">Username</label>
-            <input type="text" id="username" name="username" placeholder="Username" required autofocus>
+            <label for="username" class="screenreader" th:text="#{admin.login.username}">Username</label>
+            <input type="text" id="username" name="username" th:placeholder="#{admin.login.username}" required autofocus>
         </p>
         <p>
-            <label for="password" class="screenreader">Password</label>
-            <input type="password" id="password" name="password" placeholder="Password" required>
+            <label for="password" class="screenreader" th:text="#{admin.login.password}">Password</label>
+            <input type="password" id="password" name="password" th:placeholder="#{admin.login.password}" required>
         </p>
-        <button type="submit">Sign in</button>
+        <button type="submit" th:text="#{admin.login.signin.btn}">Sign in</button>
     </form>
 </div>
 </body>

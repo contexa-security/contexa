@@ -18,7 +18,6 @@ public class PendingAnomalyTriggerConfigurer implements SecurityConfigurer {
 
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
-        // no-op
     }
 
     @Override

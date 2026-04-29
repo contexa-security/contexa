@@ -16,37 +16,30 @@ import java.util.Map;
 @Builder
 public class AuditRecord {
 
-    // WHO - who performed the action
     private final String principalName;
     private final String eventSource;
 
-    // WHEN - when did it happen
     @Builder.Default
     private final LocalDateTime timestamp = LocalDateTime.now();
 
-    // WHERE - where was the access from
     private final String clientIp;
     private final String sessionId;
     private final String userAgent;
 
-    // WHAT - what was accessed
     private final String resourceIdentifier;
     private final String resourceUri;
     private final String requestUri;
 
-    // HOW - how was the action performed
     private final String action;
     private final String httpMethod;
     private final AuditEventCategory eventCategory;
 
-    // WHY - why was this decision made
     private final String decision;
     private final String reason;
     private final String outcome;
     private final Double riskScore;
     private final Map<String, Object> details;
 
-    // Tracing
     private final String correlationId;
 
     /**

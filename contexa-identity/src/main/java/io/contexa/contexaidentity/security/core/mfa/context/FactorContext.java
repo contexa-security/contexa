@@ -336,7 +336,6 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             byte[] hash = digest.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
             return bytesToHex(hash, 8);
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is guaranteed by the JVM spec; this should never happen
             return Integer.toHexString(sb.toString().hashCode());
         }
     }

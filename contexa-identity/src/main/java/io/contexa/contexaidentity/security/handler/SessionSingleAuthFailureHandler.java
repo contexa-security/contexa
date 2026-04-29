@@ -46,7 +46,6 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             return;
         }
 
-        // Record login failure
         if (loginPolicyHandler != null) {
             try {
                 String username = request.getParameter("username");
@@ -58,7 +57,6 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             }
         }
 
-        // Password expired - redirect to password change page
         if (exception instanceof org.springframework.security.authentication.CredentialsExpiredException) {
             String expiredUsername = request.getParameter("username");
             String passwordChangeUrl = request.getContextPath() + "/password-change?username="

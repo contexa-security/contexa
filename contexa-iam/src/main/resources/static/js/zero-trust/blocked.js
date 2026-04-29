@@ -10,6 +10,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
+function _i18n(key, fallback) {
+    var el = document.getElementById('i18nZeroTrustBlocked');
+    if (el && el.dataset[key]) return el.dataset[key];
+    return fallback || key;
+}
+
 function getHeaders() {
     var csrfMeta = document.querySelector('meta[name="_csrf"]');
     var csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
@@ -36,7 +42,7 @@ function showResult(success, message) {
 function initiateBlockMfa() {
     var btn = document.getElementById('initiate-mfa-btn');
     btn.disabled = true;
-    btn.textContent = 'MFA 초기화 중...';
+    btn.textContent = _i18n('mfaInitializing', 'Initializing MFA...');
     btn.style.opacity = '0.5';
 
     fetch('/admin/api/aiam/zero-trust/initiate-block-mfa', {
@@ -48,16 +54,16 @@ function initiateBlockMfa() {
         if (data.success) {
             window.location.href = '/';
         } else {
-            showResult(false, data.message || 'MFA 초기화에 실패했습니다.');
+            showResult(false, data.message || _i18n('mfaInitFailed', 'MFA initialization failed.'));
             btn.disabled = false;
-            btn.textContent = 'MFA 인증 시작';
+            btn.textContent = _i18n('btnStartMfa', 'Start MFA Authentication');
             btn.style.opacity = '1';
         }
     })
     .catch(function () {
-        showResult(false, '서버 연결에 실패했습니다.');
+        showResult(false, _i18n('serverConnectFailed', 'Server connection failed.'));
         btn.disabled = false;
-        btn.textContent = 'MFA 인증 시작';
+        btn.textContent = _i18n('btnStartMfa', 'Start MFA Authentication');
         btn.style.opacity = '1';
     });
 }
@@ -67,12 +73,12 @@ function requestUnblock() {
     var reason = document.getElementById('reason-input').value.trim();
 
     if (!reason) {
-        showResult(false, '차단 해제 사유를 입력하세요.');
+        showResult(false, _i18n('reasonRequired', 'Please enter the unblock reason.'));
         return;
     }
 
     btn.disabled = true;
-    btn.textContent = '요청 중...';
+    btn.textContent = _i18n('requesting', 'Requesting...');
     btn.style.opacity = '0.5';
 
     fetch('/admin/api/aiam/zero-trust/unblock-request', {
@@ -85,18 +91,18 @@ function requestUnblock() {
         if (data.success) {
             var formDiv = document.getElementById('request-form');
             formDiv.classList.add('hidden');
-            showResult(true, '요청이 접수되었습니다. 관리자 검토 후 해제됩니다.');
+            showResult(true, _i18n('requestAccepted', 'Request submitted. It will be released after admin review.'));
         } else {
-            showResult(false, data.message || '요청에 실패했습니다.');
+            showResult(false, data.message || _i18n('requestFailed', 'Request failed.'));
             btn.disabled = false;
-            btn.textContent = '차단 해제 요청';
+            btn.textContent = _i18n('btnUnblockRequest', 'Request Unblock');
             btn.style.opacity = '1';
         }
     })
     .catch(function () {
-        showResult(false, '서버 연결에 실패했습니다.');
+        showResult(false, _i18n('serverConnectFailed', 'Server connection failed.'));
         btn.disabled = false;
-        btn.textContent = '차단 해제 요청';
+        btn.textContent = _i18n('btnUnblockRequest', 'Request Unblock');
         btn.style.opacity = '1';
     });
 }

@@ -22,6 +22,8 @@ import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import io.contexa.contexaiam.resource.util.ResourceTargetKey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
@@ -46,6 +48,11 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private final AutoConditionTemplateService autoConditionTemplateService;
     private final PolicyRepository policyRepository;
     private final IamAdminProperties iamAdminProperties;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Async
     @Override
@@ -231,9 +238,9 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void excludeResourceFromManagement(Long resourceId) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
-                .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.resource.not.found.id", resourceId)));
         if (resource.getStatus() != ManagedResource.Status.NEEDS_DEFINITION) {
-            throw new IllegalStateException("Resource cannot be excluded in current status: " + resource.getStatus());
+            throw new IllegalStateException(msg("msg.resource.exclude.invalid.status", resource.getStatus()));
         }
         resource.setStatus(ManagedResource.Status.EXCLUDED);
         managedResourceRepository.save(resource);

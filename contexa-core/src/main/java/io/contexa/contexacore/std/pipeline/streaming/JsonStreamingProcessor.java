@@ -14,7 +14,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
 
     private static final String PROCESSOR_TYPE = "json";
 
-    // Maximum marker length: ===JSON_START=== = 16 characters
     private static final int MAX_MARKER_LENGTH = 16;
 
     @Override
@@ -135,8 +134,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
             return Flux.empty();
         }
 
-        // Buffer size is small - keep accumulating for marker detection
-        // Only clear and output if no marker possibility
         if (currentText.length() <= MAX_MARKER_LENGTH) {
             return Flux.empty();
         }
@@ -224,24 +221,16 @@ public class JsonStreamingProcessor implements ChunkProcessor {
 
         String repaired = json.trim();
 
-        // Fix missing comma after closing bracket before next key: ]" -> ],"
         repaired = repaired.replaceAll("\\]\\s*\"", "],\"");
 
-        // Fix missing comma after closing brace before next key: }" -> },"
-        // But not for the last brace in the JSON
         repaired = repaired.replaceAll("\\}\\s*\"(?!\\s*$)", "},\"");
 
-        // Fix missing comma between array elements: }{ -> },{
         repaired = repaired.replaceAll("\\}\\s*\\{", "},{");
 
-        // Fix missing comma between arrays: ][ -> ],[
         repaired = repaired.replaceAll("\\]\\s*\\[", "],[");
 
-        // Fix missing array close and comma before next key: } }" -> }],"
-        // This happens when LLM forgets to close array before next object key
         repaired = repaired.replaceAll("\\}\\s*\\}\\s*\"", "}],\"");
 
-        // Validate and try to fix bracket balance
         repaired = fixBracketBalance(repaired);
         if (!repaired.equals(json.trim())) {
             log.error("JSON repaired: original length={}, repaired length={}", json.length(), repaired.length());
@@ -263,13 +252,11 @@ public class JsonStreamingProcessor implements ChunkProcessor {
 
         StringBuilder result = new StringBuilder(json);
 
-        // Add missing closing brackets
         while (bracketCount > 0) {
             result.append("]");
             bracketCount--;
         }
 
-        // Add missing closing braces
         while (braceCount > 0) {
             result.append("}");
             braceCount--;

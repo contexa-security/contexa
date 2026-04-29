@@ -2,7 +2,6 @@
     <nav class="admin-sidebar">
         <ul class="main-menu">
             <th:block th:if="${menuTree != null and !menuTree.isEmpty()}" th:each="node : ${menuTree}">
-                <!-- Leaf menu (no children) -->
                 <li th:if="${!node.hasChildren()}" class="main-menu-item">
                     <a th:href="${node.url()}" class="main-menu-link" th:data-group="${node.dataPage()}">
                         <div class="main-menu-icon" th:if="${node.icon() != null and node.icon().startsWith('<')}" th:utext="${node.icon()}"></div>
@@ -10,7 +9,6 @@
                         <span class="main-menu-label" th:text="${#messages.msg(node.name())}">Menu</span>
                     </a>
                 </li>
-                <!-- Group menu (has children) -->
                 <li th:if="${node.hasChildren()}" class="main-menu-item has-submenu">
                     <div class="main-menu-link" th:data-group="${node.dataPage()}">
                         <div class="main-menu-icon" th:if="${node.icon() != null and node.icon().startsWith('<')}" th:utext="${node.icon()}"></div>
@@ -29,7 +27,6 @@
                 </li>
             </th:block>
 
-            <!-- Fallback: static menu if menuTree is empty -->
             <th:block th:if="${menuTree == null or menuTree.isEmpty()}">
                 <li class="main-menu-item">
                     <a th:href="@{/admin/dashboard}" class="main-menu-link" data-group="dashboard">

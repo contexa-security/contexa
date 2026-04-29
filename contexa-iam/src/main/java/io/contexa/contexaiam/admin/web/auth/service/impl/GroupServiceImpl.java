@@ -12,6 +12,8 @@ import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -24,19 +26,24 @@ public class GroupServiceImpl implements GroupService {
     private final GroupRepository groupRepository;
     private final RoleRepository roleRepository;
     private final RoleHierarchyRepository roleHierarchyRepository;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public Group createGroup(Group group, List<Long> selectedRoleIds) {
         if (groupRepository.findByName(group.getName()).isPresent()) {
-            throw new IllegalArgumentException("Group with this name already exists.");
+            throw new IllegalArgumentException(msg("msg.group.name.duplicate"));
         }
 
         if (selectedRoleIds != null && !selectedRoleIds.isEmpty()) {
             List<Role> roles = roleRepository.findAllById(selectedRoleIds);
             if (roles.size() != selectedRoleIds.size()) {
-                throw new IllegalArgumentException("One or more roles not found.");
+                throw new IllegalArgumentException(msg("msg.role.not.found"));
             }
             Set<GroupRole> groupRoles = roles.stream()
                     .map(role -> GroupRole.builder().group(group).role(role).build())
@@ -88,7 +95,7 @@ public class GroupServiceImpl implements GroupService {
         if (!newRoleIds.isEmpty()) {
             List<Role> newRoles = roleRepository.findAllById(newRoleIds);
             if (newRoles.size() != newRoleIds.size()) {
-                throw new IllegalArgumentException("One or more roles not found.");
+                throw new IllegalArgumentException(msg("msg.role.not.found"));
             }
             for (Role role : newRoles) {
                 currentGroupRoles.add(GroupRole.builder().group(existingGroup).role(role).build());

@@ -96,7 +96,6 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
         Objects.requireNonNull(customizer, "mfa customizer cannot be null").customize(mfaDslConfigurer);
         AuthenticationFlowConfig mfaFlow = mfaDslConfigurer.build();
 
-        // Auto-numbering for multi MFA flows when name() was not explicitly set
         if (mfaDslConfigurer.getUserDefinedFlowName() == null) {
             String currentTypeName = mfaFlow.getTypeName();
             if (platformBuilder.getModifiableFlows().stream()

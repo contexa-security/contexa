@@ -54,7 +54,6 @@ public abstract class AbstractAuthenticationConfigurer<T extends AbstractAuthent
     }
 
     protected void beforeFilterCreation(H http, AuthenticationManager authenticationManager, ApplicationContext applicationContext) {
-        // no-op by default
     }
 
     protected abstract BaseAuthenticationFilter createAuthenticationFilter(
@@ -78,7 +77,6 @@ public abstract class AbstractAuthenticationConfigurer<T extends AbstractAuthent
             filter.setSecurityContextRepository(resolvedRepository);
         }
 
-        // Propagate flowTypeName to MFA primary auth filters for Multi MFA support
         AuthenticationFlowConfig flowConfig = http.getSharedObject(AuthenticationFlowConfig.class);
         if (flowConfig != null) {
             if (filter instanceof MfaFormAuthenticationFilter mfaFormFilter) {

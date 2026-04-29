@@ -17,7 +17,6 @@
                    style="color: #818cf8;"><i class="fas fa-arrow-left"></i> <span th:text="#{admin.blacklist.detail.back}">Back to Blocked Users List</span></a>
             </div>
 
-            <!-- Header Banner -->
             <div class="rounded-2xl p-8 mb-8" style="background: linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(139,92,246,0.1) 100%); border: 1px solid rgba(239,68,68,0.2);">
                 <div class="flex items-center justify-between">
                     <div>
@@ -52,10 +51,8 @@
                 </div>
             </div>
 
-            <!-- 2-Column Info Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
 
-                <!-- User Info Card -->
                 <div class="rounded-2xl p-7" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(99,102,241,0.3);">
                     <h3 class="text-base font-bold mb-5" style="color: #818cf8; letter-spacing: 0.05em;">
                         <i class="fas fa-user-circle mr-2"></i> <span th:text="#{admin.blacklist.detail.user.info}">User Information</span>
@@ -80,7 +77,6 @@
                     </div>
                 </div>
 
-                <!-- AI Analysis Card -->
                 <div class="rounded-2xl p-7" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(139,92,246,0.3);">
                     <h3 class="text-base font-bold mb-5" style="color: #a78bfa; letter-spacing: 0.05em;">
                         <i class="fas fa-brain mr-2"></i> <span th:text="#{admin.blacklist.detail.ai.analysis}">AI Analysis Results</span>
@@ -112,7 +108,6 @@
                 </div>
             </div>
 
-            <!-- Threat Analysis -->
             <div class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(248,113,113,0.3);">
                 <h3 class="text-base font-bold mb-4" style="color: #f87171; letter-spacing: 0.05em;">
                     <i class="fas fa-exclamation-triangle mr-2"></i> <span th:text="#{admin.blacklist.detail.threat.analysis}">Threat Analysis Rationale</span>
@@ -122,7 +117,6 @@
                 </div>
             </div>
 
-            <!-- Block History -->
             <div class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
                 <h3 class="text-base font-bold mb-5" style="color: #94a3b8; letter-spacing: 0.05em;">
                     <i class="fas fa-history mr-2"></i> <span th:text="#{admin.blacklist.detail.block.history}">Block History</span>
@@ -148,7 +142,6 @@
                 </div>
             </div>
 
-            <!-- Unblock Request Info -->
             <div th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(251,191,36,0.3);">
                 <h3 class="text-base font-bold mb-5" style="color: #fbbf24; letter-spacing: 0.05em;">
                     <i class="fas fa-unlock-alt mr-2"></i> <span th:text="#{admin.blacklist.detail.unblock.request}">Unblock Request Information</span>
@@ -195,7 +188,6 @@
                 </div>
             </div>
 
-            <!-- SOAR Auto Response -->
             <div th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}" class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(168,85,247,0.3);">
                 <h3 class="text-base font-bold mb-4" style="color: #c084fc; letter-spacing: 0.05em;">
                     <i class="fas fa-robot mr-2"></i> <span th:text="#{admin.blacklist.detail.soar.title}">SOAR Auto Response Complete</span>
@@ -210,7 +202,6 @@
                 </div>
             </div>
 
-            <!-- Resolution Details -->
             <div th:if="${blocked.status.name() == 'RESOLVED'}" class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(34,197,94,0.3);">
                 <h3 class="text-base font-bold mb-5" style="color: #4ade80; letter-spacing: 0.05em;">
                     <i class="fas fa-check-double mr-2"></i> <span th:text="#{admin.blacklist.detail.resolve.title}">Resolution Details</span>
@@ -235,7 +226,6 @@
                 </div>
             </div>
 
-            <!-- Unblock Form -->
             <div th:if="${blocked.status.name() == 'BLOCKED' or blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="rounded-2xl p-8 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(99,102,241,0.3);">
                 <h3 class="text-lg font-bold mb-6" style="color: #e2e8f0;">
                     <i class="fas fa-unlock mr-2" style="color: #818cf8;"></i> <span th:text="#{admin.blacklist.detail.unblock.title}">Unblock User</span>
@@ -297,7 +287,6 @@
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
-<!-- i18n data for JS -->
 <div id="i18nBlacklistDetail" style="display:none"
      th:data-reason-min="#{admin.blacklist.detail.js.reason.min}"
      th:data-select-action="#{admin.blacklist.detail.js.select.action}"></div>

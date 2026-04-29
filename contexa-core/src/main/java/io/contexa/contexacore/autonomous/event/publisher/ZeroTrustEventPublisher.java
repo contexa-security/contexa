@@ -771,9 +771,6 @@ public class ZeroTrustEventPublisher {
         if (!StringUtils.hasText(normalized)) {
             return null;
         }
-        // Permission authority artifacts often arrive as REPORT_READ style identifiers.
-        // For prompt quality and cross-round comparison we normalize them to the same
-        // dotted lowercase vocabulary used by scope tags and prompt sections.
         if (normalized.indexOf('.') < 0
                 && normalized.indexOf('/') < 0
                 && normalized.indexOf(':') < 0

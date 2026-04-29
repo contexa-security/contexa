@@ -44,17 +44,13 @@
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
 
-        <!-- ===== 1: Policy Center ===== -->
         <div class="mb-8">
-            <!-- Header -->
             <div class="flex items-center justify-between mb-5">
                 <h2 class="text-xl font-bold" style="color: #e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.dashboard.policy.center.title}">Policy Center</span></h2>
                 <a th:href="@{/admin/policy-center}" class="text-sm font-medium" style="color: #818cf8; text-decoration: none;"><span th:text="#{admin.dashboard.policy.center.link}">Policy Center</span> <i class="fas fa-arrow-right ml-1"></i></a>
             </div>
 
-            <!-- Top Cards: 4 gradient cards -->
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1.25rem;margin-bottom:1.5rem;">
-                <!-- Health -->
                 <a th:href="@{/admin/policy-center(tab='list')}"
                    th:style="${dashboardData.policyHealth.healthStatus() == 'CRITICAL' ? 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#dc2626,#991b1b);box-shadow:0 4px 20px rgba(220,38,38,0.3);' : (dashboardData.policyHealth.healthStatus() == 'WARNING' ? 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#d97706,#92400e);box-shadow:0 4px 20px rgba(217,119,6,0.3);' : 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#059669,#065f46);box-shadow:0 4px 20px rgba(5,150,105,0.3);')}"
                    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
@@ -73,7 +69,6 @@
                         <span th:text="#{admin.dashboard.policy.health.duplicates}">Duplicates</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyHealth.duplicateCount()}">0</strong>
                     </div>
                 </a>
-                <!-- Total Policies -->
                 <a th:href="@{/admin/policy-center(tab='list')}" style="text-decoration:none;padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#4f46e5,#3730a3);box-shadow:0 4px 20px rgba(79,70,229,0.3);transition:transform 0.2s;"
                    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
@@ -85,7 +80,6 @@
                         <span th:text="#{admin.dashboard.active.policies}">Active</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyStatus.activePolicies()}">0</strong>
                     </div>
                 </a>
-                <!-- Roles -->
                 <a th:href="@{/admin/roles}" style="text-decoration:none;padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#0891b2,#155e75);box-shadow:0 4px 20px rgba(8,145,178,0.3);transition:transform 0.2s;"
                    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
@@ -97,7 +91,6 @@
                         <span th:text="#{admin.dashboard.permissions}">Permissions</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.statistics.totalPermissions()}">0</strong>
                     </div>
                 </a>
-                <!-- Changes -->
                 <div style="padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#7c3aed,#5b21b6);box-shadow:0 4px 20px rgba(124,58,237,0.3);">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
                         <span class="text-sm font-medium" style="color:rgba(255,255,255,0.7);" th:text="#{admin.dashboard.policy.changes.24h}">Changes (24h)</span>
@@ -110,9 +103,7 @@
                 </div>
             </div>
 
-            <!-- Bottom Section: Gauge + Source + Approval -->
             <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:1.25rem;">
-                <!-- Resource Gauge -->
                 <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
                     <div class="gauge-wrap" style="flex-shrink:0;">
                         <svg viewBox="0 0 100 100">
@@ -140,7 +131,6 @@
                     </div>
                 </div>
 
-                <!-- Source Distribution -->
                 <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
                     <div class="text-sm font-semibold mb-4" style="color:#e2e8f0;" th:text="#{admin.dashboard.policy.source}">Policy Source</div>
                     <th:block th:with="total=${dashboardData.policyStatus.totalPolicies()},manual=${dashboardData.policyStatus.manualPolicies()},aiGen=${dashboardData.policyStatus.aiGeneratedPolicies()}">
@@ -161,7 +151,6 @@
                     </th:block>
                 </div>
 
-                <!-- Policy Status -->
                 <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
                     <div class="text-sm font-semibold mb-4" style="color:#e2e8f0;" th:text="#{admin.dashboard.policy.status.title}">Policy Status</div>
                     <div style="display:flex;flex-direction:column;gap:0.75rem;">
@@ -194,11 +183,9 @@
             </div>
         </div>
 
-        <!-- ===== 2: 제로트러스트 현황 ===== -->
         <div class="mb-8">
             <h2 class="text-xl font-bold mb-4" style="color: #e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color: #f87171;"></i><span th:text="#{admin.dashboard.zerotrust.title}">Zero Trust Status</span></h2>
 
-            <!-- 2a: AI 보안 판정 도넛 + Decision 카드 -->
             <div class="dash-card mb-6" style="border-color: rgba(139,92,246,0.25);">
                 <div class="flex items-center justify-between mb-5">
                     <h3 class="text-base font-bold" style="color: #a78bfa;"><i class="fas fa-brain mr-2"></i><span th:text="#{admin.dashboard.ai.decision}">AI Security Decision (24h)</span></h3>
@@ -206,7 +193,6 @@
                 </div>
 
                 <div class="flex items-start gap-8" style="flex-wrap: wrap;">
-                    <!-- 도넛 차트: AI 보안 판정 분포 (SECURITY_DECISION만) -->
                     <div style="display: flex; flex-direction: column; align-items: center;">
                         <div class="zt-donut-wrap" id="ztDonutWrap"
                              th:attr="data-allow=${dashboardData.ztAllowCount24h()},
@@ -229,13 +215,12 @@
                         </div>
                     </div>
 
-                    <!-- Decision 타입 카드 (AI 보안 분석 판정만, 클릭 시 드릴다운) -->
                     <div style="flex: 1; min-width: 14rem; display: flex; flex-direction: column; gap: 0.625rem;">
                         <a th:href="@{/admin/security-monitor(filter='ZT_ALLOW')}" class="zt-decision-card" style="text-decoration:none; cursor:pointer;">
                             <div class="zt-decision-dot" style="background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.allow}">ALLOW - AI Safe Decision</div>
-                                <div class="text-lg font-bold" style="color: #4ade80;" th:text="${dashboardData.ztAllowCount24h() + '건'}">0건</div>
+                                <div class="text-lg font-bold" style="color: #4ade80;" th:text="${dashboardData.ztAllowCount24h() + ' ' + #messages.msg('common.unit.count')}">0</div>
                             </div>
                             <i class="fas fa-check-circle" style="color: #4ade80; font-size: 1.25rem;"></i>
                         </a>
@@ -243,7 +228,7 @@
                             <div class="zt-decision-dot" style="background: #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.challenge}">CHALLENGE - Additional Auth Required</div>
-                                <div class="text-lg font-bold" style="color: #fbbf24;" th:text="${dashboardData.challengeCount24h() + '건'}">0건</div>
+                                <div class="text-lg font-bold" style="color: #fbbf24;" th:text="${dashboardData.challengeCount24h() + ' ' + #messages.msg('common.unit.count')}">0</div>
                             </div>
                             <i class="fas fa-question-circle" style="color: #fbbf24; font-size: 1.25rem;"></i>
                         </a>
@@ -251,7 +236,7 @@
                             <div class="zt-decision-dot" style="background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.block}">BLOCK - Access Blocked</div>
-                                <div class="text-lg font-bold" style="color: #f87171;" th:text="${dashboardData.blockCount24h() + '건'}">0건</div>
+                                <div class="text-lg font-bold" style="color: #f87171;" th:text="${dashboardData.blockCount24h() + ' ' + #messages.msg('common.unit.count')}">0</div>
                             </div>
                             <i class="fas fa-ban" style="color: #f87171; font-size: 1.25rem;"></i>
                         </a>
@@ -259,15 +244,13 @@
                             <div class="zt-decision-dot" style="background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.dashboard.escalate}">ESCALATE - Admin Escalation</div>
-                                <div class="text-lg font-bold" style="color: #a78bfa;" th:text="${dashboardData.escalateCount24h() + '건'}">0건</div>
+                                <div class="text-lg font-bold" style="color: #a78bfa;" th:text="${dashboardData.escalateCount24h() + ' ' + #messages.msg('common.unit.count')}">0</div>
                             </div>
                             <i class="fas fa-arrow-up" style="color: #a78bfa; font-size: 1.25rem;"></i>
                         </a>
                     </div>
 
-                    <!-- 인증 게이지 + 보안 지표 -->
                     <div style="flex: 1; min-width: 18rem;">
-                        <!-- 인증 성공/실패 반원 게이지 -->
                         <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.25rem; padding: 1rem; border-radius: 0.75rem; background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3);">
                             <div class="auth-semi" id="authSemiWrap"
                                  th:attr="data-success=${dashboardData.authSuccessCount24h()}, data-failure=${dashboardData.authFailureCount24h()}">
@@ -283,20 +266,18 @@
                                 <div class="text-xs font-semibold" style="color: #94a3b8; margin-bottom: 0.5rem;" th:text="#{admin.dashboard.auth.success.rate}">Auth Success Rate (24h)</div>
                                 <div style="display: flex; gap: 1.25rem;">
                                     <div>
-                                        <div class="text-lg font-bold" style="color: #60a5fa;" th:text="${dashboardData.authSuccessCount24h() + '건'}">0건</div>
+                                        <div class="text-lg font-bold" style="color: #60a5fa;" th:text="${dashboardData.authSuccessCount24h() + ' ' + #messages.msg('common.unit.count')}">0</div>
                                         <div class="text-xs" style="color: #64748b;" th:text="#{admin.dashboard.auth.success}">Auth Success</div>
                                     </div>
                                     <div>
-                                        <div class="text-lg font-bold" style="color: #fbbf24;" th:text="${dashboardData.authFailureCount24h() + '건'}">0건</div>
+                                        <div class="text-lg font-bold" style="color: #fbbf24;" th:text="${dashboardData.authFailureCount24h() + ' ' + #messages.msg('common.unit.count')}">0</div>
                                         <div class="text-xs" style="color: #64748b;" th:text="#{admin.dashboard.auth.failure}">Auth Failure</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- 보안 상태 지표 (2열 그리드 + 드릴다운) -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.375rem;">
-                            <!-- 업무 외 접근 -->
                             <a th:href="@{/admin/security-monitor(filter='AFTER_HOURS')}" class="sec-indicator" style="text-decoration:none; cursor:pointer;"
                                  th:style="${dashboardData.afterHoursAccessCount24h() > 3 ? 'border-color: #f87171;' : (dashboardData.afterHoursAccessCount24h() > 0 ? 'border-color: #fbbf24;' : 'border-color: #4ade80;')}">
                                 <div class="sec-indicator-label">
@@ -306,23 +287,21 @@
                                 <div class="sec-indicator-value">
                                     <span class="text-sm font-bold"
                                           th:style="${dashboardData.afterHoursAccessCount24h() > 3 ? 'color:#f87171;' : (dashboardData.afterHoursAccessCount24h() > 0 ? 'color:#fbbf24;' : 'color:#4ade80;')}"
-                                          th:text="${dashboardData.afterHoursAccessCount24h() + '건'}">0건</span>
+                                          th:text="${dashboardData.afterHoursAccessCount24h() + ' ' + #messages.msg('common.unit.count')}">0</span>
                                     <span class="sec-badge"
                                           th:style="${dashboardData.afterHoursAccessCount24h() > 3 ? 'background: rgba(239,68,68,0.15); color: #f87171;' : (dashboardData.afterHoursAccessCount24h() > 0 ? 'background: rgba(251,191,36,0.15); color: #fbbf24;' : 'background: rgba(74,222,128,0.15); color: #4ade80;')}"
                                           th:text="${dashboardData.afterHoursAccessCount24h() > 3} ? #{common.status.danger} : (${dashboardData.afterHoursAccessCount24h() > 0} ? #{common.status.warning} : #{common.status.normal})">Normal</span>
                                 </div>
                             </a>
-                            <!-- AI 보안 분석 -->
                             <a th:href="@{/admin/security-monitor(filter='SECURITY_DECISION')}" class="sec-indicator" style="text-decoration:none; cursor:pointer; border-color: #a78bfa;">
                                 <div class="sec-indicator-label">
                                     <i class="fas fa-brain" style="color: #94a3b8; width: 1rem; text-align: center;"></i>
                                     <span class="text-sm" style="color: #e2e8f0;" th:text="#{admin.dashboard.ai.security.analysis}">AI Security Analysis</span>
                                 </div>
                                 <div class="sec-indicator-value">
-                                    <span class="text-sm font-bold" style="color: #a78bfa;" th:text="${dashboardData.securityDecisionCount24h() + '건'}">0건</span>
+                                    <span class="text-sm font-bold" style="color: #a78bfa;" th:text="${dashboardData.securityDecisionCount24h() + ' ' + #messages.msg('common.unit.count')}">0</span>
                                 </div>
                             </a>
-                            <!-- 관리자 오버라이드 -->
                             <a th:href="@{/admin/security-monitor(filter='ADMIN_OVERRIDE')}" class="sec-indicator" style="text-decoration:none; cursor:pointer;"
                                  th:style="${dashboardData.adminOverrideCount24h() > 5 ? 'border-color: #fbbf24;' : 'border-color: #4ade80;'}">
                                 <div class="sec-indicator-label">
@@ -332,23 +311,21 @@
                                 <div class="sec-indicator-value">
                                     <span class="text-sm font-bold"
                                           th:style="${dashboardData.adminOverrideCount24h() > 5 ? 'color:#fbbf24;' : 'color:#4ade80;'}"
-                                          th:text="${dashboardData.adminOverrideCount24h() + '건'}">0건</span>
+                                          th:text="${dashboardData.adminOverrideCount24h() + ' ' + #messages.msg('common.unit.count')}">0</span>
                                     <span class="sec-badge"
                                           th:style="${dashboardData.adminOverrideCount24h() > 5 ? 'background: rgba(251,191,36,0.15); color: #fbbf24;' : 'background: rgba(74,222,128,0.15); color: #4ade80;'}"
                                           th:text="${dashboardData.adminOverrideCount24h() > 5} ? #{common.status.warning} : #{common.status.normal}">Normal</span>
                                 </div>
                             </a>
-                            <!-- 고유 IP -->
                             <a th:href="@{/admin/security-monitor(filter='DISTINCT_IP')}" class="sec-indicator" style="text-decoration:none; cursor:pointer; border-color: #22d3ee;">
                                 <div class="sec-indicator-label">
                                     <i class="fas fa-network-wired" style="color: #94a3b8; width: 1rem; text-align: center;"></i>
                                     <span class="text-sm" style="color: #e2e8f0;" th:text="#{admin.dashboard.distinct.ip}">Distinct IP Addresses</span>
                                 </div>
                                 <div class="sec-indicator-value">
-                                    <span class="text-sm font-bold" style="color: #22d3ee;" th:text="${dashboardData.distinctIpCount24h() + '개'}">0개</span>
+                                    <span class="text-sm font-bold" style="color: #22d3ee;" th:text="${dashboardData.distinctIpCount24h() + ' ' + #messages.msg('common.unit.piece')}">0</span>
                                 </div>
                             </a>
-                            <!-- 평균 위험도 -->
                             <a th:href="@{/admin/security-monitor(filter='HIGH_RISK')}" class="sec-indicator" style="text-decoration:none; cursor:pointer;"
                                  th:style="${dashboardData.avgRiskScore24h() != null && dashboardData.avgRiskScore24h() >= 0.7 ? 'border-color: #f87171;' : (dashboardData.avgRiskScore24h() != null && dashboardData.avgRiskScore24h() >= 0.4 ? 'border-color: #fbbf24;' : 'border-color: #4ade80;')}">
                                 <div class="sec-indicator-label">
@@ -364,7 +341,6 @@
                                           th:text="${dashboardData.avgRiskScore24h() >= 0.7} ? #{common.status.danger} : (${dashboardData.avgRiskScore24h() >= 0.4} ? #{common.status.warning} : #{common.status.good})">Good</span>
                                 </div>
                             </a>
-                            <!-- 보안 오류 -->
                             <a th:href="@{/admin/security-monitor(filter='SECURITY_ERROR')}" class="sec-indicator" style="text-decoration:none; cursor:pointer;"
                                  th:style="${dashboardData.securityErrorCount24h() > 0 ? 'border-color: #f87171;' : 'border-color: #4ade80;'}">
                                 <div class="sec-indicator-label">
@@ -374,7 +350,7 @@
                                 <div class="sec-indicator-value">
                                     <span class="text-sm font-bold"
                                           th:style="${dashboardData.securityErrorCount24h() > 0 ? 'color:#f87171;' : 'color:#4ade80;'}"
-                                          th:text="${dashboardData.securityErrorCount24h() + '건'}">0건</span>
+                                          th:text="${dashboardData.securityErrorCount24h() + ' ' + #messages.msg('common.unit.count')}">0</span>
                                     <span class="sec-badge"
                                           th:style="${dashboardData.securityErrorCount24h() > 0 ? 'background: rgba(239,68,68,0.15); color: #f87171;' : 'background: rgba(74,222,128,0.15); color: #4ade80;'}"
                                           th:text="${dashboardData.securityErrorCount24h() > 0} ? #{common.status.danger} : #{common.status.normal}">Normal</span>
@@ -385,9 +361,7 @@
                 </div>
             </div>
 
-            <!-- 2b: 위협 이벤트 + 차단된 사용자 -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- 최근 위협 이벤트 -->
                 <div class="dash-card" style="border-color: rgba(245,158,11,0.25);">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-base font-bold" style="color: #fbbf24;"><i class="fas fa-exclamation-triangle mr-2"></i><span th:text="#{admin.dashboard.recent.threats}">Recent Threat Events</span></h3>
@@ -417,7 +391,6 @@
                     </div>
                 </div>
 
-                <!-- 차단된 사용자 -->
                 <div class="dash-card" style="border-color: rgba(239,68,68,0.25);">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-base font-bold" style="color: #f87171;"><i class="fas fa-ban mr-2"></i><span th:text="#{admin.dashboard.blocked.users}">Blocked Users</span></h3>
@@ -444,7 +417,7 @@
                                 <span class="text-xs px-1.5 py-0.5 rounded font-semibold"
                                       th:style="${user.status.name() == 'BLOCKED' ? 'background: rgba(239,68,68,0.15); color: #f87171; font-size: 0.625rem;' : 'background: rgba(251,191,36,0.15); color: #fbbf24; font-size: 0.625rem;'}"
                                       th:text="${user.status.name() == 'BLOCKED'} ? #{common.status.blocked} : #{admin.dashboard.unblock.requested}"></span>
-                                <span th:if="${user.blockCount != null && user.blockCount > 1}" class="text-xs px-1 py-0.5 rounded" style="background: rgba(239,68,68,0.15); color: #f87171; font-size: 0.625rem;" th:text="${user.blockCount + '회'}"></span>
+                                <span th:if="${user.blockCount != null && user.blockCount > 1}" class="text-xs px-1 py-0.5 rounded" style="background: rgba(239,68,68,0.15); color: #f87171; font-size: 0.625rem;" th:text="${user.blockCount + ' ' + #messages.msg('common.unit.times')}"></span>
                             </div>
                             <div class="flex items-center gap-2">
                                 <div class="zt-risk-bar"><div class="zt-risk-fill" th:style="${'width: ' + (user.riskScore != null ? user.riskScore * 100 : 0) + '%; background: ' + (user.riskScore != null && user.riskScore >= 0.8 ? '#f87171' : (user.riskScore != null && user.riskScore >= 0.5 ? '#fbbf24' : '#4ade80')) + ';'}"></div></div>
@@ -457,12 +430,10 @@
             </div>
         </div>
 
-        <!-- ===== 3: 시스템 현황 ===== -->
         <div class="mb-8">
             <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;"><i class="fas fa-server mr-2" style="color:#60a5fa;"></i><span th:text="#{admin.dashboard.system.status}">System Status</span></h2>
             <div class="dash-card" style="border-color:rgba(96,165,250,0.15);margin:0;">
             <div style="display:flex;flex-direction:column;gap:0.875rem;">
-                <!-- Users -->
                 <a th:href="@{/admin/users}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(96,165,250,0.06)'" onmouseout="this.style.background='transparent'">
                     <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(96,165,250,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-user" style="color:#60a5fa;font-size:0.9rem;"></i>
@@ -477,7 +448,6 @@
                         </div>
                     </div>
                 </a>
-                <!-- Groups -->
                 <a th:href="@{/admin/groups}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(167,139,250,0.06)'" onmouseout="this.style.background='transparent'">
                     <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(167,139,250,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-users-cog" style="color:#a78bfa;font-size:0.9rem;"></i>
@@ -492,7 +462,6 @@
                         </div>
                     </div>
                 </a>
-                <!-- Roles -->
                 <a th:href="@{/admin/roles}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(52,211,153,0.06)'" onmouseout="this.style.background='transparent'">
                     <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(52,211,153,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-user-tag" style="color:#34d399;font-size:0.9rem;"></i>
@@ -507,7 +476,6 @@
                         </div>
                     </div>
                 </a>
-                <!-- Permissions -->
                 <a th:href="@{/admin/permissions}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(251,191,36,0.06)'" onmouseout="this.style.background='transparent'">
                     <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(251,191,36,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-key" style="color:#fbbf24;font-size:0.9rem;"></i>
@@ -522,7 +490,6 @@
                         </div>
                     </div>
                 </a>
-                <!-- Policies -->
                 <a th:href="@{/admin/policy-center(tab='list')}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(34,211,238,0.06)'" onmouseout="this.style.background='transparent'">
                     <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(34,211,238,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-shield-alt" style="color:#22d3ee;font-size:0.9rem;"></i>
@@ -544,7 +511,6 @@
             </div>
         </div>
 
-        <!-- ===== 4: 바로가기 ===== -->
         <div class="mb-8">
             <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;"><i class="fas fa-th-large mr-2" style="color:#a78bfa;"></i><span th:text="#{admin.dashboard.shortcuts}">Shortcuts</span></h2>
             <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">

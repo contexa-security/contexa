@@ -8,6 +8,8 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,12 +26,17 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     private final PermissionRepository permissionRepository;
     private final ModelMapper modelMapper;
     private final PolicyService policyService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public Permission synchronizePermissionFor(ManagedResource resource) {
         if (resource.getStatus() == ManagedResource.Status.NEEDS_DEFINITION) {
-            throw new IllegalStateException("Cannot create permission from a resource that needs definition. Resource ID: " + resource.getId());
+            throw new IllegalStateException(msg("msg.permission.create.needs.definition", resource.getId()));
         }
 
         // Create per-resource permission (for resource-policy linking and status management)

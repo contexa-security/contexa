@@ -51,7 +51,6 @@ public class AuthorityResolver {
                 loadGroupPermissionsByGroupAndRole(user);
         Map<Long, List<RolePermission>> rolePermissionsByRole = loadRolePermissionsByRole(user);
 
-        // 1. Direct role assignments -> user-specific CRUD permissions + role-mapped non-CRUD permissions
         Optional.ofNullable(user.getUserRoles())
                 .orElse(Collections.emptySet()).stream()
                 .map(UserRole::getRole)
@@ -61,10 +60,8 @@ public class AuthorityResolver {
                     authorities.add(new RoleAuthority(role));
                     List<UserRolePermission> urps = userPermissionsByRole.getOrDefault(role.getId(), Collections.emptyList());
                     if (!urps.isEmpty()) {
-                        // User-specific activations (CRUD subset + selected non-CRUD)
                         urps.forEach(urp -> authorities.add(new PermissionAuthority(urp.getPermission())));
                     } else {
-                        // Fallback: if no UserRolePermission entries exist, grant all role permissions
                         rolePermissionsByRole.getOrDefault(role.getId(), Collections.emptyList()).stream()
                                 .map(RolePermission::getPermission)
                                 .filter(Objects::nonNull)
@@ -72,7 +69,6 @@ public class AuthorityResolver {
                     }
                 });
 
-        // 2. Group-inherited role assignments -> group-specific CRUD permissions
         Optional.ofNullable(user.getUserGroups())
                 .orElse(Collections.emptySet()).stream()
                 .map(UserGroup::getGroup)
@@ -91,7 +87,6 @@ public class AuthorityResolver {
                                 if (!grps.isEmpty()) {
                                     grps.forEach(grp -> authorities.add(new PermissionAuthority(grp.getPermission())));
                                 } else {
-                                    // Fallback: backward compatibility
                                     rolePermissionsByRole.getOrDefault(role.getId(), Collections.emptyList()).stream()
                                             .map(RolePermission::getPermission)
                                             .filter(Objects::nonNull)
@@ -100,10 +95,6 @@ public class AuthorityResolver {
                             });
                 });
 
-        // 3. Role hierarchy expansion
-        // Inherited roles (via hierarchy) get full CRUDs from RolePermission
-        // RoleHierarchy.getReachableGrantedAuthorities only expands RoleAuthority,
-        // PermissionAuthority passes through unchanged
         Collection<? extends GrantedAuthority> expanded = roleHierarchy.getReachableGrantedAuthorities(authorities);
 
         return new HashSet<>(expanded);

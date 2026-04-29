@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Data
-@ConfigurationProperties(prefix = "spring.ai.security.tiered")
+@ConfigurationProperties(prefix = "contexa.security.tiered")
 public class TieredStrategyProperties {
 
     private Layer1 layer1 = new Layer1();

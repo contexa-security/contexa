@@ -12,7 +12,7 @@ import java.util.Map;
 
 @Slf4j
 @Data
-@ConfigurationProperties(prefix = "spring.ai.security.mapping")
+@ConfigurationProperties(prefix = "contexa.security.mapping")
 public class SecurityMappingProperties {
 
     @NestedConfigurationProperty

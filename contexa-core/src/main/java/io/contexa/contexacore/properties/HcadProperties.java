@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@ConfigurationProperties(prefix = "hcad")
+@ConfigurationProperties(prefix = "contexa.hcad")
 public class HcadProperties {
 
     private boolean enabled = true;

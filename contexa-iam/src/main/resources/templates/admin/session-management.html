@@ -11,7 +11,6 @@
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
         <div class="modern-card p-6 sm:p-8 rounded-xl">
-            <!-- Header -->
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold" style="background: linear-gradient(135deg, #6366f1, #818cf8, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
@@ -28,7 +27,6 @@
                 </a>
             </div>
 
-            <!-- Search -->
             <form th:action="@{/admin/session-management}" method="get" class="mb-6 flex gap-3">
                 <div class="relative flex-1">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
@@ -46,7 +44,6 @@
                    th:text="#{common.action.reset}">Reset</a>
             </form>
 
-            <!-- Session Table -->
             <div class="overflow-x-auto shadow-md rounded-lg">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
@@ -105,7 +102,6 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
             <div th:if="${sessionPage.totalPages > 1}" class="flex justify-center gap-2 mt-6">
                 <a th:each="i : ${#numbers.sequence(0, sessionPage.totalPages - 1)}"
                    th:href="@{/admin/session-management(page=${i}, keyword=${keyword})}"

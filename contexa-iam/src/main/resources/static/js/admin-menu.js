@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     var path = window.location.pathname;
 
-    // Move all submenu panels to body (escape sidebar overflow clipping)
     document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
         var panel = item.querySelector('.submenu-panel');
         if (!panel) return;
@@ -12,7 +11,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function showPanel() {
             if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-            // Close all other panels
             document.querySelectorAll('.submenu-panel').forEach(function(p) {
                 if (p !== panel) p.style.display = 'none';
             });
@@ -23,7 +21,6 @@ document.addEventListener('DOMContentLoaded', function() {
             panel.style.display = 'block';
             panel.style.zIndex = '99999';
             panel.style.opacity = '1';
-            // Overflow prevention
             var panelRect = panel.getBoundingClientRect();
             if (panelRect.bottom > window.innerHeight - 10) {
                 panel.style.top = (window.innerHeight - panelRect.height - 10) + 'px';
@@ -44,7 +41,6 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.addEventListener('mouseleave', hidePanel);
     });
 
-    // Active page highlighting
     var groupMap = {
         '/admin/dashboard': 'dashboard',
         '/admin/policy-center': 'policy',
@@ -84,7 +80,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Mobile touch support
     if ('ontouchstart' in window) {
         document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
             var link = item.querySelector('.main-menu-link');

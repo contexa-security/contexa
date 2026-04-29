@@ -480,7 +480,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <!-- Progressive Enhancement: JavaScript SDK support -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
-                        // Enhanced UX through SDK when JavaScript is enabled
                         if (typeof ContexaMFA !== 'undefined') {
                             var currentAttempts = parseInt('{{attemptsMade}}', 10) || 0;
                             var maxAttempts = parseInt('{{maxAttempts}}', 10) || 5;
@@ -507,7 +506,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 errorMsgEl.style.display = 'block';
                             }
 
-                            // Show existing attempt info on page load
                             if (currentAttempts > 0) {
                                 var remaining = maxAttempts - currentAttempts;
                                 if (remaining <= 0) {
@@ -518,11 +516,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             }
 
-                            // SDK initialization
                             const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
                             mfa.init().catch(console.error);
 
-                            // Verification Form Progressive Enhancement
                             verifyForm.addEventListener('submit', async (e) => {
                                 e.preventDefault();
 
@@ -533,7 +529,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 try {
                                     const result = await mfa.verifyOtt(code);
 
-                                    // Explicit redirect handling
                                     if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
                                         window.location.href = result.redirectUrl;
                                     } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
@@ -546,7 +541,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 } catch (error) {
                                     console.error('OTT verification failed:', error);
 
-                                    // BLOCK MFA: redirect to blocked page on retry limit exceeded
                                     if (error.response && error.response.blockMfaFailed) {
                                         window.location.href = error.response.redirectUrl || '/zero-trust/blocked';
                                         return;
@@ -571,7 +565,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             });
 
-                            // Resend button uses form submit as-is (SDK not required)
                         }
                     </script>
 
@@ -711,17 +704,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const msgAuthenticating = i18nEl.dataset.authenticating;
                             const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
 
-                            // Disable button initially (until challenge is ready)
                             authButton.disabled = true;
                             authButton.textContent = msgInitializing;
 
-                            // SDK initialization (challenge already started by backend)
                             (async () => {
                                 try {
                                     await mfa.init();
 
-                                    // Phase 2.3: Challenge started by backend with INITIATE_CHALLENGE_AUTO
-                                    // JavaScript no longer needs to send INITIATE_CHALLENGE
                                     authButton.disabled = false;
                                     authButton.textContent = msgAuthenticate;
                                     console.log('Passkey challenge ready (auto-initiated by backend)');
@@ -732,7 +721,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             })();
 
-                            // Passkey authentication
                             authButton.addEventListener('click', async () => {
                                 authButton.disabled = true;
                                 authButton.textContent = msgAuthenticating;
@@ -740,7 +728,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 try {
                                     const result = await mfa.verifyPasskey();
 
-                                    // Explicit redirect handling
                                     if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
                                         window.location.href = result.redirectUrl;
                                     } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
@@ -1133,7 +1120,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 return formOpts.hasExplicitCustomLoginPage();
             }
         }
-        // Fallback: compare with default
         String defaultLoginPage = authUrlProvider.getDefaultPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
     }
@@ -1295,7 +1281,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private boolean isConfigurePage(String requestUri) {
-        // Configure page is no longer supported
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getConfigurePageUrl())) {
             return requestUri.equals(pageConfig.getConfigurePageUrl());
@@ -1354,11 +1339,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(Unknown)";
         }
 
-        // Show remaining factor types (exclude already completed types)
         List<AuthType> availableFactors = ctx != null && ctx.getRemainingFactors() != null
                 ? new java.util.ArrayList<>(ctx.getRemainingFactors()) : new java.util.ArrayList<>();
 
-        // Fallback: use registered factor options from current flow config
         if (availableFactors.isEmpty() && mfaFlowConfig.getRegisteredFactorOptions() != null) {
             availableFactors = new java.util.ArrayList<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
         }
@@ -1431,7 +1414,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
 
-        // i18n messages
         String pageTitle = msg(request, "mfa.login.page.title", "Login - MFA Authentication");
         String loginTitle = msg(request, "mfa.login.title", "Login");
         String loginDesc = msg(request, "mfa.login.description", "Enter your credentials to continue.");
@@ -1543,7 +1525,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const msgSuccessMfa = container.dataset.msgSuccessMfa;
                             const msgSuccess = container.dataset.msgSuccess;
 
-                            // SDK initialization (autoRedirect: true - auto redirect)
                             const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
                             loginButton.addEventListener('click', async () => {
@@ -1555,23 +1536,18 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     return;
                                 }
 
-                                // Change UI state
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
                                 messageArea.innerHTML = '';
 
                                 try {
-                                    // Call SDK loginForm method
                                     const result = await mfa.apiClient.loginForm(username, password);
 
-                                    // Debug: check server response
                                     console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
                                     console.log('[DEBUG] result.status:', result.status);
                                     console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
 
-                                    // Branch processing based on MFA requirement
                                     if (result.status === 'MFA_COMPLETED') {
-                                        // MFA not required - redirect to home immediately (server issued tokens)
                                         messageArea.innerHTML = '<div class="message success">' + msgSuccessRedirect + '</div>';
                                         const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
@@ -1579,28 +1555,23 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         }, 500);
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
-                                        // MFA required - redirect to factor selection page
                                         messageArea.innerHTML = '<div class="message success">' + msgSuccessMfa + '</div>';
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
-                                        // Other response - show message only
                                         const message = result.message || msgSuccess;
                                         messageArea.innerHTML = '<div class="message success">' + message + '</div>';
                                     }
                                 } catch (error) {
-                                    // Detect blocked status
                                     if (error.response && error.response.blocked === true) {
-                                        // Account blocked - hide footer and keep button disabled
                                         const supportContact = error.response.supportContact || 'Administrator';
                                         messageArea.innerHTML = '<div class="message error">' +
                                             error.message + '<br>Contact: ' + supportContact + '</div>';
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        // Normal login failure - retry possible
                                         messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
@@ -1608,7 +1579,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             });
 
-                            // Handle Enter key
                             document.getElementById('password').addEventListener('keypress', (e) => {
                                 if (e.key === 'Enter') {
                                     loginButton.click();
@@ -1659,7 +1629,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
 
-        // i18n messages
         String pageTitle = msg(request, "mfa.login.rest.page.title", "Login - MFA Authentication (REST)");
         String loginTitle = msg(request, "mfa.login.title", "Login");
         String loginDesc = msg(request, "mfa.login.description", "Enter your credentials to continue.");
@@ -1771,7 +1740,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const msgSuccessMfa = container.dataset.msgSuccessMfa;
                             const msgSuccess = container.dataset.msgSuccess;
 
-                            // SDK initialization (autoRedirect: true - auto redirect)
                             const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
                             loginButton.addEventListener('click', async () => {
@@ -1783,23 +1751,18 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     return;
                                 }
 
-                                // Change UI state
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
                                 messageArea.innerHTML = '';
 
                                 try {
-                                    // Call SDK login method
                                     const result = await mfa.apiClient.login(username, password);
 
-                                    // Debug: check server response
                                     console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
                                     console.log('[DEBUG] result.status:', result.status);
                                     console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
 
-                                    // Branch processing based on MFA requirement
                                     if (result.status === 'MFA_COMPLETED') {
-                                        // MFA not required - redirect to home immediately (server issued tokens)
                                         messageArea.innerHTML = '<div class="message success">' + msgSuccessRedirect + '</div>';
                                         const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
@@ -1807,28 +1770,23 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         }, 500);
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
-                                        // MFA required - redirect to factor selection page
                                         messageArea.innerHTML = '<div class="message success">' + msgSuccessMfa + '</div>';
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
-                                        // Other response - show message only
                                         const message = result.message || msgSuccess;
                                         messageArea.innerHTML = '<div class="message success">' + message + '</div>';
                                     }
                                 } catch (error) {
-                                    // Detect blocked status
                                     if (error.response && error.response.blocked === true) {
-                                        // Account blocked - hide footer and keep button disabled
                                         const supportContact = error.response.supportContact || 'Administrator';
                                         messageArea.innerHTML = '<div class="message error">' +
                                             error.message + '<br>Contact: ' + supportContact + '</div>';
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        // Normal login failure - retry possible
                                         messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
@@ -1836,7 +1794,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             });
 
-                            // Handle Enter key
                             document.getElementById('password').addEventListener('keypress', (e) => {
                                 if (e.key === 'Enter') {
                                     loginButton.click();
@@ -2098,7 +2055,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     @Nullable
     private String getUsername(HttpServletRequest request) {
-        // 1. SecurityContextHolder (SESSION mode or token-authenticated request)
         Authentication authentication = SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication();
         if (authentication != null
                 && authentication.isAuthenticated()
@@ -2106,7 +2062,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             return authentication.getName();
         }
 
-        // 2. FactorContext fallback (OAuth2 mode - token not yet delivered)
         try {
             var factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
             if (factorContext != null && factorContext.getUsername() != null) {
@@ -2214,7 +2169,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private String buildSelectFactorLink(HttpServletRequest request, String contextPath, @Nullable FactorContext ctx) {
-        // Show link when multiple factor types are registered
         int factorTypeCount = mfaFlowConfig.getRegisteredFactorOptions() != null
                 ? mfaFlowConfig.getRegisteredFactorOptions().size() : 0;
         if (factorTypeCount <= 1) {

@@ -80,7 +80,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
         String username = authentication.getName();
 
-        // Record login success: reset failedLoginAttempts, update lastLoginAt/lastLoginIp
         if (loginPolicyService != null) {
             try {
                 loginPolicyService.onLoginSuccess(username, request.getRemoteAddr());
@@ -377,7 +376,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
         String sessionId = context.getMfaSessionId();
 
-        // Use remaining factors (excluding already completed ones)
         Set<AuthType> remaining = context.getRemainingFactors();
 
         if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {

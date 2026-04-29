@@ -18,6 +18,8 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -33,6 +35,11 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final ApplicationEventPublisher eventPublisher;
     private final CentralAuditFacade centralAuditFacade;
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -107,10 +114,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void resolveBlockById(Long id, String adminId, String resolvedAction, String reason) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Blocked user not found: id=" + id));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
         if (blocked.getStatus() == BlockedUserStatus.RESOLVED) {
-            throw new IllegalStateException("Already resolved: id=" + id);
+            throw new IllegalStateException(msg("msg.blocked.user.already.resolved", id));
         }
 
         applyResolution(blocked, adminId, resolvedAction, reason);
@@ -284,10 +291,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteBlockRecord(Long id) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Blocked user not found: id=" + id));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
         if (blocked.getStatus() == BlockedUserStatus.BLOCKED) {
-            throw new IllegalStateException("Cannot delete active block. Resolve first: id=" + id);
+            throw new IllegalStateException(msg("msg.blocked.user.delete.active", id));
         }
 
         blockedUserJpaRepository.delete(blocked);

@@ -44,6 +44,15 @@
     </div>
 </div>
 
+<div id="i18nZeroTrustPending" style="display:none"
+     th:data-sse-connected="#{admin.zero.trust.pending.js.sse.connected}"
+     th:data-sse-disconnected="#{admin.zero.trust.pending.js.sse.disconnected}"
+     th:data-mfa-required="#{admin.zero.trust.pending.js.mfa.required}"
+     th:data-no-response="#{admin.zero.trust.pending.js.no.response}"
+     th:data-decision-error="#{admin.zero.trust.pending.js.decision.error}"
+     th:data-analysis-error="#{admin.zero.trust.pending.js.analysis.error}">
+</div>
+
 <script th:src="@{/js/zero-trust/analysis-pending.js}"></script>
 </body>
 </html>

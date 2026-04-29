@@ -315,7 +315,6 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityEventProcessor(handlers);
     }
 
-    // === Common beans: work in both standalone and distributed modes ===
 
     @Bean
     @ConditionalOnMissingBean
@@ -522,7 +521,6 @@ public class CoreAutonomousAutoConfiguration {
         return new ZeroTrustExceptionHandler();
     }
 
-    // === Distributed mode: Redis-only repository ===
 
     @Configuration
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")

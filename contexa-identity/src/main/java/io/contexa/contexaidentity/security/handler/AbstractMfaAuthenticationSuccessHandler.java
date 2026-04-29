@@ -386,7 +386,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 return specificFlow;
             }
         }
-        // Fallback for single MFA flow backward compatibility
         log.error("findCurrentMfaFlow: flowTypeName not available from FactorContext, falling back to first MFA flow");
         return platformConfig.getFlows().stream()
                 .filter(f -> MfaFlowTypeUtils.isMfaFlow(f.getTypeName()))
@@ -399,7 +398,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return false;
         }
 
-        // Reject absolute URLs to prevent open redirect attacks
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
             return false;
         }
@@ -490,7 +488,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 payload.put("authenticationResult", transportResult.getBody().get("status"));
             }
 
-            // MFA success resets action to ALLOW (resetActionOnMfaSuccess called before this)
             payload.put("action", ZeroTrustAction.ALLOW.name());
 
             zeroTrustEventPublisher.publishAuthenticationSuccess(
@@ -659,8 +656,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private void markMfaVerifiedOnChallengeSuccess(String userId) {
         try {
-            // CHALLENGE MFA -> hcadDataStore only (for LLM prompt MfaVerified flag)
-            // blockMfaStateStore is reserved for BLOCK MFA flow only (handleBlockMfaSuccess)
             HCADDataStore hcadDataStore = applicationContext.getBean(HCADDataStore.class);
             hcadDataStore.markMfaVerified(userId);
         } catch (Exception e) {

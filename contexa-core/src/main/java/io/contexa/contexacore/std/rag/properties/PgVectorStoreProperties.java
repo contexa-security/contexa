@@ -6,16 +6,13 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.springframework.ai.vectorstore.properties.CommonVectorStoreProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
-@ConfigurationProperties(prefix = "spring.ai.vectorstore.pgvector")
+@ConfigurationProperties(prefix = "contexa.vectorstore.pgvector")
 @Validated
 @Data
-@EqualsAndHashCode(callSuper = true)
-public class PgVectorStoreProperties extends CommonVectorStoreProperties {
+public class PgVectorStoreProperties {
 
     @NotNull
     private IndexType indexType = IndexType.HNSW;

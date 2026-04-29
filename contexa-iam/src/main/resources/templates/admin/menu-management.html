@@ -11,7 +11,6 @@
 
     <main class="flex-1 p-6 md:p-10">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
-            <!-- Header -->
             <div class="mb-8 flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.menu.management.title}">Menu Management</h1>
@@ -24,7 +23,6 @@
                 </button>
             </div>
 
-            <!-- Stats Cards -->
             <div class="grid grid-cols-4 gap-4 mb-6">
                 <div class="rounded-xl p-4" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);">
                     <div class="flex items-center gap-3">
@@ -64,7 +62,6 @@
                 </div>
             </div>
 
-            <!-- Search Filter -->
             <div class="mb-6 flex gap-3">
                 <div class="relative flex-1">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
@@ -85,7 +82,6 @@
                         th:text="#{common.action.reset}">Reset</button>
             </div>
 
-            <!-- Menu Table -->
             <div class="overflow-x-auto shadow-md rounded-lg">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
@@ -94,7 +90,7 @@
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.url}">URL</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.type}">Type</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.roles}">Roles</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">Source</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.source}">Source</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.status}">Status</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.menu.management.col.actions}">Actions</th>
                     </tr>
@@ -104,46 +100,35 @@
                             <tr th:data-id="${menu.id}" th:data-parent="${menu.parentId}"
                                 th:class="${menu.parentId != null ? 'menu-child-row' : ''}"
                                 th:style="${menu.parentId != null ? 'border-color:rgba(71,85,105,0.3);display:none;' : 'border-color:rgba(71,85,105,0.3);'}">
-                                <!-- Name -->
                                 <td class="py-4 px-6">
                                     <div class="flex items-center gap-2" th:style="${menu.parentId != null ? 'padding-left:2.5rem;' : ''}">
-                                        <!--/* Group: chevron */-->
                                         <button th:if="${parentIds != null and parentIds.contains(menu.id)}" type="button" class="toggle-group-btn" th:data-menu-id="${menu.id}" style="background:none;border:none;cursor:pointer;color:#a78bfa;font-size:1rem;width:1.5rem;padding:0;"><i class="fas fa-chevron-right"></i></button>
-                                        <!--/* DB icon: SVG */-->
                                         <span th:if="${menu.icon != null and menu.icon.startsWith('<')}" style="display:inline-flex;align-items:center;width:1.25rem;height:1.25rem;color:#a78bfa;" th:utext="${menu.icon}"></span>
-                                        <!--/* DB icon: FA class */-->
                                         <i th:if="${menu.icon != null and !menu.icon.isBlank() and !menu.icon.startsWith('<')}" th:class="${menu.icon}" style="color:#a78bfa;font-size:0.875rem;"></i>
-                                        <!--/* No icon: fallback */-->
                                         <i th:if="${menu.icon == null or menu.icon.isBlank()}" class="fas fa-file-alt" style="color:#64748b;font-size:0.7rem;"></i>
-                                        <!--/* Menu name */-->
                                         <span th:if="${menu.name.startsWith('menu.')}" style="color:#e2e8f0;font-weight:500;" th:text="${#messages.msg(menu.name)}">Menu</span>
                                         <span th:unless="${menu.name.startsWith('menu.')}" style="color:#e2e8f0;font-weight:500;" th:text="${menu.name}">Menu</span>
                                     </div>
                                 </td>
-                                <!-- URL -->
                                 <td class="py-4 px-6">
                                     <span th:if="${menu.url != null}" class="font-mono text-xs" style="color:#94a3b8;" th:text="${menu.url}"></span>
                                     <span th:if="${menu.url == null}" class="text-xs italic" style="color:#475569;" th:text="#{admin.menu.management.group}">Group</span>
                                 </td>
-                                <!-- Type -->
                                 <td class="py-4 px-6 text-center">
                                     <span class="text-xs font-bold px-2.5 py-1 rounded-full"
                                           th:style="${menu.menuType == 'ENTERPRISE' ? 'background:rgba(139,92,246,0.15);color:#a78bfa;' : (menu.menuType == 'SAAS' ? 'background:rgba(34,211,238,0.15);color:#22d3ee;' : 'background:rgba(99,102,241,0.15);color:#818cf8;')}"
                                           th:text="${menu.menuType}">CORE</span>
                                 </td>
-                                <!-- Roles -->
                                 <td class="py-4 px-6 text-center">
                                     <span th:if="${menu.roles.isEmpty()}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">ALL</span>
                                     <div th:if="${!menu.roles.isEmpty()}" style="display:flex;gap:0.25rem;flex-wrap:wrap;justify-content:center;">
                                         <span th:each="role : ${menu.roles}" class="text-xs px-1.5 py-0.5 rounded menu-role-badge" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);" th:data-role="${role.roleName}" th:text="${role.roleName}">ROLE</span>
                                     </div>
                                 </td>
-                                <!-- Source -->
                                 <td class="py-4 px-6 text-center">
-                                    <span th:if="${menu.name.startsWith('menu.')}" class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);">System</span>
-                                    <span th:unless="${menu.name.startsWith('menu.')}" class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">Custom</span>
+                                    <span th:if="${menu.name.startsWith('menu.')}" class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);" th:text="#{admin.menu.management.system}">System</span>
+                                    <span th:unless="${menu.name.startsWith('menu.')}" class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);" th:text="#{admin.menu.management.custom}">Custom</span>
                                 </td>
-                                <!-- Status -->
                                 <td class="py-4 px-6 text-center">
                                     <span th:if="${menu.enabled}" class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">
                                         <i class="fas fa-circle" style="font-size:0.4rem;"></i> <span th:text="#{admin.menu.management.active}">Active</span>
@@ -152,7 +137,6 @@
                                         <i class="fas fa-circle" style="font-size:0.4rem;"></i> <span th:text="#{admin.menu.management.inactive}">Inactive</span>
                                     </span>
                                 </td>
-                                <!-- Actions -->
                                 <td class="py-4 px-6 text-center">
                                     <div style="display:flex;gap:0.375rem;justify-content:center;flex-wrap:wrap;">
                                         <button type="button" th:onclick="'MenuMgmt.openEditModal(' + ${menu.id} + ')'" class="text-xs px-3 py-1.5 rounded-lg" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.25);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(99,102,241,0.25)'" onmouseout="this.style.background='rgba(99,102,241,0.12)'"><i class="fas fa-pen mr-1"></i><span th:text="#{common.edit}">Edit</span></button>
@@ -176,10 +160,8 @@
     </main>
 </div>
 
-<!-- ===== Create/Edit Modal ===== -->
 <div id="menu-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
     <div class="rounded-2xl" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(99,102,241,0.25);width:36rem;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
-        <!-- Modal Header -->
         <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid rgba(71,85,105,0.2);">
             <div class="flex items-center gap-3">
                 <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.2));display:flex;align-items:center;justify-content:center;">
@@ -189,13 +171,12 @@
             </div>
             <button type="button" onclick="MenuMgmt.closeModal()" style="width:2rem;height:2rem;border-radius:0.5rem;background:rgba(71,85,105,0.3);border:1px solid rgba(71,85,105,0.4);color:#94a3b8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(71,85,105,0.3)';this.style.color='#94a3b8'">&times;</button>
         </div>
-        <!-- Modal Body -->
         <div class="p-6 space-y-4">
             <input type="hidden" id="menu-edit-id" />
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.name}">Menu Name</label>
-                    <input type="text" id="menu-name" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="User Management" />
+                    <input type="text" id="menu-name" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" th:placeholder="#{admin.menu.management.name.placeholder}" />
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;">URL</label>
@@ -227,7 +208,7 @@
                     <input type="number" id="menu-order" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" value="0" min="0" />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;">Data Page</label>
+                    <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.data.page}">Data Page</label>
                     <input type="text" id="menu-datapage" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="users" />
                 </div>
             </div>
@@ -238,7 +219,7 @@
                     <div id="icon-preview" style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);display:flex;align-items:center;justify-content:center;color:#818cf8;font-size:1.25rem;">
                         <i class="fas fa-question"></i>
                     </div>
-                    <button type="button" onclick="MenuMgmt.toggleIconPicker()" class="px-3 py-1.5 rounded-lg text-xs" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.25);cursor:pointer;">Select Icon</button>
+                    <button type="button" onclick="MenuMgmt.toggleIconPicker()" class="px-3 py-1.5 rounded-lg text-xs" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.25);cursor:pointer;" th:text="#{admin.menu.management.select.icon}">Select Icon</button>
                     <span id="icon-name" class="text-xs" style="color:#64748b;"></span>
                 </div>
                 <div id="icon-picker" style="display:none;padding:0.75rem;border-radius:0.5rem;background:rgba(15,23,42,0.8);border:1px solid rgba(71,85,105,0.3);max-height:12rem;overflow-y:auto;">
@@ -250,7 +231,6 @@
                 <label for="menu-enabled" class="text-sm" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.enabled}">Enabled</label>
             </div>
         </div>
-        <!-- Modal Footer -->
         <div class="flex justify-end gap-3 px-6 py-4" style="border-top:1px solid rgba(71,85,105,0.2);background:rgba(15,23,42,0.3);border-radius:0 0 1rem 1rem;">
             <button type="button" onclick="MenuMgmt.closeModal()" class="px-4 py-2 rounded-lg text-sm" style="background:rgba(71,85,105,0.3);color:#94a3b8;border:1px solid rgba(71,85,105,0.4);cursor:pointer;" th:text="#{common.cancel}">Cancel</button>
             <button type="button" onclick="MenuMgmt.saveMenu()" class="px-5 py-2 rounded-lg text-sm font-semibold text-white" style="background:linear-gradient(135deg,#4f46e5,#6366f1);cursor:pointer;"><i class="fas fa-save mr-1"></i> <span th:text="#{common.save}">Save</span></button>
@@ -258,7 +238,6 @@
     </div>
 </div>
 
-<!-- ===== Role Assignment Modal ===== -->
 <div id="role-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
     <div class="rounded-2xl" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(167,139,250,0.25);width:32rem;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
         <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid rgba(71,85,105,0.2);">
@@ -284,7 +263,6 @@
     </div>
 </div>
 
-<!-- ===== Delete Confirmation Modal ===== -->
 <div id="delete-modal" class="hidden" style="display:none;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);">
     <div class="rounded-2xl p-6" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(239,68,68,0.25);width:28rem;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
         <div class="text-center mb-5">
@@ -319,7 +297,6 @@ var MenuMgmt = {
         return r;
     },
 
-    // Create/Edit Modal
     openCreateModal: function() {
         document.getElementById('menu-modal-title').textContent = document.getElementById('menu-i18n').dataset.add || 'Add Menu';
         document.getElementById('menu-edit-id').value = '';
@@ -400,7 +377,6 @@ var MenuMgmt = {
 
     closeModal: function() { this._hideModal('menu-modal'); },
 
-    // Toggle
     toggle: function(id) {
         fetch('/admin/menu-management/api/toggle/' + id, {
             method: 'POST', headers: { [this._csrfHeader()]: this._csrfToken() }
@@ -410,7 +386,6 @@ var MenuMgmt = {
         .catch(MenuMgmt._handleError);
     },
 
-    // Delete
     confirmDelete: function(id) {
         this._deleteMenuId = id;
         this._showModal('delete-modal');
@@ -425,7 +400,6 @@ var MenuMgmt = {
     },
     closeDeleteModal: function() { this._hideModal('delete-modal'); this._deleteMenuId = null; },
 
-    // Roles
     openRoleModal: function(id) {
         this._currentMenuId = id;
         var row = document.querySelector('[data-id="' + id + '"]');
@@ -448,7 +422,6 @@ var MenuMgmt = {
     },
     closeRoleModal: function() { this._hideModal('role-modal'); this._currentMenuId = null; },
 
-    // Group toggle
     toggleGroup: function(parentId, btn) {
         var selector = 'tr[data-parent="' + parentId + '"]';
         var rows = document.querySelectorAll(selector);
@@ -458,15 +431,12 @@ var MenuMgmt = {
 
         rows.forEach(function(row) {
             if (expanded) {
-                // collapsing: always hide
                 row.style.display = 'none';
             } else if (keyword) {
-                // expanding during search: show only matching children
                 var name = (row.querySelector('td:first-child')?.textContent || '').toLowerCase();
                 var url = (row.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
                 row.style.display = (name.includes(keyword) || url.includes(keyword)) ? '' : 'none';
             } else {
-                // expanding normally: show all
                 row.style.display = '';
             }
         });
@@ -474,7 +444,6 @@ var MenuMgmt = {
         icon.classList.toggle('fa-chevron-down', !expanded);
     },
 
-    // Search/Filter
     filterTable: function(keyword) {
         var lc = (keyword || '').toLowerCase();
         if (!lc) {
@@ -484,7 +453,6 @@ var MenuMgmt = {
         var rows = document.querySelectorAll('tbody tr[data-id]');
         var visibleParents = new Set();
 
-        // Pass 1: find matching rows and collect parent IDs that need to be visible
         rows.forEach(function(row) {
             var name = (row.querySelector('td:first-child')?.textContent || '').toLowerCase();
             var url = (row.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
@@ -495,7 +463,6 @@ var MenuMgmt = {
             }
         });
 
-        // Pass 2: show/hide rows
         rows.forEach(function(row) {
             var name = (row.querySelector('td:first-child')?.textContent || '').toLowerCase();
             var url = (row.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
@@ -504,10 +471,8 @@ var MenuMgmt = {
             var rowId = row.getAttribute('data-id');
 
             if (!parentAttr) {
-                // parent row: show if itself matches OR has matching children
                 row.style.display = (match || visibleParents.has(rowId)) ? '' : 'none';
             } else {
-                // child row: show if matches
                 row.style.display = match ? '' : 'none';
             }
         });
@@ -519,14 +484,12 @@ var MenuMgmt = {
             var isChild = row.getAttribute('data-parent');
             row.style.display = isChild ? 'none' : '';
         });
-        // reset all chevrons to collapsed
         document.querySelectorAll('.toggle-group-btn i').forEach(function(icon) {
             icon.classList.remove('fa-chevron-down');
             icon.classList.add('fa-chevron-right');
         });
     },
 
-    // Icon Picker
     _iconList: [
         'fas fa-home','fas fa-users','fas fa-user-shield','fas fa-shield-alt',
         'fas fa-key','fas fa-cog','fas fa-cogs','fas fa-chart-bar',
@@ -567,7 +530,6 @@ var MenuMgmt = {
         document.getElementById('icon-preview').innerHTML = '<i class="' + cls + '"></i>';
         document.getElementById('icon-name').textContent = cls.replace('fas fa-', '');
         document.getElementById('icon-picker').style.display = 'none';
-        // highlight selected in grid
         document.querySelectorAll('#icon-grid button').forEach(function(b) {
             var isCurrent = b.querySelector('i').className === cls;
             b.style.borderColor = isCurrent ? '#6366f1' : 'rgba(71,85,105,0.3)';
@@ -575,7 +537,6 @@ var MenuMgmt = {
         });
     },
 
-    // Sync custom select UI after programmatic value change
     _syncSelect: function(sel) {
         if (!sel) return;
         var wrapper = sel.closest('.custom-select-wrapper');
@@ -595,7 +556,6 @@ var MenuMgmt = {
         }
     },
 
-    // Helpers
     _showModal: function(id) { var m = document.getElementById(id); m.classList.remove('hidden'); m.style.display = 'flex'; },
     _hideModal: function(id) { var m = document.getElementById(id); m.classList.add('hidden'); m.style.display = 'none'; }
 };
@@ -608,7 +568,6 @@ document.addEventListener('DOMContentLoaded', function() {
         var btn = row.querySelector('.toggle-group-btn');
         var rowId = row.getAttribute('data-id');
 
-        // Only bind click on rows that have a toggle button (actual groups with children)
         if (btn) {
             row.style.cursor = 'pointer';
             row.addEventListener('click', function(e) {

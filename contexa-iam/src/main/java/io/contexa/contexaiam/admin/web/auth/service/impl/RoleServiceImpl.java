@@ -19,6 +19,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,12 +40,17 @@ public class RoleServiceImpl implements RoleService {
     private final CentralAuditFacade centralAuditFacade;
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final PolicySynchronizationService policySynchronizationService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     @Cacheable(value = "roles", key = "#id")
     public Role getRole(long id) {
         return roleRepository.findByIdWithPermissions(id)
-                .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.not.found.id", id)));
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -75,13 +82,13 @@ public class RoleServiceImpl implements RoleService {
     )
     public Role createRole(Role role, List<Long> permissionIds) {
         if (roleRepository.findByRoleName(role.getRoleName()).isPresent()) {
-            throw new IllegalArgumentException("Role with name " + role.getRoleName() + " already exists.");
+            throw new IllegalArgumentException(msg("msg.role.name.duplicate", role.getRoleName()));
         }
 
         if (permissionIds != null && !permissionIds.isEmpty()) {
             List<Permission> permissions = permissionRepository.findAllById(permissionIds);
             if (permissions.size() != permissionIds.size()) {
-                throw new IllegalArgumentException("Some permissions not found");
+                throw new IllegalArgumentException(msg("msg.permission.not.found"));
             }
             Set<RolePermission> rolePermissions = permissions.stream()
                     .map(p -> RolePermission.builder().role(role).permission(p).build())
@@ -168,10 +175,8 @@ public class RoleServiceImpl implements RoleService {
             }
         });
         if (!referencedIn.isEmpty()) {
-            throw new IllegalStateException(
-                    "Cannot delete role '" + role.getRoleName() +
-                    "'. Referenced in active hierarchies: " + String.join(", ", referencedIn) +
-                    ". Remove it from the hierarchies first.");
+            throw new IllegalStateException(msg("msg.role.delete.referenced",
+                    role.getRoleName(), String.join(", ", referencedIn)));
         }
         policySynchronizationService.cleanupAutoPolicy(role.getRoleName());
         auditRoleChange(AuditEventCategory.ROLE_DELETED, role);

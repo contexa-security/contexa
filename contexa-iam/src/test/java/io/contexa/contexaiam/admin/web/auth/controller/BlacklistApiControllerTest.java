@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -50,7 +51,7 @@ class BlacklistApiControllerTest {
     void setUp() {
         SecurityContextHolder.getContext()
                 .setAuthentication(new TestingAuthenticationToken("admin", "password"));
-        controller = new BlacklistApiController(blockedUserService);
+        controller = new BlacklistApiController(blockedUserService, new StaticMessageSource());
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

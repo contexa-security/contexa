@@ -25,14 +25,12 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
 
-        // Auto-unlock if lock duration has expired
         if (loginPolicyHandler != null) {
             loginPolicyHandler.checkAndUnlockIfExpired(loginId);
         }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
-        // Check account status before password verification
         if (!userDetails.isEnabled()) {
             throw new DisabledException("Account is disabled");
         }
@@ -41,17 +39,14 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             throw new LockedException("Account is locked");
         }
 
-        // Verify password
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             throw new BadCredentialsException("Invalid password");
         }
 
-        // Check credentials expiry after successful password verification
         if (loginPolicyHandler != null && loginPolicyHandler.isCredentialsExpired(loginId)) {
             throw new CredentialsExpiredException("Password has expired");
         }
 
-//        UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
         return RestAuthenticationToken.authenticated(userDetails, userDetails.getAuthorities());
     }
 

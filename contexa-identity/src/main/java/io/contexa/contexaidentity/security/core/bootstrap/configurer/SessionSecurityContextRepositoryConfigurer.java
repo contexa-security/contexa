@@ -19,7 +19,6 @@ public class SessionSecurityContextRepositoryConfigurer implements SecurityConfi
 
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
-        // no-op
     }
 
     @Override

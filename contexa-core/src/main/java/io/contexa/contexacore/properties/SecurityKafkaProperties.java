@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "security.kafka")
+@ConfigurationProperties(prefix = "contexa.security.kafka")
 public class SecurityKafkaProperties {
 
     @NestedConfigurationProperty

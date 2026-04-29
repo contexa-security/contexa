@@ -169,12 +169,10 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return 1;
         }
 
-        // DSL .requiredFactors(n) setting takes precedence
         if (mfaFlowConfig.getRequiredFactorCount() > 0) {
             return mfaFlowConfig.getRequiredFactorCount();
         }
 
-        // Default: all registered factors
         long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
                 .filter(step -> !step.isPrimary())
                 .count();

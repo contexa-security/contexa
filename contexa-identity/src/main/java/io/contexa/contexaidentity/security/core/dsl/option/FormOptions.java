@@ -115,7 +115,6 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         public Builder defaultLoginUrl(String defaultLoginUrl) {
             Assert.hasText(defaultLoginUrl, "defaultLoginUrl cannot be empty or null");
             this.defaultLoginUrl = defaultLoginUrl;
-            // Sync loginProcessingUrl to match the page URL (same as Spring Security standard)
             super.loginProcessingUrl(defaultLoginUrl);
             return this;
         }

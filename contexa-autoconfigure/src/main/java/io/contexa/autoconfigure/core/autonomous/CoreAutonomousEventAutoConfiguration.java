@@ -100,7 +100,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new InMemoryBlockingSignalBroadcaster();
     }
 
-    // === Common beans (mode-independent) ===
 
     @Bean
     @ConditionalOnMissingBean

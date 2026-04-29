@@ -15,13 +15,11 @@
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
         <div class="modern-card">
-            <!-- Page Header -->
             <div class="mb-6">
                 <h1 class="text-3xl font-bold ac-header-gradient" th:text="#{admin.access.center.title}">Access Center</h1>
                 <p class="text-dark-muted mt-1" th:text="#{admin.access.center.subtitle}">Integrated access management: users, groups, roles, overview analysis</p>
             </div>
 
-            <!-- Tab Navigation -->
             <nav class="ac-tab-nav mb-6">
                 <button type="button" class="ac-tab-btn"
                         th:classappend="${activeTab == 'users' or activeTab == null} ? ' active' : ''"
@@ -52,11 +50,9 @@
                 </button>
             </nav>
 
-            <!-- ==================== TAB 1: USERS ==================== -->
             <div id="ac-tab-users" class="ac-tab-content"
                  th:classappend="${activeTab == 'users' or activeTab == null} ? ' active' : ''">
                 <div class="ac-master-detail">
-                    <!-- Left: User List -->
                     <div class="ac-list-panel">
                         <div class="ac-search-box">
                             <i class="fas fa-search ac-search-icon"></i>
@@ -73,7 +69,6 @@
                         </div>
                     </div>
 
-                    <!-- Right: User Detail -->
                     <div id="ac-user-detail" class="ac-detail-panel">
                         <div class="ac-empty">
                             <i class="fas fa-user-circle"></i>
@@ -83,11 +78,9 @@
                 </div>
             </div>
 
-            <!-- ==================== TAB 2: GROUPS ==================== -->
             <div id="ac-tab-groups" class="ac-tab-content"
                  th:classappend="${activeTab == 'groups'} ? ' active' : ''">
                 <div class="ac-master-detail">
-                    <!-- Left: Group List -->
                     <div class="ac-list-panel">
                         <div class="ac-search-box">
                             <i class="fas fa-search ac-search-icon"></i>
@@ -104,7 +97,6 @@
                         </div>
                     </div>
 
-                    <!-- Right: Group Detail -->
                     <div id="ac-group-detail" class="ac-detail-panel">
                         <div class="ac-empty">
                             <i class="fas fa-layer-group"></i>
@@ -114,11 +106,9 @@
                 </div>
             </div>
 
-            <!-- ==================== TAB 3: ROLES ==================== -->
             <div id="ac-tab-roles" class="ac-tab-content"
                  th:classappend="${activeTab == 'roles'} ? ' active' : ''">
                 <div class="ac-master-detail">
-                    <!-- Left: Role List -->
                     <div class="ac-list-panel">
                         <div class="ac-search-box">
                             <i class="fas fa-search ac-search-icon"></i>
@@ -135,7 +125,6 @@
                         </div>
                     </div>
 
-                    <!-- Right: Role Detail -->
                     <div id="ac-role-detail" class="ac-detail-panel">
                         <div class="ac-empty">
                             <i class="fas fa-user-shield"></i>
@@ -145,11 +134,9 @@
                 </div>
             </div>
 
-            <!-- ==================== TAB 4: OVERVIEW ==================== -->
             <div id="ac-tab-overview" class="ac-tab-content"
                  th:classappend="${activeTab == 'overview'} ? ' active' : ''">
 
-                <!-- Stats Cards -->
                 <div class="ac-stats-grid">
                     <div class="ac-stat-card">
                         <div class="ac-stat-icon ac-stat-icon-users">
@@ -189,7 +176,6 @@
                     </div>
                 </div>
 
-                <!-- Overview Summary -->
                 <div class="ac-overview-section mt-6">
                     <h3 class="ac-section-title" th:text="#{admin.access.center.overview.structure.title}">Access Structure Summary</h3>
                     <div class="ac-overview-grid">
@@ -266,47 +252,73 @@
     </main>
 </div>
 
-<!-- i18n messages for JavaScript -->
 <div id="i18nAccessCenter" style="display:none"
-     th:data-searching="'Searching...'"
-     th:data-search-failed="'Search failed: '"
-     th:data-no-results="'No results found.'"
-     th:data-loading-user="'Loading user info...'"
-     th:data-load-user-failed="'Cannot load user info.'"
-     th:data-user-detail-failed="'User detail lookup failed: '"
-     th:data-label-id="'ID'"
-     th:data-label-name="'Name'"
-     th:data-label-email="'Email'"
-     th:data-label-status="'Status'"
-     th:data-status-active="#{common.status.active}"
-     th:data-status-inactive="#{common.status.inactive}"
-     th:data-tab-groups="'Groups'"
-     th:data-tab-roles="'Direct Roles'"
-     th:data-tab-perms="'Effective Permissions'"
-     th:data-manage-groups="'Manage Groups'"
-     th:data-manage-roles="'Manage Direct Roles'"
-     th:data-effective-perms="'Effective Permissions (read-only)'"
-     th:data-label-save="#{common.save}"
-     th:data-loading-groups="'Loading groups...'"
-     th:data-loading-roles="'Loading roles...'"
-     th:data-no-perms="'No effective permissions.'"
-     th:data-source-direct="'Direct'"
-     th:data-source-group="'Group'"
-     th:data-source-hierarchy="'Hierarchy'"
-     th:data-group-load-failed="'Failed to load group list'"
-     th:data-no-groups="'No groups registered.'"
-     th:data-role-load-failed="'Failed to load role list'"
-     th:data-no-roles="'No roles registered.'"
-     th:data-save-success="'Saved successfully.'"
-     th:data-save-failed="'Save failed: '"
-     th:data-loading-group-detail="'Loading group info...'"
-     th:data-loading-role-detail="'Loading role info...'"
-     th:data-label-description="'Description'"
-     th:data-label-members="'Members'"
-     th:data-label-assigned-roles="'Assigned Roles'"
-     th:data-label-permissions="'Permissions'"
-     th:data-label-assigned-users="'Assigned Users'"
-     th:data-search-users-placeholder="#{admin.access.center.search.users}">
+     th:data-searching="#{admin.access.center.js.searching}"
+     th:data-users-load-failed="#{admin.access.center.js.users.load.failed}"
+     th:data-user-search-failed="#{admin.access.center.js.user.search.failed}"
+     th:data-no-search-results="#{admin.access.center.js.no.search.results}"
+     th:data-user-loading="#{admin.access.center.js.user.loading}"
+     th:data-user-load-failed="#{admin.access.center.js.user.load.failed}"
+     th:data-user-detail-failed="#{admin.access.center.js.user.detail.failed}"
+     th:data-label-username="#{admin.access.center.js.label.username}"
+     th:data-label-name="#{admin.access.center.js.label.name}"
+     th:data-label-email="#{admin.access.center.js.label.email}"
+     th:data-label-status="#{admin.access.center.js.label.status}"
+     th:data-status-active="#{admin.access.center.js.status.active}"
+     th:data-status-inactive="#{admin.access.center.js.status.inactive}"
+     th:data-tab-member-groups="#{admin.access.center.js.tab.member.groups}"
+     th:data-tab-direct-roles="#{admin.access.center.js.tab.direct.roles}"
+     th:data-tab-effective-perms="#{admin.access.center.js.tab.effective.perms}"
+     th:data-section-member-groups="#{admin.access.center.js.section.member.groups}"
+     th:data-btn-save="#{admin.access.center.js.btn.save}"
+     th:data-groups-loading="#{admin.access.center.js.groups.loading}"
+     th:data-section-direct-roles="#{admin.access.center.js.section.direct.roles}"
+     th:data-roles-loading="#{admin.access.center.js.roles.loading}"
+     th:data-section-effective-perms="#{admin.access.center.js.section.effective.perms}"
+     th:data-no-effective-perms="#{admin.access.center.js.no.effective.perms}"
+     th:data-source-direct="#{admin.access.center.js.source.direct}"
+     th:data-source-group="#{admin.access.center.js.source.group}"
+     th:data-source-hierarchy="#{admin.access.center.js.source.hierarchy}"
+     th:data-groups-load-failed="#{admin.access.center.js.groups.load.failed}"
+     th:data-no-groups-registered="#{admin.access.center.js.no.groups.registered}"
+     th:data-roles-load-failed="#{admin.access.center.js.roles.load.failed}"
+     th:data-no-roles-registered="#{admin.access.center.js.no.roles.registered}"
+     th:data-mapped-to-role="#{admin.access.center.js.mapped.to.role}"
+     th:data-perm-mapped-to-role="#{admin.access.center.js.perm.mapped.to.role}"
+     th:data-more-perms="#{admin.access.center.js.more.perms}"
+     th:data-crud-perms="#{admin.access.center.js.crud.perms}"
+     th:data-group-assign-saved="#{admin.access.center.js.group.assign.saved}"
+     th:data-group-assign-failed="#{admin.access.center.js.group.assign.failed}"
+     th:data-role-assign-saved="#{admin.access.center.js.role.assign.saved}"
+     th:data-role-assign-failed="#{admin.access.center.js.role.assign.failed}"
+     th:data-group-list-load-failed="#{admin.access.center.js.group.list.load.failed}"
+     th:data-group-list-failed="#{admin.access.center.js.group.list.failed}"
+     th:data-group-loading="#{admin.access.center.js.group.loading}"
+     th:data-group-load-failed="#{admin.access.center.js.group.load.failed}"
+     th:data-group-detail-failed="#{admin.access.center.js.group.detail.failed}"
+     th:data-member-suffix="#{admin.access.center.js.member.suffix}"
+     th:data-section-role-assign="#{admin.access.center.js.section.role.assign}"
+     th:data-member-users="#{admin.access.center.js.member.users}"
+     th:data-role-list-load-failed="#{admin.access.center.js.role.list.load.failed}"
+     th:data-role-list-failed="#{admin.access.center.js.role.list.failed}"
+     th:data-role-loading="#{admin.access.center.js.role.loading}"
+     th:data-role-load-failed="#{admin.access.center.js.role.load.failed}"
+     th:data-role-detail-failed="#{admin.access.center.js.role.detail.failed}"
+     th:data-group-role-saved="#{admin.access.center.js.group.role.saved}"
+     th:data-group-role-failed="#{admin.access.center.js.group.role.failed}"
+     th:data-section-perm-assign="#{admin.access.center.js.section.perm.assign}"
+     th:data-perm-assign-hint="#{admin.access.center.js.perm.assign.hint}"
+     th:data-search-perms-placeholder="#{admin.access.center.js.search.perms.placeholder}"
+     th:data-perms-loading="#{admin.access.center.js.perms.loading}"
+     th:data-direct-users="#{admin.access.center.js.direct.users}"
+     th:data-no-perms-registered="#{admin.access.center.js.no.perms.registered}"
+     th:data-perms-load-failed="#{admin.access.center.js.perms.load.failed}"
+     th:data-required-perm-note="#{admin.access.center.js.required.perm.note}"
+     th:data-label-required="#{admin.access.center.js.label.required}"
+     th:data-role-perm-saved="#{admin.access.center.js.role.perm.saved}"
+     th:data-role-perm-failed="#{admin.access.center.js.role.perm.failed}"
+     th:data-perm-count-suffix="#{admin.access.center.js.perm.count.suffix}"
+     th:data-count-unit="#{admin.access.center.js.count.unit}">
 </div>
 
 <div th:insert="~{fragments/footer :: footer}"></div>

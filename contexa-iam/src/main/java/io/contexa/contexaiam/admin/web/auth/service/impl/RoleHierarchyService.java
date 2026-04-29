@@ -7,8 +7,10 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.MessageSource;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,11 @@ public class RoleHierarchyService {
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final RoleRepository roleRepository;
     private final RoleHierarchyImpl roleHierarchy;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -59,7 +66,7 @@ public class RoleHierarchyService {
         try {
 
             if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
-                throw new IllegalArgumentException("An identical role hierarchy configuration already exists.");
+                throw new IllegalArgumentException(msg("msg.role.hierarchy.duplicate"));
             }
 
             validateHierarchyString(roleHierarchyEntity.getHierarchyString());
@@ -92,7 +99,7 @@ public class RoleHierarchyService {
         try {
 
             RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("RoleHierarchy not found with ID: " + roleHierarchyEntity.getId()));
+                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.hierarchy.not.found.id", roleHierarchyEntity.getId())));
 
             validateHierarchyString(roleHierarchyEntity.getHierarchyString());
 
@@ -131,7 +138,7 @@ public class RoleHierarchyService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public boolean activateRoleHierarchy(Long activeId) {
         RoleHierarchyEntity target = roleHierarchyRepository.findById(activeId)
-                .orElseThrow(() -> new IllegalArgumentException("RoleHierarchy not found with ID: " + activeId));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.hierarchy.not.found.id", activeId)));
 
         // Toggle activation
         boolean newState = !Boolean.TRUE.equals(target.getIsActive());
@@ -196,7 +203,7 @@ public class RoleHierarchyService {
 
         for (String roleName : referencedRoleNames) {
             if (!existingRoleNames.contains(roleName.toUpperCase())) {
-                throw new IllegalArgumentException("Hierarchy string contains a non-existent role: " + roleName);
+                throw new IllegalArgumentException(msg("msg.role.hierarchy.role.missing", roleName));
             }
         }
     }
@@ -231,27 +238,26 @@ public class RoleHierarchyService {
         for (String[] relation : relations) {
             String relationKey = relation[0] + ">" + relation[1];
             if (!seenRelations.add(relationKey)) {
-                throw new IllegalArgumentException("Duplicate relationship found: " + relationKey);
+                throw new IllegalArgumentException(msg("msg.role.hierarchy.duplicate.relation", relationKey));
             }
         }
 
         for (String[] relation : relations) {
             String reverseKey = relation[1] + ">" + relation[0];
             if (seenRelations.contains(reverseKey)) {
-                throw new IllegalArgumentException("Reverse relationship found: " + relation[0] + " <-> " + relation[1]);
+                throw new IllegalArgumentException(msg("msg.role.hierarchy.reverse.relation", relation[0], relation[1]));
             }
         }
 
         for (String[] relation : relations) {
             if (isTransitivelyConnected(graph, relation[0], relation[1])) {
-                throw new IllegalArgumentException(
-                        relation[0] + " > " + relation[1] + " is already connected via another path. Redundant relationship.");
+                throw new IllegalArgumentException(msg("msg.role.hierarchy.redundant", relation[0], relation[1]));
             }
         }
 
         for (String role : allRoles) {
             if (hasCycle(graph, role, new HashSet<>(), new HashSet<>())) {
-                throw new IllegalArgumentException("Circular reference detected. Role: " + role);
+                throw new IllegalArgumentException(msg("msg.role.hierarchy.cycle", role));
             }
         }
     }

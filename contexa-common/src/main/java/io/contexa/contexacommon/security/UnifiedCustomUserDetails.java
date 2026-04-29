@@ -45,9 +45,6 @@ public class UnifiedCustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        // Account expiry is a separate concept from credential (password) expiry.
-        // No dedicated field exists today, so the account itself never expires;
-        // password expiry is reported via isCredentialsNonExpired() below.
         return true;
     }
 

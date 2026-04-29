@@ -12,6 +12,8 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuSaveReque
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuView;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminRoleOptionView;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -32,6 +34,11 @@ public class AdminMenuManagementService {
 
     private final AdminMenuService adminMenuService;
     private final RoleRepository roleRepository;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     public AdminMenuPageModel getPageModel() {
         List<AdminMenu> menus = adminMenuService.getAllMenus();
@@ -95,7 +102,7 @@ public class AdminMenuManagementService {
     public AdminMenuActionResponse updateMenu(Long id, AdminMenuSaveRequest request) {
         Optional<AdminMenu> existingMenu = adminMenuService.getMenuById(id);
         if (existingMenu.isEmpty()) {
-            return AdminMenuActionResponse.error("Menu not found");
+            return AdminMenuActionResponse.error(msg("msg.menu.not.found"));
         }
 
         AdminMenu menu = existingMenu.get();
@@ -118,7 +125,7 @@ public class AdminMenuManagementService {
     public Optional<AdminMenuActionResponse> deleteMenu(Long id) {
         return adminMenuService.getMenuById(id).map(menu -> {
             if (menu.getName() != null && menu.getName().startsWith("menu.")) {
-                return AdminMenuActionResponse.error("System menu cannot be deleted");
+                return AdminMenuActionResponse.error(msg("msg.menu.system.cannot.delete"));
             }
             adminMenuService.deleteMenu(id);
             return AdminMenuActionResponse.ok();

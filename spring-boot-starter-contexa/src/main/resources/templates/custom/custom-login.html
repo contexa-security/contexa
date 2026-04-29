@@ -210,8 +210,8 @@
     <div class="brand-logo">
         <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v5.7c0 4.83-3.4 9.36-7 10.58V3.18z"/></svg>
     </div>
-    <div class="brand-title">Secure Access<br>with <span>Contexa</span></div>
-    <p class="brand-desc">Enterprise-grade multi-factor authentication platform protecting your applications and users.</p>
+    <div class="brand-title" th:utext="#{starter.login.brand.title}">Secure Access<br>with <span>Contexa</span></div>
+    <p class="brand-desc" th:text="#{starter.login.brand.desc}">Enterprise-grade multi-factor authentication platform protecting your applications and users.</p>
     <ul class="brand-features">
         <li><span class="dot dot-indigo"></span>Adaptive risk-based authentication</li>
         <li><span class="dot dot-violet"></span>Passkey &amp; FIDO2 support</li>
@@ -222,8 +222,8 @@
 <!-- Right panel: Login form -->
 <div class="form-panel">
     <div class="form-card">
-        <h2>Sign in</h2>
-        <p class="sub">Enter your credentials to continue</p>
+        <h2 th:text="#{starter.login.heading}">Sign in</h2>
+        <p class="sub" th:text="#{starter.login.sub}">Enter your credentials to continue</p>
 
         <div id="message-area">
             <div th:if="${error != null}" class="toast error">Login failed. Please check your credentials.</div>
@@ -231,15 +231,15 @@
         </div>
 
         <div class="field">
-            <label for="username">Username</label>
+            <label for="username" th:text="#{starter.login.username}">Username</label>
             <input id="username" type="text" placeholder="Enter your username" autocomplete="username" autofocus>
         </div>
         <div class="field">
-            <label for="password">Password</label>
+            <label for="password" th:text="#{starter.login.password}">Password</label>
             <input id="password" type="password" placeholder="Enter your password" autocomplete="current-password">
         </div>
-        <button id="loginButton" class="btn-signin" type="button">Sign In</button>
-        <p class="hint">MFA may be required after primary authentication.</p>
+        <button id="loginButton" class="btn-signin" type="button" th:text="#{starter.login.signin}">Sign In</button>
+        <p class="hint" th:text="#{starter.login.hint}">MFA may be required after primary authentication.</p>
 
         <div id="contexa-page-config"
              th:attr="data-token-persistence=${tokenPersistence},

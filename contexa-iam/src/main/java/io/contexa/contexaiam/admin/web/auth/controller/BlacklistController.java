@@ -114,6 +114,6 @@ public class BlacklistController {
         if (auth != null && auth.getName() != null) {
             return auth.getName();
         }
-        throw new IllegalStateException("Authenticated user not found");
+        throw new IllegalStateException(msg("msg.auth.user.not.found"));
     }
 }

@@ -90,7 +90,6 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 if (baseline != null) {
                     baselines.put(id, baseline);
                 } else {
-                    // Self-heal: remove stale entry from the index when the backing Hash has been evicted.
                     redisTemplate.opsForSet().remove(ORG_BASELINE_INDEX_KEY, id);
                 }
             }

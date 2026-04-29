@@ -134,7 +134,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findByPrincipalNameAndCreatedAtAfter(@Param("userId") String userId,
                                                         @Param("since") LocalDateTime since);
 
-    // Dashboard aggregate queries
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = 'ALLOW' AND a.timestamp >= :since")
     long countAllowedSince(@Param("since") LocalDateTime since);
 
@@ -158,7 +157,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT COUNT(DISTINCT a.clientIp) FROM AuditLog a WHERE a.timestamp >= :since")
     long countDistinctIpsSince(@Param("since") LocalDateTime since);
 
-    // Zero Trust decision counts (SECURITY_DECISION category only)
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.decision = :decision AND a.timestamp >= :since")
     long countZeroTrustDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
 
@@ -168,19 +166,15 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = :category AND a.decision = :decision AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     Page<AuditLog> findByCategoryAndDecision(@Param("category") String category, @Param("decision") String decision, @Param("since") LocalDateTime since, Pageable pageable);
 
-    // Generic decision count (kept for backward compatibility)
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = :decision AND a.timestamp >= :since")
     long countByDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
 
-    // Recent security decisions (SECURITY_DECISION category)
     @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentSecurityDecisions(@Param("since") LocalDateTime since);
 
-    // Recent blocked/challenged events
     @Query("SELECT a FROM AuditLog a WHERE a.eventCategory IN ('USER_BLOCKED', 'MFA_VERIFICATION_FAILED', 'SOAR_AUTO_RESPONSE', 'HTTP_ACCESS_BLOCKED') AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentThreatEvents(@Param("since") LocalDateTime since);
 
-    // Paginated queries for security monitor
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfter(@Param("since") LocalDateTime since, Pageable pageable);
 
@@ -205,7 +199,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             nativeQuery = true)
     Page<AuditLog> findAfterHoursAccess(@Param("since") LocalDateTime since, Pageable pageable);
 
-    // IP grouping with count (for DISTINCT_IP drill-down)
     @Query(value = "SELECT client_ip AS ip, COUNT(*) AS cnt, MAX(timestamp) AS last_access " +
             "FROM audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> '' " +
             "GROUP BY client_ip ORDER BY cnt DESC LIMIT :limit OFFSET :offset",
@@ -216,29 +209,24 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             nativeQuery = true)
     long countDistinctIpGroupsSince(@Param("since") LocalDateTime since);
 
-    // Count queries for summary (DB level, no full load)
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since")
     long countByTimestampAfter(@Param("since") LocalDateTime since);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND (a.decision = 'DENY' OR a.decision = 'BLOCK')")
     long countDeniedSince(@Param("since") LocalDateTime since);
 
-    // Policy change events
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('POLICY_CREATED', 'POLICY_UPDATED', 'POLICY_DELETED') AND a.timestamp >= :since")
     long countPolicyChangesSince(@Param("since") LocalDateTime since);
 
-    // User/Role management events
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('USER_MODIFIED', 'USER_DELETED', 'ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED') AND a.timestamp >= :since")
     long countIamChangesSince(@Param("since") LocalDateTime since);
 
-    // Keyword search: principalName
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfterAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("keyword") String keyword, Pageable pageable);
 
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory = :category AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfterAndCategoryAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("category") String category, @Param("keyword") String keyword, Pageable pageable);
 
-    // Dashboard GROUP BY queries
     @Query("SELECT a.eventCategory, COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory IN :cats GROUP BY a.eventCategory")
     List<Object[]> countByEventCategoriesGrouped(@Param("since") LocalDateTime since, @Param("cats") List<String> cats);
 

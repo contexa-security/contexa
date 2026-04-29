@@ -20,7 +20,6 @@ public class ZeroTrustAccessControlConfigurer implements SecurityConfigurer {
 
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
-        // No initialization needed
     }
 
     @Override

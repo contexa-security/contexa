@@ -221,14 +221,12 @@ public class ChallengeMfaInitializer {
     }
 
     private String resolveFlowTypeName(HttpServletRequest request) {
-        // Try to get flow config from the current SecurityFilterChain's shared object
         AuthenticationFlowConfig flowConfig =
                 (AuthenticationFlowConfig) request.getAttribute("io.contexa.currentFlowConfig");
         if (flowConfig != null && MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
             return flowConfig.getTypeName();
         }
 
-        // Fallback: match request URI prefix against configured flows
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
@@ -243,14 +241,12 @@ public class ChallengeMfaInitializer {
             }
         }
 
-        // Fallback: return first MFA flow without urlPrefix (default flow)
         for (AuthenticationFlowConfig flow : platformConfig.getFlows()) {
             if (MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) && flow.getUrlPrefix() == null) {
                 return flow.getTypeName();
             }
         }
 
-        // Last resort: first MFA flow
         return platformConfig.getFlows().stream()
                 .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
                 .map(AuthenticationFlowConfig::getTypeName)

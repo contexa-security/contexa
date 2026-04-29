@@ -22,14 +22,12 @@
             <form th:action="${permission.id != null ? '/admin/permissions/' + permission.id + '/edit' : '/admin/permissions'}" method="post" th:object="${permission}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${permission.id != null}" />
 
-                <!-- Basic Information Section -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-semibold flex items-center gap-2" style="color: #e2e8f0;">
                         <i class="fas fa-info-circle" style="color: #818cf8;"></i>
                         <span th:text="#{admin.permissions.detail.basic.info}">Basic Information</span>
                     </h3>
 
-                    <!-- Permission Name -->
                     <div>
                         <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.name}">Permission Name (unique, uppercase)</span>
@@ -39,7 +37,6 @@
                                placeholder="READ_USERS" required />
                     </div>
 
-                    <!-- Friendly Name -->
                     <div>
                         <label for="friendlyName" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-smile mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.friendly.name}">Friendly Name</span>
@@ -49,7 +46,6 @@
                                th:placeholder="#{admin.permissions.detail.friendly.name.placeholder}" placeholder="Read Users" />
                     </div>
 
-                    <!-- Description -->
                     <div>
                         <label for="description" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.description}">Description</span>
@@ -60,7 +56,6 @@
                     </div>
                 </div>
 
-                <!-- Access Control Section -->
                 <div class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-crosshairs" style="color: #818cf8;"></i>
@@ -68,7 +63,6 @@
                     </h3>
 
                     <div class="grid grid-cols-2 gap-4">
-                        <!-- Target Type -->
                         <div>
                             <label for="targetType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-bullseye mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.target.type}">Target Type</span>
@@ -80,7 +74,6 @@
                             </select>
                         </div>
 
-                        <!-- Action Type -->
                         <div>
                             <label for="actionType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-bolt mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.action.type}">Action Type</span>
@@ -97,7 +90,6 @@
                     </div>
                 </div>
 
-                <!-- Managed Resource Section (edit mode, if linked) -->
                 <div th:if="${permission.id != null and permission.linkedResourceId != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-link" style="color: #818cf8;"></i>
@@ -111,7 +103,6 @@
                     </div>
                 </div>
 
-                <!-- Submit Button -->
                 <div class="pt-4">
                     <button type="submit"
                             class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
@@ -122,7 +113,6 @@
                 </div>
             </form>
 
-            <!-- Back Link -->
             <div class="mt-6 text-center">
                 <a th:href="@{/admin/permissions}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
                     <i class="fas fa-arrow-left mr-2"></i>

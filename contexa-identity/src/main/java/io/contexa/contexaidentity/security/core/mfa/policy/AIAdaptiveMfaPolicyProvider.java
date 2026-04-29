@@ -55,7 +55,6 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     }
 
     private MfaDecision applyAIAdaptation(FactorContext ctx, MfaDecision decision) {
-        // Action-based: blocked=true overrides to BLOCKED decision
         Boolean blocked = (Boolean) ctx.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
         if (Boolean.TRUE.equals(blocked)) {
             String blockReason = (String) ctx.getAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
@@ -64,7 +63,6 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
             return MfaDecision.blocked(blockReason != null ? blockReason : "AI blocked authentication");
         }
 
-        // Action-based: mfaDecisionType overrides decision type
         String decisionType = (String) ctx.getAttribute(FactorContextAttributes.StateControl.MFA_DECISION_TYPE);
         if (decisionType != null) {
             MfaDecision.DecisionType resolvedType = resolveDecisionType(decisionType);
@@ -73,7 +71,6 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
             }
         }
 
-        // Audit-only: AI riskScore recorded in metadata (does not affect factorCount)
         Double aiRiskScore = (Double) ctx.getAttribute(FactorContextAttributes.Policy.AI_RISK_SCORE);
         if (aiRiskScore != null) {
             Map<String, Object> metadata = new HashMap<>();

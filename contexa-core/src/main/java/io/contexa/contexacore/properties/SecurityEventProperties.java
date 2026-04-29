@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "security.event")
+@ConfigurationProperties(prefix = "contexa.security.event")
 public class SecurityEventProperties {
 
     @NestedConfigurationProperty

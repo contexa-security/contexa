@@ -7,6 +7,12 @@ const AccessCenter = {
     activeTab: 'users',
     searchDebounceTimer: null,
 
+    _i18n: function(key, fallback) {
+        var el = document.getElementById('i18nAccessCenter');
+        if (el && el.dataset[key]) return el.dataset[key];
+        return fallback || key;
+    },
+
     getCsrfToken() {
         return document.querySelector('meta[name="_csrf"]')?.content;
     },
@@ -72,9 +78,6 @@ const AccessCenter = {
         }
     },
 
-    // ================================================================
-    // TAB 1: USERS
-    // ================================================================
     Users: {
         selectedUserId: null,
         activeSubTab: 'groups',
@@ -98,7 +101,7 @@ const AccessCenter = {
             listEl.innerHTML =
                 '<div class="ac-loading">' +
                 '<i class="fas fa-spinner fa-spin"></i>' +
-                '<p>검색 중...</p>' +
+                '<p>' + AccessCenter._i18n('searching', 'Searching...') + '</p>' +
                 '</div>';
 
             try {
@@ -110,9 +113,9 @@ const AccessCenter = {
                 listEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-exclamation-triangle"></i>' +
-                    '<p>사용자 목록을 불러올 수 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('usersLoadFailed', 'Failed to load users.') + '</p>' +
                     '</div>';
-                showToast('사용자 검색 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('userSearchFailed', 'User search failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -122,7 +125,7 @@ const AccessCenter = {
                 listEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-search"></i>' +
-                    '<p>검색 결과가 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('noSearchResults', 'No results found.') + '</p>' +
                     '</div>';
                 return;
             }
@@ -150,7 +153,6 @@ const AccessCenter = {
                 'previousSelected=', this.selectedUserId);
             this.selectedUserId = targetId;
 
-            // Update selection using exact data-user-id match (substring matching on onclick caused multi-select bug)
             const allItems = document.querySelectorAll('#ac-user-list .ac-list-item');
             const matchedIds = [];
             allItems.forEach(el => {
@@ -170,7 +172,7 @@ const AccessCenter = {
             detailEl.innerHTML =
                 '<div class="ac-loading">' +
                 '<i class="fas fa-spinner fa-spin"></i>' +
-                '<p>사용자 정보를 불러오는 중...</p>' +
+                '<p>' + AccessCenter._i18n('userLoading', 'Loading user info...') + '</p>' +
                 '</div>';
             detailEl.classList.add('active');
 
@@ -184,9 +186,9 @@ const AccessCenter = {
                 detailEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-exclamation-triangle"></i>' +
-                    '<p>사용자 정보를 불러올 수 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('userLoadFailed', 'Failed to load user info.') + '</p>' +
                     '</div>';
-                showToast('사용자 상세 조회 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('userDetailFailed', 'User detail query failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -206,69 +208,64 @@ const AccessCenter = {
 
             html += '<div class="ac-detail-body">';
 
-            // User meta info
             html +=
                 '<div class="ac-user-meta">' +
                 '<div class="ac-meta-item">' +
-                '<span class="ac-meta-label">아이디</span>' +
+                '<span class="ac-meta-label">' + AccessCenter._i18n('labelUsername', 'Username') + '</span>' +
                 '<span class="ac-meta-value">' + AccessCenter.escapeHtml(data.username) + '</span>' +
                 '</div>' +
                 '<div class="ac-meta-item">' +
-                '<span class="ac-meta-label">이름</span>' +
+                '<span class="ac-meta-label">' + AccessCenter._i18n('labelName', 'Name') + '</span>' +
                 '<span class="ac-meta-value">' + AccessCenter.escapeHtml(data.name || '-') + '</span>' +
                 '</div>' +
                 '<div class="ac-meta-item">' +
-                '<span class="ac-meta-label">이메일</span>' +
+                '<span class="ac-meta-label">' + AccessCenter._i18n('labelEmail', 'Email') + '</span>' +
                 '<span class="ac-meta-value">' + AccessCenter.escapeHtml(data.email || '-') + '</span>' +
                 '</div>' +
                 '<div class="ac-meta-item">' +
-                '<span class="ac-meta-label">상태</span>' +
-                '<span class="ac-meta-value">' + AccessCenter.escapeHtml(data.enabled === false ? '비활성' : '활성') + '</span>' +
+                '<span class="ac-meta-label">' + AccessCenter._i18n('labelStatus', 'Status') + '</span>' +
+                '<span class="ac-meta-value">' + AccessCenter.escapeHtml(data.enabled === false ? AccessCenter._i18n('statusInactive', 'Inactive') : AccessCenter._i18n('statusActive', 'Active')) + '</span>' +
                 '</div>' +
                 '</div>';
 
-            // Sub-tabs
             html +=
                 '<nav class="ac-subtab-nav">' +
                 '<button type="button" class="ac-subtab-btn' + (this.activeSubTab === 'groups' ? ' active' : '') + '" ' +
-                'onclick="AccessCenter.Users.switchSubTab(\'groups\')"><i class="fas fa-layer-group"></i> 소속 그룹</button>' +
+                'onclick="AccessCenter.Users.switchSubTab(\'groups\')"><i class="fas fa-layer-group"></i> ' + AccessCenter._i18n('tabMemberGroups', 'Member Groups') + '</button>' +
                 '<button type="button" class="ac-subtab-btn' + (this.activeSubTab === 'roles' ? ' active' : '') + '" ' +
-                'onclick="AccessCenter.Users.switchSubTab(\'roles\')"><i class="fas fa-user-shield"></i> 직접 역할</button>' +
+                'onclick="AccessCenter.Users.switchSubTab(\'roles\')"><i class="fas fa-user-shield"></i> ' + AccessCenter._i18n('tabDirectRoles', 'Direct Roles') + '</button>' +
                 '<button type="button" class="ac-subtab-btn' + (this.activeSubTab === 'perms' ? ' active' : '') + '" ' +
-                'onclick="AccessCenter.Users.switchSubTab(\'perms\')"><i class="fas fa-key"></i> 유효 권한</button>' +
+                'onclick="AccessCenter.Users.switchSubTab(\'perms\')"><i class="fas fa-key"></i> ' + AccessCenter._i18n('tabEffectivePerms', 'Effective Permissions') + '</button>' +
                 '</nav>';
 
-            // Sub-tab: Groups
             html += '<div id="ac-user-subtab-groups" class="ac-subtab-content' + (this.activeSubTab === 'groups' ? ' active' : '') + '">';
             html +=
                 '<div class="ac-section-header">' +
-                '<h4>소속 그룹 관리</h4>' +
+                '<h4>' + AccessCenter._i18n('sectionMemberGroups', 'Manage Member Groups') + '</h4>' +
                 '<button type="button" class="ac-btn-save" onclick="AccessCenter.Users.saveGroups()">' +
-                '<i class="fas fa-save"></i> 저장</button>' +
+                '<i class="fas fa-save"></i> ' + AccessCenter._i18n('btnSave', 'Save') + '</button>' +
                 '</div>';
             html += '<div id="ac-user-groups-grid" class="ac-checkbox-grid">';
-            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> 그룹 목록을 불러오는 중...</div>';
+            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> ' + AccessCenter._i18n('groupsLoading', 'Loading groups...') + '</div>';
             html += '</div>';
             html += '</div>';
 
-            // Sub-tab: Roles
             html += '<div id="ac-user-subtab-roles" class="ac-subtab-content' + (this.activeSubTab === 'roles' ? ' active' : '') + '">';
             html +=
                 '<div class="ac-section-header">' +
-                '<h4>직접 역할 관리</h4>' +
+                '<h4>' + AccessCenter._i18n('sectionDirectRoles', 'Manage Direct Roles') + '</h4>' +
                 '<button type="button" class="ac-btn-save" onclick="AccessCenter.Users.saveRoles()">' +
-                '<i class="fas fa-save"></i> 저장</button>' +
+                '<i class="fas fa-save"></i> ' + AccessCenter._i18n('btnSave', 'Save') + '</button>' +
                 '</div>';
             html += '<div id="ac-user-roles-grid" class="ac-checkbox-grid">';
-            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> 역할 목록을 불러오는 중...</div>';
+            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> ' + AccessCenter._i18n('rolesLoading', 'Loading roles...') + '</div>';
             html += '</div>';
             html += '</div>';
 
-            // Sub-tab: Effective Permissions
             html += '<div id="ac-user-subtab-perms" class="ac-subtab-content' + (this.activeSubTab === 'perms' ? ' active' : '') + '">';
             html +=
                 '<div class="ac-section-header">' +
-                '<h4>유효 권한 (읽기 전용)</h4>' +
+                '<h4>' + AccessCenter._i18n('sectionEffectivePerms', 'Effective Permissions (Read-only)') + '</h4>' +
                 '</div>';
             html += '<div id="ac-user-perms-list">';
             this.renderPermissionsInline(data.permissions || []);
@@ -278,26 +275,24 @@ const AccessCenter = {
             html += '</div>'; // ac-detail-body
             detailEl.innerHTML = html;
 
-            // Render permissions inline since we built the html as string
             const permsListEl = document.getElementById('ac-user-perms-list');
             if (permsListEl) {
                 permsListEl.innerHTML = this.buildPermissionsHtml(data.permissions || []);
             }
 
-            // Load checkboxes
             this.loadAllGroups();
             this.loadAllRoles();
         },
 
         buildPermissionsHtml(permissions) {
             if (!permissions.length) {
-                return '<div class="ac-empty" style="min-height:120px;"><i class="fas fa-key"></i><p>유효 권한이 없습니다.</p></div>';
+                return '<div class="ac-empty" style="min-height:120px;"><i class="fas fa-key"></i><p>' + AccessCenter._i18n('noEffectivePerms', 'No effective permissions.') + '</p></div>';
             }
             return permissions.map(p => {
                 let sourceClass = 'direct';
-                let sourceLabel = '직접';
-                if (p.source === 'group') { sourceClass = 'group'; sourceLabel = '그룹'; }
-                else if (p.source === 'hierarchy') { sourceClass = 'hierarchy'; sourceLabel = '계층'; }
+                let sourceLabel = AccessCenter._i18n('sourceDirect', 'Direct');
+                if (p.source === 'group') { sourceClass = 'group'; sourceLabel = AccessCenter._i18n('sourceGroup', 'Group'); }
+                else if (p.source === 'hierarchy') { sourceClass = 'hierarchy'; sourceLabel = AccessCenter._i18n('sourceHierarchy', 'Hierarchy'); }
 
                 return '<div class="ac-perm-item">' +
                     '<div style="flex:1;min-width:0;">' +
@@ -334,13 +329,13 @@ const AccessCenter = {
                 const userGroups = (this.userDetailCache?.groups || []).map(g => String(g.id));
                 this.renderGroupCheckboxes(this.allGroupsCache || [], userGroups, gridEl);
             } catch (e) {
-                gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>그룹 목록 로드 실패</p></div>';
+                gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>' + AccessCenter._i18n('groupsLoadFailed', 'Failed to load groups.') + '</p></div>';
             }
         },
 
         renderGroupCheckboxes(allGroups, userGroupIds, container) {
             if (!allGroups.length) {
-                container.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-layer-group"></i><p>등록된 그룹이 없습니다.</p></div>';
+                container.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-layer-group"></i><p>' + AccessCenter._i18n('noGroupsRegistered', 'No groups registered.') + '</p></div>';
                 return;
             }
             container.innerHTML = allGroups.map(g => {
@@ -365,34 +360,30 @@ const AccessCenter = {
                     AccessCenter.fetchJson('/admin/access-center/api/all-permissions')
                 ]);
                 this.allRolesCache = roles || [];
-                // Filter out CRUD permissions (READ/WRITE/UPDATE/DELETE) — only non-CRUD remain
                 const crudNames = new Set(['READ', 'WRITE', 'UPDATE', 'DELETE']);
                 this.allExtraPermsCache = (allPerms || []).filter(p => !crudNames.has(p.name));
                 const directRoles = (this.userDetailCache?.directRoles || []).map(r => String(r.id));
                 this.renderRoleCheckboxes(this.allRolesCache, directRoles, gridEl);
             } catch (e) {
-                gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>역할 목록 로드 실패</p></div>';
+                gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>' + AccessCenter._i18n('rolesLoadFailed', 'Failed to load roles.') + '</p></div>';
             }
         },
 
         renderRoleCheckboxes(allRoles, directRoleIds, container) {
             if (!allRoles.length) {
-                container.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>등록된 역할이 없습니다.</p></div>';
+                container.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>' + AccessCenter._i18n('noRolesRegistered', 'No roles registered.') + '</p></div>';
                 return;
             }
             var self = this;
-            // CRUD is always shown in full so administrators can grant any verb to any user
             const allCruds = ['READ', 'WRITE', 'UPDATE', 'DELETE'];
             const crudLabels = { READ: 'Read', WRITE: 'Write', UPDATE: 'Update', DELETE: 'Delete' };
             const crudIcons = { READ: 'fa-eye', WRITE: 'fa-plus', UPDATE: 'fa-pen', DELETE: 'fa-trash' };
             const crudColors = { READ: '#4ade80', WRITE: '#60a5fa', UPDATE: '#fbbf24', DELETE: '#f87171' };
 
-            // All non-CRUD permissions in the system (always shown, regardless of role mapping)
             const allExtras = self.allExtraPermsCache || [];
 
             container.innerHTML = allRoles.map(r => {
                 const checked = directRoleIds.includes(String(r.id));
-                // Mapping sets — these are auto-checked by default; non-mapped are unchecked but still shown
                 const mappedCruds = new Set(r.crudPermissions || []);
                 const mappedExtraIds = new Set((r.extraPermissions || []).map(p => String(p.id)));
 
@@ -400,26 +391,24 @@ const AccessCenter = {
                     const isRead = c === 'READ';
                     const color = crudColors[c];
                     const isMapped = mappedCruds.has(c);
-                    // READ always required (disabled+checked). Mapped CRUDs auto-checked. Non-mapped shown but unchecked.
-                    return '<label class="ac-crud-chip' + (isMapped && !isRead ? ' mapped' : '') + '" data-crud="' + c + '" title="' + c + (isMapped && !isRead ? ' — 역할에 매핑됨' : '') + '">' +
+                    return '<label class="ac-crud-chip' + (isMapped && !isRead ? ' mapped' : '') + '" data-crud="' + c + '" title="' + c + (isMapped && !isRead ? ' — ' + AccessCenter._i18n('mappedToRole', 'mapped to role') : '') + '">' +
                         '<input type="checkbox" class="ac-crud-cb" data-role-id="' + r.id + '" data-crud="' + c + '"' +
                         (isRead ? ' checked disabled' : (isMapped ? ' checked' : '')) +
                         '>' +
                         '<span class="ac-crud-chip-body" style="--crud-color:' + color + ';">' +
                         '<i class="fas ' + crudIcons[c] + '"></i>' +
                         '<span>' + crudLabels[c] + '</span>' +
-                        (isMapped && !isRead ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                        (isMapped && !isRead ? '<i class="fas fa-link ac-mapped-mark" title="' + AccessCenter._i18n('permMappedToRole', 'Permission mapped to role') + '"></i>' : '') +
                         '</span>' +
                         '</label>';
                 }).join('');
 
-                // Non-CRUD permissions section — show ALL non-CRUD permissions, mapped ones auto-checked
                 const extrasHtml = allExtras.length
                     ? '<div class="ac-role-card-divider"></div>' +
                       '<div class="ac-role-card-section ac-extra-section" data-expanded="false">' +
                       '<button type="button" class="ac-extra-toggle" onclick="AccessCenter.Users.toggleExtraSection(this)">' +
                       '<span class="ac-extra-toggle-label">' +
-                      '<i class="fas fa-puzzle-piece"></i> 권한 더보기 (' + allExtras.length + ')' +
+                      '<i class="fas fa-puzzle-piece"></i> ' + AccessCenter._i18n('morePerms', 'More permissions') + ' (' + allExtras.length + ')' +
                       '</span>' +
                       '<i class="fas fa-chevron-down ac-extra-toggle-arrow"></i>' +
                       '</button>' +
@@ -427,11 +416,11 @@ const AccessCenter = {
                       allExtras.map(p => {
                           const display = AccessCenter.escapeHtml(p.friendlyName || p.name);
                           const isMapped = mappedExtraIds.has(String(p.id));
-                          const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' — ' + p.description : '') + (isMapped ? ' — 역할에 매핑됨' : ''));
+                          const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' — ' + p.description : '') + (isMapped ? ' — ' + AccessCenter._i18n('mappedToRole', 'mapped to role') : ''));
                           return '<label class="ac-extra-chip' + (isMapped ? ' mapped' : '') + '" title="' + tooltip + '">' +
                               '<input type="checkbox" class="ac-extra-cb" data-role-id="' + r.id + '" data-perm-id="' + p.id + '"' + (isMapped ? ' checked' : '') + '>' +
                               '<span class="ac-extra-chip-body"><i class="fas fa-key"></i>' + display +
-                              (isMapped ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                              (isMapped ? '<i class="fas fa-link ac-mapped-mark" title="' + AccessCenter._i18n('permMappedToRole', 'Permission mapped to role') + '"></i>' : '') +
                               '</span></label>';
                       }).join('') +
                       '</div></div>'
@@ -441,7 +430,6 @@ const AccessCenter = {
                     '" data-mapped-cruds="' + AccessCenter.escapeHtml(Array.from(mappedCruds).join(',')) + '"' +
                     ' data-mapped-extra-ids="' + AccessCenter.escapeHtml(Array.from(mappedExtraIds).join(',')) + '"' +
                     (checked ? ' data-active="true"' : '') + '>' +
-                    // Header: role name + master toggle
                     '<label class="ac-role-card-head">' +
                     '<input type="checkbox" name="userRole" value="' + r.id + '"' + (checked ? ' checked' : '') +
                     ' onchange="AccessCenter.Users.toggleRoleCrud(this)">' +
@@ -451,31 +439,25 @@ const AccessCenter = {
                     (r.desc ? '<span class="ac-role-card-desc">' + AccessCenter.escapeHtml(r.desc) + '</span>' : '') +
                     '</span>' +
                     '</label>' +
-                    // Divider
                     '<div class="ac-role-card-divider"></div>' +
-                    // CRUD section: label + chip group (separately positioned below the role name)
                     '<div class="ac-role-card-section">' +
-                    '<span class="ac-role-card-section-label"><i class="fas fa-key"></i> CRUD 권한</span>' +
+                    '<span class="ac-role-card-section-label"><i class="fas fa-key"></i> ' + AccessCenter._i18n('crudPerms', 'CRUD Permissions') + '</span>' +
                     '<div class="ac-crud-group">' + crudHtml + '</div>' +
                     '</div>' +
                     extrasHtml +
                     '</div>';
             }).join('');
 
-            // Load existing CRUD + extra permission selections for checked roles
             if (self.selectedUserId) {
                 directRoleIds.forEach(rid => {
                     AccessCenter.fetchJson('/admin/access-center/api/users/' + self.selectedUserId + '/roles/' + rid + '/cruds')
                         .then(cruds => {
                             if (!cruds) return;
-                            // CRUD names go to ac-crud-cb (READ stays disabled+checked)
                             container.querySelectorAll('.ac-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
                                 if (cb.dataset.crud !== 'READ') {
                                     cb.checked = cruds.includes(cb.dataset.crud);
                                 }
                             });
-                            // Look up the permission name from ALL non-CRUD permissions (not just role-mapped),
-                            // because the user may have activated a non-mapped permission too
                             const extrasIndex = new Map();
                             (self.allExtraPermsCache || []).forEach(pp => extrasIndex.set(String(pp.id), pp));
                             container.querySelectorAll('.ac-extra-cb[data-role-id="' + rid + '"]').forEach(cb => {
@@ -494,7 +476,6 @@ const AccessCenter = {
             if (!item) return;
             if (roleCheckbox.checked) {
                 item.setAttribute('data-active', 'true');
-                // Restore mapped-only checked state — non-mapped permissions remain unchecked (admin clicks to add)
                 const mappedCruds = (item.dataset.mappedCruds || '').split(',').filter(Boolean);
                 const mappedExtraIds = (item.dataset.mappedExtraIds || '').split(',').filter(Boolean);
                 item.querySelectorAll('.ac-crud-cb').forEach(cb => {
@@ -534,10 +515,10 @@ const AccessCenter = {
                     },
                     body: JSON.stringify({ groupIds: groupIds })
                 });
-                showToast('그룹 할당이 저장되었습니다.', 'success');
+                showToast(AccessCenter._i18n('groupAssignSaved', 'Group assignment saved.'), 'success');
                 this.selectUser(this.selectedUserId);
             } catch (e) {
-                showToast('그룹 할당 저장 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('groupAssignFailed', 'Group assignment save failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -570,21 +551,17 @@ const AccessCenter = {
                     },
                     body: JSON.stringify({ roleAssignments: roleAssignments })
                 });
-                showToast('역할 할당이 저장되었습니다.', 'success');
+                showToast(AccessCenter._i18n('roleAssignSaved', 'Role assignment saved.'), 'success');
                 this.selectUser(this.selectedUserId);
             } catch (e) {
-                showToast('역할 할당 저장 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('roleAssignFailed', 'Role assignment save failed') + ': ' + e.message, 'error');
             }
         },
 
         renderPermissionsInline(permissions) {
-            // no-op: handled by buildPermissionsHtml
         }
     },
 
-    // ================================================================
-    // TAB 2: GROUPS
-    // ================================================================
     Groups: {
         selectedGroupId: null,
         allGroups: null,
@@ -605,7 +582,7 @@ const AccessCenter = {
             listEl.innerHTML =
                 '<div class="ac-loading">' +
                 '<i class="fas fa-spinner fa-spin"></i>' +
-                '<p>그룹 목록을 불러오는 중...</p>' +
+                '<p>' + AccessCenter._i18n('groupsLoading', 'Loading groups...') + '</p>' +
                 '</div>';
 
             try {
@@ -615,9 +592,9 @@ const AccessCenter = {
                 listEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-exclamation-triangle"></i>' +
-                    '<p>그룹 목록을 불러올 수 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('groupListLoadFailed', 'Failed to load group list.') + '</p>' +
                     '</div>';
-                showToast('그룹 목록 조회 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('groupListFailed', 'Group list query failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -635,7 +612,7 @@ const AccessCenter = {
                 listEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-layer-group"></i>' +
-                    '<p>' + (this.searchKeyword ? '검색 결과가 없습니다.' : '등록된 그룹이 없습니다.') + '</p>' +
+                    '<p>' + (this.searchKeyword ? AccessCenter._i18n('noSearchResults', 'No results found.') : AccessCenter._i18n('noGroupsRegistered', 'No groups registered.')) + '</p>' +
                     '</div>';
                 return;
             }
@@ -650,7 +627,7 @@ const AccessCenter = {
                 '<div class="ac-list-item-name">' + AccessCenter.escapeHtml(g.name) + '</div>' +
                 '<div class="ac-list-item-sub">' + AccessCenter.escapeHtml(g.description || '-') + '</div>' +
                 '</div>' +
-                (g.memberCount != null ? '<span class="ac-list-item-badge">' + g.memberCount + '명</span>' : '') +
+                (g.memberCount != null ? '<span class="ac-list-item-badge">' + g.memberCount + ' ' + AccessCenter._i18n('memberSuffix', 'members') + '</span>' : '') +
                 '</div>'
             ).join('');
             console.log('[AccessCenter.Groups.filterAndRender] rendered count=', groups.length,
@@ -674,7 +651,7 @@ const AccessCenter = {
             detailEl.innerHTML =
                 '<div class="ac-loading">' +
                 '<i class="fas fa-spinner fa-spin"></i>' +
-                '<p>그룹 정보를 불러오는 중...</p>' +
+                '<p>' + AccessCenter._i18n('groupLoading', 'Loading group info...') + '</p>' +
                 '</div>';
             detailEl.classList.add('active');
 
@@ -687,9 +664,9 @@ const AccessCenter = {
                 detailEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-exclamation-triangle"></i>' +
-                    '<p>그룹 정보를 불러올 수 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('groupLoadFailed', 'Failed to load group info.') + '</p>' +
                     '</div>';
-                showToast('그룹 상세 조회 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('groupDetailFailed', 'Group detail query failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -707,21 +684,19 @@ const AccessCenter = {
 
             html += '<div class="ac-detail-body">';
 
-            // Roles assignment
             html +=
                 '<div class="ac-section-header">' +
-                '<h4>역할 할당</h4>' +
+                '<h4>' + AccessCenter._i18n('sectionRoleAssign', 'Role Assignment') + '</h4>' +
                 '<button type="button" class="ac-btn-save" onclick="AccessCenter.Groups.saveGroupRoles()">' +
-                '<i class="fas fa-save"></i> 저장</button>' +
+                '<i class="fas fa-save"></i> ' + AccessCenter._i18n('btnSave', 'Save') + '</button>' +
                 '</div>';
             html += '<div id="ac-group-roles-grid" class="ac-checkbox-grid">';
-            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> 역할 목록을 불러오는 중...</div>';
+            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> ' + AccessCenter._i18n('rolesLoading', 'Loading roles...') + '</div>';
             html += '</div>';
 
-            // Members section
             if (data.members && data.members.length) {
                 html += '<div style="margin-top:1.5rem;">';
-                html += '<div class="ac-section-header"><h4>소속 사용자 (' + data.members.length + '명)</h4></div>';
+                html += '<div class="ac-section-header"><h4>' + AccessCenter._i18n('memberUsers', 'Member users') + ' (' + data.members.length + ' ' + AccessCenter._i18n('memberSuffix', 'members') + ')</h4></div>';
                 html += '<div class="ac-assigned-users">';
                 html += data.members.map(m =>
                     '<div class="ac-assigned-user">' +
@@ -738,9 +713,7 @@ const AccessCenter = {
             html += '</div>';
             detailEl.innerHTML = html;
 
-            // Load role checkboxes
             try {
-                // Always re-fetch + load all non-CRUD permissions (regardless of role mapping)
                 const [roles, allPerms] = await Promise.all([
                     AccessCenter.fetchJson('/admin/access-center/api/all-roles'),
                     AccessCenter.fetchJson('/admin/access-center/api/all-permissions')
@@ -755,7 +728,7 @@ const AccessCenter = {
                 const allExtras = this.allExtraPermsCache;
 
                 if (!allRoles.length) {
-                    gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>등록된 역할이 없습니다.</p></div>';
+                    gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-user-shield"></i><p>' + AccessCenter._i18n('noRolesRegistered', 'No roles registered.') + '</p></div>';
                 } else {
                     var self = this;
                     const allCruds = ['READ', 'WRITE', 'UPDATE', 'DELETE'];
@@ -772,14 +745,14 @@ const AccessCenter = {
                             const isRead = c === 'READ';
                             const color = crudColors[c];
                             const isMapped = mappedCruds.has(c);
-                            return '<label class="ac-crud-chip' + (isMapped && !isRead ? ' mapped' : '') + '" data-crud="' + c + '" title="' + c + (isMapped && !isRead ? ' — 역할에 매핑됨' : '') + '">' +
+                            return '<label class="ac-crud-chip' + (isMapped && !isRead ? ' mapped' : '') + '" data-crud="' + c + '" title="' + c + (isMapped && !isRead ? ' — ' + AccessCenter._i18n('mappedToRole', 'mapped to role') : '') + '">' +
                                 '<input type="checkbox" class="ac-grp-crud-cb" data-role-id="' + r.id + '" data-crud="' + c + '"' +
                                 (isRead ? ' checked disabled' : (isMapped ? ' checked' : '')) +
                                 '>' +
                                 '<span class="ac-crud-chip-body" style="--crud-color:' + color + ';">' +
                                 '<i class="fas ' + crudIcons[c] + '"></i>' +
                                 '<span>' + crudLabels[c] + '</span>' +
-                                (isMapped && !isRead ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                                (isMapped && !isRead ? '<i class="fas fa-link ac-mapped-mark" title="' + AccessCenter._i18n('permMappedToRole', 'Permission mapped to role') + '"></i>' : '') +
                                 '</span>' +
                                 '</label>';
                         }).join('');
@@ -789,7 +762,7 @@ const AccessCenter = {
                               '<div class="ac-role-card-section ac-extra-section" data-expanded="false">' +
                               '<button type="button" class="ac-extra-toggle" onclick="AccessCenter.Groups.toggleExtraSection(this)">' +
                               '<span class="ac-extra-toggle-label">' +
-                              '<i class="fas fa-puzzle-piece"></i> 권한 더보기 (' + allExtras.length + ')' +
+                              '<i class="fas fa-puzzle-piece"></i> ' + AccessCenter._i18n('morePerms', 'More permissions') + ' (' + allExtras.length + ')' +
                               '</span>' +
                               '<i class="fas fa-chevron-down ac-extra-toggle-arrow"></i>' +
                               '</button>' +
@@ -797,11 +770,11 @@ const AccessCenter = {
                               allExtras.map(p => {
                                   const display = AccessCenter.escapeHtml(p.friendlyName || p.name);
                                   const isMapped = mappedExtraIds.has(String(p.id));
-                                  const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' — ' + p.description : '') + (isMapped ? ' — 역할에 매핑됨' : ''));
+                                  const tooltip = AccessCenter.escapeHtml((p.name || '') + (p.description ? ' — ' + p.description : '') + (isMapped ? ' — ' + AccessCenter._i18n('mappedToRole', 'mapped to role') : ''));
                                   return '<label class="ac-extra-chip' + (isMapped ? ' mapped' : '') + '" title="' + tooltip + '">' +
                                       '<input type="checkbox" class="ac-grp-extra-cb" data-role-id="' + r.id + '" data-perm-id="' + p.id + '"' + (isMapped ? ' checked' : '') + '>' +
                                       '<span class="ac-extra-chip-body"><i class="fas fa-key"></i>' + display +
-                                      (isMapped ? '<i class="fas fa-link ac-mapped-mark" title="역할에 매핑된 권한"></i>' : '') +
+                                      (isMapped ? '<i class="fas fa-link ac-mapped-mark" title="' + AccessCenter._i18n('permMappedToRole', 'Permission mapped to role') + '"></i>' : '') +
                                       '</span></label>';
                               }).join('') +
                               '</div></div>'
@@ -822,16 +795,14 @@ const AccessCenter = {
                             '</label>' +
                             '<div class="ac-role-card-divider"></div>' +
                             '<div class="ac-role-card-section">' +
-                            '<span class="ac-role-card-section-label"><i class="fas fa-key"></i> CRUD 권한</span>' +
+                            '<span class="ac-role-card-section-label"><i class="fas fa-key"></i> ' + AccessCenter._i18n('crudPerms', 'CRUD Permissions') + '</span>' +
                             '<div class="ac-crud-group">' + crudHtml + '</div>' +
                             '</div>' +
                             extrasHtml +
                             '</div>';
                     }).join('');
 
-                    // Load existing CRUD + extra selections
                     if (self.selectedGroupId) {
-                        // Build index of all non-CRUD permissions (not just role-mapped) for save-state restoration
                         const extrasIndex = new Map();
                         (self.allExtraPermsCache || []).forEach(pp => extrasIndex.set(String(pp.id), pp));
                         groupRoleIds.forEach(rid => {
@@ -851,7 +822,7 @@ const AccessCenter = {
                 }
             } catch (e) {
                 const gridEl = document.getElementById('ac-group-roles-grid');
-                if (gridEl) gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>역할 목록 로드 실패</p></div>';
+                if (gridEl) gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>' + AccessCenter._i18n('rolesLoadFailed', 'Failed to load roles.') + '</p></div>';
             }
         },
 
@@ -860,7 +831,6 @@ const AccessCenter = {
             if (!item) return;
             if (roleCheckbox.checked) {
                 item.setAttribute('data-active', 'true');
-                // Only READ is auto-checked; admin must click any other CRUD or extra to activate
                 item.querySelectorAll('.ac-grp-crud-cb').forEach(cb => {
                     if (cb.dataset.crud !== 'READ') cb.checked = false;
                 });
@@ -910,17 +880,14 @@ const AccessCenter = {
                     },
                     body: JSON.stringify({ roleAssignments: roleAssignments })
                 });
-                showToast('그룹 역할이 저장되었습니다.', 'success');
+                showToast(AccessCenter._i18n('groupRoleSaved', 'Group role saved.'), 'success');
                 this.selectGroup(this.selectedGroupId);
             } catch (e) {
-                showToast('그룹 역할 저장 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('groupRoleFailed', 'Group role save failed') + ': ' + e.message, 'error');
             }
         }
     },
 
-    // ================================================================
-    // TAB 3: ROLES
-    // ================================================================
     Roles: {
         selectedRoleId: null,
         allRoles: null,
@@ -941,7 +908,7 @@ const AccessCenter = {
             listEl.innerHTML =
                 '<div class="ac-loading">' +
                 '<i class="fas fa-spinner fa-spin"></i>' +
-                '<p>역할 목록을 불러오는 중...</p>' +
+                '<p>' + AccessCenter._i18n('rolesLoading', 'Loading roles...') + '</p>' +
                 '</div>';
 
             try {
@@ -951,9 +918,9 @@ const AccessCenter = {
                 listEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-exclamation-triangle"></i>' +
-                    '<p>역할 목록을 불러올 수 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('roleListLoadFailed', 'Failed to load role list.') + '</p>' +
                     '</div>';
-                showToast('역할 목록 조회 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('roleListFailed', 'Role list query failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -971,7 +938,7 @@ const AccessCenter = {
                 listEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-user-shield"></i>' +
-                    '<p>' + (this.searchKeyword ? '검색 결과가 없습니다.' : '등록된 역할이 없습니다.') + '</p>' +
+                    '<p>' + (this.searchKeyword ? AccessCenter._i18n('noSearchResults', 'No results found.') : AccessCenter._i18n('noRolesRegistered', 'No roles registered.')) + '</p>' +
                     '</div>';
                 return;
             }
@@ -986,7 +953,7 @@ const AccessCenter = {
                 '<div class="ac-list-item-name">' + AccessCenter.escapeHtml(r.name) + '</div>' +
                 '<div class="ac-list-item-sub">' + AccessCenter.escapeHtml(r.desc || '-') + '</div>' +
                 '</div>' +
-                (r.permCount != null ? '<span class="ac-list-item-badge">' + r.permCount + '개 권한</span>' : '') +
+                (r.permCount != null ? '<span class="ac-list-item-badge">' + r.permCount + ' ' + AccessCenter._i18n('permCountSuffix', 'permissions') + '</span>' : '') +
                 '</div>'
             ).join('');
             console.log('[AccessCenter.Roles.filterAndRender] rendered count=', roles.length,
@@ -1010,7 +977,7 @@ const AccessCenter = {
             detailEl.innerHTML =
                 '<div class="ac-loading">' +
                 '<i class="fas fa-spinner fa-spin"></i>' +
-                '<p>역할 정보를 불러오는 중...</p>' +
+                '<p>' + AccessCenter._i18n('roleLoading', 'Loading role info...') + '</p>' +
                 '</div>';
             detailEl.classList.add('active');
 
@@ -1023,9 +990,9 @@ const AccessCenter = {
                 detailEl.innerHTML =
                     '<div class="ac-empty">' +
                     '<i class="fas fa-exclamation-triangle"></i>' +
-                    '<p>역할 정보를 불러올 수 없습니다.</p>' +
+                    '<p>' + AccessCenter._i18n('roleLoadFailed', 'Failed to load role info.') + '</p>' +
                     '</div>';
-                showToast('역할 상세 조회 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('roleDetailFailed', 'Role detail query failed') + ': ' + e.message, 'error');
             }
         },
 
@@ -1043,30 +1010,28 @@ const AccessCenter = {
 
             html += '<div class="ac-detail-body">';
 
-            // Permission assignment
             html +=
                 '<div class="ac-section-header">' +
                 '<div class="ac-section-header-text">' +
-                '<h4>권한 할당</h4>' +
-                '<span class="ac-section-hint"><i class="fas fa-info-circle"></i> 체크된 권한은 사용자의 역할 할당 시 기본적으로 포함됩니다.</span>' +
+                '<h4>' + AccessCenter._i18n('sectionPermAssign', 'Permission Assignment') + '</h4>' +
+                '<span class="ac-section-hint"><i class="fas fa-info-circle"></i> ' + AccessCenter._i18n('permAssignHint', 'Checked permissions are included by default when assigning the role to users.') + '</span>' +
                 '</div>' +
                 '<button type="button" class="ac-btn-save" onclick="AccessCenter.Roles.saveRolePermissions()">' +
-                '<i class="fas fa-save"></i> 저장</button>' +
+                '<i class="fas fa-save"></i> ' + AccessCenter._i18n('btnSave', 'Save') + '</button>' +
                 '</div>';
             html += '<div class="ac-search-box" style="padding:0;border-bottom:none;margin-bottom:0.75rem;">' +
                 '<i class="fas fa-search ac-search-icon"></i>' +
-                '<input type="text" class="ac-search-input" id="ac-role-perm-search" placeholder="권한 검색..." ' +
+                '<input type="text" class="ac-search-input" id="ac-role-perm-search" placeholder="' + AccessCenter._i18n('searchPermsPlaceholder', 'Search permissions...') + '" ' +
                 'oninput="AccessCenter.Roles.filterPermissions(this.value); AccessCenter.toggleClearBtn(this)">' +
                 '<i class="fas fa-times ac-search-clear" onclick="AccessCenter.clearSearch(this)" style="display:none;"></i>' +
                 '</div>';
             html += '<div id="ac-role-perms-grid" class="ac-checkbox-grid">';
-            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> 권한 목록을 불러오는 중...</div>';
+            html += '<div class="ac-spinner"><i class="fas fa-spinner fa-spin"></i> ' + AccessCenter._i18n('permsLoading', 'Loading permissions...') + '</div>';
             html += '</div>';
 
-            // Direct users section
             if (data.directUsers && data.directUsers.length) {
                 html += '<div style="margin-top:1.5rem;">';
-                html += '<div class="ac-section-header"><h4>직접 할당된 사용자 (' + data.directUsers.length + '명)</h4></div>';
+                html += '<div class="ac-section-header"><h4>' + AccessCenter._i18n('directUsers', 'Direct users') + ' (' + data.directUsers.length + ' ' + AccessCenter._i18n('memberSuffix', 'members') + ')</h4></div>';
                 html += '<div class="ac-assigned-users">';
                 html += data.directUsers.map(u =>
                     '<div class="ac-assigned-user">' +
@@ -1083,7 +1048,6 @@ const AccessCenter = {
             html += '</div>';
             detailEl.innerHTML = html;
 
-            // Load permission checkboxes
             try {
                 if (!this.allPermsCache) {
                     this.allPermsCache = await AccessCenter.fetchJson('/admin/access-center/api/all-permissions');
@@ -1093,14 +1057,14 @@ const AccessCenter = {
                 const allPerms = this.allPermsCache || [];
 
                 if (!allPerms.length) {
-                    gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-key"></i><p>등록된 권한이 없습니다.</p></div>';
+                    gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-key"></i><p>' + AccessCenter._i18n('noPermsRegistered', 'No permissions registered.') + '</p></div>';
                 } else {
                     this._currentRolePermIds = rolePermIds;
                     this._renderPermGrid(allPerms, rolePermIds, gridEl, '');
                 }
             } catch (e) {
                 const gridEl = document.getElementById('ac-role-perms-grid');
-                if (gridEl) gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>권한 목록 로드 실패</p></div>';
+                if (gridEl) gridEl.innerHTML = '<div class="ac-empty" style="min-height:100px;"><i class="fas fa-exclamation-triangle"></i><p>' + AccessCenter._i18n('permsLoadFailed', 'Failed to load permissions.') + '</p></div>';
             }
         },
 
@@ -1115,28 +1079,26 @@ const AccessCenter = {
                 );
             }
             if (!filtered.length) {
-                gridEl.innerHTML = '<div class="ac-empty" style="min-height:80px;"><i class="fas fa-search"></i><p>검색 결과가 없습니다.</p></div>';
+                gridEl.innerHTML = '<div class="ac-empty" style="min-height:80px;"><i class="fas fa-search"></i><p>' + AccessCenter._i18n('noSearchResults', 'No results found.') + '</p></div>';
                 return;
             }
-            // Sort: checked first
             filtered.sort((a, b) => {
                 const aC = rolePermIds.includes(String(a.id)) ? 0 : 1;
                 const bC = rolePermIds.includes(String(b.id)) ? 0 : 1;
                 return aC - bC;
             });
             gridEl.innerHTML = filtered.map(p => {
-                // READ permission is always required (forced checked + disabled)
                 const isReadPerm = p.name === 'READ';
                 const checked = isReadPerm || rolePermIds.includes(String(p.id));
                 const displayName = AccessCenter.escapeHtml(p.friendlyName || p.name);
                 const baseTooltip = (p.name || '') + (p.description ? ' - ' + p.description : '');
-                const tooltip = AccessCenter.escapeHtml(isReadPerm ? baseTooltip + ' (필수 권한 — 변경 불가)' : baseTooltip);
+                const tooltip = AccessCenter.escapeHtml(isReadPerm ? baseTooltip + ' (' + AccessCenter._i18n('requiredPermNote', 'Required permission - cannot be changed') + ')' : baseTooltip);
                 return '<label class="ac-checkbox-item' + (checked ? ' checked' : '') + (isReadPerm ? ' required' : '') + '" title="' + tooltip + '">' +
                     '<input type="checkbox" name="rolePerm" value="' + AccessCenter.escapeHtml(p.id) + '"' +
                     (checked ? ' checked' : '') + (isReadPerm ? ' disabled' : '') +
                     ' onchange="this.parentElement.classList.toggle(\'checked\', this.checked)">' +
                     '<div class="ac-checkbox-label-wrap"><div class="ac-checkbox-label-name">' + displayName +
-                    (isReadPerm ? ' <span class="ac-required-badge">필수</span>' : '') +
+                    (isReadPerm ? ' <span class="ac-required-badge">' + AccessCenter._i18n('labelRequired', 'Required') + '</span>' : '') +
                     '</div></div></label>';
             }).join('');
         },
@@ -1144,7 +1106,6 @@ const AccessCenter = {
         filterPermissions(keyword) {
             const gridEl = document.getElementById('ac-role-perms-grid');
             if (!gridEl || !this.allPermsCache) return;
-            // Preserve current check state
             const checkedNow = new Set();
             document.querySelectorAll('#ac-role-perms-grid input[name="rolePerm"]:checked').forEach(cb => checkedNow.add(cb.value));
             const permIds = Array.from(checkedNow);
@@ -1165,17 +1126,16 @@ const AccessCenter = {
                     },
                     body: JSON.stringify({ permissionIds: permissionIds })
                 });
-                showToast('역할 권한이 저장되었습니다.', 'success');
+                showToast(AccessCenter._i18n('rolePermSaved', 'Role permissions saved.'), 'success');
                 this.selectRole(this.selectedRoleId);
             } catch (e) {
-                showToast('역할 권한 저장 실패: ' + e.message, 'error');
+                showToast(AccessCenter._i18n('rolePermFailed', 'Role permissions save failed') + ': ' + e.message, 'error');
             }
         }
     }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Detect active tab from server-side rendering
     const activeContent = document.querySelector('.ac-tab-content.active');
     if (activeContent) {
         const tabId = activeContent.id.replace('ac-tab-', '');
@@ -1184,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (tabId === 'groups') AccessCenter.Groups.init();
         else if (tabId === 'roles') AccessCenter.Roles.init();
     } else {
-        // Default: users tab
         AccessCenter.switchTab('users');
     }
 });

@@ -91,7 +91,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         handleTerminalState(currentState, request, response, responseBody);
 
-        // Cleanup both state machine and session repository
         cleanupTerminalSession(sessionId, request, response);
     }
 
@@ -224,13 +223,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleFactorSelection(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context) throws IOException {
-        // GET: return available factors information
         if ("GET".equalsIgnoreCase(request.getMethod())) {
             handleFactorSelectionInfo(request, response, context);
             return;
         }
 
-        // POST: transition to AWAITING_FACTOR_SELECTION if not already there
         if (context.getCurrentState() != MfaState.AWAITING_FACTOR_SELECTION) {
             boolean transitioned = stateMachineIntegrator.sendEvent(
                     MfaEvent.MFA_REQUIRED_SELECT_FACTOR, context, request);
@@ -243,7 +240,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return;
 
-        // Prevent selecting the same factor type that is already completed
         if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
                 .anyMatch(step -> selectedFactor.equalsIgnoreCase(step.getType()))) {
             handleInvalidStateError(request, response, context, "FACTOR_ALREADY_COMPLETED",
@@ -381,13 +377,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private String extractAndValidateSelectedFactor(HttpServletRequest request, HttpServletResponse response,
                                                     FactorContext context) throws IOException {
-        // 1) Form parameter: "factor" or "factorType"
         String selectedFactor = request.getParameter("factor");
         if (selectedFactor == null || selectedFactor.trim().isEmpty()) {
             selectedFactor = request.getParameter("factorType");
         }
 
-        // 2) JSON body: { "factorType": "..." } or { "factor": "..." }
         if ((selectedFactor == null || selectedFactor.trim().isEmpty())
                 && request.getContentType() != null
                 && request.getContentType().contains("application/json")) {
@@ -432,12 +426,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 request.setAttribute("passkeyType", passkeyType);
             }
 
-            // Set currentStepId for the selected factor type
             setCurrentStepIdForFactor(context, selectedFactor);
 
             boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
             if (accepted) {
-                // Transition from AWAITING_FACTOR_CHALLENGE_INITIATION to FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION
                 stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
             }
             return accepted;
@@ -541,7 +533,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                     .orElse(null);
             if (flowConfig == null) return;
 
-            // Find the first uncompleted step of the selected factor type
             Set<String> completedStepIds = context.getCompletedFactors().stream()
                     .map(AuthenticationStepConfig::getStepId)
                     .collect(java.util.stream.Collectors.toSet());

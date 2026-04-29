@@ -70,7 +70,6 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    // ?? ALLOW: behavior document ??
 
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -178,7 +177,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ?? BLOCK: threat document ??
 
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -216,7 +214,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ?? CHALLENGE: suspicious document ??
 
     private void storeSuspiciousDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -242,7 +239,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ?? ESCALATE/PENDING: ambiguous document ??
 
     private void storeAmbiguousDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -268,7 +264,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    // ?? shared builders ??
 
     private String buildActionSummary(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sentence = new StringBuilder();

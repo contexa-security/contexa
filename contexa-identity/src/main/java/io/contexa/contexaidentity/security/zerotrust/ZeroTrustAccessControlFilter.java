@@ -175,7 +175,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 || requestUri.startsWith("/login/mfa-")) {
             return true;
         }
-        // Check against dynamically configured MFA URLs from all flows (urlPrefix support)
         if (mfaFlowUrlRegistry != null) {
             Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
             for (String mfaUrl : allFlowUrls) {

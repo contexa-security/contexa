@@ -28,10 +28,11 @@ public class IamAdminBlacklistAutoConfiguration {
             ZeroTrustActionRepository actionRedisRepository,
             ApplicationEventPublisher eventPublisher,
             CentralAuditFacade centralAuditFacade,
-            BlockingSignalBroadcaster blockingDecisionRegistry) {
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            MessageSource messageSource) {
         return new BlockedUserService(
                 blockedUserJpaRepository, adminOverrideService, actionRedisRepository,
-                eventPublisher, centralAuditFacade, blockingDecisionRegistry);
+                eventPublisher, centralAuditFacade, blockingDecisionRegistry, messageSource);
     }
 
     @Bean
@@ -48,8 +49,8 @@ public class IamAdminBlacklistAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public BlacklistApiController blacklistApiController(BlockedUserService blockedUserService) {
-        return new BlacklistApiController(blockedUserService);
+    public BlacklistApiController blacklistApiController(BlockedUserService blockedUserService, MessageSource messageSource) {
+        return new BlacklistApiController(blockedUserService, messageSource);
     }
 }
 

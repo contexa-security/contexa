@@ -11,7 +11,6 @@ import java.util.Map;
  */
 public interface ZeroTrustActionRepository {
 
-    // --- Query ---
 
     ZeroTrustAction getCurrentAction(String userId);
 
@@ -29,7 +28,6 @@ public interface ZeroTrustActionRepository {
 
     boolean isStale(String userId, long maxAgeMs);
 
-    // --- Escalate/Block MFA state ---
 
     boolean isBlockMfaPending(String userId);
 
@@ -39,7 +37,6 @@ public interface ZeroTrustActionRepository {
 
     void setEscalateRetry(String userId, Duration ttl);
 
-    // --- Save ---
 
     void saveAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields);
 
@@ -47,7 +44,6 @@ public interface ZeroTrustActionRepository {
 
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction, String contextBindingHash);
 
-    // --- Blocking state ---
 
     void setBlockedFlag(String userId);
 
@@ -59,11 +55,9 @@ public interface ZeroTrustActionRepository {
 
     void removeAllUserData(String userId);
 
-    // --- Transaction ---
 
     void approveOverrideAtomically(String userId, ZeroTrustAction newAction);
 
-    // --- Analysis data record ---
 
     record ZeroTrustAnalysisData(
             String action,

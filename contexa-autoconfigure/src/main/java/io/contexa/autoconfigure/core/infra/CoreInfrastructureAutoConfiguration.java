@@ -35,7 +35,6 @@ public class CoreInfrastructureAutoConfiguration {
     public CoreInfrastructureAutoConfiguration() {
     }
 
-    // === Distributed mode: Redis/Kafka/Redisson infrastructure ===
 
     @Configuration
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
@@ -56,7 +55,6 @@ public class CoreInfrastructureAutoConfiguration {
         return new RedisAsyncSecurityContextProvider(redisTemplate);
     }
 
-    // === Standalone mode: In-memory async security context ===
 
     @Configuration
     @ConditionalOnMissingBean(name = "generalRedisTemplate")

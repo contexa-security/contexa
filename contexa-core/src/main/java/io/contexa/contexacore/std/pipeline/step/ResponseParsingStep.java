@@ -308,7 +308,6 @@ public class ResponseParsingStep implements PipelineStep {
                         getStepName(), partial.length(), truncated.length());
                 return partial;
             } catch (Exception ignored) {
-                // recovery failed
             }
         }
 

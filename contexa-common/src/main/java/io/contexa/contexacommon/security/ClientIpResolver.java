@@ -30,7 +30,6 @@ public final class ClientIpResolver {
         for (String name : HEADER_CANDIDATES) {
             String value = request.getHeader(name);
             if (value == null || value.isBlank() || "unknown".equalsIgnoreCase(value)) continue;
-            // X-Forwarded-For may be comma-separated; the first non-blank entry is the client
             int comma = value.indexOf(',');
             String first = (comma > 0 ? value.substring(0, comma) : value).trim();
             if (!first.isEmpty()) return stripPort(first);
@@ -39,12 +38,10 @@ public final class ClientIpResolver {
     }
 
     private static String stripPort(String addr) {
-        // IPv6 with port like [::1]:8080 — strip the port if present
         if (addr.startsWith("[")) {
             int end = addr.indexOf(']');
             if (end > 0) return addr.substring(1, end);
         }
-        // IPv4 with port like 1.2.3.4:5678
         int colon = addr.indexOf(':');
         if (colon > 0 && addr.indexOf('.') > 0) return addr.substring(0, colon);
         return addr;

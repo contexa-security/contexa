@@ -15,7 +15,6 @@
     <main class="flex-1 p-8 lg:p-12 overflow-y-auto">
         <div style="max-width: 72rem; margin: 0 auto;">
 
-            <!-- Header -->
             <div class="flex items-center justify-between mb-10">
                 <div>
                     <h1 class="text-2xl font-bold" style="color: #e2e8f0;">
@@ -28,7 +27,6 @@
                 </a>
             </div>
 
-            <!-- Event Category + Decision Banner -->
             <div class="rounded-xl p-6 mb-8" style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4);">
                 <div class="flex items-center gap-5">
                     <span class="px-5 py-2.5 rounded-full text-base font-bold"
@@ -52,10 +50,8 @@
                 </div>
             </div>
 
-            <!-- Info Grid - 2x2 -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
 
-                <!-- WHO -->
                 <div class="rounded-xl p-6" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(99,102,241,0.3);">
                     <div class="text-sm font-bold mb-4" style="color: #818cf8; letter-spacing: 0.05em;">
                         <i class="fas fa-user mr-2"></i> <span th:text="#{admin.security.monitor.detail.who}">WHO</span>
@@ -68,7 +64,6 @@
                     </div>
                 </div>
 
-                <!-- WHEN -->
                 <div class="rounded-xl p-6" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(245,158,11,0.3);">
                     <div class="text-sm font-bold mb-4" style="color: #f59e0b; letter-spacing: 0.05em;">
                         <i class="fas fa-clock mr-2"></i> <span th:text="#{admin.security.monitor.detail.when}">WHEN</span>
@@ -80,7 +75,6 @@
                     </div>
                 </div>
 
-                <!-- WHAT -->
                 <div class="rounded-xl p-6" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(16,185,129,0.3);">
                     <div class="text-sm font-bold mb-4" style="color: #10b981; letter-spacing: 0.05em;">
                         <i class="fas fa-crosshairs mr-2"></i> <span th:text="#{admin.security.monitor.detail.what}">WHAT</span>
@@ -93,7 +87,6 @@
                     <div th:if="${log.action != null}" class="text-sm" style="color: #94a3b8;"><span th:text="#{admin.security.monitor.detail.action}">Action</span>: <span style="color: #cbd5e1;" th:text="${log.action}"></span></div>
                 </div>
 
-                <!-- WHY -->
                 <div class="rounded-xl p-6" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(248,113,113,0.3);">
                     <div class="text-sm font-bold mb-4" style="color: #f87171; letter-spacing: 0.05em;">
                         <i class="fas fa-gavel mr-2"></i> <span th:text="#{admin.security.monitor.detail.why}">WHY</span>
@@ -108,7 +101,6 @@
                 </div>
             </div>
 
-            <!-- Details (JSON) -->
             <div th:if="${log.details != null && !log.details.isBlank()}" class="mb-8">
                 <div class="text-sm font-bold mb-3" style="color: #94a3b8;">
                     <i class="fas fa-code mr-2"></i> <span th:text="#{admin.security.monitor.detail.details}">Detailed Data (Details)</span>
@@ -118,7 +110,6 @@
                 </div>
             </div>
 
-            <!-- Source -->
             <div class="flex items-center gap-4 text-sm" style="color: #64748b;">
                 <span th:if="${log.eventSource != null}"><i class="fas fa-server mr-2"></i> <span th:text="#{admin.security.monitor.detail.source}">Source</span>: <span style="color: #94a3b8;" th:text="${log.eventSource}"></span></span>
             </div>

@@ -254,7 +254,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 processedDocument = enrichLabSpecificMetadata(processedDocument);
             }
 
-            // Remove null values from metadata (VectorStore requirement)
             Map<String, Object> sanitizedMetadata = new HashMap<>(processedDocument.getMetadata());
             sanitizedMetadata.entrySet().removeIf(entry -> entry.getValue() == null);
             processedDocument = new Document(processedDocument.getText(), sanitizedMetadata);

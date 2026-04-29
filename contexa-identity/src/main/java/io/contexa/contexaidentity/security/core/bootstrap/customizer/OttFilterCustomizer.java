@@ -20,12 +20,10 @@ public class OttFilterCustomizer extends AbstractFilterCustomizer {
 
         for (Filter filter : getFilters(builtChain)) {
 
-            // OneTimeTokenAuthenticationFilter - loginProcessingUrl
             if (filter instanceof AbstractAuthenticationProcessingFilter authFilter && isOttAuth(filter)) {
                 setMatcherIfPresent(authFilter, loginProcessingUrl);
             }
 
-            // GenerateOneTimeTokenFilter - tokenGeneratingUrl
             if (filter instanceof GenerateOneTimeTokenFilter genFilter && StringUtils.hasText(tokenGeneratingUrl)) {
                 genFilter.setRequestMatcher(createPostMatcher(tokenGeneratingUrl));
             }

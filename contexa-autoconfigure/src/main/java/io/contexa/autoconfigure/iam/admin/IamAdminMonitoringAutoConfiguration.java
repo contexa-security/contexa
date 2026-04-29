@@ -139,10 +139,12 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public AdminMenuManagementService adminMenuManagementService(
             AdminMenuService adminMenuService,
-            RoleRepository roleRepository) {
+            RoleRepository roleRepository,
+            org.springframework.context.MessageSource messageSource) {
         return new AdminMenuManagementService(
                 adminMenuService,
-                roleRepository);
+                roleRepository,
+                messageSource);
     }
 
     @Bean

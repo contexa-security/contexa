@@ -77,7 +77,6 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                         applicationContext.getBean(org.springframework.context.MessageSource.class);
                 mfaPageFilter.setMessageSource(messageSource);
             } catch (Exception ignored) {
-                // MessageSource not available - use default English strings
             }
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);

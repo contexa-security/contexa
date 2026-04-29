@@ -2,28 +2,50 @@ package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Manages the singleton {@link SystemSettings} row.
+ *
+ * <p>The singleton row is seeded by {@code schema.sql} at boot, so {@link #getSettings()}
+ * is purely read-only and cannot race a concurrent INSERT. The {@link SystemSettings#builder()}
+ * fallback covers the unlikely case where the seed is missing (e.g. a manual TRUNCATE during
+ * testing) without creating a duplicate row.</p>
+ *
+ * <p>Defence-in-depth: a method-level {@code @PreAuthorize} guard runs in addition to the
+ * URL-pattern protection on {@code /admin/**}. If the SecurityFilterChain rule is ever
+ * misconfigured, the service still rejects unauthenticated callers.</p>
+ */
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class SystemSettingsService {
 
     private final SystemSettingsRepository repository;
 
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public SystemSettings getSettings() {
         return repository.findAll().stream()
                 .findFirst()
-                .orElseGet(() -> repository.save(SystemSettings.builder().build()));
+                .orElseGet(() -> SystemSettings.builder().build());
     }
 
+    /**
+     * Persists the operator-supplied values onto the singleton row. Only the four fields
+     * carried by {@link SystemSettingsForm} are written; the entity's {@code id},
+     * {@code createdAt}, and {@code updatedAt} are managed by JPA and never touched here.
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
-    public SystemSettings updateSettings(SystemSettings settings) {
-        SystemSettings existing = getSettings();
-        existing.setAuditLogRetentionDays(settings.getAuditLogRetentionDays());
-        existing.setDefaultRole(settings.getDefaultRole());
-        existing.setPolicyCombiningAlgorithm(settings.getPolicyCombiningAlgorithm());
-        existing.setRegistrationEnabled(settings.isRegistrationEnabled());
-        return repository.save(existing);
+    public void updateSettings(SystemSettingsForm form) {
+        SystemSettings existing = repository.findAll().stream()
+                .findFirst()
+                .orElseGet(() -> repository.save(SystemSettings.builder().build()));
+        existing.setAuditLogRetentionDays(form.getAuditLogRetentionDays());
+        existing.setDefaultRole(form.getDefaultRole());
+        existing.setPolicyCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
+        existing.setRegistrationEnabled(form.isRegistrationEnabled());
+        repository.save(existing);
     }
 }

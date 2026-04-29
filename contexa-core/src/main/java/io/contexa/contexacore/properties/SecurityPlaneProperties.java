@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "security.plane")
+@ConfigurationProperties(prefix = "contexa.security.plane")
 public class SecurityPlaneProperties {
 
     @NestedConfigurationProperty

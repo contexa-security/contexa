@@ -160,7 +160,6 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         if (authUrlProvider != null) {
             return authUrlProvider;
         }
-        // Last resort: create minimal provider from ApplicationContext if available
         throw new IllegalStateException("AuthUrlProvider is not available in MfaAuthenticationEntryPoint");
     }
 

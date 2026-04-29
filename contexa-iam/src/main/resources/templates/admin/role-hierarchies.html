@@ -90,7 +90,6 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
             <nav th:if="${hierarchyPage != null and hierarchyPage.totalPages > 1}" class="flex justify-center mt-6 gap-2">
                 <a th:if="${!hierarchyPage.first}" th:href="@{/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number - 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">

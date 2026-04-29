@@ -49,7 +49,6 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         this.properties = properties;
     }
 
-    // --- Lock abstraction: subclasses implement ---
 
     protected abstract boolean tryAcquireLock(String sessionId, long waitTime, TimeUnit unit) throws InterruptedException;
 
@@ -57,17 +56,13 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
 
     protected abstract void onReleaseStateMachine(String sessionId);
 
-    // --- saveFactorContext hooks (override for Redis-specific validation) ---
 
     protected void beforeSaveFactorContext(String sessionId) {
-        // no-op by default
     }
 
     protected void afterSaveFactorContext(String sessionId) {
-        // no-op by default
     }
 
-    // --- MfaStateMachineService implementation ---
 
     @Override
     public void initializeStateMachine(FactorContext context, HttpServletRequest request) {
@@ -323,7 +318,6 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         }
     }
 
-    // --- Internal methods ---
 
     protected StateMachine<MfaState, MfaEvent> acquireStateMachine(String sessionId) {
         return stateMachineFactory.getStateMachine(sessionId);

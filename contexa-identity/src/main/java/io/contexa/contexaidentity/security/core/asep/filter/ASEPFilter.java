@@ -183,7 +183,6 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             }
         }
 
-        // Clear SecurityContext only after response is fully written
         clearContextIfNeeded(shouldClearContext);
     }
 

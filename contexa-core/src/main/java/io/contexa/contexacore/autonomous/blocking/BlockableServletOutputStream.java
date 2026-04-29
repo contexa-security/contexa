@@ -104,7 +104,6 @@ public class BlockableServletOutputStream extends ServletOutputStream {
                 }
             } catch (Exception ignored) {
             }
-            // Write in-band block signal with action type so client can redirect appropriately
             try {
                 String action = registry.getBlockAction(userId);
                 byte[] signal = (BLOCK_SIGNAL_PREFIX + (action != null ? action : "BLOCK") + "\n")

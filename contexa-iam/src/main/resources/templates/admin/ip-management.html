@@ -15,7 +15,6 @@
                 <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.ip.title}">IP Access Management</h1>
             </div>
 
-            <!-- Summary Cards -->
             <div class="grid grid-cols-3 gap-3 mb-6">
                 <div class="rounded-lg p-3 text-center" style="background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3);">
                     <div class="text-2xl font-bold" style="color: #4ade80;" th:text="${allowCount}">0</div>
@@ -31,7 +30,6 @@
                 </div>
             </div>
 
-            <!-- Filter Tabs + Search -->
             <div class="flex flex-wrap gap-2 mb-6 items-center">
                 <a th:href="@{/admin/ip-management(keyword=${keyword})}"
                    th:classappend="${currentType == null} ? 'filter-active' : 'filter-inactive'"
@@ -61,7 +59,6 @@
                 </form>
             </div>
 
-            <!-- Create Form -->
             <div class="mb-6 p-4 rounded-lg" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3);">
                 <h3 class="text-sm font-semibold mb-3" style="color: #e2e8f0;" th:text="#{admin.ip.create.title}">Create IP Rule</h3>
                 <form th:action="@{/admin/ip-management/create}" method="post" class="flex flex-wrap items-end gap-3">
@@ -102,7 +99,6 @@
                 </form>
             </div>
 
-            <!-- Table -->
             <div class="overflow-x-auto shadow-md rounded-lg">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
@@ -164,7 +160,6 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
             <nav th:if="${rules != null and rules.totalPages > 1}" class="flex justify-center mt-6 gap-2">
                 <a th:if="${!rules.first}" th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number - 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
@@ -183,7 +178,6 @@
                 </a>
             </nav>
 
-            <!-- CSV Export -->
             <div class="mt-4 flex justify-end">
                 <a th:href="@{/admin/ip-management/export(type=${currentType})}"
                    class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300"

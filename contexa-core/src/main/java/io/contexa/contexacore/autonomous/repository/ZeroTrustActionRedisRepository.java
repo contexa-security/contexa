@@ -352,8 +352,6 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
             Duration ttl = newAction.getDefaultTtl();
 
-            // Bundle putAll + expire into a single MULTI/EXEC transaction so the hash update and
-            // its TTL land as one atomic unit even if the client fails between calls.
             redisTemplate.execute(new SessionCallback<>() {
                 @Override
                 public Object execute(RedisOperations operations) throws DataAccessException {
@@ -508,10 +506,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            // Delete Hash type key via redisTemplate
             redisTemplate.delete(ZeroTrustRedisKeys.hcadAnalysis(userId));
 
-            // Delete String type keys via stringRedisTemplate
             List<String> stringKeys = List.of(
                     ZeroTrustRedisKeys.hcadLastVerifiedAction(userId),
                     ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId),

@@ -11,6 +11,8 @@ import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -21,11 +23,19 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
+    private final MessageSource messageSource;
+
     @Autowired
     public PolicyGenerationVectorService(VectorStore vectorStore,
                                         @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
-                                        ContexaRagProperties ragProperties) {
+                                        ContexaRagProperties ragProperties,
+                                        MessageSource messageSource) {
         super(vectorStore, vectorStoreMetrics, ragProperties);
+        this.messageSource = messageSource;
+    }
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
     @Override
@@ -56,11 +66,11 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
 
         String text = document.getText();
         if (text == null || text.trim().length() < 10) {
-            throw new IllegalArgumentException("Policy content is too short (minimum 10 characters required)");
+            throw new IllegalArgumentException(msg("msg.policy.content.too.short"));
         }
 
         if (text.length() > 10000) {
-            throw new IllegalArgumentException("Policy content is too long (maximum 10000 characters)");
+            throw new IllegalArgumentException(msg("msg.policy.content.too.long"));
         }
     }
 

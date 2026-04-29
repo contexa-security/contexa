@@ -56,4 +56,3 @@ public class UserRole implements Serializable {
 }
 
 
-// UserRoleId is in a separate file for public access

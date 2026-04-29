@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@ConditionalOnProperty(name = "spring.auth.mfa.session-storage-type", havingValue = "redis")
+@ConditionalOnProperty(name = "contexa.auth.mfa.session-storage-type", havingValue = "redis")
 public class RedisMfaRepository implements MfaSessionRepository {
 
     private final StringRedisTemplate redisTemplate;

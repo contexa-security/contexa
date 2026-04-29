@@ -316,7 +316,6 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractUserAgent(HttpServletRequest request) {
-        // Test simulation header takes priority
         String simulated = request.getHeader("X-Simulated-User-Agent");
         if (simulated != null && !simulated.isEmpty()) {
             return simulated;
@@ -677,11 +676,9 @@ public final class RequestInfoExtractor {
         private final Integer travelElapsedMinutes;
         private final String previousLocation;
 
-        // Canonical Context Extension v1.0 - Location supplements
         private final String ipBand;
         private final String asn;
 
-        // Canonical Context Extension v1.0 - Device slot
         private final String deviceOs;
         private final String deviceOsVersion;
         private final String deviceBrowser;
@@ -690,14 +687,12 @@ public final class RequestInfoExtractor {
         private final String deviceLanguage;
         private final Boolean deviceFingerprintMatch;
 
-        // Canonical Context Extension v1.0 - Intent slot
         private final Boolean intentBotUserAgent;
         private final Boolean intentMissingReferer;
         private final Boolean intentLanguageMismatch;
         private final Boolean intentTlsFingerprintAltered;
         private final Boolean intentAbnormalHeaderOrder;
 
-        // Canonical Context Extension v1.0 - Session slot additions
         private final String authenticationType;
         private final Integer currentAccessHour;
         private final Integer concurrentSessions;

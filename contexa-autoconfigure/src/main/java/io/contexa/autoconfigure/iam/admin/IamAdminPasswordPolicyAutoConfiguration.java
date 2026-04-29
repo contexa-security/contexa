@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam.admin;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.PasswordHistoryRepository;
 import io.contexa.contexacommon.repository.PasswordPolicyRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.auth.service.AuditLogRetentionScheduler;
@@ -58,9 +59,11 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public SystemSettingsController systemSettingsController(
             SystemSettingsService systemSettingsService,
+            RoleRepository roleRepository,
             MessageSource messageSource,
             ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider) {
-        return new SystemSettingsController(systemSettingsService, messageSource, authManagerProvider.getIfAvailable());
+        return new SystemSettingsController(systemSettingsService, roleRepository, messageSource,
+                authManagerProvider.getIfAvailable());
     }
 
     @Bean

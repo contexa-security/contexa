@@ -32,7 +32,6 @@ public class RiskAssessment {
         "system", "kernel", "root", "admin", "production", "critical"
     );
 
-    // Strictness order for approval types (higher value = stricter approval requirement)
     private static final Map<ApprovalType, Integer> STRICTNESS_ORDER = Map.of(
         AUTO, 0,
         SINGLE, 1,
@@ -105,7 +104,6 @@ public class RiskAssessment {
                 };
             }
         } catch (Exception e) {
-            // Fail-close: default to MANUAL when annotation extraction fails
             log.error("Annotation approval type extraction failed (Fail-Close applied): {}", e.getMessage());
 
             return ApprovalType.MANUAL;
@@ -167,7 +165,6 @@ public class RiskAssessment {
             }
         }
 
-        // Privileged accounts require manual approval due to broader blast radius
         String userId = (String) context.get("userId");
         if (userId != null && userId.equals("admin")) {
             return ApprovalType.MANUAL;
@@ -176,8 +173,6 @@ public class RiskAssessment {
         return ApprovalType.AUTO;
     }
 
-    // Time-based assessment is a supplementary signal, not a primary factor.
-    // Off-hours access is notable but should not override tool/context-based assessment.
     private ApprovalType assessByTime() {
         LocalTime now = LocalTime.now();
 

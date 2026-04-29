@@ -509,9 +509,6 @@ public class AuthUrlProvider {
             }
         }
 
-//        if (!problematicDuplicates.isEmpty()) {
-//            errors.add("Unintended duplicate URLs found: " + String.join("; ", problematicDuplicates));
-//        }
 
         for (String url : urlToContexts.keySet()) {
             if (!url.startsWith("/")) {

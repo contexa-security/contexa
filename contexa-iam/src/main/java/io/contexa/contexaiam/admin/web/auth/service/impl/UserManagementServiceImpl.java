@@ -20,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,22 +47,27 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final CentralAuditFacade centralAuditFacade;
     private final PasswordPolicyService passwordPolicyService;
     private final SystemSettingsService systemSettingsService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void createUser(UserDto userDto) {
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists: " + userDto.getUsername());
+            throw new IllegalArgumentException(msg("msg.user.username.exists", userDto.getUsername()));
         }
 
         if (!StringUtils.hasText(userDto.getPassword())) {
-            throw new IllegalArgumentException("Password is required for new user");
+            throw new IllegalArgumentException(msg("msg.user.password.required"));
         }
 
         List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
         if (!violations.isEmpty()) {
-            throw new IllegalArgumentException("Password policy violation: " + String.join(", ", violations));
+            throw new IllegalArgumentException(msg("msg.user.password.policy.violation", String.join(", ", violations)));
         }
 
         Users users = new Users();
@@ -83,7 +90,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         for (Long groupId : desiredGroupIds) {
             Group group = groupRepository.findById(groupId)
-                    .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + groupId));
+                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", groupId)));
             UserGroup userGroup = UserGroup.builder()
                     .user(users)
                     .group(group)
@@ -136,7 +143,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     public void modifyUser(@ModelAttribute UserDto userDto) {
         log.error("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userDto.getId()));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
 
         users.setName(userDto.getName());
         users.setEmail(userDto.getEmail());
@@ -151,7 +158,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (StringUtils.hasText(userDto.getPassword())) {
             List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
             if (!violations.isEmpty()) {
-                throw new IllegalArgumentException("Password policy violation: " + String.join(", ", violations));
+                throw new IllegalArgumentException(msg("msg.user.password.policy.violation", String.join(", ", violations)));
             }
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
         }
@@ -164,7 +171,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         for (Long groupId : desiredGroupIds) {
             Group group = groupRepository.findById(groupId)
-                    .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + groupId));
+                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", groupId)));
             UserGroup userGroup = UserGroup.builder()
                     .user(users)
                     .group(group)

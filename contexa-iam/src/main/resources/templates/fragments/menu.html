@@ -1,24 +1,24 @@
 <div th:fragment="menu" xmlns:sec="http://www.w3.org/1999/xhtml">
     <nav class="bg-app-secondary text-white w-64 min-h-full p-5 space-y-6 shadow-lg">
         <div>
-            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3">인증</h3>
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3" th:text="#{menu.section.auth}">Authentication</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/loginForm}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">Form 로그인 (MFA 가능)</a></li>
-                <li><a th:href="@{/loginOtt}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">OTT 로그인 (단일)</a></li>
-                <li><a th:href="@{/loginPasskey}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">Passkey 로그인 (단일)</a></li>
+                <li><a th:href="@{/loginForm}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm" th:text="#{menu.auth.form}">Form Login (MFA available)</a></li>
+                <li><a th:href="@{/loginOtt}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm" th:text="#{menu.auth.ott}">OTT Login (single)</a></li>
+                <li><a th:href="@{/loginPasskey}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm" th:text="#{menu.auth.passkey}">Passkey Login (single)</a></li>
             </ul>
         </div>
         <div>
-            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3">회원</h3>
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3" th:text="#{menu.section.member}">Members</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/register}" sec:authorize="isAnonymous()" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">회원 가입</a></li>
-                <li><a th:href="@{/users}" sec:authorize="isAuthenticated()" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">회원 목록</a></li>
+                <li><a th:href="@{/register}" sec:authorize="isAnonymous()" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm" th:text="#{menu.member.register}">Register</a></li>
+                <li><a th:href="@{/users}" sec:authorize="isAuthenticated()" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm" th:text="#{menu.member.list}">Member List</a></li>
             </ul>
         </div>
         <div>
-            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3">설정</h3>
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3" th:text="#{menu.section.settings}">Settings</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/authMode}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">인증방식 선택</a></li>
+                <li><a th:href="@{/authMode}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm" th:text="#{menu.settings.auth.mode}">Choose Auth Method</a></li>
             </ul>
         </div>
     </nav>

@@ -36,6 +36,5 @@ public final class StreamingProtocol {
     public static final String GENERATING_RESULT_MARKER = "###GENERATING_RESULT###";
 
     private StreamingProtocol() {
-        // Utility class - prevent instantiation
     }
 }

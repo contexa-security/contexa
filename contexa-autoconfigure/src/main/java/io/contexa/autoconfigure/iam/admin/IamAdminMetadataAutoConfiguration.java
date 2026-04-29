@@ -59,8 +59,9 @@ public class IamAdminMetadataAutoConfiguration {
     public PermissionCatalogService permissionCatalogService(
             PermissionRepository permissionRepository,
             ModelMapper modelMapper,
-            PolicyService policyService) {
-        return new PermissionCatalogServiceImpl(permissionRepository, modelMapper, policyService);
+            PolicyService policyService,
+            MessageSource messageSource) {
+        return new PermissionCatalogServiceImpl(permissionRepository, modelMapper, policyService, messageSource);
     }
 
     @Bean

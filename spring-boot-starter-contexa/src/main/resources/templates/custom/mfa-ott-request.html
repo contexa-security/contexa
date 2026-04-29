@@ -125,7 +125,7 @@
     <div class="icon">
         <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
     </div>
-    <h1>Request OTP Code</h1>
+    <h1 th:text="#{starter.ott.request.heading}">Request OTP Code</h1>
     <p class="sub">A one-time token will be sent to your registered channel.</p>
 
     <div th:if="${errorCode == 'user_not_found'}" class="toast error">
@@ -134,17 +134,17 @@
 
     <form id="ottRequestForm" method="post" th:action="@{${ottRequestUrl}}">
         <div th:if="${username != null and !#strings.isEmpty(username)}" class="field">
-            <label for="username">Username</label>
+            <label for="username" th:text="#{starter.ott.request.username}">Username</label>
             <input id="username" type="text" name="username" th:value="${username}" readonly>
         </div>
         <div th:if="${username == null or #strings.isEmpty(username)}" class="field">
-            <label for="username">Username</label>
+            <label for="username" th:text="#{starter.ott.request.username}">Username</label>
             <input id="username" type="text" name="username" placeholder="Enter your username" autocomplete="username" required autofocus>
         </div>
 
         <div th:utext="${hiddenInputsHtml}"></div>
 
-        <button id="sendCodeButton" class="btn" type="submit">Send Code</button>
+        <button id="sendCodeButton" class="btn" type="submit" th:text="#{starter.ott.request.send}">Send Code</button>
     </form>
 
     <div id="contexa-page-config"

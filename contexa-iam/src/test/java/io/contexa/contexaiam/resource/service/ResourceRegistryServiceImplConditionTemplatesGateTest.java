@@ -10,6 +10,7 @@ import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.StaticMessageSource;
 
 import java.util.List;
 
@@ -51,7 +52,8 @@ class ResourceRegistryServiceImplConditionTemplatesGateTest {
                 aiNativeProcessor,
                 autoConditionTemplateService,
                 policyRepository,
-                iamAdminProperties);
+                iamAdminProperties,
+                new StaticMessageSource());
     }
 
     @Test

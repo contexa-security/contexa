@@ -58,7 +58,6 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
             return false;
         }
 
-        // Reject absolute URLs to prevent open redirect attacks
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
             return false;
         }

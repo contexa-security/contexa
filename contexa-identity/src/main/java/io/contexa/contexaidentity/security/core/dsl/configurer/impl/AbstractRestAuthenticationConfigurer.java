@@ -23,7 +23,6 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
         try {
             loginPolicyHandler = applicationContext.getBean(LoginPolicyHandler.class);
         } catch (Exception ignored) {
-            // LoginPolicyHandler may not be available
         }
         http.authenticationProvider(new RestAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler));
     }

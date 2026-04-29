@@ -80,7 +80,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
-        // Check against all flows' MFA URLs (urlPrefix support)
         if (mfaFlowUrlRegistry != null) {
             Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
             if (allFlowUrls.contains(requestUri)) {

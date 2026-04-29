@@ -112,7 +112,6 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                     currentFlow.getUrlPrefix()
             );
 
-            // Auto-configure securityMatcher when urlPrefix is set
             if (currentFlow.getUrlPrefix() != null) {
                 String prefix = currentFlow.getUrlPrefix();
                 Assert.state(prefix.matches("^[a-zA-Z0-9/_-]+$"),
@@ -130,7 +129,6 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
         http.addFilterBefore(mfaContinuationFilter, LogoutFilter.class);
 
-        // Build factor processing matchers from AuthUrlProvider (prefix-aware)
         List<RequestMatcher> factorProcessingMatchers = new ArrayList<>();
         for (String processingUrl : flowUrlProvider.getAllFactorProcessingUrls()) {
             if (processingUrl != null && !processingUrl.isEmpty()) {

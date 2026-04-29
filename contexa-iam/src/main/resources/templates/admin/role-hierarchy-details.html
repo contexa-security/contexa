@@ -6,7 +6,7 @@
     <link rel="stylesheet" th:href="@{/css/role-hierarchy.css}">
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
-        /* HTML 고유 스타일만 유지 (CSS 파일로 이동할 수 없는 것들) */
+        /* Keep HTML-specific styles only (those that cannot move to CSS files) */
         #mermaid-container {
             width: 100%;
             height: 100%;
@@ -35,7 +35,6 @@
                 <input type="hidden" th:field="*{id}" th:if="${hierarchy.id != null}" />
                 <input type="hidden" id="hierarchyString" th:field="*{hierarchyString}" />
 
-                <!-- 설명 입력 -->
                 <div>
                     <label for="description" class="dark-label" th:text="#{admin.role.hierarchy.detail.description.label}">Hierarchy Description:</label>
                     <input type="text" id="description" th:field="*{description}"
@@ -43,12 +42,9 @@
                            th:placeholder="#{admin.role.hierarchy.detail.description.placeholder}" required />
                 </div>
 
-                <!-- 메인 편집 영역: 3단 구조 -->
                 <div class="grid grid-cols-12 gap-4">
-                    <!-- 왼쪽: 역할 팔레트 -->
                     <div class="col-span-3">
                         <h3 class="text-lg font-bold text-slate-200 mb-3" th:text="#{admin.role.hierarchy.detail.role.list}">Role List</h3>
-                        <!-- 검색 입력창 -->
                         <div class="palette-search-box">
                             <i class="fas fa-search"></i>
                             <input type="text" id="palette-search" class="dark-input" th:placeholder="#{admin.role.hierarchy.detail.search.roles}" oninput="filterPalette(this.value)">
@@ -62,7 +58,6 @@
                             </div>
                         </div>
                         <div class="role-palette">
-                            <!-- 순수 역할 목록 (그룹 무관, 중복 제거) -->
                             <div th:each="role : ${allRoles}"
                                  class="role-item"
                                  draggable="true"
@@ -82,7 +77,6 @@
                     </div>
 
 
-                    <!-- 시각화 영역 수정 - 확대 버튼 추가 -->
                     <div class="col-span-5">
                         <h3 class="text-lg font-bold text-slate-200 mb-3" th:text="#{admin.role.hierarchy.detail.visualization}">Hierarchy Visualization</h3>
                         <div class="hierarchy-visualization"
@@ -109,11 +103,9 @@
                         </div>
                     </div>
 
-                    <!-- 오른쪽: 관계 편집기 -->
                     <div class="col-span-4">
                         <h3 class="text-lg font-bold text-slate-200 mb-3" th:text="#{admin.role.hierarchy.detail.relation.editor}">Relation Editor</h3>
 
-                        <!-- 검증 메시지 영역 -->
                         <div id="validation-error" class="validation-error"></div>
                         <div id="validation-warning" class="validation-warning"></div>
 
@@ -171,7 +163,6 @@
                     </div>
                 </div>
 
-                <!-- 결과 미리보기 -->
                 <div class="mt-6">
                     <h3 class="text-lg font-bold text-slate-200 mb-3" th:text="#{admin.role.hierarchy.detail.preview.title}">Final Hierarchy String Preview</h3>
                     <div id="result-preview" class="result-preview" th:text="#{admin.role.hierarchy.detail.preview.empty}">
@@ -179,13 +170,11 @@
                     </div>
                 </div>
 
-                <!-- 활성화는 목록 화면에서 토글 -->
                 <input type="hidden" th:field="*{isActive}" />
                 <p th:if="${hierarchy.id == null}" class="text-xs" style="color: #64748b;">
                     <i class="fas fa-info-circle mr-1"></i><span th:text="#{admin.role.hierarchy.detail.activation.note}">You can activate it from the list after registration. Multiple hierarchies can be activated simultaneously for auto-merge.</span>
                 </p>
 
-                <!-- 제출 버튼 -->
                 <div class="pt-4 flex gap-4">
                     <button type="button" onclick="showConfirmDialog()"
                             class="flex-1 dark-btn-primary">
@@ -202,7 +191,6 @@
     </main>
 </div>
 
-<!-- 확인 다이얼로그 -->
 <div id="confirm-dialog" class="confirm-dialog">
     <div class="confirm-dialog-content">
         <h3 class="text-2xl font-bold text-slate-200 mb-4">
@@ -213,7 +201,6 @@
         <div class="mb-6">
             <div class="bg-slate-900/50 rounded-lg p-6 border border-slate-700 mermaid-container"
                  style="max-height: 50vh; overflow: auto; position: relative;">
-                <!-- 확대 버튼 추가 -->
                 <button type="button"
                         class="expand-button"
                         onclick="showConfirmFullscreen()"
@@ -230,7 +217,6 @@
         </div>
 
         <div id="impact-analysis" class="mb-6">
-            <!-- 영향 분석 결과가 여기에 표시됩니다 -->
         </div>
 
         <div class="flex gap-4">
@@ -248,7 +234,6 @@
 
 <div th:insert="~{fragments/footer :: footer}"></div>
 
-<!-- i18n data for JavaScript -->
 <div id="i18n-hierarchy" style="display:none;"
      th:data-select-parent="#{admin.role.hierarchy.detail.js.select.parent}"
      th:data-select-child="#{admin.role.hierarchy.detail.js.select.child}"
@@ -295,7 +280,6 @@
      th:data-mermaid-new="#{admin.role.hierarchy.detail.js.mermaid.new}"></div>
 
 <script th:inline="javascript">
-    // 전역 상수 및 설정
     const CONFIG = {
         MERMAID: {
             THEME: 'dark',
@@ -309,17 +293,14 @@
         }
     };
 
-    // i18n strings from server
     var _i18n = document.getElementById('i18n-hierarchy').dataset;
 
-    // Thymeleaf data
     const groupsWithRoles = /*[[${groupsWithRoles}]]*/ [];
     const ungroupedRoles = /*[[${ungroupedRoles}]]*/ [];
     const allRolesFromServer = /*[[${allRoles}]]*/ [];
     const activeHierarchiesData = /*[[${activeHierarchies}]]*/ [];
     let hierarchyPairs = /*[[${hierarchyPairs}]]*/ [];
 
-    // Build existing active hierarchy graph for cross-validation
     const existingGraph = new Map();
     const existingRelations = [];
     (activeHierarchiesData || []).forEach(h => {
@@ -338,13 +319,11 @@
         });
     });
 
-    // Show server-side flash messages
     const _serverMessage = /*[[${message}]]*/ null;
     const _serverError = /*[[${error}]]*/ null;
     if (_serverMessage) setTimeout(() => showToast(_serverMessage, 'success'), 500);
     if (_serverError) setTimeout(() => showToast(_serverError, 'error'), 500);
 
-    // 데이터 정제
     if (hierarchyPairs && hierarchyPairs.length > 0) {
         hierarchyPairs = hierarchyPairs.map(pair => ({
             parentRole: pair.parentRole?.replace(/\\n/g, '').replace(/\n/g, '').trim() || '',
@@ -357,11 +336,9 @@
     console.log('Ungrouped roles:', ungroupedRoles);
     console.log('Existing hierarchy pairs (cleaned):', hierarchyPairs);
 
-    // Mermaid 관련 변수
     let mermaidInitialized = false;
     let relationshipGraph = new Map();
 
-    // Mermaid 초기화
     function initializeMermaid() {
         if (typeof mermaid !== 'undefined' && !mermaidInitialized) {
             mermaid.initialize({
@@ -396,7 +373,6 @@
         }
     }
 
-    // 툴팁 표시
     function showTooltip(event, element) {
         const tooltip = document.getElementById('tooltip');
         const role = element.dataset.role;
@@ -421,8 +397,6 @@
         document.getElementById('tooltip').style.display = 'none';
     }
 
-    // 옵션 HTML 생성
-    // Build all roles flat list for searchable select (no group, no duplicates)
     function getAllRolesFlat() {
         const seen = new Set();
         const roles = [];
@@ -477,7 +451,6 @@
         if (currentValue) select.value = currentValue;
     }
 
-    // 관계 행 추가
     function addRow() {
         const container = document.getElementById('hierarchy-rows-container');
         if (!container) return;
@@ -513,7 +486,6 @@
         }, 10);
     }
 
-    // 관계 행 삭제
     function removeRow(button) {
         const row = button.closest('.relation-row');
         row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
@@ -526,7 +498,6 @@
         }, CONFIG.ANIMATION.FADE_DURATION);
     }
 
-    // 유효성 검증 및 업데이트 (debounced)
     let _validateTimeout = null;
     function validateAndUpdate() {
         clearTimeout(_validateTimeout);
@@ -541,7 +512,6 @@
         let errorMessage = '';
         let warningMessage = '';
 
-        // 관계 수집
         rows.forEach(row => {
             const parent = row.querySelector('.parent-role').value;
             const child = row.querySelector('.child-role').value;
@@ -564,7 +534,6 @@
             }
         });
 
-        // 중복 검사 (신규 내부)
         const seen = new Set();
         if (!hasError) {
             for (const rel of relations) {
@@ -578,12 +547,10 @@
                 seen.add(key);
             }
         }
-        // seen이 비어있으면 역방향 검사를 위해 채움
         if (seen.size === 0) {
             relations.forEach(r => seen.add(`${r.parent}>${r.child}`));
         }
 
-        // 역방향 관계 검사 (신규 내부)
         if (!hasError) {
             for (const rel of relations) {
                 const reverseKey = `${rel.child}>${rel.parent}`;
@@ -595,9 +562,6 @@
             }
         }
 
-        // ============================================================
-        // 1단계 (d): 전이적 중복 검사 (신규 내부)
-        // ============================================================
         if (!hasError) {
             for (const rel of relations) {
                 if (isTransitivelyConnected(graph, rel.parent, rel.child)) {
@@ -609,9 +573,6 @@
             }
         }
 
-        // ============================================================
-        // 1단계 (e): 순환 참조 검사 (신규 내부 - 모든 노드 포함)
-        // ============================================================
         if (!hasError && graph.size > 0) {
             const allNewNodes = new Set();
             relations.forEach(r => { allNewNodes.add(r.parent); allNewNodes.add(r.child); });
@@ -624,16 +585,12 @@
             }
         }
 
-        // ============================================================
-        // 2단계: 기존 활성 계층과 교차 검증
-        // ============================================================
         if (!hasError && existingRelations.length > 0) {
             const existingKeySet = new Set(existingRelations.map(r => r.parent + '>' + r.child));
 
             for (const rel of relations) {
                 const relKey = rel.parent + '>' + rel.child;
 
-                // (f) 직접 역방향: 기존 A>B + 신규 B>A -> 빨강 충돌
                 for (const existing of existingRelations) {
                     if (rel.parent === existing.child && rel.child === existing.parent) {
                         hasError = true;
@@ -643,7 +600,6 @@
                 }
                 if (hasError) break;
 
-                // (g) 직접 중복: 기존 A>B + 신규 A>B -> 주황 중복
                 if (existingKeySet.has(relKey)) {
                     hasError = true;
                     errorMessage = _i18n.errorExistingDuplicate.replace('{0}', rel.parent).replace('{1}', rel.child);
@@ -653,11 +609,7 @@
             }
         }
 
-        // ============================================================
-        // 3단계: 합산 그래프 검증 (기존 + 신규 전체)
-        // ============================================================
         if (!hasError && existingRelations.length > 0) {
-            // Verify existing hierarchies are consistent first
             const allExistingNodes = new Set();
             existingRelations.forEach(r => { allExistingNodes.add(r.parent); allExistingNodes.add(r.child); });
             let existingCorrupted = false;
@@ -672,7 +624,6 @@
                 errorMessage = _i18n.errorExistingCorrupted;
             }
 
-            // Build merged graph (existing + new)
             if (!hasError) {
                 const mergedGraph = new Map();
                 for (const [key, children] of existingGraph) {
@@ -683,7 +634,6 @@
                     mergedGraph.get(rel.parent).add(rel.child);
                 }
 
-                // (h) Merged cycle detection
                 const allMergedNodes = new Set([...mergedGraph.keys()]);
                 mergedGraph.forEach(children => children.forEach(c => allMergedNodes.add(c)));
 
@@ -698,7 +648,6 @@
                     hasError = true;
                     const involvedNode = [...mergedCycleNodes][0];
                     errorMessage = _i18n.errorMergedCycle.replace('{0}', involvedNode);
-                    // Mark only new relations whose nodes are involved in the cycle
                     relations.forEach(r => {
                         if (mergedCycleNodes.has(r.parent) || mergedCycleNodes.has(r.child)) {
                             r._redundant = true;
@@ -706,7 +655,6 @@
                     });
                 }
 
-                // (i) Merged transitive redundancy check
                 if (!hasError) {
                     for (const rel of relations) {
                         if (isTransitivelyConnected(mergedGraph, rel.parent, rel.child)) {
@@ -720,10 +668,8 @@
             }
         }
 
-        // 에러/경고 표시
         displayValidationMessages(hasError, errorMessage, warningMessage);
 
-        // 시각화 업데이트 (에러 시에도 충돌 관계를 보여줌)
         if (relations.length > 0) {
             updateVisualization(relations);
             if (!hasError) {
@@ -736,7 +682,6 @@
         relationshipGraph = graph;
     }
 
-    // 검증 메시지 표시
     function displayValidationMessages(hasError, errorMessage, warningMessage) {
         const errorDiv = document.getElementById('validation-error');
         const warningDiv = document.getElementById('validation-warning');
@@ -756,7 +701,6 @@
         }
     }
 
-    // 전이적 연결 확인
     function isTransitivelyConnected(graph, start, end) {
         const tempGraph = new Map();
         for (const [key, values] of graph) {
@@ -767,7 +711,6 @@
             tempGraph.get(start).delete(end);
         }
 
-        // BFS로 다른 경로 탐색
         const queue = [start];
         const visited = new Set();
 
@@ -790,7 +733,6 @@
         return false;
     }
 
-    // 순환 참조 검사
     function hasCycle(graph, node, visited, recStack) {
         visited.add(node);
         recStack.add(node);
@@ -812,9 +754,7 @@
         return false;
     }
 
-    // 역할의 친화적 이름 찾기
     function findFriendlyName(roleName) {
-        // 모든 그룹의 역할에서 찾기
         if (groupsWithRoles && groupsWithRoles.length > 0) {
             for (const group of groupsWithRoles) {
                 if (group.roles && group.roles.length > 0) {
@@ -827,7 +767,6 @@
             }
         }
 
-        // 그룹 미지정 역할에서 찾기
         if (ungroupedRoles && ungroupedRoles.length > 0) {
             for (const role of ungroupedRoles) {
                 if (role.roleName === roleName) {
@@ -836,11 +775,9 @@
             }
         }
 
-        // 찾지 못한 경우 원본 이름 반환
         return roleName.replace(/["\n]/g, ' ').trim();
     }
 
-    // Mermaid 코드 생성
     function generateMermaidCode(relations) {
         const nodeMap = new Map();
         let nodeIndex = 0;
@@ -851,20 +788,17 @@
             return nodeMap.get(role);
         }
 
-        // Edge classification: conflict (red), cycle (orange), redundant (orange), normal (green)
         const existingKeys = new Set(existingRelations.map(r => r.parent + '>' + r.child));
         const directConflictEdges = new Set();  // red: direct reverse
         const cycleEdges = new Set();            // orange: cycle involvement
         const redundantEdges = new Set();        // orange: duplicate or transitive
 
-        // Build new-only graph for internal transitive check
         const newOnlyGraph = new Map();
         relations.forEach(r => {
             if (!newOnlyGraph.has(r.parent)) newOnlyGraph.set(r.parent, new Set());
             newOnlyGraph.get(r.parent).add(r.child);
         });
 
-        // Build merged graph (existing + new) for cross-validation
         const mergedDiagGraph = new Map();
         existingRelations.forEach(r => {
             if (!mergedDiagGraph.has(r.parent)) mergedDiagGraph.set(r.parent, new Set());
@@ -875,7 +809,6 @@
             mergedDiagGraph.get(r.parent).add(r.child);
         });
 
-        // Detect merged cycle nodes
         const allDiagNodes = new Set([...mergedDiagGraph.keys()]);
         mergedDiagGraph.forEach(children => children.forEach(c => allDiagNodes.add(c)));
         const cycleNodes = new Set();
@@ -885,7 +818,6 @@
             }
         }
 
-        // Detect new-internal cycle nodes
         const newCycleNodes = new Set();
         const allNewDiagNodes = new Set();
         relations.forEach(r => { allNewDiagNodes.add(r.parent); allNewDiagNodes.add(r.child); });
@@ -895,7 +827,6 @@
             }
         }
 
-        // Detect new-internal duplicate edges
         const newDuplicateEdges = new Set();
         const seenNewEdges = new Set();
         relations.forEach(rel => {
@@ -911,30 +842,22 @@
             const reverseKey = rel.child + '>' + rel.parent;
 
             if (existingKeys.has(reverseKey)) {
-                // (f) direct reverse against existing = conflict red
                 directConflictEdges.add(edgeKey);
             } else if (existingKeys.has(edgeKey)) {
-                // (g) direct duplicate against existing = redundant orange
                 redundantEdges.add(edgeKey);
             } else if (newDuplicateEdges.has(edgeKey)) {
-                // (b) new-internal duplicate = redundant orange
                 redundantEdges.add(edgeKey);
             } else if (newCycleNodes.has(rel.parent) && newCycleNodes.has(rel.child)) {
-                // (e) new-internal cycle = cycle orange
                 cycleEdges.add(edgeKey);
             } else if (isTransitivelyConnected(newOnlyGraph, rel.parent, rel.child)) {
-                // (d) new-internal transitive redundancy = redundant orange
                 redundantEdges.add(edgeKey);
             } else if (cycleNodes.has(rel.parent) && cycleNodes.has(rel.child)) {
-                // (h) merged cycle = cycle orange
                 cycleEdges.add(edgeKey);
             } else if (existingRelations.length > 0 && isTransitivelyConnected(mergedDiagGraph, rel.parent, rel.child)) {
-                // (i) merged transitive redundancy = redundant orange
                 redundantEdges.add(edgeKey);
             }
         });
 
-        // Detect existing-only cycle nodes for corrupted data display
         const existingCycleNodes = new Set();
         if (existingRelations.length > 0) {
             const existingOnlyGraph = new Map();
@@ -951,7 +874,6 @@
             }
         }
 
-        // Existing active hierarchy edges (blue, or red if corrupted cycle) - deduplicated
         const renderedExistingEdges = new Set();
         if (existingRelations.length > 0) {
             existingRelations.forEach(rel => {
@@ -968,7 +890,6 @@
             });
         }
 
-        // New relations: green (normal), red (conflict), orange (cycle/redundant)
         relations.forEach(rel => {
             const pid = getNodeId(rel.parent);
             const cid = getNodeId(rel.child);
@@ -990,7 +911,6 @@
             }
         });
 
-        // Style classes
         mermaidCode += '    classDef existing fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd\n';
         mermaidCode += '    classDef newrel fill:#064e3b,stroke:#10b981,color:#6ee7b7\n';
         mermaidCode += '    classDef conflict fill:#7f1d1d,stroke:#ef4444,color:#fca5a5\n';
@@ -999,21 +919,18 @@
         return mermaidCode;
     }
 
-    // 시각화 업데이트
     function updateVisualization(relations) {
         if (!relations || relations.length === 0) {
             showInitialState();
             return;
         }
 
-        // Count unique nodes for large-scale warning
         const uniqueNodes = new Set();
         relations.forEach(r => { uniqueNodes.add(r.parent); uniqueNodes.add(r.child); });
         if (uniqueNodes.size > 50) {
             showToast(_i18n.warnLargeNodes.replace('{0}', uniqueNodes.size), 'warning');
         }
 
-        // Check hierarchy depth
         const depthGraph = new Map();
         relations.forEach(r => {
             if (!depthGraph.has(r.parent)) depthGraph.set(r.parent, []);
@@ -1032,14 +949,11 @@
             return;
         }
 
-        // 기존 내용 제거
         container.innerHTML = '';
 
-        // Mermaid 코드 생성
         const mermaidCode = generateMermaidCode(relations);
         console.log('Generated Mermaid code:', mermaidCode);
 
-        // 새로운 다이어그램 요소 생성
         const diagramDiv = document.createElement('div');
         diagramDiv.id = 'mermaid-diagram';
         diagramDiv.className = 'mermaid';
@@ -1047,14 +961,12 @@
 
         container.appendChild(diagramDiv);
 
-        // Mermaid 렌더링
         setTimeout(() => {
             try {
                 if (typeof mermaid !== 'undefined' && diagramDiv && diagramDiv.parentNode) {
                     mermaid.init(undefined, diagramDiv);
                     console.log('Mermaid diagram rendered successfully');
 
-                    // 다이어그램이 렌더링된 후 스크롤 위치 조정
                     setTimeout(() => {
                         centerDiagram(container);
                     }, 100);
@@ -1066,7 +978,6 @@
         }, 100);
     }
 
-    // 다이어그램 중앙 정렬
     function centerDiagram(container) {
         const svg = container.querySelector('svg');
         if (svg) {
@@ -1082,7 +993,6 @@
         }
     }
 
-    // 오류 상태 표시
     function showErrorState(container, relations) {
         container.innerHTML = `
             <div class="text-center text-slate-400 p-8">
@@ -1092,17 +1002,14 @@
         `;
     }
 
-    // 결과 미리보기 업데이트
     function updateResultPreview(relations) {
         const preview = document.getElementById('result-preview');
         const hierarchyString = relations.map(rel => `${rel.parent} > ${rel.child}`).join('\n');
         preview.textContent = hierarchyString || _i18n.previewEmpty;
 
-        // hidden input 업데이트
         document.getElementById('hierarchyString').value = hierarchyString;
     }
 
-    // 전체화면 모달 표시
     function showFullscreenModal(targetContainerId) {
         const relations = collectRelations();
         if (relations.length === 0) {
@@ -1110,7 +1017,6 @@
             return;
         }
 
-        // 모달 생성
         const modal = document.createElement('div');
         modal.id = 'fullscreen-modal';
         modal.className = 'fullscreen-modal';
@@ -1133,19 +1039,15 @@
 
         document.body.appendChild(modal);
 
-        // 모달 표시
         setTimeout(() => {
             modal.classList.add('show');
 
-            // Mermaid 다이어그램 렌더링
             renderFullscreenDiagram(targetContainerId, relations);
         }, 10);
 
-        // ESC 키로 닫기
         document.addEventListener('keydown', handleEscKey);
     }
 
-    // 전체화면 다이어그램 렌더링
     function renderFullscreenDiagram(containerId, relations) {
         initializeMermaid();
 
@@ -1165,7 +1067,6 @@
                 if (typeof mermaid !== 'undefined') {
                     mermaid.init(undefined, diagramDiv);
 
-                    // 렌더링 후 중앙 정렬
                     setTimeout(() => {
                         centerDiagram(container);
                     }, 100);
@@ -1181,7 +1082,6 @@
         }, 100);
     }
 
-    // 전체화면 모달 닫기
     function closeFullscreenModal() {
         const modal = document.getElementById('fullscreen-modal');
         if (modal) {
@@ -1194,14 +1094,12 @@
         document.removeEventListener('keydown', handleEscKey);
     }
 
-    // ESC 키 핸들러
     function handleEscKey(event) {
         if (event.key === 'Escape') {
             closeFullscreenModal();
         }
     }
 
-    // 확인 다이얼로그 표시
     function showConfirmDialog() {
         const errorDiv = document.getElementById('validation-error');
         if (errorDiv && errorDiv.style.display === 'block') {
@@ -1217,18 +1115,14 @@
 
         initializeMermaid();
 
-        // 다이어그램 생성 및 표시
         const mermaidCode = generateConfirmMermaidCode(relations);
         renderConfirmDiagram(mermaidCode);
 
-        // 영향 분석 표시
         displayImpactAnalysis(relations);
 
-        // 다이얼로그 표시
         document.getElementById('confirm-dialog').style.display = 'flex';
     }
 
-    // 관계 수집
     function collectRelations() {
         const rows = document.querySelectorAll('.relation-row');
         const relations = [];
@@ -1244,16 +1138,13 @@
         return relations;
     }
 
-    // 확인 다이얼로그용 Mermaid 코드 생성
     function generateConfirmMermaidCode(relations) {
         let mermaidCode = 'graph TB\n';
 
         relations.forEach(rel => {
-            // ID 생성 (특수문자 제거)
             const parentId = rel.parent.replace(/[^a-zA-Z0-9]/g, '_');
             const childId = rel.child.replace(/[^a-zA-Z0-9]/g, '_');
 
-            // 친화적 이름 찾기
             const parentLabel = rel.parent;
             const childLabel = rel.child;
 
@@ -1263,7 +1154,6 @@
         return mermaidCode;
     }
 
-    // 확인 다이얼로그 다이어그램 렌더링
     function renderConfirmDiagram(mermaidCode) {
         const confirmMermaid = document.getElementById('confirm-mermaid');
         if (!confirmMermaid) {
@@ -1283,7 +1173,6 @@
                 if (typeof mermaid !== 'undefined' && diagramDiv && diagramDiv.parentNode) {
                     mermaid.init(undefined, diagramDiv);
 
-                    // 렌더링 후 중앙 정렬
                     setTimeout(() => {
                         const container = confirmMermaid.closest('.mermaid-container');
                         if (container) {
@@ -1300,13 +1189,11 @@
         }, 200);
     }
 
-    // 영향 분석 표시
     function displayImpactAnalysis(relations) {
         const impactDiv = document.getElementById('impact-analysis');
         const allRoles = new Set();
         const graph = new Map();
 
-        // 그래프 구성 및 역할 수집
         relations.forEach(rel => {
             allRoles.add(rel.parent);
             allRoles.add(rel.child);
@@ -1317,7 +1204,6 @@
             graph.get(rel.parent).add(rel.child);
         });
 
-        // 계층 깊이 계산
         const maxDepth = calculateMaxDepth(relations, graph);
 
         impactDiv.innerHTML = `
@@ -1340,15 +1226,12 @@
         `;
     }
 
-    // 최대 깊이 계산
     function calculateMaxDepth(relations, graph) {
-        // 루트 노드 찾기
         const allChildren = new Set();
         relations.forEach(rel => allChildren.add(rel.child));
         const roots = Array.from(new Set(relations.map(r => r.parent)))
             .filter(node => !allChildren.has(node));
 
-        // BFS로 깊이 계산
         let maxDepth = 0;
         const queue = roots.map(root => ({node: root, level: 0}));
         const visited = new Set();
@@ -1371,7 +1254,6 @@
         return maxDepth + 1;
     }
 
-    // 확인 다이얼로그 전체화면 표시
     function showConfirmFullscreen() {
         const relations = collectRelations();
         if (relations.length === 0) return;
@@ -1394,7 +1276,6 @@
         }
     }
 
-    // 초기 상태 표시
     function showInitialState() {
         const container = document.getElementById('mermaid-container');
         if (!container) {
@@ -1416,7 +1297,6 @@
         }
     }
 
-    // Toast 메시지
     function showToast(message, type) {
         const toastContainer = document.getElementById('toast-container');
         if (!toastContainer) return;
@@ -1440,14 +1320,11 @@
         }, 3000);
     }
 
-    // 페이지 로드 시 초기화
     document.addEventListener('DOMContentLoaded', function() {
         console.log('=== DOMContentLoaded - Role Hierarchy Editor ===');
 
-        // Mermaid 초기화
         initializeMermaid();
 
-        // 이벤트 리스너 추가
         const addBtn = document.getElementById('add-row-btn');
         if (addBtn) {
             addBtn.addEventListener('click', function(e) {
@@ -1456,7 +1333,6 @@
             });
         }
 
-        // 폼 제출 이벤트 리스너
         const form = document.getElementById('hierarchyForm');
         if (form) {
             form.addEventListener('submit', function(e) {
@@ -1469,14 +1345,12 @@
                     return;
                 }
 
-                // Check for client-side validation errors before submitting
                 const errorDiv = document.getElementById('validation-error');
                 if (errorDiv && errorDiv.style.display !== 'none' && errorDiv.textContent) {
                     showToast(_i18n.errorHasErrors, 'error');
                     return;
                 }
 
-                // 개행문자로 구분된 문자열 생성
                 const hierarchyString = relations.map(rel => `${rel.parent} > ${rel.child}`).join('\n');
                 document.getElementById('hierarchyString').value = hierarchyString;
 
@@ -1485,12 +1359,10 @@
                     count: relations.length
                 });
 
-                // 실제 폼 제출
                 form.submit();
             });
         }
 
-        // 기존 데이터 확인 및 시각화
         const existingRows = document.querySelectorAll('.relation-row');
         console.log('Found existing rows:', existingRows.length);
 
@@ -1503,12 +1375,11 @@
             showInitialState();
         }
 
-        // Toast 및 모달 스타일 추가
         if (!document.getElementById('custom-styles')) {
             const styles = document.createElement('style');
             styles.id = 'custom-styles';
             styles.textContent = `
-                /* Toast 스타일 */
+                /* Toast styles */
                 .toast-message {
                     padding: 12px 20px;
                     border-radius: 8px;
@@ -1568,7 +1439,7 @@
                     }
                 }
 
-                /* 전체화면 모달 스타일 */
+                /* Fullscreen modal styles */
                 .fullscreen-modal {
                     position: fixed;
                     top: 0;
@@ -1641,7 +1512,7 @@
                     transform: scale(1.05);
                 }
 
-                /* 확대 버튼 스타일 */
+                /* Zoom button styles */
                 .expand-button {
                     position: absolute;
                     top: 1rem;
@@ -1672,9 +1543,6 @@
         }
     });
 
-    // ================================================================
-    // Accordion toggle
-    // ================================================================
     function toggleAccordion(header) {
         const body = header.nextElementSibling;
         const icon = header.querySelector('.accordion-icon');
@@ -1689,9 +1557,6 @@
         }
     }
 
-    // ================================================================
-    // Palette search filter
-    // ================================================================
     let paletteSearchTimeout = null;
     function filterPalette(keyword) {
         clearTimeout(paletteSearchTimeout);
@@ -1707,7 +1572,6 @@
                     item.style.display = match ? '' : 'none';
                     if (match) visibleCount++;
                 });
-                // Auto-expand groups with matches
                 const body = section.querySelector('.accordion-body');
                 const icon = section.querySelector('.accordion-icon');
                 if (lower && visibleCount > 0) {
@@ -1715,18 +1579,13 @@
                     body.classList.add('expanded');
                     if (icon) icon.classList.add('open');
                 }
-                // Hide empty groups
                 section.style.display = visibleCount > 0 || !lower ? '' : 'none';
-                // Update count
                 const countBadge = section.querySelector('.group-count');
                 if (countBadge) countBadge.textContent = visibleCount;
             });
         }, 300);
     }
 
-    // ================================================================
-    // Role click -> auto-fill relation editor
-    // ================================================================
     let selectedRoleForRelation = null;
 
     function removePopover() {
@@ -1749,7 +1608,6 @@
     function onRoleClick(roleItem) {
         const roleName = roleItem.dataset.role;
 
-        // Toggle selection (same role clicked again)
         if (selectedRoleForRelation === roleName) {
             selectedRoleForRelation = null;
             document.querySelectorAll('.role-item').forEach(el => el.classList.remove('selected-role'));
@@ -1757,7 +1615,6 @@
             return;
         }
 
-        // First click: select as parent
         if (!selectedRoleForRelation) {
             selectedRoleForRelation = roleName;
             document.querySelectorAll('.role-item').forEach(el => el.classList.remove('selected-role'));
@@ -1766,7 +1623,6 @@
             return;
         }
 
-        // Second click: create relation (first=parent, second=child)
         const parentRole = selectedRoleForRelation;
         const childRole = roleName;
         selectedRoleForRelation = null;
@@ -1776,9 +1632,6 @@
         addRelationFromDrag(parentRole, childRole);
     }
 
-    // ================================================================
-    // Drag & Drop
-    // ================================================================
     let draggedRoleName = null;
 
     function onRoleDragStart(event, roleItem) {
@@ -1812,7 +1665,6 @@
         const draggedRole = event.dataTransfer.getData('text/plain');
         if (!draggedRole) return;
 
-        // Find the closest SVG node
         const svgTarget = event.target.closest('.node');
         let targetNodeRole = null;
 
@@ -1822,10 +1674,8 @@
         }
 
         if (targetNodeRole && targetNodeRole !== draggedRole) {
-            // Dropped on existing node: dragged = parent (upper), target node = child (lower)
             addRelationFromDrag(draggedRole, targetNodeRole);
         } else if (!targetNodeRole) {
-            // Dropped on empty area: dragged = parent, user selects child
             document.getElementById('add-row-btn').click();
             setTimeout(() => {
                 const rows = document.querySelectorAll('.relation-row');
@@ -1864,7 +1714,6 @@
             return;
         }
 
-        // Check if relation already exists
         const existingRows = document.querySelectorAll('.relation-row');
         for (const row of existingRows) {
             const p = row.querySelector('.parent-role')?.value;
@@ -1875,10 +1724,8 @@
             }
         }
 
-        // Add new row with pre-selected values
         document.getElementById('add-row-btn').click();
 
-        // Set values in the newly added row
         setTimeout(() => {
             const rows = document.querySelectorAll('.relation-row');
             const lastRow = rows[rows.length - 1];

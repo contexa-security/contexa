@@ -25,7 +25,7 @@ This repository contains the open-source core platform. Commercial and enterpris
 2. Create a branch from `main`
 3. Keep the change focused
 4. Add or update tests when needed
-5. Run `./gradlew clean compileJava` before submitting
+5. Run `./gradlew clean compileJava` and `./gradlew test` before submitting
 6. Open the pull request against `main`
 
 ## Development Setup
@@ -43,6 +43,29 @@ This repository contains the open-source core platform. Commercial and enterpris
 git clone https://github.com/contexa-security/contexa.git
 cd contexa
 ./gradlew clean compileJava
+```
+
+### Test
+
+Run the full test suite before opening a pull request:
+
+```bash
+./gradlew test
+```
+
+Run the tests for a single module to iterate faster:
+
+```bash
+./gradlew :contexa-iam:test
+./gradlew :contexa-core:test
+./gradlew :contexa-identity:test
+```
+
+Filter to a single test class or method:
+
+```bash
+./gradlew :contexa-iam:test --tests '*PolicyEvaluatorTest'
+./gradlew :contexa-iam:test --tests '*PolicyEvaluatorTest.someMethod'
 ```
 
 ## Coding Standards

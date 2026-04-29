@@ -15,13 +15,11 @@
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
         <div class="modern-card">
-            <!-- Page Header -->
             <div class="mb-6">
                 <h1 class="text-3xl font-bold pc-header-gradient" th:text="#{admin.policy.center.title}">Policy Center</h1>
                 <p class="text-dark-muted mt-1" th:text="#{admin.policy.center.subtitle}">Integrated policy management: resources, creation, monitoring, analysis</p>
             </div>
 
-            <!-- Tab Navigation -->
             <nav class="pc-tab-nav mb-6">
                 <a th:href="@{/admin/policy-center(tab='create')}"
                    class="pc-tab-btn" th:classappend="${activeTab == 'create' or activeTab == 'resources'} ? ' active' : ''">
@@ -47,23 +45,18 @@
                 </a>
             </nav>
 
-            <!-- ==================== TAB 1: RESOURCES ==================== -->
             <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources' or activeTab == 'create'} ? ' active' : ''">
 
-                <!-- Refresh Resources (separate POST form) -->
                 <form id="refreshForm" th:action="@{/admin/policy-center/refresh-resources}" method="post" style="display:none;">
                     <input type="hidden" name="tab" value="create" />
                 </form>
-                <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="create" />
-                    <!-- Action buttons -->
                     <div class="flex gap-2 justify-end mb-4">
                         <button type="submit" class="modern-btn-refresh" form="refreshForm"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.resetPolicyStatus()" style="border-color: rgba(239,68,68,0.6);color:#fca5a5;font-weight:600;"><i class="fas fa-undo-alt"></i> <span th:text="#{policy.center.multi.reset.policy}">Reset Policy</span></button>
                     </div>
-                    <!-- Filters -->
                     <div style="display:grid;grid-template-columns:auto 0.7fr auto 0.7fr auto 1.5fr auto auto;gap:10px;align-items:center;">
                         <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner</span>
                         <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select">
@@ -85,7 +78,6 @@
                     </div>
                 </form>
 
-                <!-- Resource Table -->
                 <div class="modern-table overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -196,7 +188,6 @@
                     </table>
                 </div>
 
-                <!-- Pagination -->
                 <nav th:if="${resourcePage != null and resourcePage.totalPages > 1}" class="mt-8 flex justify-center">
                     <ul class="modern-pagination">
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
@@ -214,10 +205,8 @@
 
             </div>
 
-            <!-- tab-create: hidden tab activated by JS when Quick/AI mode selected from modal -->
             <div id="tab-create" class="pc-tab-content">
 
-                <!-- Resource Context Banner (shown when resource is selected) -->
                 <div id="create-resource-banner" class="hidden mb-4">
                     <div style="display:flex;align-items:center;gap:0.75rem;padding:0.625rem 1rem;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.2);border-radius:0.5rem;">
                         <i class="fas fa-cube" style="color:#818cf8;"></i>
@@ -240,7 +229,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- Guide (shown when no resource context) -->
                 <div id="create-no-resource-guide">
                     <div class="pc-empty" style="padding: 6rem 2rem 7rem;">
                         <i class="fas fa-cube" style="font-size: 3.5rem; color: #475569; margin-bottom: 2rem;"></i>
@@ -253,7 +241,6 @@
                     </div>
                 </div>
 
-                <!-- Sub-tab Navigation (hidden until resource is selected) -->
                 <div class="hidden" id="create-mode-nav" style="gap: 0.5rem; margin-bottom: 2rem; background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.75rem; padding: 0.375rem; max-width: 56rem;">
                     <button type="button" class="pc-mode-card active" onclick="PolicyCenter.switchCreateMode('quick', this)">
                         <i class="fas fa-bolt" style="color: #818cf8;"></i> <span th:text="#{admin.policy.center.create.mode.quick}">Quick Mode</span>
@@ -266,7 +253,6 @@
                     </button>
                 </div>
 
-                <!-- ===== Quick Mode: Role-Permission Mapping ===== -->
                 <div id="create-quick" class="pc-subtab-content active">
                     <div class="flex items-center justify-between mb-4" style="padding:0.75rem 1rem;background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.25);border-radius:0.5rem;">
                         <div>
@@ -286,9 +272,7 @@
                         </button>
                     </div>
 
-                    <!-- 3-Panel Layout -->
                     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;" id="qp-triple-panel">
-                        <!-- Left: SpEL Expression Permissions -->
                         <div class="qp-panel" id="qp-spel-panel">
                             <div class="qp-panel-header">
                                 <h4 class="qp-panel-title"><i class="fas fa-code"></i> <span th:text="#{admin.policy.center.create.quick.spel}">Expression Permissions</span></h4>
@@ -306,7 +290,6 @@
                             </div>
                         </div>
 
-                        <!-- Center: Role Selection -->
                         <div class="qp-panel" id="qp-role-panel">
                             <div class="qp-panel-header">
                                 <h4 class="qp-panel-title"><i class="fas fa-user-shield"></i> <span th:text="#{admin.policy.center.create.quick.roles}">Roles</span></h4>
@@ -324,7 +307,6 @@
                             </div>
                         </div>
 
-                        <!-- Right: Permission Selection -->
                         <div class="qp-panel" id="qp-perm-panel">
                             <div class="qp-panel-header">
                                 <h4 class="qp-panel-title"><i class="fas fa-key"></i> CRUD</h4>
@@ -339,7 +321,7 @@
                                     <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.5rem;font-weight:600;">Additional</div>
                                     <div id="qp-crud-manual-items"></div>
                                 </div>
-                                <div class="pc-empty" id="qp-crud-empty"><i class="fas fa-info-circle"></i><p>Select a resource to see CRUD permissions.</p></div>
+                                <div class="pc-empty" id="qp-crud-empty"><i class="fas fa-info-circle"></i><p th:text="#{admin.policy.center.qp.crud.empty}">Select a resource to see CRUD permissions.</p></div>
                             </div>
                             <div id="qp-perm-disabled-overlay" class="qp-disabled-overlay" style="display:none;">
                                 <span th:text="#{admin.policy.center.create.quick.spel.selected}">Expression selected</span>
@@ -347,7 +329,6 @@
                         </div>
                     </div>
 
-                    <!-- Bottom: Policy Settings -->
                     <div class="manual-form-section">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
@@ -374,7 +355,6 @@
                     </div>
                 </div>
 
-                <!-- ===== Manual Mode: Full Policy Form ===== -->
                 <div id="create-manual" class="pc-subtab-content" style="max-width: 56rem;">
                     <div class="manual-form-section mb-4">
                         <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;" th:text="#{admin.policy.center.create.manual.title}">Manual Policy Registration</h3>
@@ -407,7 +387,6 @@
                             </div>
                         </div>
 
-                        <!-- Targets -->
                         <div class="manual-form-section">
                             <label class="manual-form-label mb-3" th:text="#{admin.policy.center.create.manual.targets}">Targets (Targets)</label>
                             <div id="targets-container" class="space-y-3">
@@ -437,7 +416,6 @@
                             <button type="button" class="add-btn mt-3" onclick="PolicyCenter.Manual.addTarget()"><i class="fas fa-plus"></i> <span th:text="#{admin.policy.center.create.manual.add.target}">Add Target</span></button>
                         </div>
 
-                        <!-- Rules -->
                         <div class="manual-form-section">
                             <label class="manual-form-label mb-3" th:text="#{admin.policy.center.create.manual.rules}">Rules (Rules - each rule is combined with OR)</label>
                             <div id="rules-container" class="space-y-3">
@@ -480,11 +458,8 @@
                     </form>
                 </div>
 
-                <!-- ===== AI Mode ===== -->
                 <div id="create-ai" class="pc-subtab-content" style="max-width: 56rem;">
 
-                    <!-- Section 1: System Context Dashboard -->
-                    <!-- AI Query Input -->
                     <div class="ai-input-section" style="padding: 2rem; margin-bottom: 2.5rem;">
                         <div class="flex items-center gap-4 mb-4">
                             <textarea class="ai-textarea" id="ai-query-input" style="min-height: 8rem; flex: 1;"
@@ -497,14 +472,13 @@
                             </button>
                         </div>
                         <div class="ai-example-chips" id="ai-example-chips" style="margin: 0;">
-                            <button type="button" class="ai-example-chip" data-query="개발팀에게 /api/** GET 접근을 업무시간에만 허용하는 정책을 만들어줘" th:text="#{admin.policy.center.ai.example.dev}">Dev team API GET access</button>
-                            <button type="button" class="ai-example-chip" data-query="마케팅팀만 고객 데이터를 조회할 수 있도록 해줘" th:text="#{admin.policy.center.ai.example.marketing}">Marketing team customer data query</button>
-                            <button type="button" class="ai-example-chip" data-query="업무시간(9시~18시) 내에만 관리자 페이지에 접근할 수 있도록 제한해줘" th:text="#{admin.policy.center.ai.example.business.hours}">Admin access during business hours</button>
-                            <button type="button" class="ai-example-chip" data-query="외부 네트워크에서의 모든 수정(POST/PUT/DELETE) 작업을 차단하는 정책을 만들어줘" th:text="#{admin.policy.center.ai.example.external}">Block external network modifications</button>
+                            <button type="button" class="ai-example-chip" th:data-query="#{admin.policy.center.ai.example.dev.query}" th:text="#{admin.policy.center.ai.example.dev}">Dev team API GET access</button>
+                            <button type="button" class="ai-example-chip" th:data-query="#{admin.policy.center.ai.example.marketing.query}" th:text="#{admin.policy.center.ai.example.marketing}">Marketing team customer data query</button>
+                            <button type="button" class="ai-example-chip" th:data-query="#{admin.policy.center.ai.example.business.hours.query}" th:text="#{admin.policy.center.ai.example.business.hours}">Admin access during business hours</button>
+                            <button type="button" class="ai-example-chip" th:data-query="#{admin.policy.center.ai.example.external.query}" th:text="#{admin.policy.center.ai.example.external}">Block external network modifications</button>
                         </div>
                     </div>
 
-                    <!-- System Stats (Badges - single line) -->
                     <div class="ai-context-dashboard" id="ai-context-dashboard" style="margin-bottom: 2.5rem;">
                         <div class="flex flex-wrap items-center justify-center gap-3" style="padding: 0.5rem 0;">
                             <a th:href="@{/admin/roles}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-users"></i> <span th:text="#{admin.dashboard.roles}">Roles</span> <strong id="ai-stat-roles-count">-</strong></a>
@@ -515,7 +489,6 @@
                             <a th:href="@{/admin/policy-center(tab='resources',status='POLICY_CONNECTED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80;"><i class="fas fa-shield-alt"></i> <span th:text="#{admin.policy.center.create.ai.connected}">Connected</span> <strong id="ai-stat-resource-connected">-</strong></a>
                             <a th:href="@{/admin/policy-center(tab='resources',status='NEEDS_DEFINITION')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171;"><i class="fas fa-exclamation-circle"></i> <span th:text="#{admin.policy.center.create.ai.incomplete}">Incomplete</span> <strong id="ai-stat-resource-needs-def">-</strong></a>
                         </div>
-                        <!-- hidden elements for JS compatibility -->
                         <span class="hidden" id="ai-stat-conditions-count">-</span>
                         <span class="hidden" id="ai-stat-resource-total">-</span>
                         <div class="ai-unprotected-warning hidden" id="ai-unprotected-warning" style="margin-top: 0.75rem;">
@@ -524,16 +497,13 @@
                         </div>
                     </div>
 
-                    <!-- Progress -->
                     <div class="ai-progress-section hidden" id="ai-progress-section" style="padding: 1.5rem; margin-bottom: 2.5rem;">
                         <div class="ai-progress-bar" style="margin-bottom: 0.75rem;"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>
                         <div class="ai-progress-message" id="ai-progress-message" th:text="#{admin.policy.center.create.ai.analyzing}">AI is starting analysis...</div>
                     </div>
 
-                    <!-- ============ Result ============ -->
                     <div class="ai-result-section hidden" id="ai-result-section">
 
-                        <!-- Area 1: Policy Basic Info -->
                         <div class="modern-card p-6" style="margin-bottom:1rem;">
                             <div style="margin-bottom:1rem;">
                                 <label class="ai-field-label" th:text="#{admin.policy.center.create.ai.name.ph}">Policy Name</label>
@@ -562,10 +532,8 @@
                             </div>
                         </div>
 
-                        <!-- Area 2: Roles & Permissions -->
                         <div class="modern-card p-6" style="margin-bottom:1rem;">
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
-                                <!-- Roles column -->
                                 <div>
                                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
                                         <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-users" style="color:#818cf8;margin-right:0.375rem;"></i><span th:text="#{admin.access.center.overview.role}">Roles</span> (<span id="ai-role-count">0</span>)</span>
@@ -573,7 +541,6 @@
                                     </div>
                                     <div class="ai-card-chips" id="ai-card-roles" style="min-height:2.5rem;"></div>
                                 </div>
-                                <!-- Permissions column -->
                                 <div>
                                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
                                         <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-key" style="color:#10b981;margin-right:0.375rem;"></i><span th:text="#{admin.access.center.overview.permission}">Permissions</span> (<span id="ai-perm-count">0</span>)</span>
@@ -582,7 +549,6 @@
                                     <div class="ai-card-chips" id="ai-card-permissions" style="min-height:2.5rem;"></div>
                                 </div>
                             </div>
-                            <!-- Conditions row below -->
                             <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(71,85,105,0.3);">
                                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
                                     <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-clock" style="color:#f59e0b;margin-right:0.375rem;"></i><span th:text="#{admin.policy.center.create.ai.condition}">Conditions</span> (<span id="ai-cond-count">0</span>)</span>
@@ -592,13 +558,10 @@
                             </div>
                         </div>
 
-                        <!-- Hidden fields -->
                         <div class="hidden" id="ai-card-spel-section"><input type="text" id="ai-card-spel" /></div>
                         <div class="hidden" id="ai-policy-card"></div>
 
-                        <!-- Area 3: AI Analysis (collapsible) -->
                         <div class="modern-card p-4" id="ai-analysis-card" style="margin-bottom:1rem;">
-                            <!-- AI Reasoning (collapsible, default collapsed) -->
                             <div id="ai-card-reasoning-section" class="hidden">
                                 <details>
                                     <summary style="cursor:pointer;color:#a78bfa;font-weight:600;font-size:0.875rem;">
@@ -607,9 +570,7 @@
                                     <div id="ai-card-reasoning" style="color:#cbd5e1;font-size:0.8125rem;line-height:1.6;margin-top:0.5rem;padding:0.75rem;background:rgba(139,92,246,0.06);border-radius:0.5rem;"></div>
                                 </details>
                             </div>
-                            <!-- Warnings list -->
                             <div id="ai-warnings-list" style="margin-top:0.75rem;"></div>
-                            <!-- Conflict panel -->
                             <div class="hidden" id="ai-conflict-panel" style="margin-top:0.75rem;padding:0.75rem;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:0.5rem;">
                                 <div style="font-weight:600;color:#fbbf24;font-size:0.8125rem;margin-bottom:0.5rem;">
                                     <i class="fas fa-exclamation-triangle" style="margin-right:0.375rem;"></i><span th:text="#{admin.policy.center.create.ai.conflict}">Conflict Detected</span>
@@ -618,7 +579,6 @@
                             </div>
                         </div>
 
-                        <!-- Area 4: Buttons -->
                         <div style="display:flex;gap:0.75rem;margin-top:1rem;">
                             <button type="button" class="modern-btn-primary" id="ai-save-btn" style="flex:1;" onclick="PolicyCenter.AI.confirmSave()">
                                 <i class="fas fa-save"></i> <span th:text="#{admin.policy.center.create.manual.save}">Save Policy</span>
@@ -629,7 +589,6 @@
                         </div>
                     </div>
 
-                    <!-- Item Picker Modal -->
                     <div class="ai-item-picker-overlay hidden" id="ai-item-picker-overlay">
                         <div class="ai-item-picker-modal">
                             <div class="ai-item-picker-header">
@@ -647,7 +606,6 @@
                         </div>
                     </div>
 
-                    <!-- Save Confirmation Modal -->
                     <div class="ai-confirm-overlay hidden" id="ai-confirm-overlay">
                         <div class="ai-confirm-modal" style="position:relative;">
                             <button type="button" class="modal-close-x" onclick="PolicyCenter.AI.closeConfirmModal()">&times;</button>
@@ -670,7 +628,6 @@
                 </div>
             </div>
 
-            <!-- ==================== TAB 3: POLICY LIST ==================== -->
             <div id="tab-list" class="pc-tab-content" th:classappend="${activeTab == 'list'} ? ' active' : ''">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
@@ -690,7 +647,6 @@
                     </div>
                 </div>
 
-                <!-- Policy Health Banner -->
                 <div id="policy-health-banner" class="hidden mb-6 p-4 rounded-lg border" style="background: rgba(30,41,59,0.8);">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
@@ -705,7 +661,6 @@
                     <div id="health-details" class="mt-3 hidden"></div>
                 </div>
 
-                <!-- Search Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" class="filter-container mb-6">
                     <input type="hidden" name="tab" value="list" />
                     <div class="flex gap-4 items-end">
@@ -754,14 +709,12 @@
                                     <span th:text="${policy.effect}" class="status-badge"
                                           th:classappend="${policy.effect.name() == 'ALLOW' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}"></span>
                                 </td>
-                                <!-- Source -->
                                 <td class="table-cell-top">
                                     <span th:if="${policy.source.name() == 'AI_GENERATED'}" class="status-badge bg-purple-500/20 text-purple-400 border-purple-500/30" th:text="#{admin.policy.center.list.source.ai}">AI</span>
                                     <span th:if="${policy.source.name() == 'AI_EVOLVED'}" class="status-badge bg-purple-500/20 text-purple-400 border-purple-500/30" th:text="#{admin.policy.center.list.source.ai.evolved}">AI Evolved</span>
                                     <span th:if="${policy.source.name() == 'MANUAL'}" class="status-badge bg-slate-500/20 text-slate-400 border-slate-500/30" th:text="#{admin.policy.center.list.source.manual}">Manual</span>
                                     <span th:if="${policy.source.name() == 'IMPORTED'}" class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30" th:text="#{admin.policy.center.list.source.import}">Import</span>
                                 </td>
-                                <!-- Approval Status -->
                                 <td class="table-cell-top">
                                     <span th:if="${policy.approvalStatus.name() == 'PENDING'}" class="status-badge bg-yellow-500/20 text-yellow-400 border-yellow-500/30" th:text="#{admin.policy.center.list.approval.pending}">Pending</span>
                                     <span th:if="${policy.approvalStatus.name() == 'APPROVED'}" class="status-badge bg-green-500/20 text-green-400 border-green-500/30" th:text="#{admin.policy.center.list.approval.approved}">Approved</span>
@@ -777,7 +730,6 @@
                                 <td class="table-cell-top">
                                     <div class="flex gap-2">
                                         <a th:href="@{/admin/policies/{id}(id=${policy.id})}" class="action-badge-primary"><i class="fas fa-edit"></i> <span th:text="#{common.edit}">Edit</span></a>
-                                        <!-- Approve button - PENDING only, AI uses validation modal -->
                                         <button th:if="${policy.approvalStatus.name() == 'PENDING' and (policy.source.name() == 'AI_GENERATED' or policy.source.name() == 'AI_EVOLVED')}"
                                                 type="button" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"
                                                 th:onclick="'PolicyCenter.AIValidationModal.open(' + ${policy.id} + ')'">
@@ -787,7 +739,6 @@
                                               th:action="@{/admin/policies/{id}/approve(id=${policy.id})}" method="post" style="display:inline;">
                                             <button type="submit" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"><i class="fas fa-check"></i> <span th:text="#{admin.policy.center.list.approve}">Approve</span></button>
                                         </form>
-                                        <!-- Reject button - PENDING only -->
                                         <form th:if="${policy.approvalStatus.name() == 'PENDING'}"
                                               th:action="@{/admin/policies/{id}/reject(id=${policy.id})}" method="post" style="display:inline;"
                                               th:data-confirm-msg="#{admin.policy.center.list.confirm.reject}" onsubmit="return confirm(this.dataset.confirmMsg);">
@@ -808,7 +759,6 @@
                     </table>
                 </div>
 
-                <!-- Policy Pagination -->
                 <nav th:if="${policyPage != null and policyPage.totalPages > 1}" class="mt-8 flex justify-center">
                     <ul class="modern-pagination">
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
@@ -825,7 +775,6 @@
                 </nav>
             </div>
 
-            <!-- ==================== TAB 3: SIMULATOR ==================== -->
             <div id="tab-simulator" class="pc-tab-content">
                 <div class="mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
@@ -835,13 +784,12 @@
                     <p class="mt-2 text-sm" style="color:#94a3b8;" th:text="#{admin.policy.center.simulator.desc}">Test whether a specific user is allowed or denied access to a given URL under the current policy set. Enter user, path, and HTTP method to see which policy matches and what decision is made.</p>
                 </div>
 
-                <!-- Test Case Input -->
                 <div class="modern-card p-6 mb-6">
                     <h3 class="text-base font-semibold mb-4" style="color: #cbd5e1;" th:text="#{admin.policy.center.simulator.test.cases}">Test Cases</h3>
                     <div id="sim-test-cases">
                         <div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">
                             <div class="col-span-2" style="position:relative;">
-                                <input type="text" class="modern-input sim-userSearch" placeholder="Search user..." oninput="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.searchUser(this)" onkeydown="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.handleKeydown(event,this)" autocomplete="off" />
+                                <input type="text" class="modern-input sim-userSearch" th:placeholder="#{admin.policy.center.simulator.search.user.placeholder}" oninput="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.searchUser(this)" onkeydown="if(typeof PolicyCenter!=='undefined')PolicyCenter.SimulatorUI.handleKeydown(event,this)" autocomplete="off" />
                                 <input type="hidden" class="sim-userId" />
                                 <div class="sim-userDropdown hidden" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#1e293b;border:1px solid rgba(71,85,105,0.5);border-radius:0.5rem;max-height:12rem;overflow-y:auto;"></div>
                             </div>
@@ -865,12 +813,10 @@
                     </button>
                 </div>
 
-                <!-- Run Button -->
                 <button type="button" id="sim-run-btn" onclick="PolicyCenter.SimulatorUI.run()" class="modern-btn-primary mb-6">
                     <i class="fas fa-play mr-2"></i> <span th:text="#{admin.policy.center.simulator.run}">Run Simulation</span>
                 </button>
 
-                <!-- Results -->
                 <div id="sim-results" class="hidden">
                     <div id="sim-summary" class="grid grid-cols-4 gap-4 mb-6"></div>
                     <div class="modern-table overflow-x-auto">
@@ -878,7 +824,7 @@
                             <thead><tr>
                                 <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.user}">User</th>
                                 <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.path}">Path</th>
-                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold">Method</th>
+                                <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.table.method}">Method</th>
                                 <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.result}">Result</th>
                                 <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.policy}">Matched Policy</th>
                                 <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.expression}">Condition</th>
@@ -889,7 +835,6 @@
                 </div>
             </div>
 
-            <!-- ==================== TAB 4: MATRIX ==================== -->
             <div id="tab-matrix" class="pc-tab-content">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
@@ -898,7 +843,6 @@
                     </h2>
                 </div>
 
-                <!-- Matrix Filters -->
                 <div class="filter-container mb-6 flex gap-4 items-end">
                     <div class="flex-1">
                         <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.matrix.filter.resource}">Resource Filter</label>
@@ -913,12 +857,10 @@
                     </button>
                 </div>
 
-                <!-- Matrix Table -->
                 <div id="matrix-container" class="modern-table overflow-x-auto">
                     <p class="text-sm p-6" style="color: #64748b;" th:text="#{admin.policy.center.matrix.empty}">Click search to load the matrix.</p>
                 </div>
 
-                <!-- Legend -->
                 <div class="flex flex-wrap gap-x-8 gap-y-2 mt-4 text-xs" style="color: #94a3b8;">
                     <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34,197,94,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> ALLOW — <span th:text="#{admin.policy.center.matrix.legend.allow}">Policy directly grants access to this role</span></span>
                     <span><span style="display:inline-block;width:12px;height:12px;background:rgba(239,68,68,0.3);border-radius:2px;margin-right:4px;vertical-align:middle;"></span> DENY — <span th:text="#{admin.policy.center.matrix.legend.deny}">Policy explicitly denies access to this role</span></span>
@@ -927,7 +869,6 @@
                 </div>
             </div>
 
-            <!-- ==================== AI VALIDATION MODAL ==================== -->
             <div id="ai-validation-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
                 <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:36rem;width:100%;">
                     <h3 class="text-lg font-bold mb-6" style="color:#e2e8f0;">
@@ -944,7 +885,6 @@
                 </div>
             </div>
 
-            <!-- ==================== VALIDATION RESULT MODAL ==================== -->
             <div id="validation-result-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
                 <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:40rem;width:100%;max-height:80vh;overflow-y:auto;">
                     <h3 class="text-lg font-bold mb-6" style="color:#e2e8f0;">
@@ -958,7 +898,6 @@
                 </div>
             </div>
 
-            <!-- ==================== CONFLICT DETAIL MODAL ==================== -->
             <div id="conflict-detail-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
                 <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:40rem;width:100%;max-height:80vh;overflow-y:auto;">
                     <h3 class="text-lg font-bold mb-6" style="color:#e2e8f0;">
@@ -971,7 +910,6 @@
                 </div>
             </div>
 
-            <!-- ==================== DELETE REASON MODAL ==================== -->
             <div id="delete-reason-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);">
                 <div class="rounded-2xl p-8" style="background:#1e293b;border:1px solid rgba(71,85,105,0.5);max-width:30rem;width:100%;">
                     <h3 class="text-lg font-bold mb-4" style="color:#e2e8f0;">
@@ -993,7 +931,6 @@
 </div>
 
 
-<!-- Policy Setup Modal (from resource-workbench.html) -->
 <div id="policySetupModal" class="fixed inset-0 z-50 hidden flex items-center justify-center">
     <div class="fixed inset-0 bg-black/90 backdrop-blur-lg transition-all duration-500"></div>
     <div class="relative modern-card max-w-5xl w-full mx-4 shadow-2xl transform transition-all duration-500 p-8">
@@ -1077,7 +1014,6 @@
     </div>
 </div>
 
-<!-- Manual Target Entry Modal -->
 <div id="manualTargetModal" class="fixed inset-0 z-50 hidden flex items-center justify-center">
     <div class="fixed inset-0 bg-black/90 backdrop-blur-lg" onclick="PolicyCenter.ManualTarget.close()"></div>
     <div class="relative modern-card max-w-lg w-full mx-4 shadow-2xl p-8">
@@ -1123,7 +1059,6 @@
     </div>
 </div>
 
-<!-- i18n messages for JavaScript -->
 <div id="i18nPolicyCenter" style="display:none"
      th:data-loading="#{common.loading}"
      th:data-processing="#{common.loading}"
@@ -1227,7 +1162,6 @@
      th:data-ai-single-only="#{policy.center.ai.single.only}">
 </div>
 
-<!-- Resource View Modal (for multi-resource policy creation) -->
 <div id="resource-view-modal" style="display:none;position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
     <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(99,102,241,0.3);border-radius:1rem;width:90%;max-width:800px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
         <div style="padding:1.25rem 1.5rem;border-bottom:1px solid rgba(71,85,105,0.3);display:flex;align-items:center;justify-content:space-between;">
@@ -1243,7 +1177,6 @@
     </div>
 </div>
 
-<!-- Batch Result Modal -->
 <div id="batch-result-modal" style="display:none;position:fixed;inset:0;z-index:60000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
     <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(99,102,241,0.3);border-radius:1rem;width:90%;max-width:600px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
         <div style="padding:1.25rem 1.5rem;border-bottom:1px solid rgba(71,85,105,0.3);display:flex;align-items:center;justify-content:space-between;">
@@ -1263,7 +1196,6 @@
     </div>
 </div>
 
-<!-- Floating Selection Action Bar (fixed bottom, always visible when resources selected) -->
 <div id="res-floating-bar" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);opacity:0;z-index:9999;
     background:linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.98));
     backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
@@ -1296,7 +1228,7 @@
     </div>
     <div id="res-bar-info" style="margin-top:0.75rem;text-align:center;font-size:0.9375rem;color:#fbbf24;">
         <i class="fas fa-info-circle" style="margin-right:0.375rem;"></i>
-        <span>Select resources to create policies</span>
+        <span th:text="#{admin.policy.center.simulator.select.resources}">Select resources to create policies</span>
     </div>
 </div>
 
@@ -1312,7 +1244,6 @@
         const errorMessage = /*[[${errorMessage}]]*/ null;
         if (errorMessage) showToast(errorMessage, 'error');
 
-        // CreateFlow.init() is called by policy-center.js DOMContentLoaded
     });
 </script>
 </body>

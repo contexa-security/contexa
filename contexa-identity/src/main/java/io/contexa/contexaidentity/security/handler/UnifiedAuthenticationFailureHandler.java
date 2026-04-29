@@ -116,7 +116,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         factorContext.setAttribute("retryCount_" + currentProcessingFactor.name(),
                 factorContext.getAttemptCount(currentProcessingFactor));
 
-//        publishAuthenticationFailureEvent(request, exception, factorContext);
 
         try {
             stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
@@ -125,7 +124,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                     factorContext.getMfaSessionId(), e);
         }
 
-        // BLOCK_MFA_FLOW: allow code entry retries, redirect to BLOCK page only on retry limit exceeded
         Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(
                 ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
         if (Boolean.TRUE.equals(blockMfaFlow)
@@ -154,7 +152,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         log.error("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
                 sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog, exception.getMessage());
 
-        // Record login failure: increment failedLoginAttempts, lock if exceeded
         if (loginPolicyService != null && StringUtils.hasText(usernameForLog) && !"UnknownUser".equals(usernameForLog)) {
             try {
                 loginPolicyService.onLoginFailure(usernameForLog);
@@ -172,7 +169,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             cleanupSessionUsingRepository(request, response, factorContext.getMfaSessionId());
         }
 
-        // Password expired - redirect to password change page
         if (exception instanceof org.springframework.security.authentication.CredentialsExpiredException) {
             String passwordChangeUrl = request.getContextPath() + "/password-change?username="
                     + java.net.URLEncoder.encode(usernameForLog, java.nio.charset.StandardCharsets.UTF_8) + "&expired=true";
@@ -424,7 +420,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 payload.put("authenticationType", "PRIMARY");
             }
 
-            // Lookup current action from Redis for action-based severity
             if (actionRedisRepository != null && username != null) {
                 ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(username);
                 if (currentAction != null) {

@@ -79,7 +79,6 @@ public class SentenceBuffer {
         cleaned = JSON_CODE_BLOCK_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = CONTROL_CHAR_PATTERN.matcher(cleaned).replaceAll("");
 
-        // Strip markdown header symbols (###, ##, #) and decorative markers (===)
         cleaned = MARKDOWN_HEADER_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = cleaned.replace("===", "");
 
@@ -97,7 +96,6 @@ public class SentenceBuffer {
             String line = lines[i].trim();
             if (line.isEmpty()) continue;
 
-            // Merge with pending incomplete line
             if (pendingLine.length() > 0) {
                 pendingLine.append(" ").append(line);
                 line = pendingLine.toString();
@@ -109,18 +107,15 @@ public class SentenceBuffer {
                 }
                 pendingLine.setLength(0);
             } else if (i == lines.length - 1) {
-                // Last line: keep in buffer for next chunk
                 remainingBuffer.append(pendingLine.length() > 0 ? pendingLine : line);
                 pendingLine.setLength(0);
             } else {
-                // Middle incomplete line: accumulate with next line
                 if (pendingLine.length() == 0) {
                     pendingLine.append(line);
                 }
             }
         }
 
-        // Flush pending line to buffer if not consumed
         if (pendingLine.length() > 0) {
             if (remainingBuffer.length() > 0) {
                 remainingBuffer.append(" ");
@@ -133,7 +128,6 @@ public class SentenceBuffer {
             buffer.append(remainingBuffer);
         }
 
-        // Force flush if buffer exceeds max size to maintain UI responsiveness
         if (buffer.length() > MAX_BUFFER_SIZE && completeSentences.isEmpty()) {
             String forced = buffer.toString().trim();
             if (isValidSentence(forced)) {

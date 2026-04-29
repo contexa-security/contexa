@@ -35,7 +35,6 @@
             var optionsPanel = document.createElement('div');
             optionsPanel.className = 'custom-select-options';
 
-            // Build options from native select
             var options = sel.querySelectorAll('option');
             options.forEach(function(opt) {
                 var div = document.createElement('div');
@@ -49,11 +48,9 @@
 
                 div.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    // Update native select
                     sel.value = opt.value;
                     sel.dispatchEvent(new Event('change', { bubbles: true }));
 
-                    // Update UI
                     optionsPanel.querySelectorAll('.custom-select-option').forEach(function(o) {
                         o.classList.remove('selected');
                     });
@@ -73,7 +70,6 @@
                 optionsPanel.appendChild(div);
             });
 
-            // Set initial label
             var selectedOpt = sel.options[sel.selectedIndex];
             if (selectedOpt) {
                 label.textContent = selectedOpt.textContent;
@@ -82,7 +78,6 @@
                 }
             }
 
-            // Insert into DOM
             sel.parentNode.insertBefore(wrapper, sel);
             wrapper.appendChild(trigger);
             wrapper.appendChild(optionsPanel);
@@ -92,7 +87,6 @@
             var tcs = window.getComputedStyle(trigger);
             var wcs = window.getComputedStyle(wrapper);
 
-            // Toggle
             function toggle() {
                 var isOpen = optionsPanel.classList.contains('open');
                 closeAll();
@@ -134,19 +128,16 @@
         });
     }
 
-    // Close on outside click
     document.addEventListener('click', function() {
         closeAll();
     });
 
-    // Init on DOMContentLoaded
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initCustomSelects);
     } else {
         initCustomSelects();
     }
 
-    // Sync custom select UI after programmatic value change
     function syncCustomSelect(selectEl) {
         if (!selectEl || !selectEl.classList.contains('cs-hidden')) return;
         var wrapper = selectEl.closest('.custom-select-wrapper');
@@ -168,7 +159,6 @@
         });
     }
 
-    // Expose for dynamic content
     window.initCustomSelects = initCustomSelects;
     window.syncCustomSelect = syncCustomSelect;
 })();

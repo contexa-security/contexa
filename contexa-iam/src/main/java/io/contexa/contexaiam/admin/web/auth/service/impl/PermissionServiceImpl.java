@@ -13,6 +13,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -23,6 +25,11 @@ import java.util.Optional;
 public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @Transactional(transactionManager = "contexaTransactionManager")
     @Caching(
@@ -33,7 +40,7 @@ public class PermissionServiceImpl implements PermissionService {
     public Permission createPermission(Permission permission) {
 
         if (permissionRepository.findByName(permission.getName()).isPresent()) {
-            throw new IllegalArgumentException("Permission with name " + permission.getName() + " already exists.");
+            throw new IllegalArgumentException(msg("msg.permission.name.duplicate", permission.getName()));
         }
         return permissionRepository.save(permission);
     }

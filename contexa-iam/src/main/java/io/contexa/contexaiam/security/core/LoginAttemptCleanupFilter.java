@@ -20,9 +20,33 @@ import java.io.IOException;
  * not eliminate the cross-request deduplication window.</p>
  *
  * <p>The filter runs with the lowest possible precedence in the servlet chain so that any
- * downstream filter (security, authentication) finishes before the cleanup fires.</p>
+ * downstream filter (security, authentication) finishes before the cleanup fires. Static
+ * asset paths are skipped to avoid touching the ThreadLocal on requests that never reach
+ * the authentication machinery.</p>
  */
 public class LoginAttemptCleanupFilter extends OncePerRequestFilter {
+
+    private static final String[] STATIC_PREFIXES = {
+            "/css/",
+            "/js/",
+            "/images/",
+            "/img/",
+            "/fonts/",
+            "/webjars/",
+            "/static/",
+            "/assets/"
+    };
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path == null) return false;
+        if (path.equals("/favicon.ico") || path.endsWith("/favicon.ico")) return true;
+        for (String prefix : STATIC_PREFIXES) {
+            if (path.startsWith(prefix) || path.contains(prefix)) return true;
+        }
+        return false;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,

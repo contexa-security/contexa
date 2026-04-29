@@ -29,29 +29,57 @@
 (function(window) {
     'use strict';
 
-    // ===========================
-    // Custom Error Class
-    // ===========================
+    /**
+     * Bundled i18n strings for user-facing texts the SDK renders directly
+     * (the response-blocked page). Auto-selected by navigator.language.
+     */
+    const __ContexaMfaI18n = (function() {
+        const messages = {
+            en: {
+                blockedTitle: 'Contexa - Access Blocked',
+                blockedHeading: 'Access blocked by security policy',
+                blockedDescLine1: 'Your session response was forcibly terminated by AI security analysis.',
+                blockedDescLine2: 'If this is legitimate access, please contact your administrator.',
+                blockedHomeButton: 'Go to Home',
+                loginFailed: 'Login failed: please check username or password.',
+                ottVerifyFailed: 'OTT verification failed',
+                passkeyOptionsFailed: 'Failed to get passkey options',
+                passkeyVerifyFailed: 'Passkey verification failed'
+            },
+            ko: {
+                blockedTitle: 'Contexa - 접근 차단',
+                blockedHeading: '보안 정책에 의해 접근이 차단되었습니다',
+                blockedDescLine1: 'AI 보안 분석에 의해 현재 세션의 응답이 강제 종료되었습니다.',
+                blockedDescLine2: '정상적인 접근이라면 관리자에게 문의해 주세요.',
+                blockedHomeButton: '홈으로 이동',
+                loginFailed: '로그인 실패: 아이디 또는 비밀번호를 확인하세요.',
+                ottVerifyFailed: 'OTT 인증에 실패했습니다',
+                passkeyOptionsFailed: 'Passkey 옵션을 가져오지 못했습니다',
+                passkeyVerifyFailed: 'Passkey 인증에 실패했습니다'
+            }
+        };
+        const lang = ((typeof navigator !== 'undefined' && navigator.language) || 'en')
+                .slice(0, 2).toLowerCase();
+        return messages[lang] || messages.en;
+    })();
+
 
     /**
-     * 커스텀 에러 클래스 - 서버 응답 전체를 포함
+     * Custom error class containing the full server response
      */
     class MFAError extends Error {
         constructor(message, response = null, status = null) {
             super(message);
             this.name = 'MFAError';
-            this.response = response;  // 서버 응답 데이터 전체
-            this.status = status;      // HTTP 상태 코드
+            this.response = response;
+            this.status = status;
         }
     }
 
-    // ===========================
-    // Module 1: Utils Module
-    // ===========================
 
     const ContexaMFAUtils = {
         /**
-         * CSRF 토큰 가져오기
+         * Retrieve CSRF token
          */
         getCsrfToken() {
             const meta = document.querySelector('meta[name="_csrf"]');
@@ -59,7 +87,7 @@
         },
 
         /**
-         * CSRF 헤더 이름 가져오기
+         * Retrieve CSRF header name
          */
         getCsrfHeader() {
             const meta = document.querySelector('meta[name="_csrf_header"]');
@@ -67,8 +95,8 @@
         },
 
         /**
-         * Device ID 생성 또는 가져오기
-         * Legacy: 8개 파일 중 7개에서 동일한 코드 중복
+         * Create or retrieve Device ID
+         * Legacy: same code was duplicated across 7 of 8 files
          */
         getDeviceId() {
             const storageKey = 'deviceId';
@@ -83,8 +111,8 @@
         },
 
         /**
-         * Base64URL to ArrayBuffer 변환 (WebAuthn 필수)
-         * Legacy: 3개 파일에서 동일한 코드 중복
+         * Convert Base64URL to ArrayBuffer (required by WebAuthn)
+         * Legacy: same code was duplicated across 3 files
          */
         base64UrlToArrayBuffer(base64Url) {
             if (!base64Url) return new ArrayBuffer(0);
@@ -104,8 +132,8 @@
         },
 
         /**
-         * ArrayBuffer to Base64URL 변환 (WebAuthn 필수)
-         * Legacy: 3개 파일에서 동일한 코드 중복
+         * Convert ArrayBuffer to Base64URL (required by WebAuthn)
+         * Legacy: same code was duplicated across 3 files
          */
         arrayBufferToBase64Url(buffer) {
             if (!buffer) return '';
@@ -122,8 +150,8 @@
         },
 
         /**
-         * Fetch 공통 헤더 생성 (P0 수정: X-MFA-Step-Id 추가)
-         * Legacy: 8개 파일에서 헤더 생성 로직 중복
+         * Build common fetch headers (P0 fix: add X-MFA-Step-Id)
+         * Legacy: header build logic was duplicated across 8 files
          */
         createHeaders(options = {}) {
             const contentType = options.contentType || 'application/json';
@@ -137,7 +165,6 @@
                 ...options.additionalHeaders
             };
 
-            // P0 수정: X-MFA-Step-Id 헤더 추가
             if (stepId) {
                 headers['X-MFA-Step-Id'] = stepId;
             }
@@ -156,7 +183,7 @@
         },
 
         /**
-         * 로깅 유틸리티
+         * Logging utility
          */
         log(message, type = 'info', data = null) {
             const prefix = `[Contexa MFA SDK v2.0]`;
@@ -172,7 +199,7 @@
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Contexa - Access Blocked</title>
+                    <title>${__ContexaMfaI18n.blockedTitle}</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         body {
@@ -216,12 +243,12 @@
                 <body>
                     <div class="card">
                         <div class="icon">&#128721;</div>
-                        <h1>보안 정책에 의해 접근이 차단되었습니다</h1>
+                        <h1>${__ContexaMfaI18n.blockedHeading}</h1>
                         <p class="desc">
-                            AI 보안 분석에 의해 현재 세션의 응답이 강제 종료되었습니다.<br>
-                            정상적인 접근이라면 관리자에게 문의해 주세요.
+                            ${__ContexaMfaI18n.blockedDescLine1}<br>
+                            ${__ContexaMfaI18n.blockedDescLine2}
                         </p>
-                        <a class="btn" href="/">홈으로 이동</a>
+                        <a class="btn" href="/">${__ContexaMfaI18n.blockedHomeButton}</a>
                         <div class="footer">Contexa AI Native Zero Trust Security Platform</div>
                     </div>
                 </body>
@@ -229,9 +256,6 @@
         }
     };
 
-    // ===========================
-    // Module 2: State Tracker Module
-    // ===========================
 
     class MfaStateTracker {
         constructor() {
@@ -240,9 +264,6 @@
             this.stateMetadata = {};
             this.lastUpdate = null;
 
-            // P1 수정: 서버 MfaStateMachineConfiguration과 완전히 일치
-            // Legacy mfa-state-tracker.js:40-50 기반
-            // Synchronized with server MfaState.java and MfaStateMachineConfiguration.java
             this.validTransitions = {
                 'NONE': ['PRIMARY_AUTHENTICATION_COMPLETED'],
                 'PRIMARY_AUTHENTICATION_COMPLETED': [
@@ -290,7 +311,7 @@
         }
 
         /**
-         * 서버 응답에서 State Machine 상태 업데이트
+         * Update state machine state from server response
          * Legacy: mfa-state-tracker.js:11-36
          */
         updateFromServerResponse(response) {
@@ -315,7 +336,6 @@
 
             this.lastUpdate = new Date();
 
-            // SessionStorage 동기화
             this.saveToSession();
 
             if (previousState && previousState !== this.currentState) {
@@ -324,7 +344,7 @@
         }
 
         /**
-         * 특정 상태로 전환 가능한지 검증
+         * Validate whether transition to a given state is allowed
          * Legacy: mfa-state-tracker.js:38-54
          */
         canTransitionTo(targetState) {
@@ -337,9 +357,9 @@
         }
 
         /**
-         * P1 수정: 터미널 상태 여부 확인 (3개 → 8개)
+         * P1 fix: verify terminal state (extended from 3 to 8)
          * Legacy: mfa-state-tracker.js:56-69
-         * 서버 MfaState.isTerminal()과 완전히 일치
+         * Aligned exactly with server-side MfaState.isTerminal()
          */
         isTerminalState(state = this.currentState) {
             const terminalStates = [
@@ -356,9 +376,9 @@
         }
 
         /**
-         * P2 추가: 사용자 액션 대기 상태 확인
+         * P2 added: check waiting-for-user-action state
          * Legacy: mfa-state-tracker.js:71-76
-         * 서버 MfaState.isWaitingForUserAction()과 일치
+         * Aligned with server-side MfaState.isWaitingForUserAction()
          */
         isWaitingForUserAction() {
             return this.currentState === 'AWAITING_FACTOR_SELECTION' ||
@@ -366,7 +386,7 @@
         }
 
         /**
-         * P2 추가: 처리 중 상태 확인
+         * P2 added: check in-progress state
          * Legacy: mfa-state-tracker.js:78-83
          * Synchronized with server MfaState.isProcessing()
          */
@@ -377,7 +397,7 @@
         }
 
         /**
-         * P2 추가: 세션에 저장
+         * P2 added: persist to session
          * Legacy: mfa-state-tracker.js:90-98
          */
         saveToSession() {
@@ -390,7 +410,6 @@
                 };
                 sessionStorage.setItem('mfaStateTracker', JSON.stringify(data));
 
-                // 호환성을 위한 개별 저장
                 if (this.sessionId) {
                     sessionStorage.setItem('mfaSessionId', this.sessionId);
                 }
@@ -403,7 +422,7 @@
         }
 
         /**
-         * P2 추가: 세션에서 복원
+         * P2 added: restore from session
          * Legacy: mfa-state-tracker.js:100-112
          */
         restoreFromSession() {
@@ -426,7 +445,7 @@
         }
 
         /**
-         * 상태 초기화
+         * Reset state
          * Legacy: mfa-state-tracker.js:114-122
          */
         reset() {
@@ -443,9 +462,6 @@
         }
     }
 
-    // ===========================
-    // Module 3: API Client Module
-    // ===========================
 
     const ContexaMFAApiClient = {
         endpoints: {},
@@ -453,13 +469,13 @@
         configUrl: '/api/mfa/config',
 
         /**
-         * SDK 초기화 - 서버에서 엔드포인트 설정 로드
+         * Initialize SDK - load endpoint configuration from the server
          *
-         * Multi MFA 지원: 서버의 /api/mfa/config는 현재 MFA 세션의 Flow에 해당하는
-         * URL 설정을 반환합니다. MFA_SID 쿠키를 기반으로 Flow를 식별합니다.
+         * Multi-MFA support: /api/mfa/config returns URL settings matching the current MFA session Flow.
+         * The Flow is identified by the MFA_SID cookie.
          *
-         * @param {Object} [options] - 초기화 옵션
-         * @param {string} [options.configUrl] - config 엔드포인트 URL (기본: /api/mfa/config)
+         * @param {Object} [options] - Initialization options
+         * @param {string} [options.configUrl] - Config endpoint URL (default: /api/mfa/config)
          */
         async init(options) {
             if (this.initialized) return;
@@ -468,7 +484,6 @@
                 this.configUrl = options.configUrl;
             }
 
-            // Use inline config injected by DefaultMfaPageGeneratingFilter (per-flow, urlPrefix applied)
             if (window.__MFA_CONFIG__) {
                 this.endpoints = window.__MFA_CONFIG__;
                 this.initialized = true;
@@ -499,11 +514,11 @@
         },
 
         /**
-         * 기본 엔드포인트 설정 (fallback - 서버 미응답 시에만 사용)
+         * Default endpoint configuration (fallback - used only when the server is unreachable)
          *
-         * 정상 동작 시 서버의 /api/mfa/config에서 Flow별 동적 URL을 제공합니다.
-         * 이 fallback은 서버가 응답하지 않는 극단적 상황에서만 사용되며,
-         * Multi MFA 환경에서는 서버 설정이 반드시 우선합니다.
+         * During normal operation, /api/mfa/config supplies dynamic per-Flow URLs.
+         * This fallback is only used in extreme situations when the server does not respond,
+         * server-supplied configuration always takes precedence in Multi-MFA environments.
          */
         _getDefaultEndpoints() {
             var cfg = window.__MFA_CONFIG__;
@@ -533,25 +548,25 @@
         },
 
         /**
-         * 1차 인증: 사용자명/비밀번호 로그인
-         * REST API 기반 SPA에서 사용하기 위한 메서드
+         * Primary authentication: username/password login
+         * Method intended for REST-API-based SPA clients
          *
-         * @param {string} username - 사용자명
-         * @param {string} password - 비밀번호
-         * @returns {Promise<Object>} 로그인 결과
-         *   - mfaRequired: MFA 필요 여부
-         *   - nextStepUrl: 다음 단계 URL (MFA 필요 시)
-         *   - success: 로그인 성공 여부 (MFA 불필요 시)
+         * @param {string} username - username
+         * @param {string} password - password
+         * @returns {Promise<Object>} Login result
+         *   - mfaRequired: Whether MFA is required
+         *   - nextStepUrl: Next-step URL (when MFA is required)
+         *   - success: Login success flag (when MFA is not required)
          *
          * @example
          * const mfa = new ContexaMFA.Client();
          * try {
          *     const result = await mfa.login('username', 'password');
          *     if (result.mfaRequired) {
-         *         // MFA 필요: 다음 단계로 이동
+         *         // MFA required: navigate to the next step
          *         window.location.href = result.nextStepUrl;
          *     } else {
-         *         // 로그인 성공: 홈으로 이동
+         *         // Login succeeded: navigate to home
          *         window.location.href = '/home';
          *     }
          * } catch (error) {
@@ -581,22 +596,18 @@
 
             const result = await response.json();
 
-            // MFA 필요 여부에 따른 상태 처리
             if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                 result.status === 'MFA_REQUIRED') {
-                // MFA 필요 - 세션에 username 저장
                 sessionStorage.setItem('mfaUsername', username);
                 sessionStorage.setItem('mfaSessionId', result.mfaSessionId);
                 this.state = 'MFA_REQUIRED';
                 const message = result.message || 'MFA required';
                 ContexaMFAUtils.log(`✅ Primary authentication successful: ${message}`, 'info', result);
             } else if (result.status === 'MFA_COMPLETED') {
-                // MFA 불필요 - 인증 완료 (서버가 토큰 발급 완료)
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
                 ContexaMFAUtils.log(`✅ ${message} (MFA completed, tokens issued)`, 'info', result);
             } else {
-                // 기타 상태
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
                 ContexaMFAUtils.log(`✅ ${message}`, 'info', result);
@@ -606,17 +617,17 @@
         },
 
         /**
-         * 1차 인증: Form 로그인 (MfaFormAuthenticationFilter 통신)
+         * Primary authentication: Form login (talks to MfaFormAuthenticationFilter)
          *
-         * Form 기반 MFA 인증을 위한 메서드입니다.
-         * MfaFormAuthenticationFilter와 통신하여 application/x-www-form-urlencoded 형식으로 전송합니다.
+         * Method for Form-based MFA authentication.
+         * Sends application/x-www-form-urlencoded payloads to MfaFormAuthenticationFilter.
          *
-         * @param {string} username - 사용자명
-         * @param {string} password - 비밀번호
-         * @returns {Promise<Object>} 로그인 결과
-         *   - mfaRequired: MFA 필요 여부
-         *   - nextStepUrl: 다음 단계 URL (MFA 필요 시)
-         *   - success: 로그인 성공 여부 (MFA 불필요 시)
+         * @param {string} username - username
+         * @param {string} password - password
+         * @returns {Promise<Object>} Login result
+         *   - mfaRequired: Whether MFA is required
+         *   - nextStepUrl: Next-step URL (when MFA is required)
+         *   - success: Login success flag (when MFA is not required)
          *
          * @example
          * const mfa = new ContexaMFA.Client();
@@ -634,7 +645,6 @@
         async loginForm(username, password) {
             await this.init();
 
-            // Form 데이터 준비 (application/x-www-form-urlencoded)
             const formData = new URLSearchParams();
             formData.append('username', username);
             formData.append('password', password);
@@ -654,7 +664,7 @@
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: '로그인 실패: 사용자명 또는 비밀번호를 확인하세요.' }));
+                const errorData = await response.json().catch(() => ({ message: __ContexaMfaI18n.loginFailed }));
                 throw new MFAError(
                     errorData.message || `Login failed: ${response.status}`,
                     errorData,
@@ -664,22 +674,18 @@
 
             const result = await response.json();
 
-            // MFA 필요 여부에 따른 상태 처리 (REST와 동일)
             if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                 result.status === 'MFA_REQUIRED') {
-                // MFA 필요 - 세션에 username 저장
                 sessionStorage.setItem('mfaUsername', username);
                 sessionStorage.setItem('mfaSessionId', result.mfaSessionId);
                 this.state = 'MFA_REQUIRED';
                 const message = result.message || 'MFA required';
                 ContexaMFAUtils.log(`✅ Primary authentication successful (Form): ${message}`, 'info', result);
             } else if (result.status === 'MFA_COMPLETED') {
-                // MFA 불필요 - 인증 완료 (서버가 토큰 발급 완료)
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
                 ContexaMFAUtils.log(`✅ ${message} (MFA completed, tokens issued)`, 'info', result);
             } else {
-                // 기타 상태
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
                 ContexaMFAUtils.log(`✅ ${message}`, 'info', result);
@@ -689,7 +695,7 @@
         },
 
         /**
-         * 팩터 선택
+         * Select factor
          * Legacy: mfa-select-factor.js:119-159
          */
         async selectFactor(factorType) {
@@ -717,8 +723,8 @@
         },
 
         /**
-         * OTT 코드 재전송 요청
-         * Legacy: mfa-ott-request-code.js (일부), mfa-verity-ott.js:98-150
+         * Request OTT code resend
+         * Legacy: mfa-ott-request-code.js (partial), mfa-verity-ott.js:98-150
          */
         async requestOttCode() {
             await this.init();
@@ -744,16 +750,15 @@
         },
 
         /**
-         * P0 수정: OTT 코드 검증 (Content-Type 수정)
+         * P0 fix: OTT code verification (Content-Type corrected)
          * Legacy: mfa-verity-ott.js:156-291
          *
-         * CRITICAL: Spring Security oneTimeTokenLogin()은
-         * application/x-www-form-urlencoded 형식 요구
+         * CRITICAL: Spring Security oneTimeTokenLogin()
+         * requires application/x-www-form-urlencoded format
          */
         async verifyOtt(code, username) {
             await this.init();
 
-            // P0 수정: JSON 대신 FormData 사용
             const formData = new URLSearchParams();
             formData.append('username', username || sessionStorage.getItem('mfaUsername'));
             formData.append('token', code);
@@ -766,13 +771,13 @@
             const response = await fetch(this.endpoints.ott.loginProcessing, {
                 method: 'POST',
                 headers: ContexaMFAUtils.createHeaders({
-                    contentType: 'application/x-www-form-urlencoded'  // P0 수정
+                    contentType: 'application/x-www-form-urlencoded'  // P0 fix
                 }),
                 body: formData.toString()
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'OTT verification failed' }));
+                const errorData = await response.json().catch(() => ({ message: __ContexaMfaI18n.ottVerifyFailed }));
                 throw new MFAError(
                     errorData.message || `OTT verification failed: ${response.status}`,
                     errorData,
@@ -784,8 +789,8 @@
         },
 
         /**
-         * Passkey Assertion Options 가져오기
-         * ⭐ Spring Security 6.4+ 표준 엔드포인트 사용
+         * Retrieve Passkey assertion options
+         * ⭐ Uses Spring Security 6.4+ standard endpoint
          */
         async getPasskeyOptions() {
             await this.init();
@@ -796,7 +801,7 @@
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Failed to get passkey options' }));
+                const errorData = await response.json().catch(() => ({ message: __ContexaMfaI18n.passkeyOptionsFailed }));
                 throw new MFAError(
                     errorData.message || `Failed to get passkey options: ${response.status}`,
                     errorData,
@@ -808,8 +813,8 @@
         },
 
         /**
-         * Passkey 인증 수행
-         * ⭐ Spring Security 6.4+ 표준 엔드포인트 사용
+         * Perform Passkey authentication
+         * ⭐ Uses Spring Security 6.4+ standard endpoint
          */
         async verifyPasskey(publicKeyCredential) {
             await this.init();
@@ -821,7 +826,7 @@
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Passkey verification failed' }));
+                const errorData = await response.json().catch(() => ({ message: __ContexaMfaI18n.passkeyVerifyFailed }));
                 throw new MFAError(
                     errorData.message || `Passkey verification failed: ${response.status}`,
                     errorData,
@@ -888,9 +893,6 @@
         }
     };
 
-    // ===========================
-    // Module 4: Main Client
-    // ===========================
 
     /**
      * Token persistence storage key constants
@@ -931,9 +933,9 @@
         }
 
         /**
-         * SDK 초기화
-         * @param {Object} [options] - 초기화 옵션
-         * @param {string} [options.configUrl] - config 엔드포인트 URL (Multi MFA 시 Flow별 설정)
+         * Initialize SDK
+         * @param {Object} [options] - Initialization options
+         * @param {string} [options.configUrl] - Config endpoint URL (per-Flow configuration in Multi-MFA)
          */
         async init(options) {
             await this.apiClient.init(options);
@@ -960,31 +962,27 @@
         }
 
         /**
-         * 팩터 선택 (High-level API)
-         * Legacy: mfa-select-factor.js 전체 로직 통합
+         * Select factor (High-level API)
+         * Legacy: mfa-select-factor.js consolidated entire logic
          *
-         * Note: autoRedirect 로직 제거됨 (race condition 방지)
-         * 호출자가 result를 확인하고 명시적으로 리다이렉트해야 함
+         * Note: autoRedirect logic removed (prevents race condition)
+         * Caller must inspect result and redirect explicitly
          */
         async selectFactor(factorType) {
             try {
                 const result = await this.apiClient.selectFactor(factorType);
                 this.stateTracker.updateFromServerResponse(result);
 
-                // P1 추가: nextStepId 저장
                 if (result.nextStepId) {
                     sessionStorage.setItem('currentMfaStepId', result.nextStepId);
                 }
 
-                // nextFactorType 저장
                 if (result.nextFactorType) {
                     sessionStorage.setItem('currentMfaFactor', result.nextFactorType);
                 }
 
-                // autoRedirect 로직 제거 - 템플릿에서 명시적으로 처리
                 return result;
             } catch (error) {
-                // 에러 응답에 message가 있으면 포함
                 const errorMsg = error.response?.message || 'Factor selection failed';
                 ContexaMFAUtils.log(`${errorMsg}`, 'error', error);
                 throw error;
@@ -992,31 +990,27 @@
         }
 
         /**
-         * OTT 검증 (High-level API)
-         * Legacy: mfa-verity-ott.js 전체 로직 통합
+         * OTT verification (High-level API)
+         * Legacy: mfa-verity-ott.js consolidated entire logic
          *
-         * Note: autoRedirect 로직 제거됨 (race condition 방지)
-         * 호출자가 result를 확인하고 명시적으로 리다이렉트해야 함
+         * Note: autoRedirect logic removed (prevents race condition)
+         * Caller must inspect result and redirect explicitly
          */
         async verifyOtt(code, username = null) {
             try {
                 const result = await this.apiClient.verifyOtt(code, username);
                 this.stateTracker.updateFromServerResponse(result);
 
-                // 토큰 저장 (필요시)
                 this.handleAuthenticationResult(result);
 
-                // P1 추가: nextStepId 저장
                 if (result.nextStepId) {
                     sessionStorage.setItem('currentMfaStepId', result.nextStepId);
                 }
 
-                // nextFactorType 저장
                 if (result.nextFactorType) {
                     sessionStorage.setItem('currentMfaFactor', result.nextFactorType);
                 }
 
-                // autoRedirect 로직 제거 - 템플릿에서 명시적으로 처리
                 return result;
             } catch (error) {
                 const errorMsg = error.response?.message || 'OTT verification failed';
@@ -1026,50 +1020,45 @@
         }
 
         /**
-         * Passkey 인증 (High-level API)
+         * Passkey authentication (High-level API)
          *
-         * Spring Security 표준 WebAuthn 플로우를 따르며, MfaFactorProcessingSuccessHandler가
-         * State Machine 통합을 자동으로 처리합니다.
+         * Follows the standard Spring Security WebAuthn flow; MfaFactorProcessingSuccessHandler
+         * handles state machine integration automatically.
          *
-         * 플로우:
-         * 1. POST /webauthn/authenticate/options - Assertion Options 요청
-         * 2. navigator.credentials.get() - 브라우저 생체 인증
-         * 3. POST /login/webauthn - WebAuthnAuthenticationFilter 처리
-         * 4. MfaFactorProcessingSuccessHandler 호출:
-         *    - State Machine에 FACTOR_VERIFIED_SUCCESS 이벤트 전송
-         *    - DETERMINE_NEXT_FACTOR 실행
-         *    - OAuth2 토큰 발급 (필요시)
-         *    - redirectUrl 결정 (다음 팩터 또는 최종 성공 URL)
-         * 5. SDK는 redirectUrl을 받아 페이지 이동
+         * Flow:
+         * 1. POST /webauthn/authenticate/options - request assertion options
+         * 2. navigator.credentials.get() - browser biometric authentication
+         * 3. POST /login/webauthn - WebAuthnAuthenticationFilter processing
+         * 4. Invoke MfaFactorProcessingSuccessHandler:
+         *    - Sends FACTOR_VERIFIED_SUCCESS event to the state machine
+         *    - Runs DETERMINE_NEXT_FACTOR
+         *    - Issues OAuth2 token (when needed)
+         *    - Resolves redirectUrl (next factor or final success URL)
+         * 5. SDK receives redirectUrl and navigates
          *
-         * Note: MfaFactorProcessingSuccessHandler가 모든 State Machine 처리를 완료하므로
-         *       SDK는 별도의 notifyFactorComplete() 호출이 불필요합니다.
+         * Note: Because MfaFactorProcessingSuccessHandler completes all state machine processing,
+         *       the SDK does not need a separate notifyFactorComplete() call.
          *
-         * Legacy: mfa-verity-passkey.js 전체 로직 통합
+         * Legacy: mfa-verity-passkey.js consolidated entire logic
          */
         async verifyPasskey() {
             try {
                 ContexaMFAUtils.log('Starting Spring Security WebAuthn authentication flow...', 'debug');
 
-                // 1. CSRF 헤더 준비
                 const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
                 const csrfHeaderName = document.querySelector('meta[name="_csrf_header"]')?.content;
                 const headers = csrfToken && csrfHeaderName ? { [csrfHeaderName]: csrfToken } : {};
 
-                // 2. Spring Security 표준 WebAuthn 인증 실행
                 const contextPath = this.apiClient.contextPath || '';
                 const result = await this.performWebAuthnAuthentication(headers, contextPath);
 
                 ContexaMFAUtils.log(`Spring Security authentication completed.`, 'debug');
                 ContexaMFAUtils.log(`Status: ${result.status}, RedirectUrl: ${result.redirectUrl || result.nextStepUrl}`, 'debug');
 
-                // 3. 상태 업데이트 (MfaFactorProcessingSuccessHandler 응답 반영)
                 this.stateTracker.updateFromServerResponse(result);
 
-                // 4. OAuth2 토큰 저장 (SuccessHandler가 발급한 경우)
                 this.handleAuthenticationResult(result);
 
-                // 5. MFA 플로우 결과 반환
                 return result;
             } catch (error) {
                 const errorMsg = error.response?.message || error.message || 'Passkey verification failed';
@@ -1079,26 +1068,23 @@
         }
 
         /**
-         * Spring Security WebAuthn 인증 플로우 실행
+         * Execute the Spring Security WebAuthn authentication flow
          *
-         * Spring Security의 webauthn.js 로직을 따르되, 자동 리다이렉트를 제거하여
-         * SDK가 MFA 플로우 제어를 유지할 수 있도록 합니다.
+         * Follows the Spring Security webauthn.js logic but removes the automatic redirect
+         * so the SDK retains control of the MFA flow.
          *
-         * @param {Object} headers - CSRF 헤더
-         * @param {string} contextPath - 애플리케이션 컨텍스트 경로
-         * @returns {Promise<Object>} MfaFactorProcessingSuccessHandler 응답
+         * @param {Object} headers - CSRF headers
+         * @param {string} contextPath - application context path
+         * @returns {Promise<Object>} MfaFactorProcessingSuccessHandler response
          *
          * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter
          * @see webauthn.js authenticate() function
          */
         async performWebAuthnAuthentication(headers, contextPath) {
-            // Phase 1: Assertion Options 요청
             ContexaMFAUtils.log('Requesting assertion options...', 'debug');
 
-            // SDK 초기화 확인
             await this.apiClient.init();
 
-            // 동적 엔드포인트 사용 (URL 하드코딩 제거)
             const assertionOptionsUrl = this.apiClient.endpoints.webauthn?.assertionOptions || `${contextPath}/webauthn/authenticate/options`;
             const optionsResponse = await fetch(assertionOptionsUrl, {
                 method: 'POST',
@@ -1115,7 +1101,6 @@
 
             const options = await optionsResponse.json();
 
-            // Phase 2: Base64URL 디코딩 및 Credential Request Options 구성
             const decodedAllowCredentials = !options.allowCredentials ? [] :
                 options.allowCredentials.map(cred => ({
                     ...cred,
@@ -1128,7 +1113,6 @@
                 challenge: ContexaMFAUtils.base64UrlToArrayBuffer(options.challenge)
             };
 
-            // Phase 3: WebAuthn API 호출 (브라우저 생체 인증)
             ContexaMFAUtils.log('Starting WebAuthn ceremony (user authentication)...', 'debug');
             const credential = await navigator.credentials.get({
                 publicKey: decodedOptions
@@ -1140,7 +1124,6 @@
 
             ContexaMFAUtils.log('User authentication successful, preparing assertion...', 'debug');
 
-            // Phase 4: Assertion 데이터 준비 (Base64URL 인코딩)
             const { response, type: credType } = credential;
             let userHandle;
             if (response.userHandle) {
@@ -1161,10 +1144,8 @@
                 authenticatorAttachment: credential.authenticatorAttachment
             };
 
-            // Phase 5: Assertion POST (Spring Security WebAuthnAuthenticationFilter 처리)
             ContexaMFAUtils.log('Sending assertion to Spring Security...', 'debug');
 
-            // 동적 엔드포인트 사용 (URL 하드코딩 제거)
             const loginProcessingUrl = this.apiClient.endpoints.passkey?.loginProcessing || `${contextPath}/login/webauthn`;
             const authenticationResponse = await fetch(loginProcessingUrl, {
                 method: 'POST',
@@ -1182,20 +1163,15 @@
 
             const authenticationResult = await authenticationResponse.json();
 
-            // Phase 6: 응답 검증 (MfaFactorProcessingSuccessHandler 응답 구조)
-            // MFA_COMPLETED 상태에서만 authenticated 체크 (MFA_CONTINUE는 중간 단계이므로 체크 안함)
             if (authenticationResult.status === "MFA_COMPLETED" && !authenticationResult.authenticated) {
                 throw new Error('WebAuthn authentication failed: Server returned authenticated=false for MFA_COMPLETED');
             }
 
-            // 상태별 필수 속성 검증
             if (authenticationResult.status === "MFA_COMPLETED") {
-                // 최종 완료: redirectUrl 필수
                 if (!authenticationResult.redirectUrl) {
                     throw new Error('WebAuthn authentication failed: No redirectUrl for MFA_COMPLETED');
                 }
             } else if (authenticationResult.status === "MFA_CONTINUE") {
-                // 중간 단계: nextStepUrl 필수
                 if (!authenticationResult.nextStepUrl) {
                     throw new Error('WebAuthn authentication failed: No nextStepUrl for MFA_CONTINUE');
                 }
@@ -1329,9 +1305,6 @@
         }
     }
 
-    // ===========================
-    // Module 5: Global Fetch Interceptor
-    // ===========================
 
     /**
      * MFA Challenge automatic handling via global fetch wrapping
@@ -1356,7 +1329,6 @@
                 throw networkError;
             }
 
-            // Wrap only server-monitored responses (BlockableResponseWrapper sets this header)
             var isMonitored = response.headers.get('X-Contexa-Monitored') === 'true';
             if (response.ok && response.body && isMonitored) {
                 var BLOCK_SIGNAL = '__CONTEXA_RESPONSE_BLOCKED__';
@@ -1370,14 +1342,11 @@
                         function handleBlocked(action) {
                             var effectiveAction = action || 'BLOCK';
                             if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                // Navigate to a protected URL with prefix so server filters
-                                // can redirect to the correct page (challenge-required or blocked)
                                 var prefix = '';
                                 var cfg = window.__MFA_CONFIG__;
                                 if (cfg && cfg.urlPrefix) {
                                     prefix = cfg.urlPrefix;
                                 } else {
-                                    // Detect prefix from current URL path (e.g., /admin/... -> /admin)
                                     var path = window.location.pathname;
                                     var segments = path.split('/').filter(Boolean);
                                     if (segments.length > 0 && segments[0] !== 'api') {
@@ -1399,7 +1368,6 @@
                                     controller.close();
                                     return;
                                 }
-                                // Path 1: In-band block signal detection with action type
                                 var text = blockSignalDecoder.decode(result.value, { stream: true });
                                 if (text.indexOf(BLOCK_SIGNAL) !== -1) {
                                     var match = text.match(BLOCK_SIGNAL_PATTERN);
@@ -1409,7 +1377,6 @@
                                 controller.enqueue(result.value);
                                 pump();
                             }).catch(function(streamError) {
-                                // Path 2: Stream error (network disruption)
                                 handleBlocked(null);
                             });
                         }
@@ -1424,7 +1391,6 @@
                 });
             }
 
-            // Detect 401 MFA Challenge response
             if (response.status === 401) {
                 try {
                     const clonedResponse = response.clone();
@@ -1442,11 +1408,9 @@
                         return new Promise(() => {});
                     }
                 } catch (e) {
-                    // Non-JSON 401 response, pass through
                 }
             }
 
-            // Detect 403 Account Blocked response
             if (response.status === 403) {
                 try {
                     const clonedResponse = response.clone();
@@ -1478,11 +1442,9 @@
                         return new Promise(() => {});
                     }
                 } catch (e) {
-                    // Non-JSON 403 response, pass through
                 }
             }
 
-            // Detect 423 Security Review In Progress response
             if (response.status === 423) {
                 try {
                     const clonedResponse = response.clone();
@@ -1498,7 +1460,6 @@
                         return new Promise(() => {});
                     }
                 } catch (e) {
-                    // Non-JSON 423 response, pass through
                 }
             }
 
@@ -1509,9 +1470,6 @@
             'Global fetch interceptor installed for MFA Challenge and Zero Trust handling', 'debug');
     })();
 
-    // ===========================
-    // Module 6: Global XHR Interceptor
-    // ===========================
 
     /**
      * Intercepts XMLHttpRequest responses to detect security-related status codes
@@ -1535,7 +1493,6 @@
             var BLOCK_SIGNAL_PATTERN = /__CONTEXA_RESPONSE_BLOCKED__:(\w+)/;
             var xhrBlockHandled = false;
 
-            // Cache monitoring headers + detect in-band block signal
             xhr.addEventListener('readystatechange', function() {
                 if (xhr.readyState >= 2) {
                     try {
@@ -1547,7 +1504,6 @@
                     } catch (e) {
                     }
                 }
-                // Check for in-band block signal in partial response
                 if (xhr.readyState >= 3 && isMonitored && !xhrBlockHandled) {
                     try {
                         if (xhr.responseText && xhr.responseText.indexOf(BLOCK_SIGNAL) !== -1) {
@@ -1570,7 +1526,6 @@
                 }
             });
 
-            // Detect network errors on monitored responses (mid-stream abort)
             xhr.addEventListener('error', function() {
                 if (isMonitored && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
                     ContexaMFAUtils.log('XHR: Monitored response terminated by security decision', 'warn');
@@ -1596,7 +1551,6 @@
 
                     var data = JSON.parse(xhr.responseText);
 
-                    // 401 MFA Challenge
                     if (status === 401 && (data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED') && (data.challengeNoticeUrl || data.mfaUrl)) {
                         var xhrRedirectTarget = data.challengeNoticeUrl || data.mfaUrl;
                         ContexaMFAUtils.log(
@@ -1606,7 +1560,6 @@
                         return;
                     }
 
-                    // 403 Response Blocked (in-flight termination)
                     if (status === 403 && data.error === 'RESPONSE_BLOCKED') {
                         ContexaMFAUtils.log('XHR: Response blocked by AI security decision', 'warn', data);
                         if (blockedRedirectUrl && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
@@ -1617,7 +1570,6 @@
                         return;
                     }
 
-                    // 403 Account Blocked
                     if (status === 403 && data.error === 'ACCOUNT_BLOCKED' && data.redirectUrl) {
                         ContexaMFAUtils.log(
                             'XHR: Account blocked detected, redirecting to: ' + data.redirectUrl,
@@ -1626,7 +1578,6 @@
                         return;
                     }
 
-                    // 423 Security Review In Progress
                     if (status === 423 && data.error === 'SECURITY_REVIEW_IN_PROGRESS'
                             && data.redirectUrl) {
                         ContexaMFAUtils.log(
@@ -1636,7 +1587,6 @@
                         return;
                     }
                 } catch (e) {
-                    // JSON parse failed, pass through
                 }
             });
 
@@ -1650,9 +1600,6 @@
             'Global XHR interceptor installed for MFA Challenge and Zero Trust handling', 'debug');
     })();
 
-    // ===========================
-    // Public API Export
-    // ===========================
 
     window.ContexaMFA = {
         Client: ContexaMFAClient,
@@ -1662,7 +1609,6 @@
         version: '2.2.0'
     };
 
-    // Legacy 호환성: 전역 인스턴스 자동 생성
     if (!window.mfaStateTracker) {
         window.mfaStateTracker = new MfaStateTracker();
         window.mfaStateTracker.restoreFromSession();
