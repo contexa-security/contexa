@@ -1,5 +1,5 @@
 package io.contexa.contexacore.autonomous.saas.learning.roi;
-import io.contexa.contexacore.autonomous.saas.dto.CalibrationProfilePackSnapshot;
+import io.contexa.contexacore.autonomous.saas.dto.DecisionQualityProfileSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.CohortSeedPackSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.DetectionStrategyPackSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.PromptPresentationPackSnapshot;
@@ -8,14 +8,14 @@ import io.contexa.contexacore.autonomous.saas.dto.PromptPresentationPackSnapshot
  */
 public record LearningRoiScoreboardInput(
         DetectionStrategyPackSnapshot detectionStrategyPack,
-        CalibrationProfilePackSnapshot calibrationProfilePack,
+        DecisionQualityProfileSnapshot decisionQualityProfile,
         PromptPresentationPackSnapshot promptPresentationPack,
         CohortSeedPackSnapshot cohortSeedPack,
         LearningRoiCostModel costModel) {
     public static LearningRoiScoreboardInput empty() {
         return new LearningRoiScoreboardInput(
                 DetectionStrategyPackSnapshot.empty(),
-                CalibrationProfilePackSnapshot.empty(),
+                DecisionQualityProfileSnapshot.empty(),
                 PromptPresentationPackSnapshot.empty(),
                 CohortSeedPackSnapshot.empty(),
                 LearningRoiCostModel.defaults());

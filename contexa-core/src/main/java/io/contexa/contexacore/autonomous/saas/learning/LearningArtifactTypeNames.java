@@ -4,7 +4,7 @@ package io.contexa.contexacore.autonomous.saas.learning;
  */
 public final class LearningArtifactTypeNames {
     public static final String DETECTION_STRATEGY = "DETECTION_STRATEGY";
-    public static final String CALIBRATION_PROFILE = "CALIBRATION_PROFILE";
+    public static final String DECISION_QUALITY_PROFILE = "DECISION_QUALITY_PROFILE";
     public static final String PROMPT_PRESENTATION = "PROMPT_PRESENTATION";
     public static final String COHORT_SEED = "COHORT_SEED";
     private LearningArtifactTypeNames() {

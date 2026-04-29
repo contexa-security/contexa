@@ -1,21 +1,21 @@
 package io.contexa.contexacore.autonomous.saas.learning.orchestration;
 
-import io.contexa.contexacore.autonomous.saas.learning.calibration.CalibrationProfileLearningInput;
+import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityLearningInput;
 import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyLearningInput;
 
 /**
- * Top-level orchestration facade for strategy and calibration artifact generation.
+ * Top-level orchestration facade for strategy and decision-quality artifact generation.
  */
 public class LearningArtifactOrchestrationService {
 
     private final DetectionStrategyArtifactPipeline detectionStrategyArtifactPipeline;
-    private final CalibrationProfileArtifactPipeline calibrationProfileArtifactPipeline;
+    private final DecisionQualityArtifactPipeline decisionQualityArtifactPipeline;
 
     public LearningArtifactOrchestrationService(
             DetectionStrategyArtifactPipeline detectionStrategyArtifactPipeline,
-            CalibrationProfileArtifactPipeline calibrationProfileArtifactPipeline) {
+            DecisionQualityArtifactPipeline decisionQualityArtifactPipeline) {
         this.detectionStrategyArtifactPipeline = detectionStrategyArtifactPipeline;
-        this.calibrationProfileArtifactPipeline = calibrationProfileArtifactPipeline;
+        this.decisionQualityArtifactPipeline = decisionQualityArtifactPipeline;
     }
 
     public DetectionStrategyArtifactPipelineResult orchestrateDetectionStrategies(
@@ -24,9 +24,9 @@ public class LearningArtifactOrchestrationService {
         return detectionStrategyArtifactPipeline.execute(tenantId, input);
     }
 
-    public CalibrationProfileArtifactPipelineResult orchestrateCalibrationProfiles(
+    public DecisionQualityArtifactPipelineResult orchestrateDecisionQualityProfiles(
             String tenantId,
-            CalibrationProfileLearningInput input) {
-        return calibrationProfileArtifactPipeline.execute(tenantId, input);
+            DecisionQualityLearningInput input) {
+        return decisionQualityArtifactPipeline.execute(tenantId, input);
     }
 }

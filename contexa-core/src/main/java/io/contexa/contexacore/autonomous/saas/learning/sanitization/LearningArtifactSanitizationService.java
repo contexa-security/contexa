@@ -1,6 +1,6 @@
 package io.contexa.contexacore.autonomous.saas.learning.sanitization;
 
-import io.contexa.contexacore.autonomous.saas.learning.calibration.CalibrationProfileLearningScenarioResult;
+import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityScenarioResult;
 import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyLearningFamilyResult;
 
 /**
@@ -9,13 +9,13 @@ import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrateg
 public class LearningArtifactSanitizationService {
 
     private final DetectionStrategyEvidenceSanitizer strategyEvidenceSanitizer;
-    private final CalibrationEvidenceSanitizer calibrationEvidenceSanitizer;
+    private final DecisionQualityEvidenceSanitizer decisionQualityEvidenceSanitizer;
 
     public LearningArtifactSanitizationService(
             DetectionStrategyEvidenceSanitizer strategyEvidenceSanitizer,
-            CalibrationEvidenceSanitizer calibrationEvidenceSanitizer) {
+            DecisionQualityEvidenceSanitizer decisionQualityEvidenceSanitizer) {
         this.strategyEvidenceSanitizer = strategyEvidenceSanitizer;
-        this.calibrationEvidenceSanitizer = calibrationEvidenceSanitizer;
+        this.decisionQualityEvidenceSanitizer = decisionQualityEvidenceSanitizer;
     }
 
     public DetectionStrategyLearningFamilyResult sanitize(DetectionStrategyLearningFamilyResult result) {
@@ -36,13 +36,13 @@ public class LearningArtifactSanitizationService {
                 strategyEvidenceSanitizer.sanitize(result.evidenceFacts()));
     }
 
-    public CalibrationProfileLearningScenarioResult sanitize(CalibrationProfileLearningScenarioResult result) {
+    public DecisionQualityScenarioResult sanitize(DecisionQualityScenarioResult result) {
         if (result == null) {
             return null;
         }
-        return new CalibrationProfileLearningScenarioResult(
+        return new DecisionQualityScenarioResult(
                 result.scenarioClass(),
                 result.biasAggregation(),
-                calibrationEvidenceSanitizer.sanitize(result.evidenceFacts()));
+                decisionQualityEvidenceSanitizer.sanitize(result.evidenceFacts()));
     }
 }

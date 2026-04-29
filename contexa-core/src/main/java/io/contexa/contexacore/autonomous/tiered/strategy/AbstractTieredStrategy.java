@@ -3,11 +3,6 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
-import io.contexa.contexacore.autonomous.context.inference.DefaultPromptConfidenceGuardrail;
-import io.contexa.contexacore.autonomous.context.inference.PromptConfidenceGuardrail;
-import io.contexa.contexacore.autonomous.context.model.PromptDecisionAdjustment;
-import io.contexa.contexacore.autonomous.context.model.ProposedPromptDecision;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
@@ -26,7 +21,6 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
-import io.contexa.contexacore.autonomous.tiered.service.calibration.SecurityDecisionCalibrationService;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
@@ -83,7 +77,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final TieredStrategyProperties tieredStrategyProperties;
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
     protected final PromptContextAuditForwardingService promptContextAuditForwardingService;
-    protected final PromptConfidenceGuardrail promptConfidenceGuardrail;
     protected final StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry;
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             Caffeine.newBuilder()
@@ -145,7 +138,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 ? promptContextAuthorizationService
                 : new PromptContextAuthorizationService();
         this.promptContextAuditForwardingService = promptContextAuditForwardingService;
-        this.promptConfidenceGuardrail = new DefaultPromptConfidenceGuardrail();
         this.structuredOutputCapabilityRegistry = structuredOutputCapabilityRegistry != null
                 ? structuredOutputCapabilityRegistry
                 : StructuredOutputCapabilityRegistry.defaultRegistry();
@@ -373,66 +365,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return null;
         }
         return Math.max(0.0, Math.min(1.0, value));
-    }
-
-    protected SecurityDecision applyPromptConfidenceGuardrail(SecurityDecision decision, SecurityEvent event) {
-        if (decision == null) {
-            return null;
-        }
-
-        CanonicalSecurityContext canonicalContext = resolveCanonicalContext(event).orElse(null);
-        PromptDecisionAdjustment adjustment = promptConfidenceGuardrail.evaluate(
-                canonicalContext,
-                ProposedPromptDecision.from(decision)
-        );
-
-        decision.setConfidence(adjustment.effectiveConfidence());
-        decision.setAutonomyConstraintApplied(adjustment.applied());
-        decision.setAutonomyConstraintReasons(adjustment.reasons());
-        decision.setAutonomyConstraintSummary(adjustment.summary());
-        decision.setAutonomousAction(adjustment.enforcementAction());
-        return decision;
-    }
-
-    protected SecurityDecision applyRuntimeCalibration(
-            SecurityDecision decision,
-            SecurityEvent event,
-            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
-            SecurityDecisionCalibrationService securityDecisionCalibrationService) {
-        if (decision == null || securityDecisionCalibrationService == null) {
-            return decision;
-        }
-        SecurityDecision calibratedDecision = securityDecisionCalibrationService.apply(event, decision, behaviorAnalysis);
-        annotateRuntimeCalibration(event, calibratedDecision);
-        return calibratedDecision;
-    }
-
-    protected void annotateRuntimeCalibration(SecurityEvent event, SecurityDecision decision) {
-        if (event == null || decision == null || event.getMetadata() == null) {
-            return;
-        }
-        putCalibrationMetadata(event.getMetadata(), "calibrationApplied", decision.getCalibrationApplied());
-        putCalibrationMetadata(event.getMetadata(), "calibrationProfileKey", decision.getCalibrationProfileKey());
-        putCalibrationMetadata(event.getMetadata(), "calibrationScenarioClass", decision.getCalibrationScenarioClass());
-        putCalibrationMetadata(event.getMetadata(), "calibrationConfidenceAdjustment", decision.getCalibrationConfidenceAdjustment());
-        putCalibrationMetadata(event.getMetadata(), "calibrationActionBias", decision.getCalibrationActionBias());
-        putCalibrationMetadata(event.getMetadata(), "calibrationSummary", decision.getCalibrationSummary());
-        if (decision.getCalibrationReasons() != null && !decision.getCalibrationReasons().isEmpty()) {
-            event.getMetadata().put("calibrationReasons", List.copyOf(decision.getCalibrationReasons()));
-        }
-    }
-
-    protected void putCalibrationMetadata(Map<String, Object> metadata, String key, Object value) {
-        if (metadata != null && key != null && value != null) {
-            metadata.put(key, value);
-        }
-    }
-
-    private Optional<CanonicalSecurityContext> resolveCanonicalContext(SecurityEvent event) {
-        if (event == null || promptTemplate == null) {
-            return Optional.empty();
-        }
-        return promptTemplate.resolveCanonicalSecurityContextForGuardrail(event);
     }
 
     protected BaseBehaviorAnalysis analyzeBehaviorPatternsBase(SecurityEvent event,

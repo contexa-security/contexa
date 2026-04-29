@@ -146,14 +146,6 @@ public class CoreSaasForwardingAutoConfiguration {
                         .promptLimit(source.getDetectionStrategy().getPromptLimit())
                         .cacheTtlMinutes(source.getDetectionStrategy().getCacheTtlMinutes())
                         .build())
-                .calibrationProfile(SaasForwardingProperties.CalibrationProfile.builder()
-                        .enabled(source.getCalibrationProfile().isEnabled())
-                        .endpointPath(source.getCalibrationProfile().getEndpointPath())
-                        .pullIntervalMs(source.getCalibrationProfile().getPullIntervalMs())
-                        .initialDelayMs(source.getCalibrationProfile().getInitialDelayMs())
-                        .profileLimit(source.getCalibrationProfile().getProfileLimit())
-                        .cacheTtlMinutes(source.getCalibrationProfile().getCacheTtlMinutes())
-                        .build())
                 .performanceTelemetry(SaasForwardingProperties.PerformanceTelemetry.builder()
                         .enabled(source.getPerformanceTelemetry().isEnabled())
                         .endpointPath(source.getPerformanceTelemetry().getEndpointPath())
@@ -355,15 +347,6 @@ public class CoreSaasForwardingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.saas.calibration-profile", name = "enabled", havingValue = "true")
-    public SaasCalibrationProfilePackHttpClient saasCalibrationProfilePackHttpClient(
-            SaasForwardingProperties properties,
-            SaasDecisionAccessTokenProvider accessTokenProvider) {
-        return new SaasCalibrationProfilePackHttpClient(properties, accessTokenProvider);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatIntelligenceHttpClient.class)
     public SaasThreatIntelligenceService saasThreatIntelligenceService(
             SaasForwardingProperties properties,
@@ -389,16 +372,6 @@ public class CoreSaasForwardingAutoConfiguration {
             SaasDetectionStrategyPackHttpClient httpClient,
             ObjectProvider<LearningArtifactRuntimeConflictService> runtimeConflictService) {
         return new SaasDetectionStrategyPackService(properties, httpClient, runtimeConflictService.getIfAvailable());
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SaasCalibrationProfilePackHttpClient.class)
-    public SaasCalibrationProfilePackService saasCalibrationProfilePackService(
-            SaasForwardingProperties properties,
-            SaasCalibrationProfilePackHttpClient httpClient,
-            ObjectProvider<LearningArtifactRuntimeConflictService> runtimeConflictService) {
-        return new SaasCalibrationProfilePackService(properties, httpClient, runtimeConflictService.getIfAvailable());
     }
 
     @Bean
@@ -498,14 +471,6 @@ public class CoreSaasForwardingAutoConfiguration {
             SaasDetectionStrategyPackService detectionStrategyPackService,
             SaasForwardingProperties properties) {
         return new SaasDetectionStrategyPackPullScheduler(detectionStrategyPackService, properties);
-    }
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SaasCalibrationProfilePackService.class)
-    public SaasCalibrationProfilePackPullScheduler saasCalibrationProfilePackPullScheduler(
-            SaasCalibrationProfilePackService calibrationProfilePackService,
-            SaasForwardingProperties properties) {
-        return new SaasCalibrationProfilePackPullScheduler(calibrationProfilePackService, properties);
     }
     @Bean
     @ConditionalOnMissingBean

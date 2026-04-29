@@ -47,14 +47,6 @@ public class ThreatAssessment {
     private List<String> autonomyConstraintReasons;
     private String autonomyConstraintSummary;
 
-    private Boolean calibrationApplied;
-    private String calibrationProfileKey;
-    private String calibrationScenarioClass;
-    private Double calibrationConfidenceAdjustment;
-    private String calibrationActionBias;
-    private List<String> calibrationReasons;
-    private String calibrationSummary;
-
     @Builder.Default
     private boolean shouldEscalate = false;
 

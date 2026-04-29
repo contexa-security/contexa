@@ -166,12 +166,6 @@ public class SecurityDecisionPostProcessor {
                     .append(truncate(decision.getAutonomyConstraintSummary(), 220))
                     .append("\n");
         }
-        if (Boolean.TRUE.equals(decision.getCalibrationApplied())) {
-            sb.append("Calibration: ")
-                    .append(truncate(decision.getCalibrationSummary(), 220))
-                    .append("\n");
-        }
-
         appendSessionContext(sb, event);
 
         return sb.toString();
@@ -410,28 +404,6 @@ public class SecurityDecisionPostProcessor {
                 metadata.put("autonomyConstraintReasons", decision.getAutonomyConstraintReasons());
             }
         }
-        if (decision.getCalibrationApplied() != null) {
-            metadata.put("calibrationApplied", decision.getCalibrationApplied());
-        }
-        if (decision.getCalibrationProfileKey() != null) {
-            metadata.put("calibrationProfileKey", decision.getCalibrationProfileKey());
-        }
-        if (decision.getCalibrationScenarioClass() != null) {
-            metadata.put("calibrationScenarioClass", decision.getCalibrationScenarioClass());
-        }
-        if (decision.getCalibrationConfidenceAdjustment() != null) {
-            metadata.put("calibrationConfidenceAdjustment", sanitizeScore(decision.getCalibrationConfidenceAdjustment()));
-        }
-        if (decision.getCalibrationActionBias() != null) {
-            metadata.put("calibrationActionBias", decision.getCalibrationActionBias());
-        }
-        if (decision.getCalibrationSummary() != null) {
-            metadata.put("calibrationSummary", decision.getCalibrationSummary());
-        }
-        if (decision.getCalibrationReasons() != null && !decision.getCalibrationReasons().isEmpty()) {
-            metadata.put("calibrationReasons", decision.getCalibrationReasons());
-        }
-
         if (decision.getProcessingLayer() > 0) {
             metadata.put("analysisDepth", decision.getProcessingLayer());
         }

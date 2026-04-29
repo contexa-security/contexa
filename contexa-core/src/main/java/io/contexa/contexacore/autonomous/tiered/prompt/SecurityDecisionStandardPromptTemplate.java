@@ -3,7 +3,6 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
@@ -32,7 +31,6 @@ import org.springframework.ai.document.Document;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 public class SecurityDecisionStandardPromptTemplate extends AbstractStandardPromptTemplate<SecurityDecisionResponseLite> {
@@ -211,10 +209,6 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             BehaviorAnalysis behaviorAnalysis,
             List<Document> relatedDocuments) {
         return promptSections.buildPrompt(event, sessionContext, behaviorAnalysis, relatedDocuments);
-    }
-
-    public Optional<CanonicalSecurityContext> resolveCanonicalSecurityContextForGuardrail(SecurityEvent event) {
-        return promptSections.resolveCanonicalSecurityContextForGuardrail(event);
     }
 
     private StructuredPrompt buildStructuredPrompt(AIRequest<? extends DomainContext> request) {
