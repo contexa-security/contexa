@@ -1,6 +1,5 @@
 package io.contexa.contexacore.autonomous.saas.learning.release;
 
-import io.contexa.contexacore.autonomous.saas.SaasCalibrationProfilePackService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactTypeNames;
 
@@ -14,21 +13,18 @@ import java.util.Locale;
 public class LearningArtifactRuntimeRefreshService {
 
     private final SaasDetectionStrategyPackService detectionStrategyPackService;
-    private final SaasCalibrationProfilePackService calibrationProfilePackService;
 
-    public LearningArtifactRuntimeRefreshService(
-            SaasDetectionStrategyPackService detectionStrategyPackService,
-            SaasCalibrationProfilePackService calibrationProfilePackService) {
+    public LearningArtifactRuntimeRefreshService(SaasDetectionStrategyPackService detectionStrategyPackService) {
         this.detectionStrategyPackService = detectionStrategyPackService;
-        this.calibrationProfilePackService = calibrationProfilePackService;
     }
 
     public LearningArtifactRuntimeRefreshResult refreshArtifact(String artifactType) {
         String safeArtifactType = artifactType == null ? "UNKNOWN" : artifactType.trim().toUpperCase(Locale.ROOT);
         return switch (safeArtifactType) {
             case LearningArtifactTypeNames.DETECTION_STRATEGY -> refreshDetectionStrategy();
-            case LearningArtifactTypeNames.CALIBRATION_PROFILE -> refreshCalibrationProfile();
-            case LearningArtifactTypeNames.PROMPT_PRESENTATION, LearningArtifactTypeNames.COHORT_SEED ->
+            case LearningArtifactTypeNames.DECISION_QUALITY_PROFILE,
+                    LearningArtifactTypeNames.PROMPT_PRESENTATION,
+                    LearningArtifactTypeNames.COHORT_SEED ->
                     new LearningArtifactRuntimeRefreshResult(
                             safeArtifactType,
                             false,
@@ -54,17 +50,5 @@ public class LearningArtifactRuntimeRefreshService {
         facts.add("Detection strategy runtime cache invalidated.");
         facts.add("Detection strategy runtime snapshot refreshed.");
         return new LearningArtifactRuntimeRefreshResult(LearningArtifactTypeNames.DETECTION_STRATEGY, true, true, true, facts);
-    }
-
-    private LearningArtifactRuntimeRefreshResult refreshCalibrationProfile() {
-        List<String> facts = new ArrayList<>();
-        if (calibrationProfilePackService == null) {
-            facts.add("Calibration profile runtime service is not configured.");
-            return new LearningArtifactRuntimeRefreshResult(LearningArtifactTypeNames.CALIBRATION_PROFILE, false, false, false, facts);
-        }
-        calibrationProfilePackService.invalidateAndRefresh();
-        facts.add("Calibration profile runtime cache invalidated.");
-        facts.add("Calibration profile runtime snapshot refreshed.");
-        return new LearningArtifactRuntimeRefreshResult(LearningArtifactTypeNames.CALIBRATION_PROFILE, true, true, true, facts);
     }
 }

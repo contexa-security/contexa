@@ -237,7 +237,6 @@ class Layer1ContextualStrategyTest {
                     pipelineOrchestrator,
                     properties,
                     null,
-                    null,
                     ragExecutor
             );
 

@@ -154,18 +154,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 additionalFields.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
             }
         }
-        if (result.getCalibrationApplied() != null) {
-            additionalFields.put("calibrationApplied", result.getCalibrationApplied());
-        }
-        putIfPresent(additionalFields, "calibrationProfileKey", result.getCalibrationProfileKey());
-        putIfPresent(additionalFields, "calibrationScenarioClass", result.getCalibrationScenarioClass());
-        putIfPresent(additionalFields, "calibrationConfidenceAdjustment", result.getCalibrationConfidenceAdjustment());
-        putIfPresent(additionalFields, "calibrationActionBias", result.getCalibrationActionBias());
-        putIfPresent(additionalFields, "calibrationSummary", result.getCalibrationSummary());
-        if (result.getCalibrationReasons() != null && !result.getCalibrationReasons().isEmpty()) {
-            additionalFields.put("calibrationReasons", result.getCalibrationReasons());
-        }
-
         String contextBindingHash = resolveContextBindingHash(event);
         if (contextBindingHash != null) {
             additionalFields.put("contextBindingHash", contextBindingHash);
@@ -270,13 +258,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(result.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
-                .calibrationApplied(result.getCalibrationApplied())
-                .calibrationProfileKey(result.getCalibrationProfileKey())
-                .calibrationScenarioClass(result.getCalibrationScenarioClass())
-                .calibrationConfidenceAdjustment(result.getCalibrationConfidenceAdjustment())
-                .calibrationActionBias(result.getCalibrationActionBias())
-                .calibrationReasons(result.getCalibrationReasons())
-                .calibrationSummary(result.getCalibrationSummary())
                 .build();
     }
 

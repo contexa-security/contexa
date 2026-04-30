@@ -14,7 +14,7 @@ public class LearningRoiScoreboardService {
     public LearningRoiScoreboardService(LearningArtifactReleaseLedgerService ledgerService) {
         this.scorers = List.of(
                 new DetectionStrategyRoiScorer(ledgerService),
-                new CalibrationProfileRoiScorer(ledgerService),
+                new DecisionQualityRoiScorer(ledgerService),
                 new PromptPresentationRoiScorer(ledgerService),
                 new CohortSeedRoiScorer(ledgerService));
     }

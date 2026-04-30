@@ -41,10 +41,10 @@ class LearningArtifactReleaseLedgerServiceTest {
     @Test
     @DisplayName("latest should return the newest ledger entry for the artifact")
     void shouldReturnLatestEntry() {
-        service.recordArtifactCreated("tenant-acme", "CALIBRATION_PROFILE", "profile-1", "v2", "system", "created", LearningArtifactReleaseState.COLLECTING, List.of());
+        service.recordArtifactCreated("tenant-acme", "DECISION_QUALITY_PROFILE", "profile-1", "v2", "system", "created", LearningArtifactReleaseState.COLLECTING, List.of());
         LearningArtifactReleaseLedgerEntry latest = service.recordKillSwitchCleared(
                 "tenant-acme",
-                "CALIBRATION_PROFILE",
+                "DECISION_QUALITY_PROFILE",
                 "profile-1",
                 "v2",
                 "operator",
@@ -53,7 +53,7 @@ class LearningArtifactReleaseLedgerServiceTest {
                 "REVIEW_ONLY",
                 List.of("cleared"));
 
-        assertThat(service.latest("tenant-acme", "CALIBRATION_PROFILE", "profile-1"))
+        assertThat(service.latest("tenant-acme", "DECISION_QUALITY_PROFILE", "profile-1"))
                 .contains(latest);
     }
 }

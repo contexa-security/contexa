@@ -19,25 +19,25 @@ class LearningArtifactRuntimeConflictServiceTest {
     void recordsReviewOnlyRollbackAndSuppressesRuntimeReuse() {
         boolean recorded = runtimeConflictService.recordReviewOnlyConflict(
                 "tenant-a",
-                LearningArtifactTypeNames.CALIBRATION_PROFILE,
+                LearningArtifactTypeNames.DECISION_QUALITY_PROFILE,
                 "profile/new-device-post-mfa-sensitive",
                 "2026.04.08-v1",
-                "Local truth overrode promoted calibration.",
+                "Local truth overrode promoted decision-quality profile.",
                 List.of("scenarioClass=NEW_DEVICE_POST_MFA_SENSITIVE"));
 
         assertThat(recorded).isTrue();
         assertThat(runtimeConflictService.isRuntimeSuppressed(
                 "tenant-a",
-                LearningArtifactTypeNames.CALIBRATION_PROFILE,
+                LearningArtifactTypeNames.DECISION_QUALITY_PROFILE,
                 "profile/new-device-post-mfa-sensitive")).isTrue();
         assertThat(ledgerService.latest(
                 "tenant-a",
-                LearningArtifactTypeNames.CALIBRATION_PROFILE,
+                LearningArtifactTypeNames.DECISION_QUALITY_PROFILE,
                 "profile/new-device-post-mfa-sensitive"))
                 .hasValueSatisfying(entry -> {
                     assertThat(entry.releaseState()).isEqualTo(LearningArtifactReleaseState.REVIEW_ONLY);
                     assertThat(entry.rollbackTargetState()).isEqualTo(LearningArtifactReleaseState.REVIEW_ONLY);
-                    assertThat(entry.reason()).contains("Local truth overrode promoted calibration");
+                    assertThat(entry.reason()).contains("Local truth overrode promoted decision-quality profile");
                 });
     }
 

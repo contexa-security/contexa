@@ -74,13 +74,6 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
                 .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
                 .autonomyConstraintReasons(copyList(result.getAutonomyConstraintReasons()))
-                .calibrationApplied(result.getCalibrationApplied())
-                .calibrationProfileKey(result.getCalibrationProfileKey())
-                .calibrationScenarioClass(result.getCalibrationScenarioClass())
-                .calibrationConfidenceAdjustment(result.getCalibrationConfidenceAdjustment())
-                .calibrationActionBias(result.getCalibrationActionBias())
-                .calibrationReasons(copyList(result.getCalibrationReasons()))
-                .calibrationSummary(result.getCalibrationSummary())
                 .severityLevel(event.getSeverity() != null ? event.getSeverity().name() : null)
                 .eventSource(event.getSource() != null ? event.getSource().name() : null)
                 .eventTimestamp(event.getTimestamp())
@@ -302,15 +295,6 @@ public class SecurityDecisionForwardingPayloadMapper {
             if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
                 attributes.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
             }
-        }
-        copyIfPresent(attributes, "calibrationApplied", result.getCalibrationApplied());
-        copyIfPresent(attributes, "calibrationProfileKey", result.getCalibrationProfileKey());
-        copyIfPresent(attributes, "calibrationScenarioClass", result.getCalibrationScenarioClass());
-        copyIfPresent(attributes, "calibrationConfidenceAdjustment", result.getCalibrationConfidenceAdjustment());
-        copyIfPresent(attributes, "calibrationActionBias", result.getCalibrationActionBias());
-        copyIfPresent(attributes, "calibrationSummary", result.getCalibrationSummary());
-        if (result.getCalibrationReasons() != null && !result.getCalibrationReasons().isEmpty()) {
-            attributes.put("calibrationReasons", result.getCalibrationReasons());
         }
         attributes.put(OPERATIONAL_EVIDENCE_SOURCE, resolveOperationalEvidenceSource(result, analysisData));
         copyIfPresent(eventMetadata, attributes, "parameter_risk_flags");

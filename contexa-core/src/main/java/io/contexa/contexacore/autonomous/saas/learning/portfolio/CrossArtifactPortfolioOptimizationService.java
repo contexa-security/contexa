@@ -1,5 +1,5 @@
 package io.contexa.contexacore.autonomous.saas.learning.portfolio;
-import io.contexa.contexacore.autonomous.saas.dto.CalibrationProfilePackSnapshot;
+import io.contexa.contexacore.autonomous.saas.dto.DecisionQualityProfileSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.CohortSeedPackSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.DetectionStrategyPackSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.PromptPresentationPackSnapshot;
@@ -21,11 +21,11 @@ public class CrossArtifactPortfolioOptimizationService {
                 ? CrossArtifactPortfolioOptimizationInput.empty()
                 : input;
         DetectionStrategyPackSnapshot strategyPack = normalized.detectionStrategyPack();
-        CalibrationProfilePackSnapshot calibrationPack = normalized.calibrationProfilePack();
+        DecisionQualityProfileSnapshot qualityProfile = normalized.decisionQualityProfile();
         PromptPresentationPackSnapshot promptPack = normalized.promptPresentationPack();
         CohortSeedPackSnapshot cohortPack = normalized.cohortSeedPack();
         long promotedStrategies = countPromotedStrategies(strategyPack);
-        long promotedCalibrations = countPromotedCalibrations(calibrationPack);
+        long promotedQualityProfiles = countPromotedQualityProfiles(qualityProfile);
         long promotedPromptPatterns = countPromotedPromptPatterns(promptPack);
         long qualifiedCohortSeeds = countQualifiedCohortSeeds(cohortPack);
         List<CrossArtifactPortfolioArtifactSummary> summaries = List.of(
@@ -36,11 +36,11 @@ public class CrossArtifactPortfolioOptimizationService {
                         strategyPack != null ? strategyPack.candidateStrategyCount() : 0L,
                         strategyPack != null ? strategyPack.collectingStrategyCount() : 0L),
                 new CrossArtifactPortfolioArtifactSummary(
-                        LearningArtifactTypeNames.CALIBRATION_PROFILE,
-                        calibrationPack != null && calibrationPack.runtimeReady(),
-                        promotedCalibrations,
-                        calibrationPack != null ? calibrationPack.candidateProfileCount() : 0L,
-                        calibrationPack != null ? calibrationPack.collectingProfileCount() : 0L),
+                        LearningArtifactTypeNames.DECISION_QUALITY_PROFILE,
+                        qualityProfile != null && qualityProfile.runtimeReady(),
+                        promotedQualityProfiles,
+                        qualityProfile != null ? qualityProfile.candidateProfileCount() : 0L,
+                        qualityProfile != null ? qualityProfile.collectingProfileCount() : 0L),
                 new CrossArtifactPortfolioArtifactSummary(
                         LearningArtifactTypeNames.PROMPT_PRESENTATION,
                         promptPack != null && promptPack.runtimeReady(),
@@ -56,37 +56,37 @@ public class CrossArtifactPortfolioOptimizationService {
         );
         CrossArtifactPortfolioHealthState healthState = resolveHealthState(
                 promotedStrategies,
-                promotedCalibrations,
+                promotedQualityProfiles,
                 promotedPromptPatterns,
                 qualifiedCohortSeeds);
         List<CrossArtifactPortfolioRecommendation> recommendations = buildRecommendations(
                 promotedStrategies,
-                promotedCalibrations,
+                promotedQualityProfiles,
                 promotedPromptPatterns,
                 qualifiedCohortSeeds);
         List<String> runtimeOrder = buildRuntimeOrder(
                 promotedStrategies,
-                promotedCalibrations,
+                promotedQualityProfiles,
                 promotedPromptPatterns,
                 qualifiedCohortSeeds);
         int portfolioScore = score(
                 promotedStrategies,
-                promotedCalibrations,
+                promotedQualityProfiles,
                 promotedPromptPatterns,
                 qualifiedCohortSeeds,
                 recommendations);
         List<String> portfolioFacts = List.of(
                 String.format(Locale.ROOT,
-                        "promotedCounts strategy=%d calibration=%d prompt=%d cohort=%d",
+                        "promotedCounts strategy=%d decisionQuality=%d prompt=%d cohort=%d",
                         promotedStrategies,
-                        promotedCalibrations,
+                        promotedQualityProfiles,
                         promotedPromptPatterns,
                         qualifiedCohortSeeds),
                 "recommendedRuntimeOrder=" + String.join(" > ", runtimeOrder),
                 "healthState=" + healthState.name(),
                 "portfolioScore=" + portfolioScore);
         return new CrossArtifactPortfolioOptimizationResult(
-                resolveTenantId(strategyPack, calibrationPack, promptPack, cohortPack),
+                resolveTenantId(strategyPack, qualityProfile, promptPack, cohortPack),
                 healthState,
                 portfolioScore,
                 summaries,
@@ -97,33 +97,33 @@ public class CrossArtifactPortfolioOptimizationService {
     }
     private CrossArtifactPortfolioHealthState resolveHealthState(
             long promotedStrategies,
-            long promotedCalibrations,
+            long promotedQualityProfiles,
             long promotedPromptPatterns,
             long qualifiedCohortSeeds) {
-        if (promotedStrategies == 0L && promotedCalibrations == 0L && promotedPromptPatterns == 0L && qualifiedCohortSeeds == 0L) {
+        if (promotedStrategies == 0L && promotedQualityProfiles == 0L && promotedPromptPatterns == 0L && qualifiedCohortSeeds == 0L) {
             return CrossArtifactPortfolioHealthState.EMPTY;
         }
-        if (qualifiedCohortSeeds > 0L && promotedStrategies == 0L && promotedCalibrations == 0L && promotedPromptPatterns == 0L) {
+        if (qualifiedCohortSeeds > 0L && promotedStrategies == 0L && promotedQualityProfiles == 0L && promotedPromptPatterns == 0L) {
             return CrossArtifactPortfolioHealthState.COHORT_ONLY;
         }
-        if (promotedCalibrations > 0L && promotedStrategies == 0L) {
-            return CrossArtifactPortfolioHealthState.CALIBRATION_WITHOUT_STRATEGY;
+        if (promotedQualityProfiles > 0L && promotedStrategies == 0L) {
+            return CrossArtifactPortfolioHealthState.DECISION_QUALITY_WITHOUT_STRATEGY;
         }
-        if (promotedPromptPatterns > 0L && promotedStrategies == 0L && promotedCalibrations == 0L) {
+        if (promotedPromptPatterns > 0L && promotedStrategies == 0L && promotedQualityProfiles == 0L) {
             return CrossArtifactPortfolioHealthState.PROMPT_WITHOUT_CORE;
         }
-        if (promotedStrategies > 0L && promotedCalibrations == 0L) {
+        if (promotedStrategies > 0L && promotedQualityProfiles == 0L) {
             return CrossArtifactPortfolioHealthState.STRATEGY_ONLY;
         }
         return CrossArtifactPortfolioHealthState.BALANCED;
     }
     private List<CrossArtifactPortfolioRecommendation> buildRecommendations(
             long promotedStrategies,
-            long promotedCalibrations,
+            long promotedQualityProfiles,
             long promotedPromptPatterns,
             long qualifiedCohortSeeds) {
         List<CrossArtifactPortfolioRecommendation> recommendations = new ArrayList<>();
-        if (promotedStrategies == 0L && promotedCalibrations == 0L && promotedPromptPatterns == 0L && qualifiedCohortSeeds == 0L) {
+        if (promotedStrategies == 0L && promotedQualityProfiles == 0L && promotedPromptPatterns == 0L && qualifiedCohortSeeds == 0L) {
             recommendations.add(new CrossArtifactPortfolioRecommendation(
                     "PORTFOLIO_EMPTY",
                     "No promoted or qualified learning artifact is available for runtime optimization.",
@@ -132,51 +132,51 @@ public class CrossArtifactPortfolioOptimizationService {
                     "Keep runtime local-first and continue collecting evidence before promotion."));
             return recommendations;
         }
-        if (promotedCalibrations > 0L && promotedStrategies == 0L) {
+        if (promotedQualityProfiles > 0L && promotedStrategies == 0L) {
             recommendations.add(new CrossArtifactPortfolioRecommendation(
-                    "CALIBRATION_WITHOUT_STRATEGY_SUPPORT",
-                    "Calibration profiles are promoted without a promoted detection strategy foundation.",
+                    "DECISION_QUALITY_WITHOUT_STRATEGY_SUPPORT",
+                    "Decision-quality profiles are promoted without a promoted detection strategy foundation.",
                     true,
-                    List.of(LearningArtifactTypeNames.CALIBRATION_PROFILE, LearningArtifactTypeNames.DETECTION_STRATEGY),
-                    "Keep calibration profiles review-only until at least one promoted detection strategy exists."));
+                    List.of(LearningArtifactTypeNames.DECISION_QUALITY_PROFILE, LearningArtifactTypeNames.DETECTION_STRATEGY),
+                    "Keep decision-quality profiles review-only until at least one promoted detection strategy exists."));
         }
-        if (promotedPromptPatterns > 0L && promotedStrategies == 0L && promotedCalibrations == 0L) {
+        if (promotedPromptPatterns > 0L && promotedStrategies == 0L && promotedQualityProfiles == 0L) {
             recommendations.add(new CrossArtifactPortfolioRecommendation(
                     "PROMPT_WITHOUT_DECISION_CORE",
-                    "Prompt presentation patterns are promoted without strategy or calibration support.",
+                    "Prompt presentation patterns are promoted without strategy or decision-quality support.",
                     true,
-                    List.of(LearningArtifactTypeNames.PROMPT_PRESENTATION, LearningArtifactTypeNames.DETECTION_STRATEGY, LearningArtifactTypeNames.CALIBRATION_PROFILE),
+                    List.of(LearningArtifactTypeNames.PROMPT_PRESENTATION, LearningArtifactTypeNames.DETECTION_STRATEGY, LearningArtifactTypeNames.DECISION_QUALITY_PROFILE),
                     "Limit prompt presentation packs to shadow or review-only until decision-core artifacts are promoted."));
         }
-        if (qualifiedCohortSeeds > 0L && (promotedStrategies > 0L || promotedCalibrations > 0L || promotedPromptPatterns > 0L)) {
+        if (qualifiedCohortSeeds > 0L && (promotedStrategies > 0L || promotedQualityProfiles > 0L || promotedPromptPatterns > 0L)) {
             recommendations.add(new CrossArtifactPortfolioRecommendation(
                     "DEGRADE_COHORT_PRIORITY_AFTER_ARTIFACT_MATURITY",
                     "Qualified cohort seeds should remain lower priority once promoted learning artifacts exist.",
                     false,
                     List.of(LearningArtifactTypeNames.COHORT_SEED),
-                    "Apply cohort seeds only as cold-start support after strategy, calibration, and prompt artifacts."));
+                    "Apply cohort seeds only as cold-start support after strategy, decision-quality, and prompt artifacts."));
         }
-        if (promotedStrategies > 0L && promotedCalibrations > 0L) {
+        if (promotedStrategies > 0L && promotedQualityProfiles > 0L) {
             recommendations.add(new CrossArtifactPortfolioRecommendation(
-                    "APPLY_STRATEGY_BEFORE_CALIBRATION",
-                    "Detection strategies and calibration profiles are both available and should be applied in that order.",
+                    "APPLY_STRATEGY_BEFORE_DECISION_QUALITY",
+                    "Detection strategies and decision-quality profiles are both available and should be applied in that order.",
                     false,
-                    List.of(LearningArtifactTypeNames.DETECTION_STRATEGY, LearningArtifactTypeNames.CALIBRATION_PROFILE),
-                    "Preserve runtime order: detection strategy, then calibration, then prompt presentation, then cohort support."));
+                    List.of(LearningArtifactTypeNames.DETECTION_STRATEGY, LearningArtifactTypeNames.DECISION_QUALITY_PROFILE),
+                    "Preserve runtime order: detection strategy, then decision-quality profile, then prompt presentation, then cohort support."));
         }
         return List.copyOf(recommendations);
     }
     private List<String> buildRuntimeOrder(
             long promotedStrategies,
-            long promotedCalibrations,
+            long promotedQualityProfiles,
             long promotedPromptPatterns,
             long qualifiedCohortSeeds) {
         Set<String> order = new LinkedHashSet<>();
         if (promotedStrategies > 0L) {
             order.add(LearningArtifactTypeNames.DETECTION_STRATEGY);
         }
-        if (promotedCalibrations > 0L) {
-            order.add(LearningArtifactTypeNames.CALIBRATION_PROFILE);
+        if (promotedQualityProfiles > 0L) {
+            order.add(LearningArtifactTypeNames.DECISION_QUALITY_PROFILE);
         }
         if (promotedPromptPatterns > 0L) {
             order.add(LearningArtifactTypeNames.PROMPT_PRESENTATION);
@@ -188,7 +188,7 @@ public class CrossArtifactPortfolioOptimizationService {
     }
     private int score(
             long promotedStrategies,
-            long promotedCalibrations,
+            long promotedQualityProfiles,
             long promotedPromptPatterns,
             long qualifiedCohortSeeds,
             List<CrossArtifactPortfolioRecommendation> recommendations) {
@@ -196,7 +196,7 @@ public class CrossArtifactPortfolioOptimizationService {
         if (promotedStrategies > 0L) {
             score += 45;
         }
-        if (promotedCalibrations > 0L) {
+        if (promotedQualityProfiles > 0L) {
             score += 25;
         }
         if (promotedPromptPatterns > 0L) {
@@ -205,7 +205,7 @@ public class CrossArtifactPortfolioOptimizationService {
         if (qualifiedCohortSeeds > 0L) {
             score += 10;
         }
-        if (promotedStrategies > 0L && promotedCalibrations > 0L) {
+        if (promotedStrategies > 0L && promotedQualityProfiles > 0L) {
             score += 10;
         }
         score -= (int) recommendations.stream()
@@ -221,7 +221,7 @@ public class CrossArtifactPortfolioOptimizationService {
                 .filter(item -> item.runtimeEligible() && isPromoted(item.promotionState()))
                 .count();
     }
-    private long countPromotedCalibrations(CalibrationProfilePackSnapshot snapshot) {
+    private long countPromotedQualityProfiles(DecisionQualityProfileSnapshot snapshot) {
         if (snapshot == null || !snapshot.runtimeReady()) {
             return 0L;
         }
@@ -256,14 +256,14 @@ public class CrossArtifactPortfolioOptimizationService {
     }
     private String resolveTenantId(
             DetectionStrategyPackSnapshot strategyPack,
-            CalibrationProfilePackSnapshot calibrationPack,
+            DecisionQualityProfileSnapshot qualityProfile,
             PromptPresentationPackSnapshot promptPack,
             CohortSeedPackSnapshot cohortPack) {
         if (strategyPack != null && StringUtils.hasText(strategyPack.tenantId())) {
             return strategyPack.tenantId();
         }
-        if (calibrationPack != null && StringUtils.hasText(calibrationPack.tenantId())) {
-            return calibrationPack.tenantId();
+        if (qualityProfile != null && StringUtils.hasText(qualityProfile.tenantId())) {
+            return qualityProfile.tenantId();
         }
         if (promptPack != null && StringUtils.hasText(promptPack.tenantId())) {
             return promptPack.tenantId();

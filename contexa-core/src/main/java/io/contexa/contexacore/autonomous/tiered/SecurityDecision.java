@@ -63,15 +63,6 @@ public class SecurityDecision {
     private List<String> autonomyConstraintReasons = new ArrayList<>();
     private String autonomyConstraintSummary;
 
-    private Boolean calibrationApplied;
-    private String calibrationProfileKey;
-    private String calibrationScenarioClass;
-    private Double calibrationConfidenceAdjustment;
-    private String calibrationActionBias;
-    @Builder.Default
-    private List<String> calibrationReasons = new ArrayList<>();
-    private String calibrationSummary;
-
     public Double resolveAuditRiskScore() {
         return llmAuditRiskScore;
     }

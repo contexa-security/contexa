@@ -28,13 +28,6 @@ public class SecurityDecisionForwardingPayload {
     private Boolean autonomyConstraintApplied;
     private String autonomyConstraintSummary;
     private List<String> autonomyConstraintReasons;
-    private Boolean calibrationApplied;
-    private String calibrationProfileKey;
-    private String calibrationScenarioClass;
-    private Double calibrationConfidenceAdjustment;
-    private String calibrationActionBias;
-    private List<String> calibrationReasons;
-    private String calibrationSummary;
     private String severityLevel;
     private String eventSource;
     private LocalDateTime eventTimestamp;

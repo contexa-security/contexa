@@ -1707,23 +1707,6 @@ public class SecurityDecisionPromptSections {
         return canonicalSecurityContextProvider.resolve(event);
     }
 
-    public Optional<CanonicalSecurityContext> resolveCanonicalSecurityContextForGuardrail(SecurityEvent event) {
-        Optional<CanonicalSecurityContext> cached = getCachedCanonicalSecurityContext(event);
-        if (cached.isPresent()) {
-            return cached;
-        }
-        Optional<CanonicalSecurityContext> resolved = resolveCanonicalSecurityContext(event);
-        resolved.ifPresent(context -> cacheCanonicalSecurityContext(event, context));
-        return resolved;
-    }
-
-    private Optional<CanonicalSecurityContext> getCachedCanonicalSecurityContext(SecurityEvent event) {
-        if (event == null || event.getEventId() == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(canonicalSecurityContextCache.getIfPresent(event.getEventId()));
-    }
-
     private void cacheCanonicalSecurityContext(SecurityEvent event, CanonicalSecurityContext context) {
         if (event == null || event.getEventId() == null || context == null) {
             return;
