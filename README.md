@@ -1,8 +1,7 @@
-<img src="logo.png" alt="Contexa Logo" width="80" align="left" />
 
-# CONTEXA
-
-**Open-source AI-native Post-Authentication Runtime Control Plane for Spring**
+<img src="ctxa.png" alt="Contexa Logo" width="250" align="left" /><br>
+<br clear="left" />
+**Open-source AI-native Post-Authentication Runtime Control Plane**
 
 <br clear="left" />
 
