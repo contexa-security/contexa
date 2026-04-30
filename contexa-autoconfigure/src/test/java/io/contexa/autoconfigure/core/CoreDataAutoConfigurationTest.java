@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import io.contexa.contexacommon.config.JpaAuditingConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
@@ -19,6 +20,10 @@ import org.springframework.transaction.TransactionManager;
 
 import jakarta.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -108,6 +113,16 @@ class CoreDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("Core data auto-configuration should activate JPA auditing for Contexa managed entities")
+    void coreDataAutoConfigurationActivatesJpaAuditing() throws Exception {
+        String imports = readAutoConfigurationImports();
+
+        assertThat(imports).contains("io.contexa.contexacommon.config.JpaAuditingConfig");
+        assertThat(imports.indexOf("io.contexa.contexacommon.config.JpaAuditingConfig"))
+                .isLessThan(imports.indexOf("io.contexa.autoconfigure.core.CoreDataAutoConfiguration"));
+    }
+
+    @Test
     @DisplayName("Application DataSource and EntityManagerFactory should coexist with Contexa datasource")
     void applicationJpaInfrastructureCoexistsWithContexaJpaInfrastructure() {
         new ApplicationContextRunner()
@@ -178,6 +193,33 @@ class CoreDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("Core data auditing should coexist with the legacy common auditing configuration")
+    void coreDataAuditingCoexistsWithLegacyCommonAuditingConfiguration() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(TestApplicationPackage.class, JpaAuditingConfig.class)
+                .withConfiguration(AutoConfigurations.of(
+                        JpaAuditingConfig.class,
+                        DataSourceAutoConfiguration.class,
+                        HibernateJpaAutoConfiguration.class,
+                        CoreDataAutoConfiguration.class))
+                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
+                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withPropertyValues(
+                        "spring.datasource.url=jdbc:h2:mem:auditing-coexistence;DB_CLOSE_DELAY=-1",
+                        "spring.datasource.driver-class-name=org.h2.Driver",
+                        "spring.jpa.hibernate.ddl-auto=none",
+                        "spring.sql.init.mode=never",
+                        "contexa.datasource.url=jdbc:h2:mem:contexa-auditing-coexistence;DB_CLOSE_DELAY=-1",
+                        "contexa.datasource.driver-class-name=org.h2.Driver",
+                        "contexa.jpa.hibernate.ddl-auto=none")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasBean("jpaAuditingHandler");
+                });
+    }
+
+    @Test
     @DisplayName("Contexa-owned applications should boot with only contexa.datasource")
     void contexaOwnedApplicationUsesContexaDatasourceAsDefaultWhenSpringDatasourceIsAbsent() {
         new ApplicationContextRunner()
@@ -205,6 +247,12 @@ class CoreDataAutoConfigurationTest {
                     assertThat(context.getBean("dataSource", DataSource.class))
                             .isSameAs(context.getBean("contexaDataSource", DataSource.class));
                 });
+    }
+
+    private static String readAutoConfigurationImports() throws IOException {
+        return Files.readString(
+                Path.of("src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"),
+                StandardCharsets.UTF_8);
     }
 
     @Configuration(proxyBeanMethods = false)

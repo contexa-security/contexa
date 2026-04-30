@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
 import java.time.Instant;
@@ -24,11 +25,20 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
     private final OAuth2AuthorizationService delegate;
     private final JdbcTemplate jdbcTemplate;
     private final AuthContextProperties properties;
+    private final TransactionTemplate transactionTemplate;
 
     public DeviceAwareOAuth2AuthorizationService(
             OAuth2AuthorizationService delegate,
             JdbcTemplate jdbcTemplate,
             AuthContextProperties properties) {
+        this(delegate, jdbcTemplate, properties, null);
+    }
+
+    public DeviceAwareOAuth2AuthorizationService(
+            OAuth2AuthorizationService delegate,
+            JdbcTemplate jdbcTemplate,
+            AuthContextProperties properties,
+            TransactionTemplate transactionTemplate) {
 
         Assert.notNull(delegate, "delegate cannot be null");
         Assert.notNull(jdbcTemplate, "jdbcTemplate cannot be null");
@@ -36,6 +46,7 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         this.delegate = delegate;
         this.jdbcTemplate = jdbcTemplate;
         this.properties = properties;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Override
@@ -83,7 +94,13 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     private void cleanupCorruptedAuthorization(String id) {
         try {
-            jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", id);
+            if (transactionTemplate != null) {
+                transactionTemplate.executeWithoutResult(status ->
+                        jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", id));
+            }
+            else {
+                jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", id);
+            }
         } catch (Exception e) {
             log.error("[OAuth2] Failed to cleanup corrupted authorization {}: {}", id, e.getMessage());
         }

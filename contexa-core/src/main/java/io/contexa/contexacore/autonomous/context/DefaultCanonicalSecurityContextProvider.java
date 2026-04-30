@@ -28,7 +28,9 @@ import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ObjectiveDriftEvaluation;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurityContextProvider {
 
     private final ResourceContextRegistry resourceContextRegistry;
@@ -697,7 +699,18 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private void enrichAll(List<? extends ContextEnricher> enrichers, SecurityEvent event, CanonicalSecurityContext context) {
         for (ContextEnricher enricher : enrichers) {
-            enricher.enrich(event, context);
+            if (enricher == null) {
+                continue;
+            }
+            try {
+                enricher.enrich(event, context);
+            } catch (Exception ex) {
+                log.warn("Canonical context enricher {} failed for event {}: {}",
+                        enricher.getClass().getSimpleName(),
+                        event != null ? event.getEventId() : "unknown",
+                        ex.getMessage(),
+                        ex);
+            }
         }
     }
 

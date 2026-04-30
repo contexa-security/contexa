@@ -4,6 +4,7 @@ import io.contexa.contexacommon.entity.AuditLog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,7 +13,7 @@ import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
-    @org.springframework.data.jpa.repository.Modifying
+    @Modifying
     @Query("DELETE FROM AuditLog a WHERE a.timestamp < :cutoff")
     int deleteByTimestampBefore(@Param("cutoff") LocalDateTime cutoff);
 
@@ -21,45 +22,45 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")
     long countByResourceIdentifier(@Param("resourceId") String resourceId);
 
-    
+
     @Query("SELECT COUNT(DISTINCT a.principalName) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")
     long countDistinctUsersByResourceIdentifier(@Param("resourceId") String resourceId);
 
-    
+
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId AND a.decision = 'DENY' AND a.timestamp >= :since")
     long countFailedAttemptsSince(@Param("resourceId") String resourceId, @Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.clientIp = :remoteIp")
     long countByRemoteIp(@Param("remoteIp") String remoteIp);
 
-    
+
     @Query("SELECT COUNT(DISTINCT a.resourceIdentifier) FROM AuditLog a WHERE a.principalName = :userId")
     long countDistinctResourcesByPrincipalName(@Param("userId") String userId);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentLogsByPrincipalName(@Param("userId") String userId);
 
-    
+
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE (a.decision = 'DENY' OR a.decision = 'BLOCK') AND a.timestamp >= :since")
     long countDeniedAttemptsSince(@Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.clientIp = :remoteIp ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentLogsByClientIp(@Param("remoteIp") String remoteIp);
 
-    
+
     @Query("SELECT HOUR(a.timestamp) as hour, COUNT(a) as count FROM AuditLog a WHERE a.principalName = :userId GROUP BY HOUR(a.timestamp) ORDER BY count DESC")
     List<Object[]> findTypicalAccessHoursByPrincipalName(@Param("userId") String userId);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentActivitiesByUserId(@Param("userId") String userId,
                                                 @Param("since") LocalDateTime since);
 
-    
+
     default List<AuditLog> findRecentActivitiesByUserId(String userId, int days) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         return findRecentActivitiesByUserId(userId, since);
@@ -85,17 +86,17 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findAfterHoursAccessByUser(@Param("userId") String userId,
                                               @Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.timestamp BETWEEN :startTime AND :endTime")
     long countByPrincipalNameAndTimeRange(@Param("userId") String userId,
                                           @Param("startTime") LocalDateTime startTime,
                                           @Param("endTime") LocalDateTime endTime);
 
-    
+
     List<AuditLog> findByTimestampBetween(LocalDateTime start, LocalDateTime end);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.action LIKE %:actionType% " +
             "AND a.timestamp >= :since")
@@ -103,12 +104,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                                              @Param("actionType") String actionType,
                                              @Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.clientIp = :ipAddress")
     List<AuditLog> findByUserIdAndClientIp(@Param("userId") String userId, @Param("ipAddress") String ipAddress);
 
-    
+
     @Query("SELECT a.clientIp, COUNT(a) FROM AuditLog a " +
             "WHERE a.principalName = :userId " +
             "AND a.timestamp >= :since " +
@@ -116,7 +117,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<Object[]> findIpStatisticsByUser(@Param("userId") String userId,
                                           @Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.resourceUri LIKE %:resource% " +
             "AND a.timestamp >= :since")
@@ -124,11 +125,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                                            @Param("resource") String resource,
                                            @Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findByCreatedAtAfter(@Param("since") LocalDateTime since);
 
-    
+
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findByPrincipalNameAndCreatedAtAfter(@Param("userId") String userId,

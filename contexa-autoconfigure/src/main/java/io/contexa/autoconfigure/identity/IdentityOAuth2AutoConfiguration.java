@@ -227,7 +227,7 @@ public class IdentityOAuth2AutoConfiguration {
         rowMapper.setObjectMapper(authorizationObjectMapper);
         jdbcService.setAuthorizationRowMapper(rowMapper);
 
-        return new DeviceAwareOAuth2AuthorizationService(jdbcService, jdbcTemplate, authContextProperties);
+        return new DeviceAwareOAuth2AuthorizationService(jdbcService, jdbcTemplate, authContextProperties, transactionTemplate);
     }
 
     @Bean

@@ -304,9 +304,7 @@ create table public.audit_log
     http_method         varchar(10),
     request_uri         varchar(2048),
     risk_score          double precision,
-    user_agent          varchar(512),
-    parameters          varchar(255),
-    status              varchar(255)
+    user_agent          varchar(512)
 );
 
 alter table public.audit_log

@@ -52,6 +52,7 @@ public class IdentityServiceAutoConfiguration {
     public EmailOneTimeTokenService oneTimeTokenService(
             EmailService emailService,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            // one_time_tokens is JDBC-owned; the shared Contexa transaction manager keeps the boundary explicit.
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties) {
         return new EmailOneTimeTokenService(

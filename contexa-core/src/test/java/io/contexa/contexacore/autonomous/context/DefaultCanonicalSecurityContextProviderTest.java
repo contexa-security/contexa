@@ -15,7 +15,10 @@ import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
 import io.contexa.contexacore.autonomous.context.enricher.AuthenticationContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.AuthorizationSnapshotProvider;
+import io.contexa.contexacore.autonomous.context.enricher.FrictionContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.OrganizationContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.PeerCohortContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.ReasoningMemoryContextProvider;
 import io.contexa.contexacore.autonomous.context.hardener.CanonicalSecurityContextHardener;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
@@ -725,5 +728,51 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getReasoningMemoryProfile().getMatchedSignalKeys()).contains("signal-credential-export");
         assertThat(context.getReasoningMemoryProfile().getMemoryGuardrails())
                 .contains("Prefer tenant-local memory weighting before weaker analogies.");
+    }
+
+    @Test
+    void resolveShouldContinueWhenOptionalContextEnricherFails() {
+        List<PeerCohortContextProvider> peerProviders = List.of((event, context) -> {
+            throw new IllegalArgumentException("SaaS tenant not found: demo");
+        });
+        List<FrictionContextProvider> frictionProviders = List.of((event, context) ->
+                context.setFrictionProfile(CanonicalSecurityContext.FrictionProfile.builder()
+                        .approvalRequired(true)
+                        .approvalStatus("PENDING")
+                        .build()));
+        List<ReasoningMemoryContextProvider> reasoningProviders = List.of((event, context) ->
+                context.setReasoningMemoryProfile(CanonicalSecurityContext.ReasoningMemoryProfile.builder()
+                        .retentionTier("WARM")
+                        .build()));
+        DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
+                new InMemoryResourceContextRegistry(),
+                new ContextCoverageEvaluator(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                peerProviders,
+                frictionProviders,
+                reasoningProviders,
+                new MetadataObservedScopeInferenceService(),
+                new CanonicalSecurityContextHardener());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-demo")
+                .userId("alice")
+                .build();
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("requestPath", "/demo/resource");
+        event.addMetadata("httpMethod", "GET");
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getActor().getTenantId()).isEqualTo("demo");
+        assertThat(context.getResource().getRequestPath()).isEqualTo("/demo/resource");
+        assertThat(context.getPeerCohortProfile()).isNull();
+        assertThat(context.getFrictionProfile()).isNotNull();
+        assertThat(context.getFrictionProfile().getApprovalStatus()).isEqualTo("PENDING");
+        assertThat(context.getReasoningMemoryProfile()).isNotNull();
+        assertThat(context.getReasoningMemoryProfile().getRetentionTier()).isEqualTo("WARM");
     }
 }
