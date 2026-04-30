@@ -125,8 +125,8 @@ class PermissionControllerTest {
             String view = controller.getPermissions(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/permissions");
-            assertThat(dto.getManagedResourceId()).isEqualTo(10L);
-            assertThat(dto.getManagedResourceIdentifier()).isEqualTo("api/users");
+            assertThat(dto.getLinkedResourceId()).isEqualTo(10L);
+            assertThat(dto.getLinkedResourceIdentifier()).isEqualTo("api/users");
         }
     }
 
