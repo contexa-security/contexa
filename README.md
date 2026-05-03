@@ -173,6 +173,20 @@ public void disableUser(@PathVariable Long id) {
 }
 ```
 
+### 4. Start infrastructure
+
+```bash
+docker compose up -d postgres ollama
+docker exec contexa-ollama ollama pull qwen2.5:7b
+docker exec contexa-ollama ollama pull mxbai-embed-large
+```
+
+### 5. Run
+
+```bash
+./gradlew bootRun
+```
+
 For full setup, configuration, and architecture guidance, use the documentation site at `https://docs.ctxa.ai`.
 
 ## Runtime Zero Trust Actions
