@@ -1,5 +1,5 @@
 
-<img src="ctxa.png" alt="Contexa Logo" width="250" align="left" /><br>
+<img src="logo.jpg" alt="Contexa Logo" width="200" align="left" /><br>
 <br clear="left" />
 **Open-source AI-native Post-Authentication Runtime Control Plane**
 
