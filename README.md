@@ -7,10 +7,17 @@
   <strong>Open-source AI-native Post-Authentication Runtime Control Plane</strong>
 </p>
 
+<br/>
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green.svg)](https://spring.io/projects/spring-boot)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
+  &nbsp;
+  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-21-orange.svg" alt="Java"/></a>
+  &nbsp;
+  <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.5-green.svg" alt="Spring Boot"/></a>
+</p>
+
+<br/>
 
 > Security does not end at login.
 > CONTEXA continuously evaluates authenticated runtime behavior and applies zero-trust controls inside the application.
