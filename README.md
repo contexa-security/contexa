@@ -1,9 +1,12 @@
 
-<img src="logo.jpg" alt="Contexa Logo" width="200" align="left" /><br>
-<br clear="left" />
-**Open-source AI-native Post-Authentication Runtime Control Plane**
+<p align="center">
+  <img src="logo.jpg" alt="Contexa Logo" width="400" />
+</p>
 
-<br clear="left" />
+<p align="center">
+  <strong>Open-source AI-native Post-Authentication Runtime Control Plane</strong>
+</p>
+
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/)
