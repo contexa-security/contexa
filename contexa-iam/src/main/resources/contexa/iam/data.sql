@@ -90,16 +90,20 @@ INSERT INTO ROLE_PERMISSIONS (role_id, permission_id, assigned_at) VALUES
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
--- MANAGED_RESOURCE — required NOT NULL: created_at, updated_at,
--- resource_identifier, friendly_name, resource_type, status.
+-- MANAGED_RESOURCE — idempotent on resource_identifier (no UNIQUE constraint).
+-- Required NOT NULL: created_at, updated_at, resource_identifier,
+-- friendly_name, resource_type, status.
 -- ----------------------------------------------------------------
-INSERT INTO MANAGED_RESOURCE (id, resource_identifier, resource_type, friendly_name, description, status, created_at, updated_at) VALUES
-    (101, '/api/documents',                                                                                                'URL',    'getDocumentList', NULL,                                       'NEEDS_DEFINITION',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    (102, 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)',                  'METHOD', '특정 문서 조회',  'AI 추천을 받지 못한 리소스입니다.',         'PERMISSION_CREATED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    (103, '/admin/**',                                                                                                     'URL',    'GROUP 관리',      '시스템에서 자동 생성된 GROUP 리소스',       'POLICY_CONNECTED',   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    (104, '/api/internal/health',                                                                                          'URL',    'Health Check API', NULL,                                      'EXCLUDED',           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    (201, 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.updateDocument(java.lang.Long,java.lang.String)',  'METHOD', '문서 업데이트',   'ID와 새로운 내용으로 문서를 업데이트하는 기능', 'POLICY_CONNECTED',  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO MANAGED_RESOURCE (resource_identifier, resource_type, friendly_name, description, status, created_at, updated_at)
+SELECT v.resource_identifier, v.resource_type, v.friendly_name, v.description, v.status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  FROM (VALUES
+    ('/api/documents',                                                                                                'URL',    'getDocumentList', NULL::TEXT,                                  'NEEDS_DEFINITION'),
+    ('io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)',                  'METHOD', '특정 문서 조회',  'AI 추천을 받지 못한 리소스입니다.',         'PERMISSION_CREATED'),
+    ('/admin/**',                                                                                                     'URL',    'GROUP 관리',      '시스템에서 자동 생성된 GROUP 리소스',       'POLICY_CONNECTED'),
+    ('/api/internal/health',                                                                                          'URL',    'Health Check API', NULL::TEXT,                                 'EXCLUDED'),
+    ('io.contexa.contexaiam.admin.web.service.impl.DocumentService.updateDocument(java.lang.Long,java.lang.String)',  'METHOD', '문서 업데이트',   'ID와 새로운 내용으로 문서를 업데이트하는 기능', 'POLICY_CONNECTED')
+  ) AS v(resource_identifier, resource_type, friendly_name, description, status)
+ WHERE NOT EXISTS (SELECT 1 FROM MANAGED_RESOURCE m WHERE m.resource_identifier = v.resource_identifier);
 
 -- ----------------------------------------------------------------
 -- PERMISSION — Resource-bound permissions (managed_resource_id).
@@ -121,33 +125,56 @@ INSERT INTO ROLE_PERMISSIONS (role_id, permission_id, assigned_at) VALUES
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
--- POLICY — required NOT NULL: is_active, priority, created_at, effect, name.
+-- POLICY — idempotent on name. NOT NULL: is_active, priority, created_at, effect, name.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY (id, name, description, effect, priority, is_active, friendly_description, created_at) VALUES
-    (201, 'FINANCE_REPORT_POLICY', '재무팀 문서 접근 정책', 'ALLOW', 500, TRUE, '(역할(재무팀) 보유) 그리고 (반환된 문서의 소유자가 본인임)', CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO POLICY (name, description, effect, priority, is_active, friendly_description, created_at)
+SELECT 'FINANCE_REPORT_POLICY', '재무팀 문서 접근 정책', 'ALLOW', 500, TRUE, '(역할(재무팀) 보유) 그리고 (반환된 문서의 소유자가 본인임)', CURRENT_TIMESTAMP
+ WHERE NOT EXISTS (SELECT 1 FROM POLICY WHERE name = 'FINANCE_REPORT_POLICY');
 
 -- ----------------------------------------------------------------
--- POLICY_TARGET — required NOT NULL: target_order, policy_id, target_identifier, target_type.
+-- POLICY_TARGET — idempotent on (policy_id, target_identifier).
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_TARGET (id, policy_id, target_type, target_identifier, target_order) VALUES
-    (201, 201, 'METHOD', 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)', 0)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO POLICY_TARGET (policy_id, target_type, target_identifier, target_order)
+SELECT p.id, 'METHOD', 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)', 0
+  FROM POLICY p
+ WHERE p.name = 'FINANCE_REPORT_POLICY'
+   AND NOT EXISTS (
+       SELECT 1 FROM POLICY_TARGET t
+        WHERE t.policy_id = p.id
+          AND t.target_identifier = 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)'
+   );
 
 -- ----------------------------------------------------------------
--- POLICY_RULE — required NOT NULL: policy_id.
+-- POLICY_RULE — idempotent on (policy_id, description).
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_RULE (id, policy_id, description) VALUES
-    (201, 201, '재무팀 역할 및 본인 소유 문서 확인 규칙')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO POLICY_RULE (policy_id, description)
+SELECT p.id, '재무팀 역할 및 본인 소유 문서 확인 규칙'
+  FROM POLICY p
+ WHERE p.name = 'FINANCE_REPORT_POLICY'
+   AND NOT EXISTS (
+       SELECT 1 FROM POLICY_RULE r
+        WHERE r.policy_id = p.id
+          AND r.description = '재무팀 역할 및 본인 소유 문서 확인 규칙'
+   );
 
 -- ----------------------------------------------------------------
--- POLICY_CONDITION — required NOT NULL: rule_id, condition_expression, authorization_phase.
+-- POLICY_CONDITION — idempotent on (rule_id, authorization_phase, condition_expression).
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_CONDITION (id, rule_id, condition_expression, authorization_phase) VALUES
-    (201, 201, 'hasAuthority(''ROLE_FINANCE_VIEWER'')',           'PRE_AUTHORIZE'),
-    (202, 201, 'returnObject.ownerUsername == authentication.name', 'POST_AUTHORIZE')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO POLICY_CONDITION (rule_id, condition_expression, authorization_phase)
+SELECT r.id, v.expr, v.phase
+  FROM POLICY p
+  JOIN POLICY_RULE r ON r.policy_id = p.id AND r.description = '재무팀 역할 및 본인 소유 문서 확인 규칙'
+ CROSS JOIN (VALUES
+    ('hasAuthority(''ROLE_FINANCE_VIEWER'')',            'PRE_AUTHORIZE'),
+    ('returnObject.ownerUsername == authentication.name','POST_AUTHORIZE')
+ ) AS v(expr, phase)
+ WHERE p.name = 'FINANCE_REPORT_POLICY'
+   AND NOT EXISTS (
+       SELECT 1 FROM POLICY_CONDITION c
+        WHERE c.rule_id = r.id
+          AND c.authorization_phase = v.phase
+          AND c.condition_expression = v.expr
+   );
 
 -- ----------------------------------------------------------------
 -- CONDITION_TEMPLATE — required NOT NULL: spel_template, name.
