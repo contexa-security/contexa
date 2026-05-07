@@ -125,73 +125,77 @@ INSERT INTO ROLE_PERMISSIONS (role_id, permission_id, assigned_at) VALUES
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
--- POLICY — idempotent on name. NOT NULL: is_active, priority, created_at, effect, name.
+-- POLICY — canonical seed policy id=2. NOT NULL: is_active, priority, created_at, effect, name.
 -- ----------------------------------------------------------------
 INSERT INTO POLICY (
     id, name, description, effect, priority, is_active,
     source, approval_status, friendly_description, created_at
 ) VALUES
     (
-        201,
-        'FINANCE_REPORT_POLICY',
-        '재무팀 문서 접근 정책',
+        2,
+        'ALLOW_READ_admin_**',
+        '모든 관리자 화면과 API는 인증된 사용자만 접근할 수 있습니다.',
         'ALLOW',
-        500,
+        100,
         TRUE,
         'MANUAL',
         'NOT_REQUIRED',
-        '(역할(재무팀) 보유) 그리고 (반환된 문서의 소유자가 본인임)',
+        '인증된 사용자만 /admin/** 보호 리소스에 접근할 수 있습니다.',
         CURRENT_TIMESTAMP
     )
 ON CONFLICT (id) DO UPDATE SET
-                               source = COALESCE(POLICY.source, EXCLUDED.source),
-                               approval_status = COALESCE(POLICY.approval_status, EXCLUDED.approval_status),
+                               name = EXCLUDED.name,
+                               description = EXCLUDED.description,
+                               effect = EXCLUDED.effect,
+                               priority = EXCLUDED.priority,
+                               is_active = EXCLUDED.is_active,
+                               source = EXCLUDED.source,
+                               approval_status = EXCLUDED.approval_status,
+                               friendly_description = EXCLUDED.friendly_description,
                                updated_at = CURRENT_TIMESTAMP;
 
 -- ----------------------------------------------------------------
--- POLICY_TARGET — idempotent on (policy_id, target_identifier).
+-- POLICY_TARGET — canonical child row of policy id=2.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_TARGET (policy_id, target_type, target_identifier, target_order)
-SELECT p.id, 'METHOD', 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)', 0
-  FROM POLICY p
- WHERE p.name = 'FINANCE_REPORT_POLICY'
-   AND NOT EXISTS (
-       SELECT 1 FROM POLICY_TARGET t
-        WHERE t.policy_id = p.id
-          AND t.target_identifier = 'io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)'
-   );
+INSERT INTO POLICY_TARGET (
+    id, policy_id, target_type, target_identifier, http_method, target_order, source_type
+) VALUES (
+    2, 2, 'URL', '/admin/**', 'ANY', 1, 'MANUAL'
+)
+ON CONFLICT (id) DO UPDATE SET
+                               policy_id = EXCLUDED.policy_id,
+                               target_type = EXCLUDED.target_type,
+                               target_identifier = EXCLUDED.target_identifier,
+                               http_method = EXCLUDED.http_method,
+                               target_order = EXCLUDED.target_order,
+                               source_type = EXCLUDED.source_type;
 
 -- ----------------------------------------------------------------
--- POLICY_RULE — idempotent on (policy_id, description).
+-- POLICY_RULE — canonical child row of policy id=2.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_RULE (policy_id, description)
-SELECT p.id, '재무팀 역할 및 본인 소유 문서 확인 규칙'
-  FROM POLICY p
- WHERE p.name = 'FINANCE_REPORT_POLICY'
-   AND NOT EXISTS (
-       SELECT 1 FROM POLICY_RULE r
-        WHERE r.policy_id = p.id
-          AND r.description = '재무팀 역할 및 본인 소유 문서 확인 규칙'
-   );
+INSERT INTO POLICY_RULE (id, policy_id, description)
+VALUES (2, 2, '인증된 사용자만 관리자 영역에 접근할 수 있습니다.')
+ON CONFLICT (id) DO UPDATE SET
+                               policy_id = EXCLUDED.policy_id,
+                               description = EXCLUDED.description;
 
 -- ----------------------------------------------------------------
--- POLICY_CONDITION — idempotent on (rule_id, authorization_phase, condition_expression).
+-- POLICY_CONDITION — canonical child row of policy id=2.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_CONDITION (rule_id, condition_expression, authorization_phase)
-SELECT r.id, v.expr, v.phase
-  FROM POLICY p
-  JOIN POLICY_RULE r ON r.policy_id = p.id AND r.description = '재무팀 역할 및 본인 소유 문서 확인 규칙'
- CROSS JOIN (VALUES
-    ('hasAuthority(''ROLE_FINANCE_VIEWER'')',            'PRE_AUTHORIZE'),
-    ('returnObject.ownerUsername == authentication.name','POST_AUTHORIZE')
- ) AS v(expr, phase)
- WHERE p.name = 'FINANCE_REPORT_POLICY'
-   AND NOT EXISTS (
-       SELECT 1 FROM POLICY_CONDITION c
-        WHERE c.rule_id = r.id
-          AND c.authorization_phase = v.phase
-          AND c.condition_expression = v.expr
-   );
+INSERT INTO POLICY_CONDITION (
+    id, rule_id, condition_expression, authorization_phase, description
+) VALUES (
+    2,
+    2,
+    'isAuthenticated()',
+    'PRE_AUTHORIZE',
+    '요청 사용자가 인증되어 있어야 합니다.'
+)
+ON CONFLICT (id) DO UPDATE SET
+                               rule_id = EXCLUDED.rule_id,
+                               condition_expression = EXCLUDED.condition_expression,
+                               authorization_phase = EXCLUDED.authorization_phase,
+                               description = EXCLUDED.description;
 
 -- ----------------------------------------------------------------
 -- CONDITION_TEMPLATE — required NOT NULL: spel_template, name.
@@ -219,8 +223,21 @@ INSERT INTO SECURITY_SPEL (name, expression, description, category) VALUES
     ('REMEMBER_ME',          'isRememberMe()',         'Remember-me authentication',             'AUTH'),
     ('ANONYMOUS',            'isAnonymous()',          'Anonymous user only',                    'AUTH'),
     ('PERMIT_ALL',           'permitAll',              'Allow all access',                       'AUTH'),
-    ('DENY_ALL',             'denyAll',                'Deny all access',                        'AUTH')
-ON CONFLICT (name) DO NOTHING;
+    ('DENY_ALL',             'denyAll',                'Deny all access',                        'AUTH'),
+    ('POLICY_2_ADMIN_AUTHENTICATED',
+     'isAuthenticated()',
+     'policy id=2: /admin/** 보호 리소스는 인증된 사용자만 접근할 수 있습니다.',
+     'POLICY')
+ON CONFLICT (name) DO UPDATE SET
+                                  expression = EXCLUDED.expression,
+                                  description = EXCLUDED.description,
+                                  category = EXCLUDED.category;
+
+-- ----------------------------------------------------------------
+-- SHEDLOCK — no seed row.
+-- ShedLock rows are runtime lock state. Pre-seeding lock_until/locked_by can
+-- create stale scheduler locks, so only the table schema is required.
+-- ----------------------------------------------------------------
 
 -- ----------------------------------------------------------------
 -- PERMISSION — common CRUD permissions.

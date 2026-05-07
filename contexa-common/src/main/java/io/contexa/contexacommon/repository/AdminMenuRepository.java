@@ -2,10 +2,12 @@ package io.contexa.contexacommon.repository;
 
 import io.contexa.contexacommon.entity.AdminMenu;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface AdminMenuRepository extends JpaRepository<AdminMenu, Long> {
 
@@ -18,7 +20,15 @@ public interface AdminMenuRepository extends JpaRepository<AdminMenu, Long> {
 
     List<AdminMenu> findByParentIdOrderByMenuOrderAsc(Long parentId);
 
-    Optional<AdminMenu> findByDataPage(String dataPage);
+    List<AdminMenu> findAllByDataPageOrderByIdAsc(String dataPage);
+
+    @Query("SELECT m.dataPage FROM AdminMenu m WHERE m.dataPage IS NOT NULL GROUP BY m.dataPage HAVING COUNT(m) > 1")
+    List<String> findDuplicatedDataPages();
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional(transactionManager = "contexaTransactionManager")
+    @Query("UPDATE AdminMenu m SET m.parentId = :newParentId WHERE m.parentId = :oldParentId")
+    int reassignChildren(@Param("oldParentId") Long oldParentId, @Param("newParentId") Long newParentId);
 
     void deleteByParentId(Long parentId);
 }

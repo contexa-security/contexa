@@ -7,6 +7,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -75,7 +76,46 @@ public class AdminMenuService {
             createMenu("menu.saas.tenant.workspace", "/admin/saas/tenant/workspace", "", saasId, 5, "SAAS", "saas-tenant-workspace");
         }
 
+        deduplicateMenusByDataPage();
         ensureLearningMenus();
+    }
+
+    private void deduplicateMenusByDataPage() {
+        List<String> duplicatedDataPages = menuRepository.findDuplicatedDataPages();
+        if (duplicatedDataPages.isEmpty()) {
+            return;
+        }
+
+        for (String dataPage : duplicatedDataPages) {
+            List<AdminMenu> menus = menuRepository.findAllByDataPageOrderByIdAsc(dataPage);
+            if (menus.size() <= 1) {
+                continue;
+            }
+
+            AdminMenu canonical = menus.stream()
+                    .min(Comparator.comparing(AdminMenu::getId))
+                    .orElseThrow();
+            Set<String> canonicalRoles = canonical.getRoles().stream()
+                    .map(AdminMenuRole::getRoleName)
+                    .collect(Collectors.toSet());
+
+            for (AdminMenu duplicate : menus) {
+                if (Objects.equals(duplicate.getId(), canonical.getId())) {
+                    continue;
+                }
+
+                menuRepository.reassignChildren(duplicate.getId(), canonical.getId());
+                duplicate.getRoles().stream()
+                        .map(AdminMenuRole::getRoleName)
+                        .filter(canonicalRoles::add)
+                        .forEach(canonical::addRole);
+                menuRepository.deleteById(duplicate.getId());
+            }
+
+            menuRepository.save(canonical);
+        }
+
+        menuQueryCache.invalidate();
     }
 
     private void ensureLearningMenus() {
@@ -97,7 +137,8 @@ public class AdminMenuService {
     }
 
     private Long ensureMenu(String name, String url, String icon, Long parentId, int order, String type, String dataPage) {
-        Optional<AdminMenu> existingMenu = menuRepository.findByDataPage(dataPage);
+        deduplicateMenusByDataPage();
+        Optional<AdminMenu> existingMenu = menuRepository.findAllByDataPageOrderByIdAsc(dataPage).stream().findFirst();
         if (existingMenu.isPresent()) {
             AdminMenu menu = existingMenu.get();
             menu.setName(name);
