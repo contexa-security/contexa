@@ -218,6 +218,41 @@ class DashboardServiceImplTest {
         }
 
         @Test
+        @DisplayName("should render legacy policies with null source without failing dashboard")
+        void shouldRenderLegacyPoliciesWithNullSource() {
+            stubAllDependencies();
+            Policy legacyPolicy = Policy.builder()
+                    .id(100L)
+                    .name("legacy-policy-with-null-source")
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            legacyPolicy.setEffect(null);
+            legacyPolicy.setSource(null);
+            legacyPolicy.setApprovalStatus(null);
+
+            when(policyRepository.countGroupBySource()).thenReturn(List.of(
+                    new Object[]{null, 2L},
+                    new Object[]{Policy.PolicySource.MANUAL, 5L},
+                    new Object[]{Policy.PolicySource.AI_GENERATED, 3L}
+            ));
+            when(policyRepository.countGroupByApprovalStatus()).thenReturn(List.of(
+                    new Object[]{null, 4L},
+                    new Object[]{Policy.ApprovalStatus.APPROVED, 6L}
+            ));
+            when(policyRepository.findTop5ByOrderByCreatedAtDesc()).thenReturn(List.of(legacyPolicy));
+
+            DashboardDto result = service.getDashboardData();
+
+            assertThat(result.policyStatus().manualPolicies()).isEqualTo(7L);
+            assertThat(result.policyStatus().pendingApproval()).isEqualTo(4L);
+            assertThat(result.policyStatus().recentPolicies()).hasSize(1);
+            RecentPolicyDto recentPolicy = result.policyStatus().recentPolicies().get(0);
+            assertThat(recentPolicy.effect()).isEqualTo("UNKNOWN");
+            assertThat(recentPolicy.source()).isEqualTo("MANUAL");
+            assertThat(recentPolicy.approvalStatus()).isEqualTo("PENDING");
+        }
+
+        @Test
         @DisplayName("should have correct statistics counts from repositories")
         void shouldHaveCorrectStatistics() {
             stubAllDependencies();

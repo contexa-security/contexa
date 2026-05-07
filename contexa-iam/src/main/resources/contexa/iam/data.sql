@@ -127,9 +127,26 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 -- ----------------------------------------------------------------
 -- POLICY — idempotent on name. NOT NULL: is_active, priority, created_at, effect, name.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY (name, description, effect, priority, is_active, friendly_description, created_at)
-SELECT 'FINANCE_REPORT_POLICY', '재무팀 문서 접근 정책', 'ALLOW', 500, TRUE, '(역할(재무팀) 보유) 그리고 (반환된 문서의 소유자가 본인임)', CURRENT_TIMESTAMP
- WHERE NOT EXISTS (SELECT 1 FROM POLICY WHERE name = 'FINANCE_REPORT_POLICY');
+INSERT INTO POLICY (
+    id, name, description, effect, priority, is_active,
+    source, approval_status, friendly_description, created_at
+) VALUES
+    (
+        201,
+        'FINANCE_REPORT_POLICY',
+        '재무팀 문서 접근 정책',
+        'ALLOW',
+        500,
+        TRUE,
+        'MANUAL',
+        'NOT_REQUIRED',
+        '(역할(재무팀) 보유) 그리고 (반환된 문서의 소유자가 본인임)',
+        CURRENT_TIMESTAMP
+    )
+ON CONFLICT (id) DO UPDATE SET
+                               source = COALESCE(POLICY.source, EXCLUDED.source),
+                               approval_status = COALESCE(POLICY.approval_status, EXCLUDED.approval_status),
+                               updated_at = CURRENT_TIMESTAMP;
 
 -- ----------------------------------------------------------------
 -- POLICY_TARGET — idempotent on (policy_id, target_identifier).

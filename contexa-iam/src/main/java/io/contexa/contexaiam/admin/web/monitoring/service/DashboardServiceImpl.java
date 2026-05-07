@@ -166,16 +166,22 @@ public class DashboardServiceImpl implements DashboardService {
         // Policy source: 3 queries -> 1 GROUP BY
         Map<Policy.PolicySource, Long> sourceCounts = new EnumMap<>(Policy.PolicySource.class);
         for (Object[] row : policyRepository.countGroupBySource()) {
-            if (row.length >= 2 && row[0] instanceof Policy.PolicySource source && row[1] instanceof Number count) {
-                sourceCounts.put(source, count.longValue());
+            if (row.length >= 2 && row[1] instanceof Number count) {
+                Policy.PolicySource source = row[0] instanceof Policy.PolicySource value
+                        ? value
+                        : Policy.PolicySource.MANUAL;
+                sourceCounts.merge(source, count.longValue(), Long::sum);
             }
         }
 
         // All approval status: 1 GROUP BY
         Map<Policy.ApprovalStatus, Long> approvalCounts = new EnumMap<>(Policy.ApprovalStatus.class);
         for (Object[] row : policyRepository.countGroupByApprovalStatus()) {
-            if (row.length >= 2 && row[0] instanceof Policy.ApprovalStatus status && row[1] instanceof Number count) {
-                approvalCounts.put(status, count.longValue());
+            if (row.length >= 2 && row[1] instanceof Number count) {
+                Policy.ApprovalStatus status = row[0] instanceof Policy.ApprovalStatus value
+                        ? value
+                        : Policy.ApprovalStatus.PENDING;
+                approvalCounts.merge(status, count.longValue(), Long::sum);
             }
         }
 
@@ -184,9 +190,9 @@ public class DashboardServiceImpl implements DashboardService {
                 .map(p -> new RecentPolicyDto(
                         p.getId(),
                         p.getName(),
-                        p.getEffect().name(),
-                        p.getSource().name(),
-                        p.getApprovalStatus().name(),
+                        enumNameOrDefault(p.getEffect(), "UNKNOWN"),
+                        policySourceOrDefault(p).name(),
+                        policyApprovalStatusOrDefault(p).name(),
                         p.getCreatedAt()
                 ))
                 .toList();
@@ -206,6 +212,18 @@ public class DashboardServiceImpl implements DashboardService {
                 policyRepository.calculateAverageConfidenceScoreForAIPolicies(),
                 recentPolicies
         );
+    }
+
+    private Policy.PolicySource policySourceOrDefault(Policy policy) {
+        return policy.getSource() != null ? policy.getSource() : Policy.PolicySource.MANUAL;
+    }
+
+    private Policy.ApprovalStatus policyApprovalStatusOrDefault(Policy policy) {
+        return policy.getApprovalStatus() != null ? policy.getApprovalStatus() : Policy.ApprovalStatus.PENDING;
+    }
+
+    private String enumNameOrDefault(Enum<?> value, String fallback) {
+        return value != null ? value.name() : fallback;
     }
 
     private PolicyHealthDto buildPolicyHealth() {

@@ -162,7 +162,19 @@ public class Policy implements Serializable {
         if (this.createdAt == null) {
             this.createdAt = LocalDateTime.now();
         }
-        
+
+        applyDefaults();
+    }
+
+    private void applyDefaults() {
+        if (this.source == null) {
+            this.source = PolicySource.MANUAL;
+        }
+
+        if (this.approvalStatus == null) {
+            this.approvalStatus = ApprovalStatus.PENDING;
+        }
+
         if (this.isActive == null) {
             this.isActive = false;
         }
@@ -170,6 +182,7 @@ public class Policy implements Serializable {
 
     @PreUpdate
     protected void onUpdate() {
+        applyDefaults();
         this.updatedAt = LocalDateTime.now();
     }
 }
