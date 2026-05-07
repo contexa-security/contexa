@@ -25,21 +25,27 @@ import javax.sql.DataSource;
 @ConditionalOnProperty(prefix = "contexa.iam.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IamSeedDataAutoConfiguration {
 
-    static final String IAM_SEED_DATA_LOCATION = "contexa/iam/data.sql";
+    static final String[] SEED_LOCATIONS = {
+            "contexa/iam/data.sql",
+            "contexa/iam/data-menu.sql",
+            "contexa/iam/data-system-settings.sql"
+    };
 
     @Bean
     public ApplicationRunner iamSeedDataRunner(@Qualifier("contexaDataSource") DataSource dataSource) {
         return (ApplicationArguments args) -> {
-            Resource seed = new ClassPathResource(IAM_SEED_DATA_LOCATION);
-            if (!seed.exists()) {
-                log.warn("[IamSeedData] classpath:{} not found, skipping seed", IAM_SEED_DATA_LOCATION);
-                return;
+            for (String location : SEED_LOCATIONS) {
+                Resource seed = new ClassPathResource(location);
+                if (!seed.exists()) {
+                    log.warn("[IamSeedData] classpath:{} not found, skipping", location);
+                    continue;
+                }
+                ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
+                populator.setContinueOnError(true);
+                populator.addScript(seed);
+                populator.execute(dataSource);
+                log.info("[IamSeedData] {} executed", location);
             }
-            var populator = new ResourceDatabasePopulator();
-            populator.setContinueOnError(true);
-            populator.addScript(seed);
-            populator.execute(dataSource);
-            log.info("[IamSeedData] {} executed", IAM_SEED_DATA_LOCATION);
         };
     }
 }
