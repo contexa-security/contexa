@@ -12,7 +12,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
   &nbsp;
-  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-21-orange.svg" alt="Java"/></a>
+  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-17-orange.svg" alt="Java"/></a>
   &nbsp;
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.5-green.svg" alt="Spring Boot"/></a>
 </p>

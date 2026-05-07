@@ -32,7 +32,7 @@ This repository contains the open-source core platform. Commercial and enterpris
 
 ### Prerequisites
 
-- Java 21+
+- Java 17+
 - Gradle 8.x via the wrapper
 - PostgreSQL 15+
 - Docker optional for supporting services
