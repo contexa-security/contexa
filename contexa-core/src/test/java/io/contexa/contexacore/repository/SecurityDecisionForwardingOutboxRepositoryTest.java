@@ -1,15 +1,19 @@
 package io.contexa.contexacore.repository;
 
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
+import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,5 +75,17 @@ class SecurityDecisionForwardingOutboxRepositoryTest {
     @EntityScan(basePackageClasses = SecurityDecisionForwardingOutboxRecord.class)
     @SpringBootConfiguration
     static class RepositoryTestConfig {
+
+        // The repository's @Modifying / @Transactional method targets the
+        // "contexaTransactionManager" qualifier in production. @DataJpaTest's
+        // auto-config registers the default transactionManager only when no
+        // PlatformTransactionManager bean is present, so we publish ONE
+        // JpaTransactionManager under BOTH names: "transactionManager" (used by
+        // SimpleJpaRepository's CRUD methods) and "contexaTransactionManager"
+        // (used by claimForDispatch's explicit qualifier).
+        @Bean(name = {"transactionManager", "contexaTransactionManager"})
+        PlatformTransactionManager contexaTransactionManager(EntityManagerFactory emf) {
+            return new JpaTransactionManager(emf);
+        }
     }
 }

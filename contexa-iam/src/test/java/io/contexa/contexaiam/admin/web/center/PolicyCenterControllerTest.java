@@ -342,8 +342,8 @@ class PolicyCenterControllerTest {
                     .targetType("CRUD")
                     .actionType("WRITE")
                     .conditionExpression("true")
-                    .managedResourceId(1L)
-                    .managedResourceIdentifier("/api/orders")
+                    .linkedResourceId(1L)
+                    .linkedResourceIdentifier("/api/orders")
                     .build();
             Pageable pageable = PageRequest.of(0, 20);
             when(roleService.getRole(10L)).thenReturn(role);
@@ -361,7 +361,7 @@ class PolicyCenterControllerTest {
             assertThat(item.id()).isEqualTo(101L);
             assertThat(item.name()).isEqualTo("WRITE");
             assertThat(item.friendlyName()).isEqualTo("Write");
-            assertThat(item.managedResourceIdentifier()).isEqualTo("/api/orders");
+            assertThat(item.linkedResourceIdentifier()).isEqualTo("/api/orders");
             assertThat(body.alreadyMappedIds()).containsExactly(100L);
             assertThat(body.rolePermissionMap()).containsEntry("10", List.of(100L));
         }
@@ -972,7 +972,7 @@ class PolicyCenterControllerTest {
                     .description("Write permission")
                     .targetType("CRUD")
                     .actionType("WRITE")
-                    .managedResourceIdentifier("/api/orders")
+                    .linkedResourceIdentifier("/api/orders")
                     .build();
             when(roleService.getRole(10L)).thenReturn(role);
             when(permissionCatalogService.searchAvailablePermissions(eq("wri"), eq(Collections.emptySet()), any(Pageable.class)))

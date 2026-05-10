@@ -271,13 +271,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             clearPromptRuntimeTelemetry(event);
             if (pipelineOrchestrator != null) {
                 long llmExecutionStart = System.currentTimeMillis();
+                // Apply layer1.timeout.llmMs to the blocking pipeline call so a stalled
+                // upstream model never wedges Layer 1 indefinitely. Reactor surfaces a
+                // timeout as IllegalStateException, which the outer catch converts to a
+                // technical fallback decision (ESCALATE to Layer 2).
                 SecurityDecisionResponse pipelineResponse = executeSecurityDecisionPipeline(
                                 pipelineOrchestrator,
                                 event,
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-                        .block();
+                        .block(Duration.ofMillis(llmTimeoutMs));
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
                 if (pipelineResponse == null) {
