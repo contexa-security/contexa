@@ -6,6 +6,7 @@ import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuManagementService;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, I18nTestSupport.EnglishLocale.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("AdminMenuController contract")
 class AdminMenuControllerTest {
@@ -61,8 +62,10 @@ class AdminMenuControllerTest {
 
     @BeforeEach
     void setUp() {
+        // Use the production English bundle so msg.menu.* keys resolve. The previous
+        // empty StaticMessageSource caused NoSuchMessageException for any error path.
         AdminMenuManagementService adminMenuManagementService =
-                new AdminMenuManagementService(adminMenuService, roleRepository, new org.springframework.context.support.StaticMessageSource());
+                new AdminMenuManagementService(adminMenuService, roleRepository, I18nTestSupport.englishMessageSource());
         controller = new AdminMenuController(adminMenuManagementService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }

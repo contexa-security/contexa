@@ -4,15 +4,18 @@ import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
 import java.util.ArrayList;
@@ -26,7 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, I18nTestSupport.EnglishLocale.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RoleHierarchyServiceTest {
 
@@ -38,6 +41,9 @@ class RoleHierarchyServiceTest {
 
     @Mock
     private RoleHierarchyImpl roleHierarchy;
+
+    @Spy
+    private MessageSource messageSource = I18nTestSupport.englishMessageSource();
 
     @InjectMocks
     private RoleHierarchyService service;

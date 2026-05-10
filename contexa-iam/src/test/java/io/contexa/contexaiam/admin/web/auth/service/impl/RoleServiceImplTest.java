@@ -19,6 +19,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
+import org.mockito.Spy;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -31,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, I18nTestSupport.EnglishLocale.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RoleServiceImplTest {
 
@@ -52,6 +55,12 @@ class RoleServiceImplTest {
 
     @Mock
     private PolicySynchronizationService policySynchronizationService;
+
+    // Real (spy-wrapped) ResourceBundleMessageSource so msg() returns the
+    // production English text. EnglishLocale extension pins LocaleContextHolder
+    // to Locale.ENGLISH on hosts whose default locale is ko_KR.
+    @Spy
+    private MessageSource messageSource = I18nTestSupport.englishMessageSource();
 
     @InjectMocks
     private RoleServiceImpl service;

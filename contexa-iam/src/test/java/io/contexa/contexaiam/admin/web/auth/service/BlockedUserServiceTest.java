@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,10 +15,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.MessageSource;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -30,7 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, I18nTestSupport.EnglishLocale.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BlockedUserServiceTest {
 
@@ -51,6 +54,9 @@ class BlockedUserServiceTest {
 
     @Mock
     private BlockingSignalBroadcaster blockingDecisionRegistry;
+
+    @Spy
+    private MessageSource messageSource = I18nTestSupport.englishMessageSource();
 
     @InjectMocks
     private BlockedUserService service;

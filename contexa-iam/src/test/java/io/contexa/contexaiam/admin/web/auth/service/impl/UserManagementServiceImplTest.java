@@ -9,16 +9,19 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.domain.dto.UserListDto;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.*;
@@ -29,7 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, I18nTestSupport.EnglishLocale.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class UserManagementServiceImplTest {
 
@@ -50,6 +53,9 @@ class UserManagementServiceImplTest {
 
     @Mock
     private PasswordPolicyService passwordPolicyService;
+
+    @Spy
+    private MessageSource messageSource = I18nTestSupport.englishMessageSource();
 
     @InjectMocks
     private UserManagementServiceImpl service;

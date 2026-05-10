@@ -541,17 +541,20 @@ class AccessCenterControllerTest {
         }
 
         @Test
-        @DisplayName("all-roles keeps existing CRUD fallback")
+        @DisplayName("all-roles returns role basics with no implicit CRUD fallback")
         void getAllRolesSimple() throws Exception {
+            // Production now returns ONLY the CRUD permissions actually mapped to the
+            // role. A role with no role-permission rows yields an empty crudPermissions
+            // array (the JS layer renders all 4 chips with READ default-checked).
             Role role = Role.builder().id(10L).roleName("ADMIN").roleDesc("Admin role").build();
-            when(roleRepository.findAll()).thenReturn(List.of(role));
+            when(roleRepository.findAllWithPermissions()).thenReturn(List.of(role));
 
             mockMvc.perform(get("/admin/access-center/api/all-roles"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(10))
                     .andExpect(jsonPath("$[0].name").value("ADMIN"))
-                    .andExpect(jsonPath("$[0].crudPermissions[*]",
-                            containsInAnyOrder("READ", "WRITE", "UPDATE", "DELETE")));
+                    .andExpect(jsonPath("$[0].crudPermissions").isArray())
+                    .andExpect(jsonPath("$[0].crudPermissions").isEmpty());
         }
 
         @Test
