@@ -21,13 +21,15 @@ class CoreHCADAutoConfigurationTest {
     class ConditionalAnnotations {
 
         @Test
-        @DisplayName("Should have @ConditionalOnProperty for hcad.enabled with matchIfMissing=true")
+        @DisplayName("Should have @ConditionalOnProperty for contexa.hcad.enabled with matchIfMissing=true")
         void shouldHaveHcadEnabledCondition() {
             ConditionalOnProperty annotation = CoreHCADAutoConfiguration.class
                     .getAnnotation(ConditionalOnProperty.class);
 
             assertThat(annotation).isNotNull();
-            assertThat(annotation.prefix()).isEqualTo("hcad");
+            // All contexa.* keys live under the "contexa" prefix (mirrors yml convention
+            // contexa.hcad.geoip.enabled / contexa.hcad.pre-trigger.enabled etc.).
+            assertThat(annotation.prefix()).isEqualTo("contexa.hcad");
             assertThat(annotation.name()).containsExactly("enabled");
             assertThat(annotation.havingValue()).isEqualTo("true");
             assertThat(annotation.matchIfMissing()).isTrue();

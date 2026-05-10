@@ -33,7 +33,7 @@ public interface SecurityDecisionForwardingOutboxRepository extends JpaRepositor
             Pageable pageable);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Transactional
+    @Transactional(transactionManager = "contexaTransactionManager")
     @Query("""
             update SecurityDecisionForwardingOutboxRecord record
                set record.status = :dispatchingStatus,
