@@ -130,6 +130,35 @@ class RequestInfoExtractorTest {
     }
 
     @Test
+    @DisplayName("official verification probe should default to raw identity prompt profile")
+    void extractShouldDefaultOfficialVerificationProbeToRawIdentityPromptProfile() {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        request.addHeader("X-Request-ID", "req-official-raw-profile");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getPromptBudgetProfile()).isEqualTo("CORTEX_L1_RAW_IDENTITY");
+    }
+
+    @Test
+    @DisplayName("explicit prompt profile header should override official verification raw default")
+    void extractShouldLetExplicitPromptProfileOverrideOfficialVerificationDefault() {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        request.addHeader("X-Request-ID", "req-official-explicit-profile");
+        request.addHeader("X-Contexa-Prompt-Budget-Profile", "CORTEX_L1_COMPACT");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getPromptBudgetProfile()).isEqualTo("CORTEX_L1_COMPACT");
+    }
+
+    @Test
     @DisplayName("generic requested model header should flow into request info")
     void extractShouldIncludeRequestedModelIdFromGenericHeader() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");

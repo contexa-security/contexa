@@ -1373,6 +1373,18 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         for (String key : PromptRuntimeTelemetrySupport.clearableRuntimeTelemetryKeys()) {
             metadata.remove(key);
         }
+        metadata.remove("systemPrompt");
+        metadata.remove("userPrompt");
+        metadata.remove("rawSystemPrompt");
+        metadata.remove("rawUserPrompt");
+        metadata.remove("promptSourceContextLedger");
+        metadata.remove("promptSourceContextSummary");
+        metadata.remove("promptRawUserFieldLedger");
+        metadata.remove("promptFinalUserFieldLedger");
+        metadata.remove("promptUserFieldDiffLedger");
+        metadata.remove("promptUserFieldLineageSummary");
+        metadata.remove("promptFieldStateLedger");
+        metadata.remove("promptFieldStateSummary");
         metadata.remove("promptRuntimeTelemetryLinked");
         metadata.remove("promptRuntimeTelemetryLayer");
     }

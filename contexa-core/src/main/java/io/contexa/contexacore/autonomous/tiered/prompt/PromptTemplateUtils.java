@@ -7,8 +7,21 @@ import java.util.regex.Pattern;
 
 public final class PromptTemplateUtils {
 
+    private static final ThreadLocal<Boolean> TRUNCATION_DISABLED =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     private PromptTemplateUtils() {
         
+    }
+
+    public static boolean isTruncationDisabled() {
+        return Boolean.TRUE.equals(TRUNCATION_DISABLED.get());
+    }
+
+    public static TruncationScope disableTruncationForCurrentThread(boolean disabled) {
+        Boolean previous = TRUNCATION_DISABLED.get();
+        TRUNCATION_DISABLED.set(disabled);
+        return new TruncationScope(previous);
     }
 
     public static boolean isValidData(String value) {
@@ -79,6 +92,9 @@ public final class PromptTemplateUtils {
         if (value == null) {
             return null;
         }
+        if (isTruncationDisabled()) {
+            return value;
+        }
         if (value.length() <= maxLength) {
             return value;
         }
@@ -109,6 +125,29 @@ public final class PromptTemplateUtils {
     public static String sanitizeAndTruncate(String input, int maxLength) {
         String sanitized = sanitizeUserInput(input);
         return truncate(sanitized, maxLength);
+    }
+
+    public static final class TruncationScope implements AutoCloseable {
+
+        private final Boolean previous;
+        private boolean closed;
+
+        private TruncationScope(Boolean previous) {
+            this.previous = previous;
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            if (Boolean.TRUE.equals(previous)) {
+                TRUNCATION_DISABLED.set(Boolean.TRUE);
+            } else {
+                TRUNCATION_DISABLED.remove();
+            }
+            closed = true;
+        }
     }
 
     private static final Pattern IPV4_PATTERN = Pattern.compile(

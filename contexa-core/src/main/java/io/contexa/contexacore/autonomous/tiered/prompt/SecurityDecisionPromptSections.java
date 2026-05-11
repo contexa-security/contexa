@@ -33,6 +33,7 @@ import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorRe
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.PromptViewProfile;
 import io.contexa.contexacore.std.components.prompt.PromptDuplicationRecord;
 import io.contexa.contexacore.std.components.prompt.PromptOmissionRecord;
 import io.contexa.contexacore.std.components.prompt.PromptOmissionType;
@@ -238,19 +239,28 @@ public class SecurityDecisionPromptSections {
                                                   SessionContext sessionContext,
                                                   BehaviorAnalysis behaviorAnalysis,
                                                   List<Document> relatedDocuments,
-                                                  PromptBudgetProfile budgetProfile,
-                                                  StructuredOutputMode structuredOutputMode) {
+                                                   PromptBudgetProfile budgetProfile,
+                                                   StructuredOutputMode structuredOutputMode) {
 
+        PromptBudgetProfile effectiveBudgetProfile = budgetProfile != null
+                ? budgetProfile
+                : resolveBudgetProfile(event, behaviorAnalysis);
         SecurityPromptBuildContext buildContext = createBuildContext(
                 event,
                 sessionContext,
                 behaviorAnalysis,
                 relatedDocuments,
+                effectiveBudgetProfile,
                 structuredOutputMode
         );
 
-        RenderedPromptSections systemSections = composeSections(systemSectionPlans, buildContext);
-        RenderedPromptSections userSections = composeSections(userSectionPlans, buildContext);
+        RenderedPromptSections systemSections;
+        RenderedPromptSections userSections;
+        try (PromptTemplateUtils.TruncationScope ignored =
+                     PromptTemplateUtils.disableTruncationForCurrentThread(isLosslessPromptProfile(effectiveBudgetProfile))) {
+            systemSections = composeSections(systemSectionPlans, buildContext);
+            userSections = composeSections(userSectionPlans, buildContext);
+        }
         List<String> sectionSet = mergeSectionKeys(systemSections.renderedSectionKeys(), userSections.renderedSectionKeys());
         List<PromptOmissionRecord> omissionLedger = userSections.omissionLedger();
         List<String> omittedSections = omissionLedger.stream()
@@ -272,7 +282,7 @@ public class SecurityDecisionPromptSections {
                 userText,
                 PromptGovernanceSupport.buildExecutionMetadata(
                         governanceResolution.descriptor(),
-                        budgetProfile != null ? budgetProfile : PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
+                        effectiveBudgetProfile,
                         sectionSet,
                         omittedSections,
                         omissionLedger,
@@ -351,6 +361,7 @@ public class SecurityDecisionPromptSections {
                                                           SessionContext sessionContext,
                                                           BehaviorAnalysis behaviorAnalysis,
                                                           List<Document> relatedDocuments,
+                                                          PromptBudgetProfile budgetProfile,
                                                           StructuredOutputMode structuredOutputMode) {
         String userId = extractUserId(sessionContext);
         DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId);
@@ -380,8 +391,13 @@ public class SecurityDecisionPromptSections {
                 baselineStatus,
                 patterns,
                 learningContextEvidence,
+                budgetProfile,
                 structuredOutputMode != null ? structuredOutputMode : StructuredOutputMode.VALIDATED_CONVERTER
         );
+    }
+
+    private boolean isLosslessPromptProfile(PromptBudgetProfile budgetProfile) {
+        return budgetProfile != null && budgetProfile.viewProfile() == PromptViewProfile.IDENTITY;
     }
 
     private RenderedPromptSections composeSections(List<PromptSectionPlan> plans, SecurityPromptBuildContext context) {

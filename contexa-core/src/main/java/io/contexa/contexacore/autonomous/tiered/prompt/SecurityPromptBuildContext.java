@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import lombok.Getter;
 import org.springframework.ai.document.Document;
@@ -21,6 +22,7 @@ public class SecurityPromptBuildContext {
     private final BaselineStatus baselineStatus;
     private final SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns;
     private final LearningContextEvidence learningContextEvidence;
+    private final PromptBudgetProfile promptBudgetProfile;
     private final StructuredOutputMode structuredOutputMode;
 
     public SecurityPromptBuildContext(SecurityEvent event,
@@ -29,10 +31,11 @@ public class SecurityPromptBuildContext {
                                       List<Document> relatedDocuments,
                                       CanonicalSecurityContext canonicalSecurityContext,
                                       String userId,
-                                      BaselineStatus baselineStatus,
-                                      SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns,
-                                      LearningContextEvidence learningContextEvidence,
-                                      StructuredOutputMode structuredOutputMode) {
+                                       BaselineStatus baselineStatus,
+                                       SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns,
+                                       LearningContextEvidence learningContextEvidence,
+                                       PromptBudgetProfile promptBudgetProfile,
+                                       StructuredOutputMode structuredOutputMode) {
         this.event = event;
         this.sessionContext = sessionContext;
         this.behaviorAnalysis = behaviorAnalysis;
@@ -42,6 +45,7 @@ public class SecurityPromptBuildContext {
         this.baselineStatus = baselineStatus;
         this.detectedPatterns = detectedPatterns;
         this.learningContextEvidence = learningContextEvidence;
+        this.promptBudgetProfile = promptBudgetProfile;
         this.structuredOutputMode = structuredOutputMode;
     }
 }

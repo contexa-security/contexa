@@ -317,6 +317,71 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
+    @DisplayName("raw identity prompt profile should preserve full prompt fact values without truncation")
+    void generateUserPromptShouldPreserveFullFactsForRawIdentityProfile() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        String longBaselineSummary = "personal baseline provisional | resource families="
+                + String.join(", ", List.of(
+                "PUBLIC", "NORMAL", "SENSITIVE", "CRITICAL", "FINANCE_REPORTS",
+                "SECURITY_AUDIT_REPORTS", "TENANT_CONFIGURATION", "PROMPT_GOVERNANCE",
+                "OFFICIAL_VERIFICATION_LEDGER", "CERTIFICATE_PROMOTION_QUEUE",
+                "REVERIFICATION_EVIDENCE", "RUNTIME_MONITORING_ALERTS"));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-raw-identity")
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .userId("persona_fin_lead")
+                .sessionId("official-verification-session")
+                .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        event.addMetadata("resourceId", "resource-001");
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("persona_fin_lead");
+        sessionContext.setSessionId("official-verification-session");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setBaselineEstablished(true);
+        behaviorAnalysis.setPersonalBaselineAvailable(true);
+        behaviorAnalysis.setPersonalBaselineEstablished(false);
+        behaviorAnalysis.setBaselineUpdateCount(19L);
+        behaviorAnalysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL,
+                true,
+                false,
+                19L,
+                0.74d,
+                List.of("0:0:0:0::/64"),
+                List.of("8", "9", "10", "11", "12", "13", "20", "22", "23"),
+                List.of("1"),
+                List.of("Chrome/120", "Edge/120", "Chrome/148"),
+                List.of("Windows", "WINDOWS"),
+                List.of("/admin/api/enterprise/verification/*"),
+                List.of("PASSWORD", "SSO"),
+                List.of("READ"),
+                List.of("PUBLIC", "NORMAL", "SENSITIVE", "CRITICAL", "FINANCE_REPORTS",
+                        "SECURITY_AUDIT_REPORTS", "TENANT_CONFIGURATION", "PROMPT_GOVERNANCE",
+                        "OFFICIAL_VERIFICATION_LEDGER", "CERTIFICATE_PROMOTION_QUEUE",
+                        "REVERIFICATION_EVIDENCE", "RUNTIME_MONITORING_ALERTS"),
+                longBaselineSummary));
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
+        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY.profileKey());
+
+        String userPrompt = template.generateUserPrompt(request, "");
+
+        assertThat(userPrompt).contains("BaselineContextSummary: " + longBaselineSummary);
+        assertThat(userPrompt).contains("RUNTIME_MONITORING_ALERTS");
+        assertThat(userPrompt)
+                .doesNotContain("BaselineContextSummary: personal baseline provisional | resource families=PUBLIC, NORMAL, SENSITIVE, CRITICAL, FINANCE_REPORTS, SECURITY_AUDIT_REPORTS, TENANT_CONFIGURATION, PROMPT_GOVERNANCE, OFFICIAL_VERIFICATION_LEDGER, CERTIFICATE_PROMOTION_...");
+    }
+
+    @Test
     @DisplayName("sparse personal history should not be promoted into new user")
     void generateUserPromptShouldNotPromoteSparsePersonalHistoryIntoNewUser() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -72,10 +73,35 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isNotNull();
         assertThat(context.getMetadata("rawPromptHash", String.class)).startsWith("sha256:");
         assertThat(context.getMetadata("promptExecutionMetadata", Object.class)).isNotNull();
+        assertThat(context.getMetadata("promptSourceContextFieldCount", Integer.class)).isPositive();
+        assertThat(context.getMetadata("promptRawUserFieldCount", Integer.class)).isPositive();
+        assertThat(context.getMetadata("promptFinalUserFieldCount", Integer.class)).isPositive();
+        assertThat(context.getMetadata("promptUserFieldDiffCount", Integer.class)).isNotNull();
+        assertThat(context.getMetadata("promptSourceContextExhaustive", Boolean.class)).isNotNull();
+        assertThat(context.getMetadata("promptFieldStateCount", Integer.class)).isPositive();
+        assertThat(context.getMetadata("promptBlockingFieldStateCount", Integer.class)).isNotNull();
 
         PromptExecutionMetadata executionMetadata = context.getMetadata("promptExecutionMetadata", PromptExecutionMetadata.class);
         assertThat(context.getMetadata("promptCompressionApplied", Boolean.class))
                 .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
+        Map<String, Object> eventMetadata = event.getMetadata();
+        assertThat(eventMetadata).containsKeys(
+                "promptSourceContextLedger",
+                "promptRawUserFieldLedger",
+                "promptFinalUserFieldLedger",
+                "promptUserFieldDiffLedger",
+                "promptFieldStateLedger",
+                "promptFieldStateSummary");
+        assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
+                .anySatisfy(item -> assertThat(item)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .containsEntry("sourcePath", "securityEvent.metadata.requestPath")
+                        .containsEntry("valueText", "/admin/api/security-test/sensitive/resource-001"));
+        assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
+                .anySatisfy(item -> assertThat(item)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .containsEntry("fieldKey", "source:securityEvent.metadata.requestPath")
+                        .containsEntry("fieldState", "VALUE_PRESENT"));
     }
 
     private BaselineEvidenceSnapshot noDataBaselineEvidence() {

@@ -82,6 +82,7 @@ public final class RequestInfoExtractor {
                 runtimeMaxTokens,
                 runtimeDisableRetries,
                 runtimeDisableOllamaThinking);
+        String promptBudgetProfile = resolvePromptBudgetProfile(request);
 
         return RequestInfo.builder()
                 .requestUri(request.getRequestURI())
@@ -102,7 +103,7 @@ public final class RequestInfoExtractor {
                 .roundKey(extractHeader(request, "X-Contexa-Round-Key"))
                 .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
                 .anomalySignal(extractHeader(request, "X-Contexa-Anomaly-Signal"))
-                .promptBudgetProfile(extractHeader(request, "X-Contexa-Prompt-Budget-Profile"))
+                .promptBudgetProfile(promptBudgetProfile)
                 .decisionBoundaryMode(decisionBoundaryMode)
                 .runtimeTemperature(runtimeTemperature)
                 .runtimeTopP(runtimeTopP)
@@ -313,6 +314,17 @@ public final class RequestInfoExtractor {
         }
         String path = request.getRequestURI();
         return path != null && path.contains("/admin/api/enterprise/verification/runtime/probe/");
+    }
+
+    private static String resolvePromptBudgetProfile(HttpServletRequest request) {
+        String explicit = extractHeader(request, "X-Contexa-Prompt-Budget-Profile");
+        if (explicit != null && !explicit.isBlank()) {
+            return explicit;
+        }
+        if (isOfficialVerificationRequest(request)) {
+            return "CORTEX_L1_RAW_IDENTITY";
+        }
+        return null;
     }
 
     public static String extractUserAgent(HttpServletRequest request) {

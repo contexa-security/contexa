@@ -155,6 +155,7 @@ class SecurityPromptContractVerifierTest {
                 BaselineStatus.ESTABLISHED,
                 null,
                 learningEvidence,
+                null,
                 StructuredOutputMode.NATIVE_STRUCTURED
         );
 

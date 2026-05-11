@@ -2,8 +2,14 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.std.components.prompt.PromptFieldLineageAnalysis;
+import io.contexa.contexacore.std.components.prompt.PromptFieldLineageAnalyzer;
+import io.contexa.contexacore.std.components.prompt.PromptFieldStateLedger;
+import io.contexa.contexacore.std.components.prompt.PromptFieldStateLedgerFactory;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.PromptSourceContextSnapshot;
+import io.contexa.contexacore.std.components.prompt.PromptSourceContextSnapshotFactory;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -57,7 +63,7 @@ public class PromptGenerationStep implements PipelineStep {
                         .toMetadataMap()
                         .forEach(context::addMetadata);
             }
-            captureSecurityDecisionPromptLineage(request, promptResult);
+            captureSecurityDecisionPromptLineage(request, context, promptResult);
             context.addMetadata("promptBuildLatencyMs", System.currentTimeMillis() - stepStartTime);
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
@@ -82,6 +88,7 @@ public class PromptGenerationStep implements PipelineStep {
 
     private <T extends DomainContext> void captureSecurityDecisionPromptLineage(
             AIRequest<T> request,
+            PipelineExecutionContext context,
             PromptGenerationResult promptResult
     ) {
         if (request == null || promptResult == null) {
@@ -96,10 +103,18 @@ public class PromptGenerationStep implements PipelineStep {
             return;
         }
         Map<String, Object> metadata = ensureMutableMetadata(securityEvent);
+        PromptSourceContextSnapshot sourceSnapshot = PromptSourceContextSnapshotFactory.capture(securityDecisionContext);
+        putMetadataMap(metadata, context, sourceSnapshot.toMetadataMap());
         putIfPresent(metadata, "systemPrompt", promptResult.getSystemPrompt());
         putIfPresent(metadata, "userPrompt", promptResult.getUserPrompt());
         putIfPresent(metadata, "rawSystemPrompt", promptResult.getRawSystemPrompt());
         putIfPresent(metadata, "rawUserPrompt", promptResult.getRawUserPrompt());
+        PromptFieldLineageAnalysis fieldLineage = PromptFieldLineageAnalyzer.analyze(
+                promptResult.getRawUserPrompt(),
+                promptResult.getUserPrompt());
+        putMetadataMap(metadata, context, fieldLineage.toMetadataMap());
+        PromptFieldStateLedger fieldStateLedger = PromptFieldStateLedgerFactory.create(sourceSnapshot, fieldLineage);
+        putMetadataMap(metadata, context, fieldStateLedger.toMetadataMap());
         if (promptResult.getMetadata() != null) {
             copyIfPresent(promptResult.getMetadata(), metadata, "promptKey");
             copyIfPresent(promptResult.getMetadata(), metadata, "templateKey");
@@ -143,6 +158,24 @@ public class PromptGenerationStep implements PipelineStep {
             return;
         }
         target.put(key, value);
+    }
+
+    private void putMetadataMap(
+            Map<String, Object> eventMetadata,
+            PipelineExecutionContext context,
+            Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            eventMetadata.put(entry.getKey(), entry.getValue());
+            if (context != null) {
+                context.addMetadata(entry.getKey(), entry.getValue());
+            }
+        }
     }
 }
 
