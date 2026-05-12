@@ -140,19 +140,19 @@ public final class PromptFieldLineageAnalyzer {
             PromptFieldSnapshot fin = finalByKey.get(key);
             if (raw == null && fin != null) {
                 diffs.add(diffRecord(key, fin, null, fin, PromptFieldDiffType.ADDED_IN_FINAL,
-                        "최종 userPrompt에서 새로 생성된 필드입니다.", false));
+                        "The final userPrompt contains a field that was added after raw prompt assembly.", false));
             }
             else if (raw != null && fin == null) {
                 diffs.add(diffRecord(key, raw, raw, null, PromptFieldDiffType.MISSING_IN_FINAL,
-                        "raw userPrompt에는 있으나 최종 LLM userPrompt에는 없습니다.", true));
+                        "The field exists in rawUserPrompt but is missing from the final LLM userPrompt.", true));
             }
             else if (raw != null && !raw.valueHash().equals(fin.valueHash())) {
                 diffs.add(diffRecord(key, raw, raw, fin, PromptFieldDiffType.VALUE_CHANGED,
-                        "raw userPrompt와 최종 LLM userPrompt의 값 해시가 다릅니다.", true));
+                        "The field value differs between rawUserPrompt and the final LLM userPrompt.", true));
             }
             else if (fin != null && (fin.compactedMarker() || fin.truncatedMarker())) {
                 diffs.add(diffRecord(key, fin, raw, fin, PromptFieldDiffType.SAME,
-                        "최종 LLM userPrompt에 압축 또는 생략 마커가 남아 있습니다.", true));
+                        "The final LLM userPrompt still contains a compaction or omission marker.", true));
             }
         }
         return List.copyOf(diffs);

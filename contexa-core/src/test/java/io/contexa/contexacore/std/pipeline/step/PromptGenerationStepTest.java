@@ -9,8 +9,10 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -97,11 +99,104 @@ class PromptGenerationStepTest {
                         .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "securityEvent.metadata.requestPath")
                         .containsEntry("valueText", "/admin/api/security-test/sensitive/resource-001"));
+        assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
+                .anySatisfy(item -> assertThat(item)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .containsEntry("sourcePath", "sessionContext.userId")
+                        .containsEntry("valueText", "alice"))
+                .anySatisfy(item -> assertThat(item)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .containsEntry("sourcePath", "behaviorAnalysis.personalBaselineEvidence.scope"))
+                .anySatisfy(item -> assertThat(item)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .containsEntry("sourcePath", "relatedDocuments.size")
+                        .containsEntry("valueText", "0"));
         assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
                         .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                         .containsEntry("fieldKey", "source:securityEvent.metadata.requestPath")
-                        .containsEntry("fieldState", "VALUE_PRESENT"));
+                        .containsEntry("fieldState", "VALUE_PRESENT")
+                        .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
+                        .containsEntry("remediationOwner", "REQUEST_CONTEXT_PRODUCER"));
+        assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
+                .anySatisfy(item -> assertThat(item)
+                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .containsEntry("sourceType", "FINAL_USER_PROMPT_FIELD")
+                        .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
+                        .containsKey("metricCodes"));
+    }
+
+    @Test
+    void executeShouldPreserveRawIdentityPromptIntoFinalPromptAndEventMetadata() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+        PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
+        promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
+        PromptGenerationStep step = new PromptGenerationStep(promptGenerator);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-prompt-step-identity-001")
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .userId("persona_fin_lead")
+                .sessionId("official-verification-session:persona_fin_lead")
+                .sourceIp("0:0:0:0:0:0:0:1")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
+                .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
+                .build();
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("organizationId", "demo-org");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        event.addMetadata("resourceId", "resource-001");
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("effectiveRoles", List.of("USER", "DEVELOPER", "INFRA", "PENDING_ANALYSIS", "ADMIN", "MANAGER"));
+        event.addMetadata("effectivePermissions", List.of("READ", "WRITE", "UPDATE", "DELETE", "role.user", "role.admin"));
+        event.addMetadata("authenticationType", "PASSWORD");
+        event.addMetadata("mfaVerified", false);
+        event.addMetadata("currentAccessHour", 16);
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("persona_fin_lead");
+        sessionContext.setSessionId("official-verification-session:persona_fin_lead");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
+        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY.profileKey());
+
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PREPROCESSING,
+                "systemMetadata");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
+                new ContextRetriever.ContextRetrievalResult("contextInfo", List.<org.springframework.ai.document.Document>of(), Map.of()));
+
+        Object result = step.execute(request, context).block();
+
+        assertThat(result).isInstanceOf(PromptGenerationResult.class);
+        PromptGenerationResult promptResult = (PromptGenerationResult) result;
+        assertThat(promptResult.getRawSystemPrompt()).isEqualTo(promptResult.getSystemPrompt());
+        assertThat(promptResult.getRawUserPrompt()).isEqualTo(promptResult.getUserPrompt());
+        assertThat(context.getMetadata("promptTransformationMode", String.class)).isEqualTo("IDENTITY");
+        assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("promptUserFieldDiffCount", Integer.class)).isZero();
+
+        Map<String, Object> eventMetadata = event.getMetadata();
+        assertThat(eventMetadata.get("rawSystemPrompt")).isEqualTo(promptResult.getRawSystemPrompt());
+        assertThat(eventMetadata.get("rawUserPrompt")).isEqualTo(promptResult.getRawUserPrompt());
+        assertThat(eventMetadata.get("systemPrompt")).isEqualTo(promptResult.getSystemPrompt());
+        assertThat(eventMetadata.get("userPrompt")).isEqualTo(promptResult.getUserPrompt());
+        assertThat(eventMetadata).containsKeys(
+                "promptFieldStateLedger",
+                "promptSourceContextLedger",
+                "rawSystemPromptHash",
+                "rawUserPromptHash",
+                "systemPromptHash",
+                "userPromptHash");
     }
 
     private BaselineEvidenceSnapshot noDataBaselineEvidence() {

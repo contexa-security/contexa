@@ -130,17 +130,17 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("official verification probe should default to raw identity prompt profile")
-    void extractShouldDefaultOfficialVerificationProbeToRawIdentityPromptProfile() {
+    @DisplayName("official verification probe should not override the runtime prompt profile by path")
+    void extractShouldNotOverrideOfficialVerificationProbePromptProfileByPath() {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "GET",
                 "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
-        request.addHeader("X-Request-ID", "req-official-raw-profile");
+        request.addHeader("X-Request-ID", "req-official-runtime-profile");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
-        assertThat(requestInfo.getPromptBudgetProfile()).isEqualTo("CORTEX_L1_RAW_IDENTITY");
+        assertThat(requestInfo.getPromptBudgetProfile()).isNull();
     }
 
     @Test

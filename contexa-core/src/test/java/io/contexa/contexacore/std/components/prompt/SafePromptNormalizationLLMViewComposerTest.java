@@ -31,6 +31,69 @@ class SafePromptNormalizationLLMViewComposerTest {
     }
 
     @Test
+    @DisplayName("CORTEX_L1_INTERACTIVE_STRICT should preserve every final user prompt line without compacted markers")
+    void composeShouldPreserveFullFinalUserPromptForInteractiveStrictProfile() {
+        SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();
+        String userPrompt = String.join("\n",
+                "=== CURRENT REQUEST AND EVENT ===",
+                "User: persona_fin_lead",
+                "TenantId: demo",
+                "OrganizationId: demo-org",
+                "HttpMethod: GET",
+                "Path: /admin/api/enterprise/verification/runtime/probe/normal/resource-001",
+                "AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT",
+                "AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect; final AuthorizationEffect was resolved later from METHOD_INVOCATION_RESULT.",
+                "=== CONTEXT COVERAGE ===",
+                "CoverageLevel: BUSINESS_AWARE",
+                "AvailableFacts:",
+                "- Actor identity is available.",
+                "- Session identity is available.",
+                "- Effective roles are available.",
+                "ConfidenceWarnings:",
+                "- Observed work pattern is missing; comparisons against previously seen resources or action families remain limited.",
+                "- Personal work profile is missing; do not claim the current request matches long-term normal work patterns.",
+                "- Role scope profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof.",
+                "=== PERSONAL WORK PROFILE ===",
+                "BaselineProfileStatus: PROVISIONAL",
+                "PersonalBaselineStatus: LEARNING_IN_PROGRESS",
+                "WorkProfileEvidenceState: PROVISIONAL",
+                "ObservedHours: 11, 9, 12, 13, 7, 8, 19, 1, 23, 15, 16",
+                "ObservedNetworks: 10.10.0",
+                "ObservedBrowsers: Chrome/120, Edge/120",
+                "CurrentAccessHourPresentInObservedHours: false",
+                "CurrentNetworkPresentInObservedNetworks: false",
+                "CurrentBrowserPresentInObservedBrowsers: false",
+                "LowValueSupportLine1: this is still a source fact and must not be replaced by a marker",
+                "LowValueSupportLine2: this is still a source fact and must not be replaced by a marker",
+                "=== ROLE AND WORK SCOPE CONTEXT ===",
+                "RecentPermissionChanges: UNKNOWN",
+                "RoleScopeDeltaCount: UNKNOWN",
+                "CurrentActionFamilyPresentInExpectedRoleScope: UNKNOWN",
+                "CurrentActionFamilyPresentInDeniedRoleScope: UNKNOWN",
+                "=== EXPLICIT MISSING KNOWLEDGE ===",
+                "- ContextFieldCoverage: roleScope.expectedResourceFamilies | observations=1 | days=0 | fallback=0% | unknown=100%",
+                "- ContextFieldLimitation: roleScope.expectedResourceFamilies | evidence count or time coverage is thin; unknown values remain high");
+
+        PromptViewComposition composition = composer.compose(
+                "system",
+                userPrompt,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
+
+        assertThat(composition.llmUserPrompt()).contains("LowValueSupportLine1: this is still a source fact");
+        assertThat(composition.llmUserPrompt()).contains("LowValueSupportLine2: this is still a source fact");
+        assertThat(composition.llmUserPrompt()).contains("- Actor identity is available.");
+        assertThat(composition.llmUserPrompt()).contains("- Session identity is available.");
+        assertThat(composition.llmUserPrompt()).contains("- Effective roles are available.");
+        assertThat(composition.llmUserPrompt()).doesNotContain("CompactedLineCategories");
+        assertThat(composition.llmUserPrompt()).doesNotContain("additional lines compacted");
+        assertThat(composition.llmUserPrompt()).doesNotContain("AdditionalConfidenceWarningsCompacted");
+        assertThat(composition.llmUserPrompt()).doesNotContain("AdditionalContextTrustWarningsCompacted");
+        assertThat(composition.compressionLedger().records())
+                .extracting(PromptCompressionRecord::action)
+                .doesNotContain(PromptCompressionAction.SUMMARIZED, PromptCompressionAction.OMITTED);
+    }
+
+    @Test
     @DisplayName("SafePromptNormalizationLLMViewComposer should fuse similar past events using summary-first compression")
     void composeShouldFuseSimilarPastEventsWhenThreeOrMoreDocumentsExist() {
         SafePromptNormalizationLLMViewComposer composer = new SafePromptNormalizationLLMViewComposer();

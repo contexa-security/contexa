@@ -79,6 +79,37 @@ class LLMExecutionStepTest {
     }
 
     @Test
+    void executeShouldSendPromptGenerationResultPromptObjectToLlmClientWithoutRebuildingIt() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-raw-identity-to-llm");
+        String rawSystemPrompt = "RAW SYSTEM PROMPT";
+        String rawUserPrompt = "=== CURRENT REQUEST AND EVENT ===\nTenantId: demo\nRequestPath: /admin/api/enterprise/verification/runtime/probe/normal/resource-001";
+        Prompt finalPrompt = new Prompt(rawSystemPrompt + "\n" + rawUserPrompt);
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(
+                        finalPrompt,
+                        rawSystemPrompt,
+                        rawUserPrompt,
+                        rawSystemPrompt,
+                        rawUserPrompt,
+                        Map.of("promptTransformationMode", "IDENTITY", "promptRawTruthParity", true),
+                        null));
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("raw-response");
+        assertThat(llmClient.lastExecutionContext).isNotNull();
+        assertThat(llmClient.lastExecutionContext.getPrompt()).isSameAs(finalPrompt);
+        assertThat(llmClient.lastExecutionContext.getPrompt().getContents()).contains(rawSystemPrompt);
+        assertThat(llmClient.lastExecutionContext.getPrompt().getContents()).contains(rawUserPrompt);
+    }
+
+    @Test
     void executeShouldUseEntityOnlyExecutionForSecurityDecisionTargets() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();

@@ -321,9 +321,6 @@ public final class RequestInfoExtractor {
         if (explicit != null && !explicit.isBlank()) {
             return explicit;
         }
-        if (isOfficialVerificationRequest(request)) {
-            return "CORTEX_L1_RAW_IDENTITY";
-        }
         return null;
     }
 

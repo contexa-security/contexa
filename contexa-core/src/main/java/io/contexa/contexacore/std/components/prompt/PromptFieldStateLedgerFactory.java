@@ -61,20 +61,31 @@ public final class PromptFieldStateLedgerFactory {
 
     private static PromptFieldStateRecord sourceRecord(PromptSourceContextFieldSnapshot field) {
         boolean nullValue = field == null || "null".equals(field.valueType());
+        boolean declaredUnknown = field != null
+                && field.valueText() != null
+                && ("UNKNOWN".equalsIgnoreCase(field.valueText().trim())
+                || "INSUFFICIENT".equalsIgnoreCase(field.valueText().trim()));
         boolean traversalProblem = field != null && field.sourcePath() != null
                 && (field.sourcePath().endsWith(".__error__")
                 || field.sourcePath().endsWith(".__depthLimit__")
                 || field.sourcePath().endsWith(".__cycle__"));
         PromptFieldState state = traversalProblem
                 ? PromptFieldState.PRODUCER_NOT_AVAILABLE
-                : nullValue ? PromptFieldState.UNKNOWN_WITH_REASON : PromptFieldState.VALUE_PRESENT;
+                : (nullValue || declaredUnknown) ? PromptFieldState.UNKNOWN_WITH_REASON : PromptFieldState.VALUE_PRESENT;
         String reasonCode = traversalProblem ? "SOURCE_TRAVERSAL_LIMIT"
-                : nullValue ? "SOURCE_VALUE_NULL" : null;
+                : nullValue ? "SOURCE_VALUE_NULL"
+                : declaredUnknown ? "SOURCE_VALUE_DECLARED_UNKNOWN" : null;
         String reasonText = traversalProblem
                 ? "The source context field could not be fully traversed and must be reviewed before using it as proof."
                 : nullValue ? "The source model field exists, but the runtime value is null. Required policy decides whether this is allowed."
+                : declaredUnknown ? "The source model explicitly declared the value as unknown or insufficient. This must remain visible to the prompt quality contract."
                 : null;
         String path = field == null ? "source.unknown" : field.sourcePath();
+        PromptFieldPolicy policy = PromptFieldPolicyCatalog.resolve(
+                "source:" + path,
+                field == null ? "SOURCE_CONTEXT" : field.sourceType(),
+                path,
+                null);
         return new PromptFieldStateRecord(
                 "source:" + path,
                 field == null ? "SOURCE_CONTEXT" : field.sourceType(),
@@ -85,17 +96,19 @@ public final class PromptFieldStateLedgerFactory {
                 field == null ? "" : field.valueHash(),
                 field == null ? 0 : field.valueLength(),
                 field == null ? "" : preview(field.valueText()),
-                "DISCOVERED_SOURCE_FIELD",
-                "ALWAYS_CAPTURE_SOURCE_STATE",
+                policy.requiredPolicy(),
+                policy.applicabilityRule(),
                 "source model traversal",
-                "UNMAPPED_PROJECTION_POLICY",
+                policy.projectionPolicy(),
                 "SOURCE_CONTEXT_ONLY",
                 "PENDING_SEALED_PACKAGE_PROJECTION",
                 traversalProblem ? "PRODUCER_PARTIAL" : "PRODUCER_REPORTED",
                 reasonCode,
                 reasonText,
-                "METRIC_MAPPING_REQUIRED",
-                state.blockingCandidate() ? "BLOCKING_CANDIDATE" : "NON_BLOCKING_UNTIL_REQUIRED_POLICY_MATCH",
+                String.join(",", policy.metricCodes()),
+                state.blockingCandidate() && policy.officialContractField()
+                        ? "OFFICIAL_BLOCKING"
+                        : "NON_BLOCKING_UNTIL_REQUIRED_POLICY_MATCH",
                 null,
                 null);
     }
@@ -105,6 +118,11 @@ public final class PromptFieldStateLedgerFactory {
             String sourceType,
             String prefix,
             String projectionPolicy) {
+        PromptFieldPolicy policy = PromptFieldPolicyCatalog.resolve(
+                sourceType.toLowerCase() + ":" + field.fieldKey(),
+                sourceType,
+                prefix + "." + field.fieldKey(),
+                field.label());
         return new PromptFieldStateRecord(
                 sourceType.toLowerCase() + ":" + field.fieldKey(),
                 sourceType,
@@ -115,17 +133,17 @@ public final class PromptFieldStateLedgerFactory {
                 field.valueHash(),
                 field.valueLength(),
                 preview(field.valuePreview()),
-                "DISCOVERED_PROMPT_FIELD",
-                "ALWAYS_CAPTURE_PROMPT_FIELD",
+                policy.requiredPolicy(),
+                policy.applicabilityRule(),
                 "prompt text parser",
-                projectionPolicy,
+                firstNonBlank(policy.projectionPolicy(), projectionPolicy),
                 sourceType,
                 "PENDING_SEALED_PACKAGE_PROJECTION",
                 "PROMPT_RENDERED",
                 field.compactedMarker() ? "COMPACTED_MARKER_PRESENT" : null,
                 field.compactedMarker() ? "The prompt contains a compacted marker. The full source must remain available in the sealed package." : null,
-                "PROMPT_LINEAGE",
-                field.compactedMarker() ? "REQUIRES_FULL_SOURCE_REFERENCE" : "NON_BLOCKING",
+                String.join(",", policy.metricCodes()),
+                field.compactedMarker() && policy.officialContractField() ? "REQUIRES_FULL_SOURCE_REFERENCE" : "NON_BLOCKING",
                 field.sectionTitle(),
                 field.label());
     }
@@ -142,6 +160,11 @@ public final class PromptFieldStateLedgerFactory {
             case ADDED_IN_FINAL -> "FINAL_FIELD_ADDED";
             case SAME -> null;
         };
+        PromptFieldPolicy policy = PromptFieldPolicyCatalog.resolve(
+                "projection:" + diff.fieldKey(),
+                "PROMPT_PROJECTION_DIFF",
+                "rawUserPrompt->userPrompt." + diff.fieldKey(),
+                diff.label());
         return new PromptFieldStateRecord(
                 "projection:" + diff.fieldKey(),
                 "PROMPT_PROJECTION_DIFF",
@@ -152,8 +175,8 @@ public final class PromptFieldStateLedgerFactory {
                 firstNonBlank(diff.finalValueHash(), diff.rawValueHash()),
                 0,
                 preview(diff.reason()),
-                diff.blockingCandidate() ? "REQUIRED_PROMPT_PROJECTION" : "OBSERVED_PROMPT_PROJECTION",
-                "RAW_AND_FINAL_PROMPT_COMPARISON",
+                diff.blockingCandidate() ? "REQUIRED_PROMPT_PROJECTION" : policy.requiredPolicy(),
+                policy.applicabilityRule(),
                 "prompt field lineage analyzer",
                 "RAW_USER_TO_FINAL_USER_PROMPT",
                 diff.diffType().name(),
@@ -161,8 +184,8 @@ public final class PromptFieldStateLedgerFactory {
                 "PROMPT_LINEAGE_ANALYZED",
                 reasonCode,
                 diff.reason(),
-                "PROMPT_PROJECTION",
-                state.blockingCandidate() ? "BLOCKING_CANDIDATE" : "NON_BLOCKING",
+                String.join(",", policy.metricCodes()),
+                state.blockingCandidate() && policy.officialContractField() ? "OFFICIAL_BLOCKING" : "NON_BLOCKING",
                 diff.sectionTitle(),
                 diff.label());
     }

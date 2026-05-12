@@ -28,6 +28,13 @@ public record PromptFieldStateRecord(
         String promptLabel) {
 
     public Map<String, Object> toMetadataMap() {
+        PromptFieldPolicy policy = PromptFieldPolicyCatalog.resolve(
+                fieldKey,
+                sourceType,
+                sourceFieldPath,
+                promptLabel);
+        boolean rawBlocking = fieldState.blockingCandidate();
+        boolean officialBlocking = rawBlocking && policy.officialContractField();
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("fieldKey", fieldKey);
         metadata.put("sourceType", sourceType);
@@ -38,20 +45,38 @@ public record PromptFieldStateRecord(
         metadata.put("valueHash", valueHash);
         metadata.put("valueLength", valueLength);
         metadata.put("valuePreview", valuePreview);
-        metadata.put("requiredPolicy", requiredPolicy);
-        metadata.put("applicabilityRule", applicabilityRule);
+        metadata.put("requiredPolicy", firstNonBlank(requiredPolicy, policy.requiredPolicy()));
+        metadata.put("applicabilityRule", firstNonBlank(applicabilityRule, policy.applicabilityRule()));
         metadata.put("applicabilityEvidence", applicabilityEvidence);
-        metadata.put("projectionPolicy", projectionPolicy);
+        metadata.put("projectionPolicy", firstNonBlank(projectionPolicy, policy.projectionPolicy()));
         metadata.put("promptPresenceState", promptPresenceState);
         metadata.put("sealedEvidencePresenceState", sealedEvidencePresenceState);
         metadata.put("producerStatus", producerStatus);
         metadata.put("absenceReasonCode", absenceReasonCode);
         metadata.put("absenceReasonText", absenceReasonText);
-        metadata.put("metricImpactPolicy", metricImpactPolicy);
-        metadata.put("blockingPolicy", blockingPolicy);
-        metadata.put("blockingCandidate", fieldState.blockingCandidate());
+        metadata.put("metricImpactPolicy", firstNonBlank(metricImpactPolicy, String.join(",", policy.metricCodes())));
+        metadata.put("blockingPolicy", firstNonBlank(blockingPolicy, officialBlocking ? "OFFICIAL_BLOCKING" : "NON_BLOCKING"));
+        metadata.put("blockingCandidate", rawBlocking);
+        metadata.put("rawBlockingCandidate", rawBlocking);
+        metadata.put("officialBlockingCandidate", officialBlocking);
+        metadata.put("qualityRelevance", policy.qualityRelevance());
+        metadata.put("metricCodes", policy.metricCodes());
+        metadata.put("remediationOwner", policy.remediationOwner());
+        metadata.put("notApplicableRule", policy.notApplicableRule());
         metadata.put("promptSection", promptSection);
         metadata.put("promptLabel", promptLabel);
         return metadata;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 }

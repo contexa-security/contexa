@@ -505,6 +505,23 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
             records.add(layoutRecord("USER_PROMPT_LAYOUT", normalizedRawUserPrompt, normalizedUserPrompt));
         }
 
+        if (preserveFullFinalUserPrompt(effectiveProfile)) {
+            PromptTransformResult authorizationMissingContextFilter =
+                    removeResolvedAuthorizationEffectMissingContext(normalizedUserPrompt);
+            records.addAll(authorizationMissingContextFilter.records());
+            return new PromptViewComposition(
+                    normalizedRawSystemPrompt,
+                    normalizedRawUserPrompt,
+                    normalizedSystemPrompt,
+                    authorizationMissingContextFilter.text(),
+                    buildLedger(
+                            normalizedRawSystemPrompt,
+                            normalizedRawUserPrompt,
+                            normalizedSystemPrompt,
+                            authorizationMissingContextFilter.text(),
+                            records));
+        }
+
         if (!compressionEnabled) {
             PromptTransformResult authorizationMissingContextFilter = removeResolvedAuthorizationEffectMissingContext(normalizedUserPrompt);
             records.addAll(authorizationMissingContextFilter.records());
@@ -745,6 +762,10 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 llmSystemPrompt,
                 llmUserPrompt,
                 ledger);
+    }
+
+    private boolean preserveFullFinalUserPrompt(PromptBudgetProfile effectiveProfile) {
+        return effectiveProfile == PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     }
 
     private PromptCompressionLedger buildLedger(

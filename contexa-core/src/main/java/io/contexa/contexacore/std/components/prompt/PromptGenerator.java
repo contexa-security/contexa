@@ -4,6 +4,7 @@ import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class PromptGenerator {
@@ -21,6 +23,7 @@ public class PromptGenerator {
     private static final Map<String, PromptTemplate> promptTemplates = new ConcurrentHashMap<>();
     private final List<PromptTemplate> templateBeans;
     private final LLMViewComposer llmViewComposer;
+    private final TieredStrategyProperties tieredStrategyProperties;
 
     @Autowired
     public PromptGenerator(List<PromptTemplate> templateBeans) {
@@ -28,8 +31,16 @@ public class PromptGenerator {
     }
 
     public PromptGenerator(List<PromptTemplate> templateBeans, LLMViewComposer llmViewComposer) {
+        this(templateBeans, llmViewComposer, null);
+    }
+
+    public PromptGenerator(
+            List<PromptTemplate> templateBeans,
+            LLMViewComposer llmViewComposer,
+            TieredStrategyProperties tieredStrategyProperties) {
         this.templateBeans = templateBeans;
         this.llmViewComposer = llmViewComposer != null ? llmViewComposer : new SafePromptNormalizationLLMViewComposer();
+        this.tieredStrategyProperties = tieredStrategyProperties;
     }
 
     @PostConstruct
@@ -58,6 +69,7 @@ public class PromptGenerator {
                 rawUserPrompt,
                 effectiveBudgetProfile,
                 modelHint);
+        assertIdentityViewPreservesRawPrompt(effectiveBudgetProfile, promptViewComposition);
         String systemPrompt = promptViewComposition.llmSystemPrompt();
         String userPrompt = promptViewComposition.llmUserPrompt();
 
@@ -141,15 +153,16 @@ public class PromptGenerator {
             PromptTemplate template,
             String systemPrompt,
             String userPrompt) {
+        PromptBudgetProfile configuredLayer1Default = configuredLayer1DefaultBudgetProfile();
         if (request == null) {
-            return PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
+            return configuredLayer1Default;
         }
         Object parameter = request.getParameter("promptBudgetProfile", Object.class);
         if (parameter instanceof PromptBudgetProfile profile) {
             return profile;
         }
         if (parameter instanceof String profileKey) {
-            return PromptBudgetProfile.fromKey(profileKey, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
+            return PromptBudgetProfile.fromKey(profileKey, configuredLayer1Default);
         }
         if (template instanceof GovernedPromptTemplate governedPromptTemplate) {
             PromptExecutionMetadata metadata = governedPromptTemplate.buildPromptExecutionMetadata(request, systemPrompt, userPrompt);
@@ -157,6 +170,28 @@ public class PromptGenerator {
                 return metadata.budgetProfile();
             }
         }
-        return PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
+        return configuredLayer1Default;
+    }
+
+    private PromptBudgetProfile configuredLayer1DefaultBudgetProfile() {
+        String configuredProfile = tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                ? tieredStrategyProperties.getLayer1().getDefaultBudgetProfile()
+                : null;
+        return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
+    }
+
+    private void assertIdentityViewPreservesRawPrompt(
+            PromptBudgetProfile budgetProfile,
+            PromptViewComposition promptViewComposition) {
+        if (budgetProfile == null
+                || budgetProfile.viewProfile() != PromptViewProfile.IDENTITY
+                || promptViewComposition == null) {
+            return;
+        }
+        if (!Objects.equals(promptViewComposition.rawSystemPrompt(), promptViewComposition.llmSystemPrompt())
+                || !Objects.equals(promptViewComposition.rawUserPrompt(), promptViewComposition.llmUserPrompt())) {
+            throw new IllegalStateException(
+                    "Identity prompt view profile must preserve raw prompt text as the final LLM prompt.");
+        }
     }
 }

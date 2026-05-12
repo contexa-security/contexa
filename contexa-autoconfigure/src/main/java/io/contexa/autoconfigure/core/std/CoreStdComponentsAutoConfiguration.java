@@ -90,8 +90,11 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptGenerator promptGenerator(List<PromptTemplate> promptTemplates, LLMViewComposer llmViewComposer) {
-        return new PromptGenerator(promptTemplates, llmViewComposer);
+    public PromptGenerator promptGenerator(
+            List<PromptTemplate> promptTemplates,
+            LLMViewComposer llmViewComposer,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new PromptGenerator(promptTemplates, llmViewComposer, tieredStrategyProperties);
     }
 
     @Bean
