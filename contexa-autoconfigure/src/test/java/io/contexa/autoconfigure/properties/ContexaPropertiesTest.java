@@ -65,6 +65,7 @@ class ContexaPropertiesTest {
             assertThat(properties.getLlm().getEmbedding().getOllama().isDedicatedRuntimeEnabled()).isFalse();
             assertThat(properties.getLlm().getEmbedding().getOllama().getBaseUrl()).isEmpty();
             assertThat(properties.getLlm().getEmbedding().getOllama().getModel()).isEmpty();
+            assertThat(properties.getLlm().getEmbedding().getOllama().getDimensions()).isEqualTo(1536);
         }
 
         @Test

@@ -22,7 +22,7 @@ public class PgVectorStoreProperties {
 
     @Min(128)
     @Max(3072)
-    private int dimensions = 1024;
+    private int dimensions = 1536;
 
     @Min(1)
     @Max(1000)

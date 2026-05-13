@@ -9,7 +9,6 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseL
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
-import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -21,7 +20,6 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LLMExecutionStepTest {
 
@@ -110,15 +108,9 @@ class LLMExecutionStepTest {
     }
 
     @Test
-    void executeShouldUseEntityOnlyExecutionForSecurityDecisionTargets() {
+    void executeShouldUseRawGuardedExecutionForSecurityDecisionTargets() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction("ALLOW");
-        lite.setConfidence(0.82d);
-        lite.setRiskScore(0.18d);
-        lite.setReasoning("Verified identity, scope, and low-risk context align with the request.");
-        lite.setMitre("UNKNOWN");
-        llmClient.entityResponse = lite;
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Verified identity and scope support the request.\"}";
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
         PipelineExecutionContext context = new PipelineExecutionContext("exec-security-decision-raw");
         context.addStepResult(
@@ -134,27 +126,23 @@ class LLMExecutionStepTest {
 
         Object response = step.execute(request, context).block();
 
-        assertThat(response).isInstanceOf(SecurityDecisionResponseLite.class);
-        assertThat(context.getMetadata("structuredOutputComplete", Boolean.class)).isTrue();
+        assertThat(response).isEqualTo(llmClient.rawResponse);
+        assertThat(context.getMetadata("structuredOutputComplete", Boolean.class)).isFalse();
         assertThat(context.getMetadata("structuredOutputPolicy", String.class)).isEqualTo(StructuredOutputPolicy.RAW_FORBIDDEN.name());
-        assertThat(context.getMetadata("structuredOutputMode", String.class)).isEqualTo(StructuredOutputMode.VALIDATED_CONVERTER.name());
-        assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isTrue();
-        assertThat(llmClient.rawExecutions).isZero();
-        assertThat(llmClient.entityExecutions).isEqualTo(1);
-        assertThat(llmClient.lastExecutionContext.getAdvisors()).hasSize(1);
+        assertThat(context.getMetadata("structuredOutputMode", String.class)).isEqualTo("SECURITY_DECISION_RAW_GUARDED");
+        assertThat(context.getMetadata("entityExecutionAttempted", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("rawExecutionAttempted", Boolean.class)).isTrue();
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
+        assertThat(llmClient.entityExecutions).isZero();
+        assertThat(llmClient.lastExecutionContext.getAdvisors()).isEmpty();
     }
 
     @Test
     void executeShouldDeriveActualPromptBudgetTelemetryFromProviderUsage() {
         ObservedPromptTokenUsageRegistry.clear();
         RecordingLlmClient llmClient = new RecordingLlmClient();
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction("ALLOW");
-        lite.setConfidence(0.91d);
-        lite.setRiskScore(0.08d);
-        lite.setReasoning("Verified runtime evidence remained consistent with a low-risk follow-up request.");
-        lite.setMitre("UNKNOWN");
-        llmClient.entityResponse = lite;
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Verified runtime evidence remained consistent.\"}";
         llmClient.actualPromptTokens = 930;
         llmClient.actualCompletionTokens = 42;
         llmClient.actualTotalTokens = 972;
@@ -177,7 +165,7 @@ class LLMExecutionStepTest {
         try {
             Object response = step.execute(request, context).block();
 
-            assertThat(response).isInstanceOf(SecurityDecisionResponseLite.class);
+            assertThat(response).isEqualTo(llmClient.rawResponse);
             assertThat(context.getMetadata("actualPromptTokens", Number.class)).isEqualTo(930);
             assertThat(context.getMetadata("actualPromptBudgetRemainingTokens", Number.class)).isEqualTo(570);
             assertThat(context.getMetadata("actualPromptBudgetExceeded", Boolean.class)).isFalse();
@@ -190,9 +178,10 @@ class LLMExecutionStepTest {
     }
 
     @Test
-    void executeShouldRejectSecurityDecisionEntityFailureWithoutRawFallback() {
+    void executeShouldBypassSecurityDecisionEntityFailureWithRawGuardedExecution() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
         llmClient.entityError = new IllegalStateException("schema mismatch");
+        llmClient.rawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Additional verification is required.\"}";
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
         PipelineExecutionContext context = new PipelineExecutionContext("exec-security-decision-failure");
         context.addStepResult(
@@ -205,19 +194,38 @@ class LLMExecutionStepTest {
         request.withParameter("requestedModelId", "qwen3:8b");
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
 
-        assertThatThrownBy(() -> step.execute(request, context).block())
-                .isInstanceOfSatisfying(StructuredOutputExecutionException.class, exception -> {
-                    assertThat(exception.getCategory()).isEqualTo(StructuredOutputFailureCategory.ENTITY_EXECUTION_FAILED);
-                    assertThat(exception.getFailure()).isNotNull();
-                    assertThat(exception.getFailure().category()).isEqualTo(DecisionFailureCategory.ENTITY_EXECUTION_FAILED);
-                    assertThat(exception.getFailure().technicalFallbackAction()).isNull();
-                    assertThat(exception.getFailure().message()).contains("Structured output execution failed");
-                })
-                .hasMessageContaining("Structured output execution failed");
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo(llmClient.rawResponse);
         assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();
-        assertThat(context.getMetadata("rawExecutionAttempted", Boolean.class)).isFalse();
-        assertThat(llmClient.rawExecutions).isZero();
-        assertThat(llmClient.entityExecutions).isEqualTo(1);
+        assertThat(context.getMetadata("rawExecutionAttempted", Boolean.class)).isTrue();
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
+        assertThat(llmClient.entityExecutions).isZero();
+    }
+
+    @Test
+    void executeShouldReturnEmptyRawResultForSecurityDecisionRawExecutionFailure() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawError = new IllegalStateException("connection refused");
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-decision-raw-failure");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("");
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("MODEL_UNAVAILABLE");
+        assertThat(context.getMetadata("securityDecisionFallbackReason", String.class)).isEqualTo("LLM_EXECUTION_FAILED");
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
+        assertThat(llmClient.entityExecutions).isZero();
     }
 
     @Test
@@ -245,12 +253,12 @@ class LLMExecutionStepTest {
 
         Object response = step.execute(request, context).block();
 
-        assertThat(response).isInstanceOf(SecurityDecisionResponseLite.class);
+        assertThat(response).isEqualTo("raw-response");
         assertThat(context.getMetadata("structuredOutputMode", String.class))
-                .isEqualTo(StructuredOutputMode.VALIDATED_CONVERTER.name());
-        assertThat(llmClient.lastExecutionContext.getAdvisors()).hasSize(1);
-        assertThat(llmClient.rawExecutions).isZero();
-        assertThat(llmClient.entityExecutions).isEqualTo(1);
+                .isEqualTo("SECURITY_DECISION_RAW_GUARDED");
+        assertThat(llmClient.lastExecutionContext.getAdvisors()).isEmpty();
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
+        assertThat(llmClient.entityExecutions).isZero();
     }
 
     @Test
@@ -282,6 +290,8 @@ class LLMExecutionStepTest {
         private ExecutionContext lastExecutionContext;
         private int rawExecutions;
         private int entityExecutions;
+        private String rawResponse = "raw-response";
+        private Throwable rawError;
         private SecurityDecisionResponseLite entityResponse;
         private Throwable entityError;
         private Integer actualPromptTokens;
@@ -294,7 +304,10 @@ class LLMExecutionStepTest {
             this.lastExecutionContext = context;
             this.rawExecutions++;
             applyUsageMetadata(context);
-            return Mono.just("raw-response");
+            if (rawError != null) {
+                return Mono.error(rawError);
+            }
+            return Mono.just(rawResponse);
         }
 
         @Override

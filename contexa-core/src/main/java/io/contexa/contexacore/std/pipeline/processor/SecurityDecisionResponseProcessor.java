@@ -8,7 +8,6 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 
@@ -31,8 +30,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         if (parsedData instanceof SecurityDecisionResponse fullResponse) {
             return fullResponse;
         }
-        SecurityDecisionResponseLite liteResponse = toLiteResponse(parsedData);
-        if (liteResponse == null) {
+        if (!(parsedData instanceof SecurityDecisionResponseLite liteResponse)) {
             throw new IllegalArgumentException(
                     "Expected SecurityDecisionResponseLite but got: "
                             + (parsedData != null ? parsedData.getClass().getName() : "null"));
@@ -48,7 +46,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
     private SecurityDecisionResponseLite normalizeAndValidate(SecurityDecisionResponseLite lite, PipelineExecutionContext context) {
         SecurityDecisionResponseLite normalized = new SecurityDecisionResponseLite();
         List<String> repairedFields = new ArrayList<>();
-        String normalizedAction = normalizeAction(lite.getAction());
+        String normalizedAction = normalizeAction(lite.getAction(), repairedFields, context);
         Double normalizedRiskScore = normalizeNumericScore(lite.getRiskScore(), "riskScore", normalizedAction, repairedFields);
         Double normalizedConfidence = normalizeNumericScore(lite.getConfidence(), "confidence", normalizedAction, repairedFields);
         normalized.setRiskScore(normalizedRiskScore);
@@ -59,50 +57,6 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         recordSemanticConsistency(context, normalizedAction, normalizedRiskScore);
         recordRepairMetadata(context, repairedFields);
         return normalized;
-    }
-
-    private SecurityDecisionResponseLite toLiteResponse(Object parsedData) {
-        if (parsedData instanceof SecurityDecisionResponseLite liteResponse) {
-            return liteResponse;
-        }
-        if (!(parsedData instanceof Map<?, ?> map)) {
-            return null;
-        }
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction(asString(map.get("action")));
-        lite.setReasoning(asString(map.get("reasoning")));
-        lite.setMitre(asString(map.get("mitre")));
-        lite.setRiskScore(asDouble(map.get("riskScore")));
-        lite.setConfidence(asDouble(map.get("confidence")));
-        return lite;
-    }
-
-    private String asString(Object value) {
-        if (value == null) {
-            return null;
-        }
-        String text = String.valueOf(value).trim();
-        return text.isBlank() ? null : text;
-    }
-
-    private Double asDouble(Object value) {
-        if (value instanceof Number number) {
-            double candidate = number.doubleValue();
-            return Double.isFinite(candidate) ? candidate : null;
-        }
-        if (value instanceof String text) {
-            String normalized = text.trim();
-            if (normalized.isBlank()) {
-                return null;
-            }
-            try {
-                double candidate = Double.parseDouble(normalized);
-                return Double.isFinite(candidate) ? candidate : null;
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
     }
 
     private Double normalizeNumericScore(Double score, String fieldName, String action, List<String> repairedFields) {
@@ -132,16 +86,22 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         };
     }
 
-    private String normalizeAction(String action) {
+    private String normalizeAction(String action, List<String> repairedFields, PipelineExecutionContext context) {
         if (action == null || action.isBlank()) {
-            throw new IllegalArgumentException("Security decision field is missing: action");
+            repairedFields.add("action");
+            recordActionFallback(context, "MISSING_ACTION");
+            return "CHALLENGE";
         }
         String normalized = action.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case "ALLOW", "CHALLENGE", "BLOCK", "ESCALATE" -> normalized;
             case "DENY", "DENIED", "REJECT", "REJECTED" -> "BLOCK";
             case "REVIEW" -> "ESCALATE";
-            default -> throw new IllegalArgumentException("Security decision action is invalid: " + action);
+            default -> {
+                repairedFields.add("action");
+                recordActionFallback(context, "INVALID_ACTION");
+                yield "CHALLENGE";
+            }
         };
     }
 
@@ -188,6 +148,18 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         }
         context.addMetadata("securityDecisionPostprocessingRepairApplied", true);
         context.addMetadata("securityDecisionPostprocessingRepairFields", List.copyOf(repairedFields));
+    }
+
+    private void recordActionFallback(PipelineExecutionContext context, String reason) {
+        if (context == null) {
+            return;
+        }
+        context.addMetadata("securityDecisionParsingFallbackApplied", true);
+        context.addMetadata("securityDecisionFallbackApplied", true);
+        context.addMetadata("securityDecisionFallbackAction", "CHALLENGE");
+        context.addMetadata("securityDecisionFallbackReason", reason);
+        context.addMetadata("syntheticSecurityDecisionApplied", true);
+        context.addMetadata("llmDecisionPresent", false);
     }
 
     private boolean containsMultipleSentences(String reasoning) {

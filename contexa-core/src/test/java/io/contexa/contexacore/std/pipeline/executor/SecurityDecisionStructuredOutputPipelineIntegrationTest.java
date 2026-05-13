@@ -25,7 +25,6 @@ import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
 import io.contexa.contexacore.std.pipeline.step.PostprocessingStep;
 import io.contexa.contexacore.std.pipeline.step.PreprocessingStep;
 import io.contexa.contexacore.std.pipeline.step.ResponseParsingStep;
-import io.contexa.contexacore.std.pipeline.step.StructuredOutputExecutionException;
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -40,20 +39,21 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SecurityDecisionStructuredOutputPipelineIntegrationTest {
 
     @Test
-    void entityOnlyPipelineShouldProduceSecurityDecisionResponseWithoutRawFallback() {
+    void rawGuardedPipelineShouldProduceSecurityDecisionResponseWithoutSpringEntityParsing() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
-        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
-        lite.setAction("ALLOW");
-        lite.setConfidence(0.81d);
-        lite.setRiskScore(0.16d);
-        lite.setReasoning("Verified identity and scope align with a low-risk post-auth request.");
-        lite.setMitre("UNKNOWN");
-        llmClient.entityResponse = lite;
+        llmClient.rawResponse = """
+                {
+                  "action": "ALLOW",
+                  "confidence": 0.81,
+                  "riskScore": 0.16,
+                  "reasoning": "Verified identity and scope align with a low-risk post-auth request.",
+                  "mitre": "UNKNOWN"
+                }
+                """;
 
         UniversalPipelineExecutor executor = buildExecutor(llmClient);
         SecurityDecisionResponse response = executor.execute(
@@ -66,28 +66,40 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
         assertThat(response.getAction()).isEqualTo("ALLOW");
         assertThat(response.getConfidence()).isEqualTo(0.81d);
         assertThat(response.getRiskScore()).isEqualTo(0.16d);
-        assertThat(response.getMetadata("entityExecutionSucceeded", Boolean.class)).isTrue();
-        assertThat(response.getMetadata("rawExecutionAttempted", Boolean.class)).isFalse();
+        assertThat(response.getMetadata("entityExecutionAttempted", Boolean.class)).isFalse();
+        assertThat(response.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(response.getMetadata("rawExecutionAttempted", Boolean.class)).isTrue();
+        assertThat(response.getMetadata("securityDecisionParsingMode", String.class)).isEqualTo("RAW_GUARDED");
         assertThat(response.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isFalse();
-        assertThat(llmClient.entityExecutions).isEqualTo(1);
-        assertThat(llmClient.rawExecutions).isZero();
+        assertThat(llmClient.entityExecutions).isZero();
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
     }
 
     @Test
-    void entityOnlyPipelineShouldFailClosedOnStructuredOutputMismatchWithoutSyntheticDecision() {
+    void rawGuardedPipelineShouldFailClosedWhenModelOmitsAction() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
         llmClient.entityError = new IllegalStateException("schema mismatch");
+        llmClient.rawResponse = """
+                {
+                  "reasoning": "The model omitted the action field.",
+                  "riskScore": 0.1
+                }
+                """;
 
         UniversalPipelineExecutor executor = buildExecutor(llmClient);
 
-        assertThatThrownBy(() -> executor.execute(
+        SecurityDecisionResponse response = executor.execute(
                         buildRequest(),
                         PipelineConfiguration.createPipelineConfig(),
-                        SecurityDecisionResponse.class).block())
-                .isInstanceOf(StructuredOutputExecutionException.class)
-                .hasMessageContaining("Structured output execution failed");
-        assertThat(llmClient.entityExecutions).isEqualTo(1);
-        assertThat(llmClient.rawExecutions).isZero();
+                        SecurityDecisionResponse.class)
+                .block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getAction()).isEqualTo("CHALLENGE");
+        assertThat(response.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isTrue();
+        assertThat(response.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isTrue();
+        assertThat(llmClient.entityExecutions).isZero();
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
     }
 
     private UniversalPipelineExecutor buildExecutor(RecordingLlmClient llmClient) {
@@ -163,13 +175,14 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
 
         private int rawExecutions;
         private int entityExecutions;
+        private String rawResponse = "raw-response";
         private SecurityDecisionResponseLite entityResponse;
         private Throwable entityError;
 
         @Override
         public Mono<String> execute(ExecutionContext context) {
             rawExecutions++;
-            return Mono.just("raw-response");
+            return Mono.just(rawResponse);
         }
 
         @Override

@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ResponseParsingStepTest {
 
@@ -33,7 +32,7 @@ class ResponseParsingStepTest {
     }
 
     @Test
-    void executeShouldRejectRawSecurityDecisionTextWhenStructuredOutputIsMissing() {
+    void executeShouldParseRawSecurityDecisionTextWithGuardedParser() {
         ResponseParsingStep step = new ResponseParsingStep();
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(null, null, null, List.of()));
@@ -45,17 +44,20 @@ class ResponseParsingStepTest {
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
         context.addMetadata("rawExecutionAttempted", true);
 
-        assertThatThrownBy(() -> step.execute(request, context).block())
-                .isInstanceOfSatisfying(StructuredOutputExecutionException.class, exception -> {
-                    assertThat(exception.getCategory()).isEqualTo(StructuredOutputFailureCategory.RAW_EXECUTION_FORBIDDEN);
-                    assertThat(exception.getFailure()).isNotNull();
-                    assertThat(exception.getFailure().category()).isEqualTo(DecisionFailureCategory.RAW_EXECUTION_FORBIDDEN);
-                })
-                .hasMessageContaining("Raw parsing is forbidden");
+        Object result = step.execute(request, context).block();
+
+        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
+        SecurityDecisionResponseLite parsed = (SecurityDecisionResponseLite) result;
+        assertThat(parsed.getAction()).isEqualTo("CHALLENGE");
+        assertThat(parsed.getConfidence()).isEqualTo(0.65d);
+        assertThat(parsed.getReasoning()).isEqualTo("Sparse baseline and high-value access require additional verification.");
+        assertThat(context.getMetadata("securityDecisionParsingMode", String.class)).isEqualTo("RAW_GUARDED");
+        assertThat(context.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isTrue();
     }
 
     @Test
-    void executeShouldRejectEmptySecurityDecisionResponse() {
+    void executeShouldFailClosedForEmptySecurityDecisionResponse() {
         ResponseParsingStep step = new ResponseParsingStep();
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(null, null, null, List.of()));
@@ -64,13 +66,14 @@ class ResponseParsingStepTest {
         context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, "");
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
 
-        assertThatThrownBy(() -> step.execute(request, context).block())
-                .isInstanceOfSatisfying(StructuredOutputExecutionException.class, exception -> {
-                    assertThat(exception.getCategory()).isEqualTo(StructuredOutputFailureCategory.EMPTY_RESPONSE);
-                    assertThat(exception.getFailure()).isNotNull();
-                    assertThat(exception.getFailure().category()).isEqualTo(DecisionFailureCategory.EMPTY_RESPONSE);
-                })
-                .hasMessageContaining("Structured response is missing");
+        Object result = step.execute(request, context).block();
+
+        assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
+        SecurityDecisionResponseLite parsed = (SecurityDecisionResponseLite) result;
+        assertThat(parsed.getAction()).isEqualTo("CHALLENGE");
+        assertThat(parsed.getReasoning()).isEqualTo("Model output was incomplete; challenge is required.");
+        assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("EMPTY_RESPONSE");
+        assertThat(context.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isTrue();
     }
 
     @Test

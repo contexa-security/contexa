@@ -18,12 +18,12 @@ public class ContexaLlmSelectionProperties {
     @Data
     public static class Chat {
         private Mode mode = Mode.DYNAMIC_PRIORITY;
-        private String priority = "";
+        private String priority = "openai,anthropic,ollama";
     }
 
     @Data
     public static class Embedding {
         private Mode mode = Mode.DYNAMIC_PRIORITY;
-        private String priority = "";
+        private String priority = "openai,ollama";
     }
 }

@@ -33,12 +33,12 @@ class CoreLLMTieredAutoConfigurationProviderResolutionTest {
 
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         ChatModel selectedModel = mock(ChatModel.class);
-        when(catalog.resolvePrimaryChatModel("ollama,anthropic,openai")).thenReturn(Optional.of(selectedModel));
+        when(catalog.resolvePrimaryChatModel("openai,anthropic")).thenReturn(Optional.of(selectedModel));
 
         ChatModel resolved = configuration.dynamicPriorityPrimaryChatModel(catalog);
 
         assertThat(resolved).isSameAs(selectedModel);
-        verify(catalog).resolvePrimaryChatModel("ollama,anthropic,openai");
+        verify(catalog).resolvePrimaryChatModel("openai,anthropic");
     }
 
     @Test

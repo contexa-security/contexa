@@ -36,12 +36,12 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("ollama,openai");
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
-        when(catalog.resolvePrimaryEmbeddingModel("ollama,openai")).thenReturn(Optional.of(embeddingModel));
+        when(catalog.resolvePrimaryEmbeddingModel("openai")).thenReturn(Optional.of(embeddingModel));
 
         EmbeddingModel selected = configuration.dynamicPriorityPrimaryEmbeddingModel(catalog);
 
         assertThat(selected).isSameAs(embeddingModel);
-        verify(catalog).resolvePrimaryEmbeddingModel("ollama,openai");
+        verify(catalog).resolvePrimaryEmbeddingModel("openai");
     }
 
     @Test
@@ -64,7 +64,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
     void shouldFailFastWhenNoDynamicPriorityEmbeddingModelCanBeResolved() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("openai,ollama");
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
-        when(catalog.resolvePrimaryEmbeddingModel("openai,ollama")).thenReturn(Optional.empty());
+        when(catalog.resolvePrimaryEmbeddingModel("openai")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> configuration.dynamicPriorityPrimaryEmbeddingModel(catalog))
                 .isInstanceOf(IllegalStateException.class)

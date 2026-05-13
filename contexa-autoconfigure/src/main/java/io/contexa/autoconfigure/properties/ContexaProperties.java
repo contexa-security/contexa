@@ -112,6 +112,7 @@ public class ContexaProperties {
                 private boolean dedicatedRuntimeEnabled = false;
                 private String baseUrl = "";
                 private String model = "";
+                private int dimensions = 1536;
             }
         }
     }

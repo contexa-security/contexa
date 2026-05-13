@@ -2,6 +2,7 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
@@ -88,6 +89,40 @@ public class LLMExecutionStep implements PipelineStep {
         context.addMetadata("structuredOutputNativeSupported", capability.nativeStructuredSupported());
         context.addMetadata("structuredOutputValidationAdvisorSupported", capability.validationAdvisorSupported());
         context.addMetadata("structuredOutputCapabilitySource", capability.resolutionSource());
+
+        if (isSecurityDecisionTarget(finalTargetType)) {
+            context.addMetadata("entityExecutionAttempted", false);
+            context.addMetadata("entityExecutionSucceeded", false);
+            context.addMetadata("rawExecutionAttempted", true);
+            context.addMetadata("structuredOutputComplete", false);
+            context.addMetadata("structuredOutputMode", "SECURITY_DECISION_RAW_GUARDED");
+            context.addMetadata("structuredOutputPolicy", structuredOutputPolicy.name());
+            context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
+            return preparePrompt(context)
+                    .flatMap(prompt -> executeRaw(prompt, request, context)
+                            .switchIfEmpty(Mono.error(new IllegalStateException("Security decision LLM raw execution returned empty Mono")))
+                            .doOnSuccess(rawResponse -> {
+                                context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponse);
+                                context.addMetadata("structuredOutputMode", "SECURITY_DECISION_RAW_GUARDED");
+                                context.addMetadata("structuredOutputPolicy", structuredOutputPolicy.name());
+                                context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
+                            }))
+                    .cast(Object.class)
+                    .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
+                    .doFinally(signalType -> context.addMetadata("llmExecutionLatencyMs", System.currentTimeMillis() - stepStartTime))
+                    .onErrorResume(error -> {
+                        log.error("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}",
+                                request.getRequestId(), error);
+                        context.addMetadata("rawExecutionSucceeded", false);
+                        context.addMetadata("structuredOutputFailureCategory", "MODEL_UNAVAILABLE");
+                        context.addMetadata("securityDecisionParseFailureCategory", "MODEL_UNAVAILABLE");
+                        context.addMetadata("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
+                        context.addMetadata("securityDecisionRawExecutionFailureClass", error.getClass().getName());
+                        context.addMetadata("securityDecisionRawExecutionFailureMessage", error.getMessage());
+                        context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, "");
+                        return Mono.just("");
+                    });
+        }
 
         if (finalTargetType != null && structuredOutputMode != StructuredOutputMode.LEGACY_RAW) {
             context.addMetadata("entityExecutionAttempted", true);
@@ -355,6 +390,10 @@ public class LLMExecutionStep implements PipelineStep {
             providerHint = providerValue.value();
         }
         return structuredOutputCapabilityRegistry.resolve(modelHint, providerHint, targetType != null);
+    }
+
+    private boolean isSecurityDecisionTarget(Class<?> targetType) {
+        return SecurityDecisionResponseLite.class.equals(targetType);
     }
 
     private <T extends DomainContext> StructuredOutputPolicy resolveStructuredOutputPolicy(

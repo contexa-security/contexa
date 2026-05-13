@@ -3,9 +3,11 @@ package io.contexa.contexacore.std.pipeline.step;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionOutputParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.converter.ListOutputConverter;
@@ -23,6 +25,7 @@ public class ResponseParsingStep implements PipelineStep {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final DefaultConversionService conversionService = new DefaultConversionService();
+    private final SecurityDecisionOutputParser securityDecisionOutputParser = new SecurityDecisionOutputParser();
 
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
@@ -51,6 +54,17 @@ public class ResponseParsingStep implements PipelineStep {
             }
 
             Object targetTypeInfo = determineTargetType(request, context);
+            Object llmExecutionResult = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, Object.class);
+            if (isSecurityDecisionTarget(targetTypeInfo)) {
+                Object result = parseSecurityDecisionResult(llmExecutionResult, context);
+                context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, result);
+                context.addMetadata("parsingComplete", true);
+                context.addMetadata("parsedResponseType", result != null ? result.getClass() : null);
+                context.addMetadata("responseType", result != null ? result.getClass().getSimpleName() : "unknown");
+                enrichWithMetadata(result, request, context);
+                return result;
+            }
+
             String llmResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, String.class);
             if (llmResponse == null || llmResponse.trim().isEmpty()) {
                 log.error("[{}] LLM response is empty", getStepName());
@@ -87,6 +101,26 @@ public class ResponseParsingStep implements PipelineStep {
             context.addMetadata("responseType", result != null ? result.getClass().getSimpleName() : "unknown");
             return result;
         });
+    }
+
+    private Object parseSecurityDecisionResult(Object llmExecutionResult, PipelineExecutionContext context) {
+        context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
+        if (llmExecutionResult instanceof SecurityDecisionResponseLite lite) {
+            context.addMetadata("structuredOutputComplete", true);
+            context.addMetadata("llmDecisionPresent", true);
+            context.addMetadata("securityDecisionCoreFieldsPresent", true);
+            context.addMetadata("securityDecisionParsingFallbackApplied", false);
+            context.addMetadata("syntheticSecurityDecisionApplied", false);
+            context.addMetadata("securityDecisionOutputRepairApplied", false);
+            context.addMetadata("securityDecisionParseFailureCategory", "NONE");
+            return lite;
+        }
+        String rawResponse = llmExecutionResult instanceof String text
+                ? text
+                : llmExecutionResult != null ? String.valueOf(llmExecutionResult) : "";
+        SecurityDecisionResponseLite parsed = securityDecisionOutputParser.parse(rawResponse, context);
+        context.addMetadata("structuredOutputComplete", true);
+        return parsed;
     }
 
     private Object convertWithSpringAI(String response, Object targetTypeInfo, PipelineExecutionContext context) {
@@ -336,6 +370,11 @@ public class ResponseParsingStep implements PipelineStep {
         }
 
         return Map.class;
+    }
+
+    private boolean isSecurityDecisionTarget(Object targetTypeInfo) {
+        return targetTypeInfo instanceof Class<?> targetClass
+                && SecurityDecisionResponseLite.class.equals(targetClass);
     }
 
     private StructuredOutputPolicy resolveStructuredOutputPolicy(AIRequest<?> request, PipelineExecutionContext context) {

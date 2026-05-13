@@ -5,9 +5,8 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SecurityDecisionResponseProcessorTest {
 
@@ -118,23 +117,33 @@ class SecurityDecisionResponseProcessorTest {
     }
 
     @Test
-    void wrapResponseShouldAcceptMapFallbackWithStringNumericScores() {
-        Map<String, Object> parsed = Map.of(
-                "action", "CHALLENGE",
-                "reasoning", "Baseline is incomplete. Approval is unknown.",
-                "riskScore", "0.58",
-                "confidence", "0.61");
+    void wrapResponseShouldFailClosedWhenActionIsMissing() {
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setReasoning("The model omitted the required action field.");
 
+        PipelineExecutionContext context = new PipelineExecutionContext("req-missing-action");
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
 
-        Object wrapped = processor.wrapResponse(parsed, new PipelineExecutionContext("req-6"));
+        Object wrapped = processor.wrapResponse(lite, context);
 
         assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
         SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
         assertThat(response.getAction()).isEqualTo("CHALLENGE");
-        assertThat(response.getRiskScore()).isEqualTo(0.58);
-        assertThat(response.getConfidence()).isEqualTo(0.61);
-        assertThat(response.getMitre()).isEqualTo("UNKNOWN");
-        assertThat(response.getReasoning()).isEqualTo("Baseline is incomplete");
+        assertThat(response.getRiskScore()).isEqualTo(0.55);
+        assertThat(response.getConfidence()).isEqualTo(0.60);
+        assertThat(context.getMetadata("securityDecisionFallbackApplied", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionFallbackAction", String.class)).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
+    }
+
+    @Test
+    void wrapResponseShouldRejectMapBecauseRawParsingBelongsToSecurityDecisionOutputParser() {
+        SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+
+        assertThatThrownBy(() -> processor.wrapResponse(
+                java.util.Map.of("action", "CHALLENGE"),
+                new PipelineExecutionContext("req-6")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Expected SecurityDecisionResponseLite");
     }
 }

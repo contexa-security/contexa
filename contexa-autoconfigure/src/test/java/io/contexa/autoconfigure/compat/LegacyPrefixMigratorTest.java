@@ -64,11 +64,11 @@ class LegacyPrefixMigratorTest {
     @DisplayName("spring.ai.vectorstore.pgvector.* 가 contexa.vectorstore.pgvector.* 로 alias 된다")
     void aliasesPgVectorStore() {
         MockEnvironment env = new MockEnvironment();
-        env.setProperty("spring.ai.vectorstore.pgvector.dimensions", "1024");
+        env.setProperty("spring.ai.vectorstore.pgvector.dimensions", "1536");
 
         migrator.postProcessEnvironment(env, new SpringApplication());
 
-        assertThat(env.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
+        assertThat(env.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1536");
     }
 
     @Test
