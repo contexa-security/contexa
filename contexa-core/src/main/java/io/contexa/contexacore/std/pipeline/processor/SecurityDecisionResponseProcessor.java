@@ -5,11 +5,16 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 
     private static final int MAX_REASONING_WORDS = 40;
+    private static final int MAX_REASONING_CHARS = 280;
+    private static final String DEFAULT_MITRE = "UNKNOWN";
 
     @Override
     public boolean supports(String templateKey) {
@@ -26,12 +31,13 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         if (parsedData instanceof SecurityDecisionResponse fullResponse) {
             return fullResponse;
         }
-        if (!(parsedData instanceof SecurityDecisionResponseLite liteResponse)) {
+        SecurityDecisionResponseLite liteResponse = toLiteResponse(parsedData);
+        if (liteResponse == null) {
             throw new IllegalArgumentException(
                     "Expected SecurityDecisionResponseLite but got: "
                             + (parsedData != null ? parsedData.getClass().getName() : "null"));
         }
-        return SecurityDecisionResponse.fromLite(normalizeAndValidate(liteResponse));
+        return SecurityDecisionResponse.fromLite(normalizeAndValidate(liteResponse, context));
     }
 
     @Override
@@ -39,25 +45,91 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         return 15;
     }
 
-    private SecurityDecisionResponseLite normalizeAndValidate(SecurityDecisionResponseLite lite) {
+    private SecurityDecisionResponseLite normalizeAndValidate(SecurityDecisionResponseLite lite, PipelineExecutionContext context) {
         SecurityDecisionResponseLite normalized = new SecurityDecisionResponseLite();
-        Double normalizedRiskScore = normalizeNumericScore(lite.getRiskScore(), "riskScore");
-        Double normalizedConfidence = normalizeNumericScore(lite.getConfidence(), "confidence");
+        List<String> repairedFields = new ArrayList<>();
         String normalizedAction = normalizeAction(lite.getAction());
+        Double normalizedRiskScore = normalizeNumericScore(lite.getRiskScore(), "riskScore", normalizedAction, repairedFields);
+        Double normalizedConfidence = normalizeNumericScore(lite.getConfidence(), "confidence", normalizedAction, repairedFields);
         normalized.setRiskScore(normalizedRiskScore);
         normalized.setConfidence(normalizedConfidence);
         normalized.setAction(normalizedAction);
-        normalized.setReasoning(normalizeReasoning(lite.getReasoning()));
-        normalized.setMitre(normalizeMitre(lite.getMitre()));
-        validateSemanticConsistency(normalizedAction, normalizedRiskScore);
+        normalized.setReasoning(normalizeReasoning(lite.getReasoning(), normalizedAction, repairedFields));
+        normalized.setMitre(normalizeMitre(lite.getMitre(), repairedFields));
+        recordSemanticConsistency(context, normalizedAction, normalizedRiskScore);
+        recordRepairMetadata(context, repairedFields);
         return normalized;
     }
 
-    private Double normalizeNumericScore(Double score, String fieldName) {
+    private SecurityDecisionResponseLite toLiteResponse(Object parsedData) {
+        if (parsedData instanceof SecurityDecisionResponseLite liteResponse) {
+            return liteResponse;
+        }
+        if (!(parsedData instanceof Map<?, ?> map)) {
+            return null;
+        }
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction(asString(map.get("action")));
+        lite.setReasoning(asString(map.get("reasoning")));
+        lite.setMitre(asString(map.get("mitre")));
+        lite.setRiskScore(asDouble(map.get("riskScore")));
+        lite.setConfidence(asDouble(map.get("confidence")));
+        return lite;
+    }
+
+    private String asString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isBlank() ? null : text;
+    }
+
+    private Double asDouble(Object value) {
+        if (value instanceof Number number) {
+            double candidate = number.doubleValue();
+            return Double.isFinite(candidate) ? candidate : null;
+        }
+        if (value instanceof String text) {
+            String normalized = text.trim();
+            if (normalized.isBlank()) {
+                return null;
+            }
+            try {
+                double candidate = Double.parseDouble(normalized);
+                return Double.isFinite(candidate) ? candidate : null;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Double normalizeNumericScore(Double score, String fieldName, String action, List<String> repairedFields) {
         if (score == null || !Double.isFinite(score)) {
-            throw new IllegalArgumentException("Security decision field is missing or invalid: " + fieldName);
+            repairedFields.add(fieldName);
+            return defaultNumericScore(fieldName, action);
         }
         return Math.max(0.0d, Math.min(1.0d, score));
+    }
+
+    private Double defaultNumericScore(String fieldName, String action) {
+        return switch (fieldName) {
+            case "riskScore" -> switch (action) {
+                case "ALLOW" -> 0.20d;
+                case "CHALLENGE" -> 0.55d;
+                case "ESCALATE" -> 0.75d;
+                case "BLOCK" -> 0.90d;
+                default -> 0.60d;
+            };
+            case "confidence" -> switch (action) {
+                case "ALLOW", "BLOCK" -> 0.70d;
+                case "CHALLENGE" -> 0.60d;
+                case "ESCALATE" -> 0.55d;
+                default -> 0.55d;
+            };
+            default -> throw new IllegalArgumentException("Unknown security decision numeric field: " + fieldName);
+        };
     }
 
     private String normalizeAction(String action) {
@@ -73,31 +145,49 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         };
     }
 
-    private String normalizeReasoning(String reasoning) {
+    private String normalizeReasoning(String reasoning, String action, List<String> repairedFields) {
         if (reasoning == null || reasoning.isBlank()) {
-            throw new IllegalArgumentException("Security decision field is missing: reasoning");
+            repairedFields.add("reasoning");
+            return defaultReasoning(action);
         }
         String normalized = reasoning.replaceAll("\\s+", " ").trim();
         if (containsMultipleSentences(normalized)) {
-            throw new IllegalArgumentException("Security decision reasoning must be exactly one sentence.");
+            repairedFields.add("reasoning");
+            normalized = firstSentence(normalized);
         }
         if (countWords(normalized) > MAX_REASONING_WORDS) {
-            throw new IllegalArgumentException("Security decision reasoning exceeds " + MAX_REASONING_WORDS + " words.");
+            repairedFields.add("reasoning");
+            normalized = firstWords(normalized, MAX_REASONING_WORDS);
         }
-        return normalized.length() > 280 ? normalized.substring(0, 280).trim() : normalized;
+        if (normalized.length() > MAX_REASONING_CHARS) {
+            repairedFields.add("reasoning");
+            normalized = normalized.substring(0, MAX_REASONING_CHARS).trim();
+        }
+        return normalized.isBlank() ? defaultReasoning(action) : normalized;
     }
 
-    private String normalizeMitre(String mitre) {
+    private String normalizeMitre(String mitre, List<String> repairedFields) {
         if (mitre == null || mitre.isBlank()) {
-            throw new IllegalArgumentException("Security decision field is missing: mitre");
+            repairedFields.add("mitre");
+            return DEFAULT_MITRE;
         }
         return mitre.trim();
     }
 
-    private void validateSemanticConsistency(String action, Double riskScore) {
+    private void recordSemanticConsistency(PipelineExecutionContext context, String action, Double riskScore) {
         if ("ALLOW".equals(action) && riskScore != null && riskScore >= 0.95d) {
-            throw new IllegalArgumentException("Security decision action ALLOW is inconsistent with an extreme risk score.");
+            if (context != null) {
+                context.addMetadata("securityDecisionSemanticWarning", "ALLOW_WITH_EXTREME_RISK_SCORE");
+            }
         }
+    }
+
+    private void recordRepairMetadata(PipelineExecutionContext context, List<String> repairedFields) {
+        if (context == null || repairedFields.isEmpty()) {
+            return;
+        }
+        context.addMetadata("securityDecisionPostprocessingRepairApplied", true);
+        context.addMetadata("securityDecisionPostprocessingRepairFields", List.copyOf(repairedFields));
     }
 
     private boolean containsMultipleSentences(String reasoning) {
@@ -111,6 +201,39 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         }
         String[] sentences = normalized.split("\\.\\s+");
         return sentences.length > 1;
+    }
+
+    private String firstSentence(String reasoning) {
+        String normalized = reasoning.replaceAll("[!?]+", ".").replaceAll("\\.+", ".");
+        int end = normalized.indexOf(". ");
+        if (end < 0 && normalized.endsWith(".")) {
+            end = normalized.length() - 1;
+        }
+        if (end <= 0) {
+            return reasoning;
+        }
+        return normalized.substring(0, end).trim();
+    }
+
+    private String firstWords(String reasoning, int maxWords) {
+        if (reasoning == null || reasoning.isBlank()) {
+            return "";
+        }
+        String[] words = reasoning.trim().split("\\s+");
+        if (words.length <= maxWords) {
+            return reasoning.trim();
+        }
+        return String.join(" ", java.util.Arrays.copyOf(words, maxWords));
+    }
+
+    private String defaultReasoning(String action) {
+        return switch (action) {
+            case "ALLOW" -> "Decision metadata was incomplete; action remained ALLOW.";
+            case "CHALLENGE" -> "Decision metadata was incomplete; challenge remains required.";
+            case "ESCALATE" -> "Decision metadata was incomplete; escalation remains required.";
+            case "BLOCK" -> "Decision metadata was incomplete; block remains required.";
+            default -> "Decision metadata was incomplete.";
+        };
     }
 
     private int countWords(String reasoning) {

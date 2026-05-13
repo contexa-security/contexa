@@ -1437,11 +1437,11 @@ public class SecurityDecisionPromptSections {
                 Do not pre-compensate for downstream enforcement systems.
 
                 OUTPUT CONTRACT:
-                Respond with ONLY a JSON object. No explanation, no markdown.
-                Keep every field terse.
-                Reasoning must be exactly one concise sentence, maximum 40 words.
-                Prefer one decisive clause over multiple clauses.
-                Name only the strongest 2-3 contextual facts.
+                Respond with ONLY one minified JSON object. No explanation, no markdown.
+                Required key order: action, riskScore, confidence, mitre, reasoning.
+                riskScore and confidence must be JSON numbers, not strings.
+                reasoning must be one short sentence, maximum 12 words.
+                Prefer one decisive evidence label.
                 Do not restate the same fact twice.
                 Use only facts explicitly shown in the prompt.
                 Prefer the literal prompt labels and their exact meanings.

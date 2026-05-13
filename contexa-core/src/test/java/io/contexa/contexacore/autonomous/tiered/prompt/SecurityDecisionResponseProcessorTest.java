@@ -4,8 +4,10 @@ import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponsePro
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SecurityDecisionResponseProcessorTest {
 
@@ -32,7 +34,7 @@ class SecurityDecisionResponseProcessorTest {
     }
 
     @Test
-    void wrapResponseShouldRejectMultiSentenceReasoning() {
+    void wrapResponseShouldNormalizeMultiSentenceReasoningWithoutStoppingDecision() {
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
         lite.setAction("CHALLENGE");
         lite.setReasoning("Role scope is provisional. Approval lineage is missing.");
@@ -41,14 +43,19 @@ class SecurityDecisionResponseProcessorTest {
         lite.setMitre("UNKNOWN");
 
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+        PipelineExecutionContext context = new PipelineExecutionContext("req-2");
 
-        assertThatThrownBy(() -> processor.wrapResponse(lite, new PipelineExecutionContext("req-2")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("exactly one sentence");
+        Object wrapped = processor.wrapResponse(lite, context);
+
+        assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
+        SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
+        assertThat(response.getReasoning()).isEqualTo("Role scope is provisional");
+        assertThat(context.getMetadata("securityDecisionPostprocessingRepairApplied", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class)).contains("reasoning");
     }
 
     @Test
-    void wrapResponseShouldRejectReasoningLongerThanFortyWords() {
+    void wrapResponseShouldTrimLongReasoningWithoutStoppingDecision() {
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
         lite.setAction("ESCALATE");
         lite.setReasoning("Role scope remains provisional because approval lineage resource scope session continuity device familiarity location consistency historical baseline coverage comparable evidence quality sensitive resource intent workflow context and governance posture all require explicit reconciliation before autonomous access can be considered safe for this production decision.");
@@ -57,14 +64,18 @@ class SecurityDecisionResponseProcessorTest {
         lite.setMitre("UNKNOWN");
 
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+        PipelineExecutionContext context = new PipelineExecutionContext("req-3");
 
-        assertThatThrownBy(() -> processor.wrapResponse(lite, new PipelineExecutionContext("req-3")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("exceeds 40 words");
+        Object wrapped = processor.wrapResponse(lite, context);
+
+        assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
+        SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
+        assertThat(response.getReasoning().split("\\s+")).hasSizeLessThanOrEqualTo(40);
+        assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class)).contains("reasoning");
     }
 
     @Test
-    void wrapResponseShouldRejectAllowWithExtremeRiskScore() {
+    void wrapResponseShouldRecordSemanticWarningForAllowWithExtremeRiskScoreWithoutStoppingDecision() {
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
         lite.setAction("ALLOW");
         lite.setReasoning("Observed evidence is limited and remains provisional.");
@@ -73,10 +84,57 @@ class SecurityDecisionResponseProcessorTest {
         lite.setMitre("UNKNOWN");
 
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+        PipelineExecutionContext context = new PipelineExecutionContext("req-4");
 
-        assertThatThrownBy(() -> processor.wrapResponse(lite, new PipelineExecutionContext("req-4")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("ALLOW")
-                .hasMessageContaining("extreme risk score");
+        Object wrapped = processor.wrapResponse(lite, context);
+
+        assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
+        SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
+        assertThat(response.getAction()).isEqualTo("ALLOW");
+        assertThat(response.getRiskScore()).isEqualTo(1.0);
+        assertThat(context.getMetadata("securityDecisionSemanticWarning", String.class))
+                .isEqualTo("ALLOW_WITH_EXTREME_RISK_SCORE");
+    }
+
+    @Test
+    void wrapResponseShouldDefaultMissingMetadataWithoutStoppingDecision() {
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setAction("BLOCK");
+
+        PipelineExecutionContext context = new PipelineExecutionContext("req-5");
+        SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+
+        Object wrapped = processor.wrapResponse(lite, context);
+
+        assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
+        SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
+        assertThat(response.getAction()).isEqualTo("BLOCK");
+        assertThat(response.getRiskScore()).isEqualTo(0.90);
+        assertThat(response.getConfidence()).isEqualTo(0.70);
+        assertThat(response.getMitre()).isEqualTo("UNKNOWN");
+        assertThat(response.getReasoning()).isEqualTo("Decision metadata was incomplete; block remains required.");
+        assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class))
+                .contains("riskScore", "confidence", "reasoning", "mitre");
+    }
+
+    @Test
+    void wrapResponseShouldAcceptMapFallbackWithStringNumericScores() {
+        Map<String, Object> parsed = Map.of(
+                "action", "CHALLENGE",
+                "reasoning", "Baseline is incomplete. Approval is unknown.",
+                "riskScore", "0.58",
+                "confidence", "0.61");
+
+        SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+
+        Object wrapped = processor.wrapResponse(parsed, new PipelineExecutionContext("req-6"));
+
+        assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
+        SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
+        assertThat(response.getAction()).isEqualTo("CHALLENGE");
+        assertThat(response.getRiskScore()).isEqualTo(0.58);
+        assertThat(response.getConfidence()).isEqualTo(0.61);
+        assertThat(response.getMitre()).isEqualTo("UNKNOWN");
+        assertThat(response.getReasoning()).isEqualTo("Baseline is incomplete");
     }
 }

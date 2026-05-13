@@ -67,7 +67,10 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
         assertThat(systemPrompt).contains("<output_format>");
-        assertThat(systemPrompt).contains("Reasoning must be exactly one concise sentence, maximum 40 words.");
+        assertThat(systemPrompt).contains("Respond with ONLY one minified JSON object. No explanation, no markdown.");
+        assertThat(systemPrompt).contains("Required key order: action, riskScore, confidence, mitre, reasoning.");
+        assertThat(systemPrompt).contains("riskScore and confidence must be JSON numbers, not strings.");
+        assertThat(systemPrompt).contains("reasoning must be one short sentence, maximum 12 words.");
         assertThat(systemPrompt).contains("Treat explicit booleans such as NewUser, NewSession, NewDevice, and MfaVerified as authoritative facts");
         assertThat(systemPrompt).contains("ANALYSIS ORDER:");
         assertThat(systemPrompt).contains("A single mismatch can be security-significant");
@@ -78,7 +81,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Treat the current request Sensitivity label as authoritative");
         assertThat(systemPrompt).contains("not proof of legitimacy by themselves.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
-        assertThat(systemPrompt).contains("Respond with ONLY a JSON object. No explanation, no markdown.");
+        assertThat(systemPrompt).doesNotContain("Reasoning must be exactly one concise sentence, maximum 40 words.");
         assertThat(systemPrompt).contains("Return only the schema-compliant JSON object expected by the runtime.");
         assertThat(systemPrompt).contains("ACTION LABEL MEANINGS:");
         assertThat(systemPrompt).contains("Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.");
