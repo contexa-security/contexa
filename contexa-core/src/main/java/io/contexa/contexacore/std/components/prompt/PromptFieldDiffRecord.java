@@ -1,6 +1,7 @@
 package io.contexa.contexacore.std.components.prompt;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public record PromptFieldDiffRecord(
@@ -14,7 +15,16 @@ public record PromptFieldDiffRecord(
         int rawLineNumber,
         int finalLineNumber,
         String reason,
-        boolean blockingCandidate) {
+        boolean blockingCandidate,
+        String qualityRelevance,
+        List<String> metricCodes,
+        String remediationOwner,
+        String requiredPolicy,
+        String projectionPolicy) {
+
+    public PromptFieldDiffRecord {
+        metricCodes = metricCodes == null ? List.of() : List.copyOf(metricCodes);
+    }
 
     public Map<String, Object> toMetadataMap() {
         Map<String, Object> metadata = new LinkedHashMap<>();
@@ -29,6 +39,11 @@ public record PromptFieldDiffRecord(
         metadata.put("finalLineNumber", finalLineNumber);
         metadata.put("reason", reason);
         metadata.put("blockingCandidate", blockingCandidate);
+        metadata.put("qualityRelevance", qualityRelevance);
+        metadata.put("metricCodes", metricCodes);
+        metadata.put("remediationOwner", remediationOwner);
+        metadata.put("requiredPolicy", requiredPolicy);
+        metadata.put("projectionPolicy", projectionPolicy);
         return metadata;
     }
 }

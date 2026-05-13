@@ -42,11 +42,11 @@ public class PgVectorStoreProperties {
 
     @Min(100)
     @Max(600000)
-    private long searchTimeoutMs = 10000;
+    private long searchTimeoutMs = 4000;
 
     @Min(100)
     @Max(600000)
-    private long storeTimeoutMs = 10000;
+    private long storeTimeoutMs = 4000;
 
     private HnswConfig hnsw = new HnswConfig();
 

@@ -21,8 +21,8 @@ public final class PromptFieldLineageAnalyzer {
     }
 
     public static PromptFieldLineageAnalysis analyze(String rawUserPrompt, String finalUserPrompt) {
-        List<PromptFieldSnapshot> rawFields = extract(rawUserPrompt);
-        List<PromptFieldSnapshot> finalFields = extract(finalUserPrompt);
+        List<PromptFieldSnapshot> rawFields = extract(rawUserPrompt, "RAW_USER_PROMPT_FIELD");
+        List<PromptFieldSnapshot> finalFields = extract(finalUserPrompt, "FINAL_USER_PROMPT_FIELD");
         List<PromptFieldDiffRecord> diffs = diff(rawFields, finalFields);
 
         int missing = 0;
@@ -61,6 +61,10 @@ public final class PromptFieldLineageAnalyzer {
     }
 
     static List<PromptFieldSnapshot> extract(String promptText) {
+        return extract(promptText, "FINAL_USER_PROMPT_FIELD");
+    }
+
+    static List<PromptFieldSnapshot> extract(String promptText, String sourceType) {
         if (!StringUtils.hasText(promptText)) {
             return List.of();
         }
@@ -110,6 +114,11 @@ public final class PromptFieldLineageAnalyzer {
             String baseFieldKey = sectionKey + "." + normalizeKey(label);
             int occurrence = keyOccurrences.merge(baseFieldKey, 1, Integer::sum);
             String fieldKey = occurrence == 1 ? baseFieldKey : baseFieldKey + "#" + occurrence;
+            PromptFieldPolicy policy = PromptFieldPolicyCatalog.resolve(
+                    fieldKey,
+                    sourceType,
+                    sourceType + "." + fieldKey,
+                    label);
             fields.add(new PromptFieldSnapshot(
                     fieldKey,
                     sectionKey,
@@ -120,7 +129,12 @@ public final class PromptFieldLineageAnalyzer {
                     i + 1,
                     preview(value),
                     containsCompactedMarker(label, value),
-                    containsTruncatedMarker(value)));
+                    containsTruncatedMarker(value),
+                    policy.qualityRelevance(),
+                    policy.metricCodes(),
+                    policy.remediationOwner(),
+                    policy.requiredPolicy(),
+                    policy.projectionPolicy()));
         }
         return List.copyOf(fields);
     }
@@ -177,7 +191,12 @@ public final class PromptFieldLineageAnalyzer {
                 raw != null ? raw.lineNumber() : -1,
                 fin != null ? fin.lineNumber() : -1,
                 reason,
-                blockingCandidate);
+                blockingCandidate,
+                representative.qualityRelevance(),
+                representative.metricCodes(),
+                representative.remediationOwner(),
+                representative.requiredPolicy(),
+                representative.projectionPolicy());
     }
 
     private static Map<String, PromptFieldSnapshot> index(List<PromptFieldSnapshot> fields) {

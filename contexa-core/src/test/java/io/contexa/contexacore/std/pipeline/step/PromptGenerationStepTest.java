@@ -130,11 +130,14 @@ class PromptGenerationStepTest {
                         .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
                         .containsEntry("remediationOwner", "REQUEST_CONTEXT_PRODUCER"));
         assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
-                .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
-                        .containsEntry("sourceType", "FINAL_USER_PROMPT_FIELD")
-                        .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
-                        .containsKey("metricCodes"));
+                .anySatisfy(item -> {
+                    assertThat(item)
+                            .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                            .containsEntry("sourceType", "FINAL_USER_PROMPT_FIELD")
+                            .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
+                            .containsKey("metricCodes");
+                    assertThat(((Map<?, ?>) item).get("metricCodes")).asList().isNotEmpty();
+                });
     }
 
     @Test
