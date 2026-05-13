@@ -133,6 +133,7 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("entityExecutionAttempted", Boolean.class)).isFalse();
         assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();
         assertThat(context.getMetadata("rawExecutionAttempted", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isTrue();
         assertThat(llmClient.rawExecutions).isEqualTo(1);
         assertThat(llmClient.entityExecutions).isZero();
         assertThat(llmClient.lastExecutionContext.getAdvisors()).isEmpty();
@@ -199,6 +200,7 @@ class LLMExecutionStepTest {
         assertThat(response).isEqualTo(llmClient.rawResponse);
         assertThat(context.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();
         assertThat(context.getMetadata("rawExecutionAttempted", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isTrue();
         assertThat(llmClient.rawExecutions).isEqualTo(1);
         assertThat(llmClient.entityExecutions).isZero();
     }

@@ -77,7 +77,7 @@ public class ContexaProperties {
         private String chatModelPriority = "ollama,anthropic,openai";
 
         @Deprecated
-        private String embeddingModelPriority = "ollama,openai";
+        private String embeddingModelPriority = "openai";
 
         @NestedConfigurationProperty
         private Chat chat = new Chat();
@@ -103,8 +103,17 @@ public class ContexaProperties {
         @Data
         public static class Embedding {
 
+            private DimensionMode dimensionMode = DimensionMode.MODEL_AWARE;
+
+            private int dimensions = 1024;
+
             @NestedConfigurationProperty
             private Ollama ollama = new Ollama();
+
+            public enum DimensionMode {
+                MODEL_AWARE,
+                FIXED
+            }
 
             @Data
             public static class Ollama {
@@ -112,7 +121,7 @@ public class ContexaProperties {
                 private boolean dedicatedRuntimeEnabled = false;
                 private String baseUrl = "";
                 private String model = "";
-                private int dimensions = 1536;
+                private int dimensions = 1024;
             }
         }
     }

@@ -58,14 +58,17 @@ class ContexaPropertiesTest {
             assertThat(properties.getLlm().isEnabled()).isTrue();
             assertThat(properties.getLlm().isAdvisorEnabled()).isTrue();
             assertThat(properties.getLlm().getChatModelPriority()).isEqualTo("ollama,anthropic,openai");
-            assertThat(properties.getLlm().getEmbeddingModelPriority()).isEqualTo("ollama,openai");
+            assertThat(properties.getLlm().getEmbeddingModelPriority()).isEqualTo("openai");
             assertThat(properties.getLlm().getChat().getOllama().getBaseUrl()).isEmpty();
             assertThat(properties.getLlm().getChat().getOllama().getModel()).isEmpty();
             assertThat(properties.getLlm().getChat().getOllama().getKeepAlive()).isEmpty();
+            assertThat(properties.getLlm().getEmbedding().getDimensionMode())
+                    .isEqualTo(ContexaProperties.Llm.Embedding.DimensionMode.MODEL_AWARE);
+            assertThat(properties.getLlm().getEmbedding().getDimensions()).isEqualTo(1024);
             assertThat(properties.getLlm().getEmbedding().getOllama().isDedicatedRuntimeEnabled()).isFalse();
             assertThat(properties.getLlm().getEmbedding().getOllama().getBaseUrl()).isEmpty();
             assertThat(properties.getLlm().getEmbedding().getOllama().getModel()).isEmpty();
-            assertThat(properties.getLlm().getEmbedding().getOllama().getDimensions()).isEqualTo(1536);
+            assertThat(properties.getLlm().getEmbedding().getOllama().getDimensions()).isEqualTo(1024);
         }
 
         @Test

@@ -32,13 +32,13 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
     }
 
     @Test
-    void shouldResolveDynamicPriorityPrimaryEmbeddingModelThroughRuntimeCatalog() {
+    void shouldResolveFixedPrimaryEmbeddingModelThroughRuntimeCatalog() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("ollama,openai");
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
         when(catalog.resolvePrimaryEmbeddingModel("openai")).thenReturn(Optional.of(embeddingModel));
 
-        EmbeddingModel selected = configuration.dynamicPriorityPrimaryEmbeddingModel(catalog);
+        EmbeddingModel selected = configuration.fixedPrimaryEmbeddingModel(catalog);
 
         assertThat(selected).isSameAs(embeddingModel);
         verify(catalog).resolvePrimaryEmbeddingModel("openai");
@@ -48,27 +48,48 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
     void shouldPreferSelectionPriorityOverLegacyEmbeddingModelPriority() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("legacy-openai,legacy-ollama");
         ContexaLlmSelectionProperties selectionProperties = new ContexaLlmSelectionProperties();
-        selectionProperties.getEmbedding().setPriority("voyageai,openai");
+        selectionProperties.getEmbedding().setPriority("voyageai");
         ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
-        when(catalog.resolvePrimaryEmbeddingModel("voyageai,openai")).thenReturn(Optional.of(embeddingModel));
+        when(catalog.resolvePrimaryEmbeddingModel("voyageai")).thenReturn(Optional.of(embeddingModel));
 
-        EmbeddingModel selected = configuration.dynamicPriorityPrimaryEmbeddingModel(catalog);
+        EmbeddingModel selected = configuration.fixedPrimaryEmbeddingModel(catalog);
 
         assertThat(selected).isSameAs(embeddingModel);
-        verify(catalog).resolvePrimaryEmbeddingModel("voyageai,openai");
+        verify(catalog).resolvePrimaryEmbeddingModel("voyageai");
     }
 
     @Test
-    void shouldFailFastWhenNoDynamicPriorityEmbeddingModelCanBeResolved() {
+    void shouldFailFastWhenNoFixedEmbeddingModelCanBeResolved() {
         CoreLLMTieredAutoConfiguration configuration = createConfiguration("openai,ollama");
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         when(catalog.resolvePrimaryEmbeddingModel("openai")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> configuration.dynamicPriorityPrimaryEmbeddingModel(catalog))
+        assertThatThrownBy(() -> configuration.fixedPrimaryEmbeddingModel(catalog))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("No embedding runtime binding could be resolved");
+                .hasMessageContaining("No embedding runtime binding could be resolved for fixed provider");
+    }
+
+    @Test
+    void shouldRejectMultipleFixedEmbeddingProviders() {
+        CoreLLMTieredAutoConfiguration configuration = createConfiguration("legacy-openai");
+        ContexaLlmSelectionProperties selectionProperties = new ContexaLlmSelectionProperties();
+        selectionProperties.getEmbedding().setPriority("openai,ollama");
+        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
+
+        assertThatThrownBy(() -> configuration.fixedPrimaryEmbeddingModel(mock(LlmRuntimeCatalog.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Embedding runtime must be fixed to exactly one provider");
+    }
+
+    @Test
+    void shouldRejectDynamicPriorityEmbeddingSelection() {
+        CoreLLMTieredAutoConfiguration configuration = createConfiguration("openai");
+
+        assertThatThrownBy(() -> configuration.dynamicPriorityPrimaryEmbeddingModel(mock(LlmRuntimeCatalog.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Dynamic priority embedding selection is not supported");
     }
 
     @Test

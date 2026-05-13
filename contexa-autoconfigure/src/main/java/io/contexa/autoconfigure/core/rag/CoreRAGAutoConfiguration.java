@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
@@ -9,6 +10,7 @@ import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
@@ -23,6 +25,7 @@ import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransfo
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -33,6 +36,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.env.Environment;
+
+import javax.sql.DataSource;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -53,6 +59,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
         ContexaProperties.class,
+        ContexaLlmSelectionProperties.class,
         PgVectorStoreProperties.class,
         ContexaRagProperties.class,
         TieredStrategyProperties.class
@@ -112,6 +119,23 @@ public class CoreRAGAutoConfiguration {
             VectorStore vectorStore,
             @Qualifier("vectorOperationExecutor") ExecutorService vectorOperationExecutor) {
         return new UnifiedVectorService(properties, cacheLayer, vectorStore, vectorOperationExecutor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
+    public EmbeddingDimensionConsistencyVerifier embeddingDimensionConsistencyVerifier(
+            PgVectorStoreProperties properties,
+            ContexaLlmSelectionProperties selectionProperties,
+            Environment environment,
+            ObjectProvider<LlmRuntimeCatalog> runtimeCatalogProvider,
+            ObjectProvider<DataSource> dataSourceProvider) {
+        return new EmbeddingDimensionConsistencyVerifier(
+                properties,
+                selectionProperties,
+                environment,
+                runtimeCatalogProvider.getIfAvailable(),
+                dataSourceProvider.getIfAvailable());
     }
 
     private ThreadFactory namedThreadFactory(String prefix) {

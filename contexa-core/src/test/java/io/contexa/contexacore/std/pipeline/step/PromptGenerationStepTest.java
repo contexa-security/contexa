@@ -82,6 +82,11 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("promptSourceContextExhaustive", Boolean.class)).isNotNull();
         assertThat(context.getMetadata("promptFieldStateCount", Integer.class)).isPositive();
         assertThat(context.getMetadata("promptBlockingFieldStateCount", Integer.class)).isNotNull();
+        assertThat(context.getMetadata("promptCacheSystemStable", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("promptCacheSystemHash", String.class)).startsWith("sha256:");
+        assertThat(context.getMetadata("promptCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
+        assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isEqualTo("FINAL_USER_PROMPT");
+        assertThat(context.getMetadata("pqaRawPromptRole", String.class)).isEqualTo("TRACEABILITY_ONLY");
 
         PromptExecutionMetadata executionMetadata = context.getMetadata("promptExecutionMetadata", PromptExecutionMetadata.class);
         assertThat(context.getMetadata("promptCompressionApplied", Boolean.class))
@@ -94,6 +99,12 @@ class PromptGenerationStepTest {
                 "promptUserFieldDiffLedger",
                 "promptFieldStateLedger",
                 "promptFieldStateSummary");
+        assertThat(eventMetadata)
+                .containsEntry("promptCacheSystemStable", true)
+                .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
+                .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT")
+                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY");
+        assertThat(eventMetadata.get("promptCacheSystemHash")).asString().startsWith("sha256:");
         assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
                         .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
@@ -184,6 +195,8 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("promptTransformationMode", String.class)).isEqualTo("IDENTITY");
         assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isTrue();
         assertThat(context.getMetadata("promptUserFieldDiffCount", Integer.class)).isZero();
+        assertThat(context.getMetadata("promptCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
+        assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isEqualTo("FINAL_USER_PROMPT");
 
         Map<String, Object> eventMetadata = event.getMetadata();
         assertThat(eventMetadata.get("rawSystemPrompt")).isEqualTo(promptResult.getRawSystemPrompt());

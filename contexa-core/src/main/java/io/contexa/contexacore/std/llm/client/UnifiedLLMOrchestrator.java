@@ -1,10 +1,13 @@
 package io.contexa.contexacore.std.llm.client;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
+import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionOutputParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.AdvisorParams;
@@ -40,7 +43,24 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     private final ConcurrentHashMap<ChatModel, ChatClient> chatClientCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ChatModel, ChatClient> chatClientNoAdvisorCache = new ConcurrentHashMap<>();
+    private final SecurityDecisionOutputParser securityDecisionOutputParser = new SecurityDecisionOutputParser();
     private volatile List<Advisor> cachedAdvisorSnapshot = List.of();
+
+    private static final List<String> SECURITY_DECISION_PARSER_METADATA_KEYS = List.of(
+            "securityDecisionParsingMode",
+            "securityDecisionRawOutputHash",
+            "securityDecisionRawOutputLength",
+            "securityDecisionCoreFieldsPresent",
+            "securityDecisionParsingFallbackApplied",
+            "syntheticSecurityDecisionApplied",
+            "llmDecisionPresent",
+            "securityDecisionFallbackApplied",
+            "securityDecisionOutputRepairApplied",
+            "securityDecisionOutputRepairFields",
+            "securityDecisionParseFailureCategory",
+            "securityDecisionFallbackAction",
+            "structuredOutputFailureCategory"
+    );
 
     @Override
     public Mono<String> execute(ExecutionContext context) {
@@ -109,6 +129,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (targetType == null) {
             return Mono.error(new IllegalArgumentException("Target type cannot be null"));
         }
+        if (SecurityDecisionResponseLite.class.equals(targetType)) {
+            return executeSecurityDecisionRawGuarded(context, targetType);
+        }
 
         return Mono.fromCallable(() -> {
                     ResponseEntity<ChatResponse, T> responseEntity = executeForResponseEntity(context, targetType);
@@ -128,6 +151,58 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 retrySignal.totalRetries() + 1,
                                 context.getRequestId(),
                                 retrySignal.failure().getMessage()))));
+    }
+
+    private <T> Mono<T> executeSecurityDecisionRawGuarded(ExecutionContext context, Class<T> targetType) {
+        context.addMetadata("entityExecutionAttempted", false);
+        context.addMetadata("entityExecutionSucceeded", false);
+        context.addMetadata("rawExecutionAttempted", true);
+        context.addMetadata("structuredOutputMode", "SECURITY_DECISION_RAW_GUARDED");
+        context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
+        return execute(context)
+                .map(rawResponse -> {
+                    context.addMetadata("rawExecutionSucceeded", true);
+                    context.addMetadata("structuredOutputComplete", true);
+                    return targetType.cast(parseSecurityDecisionRawResponse(rawResponse, context));
+                })
+                .onErrorResume(error -> {
+                    log.error("LLM security decision raw guarded execution failed - RequestId: {}",
+                            context.getRequestId(), error);
+                    context.addMetadata("rawExecutionSucceeded", false);
+                    context.addMetadata("structuredOutputFailureCategory", "MODEL_UNAVAILABLE");
+                    context.addMetadata("securityDecisionParseFailureCategory", "MODEL_UNAVAILABLE");
+                    context.addMetadata("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
+                    context.addMetadata("securityDecisionRawExecutionFailureClass", error.getClass().getName());
+                    context.addMetadata("securityDecisionRawExecutionFailureMessage", error.getMessage());
+                    context.addMetadata("structuredOutputComplete", true);
+                    return Mono.just(targetType.cast(parseSecurityDecisionRawResponse("", context)));
+                });
+    }
+
+    private SecurityDecisionResponseLite parseSecurityDecisionRawResponse(String rawResponse, ExecutionContext context) {
+        PipelineExecutionContext parserContext = new PipelineExecutionContext(
+                context != null && context.getRequestId() != null ? context.getRequestId() : "security-decision-raw-guarded");
+        if (context != null && context.getMetadata() != null) {
+            Object existingFailureCategory = context.getMetadata().get("securityDecisionParseFailureCategory");
+            if (existingFailureCategory != null) {
+                parserContext.addMetadata("securityDecisionParseFailureCategory", existingFailureCategory);
+            }
+        }
+        SecurityDecisionResponseLite response = securityDecisionOutputParser.parse(rawResponse, parserContext);
+        copySecurityDecisionParserMetadata(parserContext, context);
+        return response;
+    }
+
+    private void copySecurityDecisionParserMetadata(PipelineExecutionContext parserContext, ExecutionContext context) {
+        if (parserContext == null || context == null) {
+            return;
+        }
+        for (String key : SECURITY_DECISION_PARSER_METADATA_KEYS) {
+            Object value = parserContext.getMetadata(key, Object.class);
+            if (value != null) {
+                context.addMetadata(key, value);
+            }
+        }
     }
 
     private String determineOllamaModelName(ExecutionContext context) {

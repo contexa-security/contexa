@@ -103,6 +103,7 @@ public class LLMExecutionStep implements PipelineStep {
                             .switchIfEmpty(Mono.error(new IllegalStateException("Security decision LLM raw execution returned empty Mono")))
                             .doOnSuccess(rawResponse -> {
                                 context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponse);
+                                context.addMetadata("rawExecutionSucceeded", true);
                                 context.addMetadata("structuredOutputMode", "SECURITY_DECISION_RAW_GUARDED");
                                 context.addMetadata("structuredOutputPolicy", structuredOutputPolicy.name());
                                 context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");

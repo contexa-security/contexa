@@ -12,6 +12,7 @@ public class ContexaLlmSelectionProperties {
 
     public enum Mode {
         DYNAMIC_PRIORITY,
+        FIXED,
         SPRING_PRIMARY
     }
 
@@ -23,7 +24,7 @@ public class ContexaLlmSelectionProperties {
 
     @Data
     public static class Embedding {
-        private Mode mode = Mode.DYNAMIC_PRIORITY;
-        private String priority = "openai,ollama";
+        private Mode mode = Mode.FIXED;
+        private String priority = "openai";
     }
 }

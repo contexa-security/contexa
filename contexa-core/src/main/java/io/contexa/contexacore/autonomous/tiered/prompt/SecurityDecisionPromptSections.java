@@ -276,6 +276,7 @@ public class SecurityDecisionPromptSections {
         supplementalMetadata.putAll(buildLearningPromptMetadata(buildContext, sectionSet));
         supplementalMetadata.putAll(buildPromptContractMetadata(promptContractAudit));
         supplementalMetadata.putAll(governanceResolution.supplementalMetadata());
+        supplementalMetadata.putAll(buildPqaPromptCacheMetadata(systemText, effectiveBudgetProfile));
 
         return new StructuredPrompt(
                 systemText,
@@ -394,6 +395,24 @@ public class SecurityDecisionPromptSections {
                 budgetProfile,
                 structuredOutputMode != null ? structuredOutputMode : StructuredOutputMode.VALIDATED_CONVERTER
         );
+    }
+
+    private Map<String, Object> buildPqaPromptCacheMetadata(
+            String systemText,
+            PromptBudgetProfile budgetProfile) {
+        PromptBudgetProfile effectiveProfile = budgetProfile != null
+                ? budgetProfile
+                : PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("promptCacheSystemStable", true);
+        metadata.put("promptCacheSystemHash", PromptGovernanceSupport.sha256(systemText != null ? systemText : ""));
+        metadata.put("promptCacheContextMode", effectiveProfile.viewProfile() == PromptViewProfile.COMPACT
+                ? "COMPACT_WITH_FIELD_DIFF"
+                : "FULL_FIELD_PRESERVED");
+        metadata.put("pqaReferencePrompt", "FINAL_USER_PROMPT");
+        metadata.put("pqaRawPromptRole", "TRACEABILITY_ONLY");
+        metadata.put("pqaPromptCachePolicy", "SYSTEM_STATIC_CONTEXT_FIELD_PRESERVED_V1");
+        return metadata;
     }
 
     private boolean isLosslessPromptProfile(PromptBudgetProfile budgetProfile) {
@@ -601,11 +620,14 @@ public class SecurityDecisionPromptSections {
 
     String buildSystemInstruction() {
         return """
-                You are a Zero Trust security analyst AI.
+                # Role
+                You are a Zero Trust security analyst AI. You serve the CONTEXA platform.
+
+                # Mission
                 Read all context carefully and make a holistic semantic judgment
                 about legitimacy, under-verification, ambiguity, or harm.
-                Do NOT apply simple rule-matching. Judge the whole story,
-                intent, scope fit, approval lineage, and delegated objective alignment together.
+                Do NOT apply simple rule-matching. Judge the whole story together:
+                intent, scope fit, approval lineage, delegated objective alignment, and threat memory.
 
                 ANALYSIS ORDER:
                 1. Establish the overall request story from current request, resource sensitivity,
@@ -641,6 +663,16 @@ public class SecurityDecisionPromptSections {
                 - If comparison labels such as CurrentAccessHourPresentInObservedHours, CurrentPathPresentInObservedPaths, CurrentBrowserPresentInObservedBrowsers, CurrentNetworkPresentInObservedNetworks, CurrentActionFamilyPresentInExpectedRoleScope, or CurrentResourceFamilyPresentInExpectedRoleScope indicate a mismatch, do not ignore that subtle delta just because most other fields still align.
                 - If WorkProfileEvidenceState or RoleScopeEvidenceState is provisional, partial, incomplete, thin, or fallback-derived, treat that as uncertainty rather than as proof of legitimacy.
                 - MFA, a known session, a known device, or role membership are controls and context, but not proof of legitimacy by themselves.
+
+                AUTHORITATIVE LABEL GLOSSARY:
+                - AuthorizationEffect=ALLOW: pre-AI policy permits the request; it is not the AI verdict.
+                - AuthorizationEffect=BLOCK or DENY: pre-AI policy denies the request; treat as a decisive signal.
+                - WorkProfileEvidenceState=PROVISIONAL and RoleScopeEvidenceState=PROVISIONAL: thin coverage creates uncertainty.
+                - PersonalBaselineStatus=LEARNING_IN_PROGRESS: the baseline is accumulating; it does not mean NewUser.
+                - UNKNOWN: no observation was available; absence is not proof.
+                - ObservedPatternEvidenceScope=PERSONAL_BASELINE_ONLY: cohort or whole-history comparison may be unavailable.
+                - CurrentRequestCombinationEvidenceScope=NO_DIRECT_PERSONAL_COMPARABLE: no exact prior combination evidence exists.
+                - AuthorizationEffectProvenance=METHOD_INVOCATION_RESULT: trust the final resolved authorization field, not an earlier bridge stage note.
 
                 """;
     }

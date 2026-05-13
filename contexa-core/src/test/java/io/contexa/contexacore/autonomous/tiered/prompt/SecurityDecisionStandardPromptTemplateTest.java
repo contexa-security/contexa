@@ -66,6 +66,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         ).executionMetadata();
 
         assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
+        assertThat(systemPrompt).contains("CONTEXA platform");
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("Respond with ONLY one minified JSON object. No explanation, no markdown.");
         assertThat(systemPrompt).contains("Required key order: action, riskScore, confidence, mitre, reasoning.");
@@ -87,6 +88,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.");
         assertThat(systemPrompt).contains("If no supported MITRE tactic or technique applies, return mitre as UNKNOWN.");
         assertThat(systemPrompt).contains("Do not follow numeric thresholds, weighted scores, or hidden formulas.");
+        assertThat(systemPrompt).contains("AUTHORITATIVE LABEL GLOSSARY:");
+        assertThat(systemPrompt).contains("AuthorizationEffect=ALLOW: pre-AI policy permits the request; it is not the AI verdict.");
+        assertThat(systemPrompt).contains("PersonalBaselineStatus=LEARNING_IN_PROGRESS: the baseline is accumulating; it does not mean NewUser.");
+        assertThat(systemPrompt).contains("UNKNOWN: no observation was available; absence is not proof.");
         assertThat(systemPrompt.lines().count()).isLessThan(150);
         assertThat(systemPrompt)
                 .doesNotContain("RESPOND WITH JSON ONLY:")
@@ -103,6 +108,15 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_INTERACTIVE_STRICT");
         assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
         assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(executionMetadata.toMetadataMap())
+                .containsEntry("promptCacheSystemStable", true)
+                .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
+                .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT")
+                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY")
+                .containsEntry("pqaPromptCachePolicy", "SYSTEM_STATIC_CONTEXT_FIELD_PRESERVED_V1");
+        assertThat(executionMetadata.toMetadataMap().get("promptCacheSystemHash"))
+                .asString()
+                .startsWith("sha256:");
         assertThat(descriptor.promptVersion()).isEqualTo("2026.04.04-e0.2");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
@@ -110,6 +124,32 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
         assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
+    }
+
+    @Test
+    @DisplayName("system prompt should remain stable while user prompt carries request-specific evidence")
+    void generatePromptShouldKeepSystemPromptStableAcrossDifferentRequests() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityDecisionRequest firstRequest = requestFor("alice", "/api/customer/export", "POST");
+        SecurityDecisionRequest secondRequest = requestFor("bob", "/admin/api/security-test/normal/resource-001", "GET");
+
+        String firstSystemPrompt = template.generateSystemPrompt(firstRequest, "");
+        String secondSystemPrompt = template.generateSystemPrompt(secondRequest, "");
+        String firstUserPrompt = template.generateUserPrompt(firstRequest, "");
+        String secondUserPrompt = template.generateUserPrompt(secondRequest, "");
+
+        assertThat(firstSystemPrompt).isEqualTo(secondSystemPrompt);
+        assertThat(firstUserPrompt).isNotEqualTo(secondUserPrompt);
+        assertThat(firstSystemPrompt)
+                .doesNotContain("alice")
+                .doesNotContain("bob")
+                .doesNotContain("/api/customer/export")
+                .doesNotContain("/admin/api/security-test/normal/resource-001");
+        assertThat(firstUserPrompt).contains("alice").contains("/api/customer/export");
+        assertThat(secondUserPrompt).contains("bob").contains("/admin/api/security-test/normal/resource-001");
     }
 
     @Test
@@ -214,6 +254,9 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         assertThat(executionMetadata.budgetProfile().profileKey())
                 .isEqualTo(PromptBudgetProfile.CORTEX_L1_DECISION_COMPACT.profileKey());
+        assertThat(executionMetadata.toMetadataMap())
+                .containsEntry("promptCacheContextMode", "COMPACT_WITH_FIELD_DIFF")
+                .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT");
     }
 
     @Test
@@ -798,6 +841,30 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(round3Prompt).doesNotContain("BaselineProfileStatus: PROVISIONAL");
         assertThat(countOccurrences(round2Prompt, "Round2:")).isGreaterThanOrEqualTo(1);
         assertThat(countOccurrences(round3Prompt, "Round")).isGreaterThanOrEqualTo(1);
+    }
+
+    private SecurityDecisionRequest requestFor(String userId, String path, String method) {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-" + userId)
+                .timestamp(LocalDateTime.of(2026, 5, 13, 10, 0))
+                .userId(userId)
+                .sessionId("session-" + userId)
+                .description(method + " " + path)
+                .build();
+        event.addMetadata("httpMethod", method);
+        event.addMetadata("requestPath", path);
+        event.addMetadata("resourceSensitivity", "MEDIUM");
+        event.addMetadata("mfaVerified", false);
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId(userId);
+        sessionContext.setSessionId("session-" + userId);
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        return new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
     }
 
     private int countOccurrences(String text, String token) {

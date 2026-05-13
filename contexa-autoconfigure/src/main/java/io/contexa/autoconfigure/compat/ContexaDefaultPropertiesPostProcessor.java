@@ -12,20 +12,24 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
 
     static final String SOURCE_NAME = "contexaDefaultProperties";
 
-    private static final Map<String, Object> DEFAULTS = new LinkedHashMap<>();
-
-    static {
-        DEFAULTS.put("contexa.vectorstore.pgvector.dimensions", "1536");
-        DEFAULTS.put("spring.ai.vectorstore.pgvector.dimensions", "1536");
-        DEFAULTS.put("spring.ai.vectorstore.pgvector.initialize-schema", "true");
-        DEFAULTS.put("spring.ai.vectorstore.pgvector.schema-name", "public");
-        DEFAULTS.put("spring.ai.vectorstore.pgvector.table-name", "vector_store");
-        DEFAULTS.put("spring.ai.openai.embedding.options.model", "text-embedding-3-small");
-        DEFAULTS.put("spring.ai.openai.embedding.options.dimensions", "1536");
-    }
-
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        environment.getPropertySources().addLast(new MapPropertySource(SOURCE_NAME, DEFAULTS));
+        environment.getPropertySources().addLast(new MapPropertySource(SOURCE_NAME, defaults(environment)));
+    }
+
+    private Map<String, Object> defaults(ConfigurableEnvironment environment) {
+        EmbeddingDimensionResolver.ResolvedDimension dimension =
+                EmbeddingDimensionResolver.resolveForEnvironment(environment);
+        String dimensionValue = Integer.toString(dimension.dimensions());
+
+        Map<String, Object> defaults = new LinkedHashMap<>();
+        defaults.put("contexa.vectorstore.pgvector.dimensions", dimensionValue);
+        defaults.put("spring.ai.vectorstore.pgvector.dimensions", dimensionValue);
+        defaults.put("spring.ai.vectorstore.pgvector.initialize-schema", "true");
+        defaults.put("spring.ai.vectorstore.pgvector.schema-name", "public");
+        defaults.put("spring.ai.vectorstore.pgvector.table-name", "vector_store");
+        defaults.put("spring.ai.openai.embedding.options.model", EmbeddingDimensionResolver.DEFAULT_OPENAI_EMBEDDING_MODEL);
+        defaults.put("spring.ai.openai.embedding.options.dimensions", dimensionValue);
+        return defaults;
     }
 }

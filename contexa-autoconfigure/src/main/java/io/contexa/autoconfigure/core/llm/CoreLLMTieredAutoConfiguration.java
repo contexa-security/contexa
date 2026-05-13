@@ -45,6 +45,7 @@ import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -227,12 +228,24 @@ public class CoreLLMTieredAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
-    @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "dynamic-priority", matchIfMissing = true)
-    public EmbeddingModel dynamicPriorityPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
-        return llmRuntimeCatalog.resolvePrimaryEmbeddingModel(resolveEmbeddingPriority())
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "fixed", matchIfMissing = true)
+    public EmbeddingModel fixedPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        String provider = resolveFixedEmbeddingProvider();
+        return llmRuntimeCatalog.resolvePrimaryEmbeddingModel(provider)
                 .orElseThrow(() -> new IllegalStateException(
-                        "No embedding runtime binding could be resolved from the available Spring AI EmbeddingModel beans. "
-                                + "Configure contexa.llm.selection.embedding.priority or provide a ready embedding runtime binding."));
+                        "No embedding runtime binding could be resolved for fixed provider '" + provider + "'. "
+                                + "Configure exactly one contexa.llm.selection.embedding.priority value and the matching Spring AI embedding runtime."));
+    }
+
+    @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @Primary
+    @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @Conditional(AnyEmbeddingModelAvailableCondition.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "dynamic-priority")
+    public EmbeddingModel dynamicPriorityPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        throw new IllegalStateException(
+                "Dynamic priority embedding selection is not supported because RAG vectors require a fixed provider and dimension. "
+                        + "Configure contexa.llm.selection.embedding.mode=fixed and exactly one contexa.llm.selection.embedding.priority value.");
     }
 
     @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
@@ -314,6 +327,20 @@ public class CoreLLMTieredAutoConfiguration {
             return contexaLlmSelectionProperties.getEmbedding().getPriority().trim();
         }
         return contexaProperties.getLlm().getEmbeddingModelPriority();
+    }
+
+    private String resolveFixedEmbeddingProvider() {
+        List<String> providers = Arrays.stream(resolveEmbeddingPriority().split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (providers.size() != 1) {
+            throw new IllegalStateException(
+                    "Embedding runtime must be fixed to exactly one provider because pgvector storage is dimension-bound. "
+                            + "Configure contexa.llm.selection.embedding.priority=openai or contexa.llm.selection.embedding.priority=ollama.");
+        }
+        return providers.get(0);
     }
 
     private String resolveEmbeddingModel() {

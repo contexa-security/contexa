@@ -125,6 +125,12 @@ public class PromptGenerationStep implements PipelineStep {
             copyIfPresent(promptResult.getMetadata(), metadata, "rawPromptHash");
             copyIfPresent(promptResult.getMetadata(), metadata, "rawSystemPromptHash");
             copyIfPresent(promptResult.getMetadata(), metadata, "rawUserPromptHash");
+            copyIfPresent(promptResult.getMetadata(), metadata, "promptCacheSystemStable");
+            copyIfPresent(promptResult.getMetadata(), metadata, "promptCacheSystemHash");
+            copyIfPresent(promptResult.getMetadata(), metadata, "promptCacheContextMode");
+            copyIfPresent(promptResult.getMetadata(), metadata, "pqaReferencePrompt");
+            copyIfPresent(promptResult.getMetadata(), metadata, "pqaRawPromptRole");
+            copyIfPresent(promptResult.getMetadata(), metadata, "pqaPromptCachePolicy");
         }
     }
 
