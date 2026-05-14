@@ -46,7 +46,7 @@ public class PgVectorStoreProperties {
 
     @Min(100)
     @Max(600000)
-    private long storeTimeoutMs = 4000;
+    private long storeTimeoutMs = 10000;
 
     private HnswConfig hnsw = new HnswConfig();
 
@@ -56,7 +56,7 @@ public class PgVectorStoreProperties {
 
     @Data
     public static class HnswConfig {
-        
+
         @Min(4)
         @Max(64)
         private int m = 16;
@@ -72,7 +72,7 @@ public class PgVectorStoreProperties {
 
     @Data
     public static class IvfflatConfig {
-        
+
         @Min(1)
         @Max(10000)
         private int lists = 100;
@@ -84,7 +84,7 @@ public class PgVectorStoreProperties {
 
     @Data
     public static class DocumentConfig {
-        
+
         @Min(100)
         @Max(10000)
         private int chunkSize = 1000;
