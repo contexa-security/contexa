@@ -390,7 +390,7 @@ class PromptContextComposerTest {
     }
 
     @Test
-    void composeMissingKnowledgeSectionShouldKeepCriticalGapsButCompactRepeatedTrustWarnings() {
+    void composeMissingKnowledgeSectionShouldKeepCriticalGapsWithoutCompactionMarkers() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .coverage(new ContextCoverageReport(
                         ContextCoverageLevel.BUSINESS_AWARE,
@@ -458,9 +458,33 @@ class PromptContextComposerTest {
         assertThat(section).contains("ContextFieldCoverage: roleScope.expectedActionFamilies");
         assertThat(section).doesNotContain("- Remediation:");
         assertThat(section).doesNotContain("- ConfidenceWarning:");
-        assertThat(section).doesNotContain("roleScope.recentPermissionChanges");
-        assertThat(section).contains("AdditionalContextTrustWarningsCompacted:");
+        assertThat(section).contains("roleScope.recentPermissionChanges");
+        assertThat(section).doesNotContain("AdditionalContextTrustWarningsCompacted:");
     }
+
+    @Test
+    void composeShouldPreserveCriticalUnknownsWithDecisionLimitations() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-unknowns")
+                        .mfaVerified(false)
+                        .build())
+                .sessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile.builder()
+                        .summary("Session continuity is not fully available.")
+                        .build())
+                .build();
+
+        String promptSection = new PromptContextComposer().compose(context);
+
+        assertThat(promptSection).contains("=== REQUEST INTENT SIGNAL CONTEXT ===");
+        assertThat(promptSection).contains("FailedLoginAttempts: UNKNOWN - not available from authentication context");
+        assertThat(promptSection).contains("NewDevice: UNKNOWN - not available from device context");
+        assertThat(promptSection).contains("NewSession: UNKNOWN - not available from session context");
+        assertThat(promptSection).contains("NewUser: UNKNOWN - not available from identity context");
+        assertThat(promptSection).contains("PreviousPath: UNKNOWN - not available from session narrative context");
+        assertThat(promptSection).contains("BotUserAgent: UNKNOWN - not available from intent signal context");
+    }
+
     private List<String> extractHeaders(String promptSection) {
         List<String> headers = new ArrayList<>();
         for (String line : promptSection.split("\\R")) {

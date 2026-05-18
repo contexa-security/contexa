@@ -23,10 +23,6 @@ public class PromptContextComposer {
     public static final String PRODUCER_ROLE_SCOPE_SECTION = "PromptContextComposer.composeRoleScopeSection";
     public static final String PRODUCER_THREAT_SECTION = "PromptContextComposer.composeReasoningMemorySection";
 
-    private static final int MAX_TRUST_SCOPE_LIMITATIONS = 2;
-    private static final int MAX_TRUST_QUALITY_WARNINGS = 3;
-    private static final int MAX_TRUST_FIELD_RECORDS = 2;
-
     public String compose(CanonicalSecurityContext context) {
         if (context == null) {
             return null;
@@ -254,15 +250,19 @@ public class PromptContextComposer {
         appendLine(section, "MfaVerified", session.getMfaVerified());
         appendLine(section, "RecentMfaFailureCount", session.getRecentMfaFailureCount());
         appendLine(section, "LastMfaUsedAt", session.getLastMfaUsedAt());
-        appendLine(section, "FailedLoginAttempts", session.getFailedLoginAttempts());
+        appendLineOrExplainedUnknown(section, "FailedLoginAttempts", session.getFailedLoginAttempts(),
+                "not available from authentication context; do not assume login failure history");
         appendLine(section, "RecentRequestCount", session.getRecentRequestCount());
         appendLine(section, "RecentChallengeCount", session.getRecentChallengeCount());
         appendLine(section, "RecentBlockCount", session.getRecentBlockCount());
         appendLine(section, "RecentEscalationCount", session.getRecentEscalationCount());
         appendLine(section, "BlockedUser", session.getBlockedUser());
-        appendLine(section, "NewSession", session.getNewSession());
-        appendLine(section, "NewUser", session.getNewUser());
-        appendLine(section, "NewDevice", session.getNewDevice());
+        appendLineOrExplainedUnknown(section, "NewSession", session.getNewSession(),
+                "not available from session context; do not assume this is a new session");
+        appendLineOrExplainedUnknown(section, "NewUser", session.getNewUser(),
+                "not available from identity context; do not assume this is a new user");
+        appendLineOrExplainedUnknown(section, "NewDevice", session.getNewDevice(),
+                "not available from device context; do not assume this is a new device");
         appendLine(section, "CurrentAccessHour", session.getCurrentAccessHour());
         appendLine(section, "ConcurrentSessions", session.getConcurrentSessions());
         appendLine(section, "PasswordAgeDays", session.getPasswordAgeDays());
@@ -294,16 +294,36 @@ public class PromptContextComposer {
     }
 
     private void appendIntentSection(StringBuilder section, CanonicalSecurityContext.Intent intent) {
+        section.append("\n=== REQUEST INTENT SIGNAL CONTEXT ===\n");
         if (intent == null) {
+            appendLine(section, "IntentSignalStatus",
+                    "UNKNOWN - intent signal producer was not available; do not assume bot, referer, language, TLS, header, or travel risk");
+            appendLineOrExplainedUnknown(section, "BotUserAgent", null,
+                    "not available from intent signal context; do not assume automated client behavior");
+            appendLineOrExplainedUnknown(section, "MissingReferer", null,
+                    "not available from intent signal context; do not assume referer state");
+            appendLineOrExplainedUnknown(section, "LanguageMismatch", null,
+                    "not available from intent signal context; do not assume language mismatch");
+            appendLineOrExplainedUnknown(section, "TlsFingerprintAltered", null,
+                    "not available from intent signal context; do not assume TLS fingerprint alteration");
+            appendLineOrExplainedUnknown(section, "AbnormalHeaderOrder", null,
+                    "not available from intent signal context; do not assume abnormal header order");
+            appendLineOrExplainedUnknown(section, "ImpossibleTravel", null,
+                    "not available from intent signal context; do not assume impossible travel");
             return;
         }
-        section.append("\n=== REQUEST INTENT SIGNAL CONTEXT ===\n");
-        appendLine(section, "BotUserAgent", intent.getBotUserAgent());
-        appendLine(section, "MissingReferer", intent.getMissingReferer());
-        appendLine(section, "LanguageMismatch", intent.getLanguageMismatch());
-        appendLine(section, "TlsFingerprintAltered", intent.getTlsFingerprintAltered());
-        appendLine(section, "AbnormalHeaderOrder", intent.getAbnormalHeaderOrder());
-        appendLine(section, "ImpossibleTravel", intent.getImpossibleTravel());
+        appendLineOrExplainedUnknown(section, "BotUserAgent", intent.getBotUserAgent(),
+                "not available from intent signal context; do not assume automated client behavior");
+        appendLineOrExplainedUnknown(section, "MissingReferer", intent.getMissingReferer(),
+                "not available from intent signal context; do not assume referer state");
+        appendLineOrExplainedUnknown(section, "LanguageMismatch", intent.getLanguageMismatch(),
+                "not available from intent signal context; do not assume language mismatch");
+        appendLineOrExplainedUnknown(section, "TlsFingerprintAltered", intent.getTlsFingerprintAltered(),
+                "not available from intent signal context; do not assume TLS fingerprint alteration");
+        appendLineOrExplainedUnknown(section, "AbnormalHeaderOrder", intent.getAbnormalHeaderOrder(),
+                "not available from intent signal context; do not assume abnormal header order");
+        appendLineOrExplainedUnknown(section, "ImpossibleTravel", intent.getImpossibleTravel(),
+                "not available from intent signal context; do not assume impossible travel");
     }
 
     private void appendResourceSection(StringBuilder section, CanonicalSecurityContext.Resource resource) {
@@ -332,7 +352,8 @@ public class PromptContextComposer {
         section.append("\n=== SESSION NARRATIVE CONTEXT ===\n");
         appendLine(section, "SessionNarrativeSummary", sessionNarrativeProfile.getSummary());
         appendLine(section, "SessionAgeMinutes", sessionNarrativeProfile.getSessionAgeMinutes());
-        appendLine(section, "PreviousPath", sessionNarrativeProfile.getPreviousPath());
+        appendLineOrExplainedUnknown(section, "PreviousPath", sessionNarrativeProfile.getPreviousPath(),
+                "not available from session narrative context; do not assume a prior path");
         appendLine(section, "PreviousActionFamily", sessionNarrativeProfile.getPreviousActionFamily());
         appendLine(section, "LastRequestIntervalMs", sessionNarrativeProfile.getLastRequestIntervalMs());
         appendList(section, "SessionActionSequence", sessionNarrativeProfile.getSessionActionSequence());
@@ -700,7 +721,6 @@ public class PromptContextComposer {
         }
 
         section.append("\n=== EXPLICIT MISSING KNOWLEDGE ===\n");
-        int compactedTrustLines = 0;
         boolean hasResolvedAuthorizationEffect = context != null
                 && context.getAuthorization() != null
                 && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect());
@@ -729,39 +749,22 @@ public class PromptContextComposer {
                     .append(" | evidenceState=")
                     .append(describeProfileEvidenceState(trustProfile))
                     .append("\n");
-            int appendedScopeLimitations = 0;
             for (String limitation : trustProfile.getScopeLimitations()) {
-                if (appendedScopeLimitations >= MAX_TRUST_SCOPE_LIMITATIONS) {
-                    compactedTrustLines++;
-                    continue;
-                }
                 section.append("- ContextTrustLimitation: ")
                         .append(trustProfile.getProfileKey())
                         .append(" | ")
                         .append(limitation)
                         .append("\n");
-                appendedScopeLimitations++;
             }
-            int appendedQualityWarnings = 0;
             for (String warning : trustProfile.getQualityWarnings()) {
-                if (appendedQualityWarnings >= MAX_TRUST_QUALITY_WARNINGS) {
-                    compactedTrustLines++;
-                    continue;
-                }
                 section.append("- ContextTrustWarning: ")
                         .append(trustProfile.getProfileKey())
                         .append(" | ")
                         .append(warning)
                         .append("\n");
-                appendedQualityWarnings++;
             }
-            int appendedFieldRecords = 0;
             for (ContextFieldTrustRecord fieldRecord : trustProfile.getFieldRecords()) {
                 if (fieldRecord == null || !ContextSemanticBoundaryPolicy.requiresEvidenceCaution(fieldRecord)) {
-                    continue;
-                }
-                if (appendedFieldRecords >= MAX_TRUST_FIELD_RECORDS) {
-                    compactedTrustLines += 2;
                     continue;
                 }
                 section.append("- ContextFieldCoverage: ")
@@ -782,13 +785,7 @@ public class PromptContextComposer {
                         .append(" | ")
                         .append(describeFieldEvidenceLimitation(fieldRecord))
                         .append("\n");
-                appendedFieldRecords++;
             }
-        }
-        if (compactedTrustLines > 0) {
-            section.append("- AdditionalContextTrustWarningsCompacted: ")
-                    .append(compactedTrustLines)
-                    .append("\n");
         }
     }
 
@@ -894,6 +891,19 @@ public class PromptContextComposer {
         String text = value.toString();
         if (!StringUtils.hasText(text)) {
             appendLine(section, label, "UNKNOWN");
+            return;
+        }
+        appendLine(section, label, text);
+    }
+
+    private void appendLineOrExplainedUnknown(StringBuilder section, String label, Object value, String reason) {
+        if (value == null) {
+            appendLine(section, label, "UNKNOWN - " + reason);
+            return;
+        }
+        String text = value.toString();
+        if (!StringUtils.hasText(text)) {
+            appendLine(section, label, "UNKNOWN - " + reason);
             return;
         }
         appendLine(section, label, text);

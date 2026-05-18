@@ -841,6 +841,8 @@ public class SecurityDecisionPromptSections {
             section.append("BaselineProfileStatus: NEW_USER\n");
             section.append("PersonalBaselineStatus: NOT_ESTABLISHED\n");
             section.append("BaselineSupportSummary: No verified personal behavioral history is available yet.\n");
+            appendCurrentVsObservedUnavailable(section,
+                    "new user baseline is not established; do not assume current behavior is normal");
             return section.toString();
         }
 
@@ -848,6 +850,8 @@ public class SecurityDecisionPromptSections {
             section.append("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY\n");
             section.append("PersonalBaselineStatus: NOT_ESTABLISHED\n");
             section.append("BaselineSupportSummary: Personal history is still sparse; shared reference evidence is not the same as an established personal norm.\n");
+            appendCurrentVsObservedUnavailable(section,
+                    "personal history is sparse; do not treat missing comparison evidence as normal behavior");
             return section.toString();
         }
 
@@ -978,6 +982,31 @@ public class SecurityDecisionPromptSections {
         section.append(networkDetails).append("\n");
 
         return section.toString();
+    }
+
+    private void appendCurrentVsObservedUnavailable(StringBuilder section, String reason) {
+        String value = "UNKNOWN - " + reason;
+        section.append("WorkProfileEvidenceState: PROVISIONAL\n");
+        section.append("ObservedPatternEvidenceScope: INSUFFICIENT_PERSONAL_BASELINE\n");
+        section.append("CurrentAccessHourPresentInObservedHours: ").append(value).append("\n");
+        section.append("CurrentNetworkPresentInObservedNetworks: ").append(value).append("\n");
+        section.append("CurrentBrowserPresentInObservedBrowsers: ").append(value).append("\n");
+        section.append("CurrentOperatingSystemPresentInObservedOperatingSystems: ").append(value).append("\n");
+        section.append("CurrentPathPresentInObservedPaths: ").append(value).append("\n");
+        section.append("CurrentAuthenticationTypePresentInObservedAuthTypes: ").append(value).append("\n");
+        section.append("CurrentActionFamilyPresentInObservedActions: ").append(value).append("\n");
+        section.append("CurrentVsObservedDeltaCount: ").append(value).append("\n");
+        section.append("StrongestCurrentVsObservedDelta: insufficient observed evidence - ").append(reason).append("\n");
+        section.append("CurrentVsObservedDeltaSummary: current-vs-observed comparison is not reliable; ")
+                .append(reason)
+                .append("\n");
+        section.append("CurrentRequestCombinationEvidenceScope: NO_DIRECT_PERSONAL_COMPARABLE\n");
+        section.append("CurrentRequestCombinationSummary: no direct personal comparable combination evidence; ")
+                .append(reason)
+                .append("\n");
+        section.append("BaselineContextSummary: personal baseline evidence is insufficient; ")
+                .append(reason)
+                .append("\n");
     }
 
     String buildPayloadSection(SecurityEvent event) {
