@@ -363,7 +363,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
-    @DisplayName("raw identity prompt profile should preserve full prompt fact values without truncation")
+    @DisplayName("lossless prompt profiles should preserve full prompt fact values without truncation")
     void generateUserPromptShouldPreserveFullFactsForRawIdentityProfile() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -424,6 +424,17 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("BaselineContextSummary: " + longBaselineSummary);
         assertThat(userPrompt).contains("RUNTIME_MONITORING_ALERTS");
         assertThat(userPrompt)
+                .doesNotContain("BaselineContextSummary: personal baseline provisional | resource families=PUBLIC, NORMAL, SENSITIVE, CRITICAL, FINANCE_REPORTS, SECURITY_AUDIT_REPORTS, TENANT_CONFIGURATION, PROMPT_GOVERNANCE, OFFICIAL_VERIFICATION_LEDGER, CERTIFICATE_PROMOTION_...");
+
+        SecurityDecisionRequest interactiveRequest = new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
+        interactiveRequest.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
+
+        String interactiveUserPrompt = template.generateUserPrompt(interactiveRequest, "");
+
+        assertThat(interactiveUserPrompt).contains("BaselineContextSummary: " + longBaselineSummary);
+        assertThat(interactiveUserPrompt).contains("RUNTIME_MONITORING_ALERTS");
+        assertThat(interactiveUserPrompt)
                 .doesNotContain("BaselineContextSummary: personal baseline provisional | resource families=PUBLIC, NORMAL, SENSITIVE, CRITICAL, FINANCE_REPORTS, SECURITY_AUDIT_REPORTS, TENANT_CONFIGURATION, PROMPT_GOVERNANCE, OFFICIAL_VERIFICATION_LEDGER, CERTIFICATE_PROMOTION_...");
     }
 

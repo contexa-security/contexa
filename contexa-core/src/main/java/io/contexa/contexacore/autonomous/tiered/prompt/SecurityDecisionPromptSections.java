@@ -416,7 +416,9 @@ public class SecurityDecisionPromptSections {
     }
 
     private boolean isLosslessPromptProfile(PromptBudgetProfile budgetProfile) {
-        return budgetProfile != null && budgetProfile.viewProfile() == PromptViewProfile.IDENTITY;
+        return budgetProfile != null
+                && (budgetProfile.viewProfile() == PromptViewProfile.IDENTITY
+                || budgetProfile == PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
     }
 
     private RenderedPromptSections composeSections(List<PromptSectionPlan> plans, SecurityPromptBuildContext context) {
