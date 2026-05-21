@@ -46,7 +46,10 @@ public class PendingAnomalyEligibilityGate {
 
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
         ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
-        if (currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
+        if (currentAction == ZeroTrustAction.CHALLENGE || currentAction == ZeroTrustAction.BLOCK) {
+            return null;
+        }
+        if (currentAction == ZeroTrustAction.ALLOW) {
             return null;
         }
 

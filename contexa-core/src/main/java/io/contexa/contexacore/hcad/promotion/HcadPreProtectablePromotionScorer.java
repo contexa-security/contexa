@@ -120,7 +120,7 @@ public class HcadPreProtectablePromotionScorer {
         for (HcadPreProtectablePromotionSignal signal : corroborating) {
             score += signal.weight();
         }
-        return score;
+        return Math.min(100, score);
     }
 
     private HcadPreProtectablePromotionBand resolveBand(int score) {

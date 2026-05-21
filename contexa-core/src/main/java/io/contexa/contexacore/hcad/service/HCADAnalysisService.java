@@ -42,6 +42,11 @@ public class HCADAnalysisService {
             String userId = context.getUserId();
 
             Map<String, Object> llmAnalysis = getLLMAnalysis(userId);
+            boolean isStale = (boolean) llmAnalysis.getOrDefault("isStale", false);
+            if (isStale) {
+                log.warn("[HCADAnalysisService] LLM analysis data for user {} is stale. Evaluation might rely on outdated context.", userId);
+            }
+
             double riskScore = (double) llmAnalysis.getOrDefault("riskScore", 0.0d);
             boolean isAnomaly = (boolean) llmAnalysis.getOrDefault("isAnomaly", false);
             double anomalyScore = riskScore;
@@ -208,5 +213,9 @@ public class HCADAnalysisService {
     }
 
     public void updateBaselineIfNeeded(HCADAnalysisResult result) {
+        if (result == null || result.getUserId() == null || result.getUserId().startsWith("anonymous:")) {
+            return;
+        }
+        log.debug("[HCADAnalysisService] updateBaselineIfNeeded called for user={}. (Baseline learning integration stub)", result.getUserId());
     }
 }

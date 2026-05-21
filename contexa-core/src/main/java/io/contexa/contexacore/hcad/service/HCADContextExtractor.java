@@ -193,7 +193,7 @@ public class HCADContextExtractor {
             boolean isNewDevice = checkAndRegisterDevice(userId, currentDevice, promptRelevantPath);
             context.setIsNewDevice(isNewDevice);
 
-            if (promptRelevantPath && isNewSession) {
+            if (promptRelevantPath && isNewSession && userId != null && !userId.startsWith("anonymous:")) {
                 Map<String, Object> newSessionInfo = new HashMap<>();
                 newSessionInfo.put("userId", userId);
                 newSessionInfo.put("device", currentDevice);
@@ -216,7 +216,7 @@ public class HCADContextExtractor {
     }
 
     private boolean checkAndRegisterDevice(String userId, String currentDevice, boolean promptRelevantPath) {
-        if (userId == null || currentDevice == null || currentDevice.isEmpty()) {
+        if (userId == null || userId.startsWith("anonymous:") || currentDevice == null || currentDevice.isEmpty()) {
             return true;
         }
 
@@ -243,6 +243,12 @@ public class HCADContextExtractor {
             long currentTime = observedAt.toEpochMilli();
             long fiveMinutesAgo = currentTime - (5 * 60 * 1000);
             String requestPath = request.getRequestURI();
+
+            if (userId != null && userId.startsWith("anonymous:")) {
+                context.setRecentRequestCount(0);
+                context.setLastRequestInterval(0L);
+                return;
+            }
 
             if (promptRelevantPath) {
                 hcadDataStore.recordRequest(userId, currentTime);
@@ -289,6 +295,14 @@ public class HCADContextExtractor {
                                         Authentication authentication,
                                         boolean promptRelevantPath) {
         try {
+            if (userId != null && userId.startsWith("anonymous:")) {
+                context.setNewUser(false);
+                context.setCurrentTrustScore(Double.NaN);
+                context.setBaselineConfidence(Double.NaN);
+                context.setFailedLoginAttempts(0);
+                context.setHasValidMFA(false);
+                return;
+            }
 
             boolean isRegistered = hcadDataStore.isUserRegistered(userId);
 
@@ -719,7 +733,7 @@ public class HCADContextExtractor {
     }
 
     private void detectImpossibleTravel(HCADContext context, GeoIpService.GeoLocation currentLocation) {
-        if (!currentLocation.hasCoordinates() || context.getUserId() == null || securityContextDataStore == null) {
+        if (!currentLocation.hasCoordinates() || context.getUserId() == null || context.getUserId().startsWith("anonymous:") || securityContextDataStore == null) {
             return;
         }
         try {
@@ -733,14 +747,15 @@ public class HCADContextExtractor {
                     System.currentTimeMillis(),
                     currentLocation.city() != null ? currentLocation.city() : "",
                     currentLocation.country() != null ? currentLocation.country() : "");
-            securityContextDataStore.setPreviousPath(prevLocationKey, currentData);
 
             if (prevData == null || prevData.isBlank()) {
+                securityContextDataStore.setPreviousPath(prevLocationKey, currentData);
                 return;
             }
 
             String[] parts = prevData.split(",", 5);
             if (parts.length < 3) {
+                securityContextDataStore.setPreviousPath(prevLocationKey, currentData);
                 return;
             }
 
@@ -768,7 +783,11 @@ public class HCADContextExtractor {
 
                 log.error("[HCADContextExtractor] Impossible travel detected: userId={}, distance={}km, elapsed={}min",
                         userId, (int) distanceKm, elapsedMs / 60000);
+                return; // [개선] 비정상 이동 시 갱신을 생략하여 이전의 유효한 위치를 고정/유지함
             }
+
+            // 정상적인 이동일 경우에만 업데이트 수행
+            securityContextDataStore.setPreviousPath(prevLocationKey, currentData);
         } catch (Exception e) {
             log.error("[HCADContextExtractor] Impossible travel detection failed", e);
         }

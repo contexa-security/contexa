@@ -54,14 +54,19 @@ public class PendingAnomalyTriggerOrchestrator {
             return;
         }
 
+        boolean success = false;
         try {
             eventTriggerService.publish(request, report);
             analysisTriggerStateRepository.markCooldown(
                     dedupKey,
                     Duration.ofSeconds(hcadProperties.getPreTrigger().getCooldownSeconds()));
-        } catch (RuntimeException ex) {
-            analysisTriggerStateRepository.releaseInFlight(dedupKey);
+            success = true;
+        } catch (Exception ex) {
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to publish pre-protectable threat event", ex);
+        } finally {
+            if (!success) {
+                analysisTriggerStateRepository.releaseInFlight(dedupKey);
+            }
         }
     }
 }

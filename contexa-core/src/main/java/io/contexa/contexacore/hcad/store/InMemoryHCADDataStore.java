@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public class InMemoryHCADDataStore implements HCADDataStore {
 
@@ -12,7 +13,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     private final ConcurrentHashMap<String, Map<String, Object>> sessionMetadata = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<String>> userDevices = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, TreeMap<Long, String>> requestCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> requestCounters = new ConcurrentHashMap<>();
     private final Set<String> registeredUsers = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<Object, Object>> hcadAnalysis = new ConcurrentHashMap<>();
@@ -79,7 +80,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     public void recordRequest(String userId, long currentTimeMs) {
         requestCounters.compute(userId, (key, counter) -> {
             if (counter == null) {
-                counter = new TreeMap<>();
+                counter = new ConcurrentSkipListMap<>();
             }
             counter.put(currentTimeMs, Long.toString(currentTimeMs));
             long fiveMinutesAgo = currentTimeMs - (5 * 60 * 1000);
@@ -90,13 +91,11 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public int getRecentRequestCount(String userId, long windowStartMs, long currentTimeMs) {
-        TreeMap<Long, String> counter = requestCounters.get(userId);
+        ConcurrentSkipListMap<Long, String> counter = requestCounters.get(userId);
         if (counter == null) {
             return 0;
         }
-        synchronized (counter) {
-            return counter.subMap(windowStartMs, true, currentTimeMs, true).size();
-        }
+        return counter.subMap(windowStartMs, true, currentTimeMs, true).size();
     }
 
     @Override
