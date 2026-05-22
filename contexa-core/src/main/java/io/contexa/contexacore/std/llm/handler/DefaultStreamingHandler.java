@@ -2,6 +2,7 @@ package io.contexa.contexacore.std.llm.handler;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
+import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -149,18 +150,25 @@ public class DefaultStreamingHandler implements StreamingHandler {
                                                                    ChatModel selectedModel) {
 
         if (context.getChatOptions() != null) {
-            return promptSpec.options(context.getChatOptions());
-        }
-
-        if (!hasRuntimeOptions(context)) {
-            return promptSpec;
+            return promptSpec.options(ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    context.getChatOptions(),
+                    context,
+                    selectedModel));
         }
 
         if (selectedModel instanceof OllamaChatModel ollamaChatModel) {
             return promptSpec.options(buildOllamaOptions(context, ollamaChatModel));
         }
 
-        return promptSpec.options(buildGenericChatOptions(context));
+        if (ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, selectedModel)) {
+            return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
+        }
+
+        if (!hasRuntimeOptions(context)) {
+            return promptSpec;
+        }
+
+        return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
     }
 
     private boolean hasRuntimeOptions(ExecutionContext context) {
@@ -194,22 +202,6 @@ public class DefaultStreamingHandler implements StreamingHandler {
         }
 
         return options;
-    }
-
-    private ChatOptions buildGenericChatOptions(ExecutionContext context) {
-        ChatOptions.Builder optionsBuilder = ChatOptions.builder();
-
-        if (context.getTemperature() != null) {
-            optionsBuilder.temperature(context.getTemperature());
-        }
-        if (context.getTopP() != null) {
-            optionsBuilder.topP(context.getTopP());
-        }
-        if (context.getMaxTokens() != null) {
-            optionsBuilder.maxTokens(context.getMaxTokens());
-        }
-
-        return optionsBuilder.build();
     }
 
     private Flux<String> executeToolCallback(ToolCallback callback, ExecutionContext context) {

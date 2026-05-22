@@ -256,18 +256,25 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                                                    ChatModel selectedModel) {
 
         if (context.getChatOptions() != null) {
-            return promptSpec.options(context.getChatOptions());
+            return promptSpec.options(ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    context.getChatOptions(),
+                    context,
+                    selectedModel));
         }
 
         if (selectedModel instanceof OllamaChatModel ollamaChatModel) {
             return promptSpec.options(buildOllamaOptions(context, ollamaChatModel));
         }
 
+        if (ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, selectedModel)) {
+            return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
+        }
+
         if (!hasRuntimeOptions(context)) {
             return promptSpec;
         }
 
-        return promptSpec.options(buildGenericChatOptions(context));
+        return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
     }
 
     private ChatResponse executeForChatResponse(ExecutionContext context) {
@@ -543,21 +550,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return options;
     }
 
-    private ChatOptions buildGenericChatOptions(ExecutionContext context) {
-        ChatOptions.Builder optionsBuilder = ChatOptions.builder();
-
-        if (context.getTemperature() != null) {
-            optionsBuilder.temperature(context.getTemperature());
-        }
-        if (context.getTopP() != null) {
-            optionsBuilder.topP(context.getTopP());
-        }
-        if (context.getMaxTokens() != null) {
-            optionsBuilder.maxTokens(context.getMaxTokens());
-        }
-
-        return optionsBuilder.build();
-    }
     @Override
     public Mono<String> call(Prompt prompt) {
 

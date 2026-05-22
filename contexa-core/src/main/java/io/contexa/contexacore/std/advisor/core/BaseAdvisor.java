@@ -47,15 +47,18 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
         }
 
         long startTime = System.currentTimeMillis();
+        ChatClientRequest advisedRequest = request;
+        boolean chainInvoked = false;
 
         try {
-            request = beforeCall(request);
+            advisedRequest = beforeCall(request);
 
-            enrichContext(request.context());
+            enrichContext(advisedRequest.context());
 
-            ChatClientResponse response = chain.nextCall(request);
+            chainInvoked = true;
+            ChatClientResponse response = chain.nextCall(advisedRequest);
 
-            response = afterCall(response, request);
+            response = afterCall(response, advisedRequest);
 
             return response;
 
@@ -64,16 +67,23 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             log.error("[{}] Advisor error after {}ms: {}", getName(), duration, e.getMessage());
 
             if (e.isBlocking()) {
-                return handleBlockingError(e, request);
+                return handleBlockingError(e, advisedRequest);
+            } else if (chainInvoked) {
+                throw e;
             } else {
-                return chain.nextCall(request);
+                return chain.nextCall(advisedRequest);
             }
 
         } catch (Exception e) {
             log.error("[{}] Unexpected error", getName(), e);
 
-            request.context().put(getName() + ".error", e.getMessage());
-            return chain.nextCall(request);
+            if (advisedRequest != null && advisedRequest.context() != null) {
+                advisedRequest.context().put(getName() + ".error", e.getMessage());
+            }
+            if (chainInvoked) {
+                throw e;
+            }
+            return chain.nextCall(advisedRequest);
         }
     }
 
@@ -83,20 +93,28 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             return chain.nextStream(request);
         }
 
+        ChatClientRequest finalRequest = request;
+        boolean chainInvoked = false;
+
         try {
-            ChatClientRequest finalRequest = beforeStream(request);
+            finalRequest = beforeStream(request);
 
             enrichContext(finalRequest.context());
 
+            chainInvoked = true;
             Flux<ChatClientResponse> responses = chain.nextStream(finalRequest);
+            ChatClientRequest streamRequest = finalRequest;
 
             return responses
-                    .doOnNext(response -> afterStream(response, finalRequest))
+                    .doOnNext(response -> afterStream(response, streamRequest))
                     .doOnError(error -> log.error("[{}] Stream error", getName(), error));
 
         } catch (Exception e) {
             log.error("[{}] Stream start error", getName(), e);
-            return chain.nextStream(request);
+            if (chainInvoked) {
+                return Flux.error(e);
+            }
+            return chain.nextStream(finalRequest);
         }
     }
 
