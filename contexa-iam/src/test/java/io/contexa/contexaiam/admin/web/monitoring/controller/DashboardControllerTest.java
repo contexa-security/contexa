@@ -48,14 +48,15 @@ class DashboardControllerTest {
                     0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0.0,
                     0L, 0L, 0L, 0L, 0L, 0L, 0L, Collections.emptyList()
             );
-            when(dashboardService.getDashboardData()).thenReturn(dashboardData);
+            when(dashboardService.getDashboardData(1)).thenReturn(dashboardData);
 
-            String view = controller.dashboard(model);
+            String view = controller.dashboard(1, model);
 
             assertThat(view).isEqualTo("admin/dashboard");
             assertThat(model.getAttribute("dashboardData")).isEqualTo(dashboardData);
             assertThat(model.getAttribute("activePage")).isEqualTo("dashboard");
-            verify(dashboardService).getDashboardData();
+            assertThat(model.getAttribute("selectedRange")).isEqualTo(1);
+            verify(dashboardService).getDashboardData(1);
         }
     }
 }

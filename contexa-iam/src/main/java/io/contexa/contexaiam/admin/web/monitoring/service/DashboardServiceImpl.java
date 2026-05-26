@@ -56,10 +56,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public DashboardDto getDashboardData() {
+    public DashboardDto getDashboardData(int days) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = (authentication != null) ? authentication.getName() : "SYSTEM";
-        LocalDateTime since24h = LocalDateTime.now().minusHours(24);
+        LocalDateTime since = LocalDateTime.now().minusDays(days);
 
         // ManagedResource: 3 queries -> 1 GROUP BY
         Map<ManagedResource.Status, Long> resourceCounts = new EnumMap<>(ManagedResource.Status.class);
@@ -81,7 +81,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         // AuditLog EventCategory: 3 queries -> 1 GROUP BY
         Map<String, Long> eventCatCounts = new HashMap<>();
-        for (Object[] row : auditLogRepository.countByEventCategoriesGrouped(since24h,
+        for (Object[] row : auditLogRepository.countByEventCategoriesGrouped(since,
                 List.of("AUTHENTICATION_SUCCESS", "AUTHENTICATION_FAILURE", "SECURITY_DECISION"))) {
             if (row.length >= 2 && row[0] instanceof String category && row[1] instanceof Number count) {
                 eventCatCounts.put(category, count.longValue());
@@ -91,7 +91,7 @@ public class DashboardServiceImpl implements DashboardService {
         // ZeroTrust Decision: 5 queries -> 1 GROUP BY
         Map<String, Long> ztCounts = new HashMap<>();
         long ztTotal = 0;
-        for (Object[] row : auditLogRepository.countZeroTrustGroupByDecision(since24h)) {
+        for (Object[] row : auditLogRepository.countZeroTrustGroupByDecision(since)) {
             if (row.length >= 2 && row[0] instanceof String decision && row[1] instanceof Number count) {
                 ztCounts.put(decision, count.longValue());
                 ztTotal += count.longValue();
@@ -101,7 +101,7 @@ public class DashboardServiceImpl implements DashboardService {
         // Policy counts: computed once, shared between buildStatistics and buildPolicyStatus
         long policyTotal = policyRepository.count();
         long policyActive = policyRepository.countByIsActiveTrue();
-        long denyCount24h = auditLogRepository.countDeniedAttemptsSince(since24h);
+        long denyCount24h = auditLogRepository.countDeniedAttemptsSince(since);
 
         PolicyHealthDto policyHealth = buildPolicyHealth();
 
@@ -113,7 +113,7 @@ public class DashboardServiceImpl implements DashboardService {
                 permissionMatrixService.getPermissionMatrix(null),
                 buildPolicyStatus(policyTotal, policyActive),
                 policyHealth,
-                buildAccessTrends(),
+                buildAccessTrends(days, since),
                 resourceTotal,
                 resourceCounts.getOrDefault(ManagedResource.Status.POLICY_CONNECTED, 0L),
                 resourceCounts.getOrDefault(ManagedResource.Status.PERMISSION_CREATED, 0L),
@@ -123,24 +123,24 @@ public class DashboardServiceImpl implements DashboardService {
                 blockedCounts.getOrDefault(BlockedUserStatus.MFA_FAILED, 0L),
                 blockedCounts.getOrDefault(BlockedUserStatus.RESOLVED, 0L),
                 blockedUserJpaRepository.findTop5ByStatusInOrderByBlockedAtDesc(List.of(BlockedUserStatus.BLOCKED, BlockedUserStatus.UNBLOCK_REQUESTED)),
-                auditLogRepository.countAllowedSince(since24h),
+                auditLogRepository.countAllowedSince(since),
                 denyCount24h,
                 eventCatCounts.getOrDefault("AUTHENTICATION_SUCCESS", 0L),
                 eventCatCounts.getOrDefault("AUTHENTICATION_FAILURE", 0L),
                 eventCatCounts.getOrDefault("SECURITY_DECISION", 0L),
-                auditLogRepository.countAdminOverridesSince(since24h),
-                auditLogRepository.countSecurityErrorsSince(since24h),
-                auditLogRepository.countAfterHoursAccessSince(since24h),
-                auditLogRepository.countDistinctIpsSince(since24h),
-                auditLogRepository.avgRiskScoreSince(since24h),
+                auditLogRepository.countAdminOverridesSince(since),
+                auditLogRepository.countSecurityErrorsSince(since),
+                auditLogRepository.countAfterHoursAccessSince(since),
+                auditLogRepository.countDistinctIpsSince(since),
+                auditLogRepository.avgRiskScoreSince(since),
                 ztCounts.getOrDefault("ALLOW", 0L),
                 ztTotal,
                 ztCounts.getOrDefault("CHALLENGE", 0L),
                 ztCounts.getOrDefault("BLOCK", 0L),
                 ztCounts.getOrDefault("ESCALATE", 0L),
-                auditLogRepository.countPolicyChangesSince(since24h),
-                auditLogRepository.countIamChangesSince(since24h),
-                auditLogRepository.findRecentThreatEvents(since24h).stream().limit(5).toList()
+                auditLogRepository.countPolicyChangesSince(since),
+                auditLogRepository.countIamChangesSince(since),
+                auditLogRepository.findRecentThreatEvents(since).stream().limit(5).toList()
         );
     }
 
@@ -240,37 +240,74 @@ public class DashboardServiceImpl implements DashboardService {
         }
     }
 
-    private List<AccessTrendDto> buildAccessTrends() {
-        LocalDateTime since = LocalDateTime.now().minusHours(24);
+    private List<AccessTrendDto> buildAccessTrends(int days, LocalDateTime since) {
         List<AuditLog> logs = auditLogRepository.findByCreatedAtAfter(since);
 
-        Map<Integer, long[]> hourlyData = new TreeMap<>();
-        for (int i = 0; i < 24; i++) {
-            hourlyData.put(i, new long[]{0, 0});
-        }
-
-        for (AuditLog log : logs) {
-            int hour = log.getTimestamp().getHour();
-            long[] counts = hourlyData.get(hour);
-            if ("DENY".equals(log.getDecision())) {
-                counts[1]++;
-            } else {
-                counts[0]++;
+        if (days <= 2) {
+            Map<Integer, long[]> hourlyData = new TreeMap<>();
+            for (int i = 0; i < 24; i++) {
+                hourlyData.put(i, new long[]{0, 0});
             }
-        }
 
-        List<AccessTrendDto> trends = new ArrayList<>();
-        for (Map.Entry<Integer, long[]> entry : hourlyData.entrySet()) {
-            long[] counts = entry.getValue();
-            trends.add(new AccessTrendDto(
-                    String.format("%02d:00", entry.getKey()),
-                    counts[0],
-                    counts[1],
-                    counts[0] + counts[1]
-            ));
-        }
+            for (AuditLog log : logs) {
+                int hour = log.getTimestamp().getHour();
+                long[] counts = hourlyData.get(hour);
+                if (counts != null) {
+                    if ("DENY".equals(log.getDecision()) || "BLOCK".equals(log.getDecision())) {
+                        counts[1]++;
+                    } else {
+                        counts[0]++;
+                    }
+                }
+            }
 
-        return trends;
+            List<AccessTrendDto> trends = new ArrayList<>();
+            for (Map.Entry<Integer, long[]> entry : hourlyData.entrySet()) {
+                long[] counts = entry.getValue();
+                trends.add(new AccessTrendDto(
+                        String.format("%02d:00", entry.getKey()),
+                        counts[0],
+                        counts[1],
+                        counts[0] + counts[1]
+                ));
+            }
+
+            return trends;
+        } else {
+            Map<String, long[]> dailyData = new TreeMap<>();
+            LocalDateTime current = since;
+            LocalDateTime now = LocalDateTime.now();
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("MM-dd");
+            while (current.isBefore(now) || current.toLocalDate().isEqual(now.toLocalDate())) {
+                dailyData.put(current.format(formatter), new long[]{0, 0});
+                current = current.plusDays(1);
+            }
+
+            for (AuditLog log : logs) {
+                String dateStr = log.getTimestamp().format(formatter);
+                long[] counts = dailyData.get(dateStr);
+                if (counts != null) {
+                    if ("DENY".equals(log.getDecision()) || "BLOCK".equals(log.getDecision())) {
+                        counts[1]++;
+                    } else {
+                        counts[0]++;
+                    }
+                }
+            }
+
+            List<AccessTrendDto> trends = new ArrayList<>();
+            for (Map.Entry<String, long[]> entry : dailyData.entrySet()) {
+                long[] counts = entry.getValue();
+                trends.add(new AccessTrendDto(
+                        entry.getKey(),
+                        counts[0],
+                        counts[1],
+                        counts[0] + counts[1]
+                ));
+            }
+
+            return trends;
+        }
     }
 
     private List<RiskIndicatorDto> analyzeRiskIndicators(long denyCount24h) {

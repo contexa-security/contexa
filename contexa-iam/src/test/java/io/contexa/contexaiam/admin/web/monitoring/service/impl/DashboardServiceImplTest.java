@@ -313,5 +313,32 @@ class DashboardServiceImplTest {
             assertThat(result.allowCount24h()).isEqualTo(100L);
             assertThat(result.denyCount24h()).isEqualTo(5L);
         }
+
+        @Test
+        @DisplayName("should support daily access trends when range is greater than 2 days")
+        void shouldSupportDailyTrends() {
+            stubAllDependencies();
+            LocalDateTime since = LocalDateTime.now().minusDays(7);
+            AuditLog testLog1 = AuditLog.builder()
+                    .id(1L)
+                    .decision("ALLOW")
+                    .timestamp(since.plusDays(1))
+                    .build();
+            AuditLog testLog2 = AuditLog.builder()
+                    .id(2L)
+                    .decision("DENY")
+                    .timestamp(since.plusDays(2))
+                    .build();
+
+            when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(List.of(testLog1, testLog2));
+
+            DashboardDto result = service.getDashboardData(7);
+
+            assertThat(result).isNotNull();
+            assertThat(result.accessTrends()).isNotEmpty();
+            // Since it's daily, period should be formatted as MM-dd
+            AccessTrendDto firstTrend = result.accessTrends().get(0);
+            assertThat(firstTrend.period()).matches("\\d{2}-\\d{2}");
+        }
     }
 }
