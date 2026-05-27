@@ -17,6 +17,7 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -710,31 +711,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (unifiedVectorService == null) {
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                     "VECTOR_SERVICE_UNAVAILABLE", null);
+            markRagRetrievalUnavailable(event, requestedTopK, null);
             return Collections.emptyList();
         }
         try {
-            StringBuilder queryBuilder = new StringBuilder();
-
-            if (event.getSourceIp() != null) {
-                queryBuilder.append("IP: ").append(event.getSourceIp());
-            }
-
             String targetResource = eventEnricher.getTargetResource(event).orElse(null);
-            if (targetResource != null && !targetResource.isEmpty()) {
-                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                queryBuilder.append("Path: ").append(targetResource);
-            }
-
-            String currentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
-            if (currentOS != null && !"Desktop".equals(currentOS)) {
-                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                queryBuilder.append("OS: ").append(currentOS);
-            }
-
-            String query = queryBuilder.toString().trim();
+            String query = buildRelatedContextQuery(event, targetResource);
             if (query.isEmpty()) {
                 capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                         "VECTOR_QUERY_EMPTY", null);
+                markRagRetrievalNotExecuted(event, requestedTopK, "VECTOR_QUERY_EMPTY");
                 return Collections.emptyList();
             }
 
@@ -744,6 +730,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     getLayerName());
                 capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                         "USER_ID_MISSING", null);
+                markRagRetrievalNotExecuted(event, requestedTopK, "USER_ID_MISSING");
                 return Collections.emptyList();
             }
 
@@ -775,6 +762,33 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 }
             }
 
+            if (mergedDocuments.isEmpty()) {
+                String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
+                if (StringUtils.hasText(broadQuery) && !broadQuery.equals(query)) {
+                    double broadThreshold = Math.min(similarityThreshold, 0.35d);
+                    List<Document> broadDocuments = searchBehaviorDocuments(
+                            broadQuery,
+                            requestedTopK,
+                            broadThreshold,
+                            buildBehaviorFilterForUser(userId, retrievalPurpose));
+                    mergedDocuments.addAll(broadDocuments);
+                }
+            }
+
+            if (mergedDocuments.isEmpty()) {
+                String userBaselineQuery = buildUserBaselineContextQuery(event);
+                if (StringUtils.hasText(userBaselineQuery)
+                        && !userBaselineQuery.equals(query)
+                        && !userBaselineQuery.equals(buildBroadRelatedContextQuery(event, targetResource))) {
+                    List<Document> userBaselineDocuments = searchBehaviorDocuments(
+                            userBaselineQuery,
+                            requestedTopK,
+                            0.0d,
+                            buildBehaviorFilterForUser(userId, retrievalPurpose));
+                    mergedDocuments.addAll(userBaselineDocuments);
+                }
+            }
+
             List<Document> documents = dedupeDocuments(mergedDocuments, requestedTopK);
             AuthorizedPromptContext limitedAuthorizedPromptContext;
             if (documents == null || documents.isEmpty()) {
@@ -787,6 +801,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
             }
             capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
+            annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
             return limitedAuthorizedPromptContext.documents();
 
         } catch (Exception e) {
@@ -809,13 +824,181 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         metadata.put("ragUnavailable", true);
         metadata.put("ragTimedOut", false);
+        metadata.put("ragSearchExecuted", false);
+        metadata.put("ragRetrievalState", "UNAVAILABLE");
+        metadata.put("ragAbsenceReason", "UNAVAILABLE");
+        metadata.put("ragProjectionState", "UNAVAILABLE_DECLARED");
+        metadata.put("ragProjectedToFinalPrompt", false);
+        metadata.put("ragStatusProjectedToFinalPrompt", true);
+        metadata.put("relatedDocumentCount", 0);
         metadata.put("relatedDocumentsCount", 0);
+        metadata.put("ragCandidateDocumentCount", 0);
+        metadata.put("ragAuthorizedDocumentCount", 0);
+        metadata.put("ragDeniedDocumentCount", 0);
+        metadata.put("ragPermissionFiltered", false);
         metadata.put("ragFailureType", exception != null ? exception.getClass().getName() : "unknown");
         metadata.put("ragFailureMessage",
                 exception != null && StringUtils.hasText(exception.getMessage())
                         ? exception.getMessage()
                         : "RAG retrieval unavailable");
         metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+    }
+
+    private void markRagRetrievalNotExecuted(SecurityEvent event, int requestedTopK, String absenceReason) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null) {
+            return;
+        }
+        metadata.put("ragSearchExecuted", false);
+        metadata.put("ragUnavailable", false);
+        metadata.put("ragTimedOut", false);
+        metadata.put("ragRetrievalState", "NOT_REQUESTED");
+        metadata.put("ragAbsenceReason", StringUtils.hasText(absenceReason) ? absenceReason : "NOT_REQUESTED");
+        metadata.put("ragProjectionState", "NOT_REQUESTED_DECLARED");
+        metadata.put("ragProjectedToFinalPrompt", false);
+        metadata.put("ragStatusProjectedToFinalPrompt", true);
+        metadata.put("relatedDocumentCount", 0);
+        metadata.put("relatedDocumentsCount", 0);
+        metadata.put("ragCandidateDocumentCount", 0);
+        metadata.put("ragAuthorizedDocumentCount", 0);
+        metadata.put("ragDeniedDocumentCount", 0);
+        metadata.put("ragPermissionFiltered", false);
+        metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+    }
+
+    private void annotateRagSearchResult(
+            SecurityEvent event,
+            int requestedTopK,
+            List<Document> candidateDocuments,
+            AuthorizedPromptContext authorizedPromptContext) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null) {
+            return;
+        }
+        int candidateCount = candidateDocuments != null ? candidateDocuments.size() : 0;
+        int authorizedCount = authorizedPromptContext != null ? authorizedPromptContext.allowedDocumentCount() : 0;
+        int deniedCount = authorizedPromptContext != null ? authorizedPromptContext.deniedDocumentCount() : 0;
+        int projectedCount = authorizedPromptContext != null && authorizedPromptContext.documents() != null
+                ? authorizedPromptContext.documents().size()
+                : 0;
+        boolean permissionFiltered = candidateCount > 0 && projectedCount == 0 && deniedCount > 0;
+        String retrievalState = projectedCount > 0
+                ? "AVAILABLE"
+                : (permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS");
+        String absenceReason = projectedCount > 0
+                ? null
+                : (permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS");
+        metadata.put("ragSearchExecuted", true);
+        metadata.put("ragUnavailable", false);
+        metadata.put("ragTimedOut", false);
+        metadata.put("ragRetrievalState", retrievalState);
+        if (absenceReason != null) {
+            metadata.put("ragAbsenceReason", absenceReason);
+        } else {
+            metadata.remove("ragAbsenceReason");
+        }
+        metadata.put("ragProjectionState", projectedCount > 0 ? "PROJECTED" : "ZERO_RESULTS_DECLARED");
+        metadata.put("ragProjectedToFinalPrompt", projectedCount > 0);
+        metadata.put("ragStatusProjectedToFinalPrompt", true);
+        metadata.put("relatedDocumentCount", projectedCount);
+        metadata.put("relatedDocumentsCount", projectedCount);
+        metadata.put("ragCandidateDocumentCount", candidateCount);
+        metadata.put("ragAuthorizedDocumentCount", authorizedCount);
+        metadata.put("ragDeniedDocumentCount", deniedCount);
+        metadata.put("ragPermissionFiltered", permissionFiltered);
+        metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+        metadata.remove("ragFailureType");
+        metadata.remove("ragFailureMessage");
+    }
+
+    private Map<String, Object> writableMetadata(SecurityEvent event) {
+        if (event == null) {
+            return null;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null) {
+            metadata = new LinkedHashMap<>();
+            event.setMetadata(metadata);
+        }
+        return metadata;
+    }
+
+    private String buildRelatedContextQuery(SecurityEvent event, String targetResource) {
+        StringBuilder query = new StringBuilder();
+        appendQueryPart(query, "user", event != null ? event.getUserId() : null);
+        appendQueryPart(query, "tenant", event != null && event.getMetadata() != null
+                ? firstNonBlankTextValue(textValue(event.getMetadata().get("tenantId")), textValue(event.getMetadata().get("tenant_id")))
+                : null);
+        appendQueryPart(query, "path", targetResource);
+        appendQueryPart(query, "resource", event != null && event.getMetadata() != null
+                ? firstNonBlankTextValue(textValue(event.getMetadata().get("resourceId")), textValue(event.getMetadata().get("ResourceId")))
+                : null);
+        appendQueryPart(query, "action", SecuritySemanticNormalizer.normalizeActionFamily(
+                event != null && event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("method") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("actionFamily") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("ActionFamily") : null));
+        appendQueryPart(query, "resourceFamily", SecuritySemanticNormalizer.normalizeResourceFamily(
+                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceFamily") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("Sensitivity") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("sensitivity") : null));
+        appendQueryPart(query, "auth", SecuritySemanticNormalizer.normalizeAuthenticationType(
+                event != null && event.getMetadata() != null ? event.getMetadata().get("authenticationType") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("authType") : null));
+        appendQueryPart(query, "network", event != null
+                ? SecuritySemanticNormalizer.normalizeNetwork(event.getSourceIp(), event.getMetadata() != null
+                ? textValue(event.getMetadata().get("ipBand"))
+                : null)
+                : null);
+        appendQueryPart(query, "browser", event != null && StringUtils.hasText(event.getUserAgent())
+                ? SecurityEventEnricher.extractBrowserSignature(event.getUserAgent())
+                : null);
+        appendQueryPart(query, "os", event != null && StringUtils.hasText(event.getUserAgent())
+                ? SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent())
+                : null);
+        return query.toString().trim();
+    }
+
+    private String buildBroadRelatedContextQuery(SecurityEvent event, String targetResource) {
+        StringBuilder query = new StringBuilder();
+        appendQueryPart(query, "user", event != null ? event.getUserId() : null);
+        appendQueryPart(query, "action", SecuritySemanticNormalizer.normalizeActionFamily(
+                event != null && event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("method") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("actionFamily") : null));
+        appendQueryPart(query, "pathFamily", SecuritySemanticNormalizer.normalizePathFamily(targetResource));
+        appendQueryPart(query, "browser", event != null && StringUtils.hasText(event.getUserAgent())
+                ? SecurityEventEnricher.extractBrowserSignature(event.getUserAgent())
+                : null);
+        return query.toString().trim();
+    }
+
+    private String buildUserBaselineContextQuery(SecurityEvent event) {
+        StringBuilder query = new StringBuilder();
+        appendQueryPart(query, "user", event != null ? event.getUserId() : null);
+        appendQueryPart(query, "purpose", getContextRetrievalPurpose());
+        appendQueryPart(query, "action", SecuritySemanticNormalizer.normalizeActionFamily(
+                event != null && event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("method") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("actionFamily") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("ActionFamily") : null));
+        appendQueryPart(query, "resourceFamily", SecuritySemanticNormalizer.normalizeResourceFamily(
+                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceFamily") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceType") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceCategory") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("Sensitivity") : null,
+                event != null && event.getMetadata() != null ? event.getMetadata().get("sensitivity") : null));
+        return query.toString().trim();
+    }
+
+    private void appendQueryPart(StringBuilder query, String label, String value) {
+        if (query == null || !StringUtils.hasText(value)) {
+            return;
+        }
+        if (!query.isEmpty()) {
+            query.append(", ");
+        }
+        query.append(label).append(": ").append(value.trim());
     }
 
     private List<Document> searchBehaviorDocuments(

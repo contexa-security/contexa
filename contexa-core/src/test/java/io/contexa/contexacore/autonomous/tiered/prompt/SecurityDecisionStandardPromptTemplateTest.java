@@ -13,6 +13,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -607,19 +608,88 @@ class SecurityDecisionStandardPromptTemplateTest {
                         sessionContext,
                         behaviorAnalysis,
                         List.of(
-                                new Document("User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon). Decision: proposedAction=ALLOW"),
-                                new Document("Follow-up access revisited /admin/api/security-test/sensitive/resource-001 from the same managed browser."))));
+                                new Document(
+                                        "User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon). Decision: proposedAction=ALLOW",
+                                        Map.of(
+                                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                                VectorDocumentMetadata.USER_ID, "alice",
+                                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                                VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation",
+                                                VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY, "purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*",
+                                                VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event")),
+                                new Document(
+                                        "Follow-up access revisited /admin/api/security-test/sensitive/resource-001 from the same managed browser.",
+                                        Map.of(
+                                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                                VectorDocumentMetadata.USER_ID, "alice",
+                                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                                VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation",
+                                                VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY, "purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*",
+                                                VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event")))));
 
         String userPrompt = template.generateUserPrompt(request, "");
 
         assertThat(userPrompt).contains("HistoricalComparableEvents:");
-        assertThat(userPrompt).contains("SupportingComparableCount: 2");
-        assertThat(userPrompt).contains("SupportingComparableSummary: Records=2");
-        assertThat(userPrompt).contains("SupportingComparableExample1:");
+        assertThat(userPrompt).contains("=== RAG EVIDENCE ===");
+        assertThat(userPrompt).contains("RagSearchExecuted: true");
+        assertThat(userPrompt).contains("RagRetrievalState: AVAILABLE");
+        assertThat(userPrompt).contains("RelatedDocumentCount: 2");
+        assertThat(userPrompt).contains("RagEvidenceBoundary:");
+        assertThat(userPrompt).contains("RagDocument1:");
+        assertThat(userPrompt).contains("authorization=ALLOWED_USER_SCOPE");
+        assertThat(userPrompt).contains("retrievalPurpose=security_investigation");
+        assertThat(userPrompt).contains("retrievalPolicy=purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*");
+        assertThat(userPrompt).contains("HistoricalComparableCount: 2");
+        assertThat(userPrompt).contains("HistoricalComparableSummary: Records=2");
+        assertThat(userPrompt).contains("ComparableExample1:");
         assertThat(userPrompt).contains("/admin/api/security-test/sensitive/resource-001");
         assertThat(userPrompt).doesNotContain("Decision:");
         assertThat(userPrompt).doesNotContain("proposedAction=");
-        assertThat(userPrompt).doesNotContain("SupportingComparableExample2:");
+        assertThat(userPrompt).doesNotContain("ComparableExample2:");
+    }
+
+    @Test
+    @DisplayName("RAG zero-result state should be visible in final user prompt")
+    void generateUserPromptShouldRenderRagZeroResultState() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-rag-zero")
+                .timestamp(LocalDateTime.of(2026, 5, 27, 10, 0))
+                .userId("persona_fin_lead")
+                .sessionId("session-rag-zero")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("ragSearchExecuted", true);
+        event.addMetadata("ragRetrievalState", "ZERO_RESULTS");
+        event.addMetadata("ragAbsenceReason", "ZERO_RESULTS");
+        event.addMetadata("ragProjectionState", "ZERO_RESULTS_DECLARED");
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(prompt.userText()).contains("=== RAG EVIDENCE ===");
+        assertThat(prompt.userText()).contains("RagSearchExecuted: true");
+        assertThat(prompt.userText()).contains("RagRetrievalState: ZERO_RESULTS");
+        assertThat(prompt.userText()).contains("RelatedDocumentCount: 0");
+        assertThat(prompt.userText()).contains("RagAbsenceReason: ZERO_RESULTS");
+        assertThat(prompt.userText()).contains("RagDecisionLimit:");
+        assertThat(prompt.executionMetadata().toMetadataMap())
+                .containsEntry("ragSearchExecuted", true)
+                .containsEntry("ragRetrievalState", "ZERO_RESULTS")
+                .containsEntry("ragAbsenceReason", "ZERO_RESULTS")
+                .containsEntry("ragStatusProjectedToFinalPrompt", true);
     }
 
     @Test

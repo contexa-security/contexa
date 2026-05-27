@@ -537,6 +537,72 @@ class AbstractTieredStrategyTest {
         assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(2);
         assertThat(promptContextCaptor.getValue().deniedReasons()).contains("USER_ID_MISSING");
     }
+
+    @Test
+    @DisplayName("searchRelatedContextBase should use same-user baseline fallback when strict RAG search returns zero")
+    void searchRelatedContextBase_zeroStrictResults_usesSameUserBaselineFallback() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-same-user-baseline-fallback")
+                .userId("persona_fin_lead")
+                .sourceIp("0:0:0:0:0:0:0:1")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/148.0.0.0 Safari/537.36")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "tenantId", "demo",
+                        "resourceId", "resource-001",
+                        "resourceType", "normal",
+                        "httpMethod", "GET",
+                        "authenticationType", "PASSWORD")))
+                .build();
+        when(eventEnricher.getTargetResource(event))
+                .thenReturn(Optional.of("/admin/api/enterprise/verification/runtime/probe/normal/resource-001"));
+        when(baselineLearningService.describeBaselineMaturity("persona_fin_lead", "demo-org"))
+                .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        List.of("ACCESS_HOURS", "NETWORKS", "BROWSERS")));
+        Document learnedContext = new Document(
+                "User accessed demo baseline learning cycle=1 resource=normal auth=PASSWORD via GET from 10.10.0.20 using Chrome/120.",
+                Map.of(
+                        "userId", "persona_fin_lead",
+                        "documentType", "behavior",
+                        "retrievalPurpose", "security_investigation"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenReturn(List.of(), List.of(), List.of(), List.of(), List.of(learnedContext));
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                org.mockito.ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(
+                            documents,
+                            documents.size(),
+                            documents.size(),
+                            0,
+                            "security_investigation",
+                            List.of());
+                });
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        assertThat(result).containsExactly(learnedContext);
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, times(5)).searchSimilar(searchRequestCaptor.capture());
+        SearchRequest fallbackRequest = searchRequestCaptor.getAllValues().get(4);
+        assertThat(fallbackRequest.getQuery())
+                .contains("user: persona_fin_lead", "purpose: security_investigation", "action: READ")
+                .doesNotContain("Chrome/148")
+                .doesNotContain("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        assertThat(fallbackRequest.getSimilarityThreshold()).isEqualTo(0.0d);
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("relatedDocumentCount", 1)
+                .containsEntry("ragProjectedToFinalPrompt", true);
+    }
     @Test
     @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should apply cohort seed runtime weight decision")
     void enrichBehaviorAnalysisWithBaselineSupport_appliesCohortSeedRuntimeWeightDecision() {

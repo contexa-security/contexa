@@ -526,7 +526,25 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         metadata.put("ragUnavailable", ragUnavailable);
         metadata.put("ragTimedOut", ragTimedOut);
-        metadata.put("relatedDocumentsCount", relatedDocuments != null ? relatedDocuments.size() : 0);
+        int relatedDocumentCount = relatedDocuments != null ? relatedDocuments.size() : 0;
+        metadata.put("ragSearchExecuted", true);
+        metadata.put("ragRetrievalState", ragRetrievalState(ragUnavailable, ragTimedOut, relatedDocumentCount));
+        metadata.put("ragProjectionState", relatedDocumentCount > 0 ? "PROJECTED" : "ZERO_RESULTS_DECLARED");
+        metadata.put("ragProjectedToFinalPrompt", relatedDocumentCount > 0);
+        metadata.put("ragStatusProjectedToFinalPrompt", true);
+        metadata.put("relatedDocumentCount", relatedDocumentCount);
+        metadata.put("relatedDocumentsCount", relatedDocumentCount);
+        metadata.put("ragCandidateDocumentCount", relatedDocumentCount);
+        metadata.put("ragAuthorizedDocumentCount", relatedDocumentCount);
+        metadata.put("ragDeniedDocumentCount", 0);
+        metadata.put("ragPermissionFiltered", false);
+        if (relatedDocumentCount == 0) {
+            metadata.put("ragAbsenceReason", ragUnavailable
+                    ? (ragTimedOut ? "TIMEOUT" : "UNAVAILABLE")
+                    : "ZERO_RESULTS");
+        } else {
+            metadata.remove("ragAbsenceReason");
+        }
         if (!ragUnavailable) {
             metadata.remove("ragFailureType");
             metadata.remove("ragFailureMessage");
@@ -542,6 +560,16 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         } else {
             metadata.remove("ragTimeoutMs");
         }
+    }
+
+    private String ragRetrievalState(boolean ragUnavailable, boolean ragTimedOut, int relatedDocumentCount) {
+        if (ragTimedOut) {
+            return "TIMEOUT";
+        }
+        if (ragUnavailable) {
+            return "UNAVAILABLE";
+        }
+        return relatedDocumentCount > 0 ? "AVAILABLE" : "ZERO_RESULTS";
     }
 
     private boolean hasRagUnavailableMetadata(SecurityEvent event) {
