@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvide
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
@@ -81,6 +82,23 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver) {
+        this(eventEnricher,
+                tieredStrategyProperties,
+                mcpSecurityContextProvider,
+                canonicalSecurityContextProvider,
+                promptContextComposer,
+                promptGovernanceDescriptorResolver,
+                PromptRuntimeGovernanceRuleProvider.none());
+    }
+
+    public SecurityDecisionStandardPromptTemplate(
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            McpSecurityContextProvider mcpSecurityContextProvider,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer,
+            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
+            PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider) {
         this(new SecurityDecisionPromptSections(
                 eventEnricher,
                 tieredStrategyProperties,
@@ -88,7 +106,8 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 SECURITY_DECISION_PROMPT_GOVERNANCE,
-                promptGovernanceDescriptorResolver));
+                promptGovernanceDescriptorResolver,
+                promptRuntimeGovernanceRuleProvider));
     }
 
     public SecurityDecisionStandardPromptTemplate(

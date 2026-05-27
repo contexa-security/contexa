@@ -91,6 +91,9 @@ import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvalua
 import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
 import io.contexa.contexacore.autonomous.context.inference.ObservedScopeInferenceService;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlanProvider;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 
@@ -181,8 +184,10 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptContextComposer promptContextComposer() {
-        return new PromptContextComposer();
+    public PromptContextComposer promptContextComposer(ObjectProvider<PromptSlotPlanProvider> slotPlanProvider) {
+        return new PromptContextComposer(
+                new PromptSlotRenderer(),
+                slotPlanProvider.getIfAvailable(PromptSlotPlanProvider::unscoped));
     }
 
     @Bean
@@ -224,14 +229,16 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
-            ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver) {
+            ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
+            ObjectProvider<PromptRuntimeGovernanceRuleProvider> promptRuntimeGovernanceRuleProvider) {
         return new SecurityDecisionStandardPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
                 mcpSecurityContextProvider.getIfAvailable(),
                 canonicalSecurityContextProvider,
                 promptContextComposer,
-                promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity));
+                promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
+                promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none));
     }
 
     @Bean

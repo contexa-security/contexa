@@ -7,6 +7,12 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRule;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplication;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplicationResult;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplier;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleContext;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.context.snapshot.CurrentRequestSnapshot;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
@@ -114,10 +120,13 @@ public class SecurityDecisionPromptSections {
     private final PromptContextComposer promptContextComposer;
     private final PromptGovernanceDescriptor promptGovernanceDescriptor;
     private final PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver;
+    private final PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider;
+    private final PromptRuntimeGovernanceRuleApplier promptRuntimeGovernanceRuleApplier;
     private final LearningContextEvidenceAssembler learningContextEvidenceAssembler;
     private final List<PromptSectionPlan> systemSectionPlans;
     private final List<PromptSectionPlan> userSectionPlans;
     private final Cache<String, CanonicalSecurityContext> canonicalSecurityContextCache;
+    private final Cache<String, RenderedPromptSections> systemSectionsCache;
 
     public SecurityDecisionPromptSections(
             SecurityEventEnricher eventEnricher,
@@ -143,6 +152,25 @@ public class SecurityDecisionPromptSections {
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptor promptGovernanceDescriptor,
             PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver) {
+        this(eventEnricher,
+                tieredStrategyProperties,
+                mcpSecurityContextProvider,
+                canonicalSecurityContextProvider,
+                promptContextComposer,
+                promptGovernanceDescriptor,
+                promptGovernanceDescriptorResolver,
+                PromptRuntimeGovernanceRuleProvider.none());
+    }
+
+    public SecurityDecisionPromptSections(
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            McpSecurityContextProvider mcpSecurityContextProvider,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer,
+            PromptGovernanceDescriptor promptGovernanceDescriptor,
+            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
+            PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null ? tieredStrategyProperties : new TieredStrategyProperties();
         this.mcpSecurityContextProvider = mcpSecurityContextProvider;
@@ -152,10 +180,18 @@ public class SecurityDecisionPromptSections {
         this.promptGovernanceDescriptorResolver = promptGovernanceDescriptorResolver != null
                 ? promptGovernanceDescriptorResolver
                 : PromptGovernanceDescriptorResolver.identity();
+        this.promptRuntimeGovernanceRuleProvider = promptRuntimeGovernanceRuleProvider != null
+                ? promptRuntimeGovernanceRuleProvider
+                : PromptRuntimeGovernanceRuleProvider.none();
+        this.promptRuntimeGovernanceRuleApplier = new PromptRuntimeGovernanceRuleApplier();
         this.learningContextEvidenceAssembler = new LearningContextEvidenceAssembler();
         this.canonicalSecurityContextCache = Caffeine.newBuilder()
                 .maximumSize(2000)
                 .expireAfterWrite(15, TimeUnit.MINUTES)
+                .build();
+        this.systemSectionsCache = Caffeine.newBuilder()
+                .maximumSize(64)
+                .expireAfterAccess(30, TimeUnit.MINUTES)
                 .build();
         this.systemSectionPlans = List.of(
                 new PromptSectionPlan(SecurityPromptSectionCatalog.SYSTEM_INSTRUCTION, PromptSectionPriorityClass.P0_REQUIRED, false, false, new SecurityInstructionSectionBuilder()),
@@ -253,12 +289,21 @@ public class SecurityDecisionPromptSections {
                 effectiveBudgetProfile,
                 structuredOutputMode
         );
+        PromptGovernanceResolutionContext runtimeResolutionContext = promptGovernanceResolutionContext(buildContext);
+        PromptRuntimeGovernanceRuleContext runtimeGovernanceRuleContext =
+                promptRuntimeGovernanceRuleContext(runtimeResolutionContext);
+        List<PromptRuntimeGovernanceRule> runtimeGovernanceRules =
+                promptRuntimeGovernanceRuleProvider.activeRules(runtimeGovernanceRuleContext);
+        buildContext = buildContext.withRuntimeGovernanceRules(runtimeGovernanceRules);
 
+        long renderStartedNanos = System.nanoTime();
         RenderedPromptSections systemSections;
         RenderedPromptSections userSections;
+        CachedRenderedPromptSections cachedSystemSections;
         try (PromptTemplateUtils.TruncationScope ignored =
                      PromptTemplateUtils.disableTruncationForCurrentThread(isLosslessPromptProfile(effectiveBudgetProfile))) {
-            systemSections = composeSections(systemSectionPlans, buildContext);
+            cachedSystemSections = composeSystemSections(buildContext, effectiveBudgetProfile);
+            systemSections = cachedSystemSections.sections();
             userSections = composeSections(userSectionPlans, buildContext);
         }
         List<String> sectionSet = mergeSectionKeys(systemSections.renderedSectionKeys(), userSections.renderedSectionKeys());
@@ -269,6 +314,10 @@ public class SecurityDecisionPromptSections {
                 .toList();
         String systemText = systemSections.composedText();
         String userText = userSections.composedText();
+        PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult =
+                promptRuntimeGovernanceRuleApplier.apply(userText, runtimeGovernanceRules);
+        userText = runtimeGovernanceResult.userPrompt();
+        long renderTimeMs = Math.max(0L, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - renderStartedNanos));
         SecurityPromptContractAudit promptContractAudit = SecurityPromptContractVerifier.audit(systemText, userText, buildContext);
         PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger, promptContractAudit);
         PromptGovernanceDescriptorResolution governanceResolution = resolvePromptGovernanceDescriptor(buildContext);
@@ -276,7 +325,19 @@ public class SecurityDecisionPromptSections {
         supplementalMetadata.putAll(buildLearningPromptMetadata(buildContext, sectionSet));
         supplementalMetadata.putAll(buildPromptContractMetadata(promptContractAudit));
         supplementalMetadata.putAll(governanceResolution.supplementalMetadata());
-        supplementalMetadata.putAll(buildPqaPromptCacheMetadata(systemText, effectiveBudgetProfile));
+        supplementalMetadata.putAll(buildPqaPromptCacheMetadata(
+                systemText,
+                effectiveBudgetProfile,
+                cachedSystemSections,
+                userText,
+                renderTimeMs));
+        supplementalMetadata.putAll(buildPromptRuntimeGovernanceMetadata(runtimeGovernanceRules, runtimeGovernanceResult));
+        supplementalMetadata.putAll(promptRuntimeGovernanceRuleProvider.runtimeCacheMetadata(runtimeGovernanceRuleContext));
+        promptRuntimeGovernanceRuleProvider.recordApplications(
+                runtimeGovernanceRuleContext,
+                runtimeGovernanceResult.applications(),
+                PromptGovernanceSupport.sha256(systemText != null ? systemText : ""),
+                PromptGovernanceSupport.sha256(userText != null ? userText : ""));
 
         return new StructuredPrompt(
                 systemText,
@@ -397,15 +458,87 @@ public class SecurityDecisionPromptSections {
         );
     }
 
+    private PromptRuntimeGovernanceRuleContext promptRuntimeGovernanceRuleContext(
+            PromptGovernanceResolutionContext resolutionContext) {
+        return new PromptRuntimeGovernanceRuleContext(
+                resolutionContext.registryScope(),
+                resolutionContext.promptKey(),
+                promptGovernanceDescriptor.promptVersion(),
+                resolutionContext.tenantId(),
+                resolutionContext.resourceId(),
+                resolutionContext.resourceUrl(),
+                resolutionContext.httpMethod(),
+                resolutionContext.attributes());
+    }
+
+    private Map<String, Object> buildPromptRuntimeGovernanceMetadata(
+            List<PromptRuntimeGovernanceRule> rules,
+            PromptRuntimeGovernanceRuleApplicationResult result) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        List<PromptRuntimeGovernanceRule> safeRules = rules != null ? rules : List.of();
+        List<PromptRuntimeGovernanceRuleApplication> applications =
+                result == null || result.applications() == null ? List.of() : result.applications();
+        List<String> ruleIds = safeRules.stream()
+                .map(PromptRuntimeGovernanceRule::ruleId)
+                .filter(StringUtils::hasText)
+                .toList();
+        List<String> applicationRuleIds = applications.stream()
+                .map(PromptRuntimeGovernanceRuleApplication::ruleId)
+                .filter(StringUtils::hasText)
+                .toList();
+        List<String> appliedRuleIds = applications.stream()
+                .filter(PromptRuntimeGovernanceRuleApplication::changedPrompt)
+                .map(PromptRuntimeGovernanceRuleApplication::ruleId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        metadata.put("promptRuntimeGovernanceRuleCount", safeRules.size());
+        metadata.put("promptRuntimeGovernanceRuleIds", ruleIds);
+        metadata.put("promptRuntimeGovernanceApplicationRuleIds", applicationRuleIds);
+        metadata.put("promptRuntimeGovernanceAppliedRuleIds", appliedRuleIds);
+        metadata.put("promptRuntimeGovernanceAppliedCount", applications.stream()
+                .filter(PromptRuntimeGovernanceRuleApplication::changedPrompt)
+                .count());
+        metadata.put("promptRuntimeGovernanceApplicationStates", applications.stream()
+                .map(this::promptRuntimeGovernanceApplicationMetadata)
+                .toList());
+        return metadata;
+    }
+
+    private Map<String, Object> promptRuntimeGovernanceApplicationMetadata(
+            PromptRuntimeGovernanceRuleApplication application) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (application == null) {
+            return metadata;
+        }
+        metadata.put("ruleId", application.ruleId());
+        metadata.put("sourceActionId", application.sourceActionId());
+        metadata.put("slotKey", application.slotKey());
+        metadata.put("ruleType", application.ruleType());
+        metadata.put("appliedOperation", application.appliedOperation());
+        metadata.put("resultState", application.resultState());
+        metadata.put("changedPrompt", application.changedPrompt());
+        metadata.put("beforePromptHash", application.beforePromptHash());
+        metadata.put("afterPromptHash", application.afterPromptHash());
+        return metadata;
+    }
+
     private Map<String, Object> buildPqaPromptCacheMetadata(
             String systemText,
-            PromptBudgetProfile budgetProfile) {
+            PromptBudgetProfile budgetProfile,
+            CachedRenderedPromptSections cachedSystemSections,
+            String userText,
+            long renderTimeMs) {
         PromptBudgetProfile effectiveProfile = budgetProfile != null
                 ? budgetProfile
                 : PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("promptCacheSystemStable", true);
         metadata.put("promptCacheSystemHash", PromptGovernanceSupport.sha256(systemText != null ? systemText : ""));
+        metadata.put("promptCacheSystemKey", cachedSystemSections != null ? cachedSystemSections.cacheKey() : null);
+        metadata.put("promptCacheSystemHit", cachedSystemSections != null && cachedSystemSections.cacheHit());
+        metadata.put("promptRuntimeSlotCount", countPromptSlotLines(userText));
+        metadata.put("promptRuntimeRenderTimeMs", renderTimeMs);
         metadata.put("promptCacheContextMode", effectiveProfile.viewProfile() == PromptViewProfile.COMPACT
                 ? "COMPACT_WITH_FIELD_DIFF"
                 : "FULL_FIELD_PRESERVED");
@@ -413,6 +546,46 @@ public class SecurityDecisionPromptSections {
         metadata.put("pqaRawPromptRole", "TRACEABILITY_ONLY");
         metadata.put("pqaPromptCachePolicy", "SYSTEM_STATIC_CONTEXT_FIELD_PRESERVED_V1");
         return metadata;
+    }
+
+    private CachedRenderedPromptSections composeSystemSections(
+            SecurityPromptBuildContext buildContext,
+            PromptBudgetProfile budgetProfile) {
+        String cacheKey = systemSectionsCacheKey(buildContext, budgetProfile);
+        RenderedPromptSections cached = systemSectionsCache.getIfPresent(cacheKey);
+        if (cached != null) {
+            return new CachedRenderedPromptSections(cacheKey, true, cached);
+        }
+        RenderedPromptSections rendered = composeSections(systemSectionPlans, buildContext);
+        systemSectionsCache.put(cacheKey, rendered);
+        return new CachedRenderedPromptSections(cacheKey, false, rendered);
+    }
+
+    private String systemSectionsCacheKey(SecurityPromptBuildContext buildContext, PromptBudgetProfile budgetProfile) {
+        PromptBudgetProfile effectiveProfile = budgetProfile != null
+                ? budgetProfile
+                : PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
+        StructuredOutputMode outputMode = buildContext != null
+                ? buildContext.getStructuredOutputMode()
+                : StructuredOutputMode.VALIDATED_CONVERTER;
+        return String.join("|",
+                promptGovernanceDescriptor.promptKey(),
+                promptGovernanceDescriptor.promptVersion(),
+                effectiveProfile.profileKey(),
+                outputMode.name());
+    }
+
+    private int countPromptSlotLines(String userText) {
+        if (!StringUtils.hasText(userText)) {
+            return 0;
+        }
+        int count = 0;
+        for (String line : userText.split("\\R")) {
+            if (line != null && line.contains(":") && !line.stripLeading().startsWith("#")) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private boolean isLosslessPromptProfile(PromptBudgetProfile budgetProfile) {
@@ -2657,6 +2830,12 @@ public class SecurityDecisionPromptSections {
             String composedText,
             List<String> renderedSectionKeys,
             List<PromptOmissionRecord> omissionLedger) {
+    }
+
+    private record CachedRenderedPromptSections(
+            String cacheKey,
+            boolean cacheHit,
+            RenderedPromptSections sections) {
     }
 
     boolean hasPromptContent(String section) {

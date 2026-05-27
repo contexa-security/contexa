@@ -97,4 +97,8 @@ public class PipelineExecutionContext {
         }
         return type.isInstance(value) ? type.cast(value) : null;
     }
+
+    public Map<String, Object> metadataSnapshot() {
+        return Map.copyOf(metadata);
+    }
 }

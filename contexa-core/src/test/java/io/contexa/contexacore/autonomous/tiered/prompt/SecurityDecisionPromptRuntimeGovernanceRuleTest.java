@@ -1,0 +1,136 @@
+package io.contexa.contexacore.autonomous.tiered.prompt;
+
+import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
+import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRule;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplication;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleContext;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
+import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class SecurityDecisionPromptRuntimeGovernanceRuleTest {
+
+    @Test
+    void appliesActiveRuntimeGovernanceRulesDuringPromptBuildAndRecordsApplications() {
+        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(new PromptRuntimeGovernanceRule(
+                "pqa-rtg-rule-runtime-test",
+                "pqa-rtg-action-runtime-test",
+                "cortex.security-decision",
+                "runtime.test.narrative",
+                "ADD_NARRATIVE",
+                100,
+                Map.of("narrative", "RuntimeGovernanceNarrative: preserve browser transition context."))));
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer(),
+                null,
+                provider);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-governance-001")
+                .timestamp(LocalDateTime.of(2026, 5, 23, 16, 30))
+                .userId("persona_fin_lead")
+                .sessionId("session-runtime-governance")
+                .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        event.addMetadata("resourceId", "resource-001");
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("authorizationEffect", "ALLOW");
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(prompt.userText()).contains("RuntimeGovernanceNarrative: preserve browser transition context.");
+        assertThat(provider.requestedContexts()).hasSize(1);
+        assertThat(provider.requestedContexts().get(0).promptKey()).isEqualTo("cortex.security-decision");
+        assertThat(provider.recordedApplications()).hasSize(1);
+        assertThat(provider.recordedApplications().get(0).ruleId()).isEqualTo("pqa-rtg-rule-runtime-test");
+        assertThat(provider.recordedApplications().get(0).changedPrompt()).isTrue();
+        assertThat(provider.recordedSystemPromptHash()).startsWith("sha256:");
+        assertThat(provider.recordedUserPromptHash()).startsWith("sha256:");
+        assertThat(prompt.executionMetadata().toMetadataMap())
+                .containsEntry("promptRuntimeGovernanceRuleCount", 1)
+                .containsEntry("promptRuntimeGovernanceAppliedCount", 1L);
+        assertThat(prompt.executionMetadata().toMetadataMap())
+                .containsEntry("promptRuntimeGovernanceRuleIds", List.of("pqa-rtg-rule-runtime-test"))
+                .containsEntry("promptRuntimeGovernanceApplicationRuleIds", List.of("pqa-rtg-rule-runtime-test"))
+                .containsEntry("promptRuntimeGovernanceAppliedRuleIds", List.of("pqa-rtg-rule-runtime-test"));
+        assertThat((List<Map<String, Object>>) prompt.executionMetadata().toMetadataMap()
+                .get("promptRuntimeGovernanceApplicationStates"))
+                .singleElement()
+                .satisfies(applicationState -> assertThat(applicationState)
+                        .containsEntry("ruleId", "pqa-rtg-rule-runtime-test")
+                        .containsEntry("sourceActionId", "pqa-rtg-action-runtime-test")
+                        .containsEntry("slotKey", "runtime.test.narrative")
+                        .containsEntry("resultState", "APPLIED")
+                        .containsEntry("changedPrompt", true));
+    }
+
+    private static final class CapturingRuleProvider implements PromptRuntimeGovernanceRuleProvider {
+
+        private final List<PromptRuntimeGovernanceRule> rules;
+        private final List<PromptRuntimeGovernanceRuleContext> requestedContexts = new ArrayList<>();
+        private final List<PromptRuntimeGovernanceRuleApplication> recordedApplications = new ArrayList<>();
+        private String recordedSystemPromptHash;
+        private String recordedUserPromptHash;
+
+        private CapturingRuleProvider(List<PromptRuntimeGovernanceRule> rules) {
+            this.rules = rules;
+        }
+
+        @Override
+        public List<PromptRuntimeGovernanceRule> activeRules(PromptRuntimeGovernanceRuleContext context) {
+            requestedContexts.add(context);
+            return rules;
+        }
+
+        @Override
+        public void recordApplications(
+                PromptRuntimeGovernanceRuleContext context,
+                List<PromptRuntimeGovernanceRuleApplication> applications,
+                String systemPromptHash,
+                String userPromptHash) {
+            recordedApplications.addAll(applications);
+            recordedSystemPromptHash = systemPromptHash;
+            recordedUserPromptHash = userPromptHash;
+        }
+
+        private List<PromptRuntimeGovernanceRuleContext> requestedContexts() {
+            return requestedContexts;
+        }
+
+        private List<PromptRuntimeGovernanceRuleApplication> recordedApplications() {
+            return recordedApplications;
+        }
+
+        private String recordedSystemPromptHash() {
+            return recordedSystemPromptHash;
+        }
+
+        private String recordedUserPromptHash() {
+            return recordedUserPromptHash;
+        }
+    }
+}

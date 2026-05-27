@@ -23,6 +23,28 @@ public class PromptContextComposer {
     public static final String PRODUCER_ROLE_SCOPE_SECTION = "PromptContextComposer.composeRoleScopeSection";
     public static final String PRODUCER_THREAT_SECTION = "PromptContextComposer.composeReasoningMemorySection";
 
+    private final PromptSlotRenderer slotRenderer;
+    private final PromptSlotPlanCache slotPlanCache;
+
+    public PromptContextComposer() {
+        this(new PromptSlotRenderer(), new PromptSlotPlanCache());
+    }
+
+    PromptContextComposer(PromptSlotRenderer slotRenderer) {
+        this(slotRenderer, new PromptSlotPlanCache());
+    }
+
+    public PromptContextComposer(PromptSlotRenderer slotRenderer, PromptSlotPlanProvider slotPlanProvider) {
+        this(slotRenderer, new PromptSlotPlanCache(slotPlanProvider == null
+                ? PromptSlotPlanProvider.unscoped()
+                : slotPlanProvider));
+    }
+
+    PromptContextComposer(PromptSlotRenderer slotRenderer, PromptSlotPlanCache slotPlanCache) {
+        this.slotRenderer = slotRenderer == null ? new PromptSlotRenderer() : slotRenderer;
+        this.slotPlanCache = slotPlanCache == null ? new PromptSlotPlanCache() : slotPlanCache;
+    }
+
     public String compose(CanonicalSecurityContext context) {
         if (context == null) {
             return null;
@@ -853,20 +875,14 @@ public class PromptContextComposer {
         if (values == null || values.isEmpty()) {
             return;
         }
-        section.append(label)
-                .append(": ")
-                .append(String.join(", ", values))
-                .append("\n");
+        appendSlot(section, label, values, String.join(", ", values));
     }
 
     private void appendIntegerList(StringBuilder section, String label, List<Integer> values) {
         if (values == null || values.isEmpty()) {
             return;
         }
-        section.append(label)
-                .append(": ")
-                .append(values.stream().map(String::valueOf).toList())
-                .append("\n");
+        appendSlot(section, label, values, values.stream().map(String::valueOf).toList().toString());
     }
 
     private void appendLine(StringBuilder section, String label, Object value) {
@@ -877,10 +893,40 @@ public class PromptContextComposer {
         if (!StringUtils.hasText(text)) {
             return;
         }
-        section.append(label)
-                .append(": ")
-                .append(text)
-                .append("\n");
+        appendSlot(section, label, value, text);
+    }
+
+    private void appendSlot(StringBuilder section, String label, Object sourceValue, String renderedValue) {
+        PromptSlotPlan plan = slotPlanCache.planFor(currentSectionKey(section), label);
+        String rendered = slotRenderer.renderLine(plan.bind(sourceValue, renderedValue, null));
+        if (StringUtils.hasText(rendered)) {
+            section.append(rendered);
+        }
+    }
+
+    private String currentSectionKey(StringBuilder section) {
+        if (section == null || section.isEmpty()) {
+            return null;
+        }
+        String current = section.toString();
+        int markerStart = current.lastIndexOf("\n=== ");
+        if (markerStart < 0) {
+            markerStart = current.lastIndexOf("=== ");
+        }
+        if (markerStart < 0) {
+            return null;
+        }
+        int titleStart = current.indexOf("=== ", markerStart);
+        if (titleStart < 0) {
+            return null;
+        }
+        titleStart += 4;
+        int titleEnd = current.indexOf(" ===", titleStart);
+        if (titleEnd <= titleStart) {
+            return null;
+        }
+        String sectionKey = current.substring(titleStart, titleEnd).trim();
+        return StringUtils.hasText(sectionKey) ? sectionKey : null;
     }
 
     private void appendLineOrUnknown(StringBuilder section, String label, Object value) {

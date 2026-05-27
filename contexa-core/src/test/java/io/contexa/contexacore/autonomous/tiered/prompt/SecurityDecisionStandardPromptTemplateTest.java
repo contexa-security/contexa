@@ -153,6 +153,47 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
+    @DisplayName("runtime rendering should cache only stable system prompt sections")
+    void buildStructuredPromptShouldCacheStableSystemSectionsOnly() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+        SecurityDecisionRequest firstRequest = requestFor("alice", "/api/customer/export", "POST");
+        SecurityDecisionRequest secondRequest = requestFor("bob", "/admin/api/security-test/normal/resource-001", "GET");
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt firstPrompt = template.buildStructuredPrompt(
+                firstRequest.getContext().getSecurityEvent(),
+                firstRequest.getContext().getSessionContext(),
+                firstRequest.getContext().getBehaviorAnalysis(),
+                firstRequest.getContext().getRelatedDocuments());
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt secondPrompt = template.buildStructuredPrompt(
+                secondRequest.getContext().getSecurityEvent(),
+                secondRequest.getContext().getSessionContext(),
+                secondRequest.getContext().getBehaviorAnalysis(),
+                secondRequest.getContext().getRelatedDocuments());
+        Map<String, Object> firstMetadata = firstPrompt.executionMetadata().toMetadataMap();
+        Map<String, Object> secondMetadata = secondPrompt.executionMetadata().toMetadataMap();
+
+        assertThat(firstMetadata)
+                .containsEntry("promptCacheSystemStable", true)
+                .containsEntry("promptCacheSystemHit", false);
+        assertThat(secondMetadata)
+                .containsEntry("promptCacheSystemStable", true)
+                .containsEntry("promptCacheSystemHit", true);
+        assertThat(secondMetadata.get("promptCacheSystemHash")).isEqualTo(firstMetadata.get("promptCacheSystemHash"));
+        assertThat(secondMetadata.get("promptCacheSystemKey"))
+                .asString()
+                .doesNotContain("alice")
+                .doesNotContain("bob")
+                .doesNotContain("/api/customer/export")
+                .doesNotContain("/admin/api/security-test/normal/resource-001");
+        assertThat(((Number) secondMetadata.get("promptRuntimeSlotCount")).intValue()).isGreaterThan(0);
+        assertThat(((Number) secondMetadata.get("promptRuntimeRenderTimeMs")).longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(firstPrompt.userText()).contains("alice").contains("/api/customer/export");
+        assertThat(secondPrompt.userText()).contains("bob").contains("/admin/api/security-test/normal/resource-001");
+    }
+
+    @Test
     @DisplayName("native structured mode should omit legacy output format wrapper from system prompt")
     void generateSystemPromptShouldOmitOutputFormatWrapperForNativeStructuredMode() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
