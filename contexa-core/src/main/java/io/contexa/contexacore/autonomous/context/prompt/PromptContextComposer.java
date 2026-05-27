@@ -525,7 +525,8 @@ public class PromptContextComposer {
         appendList(section, "NormalApprovalPatterns", roleScopeProfile.getNormalApprovalPatterns());
         appendList(section, "NormalEscalationPatterns", roleScopeProfile.getNormalEscalationPatterns());
         if (roleScopeProfile.getRecentPermissionChanges() == null || roleScopeProfile.getRecentPermissionChanges().isEmpty()) {
-            appendLine(section, "RecentPermissionChanges", "UNKNOWN");
+            appendLine(section, "RecentPermissionChanges",
+                    "UNKNOWN - recent permission change evidence was not provided; do not infer permission stability.");
         } else {
             appendList(section, "RecentPermissionChanges", roleScopeProfile.getRecentPermissionChanges());
         }
@@ -647,20 +648,28 @@ public class PromptContextComposer {
     private void appendFrictionSection(StringBuilder section, CanonicalSecurityContext.FrictionProfile frictionProfile) {
         section.append("\n=== FRICTION AND APPROVAL HISTORY ===\n");
         if (frictionProfile == null) {
-            appendLine(section, "ApprovalRequired", "UNKNOWN");
-            appendLine(section, "ApprovalGranted", "UNKNOWN");
-            appendLine(section, "ApprovalMissing", "UNKNOWN");
-            appendLine(section, "ApprovalStatus", "UNKNOWN");
+            appendLine(section, "ApprovalRequired",
+                    "UNKNOWN - approval provider supplied no approval requirement for this request; do not infer prior approval.");
+            appendLine(section, "ApprovalGranted",
+                    "UNKNOWN - approval provider supplied no grant result for this request; do not infer granted approval.");
+            appendLine(section, "ApprovalMissing",
+                    "UNKNOWN - approval provider supplied no missing-approval signal; do not infer approval completeness.");
+            appendLine(section, "ApprovalStatus",
+                    "UNKNOWN - approval provider supplied no approval lineage for this request; do not infer prior approval.");
             return;
         }
         appendLine(section, "FrictionSummary", frictionProfile.getSummary());
         appendLine(section, "RecentChallengeCount", frictionProfile.getRecentChallengeCount());
         appendLine(section, "RecentBlockCount", frictionProfile.getRecentBlockCount());
         appendLine(section, "RecentEscalationCount", frictionProfile.getRecentEscalationCount());
-        appendLineOrUnknown(section, "ApprovalRequired", frictionProfile.getApprovalRequired());
-        appendLineOrUnknown(section, "ApprovalGranted", frictionProfile.getApprovalGranted());
-        appendLineOrUnknown(section, "ApprovalMissing", frictionProfile.getApprovalMissing());
-        appendLineOrUnknown(section, "ApprovalStatus", frictionProfile.getApprovalStatus());
+        appendLineOrExplainedUnknown(section, "ApprovalRequired", frictionProfile.getApprovalRequired(),
+                "approval provider supplied no approval requirement for this request; do not infer prior approval.");
+        appendLineOrExplainedUnknown(section, "ApprovalGranted", frictionProfile.getApprovalGranted(),
+                "approval provider supplied no grant result for this request; do not infer granted approval.");
+        appendLineOrExplainedUnknown(section, "ApprovalMissing", frictionProfile.getApprovalMissing(),
+                "approval provider supplied no missing-approval signal; do not infer approval completeness.");
+        appendLineOrExplainedUnknown(section, "ApprovalStatus", frictionProfile.getApprovalStatus(),
+                "approval provider supplied no approval lineage for this request; do not infer prior approval.");
         appendList(section, "ApprovalLineage", frictionProfile.getApprovalLineage());
         appendList(section, "PendingApproverRoles", frictionProfile.getPendingApproverRoles());
         appendLine(section, "ApprovalTicketId", frictionProfile.getApprovalTicketId());
@@ -673,10 +682,14 @@ public class PromptContextComposer {
     private void appendDelegationSection(StringBuilder section, CanonicalSecurityContext.Delegation delegation) {
         section.append("\n=== DELEGATED OBJECTIVE CONTEXT ===\n");
         if (delegation == null || !hasDelegationData(delegation)) {
-            appendLine(section, "Delegated", "UNKNOWN");
-            appendLine(section, "ObjectiveFamily", "UNKNOWN");
-            appendLine(section, "ObjectiveSummary", "UNKNOWN");
-            appendLine(section, "ObjectiveAlignmentEvidence", "UNKNOWN");
+            appendLine(section, "Delegated",
+                    "UNKNOWN - delegation context was not provided for this request; do not infer delegated objective.");
+            appendLine(section, "ObjectiveFamily",
+                    "UNKNOWN - delegation context was not provided for this request; do not infer objective family.");
+            appendLine(section, "ObjectiveSummary",
+                    "UNKNOWN - delegation context was not provided for this request; do not infer objective summary.");
+            appendLine(section, "ObjectiveAlignmentEvidence",
+                    "UNKNOWN - delegation context supplied no objective alignment evidence; do not infer business intent.");
             return;
         }
         if (Boolean.FALSE.equals(delegation.getDelegated())) {
@@ -694,17 +707,21 @@ public class PromptContextComposer {
                     firstText(delegation.getObjectiveDriftSummary(), "NOT_APPLICABLE"));
             return;
         }
-        appendLineOrUnknown(section, "Delegated", delegation.getDelegated());
+        appendLineOrExplainedUnknown(section, "Delegated", delegation.getDelegated(),
+                "delegation context was not provided for this request; do not infer delegated objective.");
         appendLine(section, "AgentId", delegation.getAgentId());
         appendLine(section, "ObjectiveId", delegation.getObjectiveId());
-        appendLineOrUnknown(section, "ObjectiveFamily", delegation.getObjectiveFamily());
-        appendLineOrUnknown(section, "ObjectiveSummary", delegation.getObjectiveSummary());
+        appendLineOrExplainedUnknown(section, "ObjectiveFamily", delegation.getObjectiveFamily(),
+                "delegation context supplied no objective family; do not infer objective family.");
+        appendLineOrExplainedUnknown(section, "ObjectiveSummary", delegation.getObjectiveSummary(),
+                "delegation context supplied no objective summary; do not infer objective summary.");
         appendList(section, "AllowedOperations", delegation.getAllowedOperations());
         appendList(section, "AllowedResources", delegation.getAllowedResources());
         appendLine(section, "ApprovalRequired", delegation.getApprovalRequired());
         appendLine(section, "PrivilegedExportAllowed", delegation.getPrivilegedExportAllowed());
         appendLine(section, "ContainmentOnly", delegation.getContainmentOnly());
-        appendLineOrUnknown(section, "ObjectiveAlignmentEvidence", delegation.getObjectiveDriftSummary());
+        appendLineOrExplainedUnknown(section, "ObjectiveAlignmentEvidence", delegation.getObjectiveDriftSummary(),
+                "delegation context supplied no objective alignment evidence; do not infer business intent.");
     }
 
     private void appendReasoningMemorySection(StringBuilder section, CanonicalSecurityContext.ReasoningMemoryProfile reasoningMemoryProfile) {
@@ -972,7 +989,8 @@ public class PromptContextComposer {
             return;
         }
         if (comparedValues == null || comparedValues.isEmpty() || present == null) {
-            appendLine(section, label, "UNKNOWN");
+            appendLine(section, label,
+                    "UNKNOWN - comparison baseline is unavailable; do not treat this scope comparison as proof.");
             return;
         }
         appendLine(section, label, present);

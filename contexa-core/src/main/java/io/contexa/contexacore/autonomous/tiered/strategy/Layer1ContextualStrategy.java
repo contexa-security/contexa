@@ -527,21 +527,29 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         metadata.put("ragUnavailable", ragUnavailable);
         metadata.put("ragTimedOut", ragTimedOut);
         int relatedDocumentCount = relatedDocuments != null ? relatedDocuments.size() : 0;
+        boolean hasSearchLedgerMetadata = hasRagSearchLedgerMetadata(metadata);
         metadata.put("ragSearchExecuted", true);
-        metadata.put("ragRetrievalState", ragRetrievalState(ragUnavailable, ragTimedOut, relatedDocumentCount));
-        metadata.put("ragProjectionState", relatedDocumentCount > 0 ? "PROJECTED" : "ZERO_RESULTS_DECLARED");
+        if (!hasSearchLedgerMetadata || ragUnavailable || ragTimedOut) {
+            metadata.put("ragRetrievalState", ragRetrievalState(ragUnavailable, ragTimedOut, relatedDocumentCount));
+        }
+        Object retrievalState = metadata.get("ragRetrievalState");
+        boolean permissionFiltered = Boolean.TRUE.equals(metadata.get("ragPermissionFiltered"))
+                || "PERMISSION_FILTERED".equals(retrievalState);
+        metadata.put("ragProjectionState", relatedDocumentCount > 0
+                ? "PROJECTED"
+                : (permissionFiltered ? "PERMISSION_FILTERED_DECLARED" : "ZERO_RESULTS_DECLARED"));
         metadata.put("ragProjectedToFinalPrompt", relatedDocumentCount > 0);
         metadata.put("ragStatusProjectedToFinalPrompt", true);
         metadata.put("relatedDocumentCount", relatedDocumentCount);
         metadata.put("relatedDocumentsCount", relatedDocumentCount);
-        metadata.put("ragCandidateDocumentCount", relatedDocumentCount);
-        metadata.put("ragAuthorizedDocumentCount", relatedDocumentCount);
-        metadata.put("ragDeniedDocumentCount", 0);
-        metadata.put("ragPermissionFiltered", false);
+        metadata.putIfAbsent("ragCandidateDocumentCount", relatedDocumentCount);
+        metadata.putIfAbsent("ragAuthorizedDocumentCount", relatedDocumentCount);
+        metadata.putIfAbsent("ragDeniedDocumentCount", 0);
+        metadata.putIfAbsent("ragPermissionFiltered", permissionFiltered);
         if (relatedDocumentCount == 0) {
-            metadata.put("ragAbsenceReason", ragUnavailable
+            metadata.putIfAbsent("ragAbsenceReason", ragUnavailable
                     ? (ragTimedOut ? "TIMEOUT" : "UNAVAILABLE")
-                    : "ZERO_RESULTS");
+                    : (permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS"));
         } else {
             metadata.remove("ragAbsenceReason");
         }
@@ -560,6 +568,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         } else {
             metadata.remove("ragTimeoutMs");
         }
+    }
+
+    private boolean hasRagSearchLedgerMetadata(Map<String, Object> metadata) {
+        return metadata.containsKey("ragRetrievalState")
+                || metadata.containsKey("ragCandidateDocumentCount")
+                || metadata.containsKey("ragAuthorizedDocumentCount")
+                || metadata.containsKey("ragDeniedDocumentCount")
+                || metadata.containsKey("ragPermissionFiltered")
+                || metadata.containsKey("requestedDocumentCount")
+                || metadata.containsKey("allowedDocumentCount")
+                || metadata.containsKey("deniedDocumentCount");
     }
 
     private String ragRetrievalState(boolean ragUnavailable, boolean ragTimedOut, int relatedDocumentCount) {

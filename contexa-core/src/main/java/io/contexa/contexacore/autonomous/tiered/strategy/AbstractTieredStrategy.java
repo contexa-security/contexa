@@ -842,6 +842,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         ? exception.getMessage()
                         : "RAG retrieval unavailable");
         metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+        metadata.put("requestedDocumentCount", Math.max(0, requestedTopK));
+        metadata.put("allowedDocumentCount", 0);
+        metadata.put("deniedDocumentCount", 0);
     }
 
     private void markRagRetrievalNotExecuted(SecurityEvent event, int requestedTopK, String absenceReason) {
@@ -864,6 +867,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.put("ragDeniedDocumentCount", 0);
         metadata.put("ragPermissionFiltered", false);
         metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+        metadata.put("requestedDocumentCount", 0);
+        metadata.put("allowedDocumentCount", 0);
+        metadata.put("deniedDocumentCount", 0);
     }
 
     private void annotateRagSearchResult(
@@ -873,6 +879,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             AuthorizedPromptContext authorizedPromptContext) {
         Map<String, Object> metadata = writableMetadata(event);
         if (metadata == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(metadata.get("ragTimedOut"))) {
             return;
         }
         int candidateCount = candidateDocuments != null ? candidateDocuments.size() : 0;
@@ -907,6 +916,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.put("ragDeniedDocumentCount", deniedCount);
         metadata.put("ragPermissionFiltered", permissionFiltered);
         metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+        metadata.put("requestedDocumentCount", authorizedPromptContext != null
+                ? authorizedPromptContext.requestedDocumentCount()
+                : candidateCount);
+        metadata.put("allowedDocumentCount", authorizedCount);
+        metadata.put("deniedDocumentCount", deniedCount);
         metadata.remove("ragFailureType");
         metadata.remove("ragFailureMessage");
     }
@@ -1227,11 +1241,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (authorizedPromptContext == null || authorizedPromptContext.documents().isEmpty()) {
             return new AuthorizedPromptContext(
                     List.of(),
-                    0,
-                    0,
-                    0,
+                    authorizedPromptContext != null
+                            ? authorizedPromptContext.requestedDocumentCount()
+                            : Math.max(0, requestedTopK),
+                    authorizedPromptContext != null ? authorizedPromptContext.allowedDocumentCount() : 0,
+                    authorizedPromptContext != null ? authorizedPromptContext.deniedDocumentCount() : 0,
                     getContextRetrievalPurpose(),
-                    List.of());
+                    authorizedPromptContext != null ? authorizedPromptContext.deniedReasons() : List.of());
         }
 
         if (authorizedPromptContext.documents().size() <= requestedTopK) {

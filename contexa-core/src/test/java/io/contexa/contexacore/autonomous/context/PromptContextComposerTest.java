@@ -485,6 +485,34 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("BotUserAgent: UNKNOWN - not available from intent signal context");
     }
 
+    @Test
+    void composeShouldExplainRoleApprovalAndDelegationUnknowns() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentResourceFamily("REPORT")
+                        .currentActionFamily("READ")
+                        .summary("Role scope evidence is not mature.")
+                        .build())
+                .frictionProfile(CanonicalSecurityContext.FrictionProfile.builder()
+                        .summary("Approval provider did not provide lineage.")
+                        .build())
+                .delegation(CanonicalSecurityContext.Delegation.builder()
+                        .delegated(true)
+                        .build())
+                .build();
+
+        String promptSection = new PromptContextComposer().compose(context);
+
+        assertThat(promptSection)
+                .contains("RecentPermissionChanges: UNKNOWN - recent permission change evidence was not provided; do not infer permission stability.")
+                .contains("CurrentResourceFamilyPresentInExpectedRoleScope: UNKNOWN - comparison baseline is unavailable; do not treat this scope comparison as proof.")
+                .contains("CurrentActionFamilyPresentInExpectedRoleScope: UNKNOWN - comparison baseline is unavailable; do not treat this scope comparison as proof.")
+                .contains("ApprovalRequired: UNKNOWN - approval provider supplied no approval requirement for this request; do not infer prior approval.")
+                .contains("ApprovalGranted: UNKNOWN - approval provider supplied no grant result for this request; do not infer granted approval.")
+                .contains("ApprovalStatus: UNKNOWN - approval provider supplied no approval lineage for this request; do not infer prior approval.")
+                .contains("ObjectiveAlignmentEvidence: UNKNOWN - delegation context supplied no objective alignment evidence; do not infer business intent.");
+    }
+
     private List<String> extractHeaders(String promptSection) {
         List<String> headers = new ArrayList<>();
         for (String line : promptSection.split("\\R")) {

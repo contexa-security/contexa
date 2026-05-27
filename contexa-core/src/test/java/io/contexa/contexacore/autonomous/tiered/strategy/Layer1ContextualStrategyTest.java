@@ -188,7 +188,72 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
-    @DisplayName("RAG 검색이 timeout 되면 분석은 계속되고 timeout metadata 가 남아야 한다")
+    @DisplayName("evaluate should preserve RAG candidate and denied counts when authorization filters all documents")
+    void analyzeWithContext_permissionFilteredRag_shouldPreserveSearchLedgerMetadata() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
+        Document deniedDocument = new Document(
+                "User accessed a previous resource.",
+                Map.of(
+                        "documentType", "behavior",
+                        "userId", "user-001",
+                        "retrievalPurpose", "security_investigation",
+                        "accessScope", "USER"));
+
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenReturn(List.of(deniedDocument));
+        when(authorizationService.authorize(any(), any(), ArgumentMatchers.<List<Document>>any()))
+                .thenReturn(new AuthorizedPromptContext(
+                        List.of(),
+                        1,
+                        0,
+                        1,
+                        "security_investigation",
+                        List.of("DENIED_TENANT_SCOPE")));
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.22);
+        response.setConfidence(0.77);
+        response.setAction("ALLOW");
+        response.setReasoning("Continue without unauthorized memory context");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        Layer1ContextualStrategy ragFilteredStrategy = new Layer1ContextualStrategy(
+                vectorService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                authorizationService,
+                null,
+                pipelineOrchestrator,
+                new TieredStrategyProperties()
+        );
+
+        SecurityEvent event = buildTestEvent();
+
+        ThreatAssessment assessment = ragFilteredStrategy.evaluate(event);
+
+        assertThat(assessment).isNotNull();
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "PERMISSION_FILTERED")
+                .containsEntry("ragAbsenceReason", "PERMISSION_FILTERED")
+                .containsEntry("ragCandidateDocumentCount", 1)
+                .containsEntry("ragAuthorizedDocumentCount", 0)
+                .containsEntry("ragDeniedDocumentCount", 1)
+                .containsEntry("ragPermissionFiltered", true)
+                .containsEntry("requestedDocumentCount", 1)
+                .containsEntry("allowedDocumentCount", 0)
+                .containsEntry("deniedDocumentCount", 1)
+                .containsEntry("relatedDocumentCount", 0);
+    }
+
+    @Test
+    @DisplayName("RAG search timeout should preserve timeout metadata and continue analysis")
     void analyzeWithContext_ragTimeout_shouldContinueWithEmptyRelatedDocuments() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
