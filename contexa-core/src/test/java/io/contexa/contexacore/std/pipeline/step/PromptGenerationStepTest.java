@@ -129,6 +129,13 @@ class PromptGenerationStepTest {
                         .containsEntry("fieldState", "VALUE_PRESENT")
                         .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
                         .containsEntry("remediationOwner", "REQUEST_CONTEXT_PRODUCER"));
+        assertThat(eventMetadata.get("promptFinalUserFieldLedger")).asList()
+                .allSatisfy(item -> {
+                    Map<?, ?> map = (Map<?, ?>) item;
+                    String label = String.valueOf(map.get("label"));
+                    assertThat(label).doesNotStartWith("bullet.");
+                    assertThat(label).doesNotStartWith("User is requesting");
+                });
         assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
                 .anySatisfy(item -> {
                     assertThat(item)

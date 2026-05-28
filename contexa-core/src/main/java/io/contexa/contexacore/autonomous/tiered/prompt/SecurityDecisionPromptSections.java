@@ -432,6 +432,25 @@ public class SecurityDecisionPromptSections {
         return value != null && "true".equalsIgnoreCase(value.toString().trim());
     }
 
+    private int metadataInt(Map<String, Object> metadata, String key, int fallback) {
+        if (metadata == null || key == null) {
+            return fallback;
+        }
+        Object value = metadata.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return Integer.parseInt(text.trim());
+            }
+            catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
     private String ragRetrievalState(
             boolean searchExecuted,
             boolean unavailable,
@@ -471,7 +490,14 @@ public class SecurityDecisionPromptSections {
         if (!searchExecuted) {
             return "NOT_REQUESTED";
         }
-        return permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS";
+        return permissionFiltered ? "PERMISSION_FILTER_EXCLUDED" : "ZERO_RESULTS";
+    }
+
+    private String normalizeRagAbsenceReason(String absenceReason, boolean permissionFiltered, int relatedDocumentCount) {
+        if (permissionFiltered && relatedDocumentCount == 0 && "PERMISSION_FILTERED".equalsIgnoreCase(absenceReason)) {
+            return "PERMISSION_FILTER_EXCLUDED";
+        }
+        return absenceReason;
     }
 
     private void putRagMetadata(
@@ -1472,13 +1498,16 @@ public class SecurityDecisionPromptSections {
                 metadataValue(metadata, "ragAbsenceReason"),
                 metadataValue(metadata, "absenceReason"),
                 ragAbsenceReason(searchExecuted, unavailable, timedOut, permissionFiltered, relatedDocumentCount));
+        absenceReason = normalizeRagAbsenceReason(absenceReason, permissionFiltered, relatedDocumentCount);
         String projectionState = firstNonBlankText(
                 metadataValue(metadata, "ragProjectionState"),
                 relatedDocumentCount > 0
                         ? "PROJECTED"
+                        : (permissionFiltered
+                        ? "PERMISSION_FILTERED_DECLARED"
                         : ("ZERO_RESULTS".equalsIgnoreCase(retrievalState)
                         ? "ZERO_RESULTS_DECLARED"
-                        : "NOT_APPLICABLE"));
+                        : "NOT_APPLICABLE")));
         putRagMetadata(
                 event,
                 searchExecuted,
@@ -1496,6 +1525,16 @@ public class SecurityDecisionPromptSections {
         section.append("RagRetrievalState: ").append(retrievalState).append("\n");
         section.append("RelatedDocumentCount: ").append(relatedDocumentCount).append("\n");
         section.append("RagProjectionState: ").append(projectionState).append("\n");
+        section.append("RagCandidateDocumentCount: ")
+                .append(metadataInt(metadata, "ragCandidateDocumentCount", relatedDocumentCount))
+                .append("\n");
+        section.append("RagAuthorizedDocumentCount: ")
+                .append(metadataInt(metadata, "ragAuthorizedDocumentCount", relatedDocumentCount))
+                .append("\n");
+        section.append("RagDeniedDocumentCount: ")
+                .append(metadataInt(metadata, "ragDeniedDocumentCount", 0))
+                .append("\n");
+        section.append("RagPermissionFiltered: ").append(permissionFiltered).append("\n");
 
         if (relatedDocumentCount == 0) {
             appendCompactFact(section, "RagAbsenceReason", absenceReason, 160);

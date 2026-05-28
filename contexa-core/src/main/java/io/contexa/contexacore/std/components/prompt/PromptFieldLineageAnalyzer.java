@@ -15,6 +15,8 @@ import java.util.regex.Pattern;
 public final class PromptFieldLineageAnalyzer {
 
     private static final Pattern SECTION_PATTERN = Pattern.compile("^===\\s*(.+?)\\s*===$");
+    private static final Pattern FIELD_LABEL_PATTERN = Pattern.compile(
+            "^[\\p{L}\\p{N}][\\p{L}\\p{N}_.\\- ]{0,120}$");
     private static final int PREVIEW_LIMIT = 160;
 
     private PromptFieldLineageAnalyzer() {
@@ -95,19 +97,21 @@ public final class PromptFieldLineageAnalyzer {
             String value;
             if (line.startsWith("- ")) {
                 bulletIndex++;
-                label = "bullet." + bulletIndex;
-                value = line.substring(2).strip();
+                continue;
             }
             else {
                 int colon = line.indexOf(':');
                 if (colon > 0) {
                     label = line.substring(0, colon).strip();
                     value = line.substring(colon + 1).strip();
+                    if (!fieldLabel(label)) {
+                        freeLineIndex++;
+                        continue;
+                    }
                 }
                 else {
                     freeLineIndex++;
-                    label = "line." + freeLineIndex;
-                    value = line;
+                    continue;
                 }
             }
 
@@ -218,6 +222,10 @@ public final class PromptFieldLineageAnalyzer {
                 .replaceAll("^_|_$", "")
                 .toUpperCase(Locale.ROOT);
         return normalized.isBlank() ? "UNKNOWN" : normalized;
+    }
+
+    private static boolean fieldLabel(String label) {
+        return StringUtils.hasText(label) && FIELD_LABEL_PATTERN.matcher(label.strip()).matches();
     }
 
     private static String preview(String value) {

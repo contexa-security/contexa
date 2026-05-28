@@ -549,7 +549,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (relatedDocumentCount == 0) {
             metadata.putIfAbsent("ragAbsenceReason", ragUnavailable
                     ? (ragTimedOut ? "TIMEOUT" : "UNAVAILABLE")
-                    : (permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS"));
+                    : (permissionFiltered ? "PERMISSION_FILTER_EXCLUDED" : "ZERO_RESULTS"));
         } else {
             metadata.remove("ragAbsenceReason");
         }

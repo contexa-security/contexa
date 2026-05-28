@@ -241,7 +241,8 @@ class Layer1ContextualStrategyTest {
         assertThat(assessment).isNotNull();
         assertThat(event.getMetadata())
                 .containsEntry("ragRetrievalState", "PERMISSION_FILTERED")
-                .containsEntry("ragAbsenceReason", "PERMISSION_FILTERED")
+                .containsEntry("ragAbsenceReason", "PERMISSION_FILTER_EXCLUDED")
+                .containsEntry("ragProjectionState", "PERMISSION_FILTERED_DECLARED")
                 .containsEntry("ragCandidateDocumentCount", 1)
                 .containsEntry("ragAuthorizedDocumentCount", 0)
                 .containsEntry("ragDeniedDocumentCount", 1)
@@ -250,6 +251,68 @@ class Layer1ContextualStrategyTest {
                 .containsEntry("allowedDocumentCount", 0)
                 .containsEntry("deniedDocumentCount", 1)
                 .containsEntry("relatedDocumentCount", 0);
+    }
+
+    @Test
+    @DisplayName("RAG fallback should prefer same-user baseline evidence before organization support")
+    void analyzeWithContext_userBaselineFallback_shouldNotBeMaskedByOrganizationSupport() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        Document currentUserDocument = new Document(
+                "User accessed a previous public resource.",
+                Map.of(
+                        "documentType", "behavior",
+                        "userId", "user-001",
+                        "tenantId", "demo",
+                        "organizationId", "demo-org",
+                        "retrievalPurpose", "security_investigation",
+                        "accessScope", "USER"));
+
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class)))
+                .thenReturn(List.of())
+                .thenReturn(List.of(currentUserDocument))
+                .thenReturn(List.of())
+                .thenReturn(List.of());
+
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.18);
+        response.setConfidence(0.82);
+        response.setAction("ALLOW");
+        response.setReasoning("Use authorized user baseline context");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        Layer1ContextualStrategy ragStrategy = new Layer1ContextualStrategy(
+                vectorService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                new TieredStrategyProperties()
+        );
+
+        SecurityEvent event = buildTestEvent();
+        event.getMetadata().put("tenantId", "demo");
+        event.getMetadata().put("organizationId", "demo-org");
+
+        ThreatAssessment assessment = ragStrategy.evaluate(event);
+
+        assertThat(assessment).isNotNull();
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("ragProjectionState", "PROJECTED")
+                .containsEntry("ragCandidateDocumentCount", 1)
+                .containsEntry("ragAuthorizedDocumentCount", 1)
+                .containsEntry("ragDeniedDocumentCount", 0)
+                .containsEntry("ragPermissionFiltered", false)
+                .containsEntry("relatedDocumentCount", 1);
     }
 
     @Test

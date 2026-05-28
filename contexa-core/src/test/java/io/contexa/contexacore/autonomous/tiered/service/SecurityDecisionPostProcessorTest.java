@@ -109,6 +109,8 @@ class SecurityDecisionPostProcessorTest {
                 .build();
         event.addMetadata("requestPath", "/payments");
         event.addMetadata("httpMethod", "GET");
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("organizationId", "demo-org");
         event.addMetadata("mfaVerified", true);
         event.addMetadata("isSensitiveResource", true);
         event.addMetadata("recentRequestCount", 4);
@@ -140,5 +142,7 @@ class SecurityDecisionPostProcessorTest {
         assertThat(document.getMetadata()).containsEntry("confidence", 0.70);
         assertThat(document.getMetadata()).containsEntry("llmAuditRiskScore", 0.10);
         assertThat(document.getMetadata()).containsEntry("llmAuditConfidence", 0.70);
+        assertThat(document.getMetadata()).containsEntry("tenantId", "demo");
+        assertThat(document.getMetadata()).containsEntry("organizationId", "demo-org");
     }
 }

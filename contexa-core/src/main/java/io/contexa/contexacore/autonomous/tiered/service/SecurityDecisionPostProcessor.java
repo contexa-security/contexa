@@ -449,6 +449,11 @@ public class SecurityDecisionPostProcessor {
 
         Map<String, Object> eventMeta = event.getMetadata();
         if (eventMeta != null) {
+            copyIfPresent(eventMeta, metadata, "tenantId");
+            copyIfPresent(eventMeta, metadata, "tenant_id");
+            copyIfPresent(eventMeta, metadata, "organizationId");
+            copyIfPresent(eventMeta, metadata, "organization_id");
+            copyIfPresent(eventMeta, metadata, "orgId");
             copyIfPresent(eventMeta, metadata, "resourceId");
             copyIfPresent(eventMeta, metadata, "requestedResourceId");
             copyIfPresent(eventMeta, metadata, "protectedResourceId");

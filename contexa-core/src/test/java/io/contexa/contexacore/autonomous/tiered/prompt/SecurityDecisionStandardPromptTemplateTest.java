@@ -672,6 +672,9 @@ class SecurityDecisionStandardPromptTemplateTest {
         event.addMetadata("ragRetrievalState", "ZERO_RESULTS");
         event.addMetadata("ragAbsenceReason", "ZERO_RESULTS");
         event.addMetadata("ragProjectionState", "ZERO_RESULTS_DECLARED");
+        event.addMetadata("ragCandidateDocumentCount", 0);
+        event.addMetadata("ragAuthorizedDocumentCount", 0);
+        event.addMetadata("ragDeniedDocumentCount", 0);
 
         SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
                 event,
@@ -683,6 +686,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(prompt.userText()).contains("RagSearchExecuted: true");
         assertThat(prompt.userText()).contains("RagRetrievalState: ZERO_RESULTS");
         assertThat(prompt.userText()).contains("RelatedDocumentCount: 0");
+        assertThat(prompt.userText()).contains("RagCandidateDocumentCount: 0");
+        assertThat(prompt.userText()).contains("RagAuthorizedDocumentCount: 0");
+        assertThat(prompt.userText()).contains("RagDeniedDocumentCount: 0");
+        assertThat(prompt.userText()).contains("RagPermissionFiltered: false");
         assertThat(prompt.userText()).contains("RagAbsenceReason: ZERO_RESULTS");
         assertThat(prompt.userText()).contains("RagDecisionLimit:");
         assertThat(prompt.executionMetadata().toMetadataMap())
@@ -690,6 +697,46 @@ class SecurityDecisionStandardPromptTemplateTest {
                 .containsEntry("ragRetrievalState", "ZERO_RESULTS")
                 .containsEntry("ragAbsenceReason", "ZERO_RESULTS")
                 .containsEntry("ragStatusProjectedToFinalPrompt", true);
+    }
+
+    @Test
+    @DisplayName("RAG permission-filtered state should expose candidate and denial counts")
+    void generateUserPromptShouldRenderRagPermissionFilteredState() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-rag-filtered")
+                .timestamp(LocalDateTime.of(2026, 5, 27, 10, 0))
+                .userId("persona_fin_lead")
+                .sessionId("session-rag-filtered")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("ragSearchExecuted", true);
+        event.addMetadata("ragRetrievalState", "PERMISSION_FILTERED");
+        event.addMetadata("ragAbsenceReason", "PERMISSION_FILTERED");
+        event.addMetadata("ragProjectionState", "PERMISSION_FILTERED_DECLARED");
+        event.addMetadata("ragPermissionFiltered", true);
+        event.addMetadata("ragCandidateDocumentCount", 3);
+        event.addMetadata("ragAuthorizedDocumentCount", 0);
+        event.addMetadata("ragDeniedDocumentCount", 3);
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(prompt.userText()).contains("RagRetrievalState: PERMISSION_FILTERED");
+        assertThat(prompt.userText()).contains("RagProjectionState: PERMISSION_FILTERED_DECLARED");
+        assertThat(prompt.userText()).contains("RagCandidateDocumentCount: 3");
+        assertThat(prompt.userText()).contains("RagAuthorizedDocumentCount: 0");
+        assertThat(prompt.userText()).contains("RagDeniedDocumentCount: 3");
+        assertThat(prompt.userText()).contains("RagPermissionFiltered: true");
+        assertThat(prompt.userText()).contains("RagAbsenceReason: PERMISSION_FILTER_EXCLUDED");
     }
 
     @Test

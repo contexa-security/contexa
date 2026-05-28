@@ -741,6 +741,31 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     buildBehaviorFilterForUser(userId, retrievalPurpose));
 
             List<Document> mergedDocuments = new ArrayList<>(personalDocuments);
+            String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
+            if (mergedDocuments.size() < requestedTopK
+                    && StringUtils.hasText(broadQuery)
+                    && !broadQuery.equals(query)) {
+                double broadThreshold = Math.min(similarityThreshold, 0.35d);
+                List<Document> broadDocuments = searchBehaviorDocuments(
+                        broadQuery,
+                        requestedTopK,
+                        broadThreshold,
+                        buildBehaviorFilterForUser(userId, retrievalPurpose));
+                mergedDocuments.addAll(broadDocuments);
+            }
+            if (mergedDocuments.size() < requestedTopK) {
+                String userBaselineQuery = buildUserBaselineContextQuery(event);
+                if (StringUtils.hasText(userBaselineQuery)
+                        && !userBaselineQuery.equals(query)
+                        && !userBaselineQuery.equals(broadQuery)) {
+                    List<Document> userBaselineDocuments = searchBehaviorDocuments(
+                            userBaselineQuery,
+                            requestedTopK,
+                            0.0d,
+                            buildBehaviorFilterForUser(userId, retrievalPurpose));
+                    mergedDocuments.addAll(userBaselineDocuments);
+                }
+            }
             boolean personalBaselineEstablished = baselineLearningService != null
                     && baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event))
                     .personalBaselineEstablished();
@@ -759,33 +784,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     supportingDocuments.stream()
                             .filter(document -> !userId.equalsIgnoreCase(documentUserId(document)))
                             .forEach(mergedDocuments::add);
-                }
-            }
-
-            if (mergedDocuments.isEmpty()) {
-                String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
-                if (StringUtils.hasText(broadQuery) && !broadQuery.equals(query)) {
-                    double broadThreshold = Math.min(similarityThreshold, 0.35d);
-                    List<Document> broadDocuments = searchBehaviorDocuments(
-                            broadQuery,
-                            requestedTopK,
-                            broadThreshold,
-                            buildBehaviorFilterForUser(userId, retrievalPurpose));
-                    mergedDocuments.addAll(broadDocuments);
-                }
-            }
-
-            if (mergedDocuments.isEmpty()) {
-                String userBaselineQuery = buildUserBaselineContextQuery(event);
-                if (StringUtils.hasText(userBaselineQuery)
-                        && !userBaselineQuery.equals(query)
-                        && !userBaselineQuery.equals(buildBroadRelatedContextQuery(event, targetResource))) {
-                    List<Document> userBaselineDocuments = searchBehaviorDocuments(
-                            userBaselineQuery,
-                            requestedTopK,
-                            0.0d,
-                            buildBehaviorFilterForUser(userId, retrievalPurpose));
-                    mergedDocuments.addAll(userBaselineDocuments);
                 }
             }
 
@@ -896,7 +894,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 : (permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS");
         String absenceReason = projectedCount > 0
                 ? null
-                : (permissionFiltered ? "PERMISSION_FILTERED" : "ZERO_RESULTS");
+                : (permissionFiltered ? "PERMISSION_FILTER_EXCLUDED" : "ZERO_RESULTS");
         metadata.put("ragSearchExecuted", true);
         metadata.put("ragUnavailable", false);
         metadata.put("ragTimedOut", false);
@@ -906,7 +904,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         } else {
             metadata.remove("ragAbsenceReason");
         }
-        metadata.put("ragProjectionState", projectedCount > 0 ? "PROJECTED" : "ZERO_RESULTS_DECLARED");
+        metadata.put("ragProjectionState", projectedCount > 0
+                ? "PROJECTED"
+                : (permissionFiltered ? "PERMISSION_FILTERED_DECLARED" : "ZERO_RESULTS_DECLARED"));
         metadata.put("ragProjectedToFinalPrompt", projectedCount > 0);
         metadata.put("ragStatusProjectedToFinalPrompt", true);
         metadata.put("relatedDocumentCount", projectedCount);
