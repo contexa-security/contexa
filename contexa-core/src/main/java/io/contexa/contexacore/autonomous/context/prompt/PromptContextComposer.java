@@ -354,16 +354,16 @@ public class PromptContextComposer {
         }
 
         section.append("\n=== RESOURCE AND ACTION CONTEXT ===\n");
-        appendLine(section, "ResourceId", resource.getResourceId());
-        appendLine(section, "RequestPath", resource.getRequestPath());
-        appendLine(section, "HttpMethod", resource.getHttpMethod());
-        appendLine(section, "ActionFamily", resource.getActionFamily());
-        appendLine(section, "ResourceType", resource.getResourceType());
-        appendLine(section, "BusinessLabel", resource.getBusinessLabel());
-        appendLine(section, "Sensitivity", resource.getSensitivity());
-        appendLine(section, "SensitiveResource", resource.getSensitiveResource());
-        appendLine(section, "PrivilegedResource", resource.getPrivileged());
-        appendLine(section, "ExportSensitive", resource.getExportSensitive());
+        appendLine(section, "ResourceId", "N/A");
+        appendLine(section, "RequestPath", "N/A");
+        appendLine(section, "HttpMethod", "N/A");
+        appendLine(section, "ActionFamily", "N/A");
+        appendLine(section, "ResourceType", "N/A");
+        appendLine(section, "BusinessLabel", "N/A");
+        appendLine(section, "Sensitivity", "N/A");
+        appendLine(section, "SensitiveResource", "N/A");
+        appendLine(section, "PrivilegedResource", "N/A");
+        appendLine(section, "ExportSensitive", "N/A");
     }
 
     private void appendSessionNarrativeSection(StringBuilder section, CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile) {
