@@ -32,6 +32,59 @@
 
 ---
 
+### 🔍 Paradigm Shift: Post-Authentication Runtime Control
+
+Traditional security checks permissions only at login. CONTEXA continuously monitors behavior *after* authentication to block compromised workloads, malicious insiders, and runaway AI agents.
+
+```mermaid
+graph TD
+    subgraph Traditional [Traditional Authentication-Only Security]
+        User([User / AI Agent]) -->|1. Login| Auth[Auth Server / MFA]
+        Auth -->|2. Issue Session Token| API[API Gateway]
+        API -->|3. Allow All Operations| Backend[Application Core / DB]
+        style Backend fill:#ffe3e3,stroke:#ff8585,stroke-width:2px
+    end
+
+    subgraph ContexaProtection [Contexa Post-Authentication Runtime Control]
+        Subject([Authenticated Human, Workload, or AI Agent]) -->|Valid Session| Guard[Contexa Zero Trust Layer]
+        
+        subgraph Engine [Contexa Protection Engine]
+            Guard -->|Continuous Verification| Identity[contexa-identity: MFA / Challenge]
+            Identity -->|Dynamic Authorization| IAM[contexa-iam: @Protectable Method Interceptor]
+            IAM -->|Real-time AI Inspection| Core[contexa-core: Behavior Analytics & LLM RAG]
+        end
+
+        Core -->|Runtime Control Actions| Action{Decision Engine}
+        Action -->|Legitimate| ALLOW[ALLOW: 200 OK]
+        Action -->|Suspicious| CHALLENGE[CHALLENGE: 401 MFA]
+        Action -->|Malicious| BLOCK[BLOCK: 403 Forbidden]
+        Action -->|Needs Review| ESCALATE[ESCALATE: 423 Lock]
+        
+        style ContexaProtection fill:#e3f2fd,stroke:#42a5f5,stroke-width:2px
+    end
+```
+
+### 🚀 3-Minute Quick Demo Run
+
+You can spin up the entire Contexa infrastructure (PostgreSQL with pgvector, local LLM server Ollama with pre-pulled models, and the Contexa application) in under 3 minutes using Docker.
+
+**On Linux / macOS:**
+```bash
+chmod +x start-demo.sh
+./start-demo.sh
+```
+
+**On Windows:**
+```cmd
+start-demo.bat
+```
+
+Once running, access the services at:
+- **Contexa Application Console:** `http://localhost:8080`
+- **Ollama AI Endpoint:** `http://localhost:11434`
+
+---
+
 ## What CONTEXA Is
 
 CONTEXA is an open-source AI-native Post-Authentication Runtime Control Plane.
