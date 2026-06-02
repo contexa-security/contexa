@@ -14,17 +14,21 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class EmailOneTimeTokenService implements OneTimeTokenService {
 
+    private final EmailService emailService;
     private final JdbcOneTimeTokenService delegate;
     private final TransactionTemplate transactionTemplate;
     private final AuthContextProperties authContextProperties;
+    private final JdbcTemplate jdbcTemplate;
 
     public EmailOneTimeTokenService(EmailService emailService,
                                     JdbcTemplate primaryJdbcTemplate,
                                     TransactionTemplate transactionTemplate,
                                     AuthContextProperties authContextProperties) {
+        this.emailService = emailService;
         this.delegate = new JdbcOneTimeTokenService(primaryJdbcTemplate);
         this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
+        this.jdbcTemplate = primaryJdbcTemplate;
     }
 
     @Override
@@ -53,6 +57,19 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                         "<p>Thank you.</p>",
                 username, emailPurpose, internalOneTimeToken.get().getTokenValue(), tokenValidityMinutes
         );
+
+        String to = null;
+        try {
+            to = jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
+        } catch (Exception e) {
+            log.warn("Failed to find user email for username: {}", username, e);
+        }
+
+        if (to == null || to.isBlank()) {
+            to = username;
+        }
+
+        emailService.sendHtmlMessage(to, emailSubject, htmlBody);
 
         return internalOneTimeToken.get();
     }

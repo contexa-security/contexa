@@ -39,3 +39,4 @@ public class IdentityWebAuthnAutoConfiguration {
     public IdentityWebAuthnAutoConfiguration() {
     }
 }
+
