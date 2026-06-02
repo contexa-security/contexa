@@ -2181,6 +2181,19 @@ public class SecurityDecisionPromptSections {
         if (requestUri != null) {
             meta.append("|path=").append(requestUri);
         }
+        String documentPathFamily = firstNonBlankText(
+                metadata.get("pathFamily"),
+                metadata.get("requestPathFamily"),
+                SecuritySemanticNormalizer.normalizePathFamily(requestUri != null ? requestUri.toString() : null),
+                SecuritySemanticNormalizer.normalizePathFamily(extractPathToken(doc.getText())));
+        appendDocumentTraceValue(meta, "pathFamily", documentPathFamily, 120);
+
+        String documentResourceFamily = firstNonBlankText(
+                metadata.get("resourceFamily"),
+                metadata.get("currentResourceFamily"),
+                SecuritySemanticNormalizer.normalizeResourceFamily(extractNamedToken(doc.getText(), "resource")),
+                SecuritySemanticNormalizer.normalizeResourceFamily(extractPathToken(doc.getText())));
+        appendDocumentTraceValue(meta, "resourceFamily", documentResourceFamily, 48);
 
         appendDocumentTrace(meta, metadata, VectorDocumentMetadata.AUTHORIZATION_DECISION, "authorization", 48);
         appendDocumentTrace(meta, metadata, VectorDocumentMetadata.ACCESS_SCOPE, "scope", 24);
@@ -2672,6 +2685,37 @@ public class SecurityDecisionPromptSections {
             text = text.substring(0, maxLength) + "...";
         }
         meta.append("|").append(label).append("=").append(text);
+    }
+
+    private void appendDocumentTraceValue(StringBuilder meta, String label, String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return;
+        }
+        String text = value.trim();
+        if (text.length() > maxLength) {
+            text = text.substring(0, maxLength) + "...";
+        }
+        meta.append("|").append(label).append("=").append(text);
+    }
+
+    private String extractNamedToken(String text, String key) {
+        if (!StringUtils.hasText(text) || !StringUtils.hasText(key)) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(?i)(?:^|[\\s,;|])" + java.util.regex.Pattern.quote(key.trim()) + "\\s*=\\s*([^\\s,;|.\\]]+)")
+                .matcher(text);
+        return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private String extractPathToken(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(/[^\\s,;|\\]]+)")
+                .matcher(text);
+        return matcher.find() ? matcher.group(1).trim() : null;
     }
     private boolean isValidData(String value) {
         return PromptTemplateUtils.isValidData(value);

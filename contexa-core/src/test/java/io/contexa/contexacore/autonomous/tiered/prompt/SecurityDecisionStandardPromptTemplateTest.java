@@ -640,6 +640,8 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("RelatedDocumentCount: 2");
         assertThat(userPrompt).contains("RagEvidenceBoundary:");
         assertThat(userPrompt).contains("RagDocument1:");
+        assertThat(userPrompt).contains("resourceFamily=SENSITIVE");
+        assertThat(userPrompt).contains("pathFamily=/admin/api/security-test/sensitive/*");
         assertThat(userPrompt).contains("authorization=ALLOWED_USER_SCOPE");
         assertThat(userPrompt).contains("retrievalPurpose=security_investigation");
         assertThat(userPrompt).contains("retrievalPolicy=purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*");
