@@ -4,6 +4,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.MessageDigest;
@@ -110,8 +111,12 @@ public class SessionFingerprintUtil {
         if (cached != null) {
             return cached;
         }
+
+        HttpSession session = request.getSession(false);
+        String sessionId = (session != null) ? session.getId() : request.getRequestedSessionId();
+
         String hash = generateContextBindingHash(
-                request.getRequestedSessionId(),
+                sessionId,
                 extractClientIp(request),
                 request.getHeader("User-Agent")
         );
