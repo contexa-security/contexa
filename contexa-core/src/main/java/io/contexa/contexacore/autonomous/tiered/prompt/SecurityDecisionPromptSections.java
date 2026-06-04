@@ -318,6 +318,9 @@ public class SecurityDecisionPromptSections {
         PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult =
                 promptRuntimeGovernanceRuleApplier.apply(userText, runtimeGovernanceRules);
         userText = runtimeGovernanceResult.userPrompt();
+        PromptQualityFaultInjectionResult promptFaultInjectionResult =
+                PromptQualityFaultInjector.apply(userText, buildContext);
+        userText = promptFaultInjectionResult.userPrompt();
         long renderTimeMs = Math.max(0L, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - renderStartedNanos));
         SecurityPromptContractAudit promptContractAudit = SecurityPromptContractVerifier.audit(systemText, userText, buildContext);
         PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger, promptContractAudit);
@@ -334,6 +337,7 @@ public class SecurityDecisionPromptSections {
                 userText,
                 renderTimeMs));
         supplementalMetadata.putAll(buildPromptRuntimeGovernanceMetadata(runtimeGovernanceRules, runtimeGovernanceResult));
+        supplementalMetadata.putAll(promptFaultInjectionResult.metadata());
         supplementalMetadata.putAll(promptRuntimeGovernanceRuleProvider.runtimeCacheMetadata(runtimeGovernanceRuleContext));
         promptRuntimeGovernanceRuleProvider.recordApplications(
                 runtimeGovernanceRuleContext,

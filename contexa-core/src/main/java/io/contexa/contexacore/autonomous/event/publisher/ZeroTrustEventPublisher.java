@@ -211,6 +211,11 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getAnomalySignal() != null) {
                 payload.put("anomalySignal", requestInfo.getAnomalySignal());
             }
+            if (requestInfo.getPqaPromptFaultScenario() != null) {
+                payload.put("pqaPromptFaultEnabled", true);
+                payload.put("pqaPromptFaultScenario", requestInfo.getPqaPromptFaultScenario());
+                payload.put("pqaPromptFaultSource", "REQUEST");
+            }
             if (requestInfo.getPromptBudgetProfile() != null) {
                 payload.put("promptBudgetProfile", requestInfo.getPromptBudgetProfile());
             }

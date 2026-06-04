@@ -45,6 +45,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
         FactorContext factorContext = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
         String usernameFromToken = token.getUsername();
+        log.error("token.getTokenValue() : {}", token.getTokenValue());
 
         if (factorContext != null &&
                 MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()) &&

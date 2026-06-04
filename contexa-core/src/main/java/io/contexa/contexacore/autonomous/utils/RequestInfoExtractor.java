@@ -103,6 +103,10 @@ public final class RequestInfoExtractor {
                 .roundKey(extractHeader(request, "X-Contexa-Round-Key"))
                 .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
                 .anomalySignal(extractHeader(request, "X-Contexa-Anomaly-Signal"))
+                .pqaPromptFaultScenario(extractHeaderOrAttribute(
+                        request,
+                        "X-PQA-Prompt-Fault",
+                        "pqaPromptFaultScenario"))
                 .promptBudgetProfile(promptBudgetProfile)
                 .decisionBoundaryMode(decisionBoundaryMode)
                 .runtimeTemperature(runtimeTemperature)
@@ -633,6 +637,7 @@ public final class RequestInfoExtractor {
         private final String roundKey;
         private final String behaviorPhase;
         private final String anomalySignal;
+        private final String pqaPromptFaultScenario;
         private final String promptBudgetProfile;
         private final String decisionBoundaryMode;
         private final Double runtimeTemperature;
