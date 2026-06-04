@@ -30,7 +30,7 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DashboardController dashboardController(DashboardService dashboardService) {
+    public DashboardController iamAdminDashboardController(DashboardService dashboardService) {
         return new DashboardController(dashboardService);
     }
 
