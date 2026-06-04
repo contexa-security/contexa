@@ -853,14 +853,11 @@ public class PromptContextComposer {
             boolean hasTrustAssessment,
             boolean trusted,
             boolean provisional) {
-        if (!hasTrustAssessment) {
-            return;
-        }
         if (trusted) {
             appendLine(section, label, "TRUSTED");
             return;
         }
-        if (provisional) {
+        if (provisional || !hasTrustAssessment) {
             appendLine(section, label, "PROVISIONAL");
         }
     }

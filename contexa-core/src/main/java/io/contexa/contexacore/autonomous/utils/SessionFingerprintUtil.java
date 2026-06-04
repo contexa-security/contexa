@@ -111,12 +111,8 @@ public class SessionFingerprintUtil {
         if (cached != null) {
             return cached;
         }
-
-        HttpSession session = request.getSession(false);
-        String sessionId = (session != null) ? session.getId() : request.getRequestedSessionId();
-
         String hash = generateContextBindingHash(
-                sessionId,
+                request.getRequestedSessionId(),
                 extractClientIp(request),
                 request.getHeader("User-Agent")
         );
