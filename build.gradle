@@ -16,7 +16,7 @@ repositories {
 
 allprojects {
     group = 'ai.ctxa'
-    version = '0.1.0'
+    version = '0.1.0-SNAPSHOT'
     description = 'contexa'
 }
 
@@ -80,6 +80,10 @@ subprojects {
         compileOnly {
             extendsFrom annotationProcessor
         }
+    }
+
+    configurations.all {
+        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
     }
 
     tasks.withType(JavaCompile) {
