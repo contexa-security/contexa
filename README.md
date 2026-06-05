@@ -199,6 +199,21 @@ docker exec contexa-ollama ollama pull mxbai-embed-large
 
 For full setup, configuration, and architecture guidance, use the documentation site at `https://docs.ctxa.ai`.
 
+## Recommended Examples
+
+To help you get started quickly and understand Contexa's core capabilities, we provide 18+ examples in the `contexa-examples` directory. We recommend exploring the following 4 core scenarios first:
+
+1. **[Quickstart Example](https://github.com/contexa-security/contexa/tree/main/contexa-examples/contexa-example-quickstart)**:
+   - Learn the basics of wiring dependencies, setting up basic properties, and running Contexa in **Shadow Mode**.
+2. **[AI Pipeline Example](https://github.com/contexa-security/contexa/tree/main/contexa-examples/contexa-example-ai-pipeline)**:
+   - Deep dive into the **Security Decision Prompt Pipeline** and see how RAG and LLM models make real-time access decisions.
+3. **[Identity & MFA Example](https://github.com/contexa-security/contexa/tree/main/contexa-examples/contexa-example-identity-mfa)**:
+   - Learn how to integrate modern Passkeys, OTP, and adaptive Step-up Authentication inside Spring Security.
+4. **[Legacy System Integration](https://github.com/contexa-security/contexa/tree/main/contexa-examples/contexa-example-legacy-system)**:
+   - See how to incrementally inject the Contexa security layer using the Contexa Bridge without disrupting your legacy database or sessions.
+
+For a detailed walkthrough, setup guides, and analysis of these examples, please refer to the official [Examples Guide](https://docs.ctxa.ai/docs/install/examples.html).
+
 ## Runtime Zero Trust Actions
 
 Every protected request receives a runtime decision.
