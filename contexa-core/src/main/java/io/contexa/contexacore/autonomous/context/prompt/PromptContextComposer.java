@@ -356,9 +356,17 @@ public class PromptContextComposer {
         section.append("\n=== RESOURCE AND ACTION CONTEXT ===\n");
         appendLine(section, "ResourceId", resource.getResourceId());
         appendLine(section, "RequestPath", resource.getRequestPath());
+        appendLine(section, "CurrentPathFamily",
+                SecuritySemanticNormalizer.normalizePathFamily(resource.getRequestPath()));
         appendLine(section, "HttpMethod", resource.getHttpMethod());
         appendLine(section, "ActionFamily", resource.getActionFamily());
         appendLine(section, "ResourceType", resource.getResourceType());
+        appendLine(section, "CurrentResourceFamily",
+                SecuritySemanticNormalizer.normalizeResourceFamily(
+                        resource.getResourceType(),
+                        resource.getBusinessLabel(),
+                        resource.getRequestPath(),
+                        resource.getSensitivity()));
         appendLine(section, "BusinessLabel", resource.getBusinessLabel());
         appendLine(section, "Sensitivity", resource.getSensitivity());
         appendLine(section, "SensitiveResource", resource.getSensitiveResource());
