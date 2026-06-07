@@ -315,12 +315,12 @@ public class SecurityDecisionPromptSections {
                 .toList();
         String systemText = systemSections.composedText();
         String userText = userSections.composedText();
-        PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult =
-                promptRuntimeGovernanceRuleApplier.apply(userText, runtimeGovernanceRules);
-        userText = runtimeGovernanceResult.userPrompt();
         PromptQualityFaultInjectionResult promptFaultInjectionResult =
                 PromptQualityFaultInjector.apply(userText, buildContext);
         userText = promptFaultInjectionResult.userPrompt();
+        PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult =
+                promptRuntimeGovernanceRuleApplier.apply(userText, runtimeGovernanceRules);
+        userText = runtimeGovernanceResult.userPrompt();
         long renderTimeMs = Math.max(0L, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - renderStartedNanos));
         SecurityPromptContractAudit promptContractAudit = SecurityPromptContractVerifier.audit(systemText, userText, buildContext);
         PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger, promptContractAudit);

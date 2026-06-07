@@ -11,7 +11,9 @@ import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContex
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.document.Document;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -86,6 +88,82 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                         .containsEntry("slotKey", "runtime.test.narrative")
                         .containsEntry("resultState", "APPLIED")
                         .containsEntry("changedPrompt", true));
+    }
+
+    @Test
+    void appliesRuntimeGovernanceRulesAfterPromptFaultInjection() {
+        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(
+                new PromptRuntimeGovernanceRule(
+                        "pqa-rtg-rule-rag-suppress-contamination",
+                        "pqa-rtg-action-rag-suppress-contamination",
+                        "cortex.security-decision",
+                        "user_ragevidence_scopeboundary_section_threat_memory_test",
+                        "SUPPRESS_SLOT",
+                        10,
+                        Map.of("suppressPattern", "THREAT MEMORY:")),
+                new PromptRuntimeGovernanceRule(
+                        "pqa-rtg-rule-rag-auth-narrative",
+                        "pqa-rtg-action-rag-auth-narrative",
+                        "cortex.security-decision",
+                        "user_ragevidence_authorizationreason_groupterm_authorized_test",
+                        "ADD_NARRATIVE",
+                        20,
+                        Map.of("narrative",
+                                "RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE tenant=demo resource=/admin/api/security-test/sensitive/resource-001 purpose=security_investigation scope=USER"))));
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer(),
+                null,
+                provider);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-governance-fault-001")
+                .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30))
+                .userId("persona_fin_lead")
+                .sessionId("session-runtime-governance-fault")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("resourceId", "resource-001");
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("pqaPromptFaultEnabled", true);
+        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of(new Document(
+                        "User accessed /admin/api/security-test/sensitive/resource-001 via GET.",
+                        Map.of(
+                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                VectorDocumentMetadata.USER_ID, "persona_fin_lead",
+                                VectorDocumentMetadata.TENANT_ID, "demo",
+                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
+
+        assertThat(prompt.userText()).contains("=== RAG EVIDENCE ===");
+        assertThat(prompt.userText()).contains("RagDocument1:");
+        assertThat(prompt.userText()).contains("authorization=");
+        assertThat(prompt.userText()).doesNotContain("THREAT MEMORY: tenant mismatch unauthorized document");
+        assertThat(prompt.userText()).contains("RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE");
+        assertThat(prompt.executionMetadata().toMetadataMap())
+                .containsEntry("pqaPromptFaultApplied", true)
+                .containsEntry("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT")
+                .containsEntry("promptRuntimeGovernanceRuleCount", 2)
+                .containsEntry("promptRuntimeGovernanceAppliedCount", 2L);
+        assertThat(provider.recordedApplications()).hasSize(2);
+        assertThat(provider.recordedApplications())
+                .allSatisfy(application -> assertThat(application.changedPrompt()).isTrue());
     }
 
     private static final class CapturingRuleProvider implements PromptRuntimeGovernanceRuleProvider {
