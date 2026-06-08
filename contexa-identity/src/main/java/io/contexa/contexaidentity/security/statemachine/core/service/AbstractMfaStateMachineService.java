@@ -504,33 +504,26 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         }
 
         try {
-            switch (value) {
-                case Set<?> original -> {
-                    Set<Object> deepCopy = new LinkedHashSet<>();
-                    for (Object item : original) {
-                        deepCopy.add(deepCopyItem(item));
-                    }
-                    return deepCopy;
+            if (value instanceof Set<?> original) {
+                Set<Object> deepCopy = new LinkedHashSet<>();
+                for (Object item : original) {
+                    deepCopy.add(deepCopyItem(item));
                 }
-                case List<?> original -> {
-                    List<Object> deepCopy = new ArrayList<>();
-                    for (Object item : original) {
-                        deepCopy.add(deepCopyItem(item));
-                    }
-                    return deepCopy;
+                return deepCopy;
+            } else if (value instanceof List<?> original) {
+                List<Object> deepCopy = new ArrayList<>();
+                for (Object item : original) {
+                    deepCopy.add(deepCopyItem(item));
                 }
-                case Map<?, ?> original -> {
-                    Map<Object, Object> deepCopy = new HashMap<>();
-                    for (Map.Entry<?, ?> entry : original.entrySet()) {
-                        deepCopy.put(deepCopyItem(entry.getKey()), deepCopyItem(entry.getValue()));
-                    }
-                    return deepCopy;
+                return deepCopy;
+            } else if (value instanceof Map<?, ?> original) {
+                Map<Object, Object> deepCopy = new HashMap<>();
+                for (Map.Entry<?, ?> entry : original.entrySet()) {
+                    deepCopy.put(deepCopyItem(entry.getKey()), deepCopyItem(entry.getValue()));
                 }
-                case java.io.Serializable serializable -> {
-                    return SerializationUtils.clone(serializable);
-                }
-                default -> {
-                }
+                return deepCopy;
+            } else if (value instanceof Serializable serializable) {
+                return SerializationUtils.clone(serializable);
             }
             log.error("[MFA SM Service] deepCopyIfNeeded - Non-copyable type ({}): {}. Returning original reference.",
                     value.getClass().getName(), key);
