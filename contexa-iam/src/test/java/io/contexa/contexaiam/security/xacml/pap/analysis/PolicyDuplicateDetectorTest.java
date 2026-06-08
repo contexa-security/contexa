@@ -90,7 +90,7 @@ class PolicyDuplicateDetectorTest {
             List<DuplicatePolicyDto> dups = detector.detect(candidate);
 
             assertThat(dups).hasSize(1);
-            assertThat(dups.getFirst().reason()).contains("Exact duplicate");
+            assertThat(dups.get(0).reason()).contains("Exact duplicate");
         }
 
         @Test
@@ -141,7 +141,7 @@ class PolicyDuplicateDetectorTest {
             List<DuplicatePolicyDto> dups = detector.detect(candidate);
 
             assertThat(dups).hasSize(1);
-            assertThat(dups.getFirst().reason()).contains("Semantic duplicate");
+            assertThat(dups.get(0).reason()).contains("Semantic duplicate");
         }
 
         @Test

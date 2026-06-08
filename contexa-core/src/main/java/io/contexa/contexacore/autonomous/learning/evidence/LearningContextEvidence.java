@@ -60,10 +60,10 @@ public record LearningContextEvidence(
 
     public RetrievedBehaviorEvidence representativeComparable() {
         if (!personalRetrievedEvidence.isEmpty()) {
-            return personalRetrievedEvidence.getFirst();
+            return personalRetrievedEvidence.get(0);
         }
         if (!supportingRetrievedEvidence.isEmpty()) {
-            return supportingRetrievedEvidence.getFirst();
+            return supportingRetrievedEvidence.get(0);
         }
         return null;
     }
@@ -81,7 +81,7 @@ public record LearningContextEvidence(
     }
 
     public CurrentVsObservedDeltaSnapshot strongestDelta() {
-        return currentVsObservedDeltas.isEmpty() ? null : currentVsObservedDeltas.getFirst();
+        return currentVsObservedDeltas.isEmpty() ? null : currentVsObservedDeltas.get(0);
     }
 
     public int currentRequestCombinationSeenCount() {
@@ -183,7 +183,7 @@ public record LearningContextEvidence(
                         combinationScore(right),
                         combinationScore(left)))
                 .findFirst()
-                .orElse(personalRetrievedEvidence.getFirst());
+                .orElse(personalRetrievedEvidence.get(0));
     }
 
     private static <T> List<T> immutable(List<T> values) {
@@ -197,12 +197,12 @@ public record LearningContextEvidence(
             return null;
         }
         if (strongestDelta == null || strongestDelta.key() == null || strongestDelta.key().isBlank()) {
-            return source.getFirst();
+            return source.get(0);
         }
         return source.stream()
                 .filter(evidence -> supportsDeltaDimension(evidence, strongestDelta.key()))
                 .findFirst()
-                .orElse(source.getFirst());
+                .orElse(source.get(0));
     }
 
     private boolean supportsDeltaDimension(RetrievedBehaviorEvidence evidence, String deltaKey) {

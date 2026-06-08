@@ -75,7 +75,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
 
         Map<String, ManagedResource> discoveredResourcesMap = groupedByIdentifier.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFirst()));
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().get(0)));
 
         Map<String, ManagedResource> existingResourcesMap = managedResourceRepository.findAllWithPermission().stream()
                 .collect(Collectors.toMap(ManagedResource::getResourceIdentifier, Function.identity()));
@@ -89,7 +89,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 .toList();
 
         if (!removedResources.isEmpty()) {
-            log.error("{} resources not found in current code (e.g. {})", removedResources.size(), removedResources.getFirst().getResourceIdentifier());
+            log.error("{} resources not found in current code (e.g. {})", removedResources.size(), removedResources.get(0).getResourceIdentifier());
         }
 
         if (!newResources.isEmpty()) {

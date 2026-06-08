@@ -114,7 +114,7 @@ class DefaultPolicyServiceConflictTest {
                     .satisfies(ex -> {
                         PolicyConflictException pce = (PolicyConflictException) ex;
                         assertThat(pce.getConflicts()).hasSize(1);
-                        assertThat(pce.getConflicts().getFirst().severity()).isEqualTo(Severity.CRITICAL);
+                        assertThat(pce.getConflicts().get(0).severity()).isEqualTo(Severity.CRITICAL);
                     });
 
             verify(policyRepository, never()).save(any());
@@ -238,7 +238,7 @@ class DefaultPolicyServiceConflictTest {
             List<PolicyConflictDto> result = service.detectConflicts(dto);
 
             assertThat(result).hasSize(1);
-            assertThat(result.getFirst().severity()).isEqualTo(Severity.CRITICAL);
+            assertThat(result.get(0).severity()).isEqualTo(Severity.CRITICAL);
             verify(policyRepository, never()).save(any());
         }
 

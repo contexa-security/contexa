@@ -160,7 +160,7 @@ class SecurityDecisionEnforcementHandlerTest {
         assertThat(submittedTasks).hasSize(1);
         verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), any());
 
-        submittedTasks.getFirst().run();
+        submittedTasks.get(0).run();
 
         verify(securityLearningService).learnBaselineOnly(eq("user-executor"), any(), eq(event));
     }

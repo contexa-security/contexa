@@ -160,7 +160,7 @@ class CustomDynamicAuthorizationManagerPriorityTest {
             manager.reload();
 
             assertThat(resolvedExpressions).hasSize(1);
-            assertThat(resolvedExpressions.getFirst()).isEqualTo("hasAuthority('ROLE_MANUAL')");
+            assertThat(resolvedExpressions.get(0)).isEqualTo("hasAuthority('ROLE_MANUAL')");
         }
 
         @Test
@@ -278,7 +278,7 @@ class CustomDynamicAuthorizationManagerPriorityTest {
             manager.reload();
 
             assertThat(resolvedExpressions).hasSize(1);
-            assertThat(resolvedExpressions.getFirst()).isEqualTo("hasAuthority('ROLE_NEW')");
+            assertThat(resolvedExpressions.get(0)).isEqualTo("hasAuthority('ROLE_NEW')");
         }
     }
 }

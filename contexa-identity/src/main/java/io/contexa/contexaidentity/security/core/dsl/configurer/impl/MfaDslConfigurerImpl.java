@@ -214,10 +214,10 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             configuredSteps.addFirst(primaryAuthStep);
                     } else {
 
-            if (configuredSteps.isEmpty() || configuredSteps.getFirst().getOrder() != 0) {
+            if (configuredSteps.isEmpty() || configuredSteps.get(0).getOrder() != 0) {
                 throw new DslConfigurationException("MFA flow [" + this.mfaFlowTypeName + "] must have a primary authentication step (order 0) or use .primaryAuthentication() DSL.");
             }
-            Object firstStepOptionsObj = configuredSteps.getFirst().getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
+            Object firstStepOptionsObj = configuredSteps.get(0).getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
             if (firstStepOptionsObj instanceof FormOptions fo) {
                 primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder().formOptions(fo).loginProcessingUrl(fo.getLoginProcessingUrl()).build();
             } else if (firstStepOptionsObj instanceof RestOptions ro) {
@@ -230,7 +230,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Assert.isTrue(!configuredSteps.isEmpty(), "MFA flow ["+ this.mfaFlowTypeName +"] must have at least one authentication step (primary).");
         configuredSteps.sort(Comparator.comparingInt(AuthenticationStepConfig::getOrder));
 
-        AuthenticationStepConfig firstConfiguredStep = configuredSteps.getFirst();
+        AuthenticationStepConfig firstConfiguredStep = configuredSteps.get(0);
         Assert.isTrue(firstConfiguredStep.getOrder() == 0, "MFA flow's first step must have order 0.");
         Assert.isTrue(AuthType.MFA_FORM.name().equalsIgnoreCase(firstConfiguredStep.getType()) || AuthType.MFA_REST.name().equalsIgnoreCase(firstConfiguredStep.getType()),
                 "MFA flow must start with a MFA_FORM or MFA_REST primary authentication step. Current first step: " + firstConfiguredStep.getType());

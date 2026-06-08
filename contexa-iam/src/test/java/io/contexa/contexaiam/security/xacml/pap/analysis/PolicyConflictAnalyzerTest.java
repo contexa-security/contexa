@@ -87,8 +87,8 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.CRITICAL);
-            assertThat(conflicts.getFirst().existingPolicyName()).isEqualTo("existing");
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.CRITICAL);
+            assertThat(conflicts.get(0).existingPolicyName()).isEqualTo("existing");
         }
 
         @Test
@@ -119,7 +119,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.CRITICAL);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.CRITICAL);
         }
 
         @Test
@@ -135,7 +135,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.CRITICAL);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.CRITICAL);
         }
     }
 
@@ -158,7 +158,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.HIGH);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.HIGH);
         }
 
         @Test
@@ -174,7 +174,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.HIGH);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.HIGH);
         }
 
         @Test
@@ -205,7 +205,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.HIGH);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.HIGH);
         }
     }
 
@@ -228,7 +228,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.MEDIUM);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.MEDIUM);
         }
 
         @Test
@@ -244,7 +244,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.MEDIUM);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.MEDIUM);
         }
 
         @Test
@@ -275,7 +275,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.MEDIUM);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.MEDIUM);
         }
     }
 
@@ -384,7 +384,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.CRITICAL);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.CRITICAL);
         }
     }
 
@@ -407,7 +407,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            assertThat(conflicts.getFirst().severity()).isEqualTo(Severity.HIGH);
+            assertThat(conflicts.get(0).severity()).isEqualTo(Severity.HIGH);
         }
 
         @Test
@@ -445,7 +445,7 @@ class PolicyConflictAnalyzerTest {
             List<PolicyConflictDto> conflicts = analyzer.analyze(candidate);
 
             assertThat(conflicts).hasSize(1);
-            PolicyConflictDto conflict = conflicts.getFirst();
+            PolicyConflictDto conflict = conflicts.get(0);
             assertThat(conflict.conflictDescription()).contains("msg.policy.conflict.description");
         }
     }

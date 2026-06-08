@@ -586,7 +586,7 @@ public class PromptContextComposer {
             appendLine(section, "StrongestRoleScopeDelta",
                     roleScopeDeltas.isEmpty()
                             ? "none"
-                            : roleScopeDeltas.getFirst());
+                            : roleScopeDeltas.get(0));
             appendLine(section, "RoleScopeDeltaSummary",
                     roleScopeDeltas.isEmpty()
                             ? "no direct current-vs-scope mismatch detected"

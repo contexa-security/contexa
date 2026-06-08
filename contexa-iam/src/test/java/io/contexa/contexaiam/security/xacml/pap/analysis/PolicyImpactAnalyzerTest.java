@@ -157,7 +157,7 @@ class PolicyImpactAnalyzerTest {
             PolicyImpactReport report = analyzer.analyze(candidate);
 
             assertThat(report.affectedUserCount()).isEqualTo(1);
-            assertThat(report.affectedUsers().getFirst().changeType()).isEqualTo("ACCESS_GAINED");
+            assertThat(report.affectedUsers().get(0).changeType()).isEqualTo("ACCESS_GAINED");
             assertThat(report.accessChangeSummary().gained()).isEqualTo(1);
         }
 
@@ -177,7 +177,7 @@ class PolicyImpactAnalyzerTest {
             PolicyImpactReport report = analyzer.analyze(candidate);
 
             assertThat(report.affectedUserCount()).isEqualTo(1);
-            assertThat(report.affectedUsers().getFirst().changeType()).isEqualTo("ACCESS_LOST");
+            assertThat(report.affectedUsers().get(0).changeType()).isEqualTo("ACCESS_LOST");
             assertThat(report.accessChangeSummary().lost()).isEqualTo(1);
         }
     }
@@ -232,7 +232,7 @@ class PolicyImpactAnalyzerTest {
 
             // admin should be affected because hierarchy gives them ROLE_USER
             assertThat(report.affectedUserCount()).isEqualTo(1);
-            assertThat(report.affectedUsers().getFirst().username()).isEqualTo("admin");
+            assertThat(report.affectedUsers().get(0).username()).isEqualTo("admin");
         }
     }
 
@@ -308,7 +308,7 @@ class PolicyImpactAnalyzerTest {
 
             assertThat(report.affectedResources()).hasSize(1);
             // Both existing policies have /api/users target
-            assertThat(report.affectedResources().getFirst().matchedPolicyNames())
+            assertThat(report.affectedResources().get(0).matchedPolicyNames())
                     .contains("policy-a", "policy-b");
         }
 
@@ -324,7 +324,7 @@ class PolicyImpactAnalyzerTest {
             PolicyImpactReport report = analyzer.analyze(candidate);
 
             assertThat(report.affectedResources()).hasSize(1);
-            assertThat(report.affectedResources().getFirst().matchedPolicyNames()).isEmpty();
+            assertThat(report.affectedResources().get(0).matchedPolicyNames()).isEmpty();
         }
     }
 

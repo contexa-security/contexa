@@ -107,7 +107,7 @@ public class AdapterRegistry {
             } else {
 
                 if (!CollectionUtils.isEmpty(flow.getStepConfigs())) {
-                    AuthenticationStepConfig singleAuthStep = flow.getStepConfigs().getFirst();
+                    AuthenticationStepConfig singleAuthStep = flow.getStepConfigs().get(0);
                     if (singleAuthStep != null && singleAuthStep.getType() != null) {
                         String actualFactorType = singleAuthStep.getType().toLowerCase();
                         AuthenticationAdapter singleAuthAdapter = authAdapter.get(actualFactorType);

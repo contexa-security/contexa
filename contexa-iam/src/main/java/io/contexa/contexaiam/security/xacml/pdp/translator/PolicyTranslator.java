@@ -183,7 +183,7 @@ public class PolicyTranslator {
                 .map(this::parseRule)
                 .collect(Collectors.toList());
 
-        return (ruleNodes.size() == 1) ? ruleNodes.getFirst() : new LogicalNode("OR", ruleNodes);
+        return (ruleNodes.size() == 1) ? ruleNodes.get(0) : new LogicalNode("OR", ruleNodes);
     }
 
     private ExpressionNode parseRule(PolicyRule rule) {
@@ -194,7 +194,7 @@ public class PolicyTranslator {
                 .map(this::parseCondition)
                 .collect(Collectors.toList());
 
-        return (conditionNodes.size() == 1) ? conditionNodes.getFirst() : new LogicalNode("AND", conditionNodes);
+        return (conditionNodes.size() == 1) ? conditionNodes.get(0) : new LogicalNode("AND", conditionNodes);
     }
 
     private ExpressionNode walk(SpelNode node) {

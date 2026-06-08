@@ -25,7 +25,7 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
 
         String flowIdentifier = String.format("MFA Flow (type: '%s', order: %d)", flow.getTypeName(), flow.getOrder());
 
-        AuthenticationStepConfig firstStep = steps.getFirst();
+        AuthenticationStepConfig firstStep = steps.get(0);
         if (firstStep.getOrder() != 0 ||
                 !("mfa_form".equalsIgnoreCase(firstStep.getType()) || "mfa_rest".equalsIgnoreCase(firstStep.getType()))) {
             result.addError(String.format("The first authentication step of %s must be 'mfa_form' or 'mfa_rest' type with order 0. Current: type='%s', order=%d",

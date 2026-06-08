@@ -1234,7 +1234,7 @@ public class SecurityDecisionPromptSections {
                         ? "insufficient observed evidence"
                         : currentVsObservedDeltas.isEmpty()
                         ? "none"
-                        : currentVsObservedDeltas.getFirst().description(),
+                        : currentVsObservedDeltas.get(0).description(),
                 120);
         appendCompactFact(section, "CurrentVsObservedDeltaSummary",
                 observedComparisonIncomplete

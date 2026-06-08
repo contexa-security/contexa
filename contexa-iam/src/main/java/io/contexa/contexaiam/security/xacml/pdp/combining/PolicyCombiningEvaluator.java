@@ -50,7 +50,7 @@ public class PolicyCombiningEvaluator {
     }
 
     private AuthorizationDecision evaluateFirstApplicable(List<AuthorizationDecision> decisions) {
-        return decisions.getFirst();
+        return decisions.get(0);
     }
 
     private AuthorizationDecision evaluateDenyUnlessPermit(List<AuthorizationDecision> decisions) {

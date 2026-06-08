@@ -82,8 +82,8 @@ class PolicyMatrixServiceTest {
             assertThat(report.resources()).hasSize(1);
             assertThat(report.roles()).containsExactly("ROLE_USER");
             assertThat(report.cells()).hasSize(1);
-            assertThat(report.cells().getFirst().getFirst().access()).isEqualTo("ALLOW");
-            assertThat(report.cells().getFirst().getFirst().inherited()).isFalse();
+            assertThat(report.cells().get(0).get(0).access()).isEqualTo("ALLOW");
+            assertThat(report.cells().get(0).get(0).inherited()).isFalse();
         }
 
         @Test
@@ -129,11 +129,11 @@ class PolicyMatrixServiceTest {
             PolicyMatrixReport report = service.generateMatrix(null, null);
 
             // ROLE_ADMIN cell should show inherited=true
-            assertThat(report.cells().getFirst().get(0).access()).isEqualTo("ALLOW");
-            assertThat(report.cells().getFirst().get(0).inherited()).isTrue();
+            assertThat(report.cells().get(0).get(0).access()).isEqualTo("ALLOW");
+            assertThat(report.cells().get(0).get(0).inherited()).isTrue();
             // ROLE_USER cell should show inherited=false (direct)
-            assertThat(report.cells().getFirst().get(1).access()).isEqualTo("ALLOW");
-            assertThat(report.cells().getFirst().get(1).inherited()).isFalse();
+            assertThat(report.cells().get(0).get(1).access()).isEqualTo("ALLOW");
+            assertThat(report.cells().get(0).get(1).inherited()).isFalse();
         }
     }
 
@@ -176,7 +176,7 @@ class PolicyMatrixServiceTest {
             PolicyMatrixReport report = service.generateMatrix("users", null);
 
             assertThat(report.resources()).hasSize(1);
-            assertThat(report.resources().getFirst().identifier()).contains("users");
+            assertThat(report.resources().get(0).identifier()).contains("users");
         }
 
         @Test
@@ -192,7 +192,7 @@ class PolicyMatrixServiceTest {
             PolicyMatrixReport report = service.generateMatrix(null, "ADMIN");
 
             assertThat(report.roles()).hasSize(1);
-            assertThat(report.roles().getFirst()).isEqualTo("ROLE_ADMIN");
+            assertThat(report.roles().get(0)).isEqualTo("ROLE_ADMIN");
         }
     }
 
@@ -212,7 +212,7 @@ class PolicyMatrixServiceTest {
 
             PolicyMatrixReport report = service.generateMatrix(null, null);
 
-            assertThat(report.cells().getFirst().getFirst()).isNull();
+            assertThat(report.cells().get(0).get(0)).isNull();
         }
 
         @Test
@@ -227,8 +227,8 @@ class PolicyMatrixServiceTest {
 
             PolicyMatrixReport report = service.generateMatrix(null, null);
 
-            assertThat(report.cells().getFirst().getFirst()).isNotNull();
-            assertThat(report.cells().getFirst().getFirst().access()).isEqualTo("ALLOW");
+            assertThat(report.cells().get(0).get(0)).isNotNull();
+            assertThat(report.cells().get(0).get(0).access()).isEqualTo("ALLOW");
         }
     }
 }

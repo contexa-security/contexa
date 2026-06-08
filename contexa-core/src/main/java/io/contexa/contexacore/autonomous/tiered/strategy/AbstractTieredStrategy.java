@@ -1096,7 +1096,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private Filter.Expression combinePredicates(
             FilterExpressionBuilder filterBuilder,
             List<FilterExpressionBuilder.Op> predicates) {
-        FilterExpressionBuilder.Op combinedPredicate = predicates.getFirst();
+        FilterExpressionBuilder.Op combinedPredicate = predicates.get(0);
         for (int index = 1; index < predicates.size(); index++) {
             combinedPredicate = filterBuilder.and(combinedPredicate, predicates.get(index));
         }

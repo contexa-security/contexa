@@ -137,8 +137,8 @@ class PromptContextAuthorizationServiceTest {
         AuthorizedPromptContext result = service.authorize(request, List.of(sanitized));
 
         assertThat(result.allowedDocumentCount()).isEqualTo(1);
-        assertThat(result.documents().getFirst().getText()).isEqualTo("Tenant-specific threat facts remain available.");
-        assertThat(result.documents().getFirst().getMetadata())
+        assertThat(result.documents().get(0).getText()).isEqualTo("Tenant-specific threat facts remain available.");
+        assertThat(result.documents().get(0).getMetadata())
                 .containsEntry(VectorDocumentMetadata.PROMPT_SAFETY_DECISION, "ALLOWED_PROMPT_SANITIZED")
                 .containsEntry(VectorDocumentMetadata.PROMPT_QUARANTINE_STATE, "REVIEW_REQUIRED")
                 .containsEntry(VectorDocumentMetadata.KNOWLEDGE_QUARANTINE_STATE, "REVIEW_REQUIRED");

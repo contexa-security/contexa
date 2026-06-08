@@ -43,6 +43,7 @@ subprojects {
 
     tasks.named('test') {
         useJUnitPlatform()
+        jvmArgs('--enable-preview')
         finalizedBy jacocoTestReport
     }
 
@@ -85,10 +86,11 @@ subprojects {
 
     tasks.withType(JavaCompile) {
         options.encoding = 'UTF-8'
+        options.compilerArgs.add('--enable-preview')
     }
 
     tasks.withType(org.springframework.boot.gradle.tasks.run.BootRun).configureEach {
-        jvmArgs = ['-Dfile.encoding=UTF-8', '-Dconsole.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
+        jvmArgs = ['-Dfile.encoding=UTF-8', '-Dconsole.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', '--enable-preview']
     }
 
     tasks.withType(Javadoc) {

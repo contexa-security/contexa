@@ -105,8 +105,8 @@ class PolicySimulatorTest {
                     List.of(new SimulationTestCase(1L, "/api/users", "GET")));
 
             assertThat(report.results()).hasSize(1);
-            assertThat(report.results().getFirst().currentResult().decision()).isEqualTo("ALLOW");
-            assertThat(report.results().getFirst().changed()).isFalse();
+            assertThat(report.results().get(0).currentResult().decision()).isEqualTo("ALLOW");
+            assertThat(report.results().get(0).changed()).isFalse();
             assertThat(report.summary().unchanged()).isEqualTo(1);
         }
 
@@ -126,8 +126,8 @@ class PolicySimulatorTest {
                     List.of(new SimulationTestCase(1L, "/api/data", "GET")));
 
             assertThat(report.results()).hasSize(1);
-            assertThat(report.results().getFirst().changed()).isTrue();
-            assertThat(report.results().getFirst().changeType()).isEqualTo("ALLOW_TO_DENY");
+            assertThat(report.results().get(0).changed()).isTrue();
+            assertThat(report.results().get(0).changeType()).isEqualTo("ALLOW_TO_DENY");
             assertThat(report.summary().allowToDeny()).isEqualTo(1);
         }
 
@@ -144,8 +144,8 @@ class PolicySimulatorTest {
             SimulationReport report = simulator.simulate(candidate,
                     List.of(new SimulationTestCase(1L, "/api/new", "GET")));
 
-            assertThat(report.results().getFirst().changed()).isTrue();
-            assertThat(report.results().getFirst().changeType()).isEqualTo("DENY_TO_ALLOW");
+            assertThat(report.results().get(0).changed()).isTrue();
+            assertThat(report.results().get(0).changeType()).isEqualTo("DENY_TO_ALLOW");
             assertThat(report.summary().denyToAllow()).isEqualTo(1);
         }
     }
@@ -220,7 +220,7 @@ class PolicySimulatorTest {
             SimulationReport report = simulator.simulate(null,
                     List.of(new SimulationTestCase(1L, "/api/test", "GET")));
 
-            assertThat(report.results().getFirst().currentResult().userAuthorities())
+            assertThat(report.results().get(0).currentResult().userAuthorities())
                     .contains("ROLE_USER");
         }
 
@@ -237,9 +237,9 @@ class PolicySimulatorTest {
             SimulationReport report = simulator.simulate(null,
                     List.of(new SimulationTestCase(1L, "/api/test", "GET")));
 
-            assertThat(report.results().getFirst().currentResult().matchedPolicyName())
+            assertThat(report.results().get(0).currentResult().matchedPolicyName())
                     .isEqualTo("my-policy");
-            assertThat(report.results().getFirst().currentResult().matchedExpression())
+            assertThat(report.results().get(0).currentResult().matchedExpression())
                     .contains("hasAuthority('ROLE_USER')");
         }
     }

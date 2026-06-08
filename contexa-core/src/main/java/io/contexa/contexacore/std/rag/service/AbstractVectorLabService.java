@@ -300,10 +300,10 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
 
         if (ops.size() == 1) {
-            return ops.getFirst().build();
+            return ops.get(0).build();
         }
 
-        FilterExpressionBuilder.Op combined = ops.getFirst();
+        FilterExpressionBuilder.Op combined = ops.get(0);
         for (int i = 1; i < ops.size(); i++) {
             combined = builder.and(combined, ops.get(i));
         }
