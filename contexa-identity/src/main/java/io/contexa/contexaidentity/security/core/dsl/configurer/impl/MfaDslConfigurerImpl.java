@@ -211,7 +211,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
             AuthenticationStepConfig primaryAuthStep = new AuthenticationStepConfig(this.mfaFlowTypeName, primaryAuthType.name(), 0, true);
             primaryAuthStep.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, primaryConcreteOptions);
-            configuredSteps.addFirst(primaryAuthStep);
+            configuredSteps.add(0, primaryAuthStep);
                     } else {
 
             if (configuredSteps.isEmpty() || configuredSteps.get(0).getOrder() != 0) {

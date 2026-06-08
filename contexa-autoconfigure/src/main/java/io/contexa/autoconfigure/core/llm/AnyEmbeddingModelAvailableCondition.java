@@ -11,7 +11,8 @@ public class AnyEmbeddingModelAvailableCondition implements Condition {
 
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
-        if (!(context.getBeanFactory() instanceof ListableBeanFactory beanFactory)) {
+        ListableBeanFactory beanFactory = context.getBeanFactory();
+        if (beanFactory == null) {
             return false;
         }
         return BeanFactoryUtils.beanNamesForTypeIncludingAncestors(beanFactory, EmbeddingModel.class, true, false).length > 0;

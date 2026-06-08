@@ -654,7 +654,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
             if (recentActions.size() >= maxRecentActions) {
-                recentActions.removeFirst();
+                recentActions.remove(0);
             }
 
             recentActions.add(buildActionSummary(event));
