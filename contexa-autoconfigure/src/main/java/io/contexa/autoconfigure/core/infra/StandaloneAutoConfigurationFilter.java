@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.core.infra;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
+import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 
@@ -35,7 +36,18 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             }
 
             if (!contexaPlatformActive) {
-                result[i] = !isContexaAutoConfiguration(autoConfigurationClass);
+                if (isContexaAutoConfiguration(autoConfigurationClass)) {
+                    result[i] = false;
+                } else if ("org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
+                           "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
+                           "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration".equals(autoConfigurationClass) ||
+                           "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration".equals(autoConfigurationClass)) {
+                    boolean hasUrl = environment.containsProperty("spring.datasource.url");
+                    boolean hasEmbedded = EmbeddedDatabaseConnection.get(getClass().getClassLoader()) != EmbeddedDatabaseConnection.NONE;
+                    result[i] = hasUrl || hasEmbedded;
+                } else {
+                    result[i] = true;
+                }
                 continue;
             }
 
