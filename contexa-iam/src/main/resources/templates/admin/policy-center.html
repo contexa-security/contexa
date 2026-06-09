@@ -47,13 +47,10 @@
 
             <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources' or activeTab == 'create'} ? ' active' : ''">
 
-                <form id="refreshForm" th:action="@{/admin/policy-center/refresh-resources}" method="post" style="display:none;">
-                    <input type="hidden" name="tab" value="create" />
-                </form>
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="create" />
                     <div class="flex gap-2 justify-end mb-4">
-                        <button type="submit" class="modern-btn-refresh" form="refreshForm"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
+                        <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.refreshResources(this)"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.resetPolicyStatus()" style="border-color: rgba(239,68,68,0.6);color:#fca5a5;font-weight:600;"><i class="fas fa-undo-alt"></i> <span th:text="#{policy.center.multi.reset.policy}">Reset Policy</span></button>
                     </div>
@@ -1324,5 +1321,21 @@
 
     });
 </script>
+    <!-- 글로벌 로딩 오버레이 (리소스 새로고침 시 화면 비활성화 및 애니메이션용) -->
+    <div id="global-loading-overlay" class="fixed inset-0 z-[80000] hidden flex flex-col items-center justify-center bg-black/80 backdrop-blur-md transition-all duration-300">
+        <div class="flex flex-col items-center justify-center p-8 rounded-2xl bg-slate-900/50 border border-slate-700/30 shadow-2xl max-w-sm w-full mx-4">
+            <!-- 대기 로고 애니메이션 -->
+            <div class="relative w-24 h-24 mb-6">
+                <!-- 회전하는 바깥 링 -->
+                <div class="absolute inset-0 rounded-full border-4 border-t-indigo-500 border-r-purple-500 border-b-blue-500 border-l-transparent animate-spin"></div>
+                <!-- 내부 로고 심볼 -->
+                <div class="absolute inset-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                    <i class="fas fa-shield-alt text-3xl text-white animate-pulse"></i>
+                </div>
+            </div>
+            <h3 class="text-xl font-bold text-gradient mb-2" th:text="#{common.loading} ?: '처리 중...'">처리 중...</h3>
+            <p class="text-xs text-dark-muted text-center" th:text="#{admin.policy.center.resource.refresh.loading} ?: '리소스를 스캔하고 정책 설명을 분석하는 중입니다. 잠시만 기다려주세요.'">리소스를 스캔하고 정책 설명을 분석하는 중입니다. 잠시만 기다려주세요.</p>
+        </div>
+    </div>
 </body>
 </html>

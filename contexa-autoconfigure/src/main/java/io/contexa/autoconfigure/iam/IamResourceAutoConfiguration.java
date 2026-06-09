@@ -7,7 +7,6 @@ import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
-import io.contexa.contexaiam.resource.WorkbenchInitializer;
 import io.contexa.contexaiam.resource.scanner.MethodResourceScanner;
 import io.contexa.contexaiam.resource.scanner.MvcResourceScanner;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
@@ -15,7 +14,6 @@ import io.contexa.contexaiam.resource.service.AutoConditionTemplateService;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryServiceImpl;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -73,15 +71,6 @@ public class IamResourceAutoConfiguration {
             ApplicationContext applicationContext,
             ObjectMapper objectMapper) {
         return new MethodResourceScanner(applicationContext, objectMapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public WorkbenchInitializer workbenchInitializer(
-            ResourceRegistryService resourceRegistryService,
-            PolicyRepository policyRepository,
-            PolicyEnrichmentService policyEnrichmentService) {
-        return new WorkbenchInitializer(resourceRegistryService, policyRepository, policyEnrichmentService);
     }
 }
 

@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 @Getter
 @Setter
+@NoArgsConstructor
 public class ResourceNamingSuggestionResponse extends AIResponse {
 
     private List<ResourceNamingSuggestion> suggestions;
@@ -27,7 +28,7 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ResourceNamingSuggestion {
-        
+
         private String identifier;
         private String friendlyName;
         private String description;
@@ -42,7 +43,7 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                     .identifier(identifier)
                     .friendlyName(suggestion.friendlyName())
                     .description(suggestion.description())
-                    .confidence(0.8) 
+                    .confidence(0.8)
                     .build();
         }
     }
@@ -83,7 +84,7 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
         List<ResourceNamingSuggestion> suggestions = suggestionMap.entrySet().stream()
                 .map(entry -> ResourceNamingSuggestion.fromResourceNameSuggestion(entry.getKey(), entry.getValue()))
                 .toList();
-                
+
         return new ResourceNamingSuggestionResponse(suggestions, List.of());
     }
-} 
+}
