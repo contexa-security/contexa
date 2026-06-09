@@ -27,9 +27,11 @@ class CoreLLMTieredAutoConfigurationProviderResolutionTest {
     void shouldResolveDynamicPriorityPrimaryChatModelThroughRuntimeCatalog() {
         CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();
         ContexaProperties properties = new ContexaProperties();
-        properties.getLlm().setChatModelPriority("ollama,anthropic,openai");
+        properties.getLlm().setChatModelPriority("openai,anthropic");
         ReflectionTestUtils.setField(configuration, "contexaProperties", properties);
-        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", new ContexaLlmSelectionProperties());
+        ContexaLlmSelectionProperties selectionProperties = new ContexaLlmSelectionProperties();
+        selectionProperties.getChat().setPriority("openai,anthropic");
+        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
 
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         ChatModel selectedModel = mock(ChatModel.class);
