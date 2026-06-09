@@ -35,7 +35,7 @@ public class PolicyExpressionConverter {
         String finalExpression;
 
         if (conditionExpressions.size() == 1) {
-            finalExpression = conditionExpressions.getFirst();
+            finalExpression = conditionExpressions.get(0);
         } else {
             boolean allAreSimpleAuthorities = conditionExpressions.stream()
                     .allMatch(expr -> AUTHORITY_PATTERN.matcher(expr).matches());

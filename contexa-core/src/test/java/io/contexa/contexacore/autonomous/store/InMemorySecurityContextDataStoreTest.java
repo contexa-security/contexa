@@ -62,8 +62,8 @@ class InMemorySecurityContextDataStoreTest {
 
         assertThat(actions).hasSize(100);
         // Oldest 5 actions (ACTION_0 to ACTION_4) should be evicted
-        assertThat(actions.getFirst()).isEqualTo("ACTION_5");
-        assertThat(actions.getLast()).isEqualTo("ACTION_104");
+        assertThat(actions.get(0)).isEqualTo("ACTION_5");
+        assertThat(actions.get(actions.size() - 1)).isEqualTo("ACTION_104");
     }
 
     @Test

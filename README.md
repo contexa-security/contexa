@@ -98,7 +98,7 @@ This repository contains the open-source runtime control engine for that downstr
 
 - Current public OSS version: `0.1.0`
 - Repository stage: initial public open-source release
-- Core focus: post-authentication runtime control inside Spring applications
+- Core focus: post-authentication runtime control inside Spring Boot 3.x applications (**Spring Boot 4.x is NOT supported**)
 
 CONTEXA should be reviewed as early-stage security infrastructure with material category relevance.
 Its public scale is still developing, but the category it addresses is already operationally important: constraining authenticated runtime behavior after risk is discovered and before remediation is complete.
@@ -155,6 +155,9 @@ It provides the runtime decision, control, and integration foundation.
 - Governance: [GOVERNANCE.md](GOVERNANCE.md)
 
 ## Quick Start
+
+> [!WARNING]
+> **Spring Boot 4.x is NOT supported.** Contexa requires Spring Boot 3.x (3.0.x ~ 3.4.x) and will block startup immediately with an `IllegalStateException` in Spring Boot 4.x when `@EnableAISecurity` is enabled.
 
 ### 1. Add the dependency
 

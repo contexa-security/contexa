@@ -187,7 +187,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
         if (preferredFactor != null && result.contains(preferredFactor)) {
             result.remove(preferredFactor);
-            result.addFirst(preferredFactor);
+            result.add(0, preferredFactor);
         }
         return result;
     }

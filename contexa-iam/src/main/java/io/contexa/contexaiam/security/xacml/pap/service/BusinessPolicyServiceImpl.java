@@ -293,7 +293,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         if (dto.isAiActionEnabled() && !CollectionUtils.isEmpty(dto.getAllowedActions())) {
             List<String> actions = dto.getAllowedActions();
             if (actions.size() == 1) {
-                String action = actions.getFirst();
+                String action = actions.get(0);
                 String expr = switch (action.toUpperCase()) {
                     case "ALLOW" -> "#ai.isAllowed()";
                     case "BLOCK" -> "#ai.isBlocked()";

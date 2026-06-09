@@ -63,7 +63,7 @@ class SaasThreatIntelligenceHttpClientTest {
 
         assertThat(snapshot.tenantId()).isEqualTo("tenant-acme");
         assertThat(snapshot.signals()).hasSize(1);
-        assertThat(snapshot.signals().getFirst().canonicalThreatClass()).isEqualTo("credential_abuse");
+        assertThat(snapshot.signals().get(0).canonicalThreatClass()).isEqualTo("credential_abuse");
         server.verify();
     }
 

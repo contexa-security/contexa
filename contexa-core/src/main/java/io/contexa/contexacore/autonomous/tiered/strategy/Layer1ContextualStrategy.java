@@ -495,7 +495,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (!StringUtils.hasText(ctx.getPreviousUserAgentOS())
                 && ctx.getPersonalBaselineEvidence() != null
                 && !ctx.getPersonalBaselineEvidence().operatingSystems().isEmpty()) {
-            ctx.setPreviousUserAgentOS(ctx.getPersonalBaselineEvidence().operatingSystems().getFirst());
+            ctx.setPreviousUserAgentOS(ctx.getPersonalBaselineEvidence().operatingSystems().get(0));
         }
 
         return ctx;
@@ -654,7 +654,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
             if (recentActions.size() >= maxRecentActions) {
-                recentActions.removeFirst();
+                recentActions.remove(0);
             }
 
             recentActions.add(buildActionSummary(event));

@@ -70,10 +70,10 @@ class PromptContextAuditPayloadMapperTest {
         assertThat(payload.getAuditId()).isNotBlank();
         assertThat(payload.getContextFingerprint()).isNotBlank();
         assertThat(payload.getContexts()).hasSize(1);
-        assertThat(payload.getContexts().getFirst().getArtifactId()).isEqualTo("artifact-1");
-        assertThat(payload.getContexts().getFirst().getAuthorizationDecision()).isEqualTo("ALLOW");
-        assertThat(payload.getContexts().getFirst().isTenantBound()).isTrue();
-        assertThat(payload.getContexts().getFirst().getSimilarityScore()).isEqualTo(0.84);
+        assertThat(payload.getContexts().get(0).getArtifactId()).isEqualTo("artifact-1");
+        assertThat(payload.getContexts().get(0).getAuthorizationDecision()).isEqualTo("ALLOW");
+        assertThat(payload.getContexts().get(0).isTenantBound()).isTrue();
+        assertThat(payload.getContexts().get(0).getSimilarityScore()).isEqualTo(0.84);
         assertThat(payload.getSystemPrompt()).isNull();
         assertThat(payload.getUserPrompt()).isNull();
         assertThat(payload.getSystemPromptHash()).isEqualTo("sha256:system");

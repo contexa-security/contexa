@@ -123,7 +123,7 @@ class LearningContextEvidenceAssemblerTest {
                                 "actionFamily", "READ"))));
 
         assertThat(evidence.personalRetrievedEvidence()).hasSize(1);
-        assertThat(evidence.personalRetrievedEvidence().getFirst().pathFamily())
+        assertThat(evidence.personalRetrievedEvidence().get(0).pathFamily())
                 .isEqualTo("/admin/api/security-test/sensitive/*");
         assertThat(evidence.carryRequiredFacts())
                 .contains(

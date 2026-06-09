@@ -127,40 +127,35 @@ public class ResponseParsingStep implements PipelineStep {
         try {
             String cleanJson = extractJson(response);
 
-            switch (targetTypeInfo) {
-                case Class<?> targetClass -> {
-                    if (Map.class.isAssignableFrom(targetClass)) {
-                        MapOutputConverter converter = new MapOutputConverter();
-                        return converter.convert(cleanJson);
-                    } else if (List.class.isAssignableFrom(targetClass)) {
-                        ListOutputConverter converter = new ListOutputConverter(conversionService);
-                        return converter.convert(cleanJson);
-                    } else {
-                        try {
-                            BeanOutputConverter<?> converter = new BeanOutputConverter<>(targetClass);
-                            return converter.convert(cleanJson);
-                        } catch (Exception beanEx) {
-                            log.error("[{}] BeanOutputConverter failed ({}): {}",
-                                    getStepName(), targetClass.getSimpleName(), beanEx.getMessage());
-
-                            MapOutputConverter mapConverter = new MapOutputConverter();
-                            Map<String, Object> mapResult = mapConverter.convert(cleanJson);
-                            log.error("[{}] Converted to Map successfully (Bean conversion failed)", getStepName());
-                            return mapResult;
-                        }
-                    }
-                }
-                case ParameterizedTypeReference<?> typeRef -> {
-                    BeanOutputConverter<?> converter = new BeanOutputConverter<>(typeRef);
-                    return converter.convert(cleanJson);
-                }
-                case StructuredOutputConverter<?> converter -> {
-                    return converter.convert(cleanJson);
-                }
-                case null, default -> {
+            if (targetTypeInfo instanceof Class<?> targetClass) {
+                if (Map.class.isAssignableFrom(targetClass)) {
                     MapOutputConverter converter = new MapOutputConverter();
                     return converter.convert(cleanJson);
+                } else if (List.class.isAssignableFrom(targetClass)) {
+                    ListOutputConverter converter = new ListOutputConverter(conversionService);
+                    return converter.convert(cleanJson);
+                } else {
+                    try {
+                        BeanOutputConverter<?> converter = new BeanOutputConverter<>(targetClass);
+                        return converter.convert(cleanJson);
+                    } catch (Exception beanEx) {
+                        log.error("[{}] BeanOutputConverter failed ({}): {}",
+                                getStepName(), targetClass.getSimpleName(), beanEx.getMessage());
+
+                        MapOutputConverter mapConverter = new MapOutputConverter();
+                        Map<String, Object> mapResult = mapConverter.convert(cleanJson);
+                        log.error("[{}] Converted to Map successfully (Bean conversion failed)", getStepName());
+                        return mapResult;
+                    }
                 }
+            } else if (targetTypeInfo instanceof ParameterizedTypeReference<?> typeRef) {
+                BeanOutputConverter<?> converter = new BeanOutputConverter<>(typeRef);
+                return converter.convert(cleanJson);
+            } else if (targetTypeInfo instanceof StructuredOutputConverter<?> converter) {
+                return converter.convert(cleanJson);
+            } else {
+                MapOutputConverter converter = new MapOutputConverter();
+                return converter.convert(cleanJson);
             }
         } catch (Exception e) {
             log.error("[{}] Spring AI conversion failed: {}", getStepName(), e.getMessage());

@@ -52,7 +52,7 @@ public class PromptPresentationExperimentService {
     }
 
     private PromptPresentationExperimentResult toResult(List<PromptPresentationObservation> observations) {
-        PromptPresentationPatternProfile patternProfile = observations.getFirst().patternProfile();
+        PromptPresentationPatternProfile patternProfile = observations.get(0).patternProfile();
         long sampleSize = observations.size();
         long operatorReviewedOutcomeCount = observations.stream().filter(PromptPresentationObservation::operatorReviewedOutcome).count();
         long reviewerDisagreementCount = observations.stream().filter(PromptPresentationObservation::reviewerDisagreement).count();

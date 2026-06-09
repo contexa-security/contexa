@@ -40,16 +40,17 @@ public class BlacklistController {
         boolean hasKeyword = keyword != null && !keyword.isBlank();
         String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
 
+        String safeFilter = filter != null ? filter : "all";
         if (hasKeyword) {
-            blockedUsers = switch (filter) {
+            blockedUsers = switch (safeFilter) {
                 case "blocked" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.BLOCKED, likePattern);
                 case "unblock_requested" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.UNBLOCK_REQUESTED, likePattern);
                 case "resolved" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.RESOLVED, likePattern);
                 case "timeout_responded" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.TIMEOUT_RESPONDED, likePattern);
-                case null, default -> blockedUserJpaRepository.searchByUsername(likePattern);
+                default -> blockedUserJpaRepository.searchByUsername(likePattern);
             };
         } else {
-            blockedUsers = switch (filter) {
+            blockedUsers = switch (safeFilter) {
                 case "blocked" -> blockedUserService.getBlockedUsers();
                 case "unblock_requested" -> blockedUserService.getUnblockRequested();
                 case "resolved" -> blockedUserService.getAllBlockHistory().stream()
@@ -58,7 +59,7 @@ public class BlacklistController {
                 case "timeout_responded" -> blockedUserService.getAllBlockHistory().stream()
                         .filter(b -> b.getStatus() == BlockedUserStatus.TIMEOUT_RESPONDED)
                         .toList();
-                case null, default -> blockedUserService.getAllBlockHistory();
+                default -> blockedUserService.getAllBlockHistory();
             };
         }
         model.addAttribute("blockedUsers", blockedUsers);

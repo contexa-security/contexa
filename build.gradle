@@ -20,13 +20,7 @@ allprojects {
     description = 'contexa'
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
-    withSourcesJar()
-    withJavadocJar()
-}
+
 
 tasks.withType(Javadoc) {
     options.encoding = 'UTF-8'
@@ -62,6 +56,9 @@ subprojects {
     }
 
     java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
         withSourcesJar()
         withJavadocJar()
     }
@@ -97,6 +94,7 @@ subprojects {
     tasks.withType(Javadoc) {
         options.encoding = 'UTF-8'
         options.addStringOption('Xdoclint:none', '-quiet')
+        options.addStringOption('source', '17')
         failOnError = false
     }
 
