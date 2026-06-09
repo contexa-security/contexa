@@ -30,6 +30,8 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
         defaults.put("spring.ai.vectorstore.pgvector.table-name", "vector_store");
         defaults.put("spring.ai.openai.embedding.options.model", EmbeddingDimensionResolver.DEFAULT_OPENAI_EMBEDDING_MODEL);
         defaults.put("spring.ai.openai.embedding.options.dimensions", dimensionValue);
+        defaults.put("management.prometheus.metrics.export.exemplars.enabled", "false");
+        defaults.put("management.metrics.enable.lettuce", "false");
         return defaults;
     }
 }

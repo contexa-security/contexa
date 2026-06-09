@@ -1,1 +1,2 @@
 io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration
+io.contexa.contexaidentity.config.ZeroTrustRedisConfig

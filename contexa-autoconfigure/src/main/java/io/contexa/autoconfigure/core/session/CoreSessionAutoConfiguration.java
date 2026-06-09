@@ -47,24 +47,13 @@ public class CoreSessionAutoConfiguration {
             return fallback;
         }
 
-        try {
-            redisTemplate.opsForValue().get("__health_check__");
+        RedisMfaRepository repository = new RedisMfaRepository(
+                redisTemplate,
+                new RedisSessionIdGenerator(redisTemplate),
+                properties);
+        repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
 
-            RedisMfaRepository repository = new RedisMfaRepository(
-                    redisTemplate,
-                    new RedisSessionIdGenerator(redisTemplate),
-                    properties);
-            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-
-            return repository;
-
-        } catch (Exception e) {
-            log.error("Failed to create primary MFA repository, falling back to HttpSession", e);
-
-            HttpSessionMfaRepository fallback = new HttpSessionMfaRepository(new HttpSessionIdGenerator());
-            fallback.setSessionTimeout(properties.getMfa().getSessionTimeout());
-            return fallback;
-        }
+        return repository;
     }
 
     @Bean
