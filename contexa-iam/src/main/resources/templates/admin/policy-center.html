@@ -188,17 +188,56 @@
                     </table>
                 </div>
 
-                <nav th:if="${resourcePage != null and resourcePage.totalPages > 1}" class="mt-8 flex justify-center">
+                <nav th:if="${resourcePage != null and resourcePage.totalPages > 1}" class="mt-8 flex justify-center"
+                     th:with="
+                        currentPage=${resourcePage.number},
+                        totalPages=${resourcePage.totalPages},
+                        startPage=${T(java.lang.Math).max(0, currentPage - 2)},
+                        endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}
+                     ">
                     <ul class="modern-pagination">
+                        <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${resourcePage.number - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
-                        <li th:each="pageNumber : ${#numbers.sequence(0, resourcePage.totalPages - 1)}"
-                            class="page-item" th:classappend="${pageNumber == resourcePage.number} ? 'active'">
+                        <!-- 이전 페이지로 이동 -->
+                        <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${currentPage - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
+                        </li>
+
+                        <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
+                        <th:block th:if="${startPage > 0}">
+                            <li class="page-item">
+                                <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}">1</a>
+                            </li>
+                            <li class="page-item disabled" th:if="${startPage > 1}">
+                                <span class="page-link">...</span>
+                            </li>
+                        </th:block>
+
+                        <!-- 동적 페이지 번호 루프 -->
+                        <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
+                            class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
                             <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${pageNumber}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${pageNumber + 1}"></a>
                         </li>
+
+                        <!-- endPage와 마지막 페이지 사이에 생략이 있으면 ...과 마지막 페이지 표시 -->
+                        <th:block th:if="${endPage < totalPages - 1}">
+                            <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
+                                <span class="page-link">...</span>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${totalPages}"></a>
+                            </li>
+                        </th:block>
+
+                        <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${resourcePage.number + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${currentPage + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
+                        </li>
+                        <!-- 끝 페이지로 이동 -->
+                        <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>
@@ -759,17 +798,56 @@
                     </table>
                 </div>
 
-                <nav th:if="${policyPage != null and policyPage.totalPages > 1}" class="mt-8 flex justify-center">
+                <nav th:if="${policyPage != null and policyPage.totalPages > 1}" class="mt-8 flex justify-center"
+                     th:with="
+                        currentPage=${policyPage.number},
+                        totalPages=${policyPage.totalPages},
+                        startPage=${T(java.lang.Math).max(0, currentPage - 2)},
+                        endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}
+                     ">
                     <ul class="modern-pagination">
+                        <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${policyPage.number - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
-                        <li th:each="pageNumber : ${#numbers.sequence(0, policyPage.totalPages - 1)}"
-                            class="page-item" th:classappend="${pageNumber == policyPage.number} ? 'active'">
+                        <!-- 이전 페이지로 이동 -->
+                        <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${currentPage - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
+                        </li>
+
+                        <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
+                        <th:block th:if="${startPage > 0}">
+                            <li class="page-item">
+                                <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}">1</a>
+                            </li>
+                            <li class="page-item disabled" th:if="${startPage > 1}">
+                                <span class="page-link">...</span>
+                            </li>
+                        </th:block>
+
+                        <!-- 동적 페이지 번호 루프 -->
+                        <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
+                            class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
                             <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${pageNumber}, policyKeyword=${policyKeyword})}" th:text="${pageNumber + 1}"></a>
                         </li>
+
+                        <!-- endPage와 마지막 페이지 사이에 생략이 있으면 ...과 마지막 페이지 표시 -->
+                        <th:block th:if="${endPage < totalPages - 1}">
+                            <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
+                                <span class="page-link">...</span>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}" th:text="${totalPages}"></a>
+                            </li>
+                        </th:block>
+
+                        <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${policyPage.number + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${currentPage + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
+                        </li>
+                        <!-- 끝 페이지로 이동 -->
+                        <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>
