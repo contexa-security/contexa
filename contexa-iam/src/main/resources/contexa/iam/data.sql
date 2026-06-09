@@ -9,12 +9,12 @@
 -- credentials_expired, enabled, external_auth_only,
 -- failed_login_attempts, mfa_enabled, created_at, name, username, password.
 -- ----------------------------------------------------------------
-INSERT INTO USERS (id, username, password, name, mfa_enabled, enabled, account_locked, bridge_managed, credentials_expired, external_auth_only, failed_login_attempts, created_at) VALUES
-    (1, 'admin@example.com',     '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '최고관리자', TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (2, 'manager@example.com',   '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '김팀장',     TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (3, 'developer@example.com', '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '박개발',     FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (4, 'user@example.com',      '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '이운영',     FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (5, 'finance@example.com',   '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '최재무',     TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP)
+INSERT INTO USERS (id, username, password, name, email, mfa_enabled, enabled, account_locked, bridge_managed, credentials_expired, external_auth_only, failed_login_attempts, created_at) VALUES
+    (1, 'admin',     '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '최고관리자', 'admin@gmail.com', TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    (2, 'manager',   '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '김팀장',     'manager@gmail.com',TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    (3, 'developer', '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '박개발',     'developer@gmail.com',FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    (4, 'user',      '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '이운영',     'user@gmail.com',FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
+    (5, 'finance',   '{bcrypt}$2a$10$22n9G82e9Y7jC/qXjW1.0O.Z/l.X.1K.0F/l.X.1K', '최재무',     'finance@gmail.com',TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------
@@ -89,25 +89,6 @@ INSERT INTO ROLE_PERMISSIONS (role_id, permission_id, assigned_at) VALUES
     (4, 306, CURRENT_TIMESTAMP)
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- ----------------------------------------------------------------
--- MANAGED_RESOURCE — idempotent on resource_identifier (no UNIQUE constraint).
--- Required NOT NULL: created_at, updated_at, resource_identifier,
--- friendly_name, resource_type, status.
--- ----------------------------------------------------------------
-INSERT INTO MANAGED_RESOURCE (resource_identifier, resource_type, friendly_name, description, status, created_at, updated_at)
-SELECT v.resource_identifier, v.resource_type, v.friendly_name, v.description, v.status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-  FROM (VALUES
-    ('/api/documents',                                                                                                'URL',    'getDocumentList', NULL::TEXT,                                  'NEEDS_DEFINITION'),
-    ('io.contexa.contexaiam.admin.web.service.impl.DocumentService.getDocumentById(java.lang.Long)',                  'METHOD', '특정 문서 조회',  'AI 추천을 받지 못한 리소스입니다.',         'PERMISSION_CREATED'),
-    ('/admin/**',                                                                                                     'URL',    'GROUP 관리',      '시스템에서 자동 생성된 GROUP 리소스',       'POLICY_CONNECTED'),
-    ('/api/internal/health',                                                                                          'URL',    'Health Check API', NULL::TEXT,                                 'EXCLUDED'),
-    ('io.contexa.contexaiam.admin.web.service.impl.DocumentService.updateDocument(java.lang.Long,java.lang.String)',  'METHOD', '문서 업데이트',   'ID와 새로운 내용으로 문서를 업데이트하는 기능', 'POLICY_CONNECTED')
-  ) AS v(resource_identifier, resource_type, friendly_name, description, status)
- WHERE NOT EXISTS (SELECT 1 FROM MANAGED_RESOURCE m WHERE m.resource_identifier = v.resource_identifier);
-
--- ----------------------------------------------------------------
--- PERMISSION — Resource-bound permissions (managed_resource_id).
--- ----------------------------------------------------------------
 INSERT INTO PERMISSION (permission_id, permission_name, friendly_name, description, target_type, action_type, managed_resource_id, auto_created, created_at) VALUES
     (102, 'METHOD_DOCUMENTSERVICE_GETDOCUMENTBYID', '문서 조회', '문서를 조회하는 권한입니다.',  'METHOD', 'EXECUTE', 102, FALSE, CURRENT_TIMESTAMP),
     (103, 'METHOD_GROUPSERVICEIMPL_GETGROUP',       '그룹 조회', '그룹 정보를 조회하는 권한입니다.', 'METHOD', 'EXECUTE', 103, FALSE, CURRENT_TIMESTAMP),
@@ -206,15 +187,6 @@ INSERT INTO CONDITION_TEMPLATE (id, name, spel_template, category, parameter_cou
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------
--- DOCUMENT — sample data.
--- ----------------------------------------------------------------
-INSERT INTO DOCUMENT (document_id, title, content, owner_username) VALUES
-    (1, '2025년 1분기 영업 비밀 보고서', '1분기 매출은 전년 대비 15% 상승했습니다...', 'manager@example.com'),
-    (2, '개인 연말정산 자료',           '2024년 귀속 연말정산 내역입니다.',          'user@example.com'),
-    (3, '재무팀 전용 감사 보고서',      '외부 감사법인 최종 보고서입니다.',          'finance@example.com')
-ON CONFLICT (document_id) DO NOTHING;
-
--- ----------------------------------------------------------------
 -- SECURITY_SPEL — SpEL expression catalog.
 -- ----------------------------------------------------------------
 INSERT INTO SECURITY_SPEL (name, expression, description, category) VALUES
@@ -259,14 +231,12 @@ DECLARE
         ARRAY['users_id_seq',              'users',              'id'],
         ARRAY['app_group_group_id_seq',    'app_group',          'group_id'],
         ARRAY['role_role_id_seq',          'role',               'role_id'],
-        ARRAY['managed_resource_id_seq',   'managed_resource',   'id'],
         ARRAY['permission_permission_id_seq','permission',       'permission_id'],
         ARRAY['policy_id_seq',             'policy',             'id'],
         ARRAY['policy_target_id_seq',      'policy_target',      'id'],
         ARRAY['policy_rule_id_seq',        'policy_rule',        'id'],
         ARRAY['policy_condition_id_seq',   'policy_condition',   'id'],
         ARRAY['condition_template_id_seq', 'condition_template', 'id'],
-        ARRAY['document_document_id_seq',  'document',           'document_id'],
         ARRAY['security_spel_id_seq',      'security_spel',      'id']
     ];
     pair TEXT[];
