@@ -195,7 +195,7 @@ public final class EmbeddingDimensionResolver {
             }
             Object value = source.getProperty(key);
             if (value != null) {
-                return String.valueOf(value);
+                return environment.resolvePlaceholders(String.valueOf(value));
             }
         }
         return null;

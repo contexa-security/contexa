@@ -77,6 +77,15 @@ public class PolicyCenterCommandService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void refreshResources() {
         resourceRegistryService.refreshAndSynchronizeResources();
+
+        List<Policy> policiesToUpdate = policyRepository.findByFriendlyDescriptionIsNull();
+        if (!policiesToUpdate.isEmpty()) {
+            for (Policy policy : policiesToUpdate) {
+                policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
+                policyRepository.save(policy);
+            }
+        }
+
         synchronizeResourcePolicyStatus();
     }
 

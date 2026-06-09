@@ -19,6 +19,31 @@ const PolicyCenter = {
     },
 
 
+    async refreshResources(button) {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            overlay.style.display = 'flex';
+        }
+        try {
+            const token = this.getCsrfToken();
+            const response = await fetch('/admin/policy-center/refresh-resources', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': token
+                }
+            });
+            if (!response.ok) {
+                showToast('Failed to refresh resources', 'error');
+            }
+        } catch (error) {
+            showToast('Error refreshing resources: ' + error.message, 'error');
+        } finally {
+            // 작업이 완료되면 자동으로 페이지를 새로고침하여 최신 데이터를 보여줍니다.
+            window.location.href = '/admin/policy-center?tab=resources';
+        }
+    },
+
     setLoading(button, isLoading) {
         if (!button) return;
         if (isLoading) {

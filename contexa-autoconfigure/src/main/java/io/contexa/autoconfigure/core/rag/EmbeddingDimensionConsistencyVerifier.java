@@ -10,6 +10,7 @@ import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -39,7 +40,7 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
             ContexaLlmSelectionProperties selectionProperties,
             Environment environment,
             LlmRuntimeCatalog runtimeCatalog,
-            DataSource dataSource) {
+            @Qualifier("contexaDataSource") DataSource dataSource) {
         this.vectorStoreProperties = vectorStoreProperties;
         this.selectionProperties = selectionProperties;
         this.environment = environment;
