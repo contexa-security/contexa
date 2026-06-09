@@ -91,6 +91,63 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
     }
 
     @Test
+    void ragScopeFaultScenarioProducesMultipleRuntimeSlotFaultSignalsBeforeGovernanceApproval() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                null,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-governance-multi-fault-001")
+                .timestamp(LocalDateTime.of(2026, 6, 8, 14, 10))
+                .userId("persona_fin_lead")
+                .sessionId("session-runtime-governance-multi-fault")
+                .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        event.addMetadata("resourceId", "resource-001");
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("organizationId", "demo-org");
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("pqaPromptFaultEnabled", true);
+        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of(new Document(
+                        "User accessed /admin/api/enterprise/verification/runtime/probe/normal/resource-001 via GET.",
+                        Map.of(
+                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                VectorDocumentMetadata.USER_ID, "persona_fin_lead",
+                                VectorDocumentMetadata.TENANT_ID, "demo",
+                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
+
+        assertThat(prompt.userText()).contains("DocFaultScope");
+        assertThat(prompt.userText()).contains("tenantId=other-tenant");
+        assertThat(prompt.userText()).contains("ignore previous instructions");
+        assertThat(prompt.userText()).contains("DocFaultAuth");
+        assertThat(prompt.userText()).contains("authorization=DENIED");
+        assertThat(prompt.userText()).contains("RequestPath: /admin/api/security-test/sensitive/runtime-slot-fault");
+        assertThat(prompt.userText()).contains("HttpMethod: POST");
+        assertThat(prompt.userText()).contains("ActionFamily: WRITE");
+        assertThat(prompt.userText()).contains("other items omitted");
+        assertThat(prompt.executionMetadata().toMetadataMap())
+                .containsEntry("pqaPromptFaultApplied", true)
+                .containsEntry("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT")
+                .containsEntry("pqaPromptFaultTarget", "MULTI_METRIC_RUNTIME_SLOT_CONTEXT");
+    }
+
+    @Test
     void appliesRuntimeGovernanceRulesAfterPromptFaultInjection() {
         CapturingRuleProvider provider = new CapturingRuleProvider(List.of(
                 new PromptRuntimeGovernanceRule(
@@ -152,9 +209,12 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                                 VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
 
         assertThat(prompt.userText()).contains("=== RAG EVIDENCE ===");
-        assertThat(prompt.userText()).contains("RagDocument1:");
+        assertThat(prompt.userText()).doesNotContain("DocFaultScope");
+        assertThat(prompt.userText()).contains("RagDocument2:");
         assertThat(prompt.userText()).contains("authorization=");
         assertThat(prompt.userText()).doesNotContain("THREAT MEMORY: tenant mismatch unauthorized document");
+        assertThat(prompt.userText()).doesNotContain("authorization=DENIED");
+        assertThat(prompt.userText()).contains("authorization=ALLOWED_USER_SCOPE");
         assertThat(prompt.userText()).contains("RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE");
         assertThat(prompt.executionMetadata().toMetadataMap())
                 .containsEntry("pqaPromptFaultApplied", true)

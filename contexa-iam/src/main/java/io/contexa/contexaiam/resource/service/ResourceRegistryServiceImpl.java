@@ -69,7 +69,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         groupedByIdentifier.forEach((identifier, list) -> {
             if (list.size() > 1) {
-                log.error("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
+//                log.error("Resource identifier conflict detected: '{}' found in {} scanners, using first occurrence", identifier, list.size());
             }
         });
 

@@ -1,6 +1,3 @@
-// ?쇱씠釉뚮윭由?JAR濡??꾪솚 (Library JAR conversion)
-// Starter ?⑦꽩??遺?⑺븯?꾨줉 bootJar 鍮꾪솢?깊솕 (Disable bootJar for Starter pattern)
-// ?낅┰ ?ㅽ뻾? examples 紐⑤뱢?먯꽌 ?쒓났 (Standalone execution provided by examples module)
 bootJar.enabled = false
 jar.enabled = true
 
