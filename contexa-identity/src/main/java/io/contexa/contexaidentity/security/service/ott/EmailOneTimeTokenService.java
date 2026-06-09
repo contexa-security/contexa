@@ -79,6 +79,10 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
             to = username;
         }
 
+        if (!emailService.isMailSenderConfigured()) {
+            throw new IllegalStateException("Email sender is not configured. Please configure Spring mail properties.");
+        }
+
         emailService.sendHtmlMessage(to, emailSubject, htmlBody);
 
         return internalOneTimeToken.get();

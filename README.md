@@ -157,7 +157,7 @@ It provides the runtime decision, control, and integration foundation.
 ## Quick Start
 
 > [!WARNING]
-> **Spring Boot 4.x is NOT supported.** Contexa requires Spring Boot 3.x (3.0.x ~ 3.4.x) and will block startup immediately with an `IllegalStateException` in Spring Boot 4.x when `@EnableAISecurity` is enabled.
+> **Spring Boot 4.x is NOT supported.** Contexa requires Spring Boot 3.x and will block startup immediately with an `IllegalStateException` in Spring Boot 4.x when `@EnableAISecurity` is enabled.
 
 ### 1. Add the dependency
 

@@ -13,7 +13,7 @@ public interface LoginPolicyHandler {
     /** Legacy entrypoint kept for backward compatibility. Delegates to {@link #onLoginSuccess(String, String, String)}. */
     void onLoginSuccess(String username, String ip);
 
-    /** Legacy entrypoint kept for backward compatibility. Delegates to {@link #onLoginFailure(String, String, String)}. */
+    /** Legacy entrypoint kept for backward compatibility. Delegates to {@link #onLoginFailure(String, String, String,String)}. */
     void onLoginFailure(String username);
 
     /**

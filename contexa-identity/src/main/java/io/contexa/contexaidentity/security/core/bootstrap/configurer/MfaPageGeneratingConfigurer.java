@@ -1,20 +1,18 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.MfaPageConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
-import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
-import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacommon.properties.MfaPageConfig;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import io.contexa.contexaidentity.security.service.ott.EmailService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
@@ -65,12 +63,21 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             AuthContextProperties authContextProperties =
                     applicationContext.getBean(AuthContextProperties.class);
 
+            boolean mailConfigured = false;
+            try {
+                EmailService emailService = applicationContext.getBean(EmailService.class);
+                mailConfigured = emailService.isMailSenderConfigured();
+            } catch (Exception e) {
+                log.warn("EmailService bean not found or failed to check configuration. Defaulting mailConfigured to false.");
+            }
+
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
                     flowConfig,
                     stateMachineIntegrator,
                     authUrlProvider,
                     authContextProperties.getMfa(),
-                    authContextProperties.getTokenPersistence()
+                    authContextProperties.getTokenPersistence(),
+                    mailConfigured
             );
             try {
                 org.springframework.context.MessageSource messageSource =

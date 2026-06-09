@@ -45,6 +45,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private AuthUrlProvider authUrlProvider;
     private final MfaSettings mfaSettings;
     private final String tokenPersistence;
+    private final boolean mailConfigured;
     private MessageSource messageSource;
     private JdbcTemplate jdbcTemplate;
 
@@ -231,7 +232,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     .form-control:focus {
                         outline: none;
                         border-color: #667eea;
-                        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+                        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
                     }
                     .form-control:read-only {
                         background-color: #f5f5f5;
@@ -271,6 +272,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         margin-bottom: 20px;
                         text-align: center;
                     }
+                    .warning-message {
+                        background: #fff9db;
+                        color: #f08c00;
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        border: 1px solid #ffe3e3;
+                        font-size: 14px;
+                        margin-bottom: 20px;
+                        text-align: center;
+                    }
                 </style>
             </head>
             <body>
@@ -282,7 +293,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         {{usernameInput}}
                         {{hiddenInputs}}
 
-                        <button type="submit" class="primary-button">
+                        <button type="submit" class="primary-button" {{submitButtonDisabled}}>
                             {{i18nOttRequestButton}}
                         </button>
                     </form>
@@ -1047,7 +1058,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             MfaStateMachineIntegrator stateMachineIntegrator,
             AuthUrlProvider authUrlProvider,
             MfaSettings mfaSettings,
-            String tokenPersistence) {
+            String tokenPersistence,
+            boolean mailConfigured) {
         Assert.notNull(mfaFlowConfig, "AuthenticationFlowConfig cannot be null");
         Assert.isTrue(MfaFlowTypeUtils.isMfaFlow(mfaFlowConfig.getTypeName()),
                 "This filter only works with MFA flow config. Provided flow type: " + mfaFlowConfig.getTypeName());
@@ -1060,7 +1072,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.authUrlProvider = authUrlProvider;
         this.mfaSettings = mfaSettings;
         this.tokenPersistence = tokenPersistence != null ? tokenPersistence : "sessionStorage";
-
+        this.mailConfigured = mailConfigured;
     }
 
     public void setAuthUrlProvider(AuthUrlProvider authUrlProvider) {
@@ -1857,12 +1869,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String ottRequestUrl = extractOttCodeGenerationUrl();
         String fullOttRequestUrl = contextPath + ottRequestUrl;
 
-        String errorParam = request.getParameter("error");
         String errorMessage = "";
-        if ("user_not_found".equals(errorParam)) {
-            errorMessage = "<div class=\"error-message\">"
-                    + msg(request, "mfa.ott.error.user.not.found", "User not found. Please enter a valid username.")
+        String submitButtonDisabled = "";
+        if (!this.mailConfigured) {
+            errorMessage = "<div class=\"warning-message\">"
+                    + msg(request, "mfa.ott.error.mail.not.configured", "Email sending is not configured. Please contact the administrator or check the server properties.")
                     + "</div>";
+            submitButtonDisabled = "disabled";
+        } else {
+            String errorParam = request.getParameter("error");
+            if ("user_not_found".equals(errorParam)) {
+                errorMessage = "<div class=\"error-message\">"
+                        + msg(request, "mfa.ott.error.user.not.found", "User not found. Please enter a valid username.")
+                        + "</div>";
+            }
         }
 
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
@@ -1877,6 +1897,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("errorMessage", errorMessage)
+                .withRawHtml("submitButtonDisabled", submitButtonDisabled)
                 .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 

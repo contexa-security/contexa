@@ -7,8 +7,6 @@ import java.time.LocalDateTime;
 
 /**
  * Per-IP failed login attempt counter, used for IP-dimension throttling and lockout.
- * Independent of {@link Users#getFailedLoginAttempts()} which tracks per-username counts.
- *
  * <p>Atomic increments are performed via dedicated repository queries to avoid
  * read-modify-write race conditions under concurrent failed-login storms.</p>
  */

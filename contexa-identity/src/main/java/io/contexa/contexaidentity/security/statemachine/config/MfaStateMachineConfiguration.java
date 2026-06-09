@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.statemachine.action.StateDoActionPolicy;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
@@ -25,7 +26,6 @@ import java.util.EnumSet;
 @Slf4j
 @Configuration
 @EnableStateMachineFactory
-@RequiredArgsConstructor
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
 
     private final InitializeMfaAction initializeMfaAction;
@@ -38,6 +38,27 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
 
     private final AllFactorsCompletedGuard allFactorsCompletedGuard;
     private final RetryLimitGuard retryLimitGuard;
+
+    public MfaStateMachineConfiguration(
+            @Lazy InitializeMfaAction initializeMfaAction,
+            @Lazy SelectFactorAction selectFactorAction,
+            @Lazy InitiateChallengeAction initiateChallengeAction,
+            @Lazy VerifyFactorAction verifyFactorAction,
+            @Lazy CompleteMfaAction completeMfaAction,
+            @Lazy HandleFailureAction handleFailureAction,
+            @Lazy DetermineNextFactorAction determineNextFactorAction,
+            @Lazy AllFactorsCompletedGuard allFactorsCompletedGuard,
+            @Lazy RetryLimitGuard retryLimitGuard) {
+        this.initializeMfaAction = initializeMfaAction;
+        this.selectFactorAction = selectFactorAction;
+        this.initiateChallengeAction = initiateChallengeAction;
+        this.verifyFactorAction = verifyFactorAction;
+        this.completeMfaAction = completeMfaAction;
+        this.handleFailureAction = handleFailureAction;
+        this.determineNextFactorAction = determineNextFactorAction;
+        this.allFactorsCompletedGuard = allFactorsCompletedGuard;
+        this.retryLimitGuard = retryLimitGuard;
+    }
 
     @Override
     public void configure(StateMachineConfigurationConfigurer<MfaState, MfaEvent> config) throws Exception {
