@@ -134,6 +134,9 @@ public class PromptRuntimeGovernanceRuleApplier {
         if (!StringUtils.hasText(label) || !StringUtils.hasText(value)) {
             return new AppliedRule(prompt, "SKIPPED_NO_RENDERABLE_PAYLOAD");
         }
+        if (isUnusablePromptValue(value)) {
+            return new AppliedRule(prompt, "SKIPPED_UNUSABLE_RUNTIME_VALUE");
+        }
         List<String> labels = equivalentPromptLabels(label);
         StringBuilder result = new StringBuilder();
         boolean replaced = false;
@@ -154,6 +157,24 @@ public class PromptRuntimeGovernanceRuleApplier {
             return new AppliedRule(appendLine(prompt, label + ": " + value), "APPLIED");
         }
         return new AppliedRule(result.toString(), "APPLIED");
+    }
+
+    private boolean isUnusablePromptValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return true;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return "N/A".equals(normalized)
+                || "NA".equals(normalized)
+                || "UNKNOWN".equals(normalized)
+                || "MISSING".equals(normalized)
+                || "NULL".equals(normalized)
+                || normalized.startsWith("UNKNOWN ")
+                || normalized.contains(" NOT AVAILABLE")
+                || normalized.contains(" NOT SUPPLIED")
+                || normalized.contains(" NO RELIABLE")
+                || normalized.contains(" DO NOT ASSUME")
+                || "?????놁쓬".equals(value.trim());
     }
 
     private List<String> equivalentPromptLabels(String label) {
@@ -487,8 +508,16 @@ public class PromptRuntimeGovernanceRuleApplier {
         StringBuilder result = new StringBuilder();
         for (String line : lines) {
             String trimmed = line.stripLeading();
+            if (trimmed.startsWith("RagSearchExecuted:")) {
+                result.append("RagSearchExecuted: true").append("\n");
+                continue;
+            }
             if (trimmed.startsWith("RagRetrievalState:")) {
                 result.append("RagRetrievalState: AVAILABLE").append("\n");
+                continue;
+            }
+            if (trimmed.startsWith("RagApplicability:")) {
+                result.append("RagApplicability: DOCUMENTS_RETRIEVED").append("\n");
                 continue;
             }
             if (trimmed.startsWith("RelatedDocumentCount:")) {

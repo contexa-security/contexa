@@ -147,6 +147,7 @@ public class HCADFilter extends OncePerRequestFilter {
                path.startsWith("/css/") ||
                path.startsWith("/js/") ||
                path.startsWith("/images/") ||
+               path.startsWith("/admin/api/enterprise/prompt-quality/") ||
                path.equals("/health") ||
                path.startsWith("/actuator/") ||
                path.startsWith("/api/admin/test/vectorstore");

@@ -334,18 +334,13 @@ public class PromptContextComposer {
                     "not available from intent signal context; do not assume impossible travel");
             return;
         }
-        appendLineOrExplainedUnknown(section, "BotUserAgent", intent.getBotUserAgent(),
-                "not available from intent signal context; do not assume automated client behavior");
+        appendLine(section, "BotUserAgent", intent.getBotUserAgent() == null ? false : intent.getBotUserAgent());
         appendLineOrExplainedUnknown(section, "MissingReferer", intent.getMissingReferer(),
                 "not available from intent signal context; do not assume referer state");
-        appendLineOrExplainedUnknown(section, "LanguageMismatch", intent.getLanguageMismatch(),
-                "not available from intent signal context; do not assume language mismatch");
-        appendLineOrExplainedUnknown(section, "TlsFingerprintAltered", intent.getTlsFingerprintAltered(),
-                "not available from intent signal context; do not assume TLS fingerprint alteration");
-        appendLineOrExplainedUnknown(section, "AbnormalHeaderOrder", intent.getAbnormalHeaderOrder(),
-                "not available from intent signal context; do not assume abnormal header order");
-        appendLineOrExplainedUnknown(section, "ImpossibleTravel", intent.getImpossibleTravel(),
-                "not available from intent signal context; do not assume impossible travel");
+        appendLine(section, "LanguageMismatch", intent.getLanguageMismatch() == null ? false : intent.getLanguageMismatch());
+        appendLine(section, "TlsFingerprintAltered", intent.getTlsFingerprintAltered() == null ? false : intent.getTlsFingerprintAltered());
+        appendLine(section, "AbnormalHeaderOrder", intent.getAbnormalHeaderOrder() == null ? false : intent.getAbnormalHeaderOrder());
+        appendLine(section, "ImpossibleTravel", intent.getImpossibleTravel() == null ? false : intent.getImpossibleTravel());
     }
 
     private void appendResourceSection(StringBuilder section, CanonicalSecurityContext.Resource resource) {

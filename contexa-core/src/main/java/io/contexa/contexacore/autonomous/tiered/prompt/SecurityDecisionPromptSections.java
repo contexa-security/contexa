@@ -504,12 +504,28 @@ public class SecurityDecisionPromptSections {
         return absenceReason;
     }
 
+    private String ragApplicability(boolean searchExecuted, String retrievalState, int relatedDocumentCount) {
+        if (!searchExecuted) {
+            return "NOT_EXECUTED";
+        }
+        if (relatedDocumentCount > 0) {
+            return "DOCUMENTS_RETRIEVED";
+        }
+        if ("TIMEOUT".equalsIgnoreCase(retrievalState)
+                || "UNAVAILABLE".equalsIgnoreCase(retrievalState)
+                || "FAILED".equalsIgnoreCase(retrievalState)) {
+            return "SEARCH_UNAVAILABLE";
+        }
+        return "ZERO_RESULTS_DECLARED";
+    }
+
     private void putRagMetadata(
             SecurityEvent event,
             boolean searchExecuted,
             String retrievalState,
             String absenceReason,
             String projectionState,
+            String applicability,
             int relatedDocumentCount,
             boolean permissionFiltered) {
         if (event == null) {
@@ -525,6 +541,7 @@ public class SecurityDecisionPromptSections {
         metadata.put("relatedDocumentCount", relatedDocumentCount);
         metadata.put("relatedDocumentsCount", relatedDocumentCount);
         metadata.put("ragProjectionState", projectionState);
+        metadata.put("ragApplicability", applicability);
         metadata.put("ragPermissionFiltered", permissionFiltered);
         metadata.put("ragProjectedToFinalPrompt", relatedDocumentCount > 0);
         metadata.put("ragStatusProjectedToFinalPrompt", true);
@@ -1512,12 +1529,14 @@ public class SecurityDecisionPromptSections {
                         : ("ZERO_RESULTS".equalsIgnoreCase(retrievalState)
                         ? "ZERO_RESULTS_DECLARED"
                         : "NOT_APPLICABLE")));
+        String applicability = ragApplicability(searchExecuted, retrievalState, relatedDocumentCount);
         putRagMetadata(
                 event,
                 searchExecuted,
                 retrievalState,
                 absenceReason,
                 projectionState,
+                applicability,
                 relatedDocumentCount,
                 permissionFiltered);
 
@@ -1527,6 +1546,7 @@ public class SecurityDecisionPromptSections {
                 .append("\n");
         section.append("RagSearchExecuted: ").append(searchExecuted).append("\n");
         section.append("RagRetrievalState: ").append(retrievalState).append("\n");
+        section.append("RagApplicability: ").append(applicability).append("\n");
         section.append("RelatedDocumentCount: ").append(relatedDocumentCount).append("\n");
         section.append("RagProjectionState: ").append(projectionState).append("\n");
         section.append("RagCandidateDocumentCount: ")
