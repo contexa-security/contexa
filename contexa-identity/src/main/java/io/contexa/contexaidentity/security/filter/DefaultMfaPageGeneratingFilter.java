@@ -27,6 +27,7 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -45,9 +46,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private final MfaSettings mfaSettings;
     private final String tokenPersistence;
     private MessageSource messageSource;
+    private JdbcTemplate jdbcTemplate;
 
     public void setMessageSource(MessageSource messageSource) {
         this.messageSource = messageSource;
+    }
+
+    public void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     private java.util.Locale resolveLocale(HttpServletRequest request) {
@@ -147,27 +153,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private static final String OTT_READONLY_USERNAME_INPUT = """
+    private static final String OTT_EMAIL_INPUT = """
             <div class="form-group">
-                <label for="username">{{i18nUsernameLabel}}</label>
-                <input type="text" id="username" name="username"
-                       value="{{username}}"
+                <label for="email">{{i18nEmailLabel}}</label>
+                <input type="text" id="email" name="email"
+                       value="{{email}}"
                        class="form-control"
-                       placeholder="{{i18nUsernameLabel}}"
-                       required
-                       >
-            </div>
-            """;
-
-    private static final String OTT_EDITABLE_USERNAME_INPUT = """
-            <div class="form-group">
-                <label for="username">{{i18nUsernameLabel}}</label>
-                <input type="text" id="username" name="username"
-                       class="form-control"
-                       placeholder="{{i18nUsernameLabel}}"
+                       placeholder="{{i18nEmailLabel}}"
                        required
                        autofocus>
             </div>
+            <input type="hidden" name="username" value="{{username}}" />
             """;
 
     private static final String CSRF_HEADERS = """
@@ -1837,20 +1833,24 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String username = getUsername(request);
 
-        String usernameLabel = msg(request, "mfa.username.label", "Username");
-        String usernameInput;
-        if (username != null) {
-
-            usernameInput = MfaHtmlTemplates.fromTemplate(OTT_READONLY_USERNAME_INPUT)
-                    .withValue("username", username)
-                    .withValue("i18nUsernameLabel", usernameLabel)
-                    .render();
-        } else {
-
-            usernameInput = MfaHtmlTemplates.fromTemplate(OTT_EDITABLE_USERNAME_INPUT)
-                    .withValue("i18nUsernameLabel", usernameLabel)
-                    .render();
+        String emailLabel = msg(request, "mfa.email.label", "Email");
+        String email = null;
+        if (username != null && jdbcTemplate != null) {
+            try {
+                email = jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
+            } catch (Exception e) {
+                log.warn("Failed to find user email for username: {} in generating filter", username, e);
+            }
         }
+        if (email == null) {
+            email = "";
+        }
+
+        String usernameInput = MfaHtmlTemplates.fromTemplate(OTT_EMAIL_INPUT)
+                .withValue("username", username != null ? username : "")
+                .withValue("email", email)
+                .withValue("i18nEmailLabel", emailLabel)
+                .render();
 
         String hiddenInputs = resolveHiddenInputs(request);
 

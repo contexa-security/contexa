@@ -78,6 +78,12 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                 mfaPageFilter.setMessageSource(messageSource);
             } catch (Exception ignored) {
             }
+            try {
+                org.springframework.jdbc.core.JdbcTemplate jdbcTemplate =
+                        applicationContext.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
+                mfaPageFilter.setJdbcTemplate(jdbcTemplate);
+            } catch (Exception ignored) {
+            }
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
             flowContext.http().addFilterBefore(mfaPageFilter, UsernamePasswordAuthenticationFilter.class);

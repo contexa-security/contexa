@@ -12,6 +12,8 @@ import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
+import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
+import io.contexa.contexaidentity.security.service.ott.EmailGenerateOneTimeTokenRequest;
 
 @Slf4j
 public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttOptions> {
@@ -46,6 +48,17 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
                     .tokenService(opts.getOneTimeTokenService())
                     .tokenGenerationSuccessHandler(opts.getTokenGenerationSuccessHandler() == null ?
                             tokenGenerationSuccessHandler : opts.getTokenGenerationSuccessHandler())
+                    .generateRequestResolver(request -> {
+                        String username = request.getParameter("username");
+                        if (username == null || username.isBlank()) {
+                            return null;
+                        }
+                        String email = request.getParameter("email");
+                        if (email != null && !email.isBlank()) {
+                            return new EmailGenerateOneTimeTokenRequest(username, email);
+                        }
+                        return new GenerateOneTimeTokenRequest(username);
+                    })
                     .authenticationProvider(new OneTimeTokenAuthenticationProvider(oneTimeTokenService, userDetailsService));
 
             if (successHandler != null) ott.successHandler(successHandler);

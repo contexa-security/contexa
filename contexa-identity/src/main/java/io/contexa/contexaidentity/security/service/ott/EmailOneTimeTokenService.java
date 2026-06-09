@@ -33,10 +33,18 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
 
     @Override
     public OneTimeToken generate(GenerateOneTimeTokenRequest request) {
-        return generateAndSendVerificationCode(request.getUsername(), "Authentication Code (via generate)");
+        String customEmail = null;
+        if (request instanceof EmailGenerateOneTimeTokenRequest emailRequest) {
+            customEmail = emailRequest.getEmail();
+        }
+        return generateAndSendVerificationCode(request.getUsername(), "Authentication Code (via generate)", customEmail);
     }
 
     public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose) {
+        return generateAndSendVerificationCode(username, emailPurpose, null);
+    }
+
+    public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose, String customEmail) {
         Assert.hasText(username, "Username cannot be empty");
         Assert.hasText(emailPurpose, "Email purpose cannot be empty");
 
@@ -58,11 +66,13 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                 username, emailPurpose, internalOneTimeToken.get().getTokenValue(), tokenValidityMinutes
         );
 
-        String to = null;
-        try {
-            to = jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
-        } catch (Exception e) {
-            log.warn("Failed to find user email for username: {}", username, e);
+        String to = customEmail;
+        if (to == null || to.isBlank()) {
+            try {
+                to = jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
+            } catch (Exception e) {
+                log.warn("Failed to find user email for username: {}", username, e);
+            }
         }
 
         if (to == null || to.isBlank()) {
