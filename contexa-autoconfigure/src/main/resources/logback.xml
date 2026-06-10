@@ -19,6 +19,7 @@
 
     <logger name="org.springframework.statemachine" level="DEBUG"/>
     <logger name="org.springframework.security" level="INFO"/>
+    <logger name="org.springframework.context.support.PostProcessorRegistrationDelegate$BeanPostProcessorChecker" level="ERROR"/>
 
     <logger name="org.hibernate.SQL" level="DEBUG"/>
 </configuration>
