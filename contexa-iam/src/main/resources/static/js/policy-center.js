@@ -21,10 +21,54 @@ const PolicyCenter = {
 
     async refreshResources(button) {
         const overlay = document.getElementById('global-loading-overlay');
+        const progressBar = document.getElementById('loading-progress-bar');
+        const progressText = document.getElementById('loading-progress-text');
+        const statusText = document.getElementById('loading-status-subtext');
+        
         if (overlay) {
             overlay.classList.remove('hidden');
             overlay.style.display = 'flex';
         }
+        
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressText) progressText.textContent = '0%';
+        
+        const isKo = document.documentElement.lang === 'ko' || navigator.language.startsWith('ko');
+        const getMsg = (koMsg, enMsg) => isKo ? koMsg : enMsg;
+        
+        let progress = 0;
+        const interval = setInterval(() => {
+            if (progress < 40) {
+                progress += Math.random() * 3 + 2; // 2~5% 씩 빠른 상승
+            } else if (progress < 75) {
+                progress += Math.random() * 0.8 + 0.3; // 0.3~1.1% 씩 중간 상승
+            } else if (progress < 90) {
+                progress += Math.random() * 0.4 + 0.1; // 0.1~0.5% 씩 느린 상승
+            } else if (progress < 98) {
+                progress += 0.05; // 0.05% 씩 수렴하도록 느린 상승
+            }
+            
+            if (progress > 98) progress = 98;
+            
+            const displayProgress = Math.floor(progress);
+            if (progressBar) progressBar.style.width = displayProgress + '%';
+            if (progressText) progressText.textContent = displayProgress + '%';
+            
+            if (statusText) {
+                if (displayProgress < 20) {
+                    statusText.textContent = getMsg("코드베이스 내 API 리소스를 스캔하고 있습니다...", "Scanning codebase for API endpoints...");
+                } else if (displayProgress < 40) {
+                    statusText.textContent = getMsg("새로 발견된 엔드포인트 목록을 비교 분석하는 중입니다...", "Analyzing newly discovered endpoints...");
+                } else if (displayProgress < 75) {
+                    statusText.textContent = getMsg("생성형 AI 모델을 통해 리소스의 기능적 상세 설명을 생성하는 중입니다...", "Generating friendly descriptions using AI models...");
+                } else if (displayProgress < 90) {
+                    statusText.textContent = getMsg("데이터베이스 테이블에 정책 매핑 상태를 검증하는 중입니다...", "Validating policy mapping status in database...");
+                } else {
+                    statusText.textContent = getMsg("동기화된 리소스의 접근 제어 상태를 통합 동기화하는 중입니다...", "Integrating access control state...");
+                }
+            }
+        }, 150);
+
         try {
             const token = this.getCsrfToken();
             const response = await fetch('/admin/policy-center/refresh-resources', {
@@ -39,7 +83,13 @@ const PolicyCenter = {
         } catch (error) {
             showToast('Error refreshing resources: ' + error.message, 'error');
         } finally {
-            // 작업이 완료되면 자동으로 페이지를 새로고침하여 최신 데이터를 보여줍니다.
+            clearInterval(interval);
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressText) progressText.textContent = '100%';
+            if (statusText) statusText.textContent = getMsg("동기화 작업을 완료하고 페이지를 리로드 중입니다!", "Reloading fresh data...");
+            
+            // 100% 찰칵 차는 시각 효과를 위해 아주 잠깐 대기
+            await new Promise(resolve => setTimeout(resolve, 400));
             window.location.href = '/admin/policy-center?tab=resources';
         }
     },

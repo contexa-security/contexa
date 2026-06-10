@@ -54,7 +54,6 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
-    @Async
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public void refreshAndSynchronizeResources() {
