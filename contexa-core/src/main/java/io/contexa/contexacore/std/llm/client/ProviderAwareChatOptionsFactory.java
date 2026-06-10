@@ -1,11 +1,13 @@
 package io.contexa.contexacore.std.llm.client;
-
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Locale;
 
+@Slf4j
 public final class ProviderAwareChatOptionsFactory {
 
     private static final String OPENAI_CHAT_OPTIONS_CLASS = "org.springframework.ai.openai.OpenAiChatOptions";
@@ -33,6 +35,10 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     public static ChatOptions buildRuntimeOptions(ExecutionContext context, ChatModel selectedModel) {
+        return buildRuntimeOptions(context, selectedModel, null);
+    }
+
+    public static ChatOptions buildRuntimeOptions(ExecutionContext context, ChatModel selectedModel, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
         if (context == null) {
             return ChatOptions.builder().build();
         }
@@ -40,12 +46,18 @@ public final class ProviderAwareChatOptionsFactory {
         if (isOpenAiModel(selectedModel, context) && requiresMaxCompletionTokens(modelName)) {
             return buildOpenAiCompletionTokenOptions(context, selectedModel, modelName);
         }
+        if (isOllamaModel(selectedModel, context)) {
+            return buildOllamaOptions(context, selectedModel, tieredLLMProperties);
+        }
         return buildGenericChatOptions(context);
     }
 
     public static boolean requiresProviderSpecificOptions(ExecutionContext context, ChatModel selectedModel) {
         String modelName = resolveModelName(context, selectedModel, null);
-        return isOpenAiModel(selectedModel, context) && requiresMaxCompletionTokens(modelName);
+        if (isOpenAiModel(selectedModel, context) && requiresMaxCompletionTokens(modelName)) {
+            return true;
+        }
+        return isOllamaModel(selectedModel, context);
     }
 
     static boolean requiresMaxCompletionTokens(String modelName) {
@@ -252,5 +264,124 @@ public final class ProviderAwareChatOptionsFactory {
         } catch (ReflectiveOperationException ignored) {
             return null;
         }
+    }
+
+    private static boolean isOllamaModel(ChatModel selectedModel, ExecutionContext context) {
+        if (selectedModel != null && selectedModel.getClass().getName().toLowerCase(Locale.ROOT).contains(".ollama.")) {
+            return true;
+        }
+        Object provider = context != null ? context.getMetadata().get("selectedModelProvider") : null;
+        return provider != null && String.valueOf(provider).trim().equalsIgnoreCase("ollama");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ChatOptions buildOllamaOptions(ExecutionContext context, ChatModel selectedModel, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+        try {
+            String modelName = determineOllamaModelName(context, selectedModel, tieredLLMProperties);
+            ChatOptions defaultOptions = selectedModel.getDefaultOptions();
+            Class<?> optionsClass = Class.forName("org.springframework.ai.ollama.api.OllamaChatOptions");
+            Object optionsBuilder = optionsClass.getMethod("builder").invoke(null);
+            Object options = optionsBuilder.getClass().getMethod("build").invoke(optionsBuilder);
+
+            if (defaultOptions != null && optionsClass.isInstance(defaultOptions)) {
+                options = optionsClass.getMethod("fromOptions", optionsClass).invoke(null, defaultOptions);
+            }
+
+            if (modelName != null && !modelName.isBlank()) {
+                optionsClass.getMethod("setModel", String.class).invoke(options, modelName);
+            }
+            if (context.getTemperature() != null) {
+                optionsClass.getMethod("setTemperature", Double.class).invoke(options, context.getTemperature());
+            }
+            if (context.getTopP() != null) {
+                optionsClass.getMethod("setTopP", Double.class).invoke(options, context.getTopP());
+            }
+            if (context.getSeed() != null) {
+                optionsClass.getMethod("setSeed", Integer.class).invoke(options, context.getSeed());
+            }
+            if (context.getMaxTokens() != null) {
+                optionsClass.getMethod("setNumPredict", Integer.class).invoke(options, context.getMaxTokens());
+            }
+            if (shouldDisableOllamaThinking(context, modelName)) {
+                Class<?> thinkOptionClass = Class.forName("org.springframework.ai.ollama.api.ThinkOption$ThinkBoolean");
+                Object disabledEnum = Enum.valueOf((Class<Enum>) thinkOptionClass, "DISABLED");
+                Class<?> thinkOptionInterface = Class.forName("org.springframework.ai.ollama.api.ThinkOption");
+                optionsClass.getMethod("setThinkOption", thinkOptionInterface).invoke(options, disabledEnum);
+            }
+
+            return (ChatOptions) options;
+        } catch (Exception e) {
+            log.error("Failed to build Ollama options via reflection", e);
+            return selectedModel.getDefaultOptions();
+        }
+    }
+
+    private static String determineOllamaModelName(ExecutionContext context, ChatModel selectedModel, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+        String selectedModelId = resolveSelectedModelId(context);
+        if (selectedModelId != null) {
+            return selectedModelId;
+        }
+
+        if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
+            return context.getPreferredModel();
+        }
+
+        if (context.getAnalysisLevel() != null) {
+            int tier = context.getAnalysisLevel().getDefaultTier();
+            return tieredLLMProperties != null ? tieredLLMProperties.getModelNameForTier(tier) : "qwen2.5:7b";
+        }
+
+        if (context.getTier() != null) {
+            return resolveConfiguredModelNameForTier(context.getTier(), tieredLLMProperties);
+        }
+
+        if (context.getSecurityTaskType() != null) {
+            int tier = context.getSecurityTaskType().getDefaultTier();
+            return tieredLLMProperties != null ? tieredLLMProperties.getModelNameForTier(tier) : "qwen2.5:7b";
+        }
+
+        String defaultModel = resolveConfiguredModelNameForTier(1, tieredLLMProperties);
+        log.error("Model selection unavailable, using default model: {}", defaultModel);
+        return defaultModel;
+    }
+
+    public static String resolveSelectedModelId(ExecutionContext context) {
+        if (context == null || context.getMetadata() == null) {
+            return null;
+        }
+        for (String key : List.of("selectedModelId", "runtimeModelId", "requestedModelId")) {
+            Object value = context.getMetadata().get(key);
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty()) {
+                    return text;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String resolveConfiguredModelNameForTier(Integer tier, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+        if (tieredLLMProperties == null) {
+            return "qwen2.5:7b";
+        }
+        if (tier == null || tier <= 1) {
+            return tieredLLMProperties.getModelNameForTier(1);
+        }
+        return tieredLLMProperties.getModelNameForTier(Math.min(tier, 2));
+    }
+
+    private static boolean shouldDisableOllamaThinking(ExecutionContext context, String modelName) {
+        if (context == null) {
+            return false;
+        }
+        Object metadataValue = context.getMetadata() != null ? context.getMetadata().get("disableOllamaThinking") : null;
+        if (metadataValue instanceof Boolean bool) {
+            return bool;
+        }
+        if (metadataValue instanceof String text) {
+            return Boolean.parseBoolean(text);
+        }
+        return modelName != null && modelName.toLowerCase(Locale.ROOT).startsWith("qwen3");
     }
 }

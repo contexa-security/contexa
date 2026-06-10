@@ -10,8 +10,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 
@@ -156,8 +154,8 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     selectedModel));
         }
 
-        if (selectedModel instanceof OllamaChatModel ollamaChatModel) {
-            return promptSpec.options(buildOllamaOptions(context, ollamaChatModel));
+        if (selectedModel.getClass().getName().equals("org.springframework.ai.ollama.OllamaChatModel")) {
+            return promptSpec.options(buildOllamaOptions(context, selectedModel));
         }
 
         if (ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, selectedModel)) {
@@ -181,27 +179,36 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 || context.getSecurityTaskType() != null;
     }
 
-    private OllamaChatOptions buildOllamaOptions(ExecutionContext context, OllamaChatModel selectedModel) {
-        String modelName = determineModelName(context);
-        ChatOptions defaultOptions = selectedModel.getDefaultOptions();
-        OllamaChatOptions options = defaultOptions instanceof OllamaChatOptions ollamaDefaults
-                ? OllamaChatOptions.fromOptions(ollamaDefaults)
-                : OllamaChatOptions.builder().build();
+    private ChatOptions buildOllamaOptions(ExecutionContext context, ChatModel selectedModel) {
+        try {
+            String modelName = determineModelName(context);
+            ChatOptions defaultOptions = selectedModel.getDefaultOptions();
+            Class<?> optionsClass = Class.forName("org.springframework.ai.ollama.api.OllamaChatOptions");
+            Object optionsBuilder = optionsClass.getMethod("builder").invoke(null);
+            Object options = optionsBuilder.getClass().getMethod("build").invoke(optionsBuilder);
 
-        if (modelName != null && !modelName.isBlank()) {
-            options.setModel(modelName);
-        }
-        if (context.getTemperature() != null) {
-            options.setTemperature(context.getTemperature());
-        }
-        if (context.getTopP() != null) {
-            options.setTopP(context.getTopP());
-        }
-        if (context.getMaxTokens() != null) {
-            options.setNumPredict(context.getMaxTokens());
-        }
+            if (defaultOptions != null && optionsClass.isInstance(defaultOptions)) {
+                options = optionsClass.getMethod("fromOptions", optionsClass).invoke(null, defaultOptions);
+            }
 
-        return options;
+            if (modelName != null && !modelName.isBlank()) {
+                optionsClass.getMethod("setModel", String.class).invoke(options, modelName);
+            }
+            if (context.getTemperature() != null) {
+                optionsClass.getMethod("setTemperature", Double.class).invoke(options, context.getTemperature());
+            }
+            if (context.getTopP() != null) {
+                optionsClass.getMethod("setTopP", Double.class).invoke(options, context.getTopP());
+            }
+            if (context.getMaxTokens() != null) {
+                optionsClass.getMethod("setNumPredict", Integer.class).invoke(options, context.getMaxTokens());
+            }
+
+            return (ChatOptions) options;
+        } catch (Exception e) {
+            log.error("Failed to build Ollama options via reflection", e);
+            return selectedModel.getDefaultOptions();
+        }
     }
 
     private Flux<String> executeToolCallback(ToolCallback callback, ExecutionContext context) {

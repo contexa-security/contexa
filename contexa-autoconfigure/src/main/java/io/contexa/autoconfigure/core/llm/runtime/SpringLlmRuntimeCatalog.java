@@ -12,23 +12,11 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
-
-    private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
-    private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "mxbai-embed-large";
 
     private final ConfigurableApplicationContext applicationContext;
     private final ConfigurableListableBeanFactory beanFactory;
@@ -329,22 +317,6 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     }
 
     private String inferModelId(String beanName, Class<?> beanType, LlmRuntimeType runtimeType) {
-        if ("contexaOllamaChatModel".equals(beanName)) {
-            String configured = contexaProperties.getLlm().getChat().getOllama().getModel();
-            return StringUtils.hasText(configured) ? configured.trim() : DEFAULT_OLLAMA_CHAT_MODEL;
-        }
-        if ("contexaDedicatedOllamaEmbeddingModel".equals(beanName) || "contexaSharedOllamaEmbeddingModel".equals(beanName)) {
-            String configured = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
-            return StringUtils.hasText(configured) ? configured.trim() : DEFAULT_OLLAMA_EMBEDDING_MODEL;
-        }
-        if (beanType != null && beanType.getSimpleName().toLowerCase().contains("ollama") && runtimeType == LlmRuntimeType.CHAT) {
-            String configured = contexaProperties.getLlm().getChat().getOllama().getModel();
-            return StringUtils.hasText(configured) ? configured.trim() : beanName;
-        }
-        if (beanType != null && beanType.getSimpleName().toLowerCase().contains("ollama") && runtimeType == LlmRuntimeType.EMBEDDING) {
-            String configured = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
-            return StringUtils.hasText(configured) ? configured.trim() : beanName;
-        }
         return beanName;
     }
 

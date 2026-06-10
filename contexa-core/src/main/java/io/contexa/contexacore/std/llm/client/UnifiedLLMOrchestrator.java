@@ -1,7 +1,7 @@
 package io.contexa.contexacore.std.llm.client;
 
-import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
+import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
@@ -13,16 +13,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
-import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.api.OllamaChatOptions;
-import org.springframework.ai.ollama.api.ThinkOption;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -205,52 +201,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
     }
 
-    private String determineOllamaModelName(ExecutionContext context) {
-
-        String selectedModelId = resolveSelectedModelId(context);
-        if (selectedModelId != null) {
-            return selectedModelId;
-        }
-
-        if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
-            return context.getPreferredModel();
-        }
-
-        if (context.getAnalysisLevel() != null) {
-            int tier = context.getAnalysisLevel().getDefaultTier();
-            return tieredLLMProperties.getModelNameForTier(tier);
-        }
-
-        if (context.getTier() != null) {
-            return resolveConfiguredModelNameForTier(context.getTier());
-        }
-
-        if (context.getSecurityTaskType() != null) {
-            int tier = context.getSecurityTaskType().getDefaultTier();
-            return tieredLLMProperties.getModelNameForTier(tier);
-        }
-
-        String defaultModel = resolveConfiguredModelNameForTier(1);
-        log.error("Model selection unavailable, using default model: {}", defaultModel);
-        return defaultModel;
-    }
-
-    private String resolveSelectedModelId(ExecutionContext context) {
-        if (context == null || context.getMetadata() == null) {
-            return null;
-        }
-        for (String key : List.of("selectedModelId", "runtimeModelId", "requestedModelId")) {
-            Object value = context.getMetadata().get(key);
-            if (value != null) {
-                String text = String.valueOf(value).trim();
-                if (!text.isEmpty()) {
-                    return text;
-                }
-            }
-        }
-        return null;
-    }
-
     private ChatClient.ChatClientRequestSpec applyExecutionOptions(ChatClient.ChatClientRequestSpec promptSpec,
                                                                    ExecutionContext context,
                                                                    ChatModel selectedModel) {
@@ -262,19 +212,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     selectedModel));
         }
 
-        if (selectedModel instanceof OllamaChatModel ollamaChatModel) {
-            return promptSpec.options(buildOllamaOptions(context, ollamaChatModel));
-        }
-
         if (ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, selectedModel)) {
-            return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
+            return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel, tieredLLMProperties));
         }
 
         if (!hasRuntimeOptions(context)) {
             return promptSpec;
         }
 
-        return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
+        return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel, tieredLLMProperties));
     }
 
     private ChatResponse executeForChatResponse(ExecutionContext context) {
@@ -391,7 +337,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         String providerModel = metadata.getModel();
         if (providerModel == null || providerModel.isBlank()) {
-            providerModel = resolveSelectedModelId(context);
+            providerModel = ProviderAwareChatOptionsFactory.resolveSelectedModelId(context);
         }
         if ((providerModel == null || providerModel.isBlank()) && selectedModel != null) {
             providerModel = selectedModel.getClass().getSimpleName();
@@ -504,13 +450,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return null;
     }
 
-    private String resolveConfiguredModelNameForTier(Integer tier) {
-        if (tier == null || tier <= 1) {
-            return tieredLLMProperties.getModelNameForTier(1);
-        }
-        return tieredLLMProperties.getModelNameForTier(Math.min(tier, 2));
-    }
-
     private boolean hasRuntimeOptions(ExecutionContext context) {
         return context.getTemperature() != null
                 || context.getTopP() != null
@@ -519,35 +458,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 || context.getTier() != null
                 || context.getAnalysisLevel() != null
                 || context.getSecurityTaskType() != null;
-    }
-
-    private OllamaChatOptions buildOllamaOptions(ExecutionContext context, OllamaChatModel selectedModel) {
-        String modelName = determineOllamaModelName(context);
-        ChatOptions defaultOptions = selectedModel.getDefaultOptions();
-        OllamaChatOptions options = defaultOptions instanceof OllamaChatOptions ollamaDefaults
-                ? OllamaChatOptions.fromOptions(ollamaDefaults)
-                : OllamaChatOptions.builder().build();
-
-        if (modelName != null && !modelName.isBlank()) {
-            options.setModel(modelName);
-        }
-        if (context.getTemperature() != null) {
-            options.setTemperature(context.getTemperature());
-        }
-        if (context.getTopP() != null) {
-            options.setTopP(context.getTopP());
-        }
-        if (context.getSeed() != null) {
-            options.setSeed(context.getSeed());
-        }
-        if (context.getMaxTokens() != null) {
-            options.setNumPredict(context.getMaxTokens());
-        }
-        if (shouldDisableOllamaThinking(context, modelName)) {
-            options.setThinkOption(ThinkOption.ThinkBoolean.DISABLED);
-        }
-
-        return options;
     }
 
     @Override
@@ -729,20 +639,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return Boolean.parseBoolean(text);
         }
         return false;
-    }
-
-    private boolean shouldDisableOllamaThinking(ExecutionContext context, String modelName) {
-        if (context == null) {
-            return false;
-        }
-        Object metadataValue = context.getMetadata() != null ? context.getMetadata().get("disableOllamaThinking") : null;
-        if (metadataValue instanceof Boolean bool) {
-            return bool;
-        }
-        if (metadataValue instanceof String text) {
-            return Boolean.parseBoolean(text);
-        }
-        return modelName != null && modelName.toLowerCase().startsWith("qwen3");
     }
 }
 

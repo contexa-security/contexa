@@ -20,12 +20,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.observation.EmbeddingModelObservationConvention;
-import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.OllamaEmbeddingModel;
-import org.springframework.ai.ollama.api.OllamaApi;
-import org.springframework.ai.ollama.api.OllamaChatOptions;
-import org.springframework.ai.ollama.api.OllamaEmbeddingOptions;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -78,43 +72,7 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private ContexaLlmSelectionProperties contexaLlmSelectionProperties;
 
-    @Bean(name = "contexaOllamaChatApi")
-    @ConditionalOnProperty(prefix = "contexa.llm.chat.ollama", name = "base-url")
-    @ConditionalOnMissingBean(name = "contexaOllamaChatApi")
-    public OllamaApi contexaOllamaChatApi(
-            ObjectProvider<RestClient.Builder> restClientBuilderProvider,
-            ObjectProvider<WebClient.Builder> webClientBuilderProvider,
-            ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider) {
 
-        return buildOllamaApi(
-                resolveChatOllamaBaseUrl(),
-                restClientBuilderProvider,
-                webClientBuilderProvider,
-                responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new)
-        );
-    }
-
-    @Bean(name = "contexaOllamaChatModel")
-    @ConditionalOnBean(name = "contexaOllamaChatApi")
-    @ConditionalOnMissingBean(name = "contexaOllamaChatModel")
-    public OllamaChatModel contexaOllamaChatModel(
-            @Qualifier("contexaOllamaChatApi") OllamaApi ollamaApi) {
-
-        OllamaChatOptions options = OllamaChatOptions.builder().build();
-        if (StringUtils.hasText(contexaProperties.getLlm().getChat().getOllama().getModel())) {
-            options.setModel(contexaProperties.getLlm().getChat().getOllama().getModel().trim());
-        }
-        else {
-            options.setModel(DEFAULT_OLLAMA_CHAT_MODEL);
-        }
-        if (StringUtils.hasText(contexaProperties.getLlm().getChat().getOllama().getKeepAlive())) {
-            options.setKeepAlive(contexaProperties.getLlm().getChat().getOllama().getKeepAlive().trim());
-        }
-        return OllamaChatModel.builder()
-                .ollamaApi(ollamaApi)
-                .defaultOptions(options)
-                .build();
-    }
 
     @Bean(name = "primaryChatModel")
     @Primary
@@ -188,41 +146,7 @@ public class CoreLLMTieredAutoConfiguration {
         return unifiedLLMOrchestrator;
     }
 
-    @Bean(name = "contexaDedicatedEmbeddingOllamaApi")
-    @ConditionalOnProperty(prefix = "contexa.llm.embedding.ollama", name = "dedicated-runtime-enabled", havingValue = "true")
-    @ConditionalOnMissingBean(name = "contexaDedicatedEmbeddingOllamaApi")
-    public OllamaApi contexaDedicatedEmbeddingOllamaApi(
-            ObjectProvider<RestClient.Builder> restClientBuilderProvider,
-            ObjectProvider<WebClient.Builder> webClientBuilderProvider,
-            ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider) {
 
-        String baseUrl = resolveDedicatedEmbeddingOllamaBaseUrl();
-        log.info("Enabling dedicated embedding Ollama runtime at {}", baseUrl);
-        return buildOllamaApi(baseUrl, restClientBuilderProvider, webClientBuilderProvider,
-                responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new));
-    }
-
-    @Bean(name = "contexaDedicatedOllamaEmbeddingModel")
-    @ConditionalOnProperty(prefix = "contexa.llm.embedding.ollama", name = "dedicated-runtime-enabled", havingValue = "true")
-    @ConditionalOnMissingBean(name = "contexaDedicatedOllamaEmbeddingModel")
-    public OllamaEmbeddingModel contexaDedicatedOllamaEmbeddingModel(
-            @Qualifier("contexaDedicatedEmbeddingOllamaApi") OllamaApi ollamaApi,
-            ObjectProvider<ObservationRegistry> observationRegistry,
-            ObjectProvider<EmbeddingModelObservationConvention> observationConvention) {
-
-        return buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention, resolveEmbeddingModel());
-    }
-
-    @Bean(name = "contexaSharedOllamaEmbeddingModel")
-    @ConditionalOnBean(name = "contexaOllamaChatApi")
-    @ConditionalOnMissingBean(name = "contexaSharedOllamaEmbeddingModel")
-    public OllamaEmbeddingModel contexaSharedOllamaEmbeddingModel(
-            @Qualifier("contexaOllamaChatApi") OllamaApi ollamaApi,
-            ObjectProvider<ObservationRegistry> observationRegistry,
-            ObjectProvider<EmbeddingModelObservationConvention> observationConvention) {
-
-        return buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention, resolveEmbeddingModel());
-    }
 
     @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Primary
@@ -262,58 +186,7 @@ public class CoreLLMTieredAutoConfiguration {
     public void init() {
     }
 
-    private OllamaApi buildOllamaApi(
-            String baseUrl,
-            ObjectProvider<RestClient.Builder> restClientBuilderProvider,
-            ObjectProvider<WebClient.Builder> webClientBuilderProvider,
-            ResponseErrorHandler responseErrorHandler
-    ) {
-        return OllamaApi.builder()
-                .baseUrl(baseUrl)
-                .restClientBuilder(restClientBuilderProvider.getIfAvailable(RestClient::builder))
-                .webClientBuilder(webClientBuilderProvider.getIfAvailable(WebClient::builder))
-                .responseErrorHandler(responseErrorHandler)
-                .build();
-    }
 
-    private OllamaEmbeddingModel buildOllamaEmbeddingModel(
-            OllamaApi ollamaApi,
-            ObjectProvider<ObservationRegistry> observationRegistry,
-            ObjectProvider<EmbeddingModelObservationConvention> observationConvention,
-            String model
-    ) {
-        OllamaEmbeddingOptions options = OllamaEmbeddingOptions.builder()
-                .model(model)
-                .build();
-
-        OllamaEmbeddingModel embeddingModel = OllamaEmbeddingModel.builder()
-                .ollamaApi(ollamaApi)
-                .defaultOptions(options)
-                .observationRegistry(observationRegistry.getIfUnique(() -> ObservationRegistry.NOOP))
-                .build();
-
-        observationConvention.ifAvailable(embeddingModel::setObservationConvention);
-        return embeddingModel;
-    }
-
-    private String resolveChatOllamaBaseUrl() {
-        String baseUrl = contexaProperties.getLlm().getChat().getOllama().getBaseUrl();
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new IllegalStateException("contexa.llm.chat.ollama.base-url must be configured when Ollama chat runtime is enabled");
-        }
-        return baseUrl.trim();
-    }
-
-    private String resolveDedicatedEmbeddingOllamaBaseUrl() {
-        ContexaProperties.Llm.Embedding.Ollama ollama = contexaProperties.getLlm().getEmbedding().getOllama();
-        if (!ollama.isDedicatedRuntimeEnabled()) {
-            throw new IllegalStateException("Dedicated embedding runtime requested without contexa.llm.embedding.ollama.dedicated-runtime-enabled=true");
-        }
-        if (!StringUtils.hasText(ollama.getBaseUrl())) {
-            throw new IllegalStateException("contexa.llm.embedding.ollama.base-url must be configured when dedicated embedding runtime is enabled");
-        }
-        return ollama.getBaseUrl().trim();
-    }
 
     private String resolveChatPriority() {
         if (StringUtils.hasText(contexaLlmSelectionProperties.getChat().getPriority())) {
@@ -343,13 +216,7 @@ public class CoreLLMTieredAutoConfiguration {
         return providers.get(0);
     }
 
-    private String resolveEmbeddingModel() {
-        String configuredModel = contexaProperties.getLlm().getEmbedding().getOllama().getModel();
-        if (StringUtils.hasText(configuredModel)) {
-            return configuredModel.trim();
-        }
-        return DEFAULT_OLLAMA_EMBEDDING_MODEL;
-    }
+
 
     private String missingChatRuntimeConfigurationMessage() {
         return "No Spring AI ChatModel is configured for CONTEXA. "
