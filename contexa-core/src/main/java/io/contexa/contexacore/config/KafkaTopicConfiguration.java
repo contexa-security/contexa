@@ -1,12 +1,15 @@
 package io.contexa.contexacore.config;
 
 import org.apache.kafka.common.config.TopicConfig;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.kafka.core.KafkaTemplate;
 
 @Configuration
+@ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 public class KafkaTopicConfiguration {
 
     @Bean

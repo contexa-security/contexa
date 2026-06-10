@@ -25,6 +25,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -38,7 +39,6 @@ import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.data.redis.RedisPersistingStateMachineInterceptor;
 import org.springframework.statemachine.data.redis.RedisRepositoryStateMachinePersist;
 import org.springframework.statemachine.data.redis.RedisStateMachineRepository;
-import org.springframework.statemachine.data.redis.RedisStateRepository;
 import org.springframework.statemachine.persist.DefaultStateMachinePersister;
 import org.springframework.statemachine.persist.StateMachinePersister;
 
@@ -147,8 +147,12 @@ public class IdentityStateMachineAutoConfiguration {
 
 
     @Configuration
-    @ConditionalOnBean(RedissonClient.class)
-    @EnableRedisRepositories(basePackageClasses = RedisStateRepository.class)
+    @ConditionalOnClass(name = {
+            "org.redisson.api.RedissonClient",
+            "org.springframework.statemachine.data.redis.RedisStateMachineRepository"
+    })
+    @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
+    @EnableRedisRepositories(basePackages = "org.springframework.statemachine.data.redis")
     static class DistributedStateMachineConfig {
 
         @Bean
@@ -183,7 +187,7 @@ public class IdentityStateMachineAutoConfiguration {
 
 
     @Configuration
-    @ConditionalOnMissingBean(RedissonClient.class)
+    @ConditionalOnMissingBean(type = "org.redisson.api.RedissonClient")
     static class StandaloneStateMachineConfig {
 
         @Bean

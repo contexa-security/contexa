@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -139,6 +140,7 @@ public class CoreHCADAutoConfiguration {
     }
 
     @Configuration
+    @ConditionalOnClass(name = "org.springframework.data.redis.core.RedisTemplate")
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(name = "generalRedisTemplate")
     static class DistributedHCADConfig {

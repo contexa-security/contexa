@@ -18,6 +18,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 
+import org.redisson.api.RedissonClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.kafka.core.KafkaTemplate;
+
 @AutoConfiguration
 @AutoConfigureAfter(name = {
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
@@ -37,22 +41,37 @@ public class CoreInfrastructureAutoConfiguration {
 
 
     @Configuration
+    @ConditionalOnClass(name = "org.redisson.api.RedissonClient")
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @Import({
             UnifiedRedisConfiguration.class,
-            RedissonConfiguration.class,
+            RedissonConfiguration.class
+    })
+    static class DistributedRedisInfraConfiguration {
+    }
+
+    @Configuration
+    @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    @Import({
             KafkaConfiguration.class,
             KafkaTopicConfiguration.class
     })
-    static class DistributedInfraConfiguration {
+    static class DistributedKafkaInfraConfiguration {
     }
 
-    @Bean
-    @ConditionalOnMissingBean
+    @Configuration
+    @ConditionalOnClass(name = "org.springframework.data.redis.core.RedisTemplate")
     @ConditionalOnBean(name = "generalRedisTemplate")
     @ConditionalOnProperty(prefix = "contexa.security.async", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public RedisAsyncSecurityContextProvider asyncSecurityContextProvider(@Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-        return new RedisAsyncSecurityContextProvider(redisTemplate);
+    static class RedisAsyncConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        public RedisAsyncSecurityContextProvider asyncSecurityContextProvider(
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+            return new RedisAsyncSecurityContextProvider(redisTemplate);
+        }
     }
 
 

@@ -10,6 +10,7 @@ import io.lettuce.core.resource.DefaultClientResources;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
@@ -22,9 +23,15 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @AutoConfiguration(before = RedisAutoConfiguration.class)
 @RequiredArgsConstructor
+@EnableConfigurationProperties(RedisProperties.class)
+@ConditionalOnClass(name = {
+        "org.springframework.data.redis.core.RedisTemplate",
+        "io.lettuce.core.ClientOptions"
+})
 @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
 public class ZeroTrustRedisConfig {
 

@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,11 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Slf4j
 @Configuration
-@ConditionalOnBean(RedisConnectionFactory.class)
+@ConditionalOnClass(name = {
+        "org.springframework.data.redis.core.RedisTemplate",
+        "org.springframework.data.redis.connection.RedisConnectionFactory"
+})
+@ConditionalOnBean(type = "org.springframework.data.redis.connection.RedisConnectionFactory")
 @ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "distributed")
 public class UnifiedRedisConfiguration {
 

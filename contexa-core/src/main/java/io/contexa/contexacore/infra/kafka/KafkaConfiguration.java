@@ -26,8 +26,8 @@ import java.util.Map;
 
 @Configuration
 @EnableKafka
-@ConditionalOnClass(KafkaTemplate.class)
-@ConditionalOnBean(KafkaProperties.class)
+@ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
+@ConditionalOnBean(type = "org.springframework.boot.autoconfigure.kafka.KafkaProperties")
 @ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "distributed")
 @RequiredArgsConstructor
 public class KafkaConfiguration {

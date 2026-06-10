@@ -38,7 +38,7 @@ sourceSets {
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
+tasks.named('compileJava') {
     options.getGeneratedSourceOutputDirectory().set(querydslGenerated)
 }
 

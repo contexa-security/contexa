@@ -8,12 +8,14 @@ import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import io.contexa.contexacore.infra.session.impl.HttpSessionMfaRepository;
 import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,34 +28,44 @@ import java.util.Arrays;
 @EnableConfigurationProperties(AuthContextProperties.class)
 public class CoreSessionAutoConfiguration {
 
-    private final AuthContextProperties properties;
     private final Environment environment;
 
-    @Autowired(required = false)
-    private StringRedisTemplate redisTemplate;
-
-    public CoreSessionAutoConfiguration(AuthContextProperties properties, Environment environment) {
-        this.properties = properties;
+    public CoreSessionAutoConfiguration(Environment environment) {
         this.environment = environment;
     }
 
-    @Bean
-    @Primary
-    @ConditionalOnMissingBean(MfaSessionRepository.class)
-    public MfaSessionRepository mfaSessionRepository() {
-        if (redisTemplate == null) {
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    static class RedisSessionConfiguration {
+
+        @Bean
+        @Primary
+        @ConditionalOnMissingBean(MfaSessionRepository.class)
+        public MfaSessionRepository mfaSessionRepository(
+                StringRedisTemplate redisTemplate,
+                AuthContextProperties properties) {
+            RedisMfaRepository repository = new RedisMfaRepository(
+                    redisTemplate,
+                    new RedisSessionIdGenerator(redisTemplate),
+                    properties);
+            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
+            return repository;
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnMissingBean(name = "stringRedisTemplate")
+    static class StandaloneSessionConfiguration {
+
+        @Bean
+        @Primary
+        @ConditionalOnMissingBean(MfaSessionRepository.class)
+        public MfaSessionRepository mfaSessionRepository(AuthContextProperties properties) {
             HttpSessionMfaRepository fallback = new HttpSessionMfaRepository(new HttpSessionIdGenerator());
             fallback.setSessionTimeout(properties.getMfa().getSessionTimeout());
             return fallback;
         }
-
-        RedisMfaRepository repository = new RedisMfaRepository(
-                redisTemplate,
-                new RedisSessionIdGenerator(redisTemplate),
-                properties);
-        repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-
-        return repository;
     }
 
     @Bean

@@ -34,6 +34,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -53,32 +54,41 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableConfigurationProperties(SecurityPlaneProperties.class)
 public class CoreAutonomousEventAutoConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(KafkaTemplate.class)
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
-    public KafkaSecurityEventCollector kafkaSecurityEventCollector(
-            ObjectMapper objectMapper,
-            KafkaTemplate<String, Object> kafkaTemplate,
-            SecurityKafkaProperties securityKafkaProperties) {
-        return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate, securityKafkaProperties);
+    static class KafkaEventConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        @ConditionalOnBean(type = "org.springframework.kafka.core.KafkaTemplate")
+        public KafkaSecurityEventCollector kafkaSecurityEventCollector(
+                ObjectMapper objectMapper,
+                KafkaTemplate<String, Object> kafkaTemplate,
+                SecurityKafkaProperties securityKafkaProperties) {
+            return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate, securityKafkaProperties);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        @ConditionalOnBean(type = "org.springframework.kafka.core.KafkaTemplate")
+        public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
+                KafkaTemplate<String, Object> kafkaTemplate,
+                SecurityKafkaProperties securityKafkaProperties) {
+            return new KafkaSecurityEventPublisher(kafkaTemplate, securityKafkaProperties);
+        }
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(KafkaTemplate.class)
-    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
-    public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
-            KafkaTemplate<String, Object> kafkaTemplate,
-            SecurityKafkaProperties securityKafkaProperties) {
-        return new KafkaSecurityEventPublisher(kafkaTemplate, securityKafkaProperties);
-    }
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.redisson.api.RedissonClient")
+    static class RedissonEventConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(RedissonClient.class)
-    public BlockingDecisionRegistry blockingDecisionRegistry(RedissonClient redissonClient) {
-        return new BlockingDecisionRegistry(redissonClient);
+        @Bean
+        @ConditionalOnMissingBean
+        @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
+        public BlockingDecisionRegistry blockingDecisionRegistry(RedissonClient redissonClient) {
+            return new BlockingDecisionRegistry(redissonClient);
+        }
     }
 
     @Bean

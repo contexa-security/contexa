@@ -63,7 +63,7 @@ public class IamAiamWebAutoConfiguration {
     }
 
     @Configuration
-    @ConditionalOnBean(StringRedisTemplate.class)
+    @ConditionalOnBean(type = "org.springframework.data.redis.core.StringRedisTemplate")
     static class DistributedBlockMfaConfig {
 
         @Bean
@@ -75,7 +75,7 @@ public class IamAiamWebAutoConfiguration {
     }
 
     @Configuration
-    @ConditionalOnMissingBean(StringRedisTemplate.class)
+    @ConditionalOnMissingBean(name = "stringRedisTemplate")
     static class StandaloneBlockMfaConfig {
 
         @Bean

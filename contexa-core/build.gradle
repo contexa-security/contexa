@@ -31,8 +31,8 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
-    implementation("org.redisson:redisson:3.48.0")
-    implementation("org.springframework.kafka:spring-kafka")
+    compileOnly("org.redisson:redisson:3.48.0")
+    compileOnly("org.springframework.kafka:spring-kafka")
     implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'io.github.resilience4j:resilience4j-spring-boot3'
@@ -52,6 +52,9 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.springframework.ai:spring-ai-openai'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    testImplementation 'org.redisson:redisson:3.48.0'
+    testImplementation 'org.springframework.kafka:spring-kafka'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

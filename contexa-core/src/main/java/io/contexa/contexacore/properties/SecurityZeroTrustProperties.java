@@ -93,7 +93,7 @@ public class SecurityZeroTrustProperties {
 
     @Data
     public static class RedisSettings {
-        private int timeout = 5;
+        private int timeout = 5000;
         private int updateIntervalSeconds = 30;
     }
 }

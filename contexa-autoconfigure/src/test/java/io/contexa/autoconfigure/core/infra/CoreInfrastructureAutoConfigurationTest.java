@@ -33,17 +33,27 @@ class CoreInfrastructureAutoConfigurationTest {
         }
 
         @Test
-        @DisplayName("Should have DistributedInfraConfiguration inner class with distributed mode condition")
-        void shouldHaveDistributedInnerClass() throws Exception {
-            Class<?> distributedClass = Class.forName(
-                    CoreInfrastructureAutoConfiguration.class.getName() + "$DistributedInfraConfiguration");
+        @DisplayName("Should have DistributedRedisInfraConfiguration and DistributedKafkaInfraConfiguration inner classes with distributed mode condition")
+        void shouldHaveDistributedInnerClasses() throws Exception {
+            Class<?> redisClass = Class.forName(
+                    CoreInfrastructureAutoConfiguration.class.getName() + "$DistributedRedisInfraConfiguration");
 
-            ConditionalOnProperty annotation = distributedClass
+            ConditionalOnProperty redisAnnotation = redisClass
                     .getAnnotation(ConditionalOnProperty.class);
 
-            assertThat(annotation).isNotNull();
-            assertThat(annotation.name()).containsExactly("contexa.infrastructure.mode");
-            assertThat(annotation.havingValue()).isEqualTo("distributed");
+            assertThat(redisAnnotation).isNotNull();
+            assertThat(redisAnnotation.name()).containsExactly("contexa.infrastructure.mode");
+            assertThat(redisAnnotation.havingValue()).isEqualTo("distributed");
+
+            Class<?> kafkaClass = Class.forName(
+                    CoreInfrastructureAutoConfiguration.class.getName() + "$DistributedKafkaInfraConfiguration");
+
+            ConditionalOnProperty kafkaAnnotation = kafkaClass
+                    .getAnnotation(ConditionalOnProperty.class);
+
+            assertThat(kafkaAnnotation).isNotNull();
+            assertThat(kafkaAnnotation.name()).containsExactly("contexa.infrastructure.mode");
+            assertThat(kafkaAnnotation.havingValue()).isEqualTo("distributed");
         }
 
         @Test

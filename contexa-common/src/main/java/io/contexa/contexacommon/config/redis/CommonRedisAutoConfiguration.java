@@ -24,8 +24,8 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Slf4j
 @AutoConfiguration
-@ConditionalOnClass(RedisTemplate.class)
-@ConditionalOnBean(RedisConnectionFactory.class)
+@ConditionalOnClass(name = "org.springframework.data.redis.core.RedisTemplate")
+@ConditionalOnBean(type = "org.springframework.data.redis.connection.RedisConnectionFactory")
 @AutoConfigureAfter(RedisAutoConfiguration.class)
 public class CommonRedisAutoConfiguration {
 
@@ -88,7 +88,7 @@ public class CommonRedisAutoConfiguration {
 
     
     @Bean
-    @ConditionalOnMissingBean(StringRedisTemplate.class)
+    @ConditionalOnMissingBean(type = "org.springframework.data.redis.core.StringRedisTemplate")
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
         
         StringRedisTemplate template = new StringRedisTemplate();
