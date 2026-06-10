@@ -27,9 +27,9 @@ import javax.sql.DataSource;
 public class IamSeedDataAutoConfiguration {
 
     static final String[] SEED_LOCATIONS = {
-            "contexa/iam/data.sql",
-            "contexa/iam/data-menu.sql",
-            "contexa/iam/data-system-settings.sql"
+            "db/data.sql",
+            "db/data-menu.sql",
+            "db/data-system-settings.sql"
     };
 
     @Bean
