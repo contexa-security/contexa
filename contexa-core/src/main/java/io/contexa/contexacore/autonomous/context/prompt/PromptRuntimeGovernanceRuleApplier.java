@@ -293,7 +293,13 @@ public class PromptRuntimeGovernanceRuleApplier {
             changed = true;
         }
 
-        return changed ? new AppliedRule(current, "APPLIED") : new AppliedRule(prompt, "SKIPPED_ALREADY_PRESENT");
+        if (changed) {
+            return new AppliedRule(current, "APPLIED");
+        }
+        if (StringUtils.hasText(completionLine) || StringUtils.hasText(text)) {
+            return new AppliedRule(prompt, "SKIPPED_ALREADY_PRESENT");
+        }
+        return new AppliedRule(prompt, "SKIPPED_NO_RENDERABLE_PAYLOAD");
     }
 
     private String runtimeCompletionLine(PromptRuntimeGovernanceRule rule) {
@@ -336,6 +342,8 @@ public class PromptRuntimeGovernanceRuleApplier {
         }
         AppliedRule cleaned = removeRuntimeFaultLines(
                 prompt,
+                "DocFaultInstruction",
+                "DocFaultScope",
                 "THREAT MEMORY: tenant mismatch unauthorized document",
                 "tenant mismatch unauthorized document",
                 "ignore previous instructions",
@@ -559,6 +567,7 @@ public class PromptRuntimeGovernanceRuleApplier {
         }
         String normalized = line.toLowerCase(Locale.ROOT);
         return normalized.contains("docfaultscope")
+                || normalized.contains("docfaultinstruction")
                 || normalized.contains("tenant mismatch unauthorized document")
                 || normalized.contains("ignore previous instructions")
                 || normalized.contains("runtime slot test document outside the current request scope")
@@ -770,7 +779,8 @@ public class PromptRuntimeGovernanceRuleApplier {
             return false;
         }
         for (String fragment : fragments) {
-            if (StringUtils.hasText(fragment) && line.contains(fragment)) {
+            if (StringUtils.hasText(fragment)
+                    && line.toLowerCase(Locale.ROOT).contains(fragment.toLowerCase(Locale.ROOT))) {
                 return true;
             }
         }
