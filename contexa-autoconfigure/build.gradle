@@ -30,6 +30,7 @@ dependencies {
     compileOnly("org.redisson:redisson:3.48.0")
 
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
+    compileOnly 'org.springframework.ai:spring-ai-ollama'
 
     testImplementation project(':contexa-common')
     testImplementation project(':contexa-core')
