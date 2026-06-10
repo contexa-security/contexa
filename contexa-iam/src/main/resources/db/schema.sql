@@ -1,4 +1,4 @@
-create table public.users
+create table users
 (
     id                    bigserial
         primary key,
@@ -40,19 +40,19 @@ create table public.users
     external_auth_only    boolean      default false             not null
 );
 
-alter table public.users
+alter table users
     owner to contexa_sim;
 
 create index idx_users_email
-    on public.users (email);
+    on users (email);
 
 create index idx_users_department
-    on public.users (department);
+    on users (department);
 
 create index idx_users_enabled
-    on public.users (enabled);
+    on users (enabled);
 
-create table public.app_group
+create table app_group
 (
     group_id    bigserial
         primary key,
@@ -65,10 +65,10 @@ create table public.app_group
     created_by  varchar(100)
 );
 
-alter table public.app_group
+alter table app_group
     owner to contexa_sim;
 
-create table public.role
+create table role
 (
     role_id       bigserial
         primary key,
@@ -83,10 +83,10 @@ create table public.role
     is_expression varchar(255)
 );
 
-alter table public.role
+alter table role
     owner to contexa_sim;
 
-create table public.managed_resource
+create table managed_resource
 (
     id                          bigserial
         primary key,
@@ -107,10 +107,10 @@ create table public.managed_resource
     available_context_variables varchar(1024)
 );
 
-alter table public.managed_resource
+alter table managed_resource
     owner to contexa_sim;
 
-create table public.permission
+create table permission
 (
     permission_id        bigserial
         primary key,
@@ -123,65 +123,65 @@ create table public.permission
     condition_expression varchar(2048),
     managed_resource_id  bigint
         unique
-                                                                references public.managed_resource
+                                                                references managed_resource
                                                                     on delete set null,
     auto_created         boolean      default false             not null,
     created_at           timestamp(6) default CURRENT_TIMESTAMP not null,
     updated_at           timestamp(6)
 );
 
-alter table public.permission
+alter table permission
     owner to contexa_sim;
 
-create table public.user_groups
+create table user_groups
 (
     user_id     bigint                                 not null
-        references public.users
+        references users
             on delete cascade,
     group_id    bigint                                 not null
-        references public.app_group
+        references app_group
             on delete cascade,
     assigned_at timestamp(6) default CURRENT_TIMESTAMP not null,
     assigned_by varchar(100),
     primary key (user_id, group_id)
 );
 
-alter table public.user_groups
+alter table user_groups
     owner to contexa_sim;
 
-create table public.group_roles
+create table group_roles
 (
     group_id    bigint                                 not null
-        references public.app_group
+        references app_group
             on delete cascade,
     role_id     bigint                                 not null
-        references public.role
+        references role
             on delete cascade,
     assigned_at timestamp(6) default CURRENT_TIMESTAMP not null,
     assigned_by varchar(100),
     primary key (group_id, role_id)
 );
 
-alter table public.group_roles
+alter table group_roles
     owner to contexa_sim;
 
-create table public.role_permissions
+create table role_permissions
 (
     role_id       bigint                                 not null
-        references public.role
+        references role
             on delete cascade,
     permission_id bigint                                 not null
-        references public.permission
+        references permission
             on delete cascade,
     assigned_at   timestamp(6) default CURRENT_TIMESTAMP not null,
     assigned_by   varchar(100),
     primary key (role_id, permission_id)
 );
 
-alter table public.role_permissions
+alter table role_permissions
     owner to contexa_sim;
 
-create table public.policy
+create table policy
 (
     id                   bigserial
         primary key,
@@ -209,15 +209,15 @@ create table public.policy
     reasoning            varchar(4096)
 );
 
-alter table public.policy
+alter table policy
     owner to contexa_sim;
 
-create table public.policy_target
+create table policy_target
 (
     id                bigserial
         primary key,
     policy_id         bigint                not null
-        references public.policy
+        references policy
             on delete cascade,
     target_type       varchar(255)          not null,
     target_identifier varchar(255)          not null,
@@ -226,38 +226,38 @@ create table public.policy_target
     source_type       varchar(20) default 'RESOURCE'::character varying
 );
 
-alter table public.policy_target
+alter table policy_target
     owner to contexa_sim;
 
-create table public.policy_rule
+create table policy_rule
 (
     id          bigserial
         primary key,
     policy_id   bigint not null
-        references public.policy
+        references policy
             on delete cascade,
     description varchar(255)
 );
 
-alter table public.policy_rule
+alter table policy_rule
     owner to contexa_sim;
 
-create table public.policy_condition
+create table policy_condition
 (
     id                   bigserial
         primary key,
     rule_id              bigint                                                  not null
-        references public.policy_rule
+        references policy_rule
             on delete cascade,
     condition_expression varchar(2048)                                           not null,
     authorization_phase  varchar(255) default 'PRE_AUTHORIZE'::character varying not null,
     description          varchar(255)
 );
 
-alter table public.policy_condition
+alter table policy_condition
     owner to contexa_sim;
 
-create table public.role_hierarchy_config
+create table role_hierarchy_config
 (
     hierarchy_id     bigserial
         primary key,
@@ -267,10 +267,10 @@ create table public.role_hierarchy_config
     is_active        boolean default false not null
 );
 
-alter table public.role_hierarchy_config
+alter table role_hierarchy_config
     owner to contexa_sim;
 
-create table public.audit_log
+create table audit_log
 (
     id                  bigserial
         primary key,
@@ -296,10 +296,10 @@ create table public.audit_log
     status              varchar(255)
 );
 
-alter table public.audit_log
+alter table audit_log
     owner to contexa_sim;
 
-create table public.business_resource
+create table business_resource
 (
     id            bigserial
         primary key,
@@ -309,10 +309,10 @@ create table public.business_resource
     description   varchar(1024)
 );
 
-alter table public.business_resource
+alter table business_resource
     owner to contexa_sim;
 
-create table public.business_action
+create table business_action
 (
     id          bigserial
         primary key,
@@ -322,25 +322,25 @@ create table public.business_action
     description varchar(1024)
 );
 
-alter table public.business_action
+alter table business_action
     owner to contexa_sim;
 
-create table public.business_resource_action
+create table business_resource_action
 (
     business_resource_id   bigint       not null
-        references public.business_resource
+        references business_resource
             on delete cascade,
     business_action_id     bigint       not null
-        references public.business_action
+        references business_action
             on delete cascade,
     mapped_permission_name varchar(255) not null,
     primary key (business_resource_id, business_action_id)
 );
 
-alter table public.business_resource_action
+alter table business_resource_action
     owner to contexa_sim;
 
-create table public.condition_template
+create table condition_template
 (
     id                   bigserial
         primary key,
@@ -366,10 +366,10 @@ create table public.condition_template
     context_dependent    boolean
 );
 
-alter table public.condition_template
+alter table condition_template
     owner to contexa_sim;
 
-create table public.wizard_session
+create table wizard_session
 (
     session_id    varchar(36)  not null
         primary key,
@@ -379,10 +379,10 @@ create table public.wizard_session
     expires_at    timestamp(6) not null
 );
 
-alter table public.wizard_session
+alter table wizard_session
     owner to contexa_sim;
 
-create table public.function_group
+create table function_group
 (
     id   bigserial
         primary key,
@@ -390,10 +390,10 @@ create table public.function_group
         unique
 );
 
-alter table public.function_group
+alter table function_group
     owner to contexa_sim;
 
-create table public.function_catalog
+create table function_catalog
 (
     id                  bigserial
         primary key,
@@ -404,16 +404,16 @@ create table public.function_catalog
             check ((status)::text = ANY
                    (ARRAY [('UNCONFIRMED'::character varying)::text, ('ACTIVE'::character varying)::text, ('INACTIVE'::character varying)::text])),
     function_group_id   bigint
-        references public.function_group,
+        references function_group,
     managed_resource_id bigint       not null
         unique
-        references public.managed_resource
+        references managed_resource
 );
 
-alter table public.function_catalog
+alter table function_catalog
     owner to contexa_sim;
 
-create table public.policy_template
+create table policy_template
 (
     id                bigserial
         primary key,
@@ -425,10 +425,10 @@ create table public.policy_template
         unique
 );
 
-alter table public.policy_template
+alter table policy_template
     owner to contexa_sim;
 
-create table public.vector_store
+create table vector_store
 (
     id        uuid default gen_random_uuid() not null
         primary key,
@@ -437,16 +437,16 @@ create table public.vector_store
     embedding vector(1024)
 );
 
-alter table public.vector_store
+alter table vector_store
     owner to contexa_sim;
 
 create index vector_store_embedding_idx
-    on public.vector_store using hnsw (embedding public.vector_cosine_ops);
+    on vector_store using hnsw (embedding vector_cosine_ops);
 
 create index spring_ai_vector_index
-    on public.vector_store using hnsw (embedding public.vector_cosine_ops);
+    on vector_store using hnsw (embedding vector_cosine_ops);
 
-create table public.user_behavior_profiles
+create table user_behavior_profiles
 (
     id                      bigserial
         primary key,
@@ -463,10 +463,10 @@ create table public.user_behavior_profiles
     vector_cluster_id       varchar(100)
 );
 
-alter table public.user_behavior_profiles
+alter table user_behavior_profiles
     owner to contexa_sim;
 
-create table public.soar_incidents
+create table soar_incidents
 (
     id          uuid         not null
         primary key,
@@ -485,10 +485,10 @@ create table public.soar_incidents
     type        varchar(50)
 );
 
-alter table public.soar_incidents
+alter table soar_incidents
     owner to contexa_sim;
 
-create table public.soar_approval_policies
+create table soar_approval_policies
 (
     id                      bigserial
         primary key,
@@ -502,10 +502,10 @@ create table public.soar_approval_policies
     timeout_minutes         integer      not null
 );
 
-alter table public.soar_approval_policies
+alter table soar_approval_policies
     owner to contexa_sim;
 
-create table public.soar_approval_requests
+create table soar_approval_requests
 (
     id                       bigserial
         primary key,
@@ -545,10 +545,10 @@ create table public.soar_approval_requests
     break_glass_reason       text
 );
 
-alter table public.soar_approval_requests
+alter table soar_approval_requests
     owner to contexa_sim;
 
-create table public.soar_approval_steps
+create table soar_approval_steps
 (
     id                  bigserial
         primary key,
@@ -569,16 +569,16 @@ create table public.soar_approval_steps
         unique (request_id, step_number)
 );
 
-alter table public.soar_approval_steps
+alter table soar_approval_steps
     owner to contexa_sim;
 
 create index idx_soar_approval_step_request_id
-    on public.soar_approval_steps (request_id);
+    on soar_approval_steps (request_id);
 
 create index idx_soar_approval_step_status
-    on public.soar_approval_steps (status);
+    on soar_approval_steps (status);
 
-create table public.soar_approval_assignments
+create table soar_approval_assignments
 (
     id                bigserial
         primary key,
@@ -596,19 +596,19 @@ create table public.soar_approval_assignments
     updated_at        timestamp(6) not null
 );
 
-alter table public.soar_approval_assignments
+alter table soar_approval_assignments
     owner to contexa_sim;
 
 create index idx_soar_approval_assignment_request_id
-    on public.soar_approval_assignments (request_id);
+    on soar_approval_assignments (request_id);
 
 create index idx_soar_approval_assignment_status
-    on public.soar_approval_assignments (status);
+    on soar_approval_assignments (status);
 
 create index idx_soar_approval_assignment_step
-    on public.soar_approval_assignments (request_id, step_number);
+    on soar_approval_assignments (request_id, step_number);
 
-create table public.soar_approval_votes
+create table soar_approval_votes
 (
     id            bigserial
         primary key,
@@ -625,22 +625,22 @@ create table public.soar_approval_votes
         unique (request_id, approver_id, step_number)
 );
 
-alter table public.soar_approval_votes
+alter table soar_approval_votes
     owner to contexa_sim;
 
 create index idx_soar_approval_vote_request_id
-    on public.soar_approval_votes (request_id);
+    on soar_approval_votes (request_id);
 
 create index idx_soar_approval_vote_decision
-    on public.soar_approval_votes (decision);
+    on soar_approval_votes (decision);
 
 create index idx_soar_approval_vote_created_at
-    on public.soar_approval_votes (created_at);
+    on soar_approval_votes (created_at);
 
 create index idx_soar_approval_vote_request_step
-    on public.soar_approval_votes (request_id, step_number);
+    on soar_approval_votes (request_id, step_number);
 
-create table public.approval_notifications
+create table approval_notifications
 (
     id                bigserial
         primary key,
@@ -663,22 +663,22 @@ create table public.approval_notifications
     user_id           varchar(100)
 );
 
-alter table public.approval_notifications
+alter table approval_notifications
     owner to contexa_sim;
 
 create index idx_notification_request_id
-    on public.approval_notifications (request_id);
+    on approval_notifications (request_id);
 
 create index idx_notification_user_id
-    on public.approval_notifications (user_id);
+    on approval_notifications (user_id);
 
 create index idx_notification_is_read
-    on public.approval_notifications (is_read);
+    on approval_notifications (is_read);
 
 create index idx_notification_created_at
-    on public.approval_notifications (created_at);
+    on approval_notifications (created_at);
 
-create table public.threat_indicators
+create table threat_indicators
 (
     indicator_id         varchar(100)  not null
         primary key,
@@ -720,44 +720,44 @@ create table public.threat_indicators
     indicator_value      varchar(1024) not null
 );
 
-alter table public.threat_indicators
+alter table threat_indicators
     owner to contexa_sim;
 
-create table public.indicator_metadata
+create table indicator_metadata
 (
     indicator_id varchar(100) not null
-        references public.threat_indicators,
+        references threat_indicators,
     meta_value   varchar(255),
     meta_key     varchar(255) not null,
     primary key (indicator_id, meta_key)
 );
 
-alter table public.indicator_metadata
+alter table indicator_metadata
     owner to contexa_sim;
 
-create table public.indicator_tags
+create table indicator_tags
 (
     indicator_id varchar(100) not null
-        references public.threat_indicators,
+        references threat_indicators,
     tag          varchar(255)
 );
 
-alter table public.indicator_tags
+alter table indicator_tags
     owner to contexa_sim;
 
-create table public.related_indicators
+create table related_indicators
 (
     indicator_id         varchar(100) not null
-        references public.threat_indicators,
+        references threat_indicators,
     related_indicator_id varchar(100) not null
-        references public.threat_indicators,
+        references threat_indicators,
     primary key (indicator_id, related_indicator_id)
 );
 
-alter table public.related_indicators
+alter table related_indicators
     owner to contexa_sim;
 
-create table public.blocked_user
+create table blocked_user
 (
     id                   bigserial
         primary key,
@@ -786,10 +786,10 @@ create table public.blocked_user
     mfa_verified_at      timestamp(6)
 );
 
-alter table public.blocked_user
+alter table blocked_user
     owner to contexa_sim;
 
-create table public.oauth2_authorization
+create table oauth2_authorization
 (
     id                            varchar(100) not null
         primary key,
@@ -827,16 +827,16 @@ create table public.oauth2_authorization
     device_code_metadata          text
 );
 
-alter table public.oauth2_authorization
+alter table oauth2_authorization
     owner to contexa_sim;
 
 create index idx_oauth2_authorization_registered_client_id
-    on public.oauth2_authorization (registered_client_id);
+    on oauth2_authorization (registered_client_id);
 
 create index idx_oauth2_authorization_principal_name
-    on public.oauth2_authorization (principal_name);
+    on oauth2_authorization (principal_name);
 
-create table public.oauth2_registered_client
+create table oauth2_registered_client
 (
     id                            varchar(100)                        not null
         primary key,
@@ -854,13 +854,13 @@ create table public.oauth2_registered_client
     token_settings                varchar(2000)                       not null
 );
 
-alter table public.oauth2_registered_client
+alter table oauth2_registered_client
     owner to contexa_sim;
 
 create unique index idx_oauth2_registered_client_client_id
-    on public.oauth2_registered_client (client_id);
+    on oauth2_registered_client (client_id);
 
-create table public.user_credentials
+create table user_credentials
 (
     credential_id                varchar(1000) not null
         primary key,
@@ -879,10 +879,10 @@ create table public.user_credentials
     label                        varchar(1000) not null
 );
 
-alter table public.user_credentials
+alter table user_credentials
     owner to contexa_sim;
 
-create table public.user_entities
+create table user_entities
 (
     id           varchar(1000) not null
         primary key,
@@ -890,10 +890,10 @@ create table public.user_entities
     display_name varchar(200)
 );
 
-alter table public.user_entities
+alter table user_entities
     owner to contexa_sim;
 
-create table public.one_time_tokens
+create table one_time_tokens
 (
     token_value varchar(36) not null
         primary key,
@@ -901,22 +901,22 @@ create table public.one_time_tokens
     expires_at  timestamp   not null
 );
 
-alter table public.one_time_tokens
+alter table one_time_tokens
     owner to contexa_sim;
 
-create table public.oauth2_authorization_consent
+create table oauth2_authorization_consent
 (
     registered_client_id varchar(100)  not null
-        references public.oauth2_registered_client,
+        references oauth2_registered_client,
     principal_name       varchar(200)  not null,
     authorities          varchar(1000) not null,
     primary key (registered_client_id, principal_name)
 );
 
-alter table public.oauth2_authorization_consent
+alter table oauth2_authorization_consent
     owner to contexa_sim;
 
-create table public.baseline_signal_outbox
+create table baseline_signal_outbox
 (
     id                                 bigint generated by default as identity
         primary key,
@@ -940,13 +940,13 @@ create table public.baseline_signal_outbox
     user_baseline_count                bigint       not null
 );
 
-alter table public.baseline_signal_outbox
+alter table baseline_signal_outbox
     owner to contexa_sim;
 
 create index idx_baseline_signal_outbox_dispatch
-    on public.baseline_signal_outbox (status, next_attempt_at, period_start);
+    on baseline_signal_outbox (status, next_attempt_at, period_start);
 
-create table public.decision_feedback_forwarding_outbox
+create table decision_feedback_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
@@ -965,13 +965,13 @@ create table public.decision_feedback_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table public.decision_feedback_forwarding_outbox
+alter table decision_feedback_forwarding_outbox
     owner to contexa_sim;
 
 create index idx_decision_feedback_forwarding_outbox_dispatch
-    on public.decision_feedback_forwarding_outbox (status, next_attempt_at, created_at);
+    on decision_feedback_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table public.model_performance_telemetry_outbox
+create table model_performance_telemetry_outbox
 (
     id                            bigint generated by default as identity
         primary key,
@@ -997,13 +997,13 @@ create table public.model_performance_telemetry_outbox
     updated_at                    timestamp(6) not null
 );
 
-alter table public.model_performance_telemetry_outbox
+alter table model_performance_telemetry_outbox
     owner to contexa_sim;
 
 create index idx_model_performance_telemetry_outbox_dispatch
-    on public.model_performance_telemetry_outbox (status, next_attempt_at, period);
+    on model_performance_telemetry_outbox (status, next_attempt_at, period);
 
-create table public.prompt_context_audit_forwarding_outbox
+create table prompt_context_audit_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
@@ -1022,13 +1022,13 @@ create table public.prompt_context_audit_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table public.prompt_context_audit_forwarding_outbox
+alter table prompt_context_audit_forwarding_outbox
     owner to contexa_sim;
 
 create index idx_prompt_context_audit_forwarding_outbox_dispatch
-    on public.prompt_context_audit_forwarding_outbox (status, next_attempt_at, created_at);
+    on prompt_context_audit_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table public.security_decision_forwarding_outbox
+create table security_decision_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
@@ -1046,13 +1046,13 @@ create table public.security_decision_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table public.security_decision_forwarding_outbox
+alter table security_decision_forwarding_outbox
     owner to contexa_sim;
 
 create index idx_security_decision_forwarding_outbox_dispatch
-    on public.security_decision_forwarding_outbox (status, next_attempt_at, created_at);
+    on security_decision_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table public.threat_outcome_forwarding_outbox
+create table threat_outcome_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
@@ -1071,29 +1071,29 @@ create table public.threat_outcome_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table public.threat_outcome_forwarding_outbox
+alter table threat_outcome_forwarding_outbox
     owner to contexa_sim;
 
 create index idx_threat_outcome_forwarding_outbox_dispatch
-    on public.threat_outcome_forwarding_outbox (status, next_attempt_at, created_at);
+    on threat_outcome_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table public.user_roles
+create table user_roles
 (
     role_id     bigint       not null
         constraint fkrhfovtciq1l558cw6udg0h0d3
-            references public.role,
+            references role,
     user_id     bigint       not null
         constraint fkhfh9dx7w3ubf1co1vdev94g3f
-            references public.users,
+            references users,
     assigned_at timestamp(6) not null,
     assigned_by varchar(100),
     primary key (role_id, user_id)
 );
 
-alter table public.user_roles
+alter table user_roles
     owner to contexa_sim;
 
-create table public.password_policy
+create table password_policy
 (
     id                       bigint generated by default as identity
         primary key,
@@ -1113,10 +1113,10 @@ create table public.password_policy
     ip_window_minutes        integer default 15 not null
 );
 
-alter table public.password_policy
+alter table password_policy
     owner to contexa_sim;
 
-create table public.behavior_anomaly_events
+create table behavior_anomaly_events
 (
     id                 bigint generated by default as identity
         primary key,
@@ -1138,10 +1138,10 @@ create table public.behavior_anomaly_events
     user_id            varchar(255)     not null
 );
 
-alter table public.behavior_anomaly_events
+alter table behavior_anomaly_events
     owner to contexa_sim;
 
-create table public.behavior_based_permissions
+create table behavior_based_permissions
 (
     id                    bigint generated by default as identity
         primary key,
@@ -1155,10 +1155,10 @@ create table public.behavior_based_permissions
     priority              integer
 );
 
-alter table public.behavior_based_permissions
+alter table behavior_based_permissions
     owner to contexa_sim;
 
-create table public.behavior_realtime_cache
+create table behavior_realtime_cache
 (
     user_id                 varchar(255) not null
         primary key,
@@ -1172,15 +1172,15 @@ create table public.behavior_realtime_cache
     session_start_time      timestamp(6)
 );
 
-alter table public.behavior_realtime_cache
+alter table behavior_realtime_cache
     owner to contexa_sim;
 
-create table public.bridge_user_profile
+create table bridge_user_profile
 (
     user_id                     bigint       not null
         primary key
         constraint fk6ln576ijwr4i3kdbqmfjyedeo
-            references public.users,
+            references users,
     authentication_assurance    varchar(100),
     authentication_type         varchar(100),
     created_at                  timestamp(6) not null,
@@ -1194,10 +1194,10 @@ create table public.bridge_user_profile
     updated_at                  timestamp(6)
 );
 
-alter table public.bridge_user_profile
+alter table bridge_user_profile
     owner to contexa_sim;
 
-create table public.active_sessions
+create table active_sessions
 (
     session_id       varchar(128) not null
         primary key,
@@ -1210,16 +1210,16 @@ create table public.active_sessions
     username         varchar(255)
 );
 
-alter table public.active_sessions
+alter table active_sessions
     owner to contexa_sim;
 
 create index idx_session_user_id
-    on public.active_sessions (user_id);
+    on active_sessions (user_id);
 
 create index idx_session_expired
-    on public.active_sessions (expired);
+    on active_sessions (expired);
 
-create table public.ip_access_rules
+create table ip_access_rules
 (
     id          bigint generated by default as identity
         primary key,
@@ -1235,19 +1235,19 @@ create table public.ip_access_rules
                    (ARRAY [('ALLOW'::character varying)::text, ('DENY'::character varying)::text]))
 );
 
-alter table public.ip_access_rules
+alter table ip_access_rules
     owner to contexa_sim;
 
 create index idx_ip_rule_type
-    on public.ip_access_rules (rule_type);
+    on ip_access_rules (rule_type);
 
 create index idx_ip_rule_enabled
-    on public.ip_access_rules (enabled);
+    on ip_access_rules (enabled);
 
 create index idx_ip_address
-    on public.ip_access_rules (ip_address);
+    on ip_access_rules (ip_address);
 
-create table public.security_spel
+create table security_spel
 (
     id          bigserial
         primary key,
@@ -1259,10 +1259,10 @@ create table public.security_spel
     created_at  timestamp default now()
 );
 
-alter table public.security_spel
+alter table security_spel
     owner to contexa_sim;
 
-create table public.admin_menu
+create table admin_menu
 (
     id         bigserial
         primary key,
@@ -1276,59 +1276,59 @@ create table public.admin_menu
     url        varchar(255)
 );
 
-alter table public.admin_menu
+alter table admin_menu
     owner to contexa_sim;
 
 create unique index ux_admin_menu_data_page
-    on public.admin_menu (data_page)
+    on admin_menu (data_page)
     where (data_page IS NOT NULL);
 
-create table public.admin_menu_role
+create table admin_menu_role
 (
     id        bigserial
         primary key,
     menu_id   bigint       not null
-        references public.admin_menu,
+        references admin_menu,
     role_name varchar(100) not null,
     unique (menu_id, role_name)
 );
 
-alter table public.admin_menu_role
+alter table admin_menu_role
     owner to contexa_sim;
 
-create table public.group_role_permissions
+create table group_role_permissions
 (
     group_id      bigint       not null
-        references public.app_group,
+        references app_group,
     role_id       bigint       not null
-        references public.role,
+        references role,
     permission_id bigint       not null
-        references public.permission,
+        references permission,
     assigned_at   timestamp(6) not null,
     assigned_by   varchar(100),
     primary key (group_id, role_id, permission_id)
 );
 
-alter table public.group_role_permissions
+alter table group_role_permissions
     owner to contexa_sim;
 
-create table public.user_role_permissions
+create table user_role_permissions
 (
     user_id       bigint       not null
-        references public.users,
+        references users,
     role_id       bigint       not null
-        references public.role,
+        references role,
     permission_id bigint       not null
-        references public.permission,
+        references permission,
     assigned_at   timestamp(6) not null,
     assigned_by   varchar(100),
     primary key (user_id, role_id, permission_id)
 );
 
-alter table public.user_role_permissions
+alter table user_role_permissions
     owner to contexa_sim;
 
-create table public.password_history
+create table password_history
 (
     id            bigserial
         primary key,
@@ -1337,10 +1337,10 @@ create table public.password_history
     changed_at    timestamp(6) not null
 );
 
-alter table public.password_history
+alter table password_history
     owner to contexa_sim;
 
-create table public.policy_version
+create table policy_version
 (
     id             bigserial
         primary key,
@@ -1356,16 +1356,16 @@ create table public.policy_version
     snapshot_json  text         not null
 );
 
-alter table public.policy_version
+alter table policy_version
     owner to contexa_sim;
 
 create index idx_policy_version_changed_at
-    on public.policy_version (changed_at);
+    on policy_version (changed_at);
 
 create index idx_policy_version_policy_id
-    on public.policy_version (policy_id);
+    on policy_version (policy_id);
 
-create table public.system_settings
+create table system_settings
 (
     id                         bigserial
         primary key,
@@ -1377,10 +1377,10 @@ create table public.system_settings
     updated_at                 timestamp(6)
 );
 
-alter table public.system_settings
+alter table system_settings
     owner to contexa_sim;
 
-create table public.learning_artifact_registry
+create table learning_artifact_registry
 (
     kill_switch_active    boolean       not null,
     runtime_eligible      boolean       not null,
@@ -1407,16 +1407,16 @@ create table public.learning_artifact_registry
         unique (tenant_id, artifact_type, artifact_key)
 );
 
-alter table public.learning_artifact_registry
+alter table learning_artifact_registry
     owner to contexa_sim;
 
 create index idx_learning_artifact_registry_tenant_updated
-    on public.learning_artifact_registry (tenant_id, updated_at);
+    on learning_artifact_registry (tenant_id, updated_at);
 
 create index idx_learning_artifact_registry_artifact_updated
-    on public.learning_artifact_registry (artifact_type, artifact_key, updated_at);
+    on learning_artifact_registry (artifact_type, artifact_key, updated_at);
 
-create table public.learning_artifact_release_ledger
+create table learning_artifact_release_ledger
 (
     kill_switch_active    boolean       not null,
     created_at            timestamp(6)  not null,
@@ -1439,16 +1439,16 @@ create table public.learning_artifact_release_ledger
     facts_json            text
 );
 
-alter table public.learning_artifact_release_ledger
+alter table learning_artifact_release_ledger
     owner to contexa_sim;
 
 create index idx_learning_artifact_ledger_identity
-    on public.learning_artifact_release_ledger (tenant_id, artifact_type, artifact_key, created_at);
+    on learning_artifact_release_ledger (tenant_id, artifact_type, artifact_key, created_at);
 
 create index idx_learning_artifact_ledger_artifact
-    on public.learning_artifact_release_ledger (artifact_type, artifact_key, created_at);
+    on learning_artifact_release_ledger (artifact_type, artifact_key, created_at);
 
-create table public.learning_governance_snapshot
+create table learning_governance_snapshot
 (
     created_at    timestamp(6) not null,
     generated_at  timestamp(6),
@@ -1462,13 +1462,13 @@ create table public.learning_governance_snapshot
         unique (tenant_id, artifact_type)
 );
 
-alter table public.learning_governance_snapshot
+alter table learning_governance_snapshot
     owner to contexa_sim;
 
 create index idx_learning_governance_snapshot_tenant_updated
-    on public.learning_governance_snapshot (tenant_id, updated_at);
+    on learning_governance_snapshot (tenant_id, updated_at);
 
-create table public.login_attempt_ip
+create table login_attempt_ip
 (
     id              bigint generated by default as identity
         primary key,
@@ -1482,13 +1482,13 @@ create table public.login_attempt_ip
     window_start_at timestamp(6) not null
 );
 
-alter table public.login_attempt_ip
+alter table login_attempt_ip
     owner to contexa_sim;
 
 create index idx_login_attempt_ip_window
-    on public.login_attempt_ip (window_start_at);
+    on login_attempt_ip (window_start_at);
 
-create table public.shedlock
+create table shedlock
 (
     name       varchar(64)  not null
         primary key,
@@ -1497,6 +1497,6 @@ create table public.shedlock
     locked_by  varchar(255) not null
 );
 
-alter table public.shedlock
+alter table shedlock
     owner to contexa_sim;
 
