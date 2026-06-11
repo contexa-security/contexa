@@ -96,8 +96,8 @@ public class AiSecurityConfiguration {
                 .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth
                                 .formLogin(form -> form.defaultSuccessUrl("/")))
-                        .ott(Customizer.withDefaults())
                         .passkey(Customizer.withDefaults())
+                        .ott(Customizer.withDefaults())
                         .order(100))
                 .session(Customizer.withDefaults())
                 .build();
