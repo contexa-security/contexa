@@ -70,10 +70,29 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 @Slf4j
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
+
+    private static final ExecutorService RAG_EXECUTOR = createRagExecutor();
+
+    private static ExecutorService createRagExecutor() {
+        return new ThreadPoolExecutor(
+                32, 32, 60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(500),
+                r -> {
+                    Thread thread = new Thread(r, "contexa-tiered-rag-worker");
+                    thread.setDaemon(true);
+                    return thread;
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+    }
 
     protected static final PipelineConfiguration SECURITY_DECISION_PIPELINE_CONFIGURATION =
             PipelineConfiguration.builder()
@@ -749,57 +768,90 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 return Collections.emptyList();
             }
 
-            List<Document> personalDocuments = searchBehaviorDocuments(
-                    query,
-                    requestedTopK,
-                    similarityThreshold,
-                    buildBehaviorFilterForUser(userId, retrievalPurpose));
+            // 1. 기본 개인 검색 비동기 실행
+            CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
+                    searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
+                            buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR);
+
+            // 2. 확장 검색 비동기 준비
+            String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
+            final double broadThreshold = Math.min(similarityThreshold, 0.35d);
+            boolean runBroad = StringUtils.hasText(broadQuery) && !broadQuery.equals(query);
+            CompletableFuture<List<Document>> broadFuture = runBroad
+                    ? CompletableFuture.supplyAsync(() ->
+                            searchBehaviorDocuments(broadQuery, requestedTopK, broadThreshold,
+                                    buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
+                    : CompletableFuture.completedFuture(Collections.emptyList());
+
+            // 3. Baseline 검색 비동기 준비
+            String userBaselineQuery = buildUserBaselineContextQuery(event);
+            boolean runBaseline = StringUtils.hasText(userBaselineQuery)
+                    && !userBaselineQuery.equals(query)
+                    && (!runBroad || !userBaselineQuery.equals(broadQuery));
+            CompletableFuture<List<Document>> baselineFuture = runBaseline
+                    ? CompletableFuture.supplyAsync(() ->
+                            searchBehaviorDocuments(userBaselineQuery, requestedTopK, 0.0d,
+                                    buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
+                    : CompletableFuture.completedFuture(Collections.emptyList());
+
+            // 4. Supporting Documents 검색 비동기 준비 (Baseline 미수립 시 병렬 수행)
+            boolean personalBaselineEstablished = false;
+            if (baselineLearningService != null) {
+                var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event));
+                if (maturity != null) {
+                    personalBaselineEstablished = maturity.personalBaselineEstablished();
+                }
+            }
+            boolean predictNeedSupporting = !personalBaselineEstablished;
+            String organizationId = resolveOrganizationId(event);
+            boolean runSupporting = predictNeedSupporting && StringUtils.hasText(organizationId);
+
+            CompletableFuture<List<Document>> supportingFuture = runSupporting
+                    ? CompletableFuture.supplyAsync(() -> {
+                            int supportingTopK = Math.max(1, Math.min(requestedTopK, 2));
+                            return searchSupportingBehaviorDocuments(
+                                    query,
+                                    supportingTopK,
+                                    similarityThreshold,
+                                    organizationId,
+                                    retrievalPurpose,
+                                    userId);
+                        }, RAG_EXECUTOR)
+                    : CompletableFuture.completedFuture(Collections.emptyList());
+
+            // 5. 모든 비동기 검색 병렬 실행 및 조인
+            CompletableFuture.allOf(personalFuture, broadFuture, baselineFuture, supportingFuture).join();
+
+            List<Document> personalDocuments = personalFuture.get();
+            List<Document> broadDocuments = broadFuture.get();
+            List<Document> userBaselineDocuments = baselineFuture.get();
+            List<Document> supportingDocuments = supportingFuture.get();
 
             List<Document> mergedDocuments = new ArrayList<>(personalDocuments);
-            String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
-            if (mergedDocuments.size() < requestedTopK
-                    && StringUtils.hasText(broadQuery)
-                    && !broadQuery.equals(query)) {
-                double broadThreshold = Math.min(similarityThreshold, 0.35d);
-                List<Document> broadDocuments = searchBehaviorDocuments(
-                        broadQuery,
-                        requestedTopK,
-                        broadThreshold,
-                        buildBehaviorFilterForUser(userId, retrievalPurpose));
+            if (mergedDocuments.size() < requestedTopK) {
                 mergedDocuments.addAll(broadDocuments);
             }
             if (mergedDocuments.size() < requestedTopK) {
-                String userBaselineQuery = buildUserBaselineContextQuery(event);
-                if (StringUtils.hasText(userBaselineQuery)
-                        && !userBaselineQuery.equals(query)
-                        && !userBaselineQuery.equals(broadQuery)) {
-                    List<Document> userBaselineDocuments = searchBehaviorDocuments(
-                            userBaselineQuery,
-                            requestedTopK,
-                            0.0d,
-                            buildBehaviorFilterForUser(userId, retrievalPurpose));
-                    mergedDocuments.addAll(userBaselineDocuments);
-                }
+                mergedDocuments.addAll(userBaselineDocuments);
             }
-            boolean personalBaselineEstablished = baselineLearningService != null
-                    && baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event))
-                    .personalBaselineEstablished();
+
+            // 하이브리드 예외 처리: Baseline이 수립되었으나 문서 수가 부족하여 supporting이 순차적으로 필요한 경우
             boolean needSupportingEvidence = personalDocuments.size() < 3 || !personalBaselineEstablished;
             if (needSupportingEvidence) {
-                String organizationId = resolveOrganizationId(event);
-                if (StringUtils.hasText(organizationId)) {
+                if (!runSupporting && StringUtils.hasText(organizationId)) {
                     int supportingTopK = Math.max(1, Math.min(requestedTopK, 2));
-                    List<Document> supportingDocuments = searchSupportingBehaviorDocuments(
+                    supportingDocuments = searchSupportingBehaviorDocuments(
                             query,
                             supportingTopK,
                             similarityThreshold,
                             organizationId,
                             retrievalPurpose,
                             userId);
-                    supportingDocuments.stream()
-                            .filter(document -> !userId.equalsIgnoreCase(documentUserId(document)))
-                            .forEach(mergedDocuments::add);
                 }
+                List<Document> finalSupporting = supportingDocuments;
+                finalSupporting.stream()
+                        .filter(document -> !userId.equalsIgnoreCase(documentUserId(document)))
+                        .forEach(mergedDocuments::add);
             }
 
             List<Document> documents = dedupeDocuments(mergedDocuments, requestedTopK);
@@ -818,10 +870,17 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return limitedAuthorizedPromptContext.documents();
 
         } catch (Exception e) {
-            log.error("[{}] Vector store context search failed", getLayerName(), e);
-            markRagRetrievalUnavailable(event, requestedTopK, e);
+            Throwable cause = e;
+            while ((cause instanceof java.util.concurrent.CompletionException
+                    || cause instanceof java.util.concurrent.ExecutionException)
+                    && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            Exception targetException = cause instanceof Exception ? (Exception) cause : new RuntimeException(cause);
+            log.error("[{}] Vector store context search failed", getLayerName(), targetException);
+            markRagRetrievalUnavailable(event, requestedTopK, targetException);
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
-                    "VECTOR_STORE_SEARCH_FAILED", e);
+                    "VECTOR_STORE_SEARCH_FAILED", targetException);
             return Collections.emptyList();
         }
     }

@@ -30,10 +30,12 @@ import io.contexa.contexacore.std.components.prompt.PromptSourceContextSnapshotF
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 public class PromptEvidenceComposer {
 
     private final PromptGenerator promptGenerator;
@@ -44,10 +46,11 @@ public class PromptEvidenceComposer {
 
     public <T extends DomainContext> PromptEvidenceComposition compose(
             AIRequest<T> request,
-            PipelineExecutionContext context
-    ) {
+            PipelineExecutionContext context) {
         long stepStartTime = System.currentTimeMillis();
+        log.info("[PromptEvidenceComposer.compose] Start composing evidence");
 
+        long t1 = System.currentTimeMillis();
         ContextRetriever.ContextRetrievalResult contextResult =
                 context.getStepResult(
                         PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
@@ -58,10 +61,14 @@ public class PromptEvidenceComposer {
                 PipelineConfiguration.PipelineStep.PREPROCESSING,
                 String.class
         );
+        log.info("[PromptEvidenceComposer.compose] getStepResult completed in {} ms", System.currentTimeMillis() - t1);
 
         String contextInfo = contextResult != null ? contextResult.getContextInfo() : "";
         String metadata = systemMetadata != null ? systemMetadata : "";
+
+        long t2 = System.currentTimeMillis();
         PromptGenerationResult promptResult = promptGenerator.generatePrompt(request, contextInfo, metadata);
+        log.info("[PromptEvidenceComposer.compose] generatePrompt completed in {} ms", System.currentTimeMillis() - t2);
 
         Class<?> aiGenerationType = promptGenerator.getAIGenerationType(request);
         if (aiGenerationType != null) {
@@ -73,10 +80,15 @@ public class PromptEvidenceComposer {
                     .toMetadataMap()
                     .forEach(context::addMetadata);
         }
+
+        long t3 = System.currentTimeMillis();
         captureSecurityDecisionPromptLineage(request, context, promptResult);
+        log.info("[PromptEvidenceComposer.compose] captureSecurityDecisionPromptLineage completed in {} ms", System.currentTimeMillis() - t3);
+
         context.addMetadata("promptBuildLatencyMs", System.currentTimeMillis() - stepStartTime);
         context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
+        log.info("[PromptEvidenceComposer.compose] Total compose completed in {} ms", System.currentTimeMillis() - stepStartTime);
         return new PromptEvidenceComposition(promptResult, context);
     }
 
@@ -100,19 +112,41 @@ public class PromptEvidenceComposer {
         if (securityEvent == null) {
             return;
         }
+        long t = System.currentTimeMillis();
         Map<String, Object> metadata = ensureMutableMetadata(securityEvent);
+        log.info("[PromptEvidenceComposer.lineage] ensureMutableMetadata completed in {} ms", System.currentTimeMillis() - t);
+
+        t = System.currentTimeMillis();
         PromptSourceContextSnapshot sourceSnapshot = PromptSourceContextSnapshotFactory.capture(securityDecisionContext);
+        log.info("[PromptEvidenceComposer.lineage] PromptSourceContextSnapshotFactory.capture completed in {} ms", System.currentTimeMillis() - t);
+
+        t = System.currentTimeMillis();
         putMetadataMap(metadata, context, sourceSnapshot.toMetadataMap());
+        log.info("[PromptEvidenceComposer.lineage] putMetadataMap (sourceSnapshot) completed in {} ms", System.currentTimeMillis() - t);
+
         putIfPresent(metadata, "systemPrompt", promptResult.getSystemPrompt());
         putIfPresent(metadata, "userPrompt", promptResult.getUserPrompt());
         putIfPresent(metadata, "rawSystemPrompt", promptResult.getRawSystemPrompt());
         putIfPresent(metadata, "rawUserPrompt", promptResult.getRawUserPrompt());
+
+        t = System.currentTimeMillis();
         PromptFieldLineageAnalysis fieldLineage = PromptFieldLineageAnalyzer.analyze(
                 promptResult.getRawUserPrompt(),
                 promptResult.getUserPrompt());
+        log.info("[PromptEvidenceComposer.lineage] PromptFieldLineageAnalyzer.analyze completed in {} ms", System.currentTimeMillis() - t);
+
+        t = System.currentTimeMillis();
         putMetadataMap(metadata, context, fieldLineage.toMetadataMap());
+        log.info("[PromptEvidenceComposer.lineage] putMetadataMap (fieldLineage) completed in {} ms", System.currentTimeMillis() - t);
+
+        t = System.currentTimeMillis();
         PromptFieldStateLedger fieldStateLedger = PromptFieldStateLedgerFactory.create(sourceSnapshot, fieldLineage);
+        log.info("[PromptEvidenceComposer.lineage] PromptFieldStateLedgerFactory.create completed in {} ms", System.currentTimeMillis() - t);
+
+        t = System.currentTimeMillis();
         putMetadataMap(metadata, context, fieldStateLedger.toMetadataMap());
+        log.info("[PromptEvidenceComposer.lineage] putMetadataMap (fieldStateLedger) completed in {} ms", System.currentTimeMillis() - t);
+
         if (promptResult.getMetadata() != null) {
             copyIfPresent(promptResult.getMetadata(), metadata, "promptKey");
             copyIfPresent(promptResult.getMetadata(), metadata, "templateKey");

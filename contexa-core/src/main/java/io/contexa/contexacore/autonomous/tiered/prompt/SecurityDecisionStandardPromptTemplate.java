@@ -34,12 +34,7 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContex
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.std.components.prompt.AbstractStandardPromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
-import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
-import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
-import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
-import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
+import io.contexa.contexacore.std.components.prompt.*;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import lombok.Getter;
 import lombok.Setter;
@@ -181,7 +176,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         StructuredPrompt structuredPrompt = buildStructuredPrompt(request);
         if (structuredPrompt.executionMetadata() != null) {
             PromptExecutionMetadata baseMetadata = structuredPrompt.executionMetadata();
-            return io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.buildExecutionMetadata(
+            return PromptGovernanceSupport.buildExecutionMetadata(
                     baseMetadata.governanceDescriptor(),
                     baseMetadata.budgetProfile(),
                     baseMetadata.sectionSet(),
@@ -189,7 +184,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                     baseMetadata.omissionLedger(),
                     baseMetadata.duplicationInventory(),
                     baseMetadata.promptEvidenceCompleteness(),
-                    io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.resolveRequestedModelHint(request),
+                    PromptGovernanceSupport.resolveRequestedModelHint(request),
                     systemPrompt,
                     userPrompt,
                     systemPrompt,
@@ -197,9 +192,9 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                     baseMetadata.promptCompressionLedger(),
                     baseMetadata.supplementalMetadata());
         }
-        return io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.buildExecutionMetadata(
+        return PromptGovernanceSupport.buildExecutionMetadata(
                 getPromptGovernanceDescriptor(),
-                io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport.resolveRequestedModelHint(request),
+                PromptGovernanceSupport.resolveRequestedModelHint(request),
                 systemPrompt,
                 userPrompt);
     }

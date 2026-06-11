@@ -247,6 +247,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     }
 
     public SecurityDecision analyzeWithContext(SecurityEvent event) {
+        log.info("[Layer1ContextualStrategy.analyzeWithContext] Start processing event {}", event.getEventId());
         long startTime = System.currentTimeMillis();
         long sessionContextMs = 0L;
         long ragSearchMs = 0L;
@@ -296,7 +297,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
-                        .block(/*Duration.ofMillis(llmTimeoutMs)*/);
+                        .block(Duration.ofMillis(llmTimeoutMs));
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
                 if (pipelineResponse == null) {
@@ -334,6 +335,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     llmExecutionMs,
                     responseParseMs,
                     postProcessMs);
+
+            log.info("[Layer1ContextualStrategy.analyzeWithContext] End. SessionContext: {} ms, RAG Search: {} ms, Behavior Analysis: {} ms, Prompt Build: {} ms, LLM Execution: {} ms, Response Parse: {} ms, Post Process: {} ms. Total: {} ms",
+                    sessionContextMs, ragSearchMs, behaviorAnalysisMs, promptBuildMs, llmExecutionMs, responseParseMs, postProcessMs, (System.currentTimeMillis() - startTime));
 
             return decision;
 

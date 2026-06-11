@@ -36,36 +36,53 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
+import org.springframework.beans.factory.DisposableBean;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-public class UnifiedVectorService implements VectorOperations {
+public class UnifiedVectorService implements VectorOperations, DisposableBean {
 
     private final PgVectorStoreProperties properties;
     private final VectorStoreCacheLayer cacheLayer;
     private final VectorStore vectorStore;
     private final ExecutorService vectorOperationExecutor;
+    private final boolean ownsExecutor;
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    private static final int DEFAULT_MAX_CONCURRENT_VECTOR_OPERATIONS = 1;
     private static final int DEFAULT_VECTOR_BUSY_RETRY_ATTEMPTS = 5;
     private static final long DEFAULT_VECTOR_BUSY_INITIAL_BACKOFF_MS = 250L;
     private static final long DEFAULT_VECTOR_BUSY_MAX_BACKOFF_MS = 2_000L;
     private static final int VECTOR_BUSY_RETRY_ATTEMPTS = Math.max(1,
             Integer.getInteger("contexa.vector.busy-retry-attempts", DEFAULT_VECTOR_BUSY_RETRY_ATTEMPTS));
-    private static final Semaphore VECTOR_OPERATION_GATE = new Semaphore(
-            Math.max(1, Integer.getInteger("contexa.vector.max-concurrent-operations", DEFAULT_MAX_CONCURRENT_VECTOR_OPERATIONS)),
-            true);
 
     public UnifiedVectorService(
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore) {
-        this(properties, cacheLayer, vectorStore, ForkJoinPool.commonPool());
+        this(properties, cacheLayer, vectorStore, createDefaultExecutor(), true);
+    }
+
+    private static ExecutorService createDefaultExecutor() {
+        return new ThreadPoolExecutor(
+                32, 32, 60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(500),
+                new ThreadFactory() {
+                    private final AtomicInteger counter = new AtomicInteger(1);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        Thread thread = new Thread(r, "contexa-vector-worker-" + counter.getAndIncrement());
+                        thread.setDaemon(true);
+                        return thread;
+                    }
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
     }
 
     public UnifiedVectorService(
@@ -73,10 +90,35 @@ public class UnifiedVectorService implements VectorOperations {
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore,
             ExecutorService vectorOperationExecutor) {
+        this(properties, cacheLayer, vectorStore, vectorOperationExecutor, false);
+    }
+
+    private UnifiedVectorService(
+            PgVectorStoreProperties properties,
+            VectorStoreCacheLayer cacheLayer,
+            VectorStore vectorStore,
+            ExecutorService vectorOperationExecutor,
+            boolean ownsExecutor) {
         this.properties = properties;
         this.cacheLayer = cacheLayer;
         this.vectorStore = vectorStore;
-        this.vectorOperationExecutor = vectorOperationExecutor != null ? vectorOperationExecutor : ForkJoinPool.commonPool();
+        this.vectorOperationExecutor = vectorOperationExecutor != null ? vectorOperationExecutor : createDefaultExecutor();
+        this.ownsExecutor = vectorOperationExecutor == null || ownsExecutor;
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        if (ownsExecutor && vectorOperationExecutor != null) {
+            vectorOperationExecutor.shutdown();
+            try {
+                if (!vectorOperationExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    vectorOperationExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                vectorOperationExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @Override
@@ -294,14 +336,14 @@ public class UnifiedVectorService implements VectorOperations {
         SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
         Future<T> future = null;
         long effectiveTimeoutMs = Math.max(100L, timeoutMs);
-        boolean permitAcquired = false;
         try {
-            acquireVectorOperationPermit(operationLabel);
-            permitAcquired = true;
+            SecurityEventTelemetryContext.put("vectorOperationLabel", operationLabel);
             future = vectorOperationExecutor.submit(operation);
             return future.get(effectiveTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException timeoutException) {
-            future.cancel(true);
+            if (future != null) {
+                future.cancel(true);
+            }
             throw new VectorStoreException(
                     String.format("Vector store %s timed out after %dms", operationLabel, effectiveTimeoutMs),
                     timeoutException);
@@ -314,16 +356,6 @@ public class UnifiedVectorService implements VectorOperations {
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
             throw new VectorStoreException("Vector store " + operationLabel + " interrupted", interruptedException);
-        } finally {
-            if (permitAcquired) {
-                VECTOR_OPERATION_GATE.release();
-            }
         }
-    }
-
-    private void acquireVectorOperationPermit(String operationLabel) throws InterruptedException {
-        VECTOR_OPERATION_GATE.acquire();
-        SecurityEventTelemetryContext.put("vectorOperationGatePermitsRemaining", VECTOR_OPERATION_GATE.availablePermits());
-        SecurityEventTelemetryContext.put("vectorOperationLabel", operationLabel);
     }
 }

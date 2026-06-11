@@ -2396,7 +2396,15 @@ public class SecurityDecisionPromptSections {
         if (event == null || canonicalSecurityContextProvider == null) {
             return Optional.empty();
         }
-        return canonicalSecurityContextProvider.resolve(event);
+        if (event.getEventId() != null) {
+            CanonicalSecurityContext cached = canonicalSecurityContextCache.getIfPresent(event.getEventId());
+            if (cached != null) {
+                return Optional.of(cached);
+            }
+        }
+        Optional<CanonicalSecurityContext> resolved = canonicalSecurityContextProvider.resolve(event);
+        resolved.ifPresent(context -> cacheCanonicalSecurityContext(event, context));
+        return resolved;
     }
 
     private void cacheCanonicalSecurityContext(SecurityEvent event, CanonicalSecurityContext context) {

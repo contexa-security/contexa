@@ -586,7 +586,13 @@ class AbstractTieredStrategyTest {
                         "documentType", "behavior",
                         "retrievalPurpose", "security_investigation"));
         when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
-                .thenReturn(List.of(), List.of(), List.of(), List.of(), List.of(learnedContext));
+                .thenAnswer(invocation -> {
+                    SearchRequest req = invocation.getArgument(0);
+                    if (req != null && req.getQuery() != null && req.getQuery().contains("user: persona_fin_lead")) {
+                        return List.of(learnedContext);
+                    }
+                    return List.of();
+                });
         when(promptContextAuthorizationService.authorize(
                 any(SecurityEvent.class),
                 any(),
@@ -606,8 +612,11 @@ class AbstractTieredStrategyTest {
 
         assertThat(result).containsExactly(learnedContext);
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(unifiedVectorService, times(5)).searchSimilar(searchRequestCaptor.capture());
-        SearchRequest fallbackRequest = searchRequestCaptor.getAllValues().get(4);
+        verify(unifiedVectorService, times(4)).searchSimilar(searchRequestCaptor.capture());
+        SearchRequest fallbackRequest = searchRequestCaptor.getAllValues().stream()
+                .filter(req -> req.getSimilarityThreshold() == 0.0d)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Could not find baseline fallback request with threshold 0.0"));
         assertThat(fallbackRequest.getQuery())
                 .contains("user: persona_fin_lead", "purpose: security_investigation", "action: READ")
                 .doesNotContain("Chrome/148")

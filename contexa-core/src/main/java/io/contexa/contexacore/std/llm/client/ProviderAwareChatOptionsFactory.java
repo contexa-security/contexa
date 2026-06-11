@@ -35,17 +35,57 @@ public final class ProviderAwareChatOptionsFactory {
             return null;
         }
         String modelName = resolveModelName(context, selectedModel, options);
-        if (!isOpenAiOptions(options) || !requiresMaxCompletionTokens(modelName)) {
+        boolean isOpenAi = isOpenAiOptions(options);
+        boolean requiresMaxCompletion = requiresMaxCompletionTokens(modelName);
+
+        if (!isOpenAi && isOpenAiModel(selectedModel, context) && requiresMaxCompletion) {
+            try {
+                Class<?> openAiOptionsClass = loadOpenAiOptionsClass();
+                Object builder = openAiOptionsClass.getMethod("builder").invoke(null);
+                if (options.getModel() != null) {
+                    invokeBuilder(builder, "model", String.class, options.getModel());
+                }
+                if (options.getTemperature() != null) {
+                    invokeBuilder(builder, "temperature", Double.class, options.getTemperature());
+                }
+                if (options.getTopP() != null) {
+                    invokeBuilder(builder, "topP", Double.class, options.getTopP());
+                }
+                if (options.getMaxTokens() != null) {
+                    invokeBuilder(builder, "maxTokens", Integer.class, options.getMaxTokens());
+                }
+                options = (ChatOptions) invokeNoArg(builder, "build");
+                isOpenAi = true;
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (!isOpenAi || !requiresMaxCompletion) {
             return options;
         }
+
+        Object copy = copyOpenAiOptions(options);
+        if (isReasoningModel(modelName)) {
+            try {
+                invokeSetter(copy, "setTemperature", Double.class, null);
+            } catch (Exception ignored) {
+            }
+            try {
+                invokeSetter(copy, "setTopP", Double.class, null);
+            } catch (Exception ignored) {
+            }
+        }
+
         Integer maxTokens = readInteger(options, "getMaxTokens");
         Integer maxCompletionTokens = readInteger(options, "getMaxCompletionTokens");
         if (maxTokens == null || maxCompletionTokens != null) {
-            return options;
+            return (ChatOptions) copy;
         }
-        Object copy = copyOpenAiOptions(options);
-        invokeSetter(copy, "setMaxCompletionTokens", Integer.class, maxTokens);
-        invokeSetter(copy, "setMaxTokens", Integer.class, null);
+        try {
+            invokeSetter(copy, "setMaxCompletionTokens", Integer.class, maxTokens);
+            invokeSetter(copy, "setMaxTokens", Integer.class, null);
+        } catch (Exception ignored) {
+        }
         return (ChatOptions) copy;
     }
 
@@ -81,9 +121,17 @@ public final class ProviderAwareChatOptionsFactory {
         }
         String normalized = modelName.trim().toLowerCase(Locale.ROOT);
         return normalized.startsWith("gpt-5")
-                || normalized.startsWith("o1")
-                || normalized.startsWith("o3")
-                || normalized.startsWith("o4");
+                || normalized.matches("^o[0-9].*");
+    }
+
+    static boolean isReasoningModel(String modelName) {
+        if (modelName == null || modelName.isBlank()) {
+            return false;
+        }
+        String normalized = modelName.trim().toLowerCase(Locale.ROOT);
+        return normalized.matches("^o[0-9].*")
+                || normalized.contains("reasoner")
+                || normalized.contains("-r1");
     }
 
     private static ChatOptions buildGenericChatOptions(ExecutionContext context) {
@@ -111,10 +159,11 @@ public final class ProviderAwareChatOptionsFactory {
         if (modelName != null && !modelName.isBlank()) {
             invokeBuilder(builder, "model", String.class, modelName);
         }
-        if (context.getTemperature() != null) {
+        boolean isReasoningModel = isReasoningModel(modelName);
+        if (!isReasoningModel && context.getTemperature() != null) {
             invokeBuilder(builder, "temperature", Double.class, context.getTemperature());
         }
-        if (context.getTopP() != null) {
+        if (!isReasoningModel && context.getTopP() != null) {
             invokeBuilder(builder, "topP", Double.class, context.getTopP());
         }
         if (context.getMaxTokens() != null) {
@@ -397,6 +446,13 @@ public final class ProviderAwareChatOptionsFactory {
         if (metadataValue instanceof String text) {
             return Boolean.parseBoolean(text);
         }
-        return modelName != null && modelName.toLowerCase(Locale.ROOT).startsWith("qwen3");
+        if (modelName == null) {
+            return false;
+        }
+        String normalized = modelName.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("qwen3")
+                || normalized.matches(".*qwen[3-9].*")
+                || normalized.matches(".*qwen[1-9][0-9]+.*")
+                || normalized.contains("deepseek-r1");
     }
 }

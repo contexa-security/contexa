@@ -22,6 +22,7 @@ import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.rag.service.VectorOperations;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -53,6 +54,28 @@ public class AuthorizedContextRetriever extends ContextRetriever {
 
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
+        // 단축 경로 (Short-circuit): 이미 RAG로 검색된 문서가 Context에 존재하는 경우 중복 검색 방지
+        if (request.getContext() instanceof SecurityDecisionContext securityDecisionContext) {
+            List<Document> preRetrieved = securityDecisionContext.getRelatedDocuments();
+            if (preRetrieved != null) {
+                AuthorizedPromptContext authorizedContext = promptContextAuthorizationService.authorize(request, preRetrieved);
+                String contextInfo = authorizedContext.documents().stream()
+                        .map(this::formatAuthorizedDocument)
+                        .collect(Collectors.joining("\n"));
+
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                metadata.put("documentsFound", preRetrieved.size());
+                metadata.put("documentsAuthorized", authorizedContext.allowedDocumentCount());
+                metadata.put("documentsDenied", authorizedContext.deniedDocumentCount());
+                metadata.put("searchQuery", "PRE_RETRIEVED_CONTEXT_SHORT_CIRCUIT");
+                metadata.put("retrievalPurpose", authorizedContext.retrievalPurpose());
+                metadata.put("retrievalPolicySummary", authorizedContext.retrievalPolicy().summary());
+                metadata.put("provenanceRecordCount", authorizedContext.provenanceRecords().size());
+
+                return new ContextRetrievalResult(contextInfo, authorizedContext.documents(), metadata);
+            }
+        }
+
         String query = extractQueryFromRequest(request);
 
         SearchRequest searchRequest = SearchRequest.builder()
