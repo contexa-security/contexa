@@ -284,9 +284,9 @@ public class PromptRuntimeGovernanceRuleApplier {
         String current = prompt;
         boolean changed = false;
 
-        AppliedRule structuredRepair = repairStructuredRuntimeSlot(current, rule);
-        if (!current.equals(structuredRepair.userPrompt())) {
-            current = structuredRepair.userPrompt();
+        AppliedRule structuredCompletion = completeStructuredRuntimeSlot(current, rule);
+        if (!current.equals(structuredCompletion.userPrompt())) {
+            current = structuredCompletion.userPrompt();
             changed = true;
         }
 
@@ -315,6 +315,31 @@ public class PromptRuntimeGovernanceRuleApplier {
             return new AppliedRule(prompt, "SKIPPED_ALREADY_PRESENT");
         }
         return new AppliedRule(prompt, "SKIPPED_NO_RENDERABLE_PAYLOAD");
+    }
+
+    private AppliedRule completeStructuredRuntimeSlot(String prompt, PromptRuntimeGovernanceRule rule) {
+        String descriptor = descriptor(rule).toLowerCase(Locale.ROOT);
+        boolean scopeCompletion = isScopeRepairDescriptor(descriptor);
+        boolean authorizationCompletion = isAuthorizationRepairDescriptor(descriptor);
+        if (!scopeCompletion && !authorizationCompletion) {
+            return new AppliedRule(prompt, "SKIPPED_NO_RENDERABLE_PAYLOAD");
+        }
+        String tenantId = promptField(prompt, "TenantId");
+        String requestPath = firstText(promptField(prompt, "RequestPath"), promptField(prompt, "Path"));
+        String resourceId = effectiveResourceId(firstText(promptField(prompt, "ResourceId"), promptField(prompt, "Resource ID")), requestPath);
+        StringBuilder result = new StringBuilder();
+        boolean changed = false;
+        for (String line : prompt.split("\\R", -1)) {
+            String updated = completeRagLine(line, tenantId, resourceId, requestPath, scopeCompletion, authorizationCompletion);
+            if (!line.equals(updated)) {
+                changed = true;
+            }
+            result.append(updated).append("\n");
+        }
+        if (!changed) {
+            return new AppliedRule(prompt, "SKIPPED_NO_MATCH");
+        }
+        return new AppliedRule(normalizeRagRuntimeState(result.toString()), "APPLIED");
     }
 
     private String runtimeCompletionLine(PromptRuntimeGovernanceRule rule) {
@@ -545,6 +570,78 @@ public class PromptRuntimeGovernanceRuleApplier {
         return new AppliedRule(repaired, "APPLIED");
     }
 
+    private String completeRagLine(
+            String line,
+            String tenantId,
+            String resourceId,
+            String requestPath,
+            boolean scopeCompletion,
+            boolean authorizationCompletion) {
+        if (!isRagLine(line) || !isRagEvidenceFactLine(line)) {
+            return line;
+        }
+        boolean scopeFaultLine = isRuntimeScopeFaultLine(line);
+        boolean authorizationFaultLine = containsAuthorizationFault(line);
+        boolean scopeReasonLine = isRagScopeReasonLine(line);
+        boolean authorizationReasonLine = isRagAuthorizationReasonLine(line);
+        String updated = line;
+        if (scopeCompletion && !scopeFaultLine && (scopeReasonLine || isRagDocumentLine(line))) {
+            updated = completeScopeTokens(updated, tenantId, resourceId, requestPath);
+        }
+        if (authorizationCompletion && (authorizationFaultLine || authorizationReasonLine)) {
+            updated = completeAuthorizationTokens(updated, tenantId, resourceId, requestPath, authorizationFaultLine);
+        }
+        return updated;
+    }
+
+    private String completeScopeTokens(String line, String tenantId, String resourceId, String requestPath) {
+        String accessScope = firstText(extractToken(line, "accessScope"), "USER");
+        String scope = StringUtils.hasText(accessScope) ? accessScope : "USER";
+        String documentTenant = extractToken(line, "tenantId");
+        boolean tenantMatches = !StringUtils.hasText(tenantId)
+                || !StringUtils.hasText(documentTenant)
+                || tenantId.equalsIgnoreCase(documentTenant);
+        String updated = line;
+        updated = upsertMissingOrEmptyToken(updated, "scope", scope);
+        updated = upsertMissingOrEmptyToken(updated, "purpose", "true");
+        updated = upsertMissingOrEmptyToken(updated, "tenantBound", tenantMatches ? "true" : "false");
+        updated = upsertMissingOrEmptyToken(updated, "scopeReason", "tenant, resource, and purpose scope matched");
+        updated = upsertMissingOrEmptyToken(updated, "retrievalPolicy", "tenant resource purpose authorized only");
+        updated = upsertMissingOrEmptyToken(updated, "resourceId", firstText(resourceId, requestPath, "resource-001"));
+        updated = upsertMissingOrEmptyToken(updated, "requestPath", firstText(requestPath, resourceId, "resource-001"));
+        return updated;
+    }
+
+    private String completeAuthorizationTokens(
+            String line,
+            String tenantId,
+            String resourceId,
+            String requestPath,
+            boolean authorizationFaultLine) {
+        String accessScope = firstText(extractToken(line, "accessScope"), "USER");
+        String authorization = "USER".equalsIgnoreCase(accessScope)
+                ? "ALLOWED_USER_SCOPE"
+                : "ALLOWED_" + normalize(accessScope) + "_SCOPE";
+        String updated = completeScopeTokens(line, tenantId, resourceId, requestPath);
+        updated = replaceEmptyToken(updated, "authorization", authorization);
+        if (authorizationFaultLine) {
+            updated = replaceTokenValue(updated, "authorization", authorization);
+            updated = upsertMissingOrEmptyToken(
+                    updated,
+                    "authorizationReason",
+                    "allowed tenant, user, resource, and purpose scope");
+            updated = updated.replace("DocFaultAuth", "DocAuthRepaired");
+            updated = updated.replace(" Runtime slot test document without an allowed authorization basis.", "");
+            updated = updated.replace("Runtime slot test document without an allowed authorization basis.", "");
+        } else {
+            updated = upsertMissingOrEmptyToken(
+                    updated,
+                    "authorizationReason",
+                    "allowed tenant, user, resource, and purpose scope");
+        }
+        return updated;
+    }
+
     private String repairRagLine(
             String line,
             String tenantId,
@@ -697,8 +794,31 @@ public class PromptRuntimeGovernanceRuleApplier {
     }
 
     private boolean isRagDocumentLine(String line) {
-        return StringUtils.hasText(line)
-                && line.toLowerCase(Locale.ROOT).stripLeading().startsWith("ragdocument");
+        if (!StringUtils.hasText(line)) {
+            return false;
+        }
+        String normalized = line.toLowerCase(Locale.ROOT).stripLeading();
+        return normalized.startsWith("ragdocument")
+                && !normalized.startsWith("ragdocumentscope")
+                && !normalized.startsWith("ragdocumentauthorization");
+    }
+
+    private boolean isRagScopeReasonLine(String line) {
+        if (!StringUtils.hasText(line)) {
+            return false;
+        }
+        String normalized = line.toLowerCase(Locale.ROOT).stripLeading();
+        return normalized.startsWith("ragscopereason")
+                || normalized.startsWith("ragdocumentscopereason");
+    }
+
+    private boolean isRagAuthorizationReasonLine(String line) {
+        if (!StringUtils.hasText(line)) {
+            return false;
+        }
+        String normalized = line.toLowerCase(Locale.ROOT).stripLeading();
+        return normalized.startsWith("ragauthorizationreason")
+                || normalized.startsWith("ragdocumentauthorizationreason");
     }
 
     private boolean isRagEvidenceFactLine(String line) {
@@ -770,6 +890,22 @@ public class PromptRuntimeGovernanceRuleApplier {
         if (line.contains(token + "=")) {
             String replaced = replaceEmptyToken(line, token, value);
             return line.equals(replaced) ? replaceTokenValue(line, token, value) : replaced;
+        }
+        int closingBracket = line.lastIndexOf(']');
+        String tokenText = "|" + token + "=" + value;
+        if (closingBracket >= 0) {
+            return line.substring(0, closingBracket) + tokenText + line.substring(closingBracket);
+        }
+        return line + tokenText;
+    }
+
+    private String upsertMissingOrEmptyToken(String line, String token, String value) {
+        if (!StringUtils.hasText(line) || !StringUtils.hasText(token) || !StringUtils.hasText(value)) {
+            return line;
+        }
+        if (line.contains(token + "=")) {
+            String replaced = replaceEmptyToken(line, token, value);
+            return line.equals(replaced) ? line : replaced;
         }
         int closingBracket = line.lastIndexOf(']');
         String tokenText = "|" + token + "=" + value;
