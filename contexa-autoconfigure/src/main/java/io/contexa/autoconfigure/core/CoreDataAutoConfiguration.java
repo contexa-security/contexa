@@ -31,8 +31,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.jdbc.DatabaseDriver;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.core.env.Environment;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -54,17 +54,19 @@ import java.util.Set;
 @ConditionalOnClass(name = "jakarta.persistence.EntityManager")
 @ConditionalOnBean(PlatformConfig.class)
 @EnableConfigurationProperties(ContexaDataSourceProperties.class)
-@EnableJpaRepositories(basePackages = {
-        "io.contexa.contexacommon.repository",
-        "io.contexa.contexacore.repository",
-        "io.contexa.contexaiam.repository"
-}, entityManagerFactoryRef = "contexaEntityManagerFactory", transactionManagerRef = "contexaTransactionManager")
 public class CoreDataAutoConfiguration implements EnvironmentAware {
+
+    @Bean
+    public static ContexaRepositoriesPostProcessor contexaRepositoriesPostProcessor(
+            Environment environment, ResourceLoader resourceLoader) {
+        return new ContexaRepositoriesPostProcessor(environment, resourceLoader);
+    }
 
     private static final List<String> DEFAULT_PACKAGES_TO_SCAN = List.of(
             "io.contexa.contexacommon.entity",
             "io.contexa.contexacore.domain.entity",
-            "io.contexa.contexaiam.domain.entity");
+            "io.contexa.contexaiam.domain.entity",
+            "io.contexa.contexacore.saas.domain.entity");
 
     private Environment environment;
 

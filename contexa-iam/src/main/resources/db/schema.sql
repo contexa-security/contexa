@@ -1500,3 +1500,441 @@ create table shedlock
 alter table shedlock
     owner to contexa_sim;
 
+
+-- ----------------------------------------------------------------
+-- Enterprise Migrated Tables DDL
+-- ----------------------------------------------------------------
+
+create table if not exists protectable_resource_registry (
+    id bigserial primary key,
+    tenant_id varchar(128) not null default 'default',
+    resource_id varchar(255) not null,
+    resource_url varchar(1000) not null,
+    http_method varchar(32) not null,
+    criticality varchar(64),
+    verification_required boolean not null default true,
+    sync_enabled boolean not null default false,
+    owner_field varchar(255),
+    bean_name varchar(255),
+    method_identifier varchar(1000),
+    source_class_name varchar(1000),
+    source_method_name varchar(255),
+    annotation_signature_hash varchar(128) not null,
+    certificate_state varchar(64) not null default 'REVIEW_REQUIRED',
+    operational_state varchar(64) not null default 'PENDING_VERIFICATION',
+    latest_certificate_id varchar(128),
+    last_verified_at timestamp,
+    signature_changed_at timestamp,
+    discovered_at timestamp not null,
+    updated_at timestamp not null,
+    retired boolean not null default false
+);
+
+create table if not exists protectable_resource_overlay (
+    id bigserial primary key,
+    tenant_id varchar(64) not null,
+    resource_id varchar(256) not null,
+    http_method varchar(16) not null,
+    overlay_criticality varchar(32),
+    overlay_verification_required boolean,
+    overlay_sync boolean,
+    overlay_owner_field varchar(128),
+    overlay_resource_url varchar(512),
+    override_reason text not null,
+    override_approver varchar(128) not null,
+    override_approved_at timestamp not null,
+    override_expires_at timestamp,
+    created_at timestamp not null,
+    updated_at timestamp not null,
+    created_by varchar(255),
+    updated_by varchar(255),
+    constraint ux_protectable_overlay_scope unique (tenant_id, resource_id, http_method)
+);
+
+create table if not exists prompt_quality_certificate_ledger (
+    id bigserial primary key,
+    certificate_id varchar(128) not null,
+    state varchar(64) not null,
+    state_label varchar(128) not null,
+    usable_for_llm_zero_trust boolean not null,
+    zero_trust_state varchar(64) not null,
+    zero_trust_state_label varchar(128) not null,
+    resource_operational_state varchar(64) not null default 'PENDING_VERIFICATION',
+    resource_operational_state_label varchar(128) not null default '검증 대기',
+    issued_at varchar(64),
+    tenant_id varchar(128) not null default 'default',
+    scope_hash varchar(128) not null,
+    prompt_contract_version varchar(128) not null default 'official-prompt-contract-v1',
+    model_profile varchar(128) not null default 'default-model-profile',
+    verifier_version varchar(128) not null default 'official-verifier-v1',
+    expires_at timestamp,
+    revoked_at timestamp,
+    revoked_by varchar(255),
+    revocation_reason varchar(1000),
+    prompt_hash varchar(128),
+    system_prompt_hash varchar(128),
+    user_prompt_hash varchar(128),
+    context_hash varchar(128),
+    evidence_request_ids_json text,
+    run_ids_json text,
+    resource_key varchar(600) not null,
+    resource_url varchar(1000) not null,
+    resource_id varchar(255) not null,
+    http_method varchar(32) not null,
+    protectable_method varchar(1000),
+    criticality varchar(64),
+    verification_required boolean not null,
+    total_metric_count integer not null,
+    verified_metric_count integer not null,
+    failed_metric_count integer not null,
+    missing_metric_count integer not null,
+    summary varchar(3000),
+    blocking_findings_json text,
+    six_w_json text,
+    issue_case_json text,
+    evidence_lineage_json text,
+    remediation_loop_json text,
+    metrics_json text,
+    recommended_actions_json text,
+    recorded_at timestamp not null
+);
+
+create table if not exists prompt_quality_certificate_audit_event (
+    id bigserial primary key,
+    event_id varchar(128) not null unique,
+    event_type varchar(128) not null,
+    actor varchar(255) not null,
+    tenant_id varchar(128) not null,
+    certificate_id varchar(128),
+    scope_hash varchar(128),
+    resource_url varchar(1000),
+    resource_id varchar(255),
+    http_method varchar(32),
+    previous_state varchar(128),
+    next_state varchar(128),
+    reason varchar(3000),
+    recorded_at timestamp not null
+);
+
+create table if not exists prompt_quality_issue_case (
+    id bigserial primary key,
+    case_id varchar(128) not null unique,
+    certificate_id varchar(128),
+    source_type varchar(64) not null,
+    tenant_id varchar(128) not null,
+    scope_hash varchar(128),
+    resource_url varchar(1000),
+    http_method varchar(32),
+    resource_id varchar(255),
+    state varchar(64) not null,
+    symptom varchar(3000),
+    expected_outcome varchar(3000),
+    actual_outcome varchar(3000),
+    evidence_package_id varchar(255),
+    recurrence_count integer not null default 0,
+    findings_json text,
+    recommended_actions_json text,
+    opened_at timestamp not null,
+    updated_at timestamp not null
+);
+
+create table if not exists prompt_governance_registry (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    template_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    contract_version varchar(128) not null,
+    prompt_artifact_hash_sha256 varchar(64) not null,
+    release_status varchar(64) not null,
+    owner_name varchar(128) not null,
+    release_approval_reference varchar(256),
+    evaluation_baseline_reference varchar(256),
+    rollback_prompt_version varchar(128),
+    change_summary varchar(2000),
+    template_class_name varchar(512) not null,
+    registration_source varchar(128) not null,
+    supported_model_profiles_json varchar(8000),
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create table if not exists prompt_governance_runtime_cache_invalidation (
+    id bigserial primary key,
+    event_id varchar(160) not null unique,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    invalidation_reason varchar(2000),
+    published_by varchar(128),
+    published_at timestamp not null,
+    consumed boolean not null default false,
+    consumed_at timestamp
+);
+
+create table if not exists prompt_runtime_governance_rule (
+    id bigserial primary key,
+    rule_id varchar(256) not null unique,
+    source_action_id varchar(256) not null,
+    package_id varchar(256) not null,
+    aggregate_run_id varchar(256) not null,
+    issue_id varchar(256) not null,
+    work_item_id varchar(256) not null,
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    scope_type varchar(64) not null,
+    tenant_id varchar(256),
+    resource_id varchar(256),
+    resource_url text,
+    http_method varchar(32),
+    slot_key varchar(256) not null,
+    rule_type varchar(128) not null,
+    rule_payload_json jsonb not null default '{}',
+    priority integer not null default 100,
+    active boolean not null default true,
+    current_result boolean not null default true,
+    created_by varchar(256),
+    approved_reason text,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint ck_prompt_runtime_governance_rule_scope
+        check (scope_type in ('RESOURCE_METHOD_PATH', 'RESOURCE_ID', 'TENANT', 'PROMPT_KEY')),
+    constraint fk_prompt_runtime_governance_rule_action
+        foreign key (source_action_id)
+        references prompt_runtime_governance_action (action_id),
+    constraint fk_prompt_runtime_governance_rule_type
+        foreign key (rule_type)
+        references prompt_runtime_governance_action_type_contract (action_type)
+);
+
+create table if not exists prompt_runtime_governance_action (
+    id bigserial primary key,
+    action_id varchar(256) not null unique,
+    package_id varchar(256) not null,
+    aggregate_run_id varchar(256) not null,
+    issue_id varchar(256) not null,
+    work_item_id varchar(256) not null,
+    problem_id varchar(256),
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    slot_key varchar(256) not null,
+    prompt_location varchar(512) not null,
+    action_type varchar(128) not null,
+    action_status varchar(64) not null,
+    action_source varchar(64) not null,
+    candidate_basis_json jsonb not null default '{}',
+    request_payload_json jsonb not null default '{}',
+    actor_id varchar(256),
+    current_result boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint ck_prompt_runtime_governance_action_status
+        check (action_status in ('DRAFT', 'REQUESTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
+    constraint ck_prompt_runtime_governance_action_source
+        check (action_source in ('PROMPT_RESOLUTION_BUTTON', 'SYSTEM_SYNC')),
+    constraint fk_prompt_runtime_governance_action_type
+        foreign key (action_type)
+        references prompt_runtime_governance_action_type_contract (action_type)
+);
+
+CREATE TABLE IF NOT EXISTS pqa_resolution_work_item (
+    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    work_item_id VARCHAR(256) NOT NULL UNIQUE,
+    resolution_type VARCHAR(32) NOT NULL,
+    resource_url TEXT,
+    resource_id VARCHAR(256),
+    http_method VARCHAR(32),
+    package_id VARCHAR(256) NOT NULL,
+    aggregate_run_id VARCHAR(256) NOT NULL,
+    metric_code VARCHAR(32),
+    check_code VARCHAR(128),
+    signal_key VARCHAR(512),
+    prompt_location VARCHAR(512),
+    evidence_value TEXT,
+    interpretation TEXT,
+    problem_title TEXT,
+    problem_summary TEXT,
+    why_it_matters TEXT,
+    user_action_title TEXT,
+    user_action_detail TEXT,
+    action_route_type VARCHAR(128),
+    action_route_params_json JSONB,
+    completion_criterion TEXT,
+    resolution_owner VARCHAR(128),
+    resolution_state VARCHAR(64) NOT NULL,
+    blocked_by_work_item_id VARCHAR(256),
+    dependency_state VARCHAR(128) NOT NULL DEFAULT 'NONE',
+    current_result BOOLEAN NOT NULL DEFAULT TRUE,
+    data_version BIGINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_pqa_resolution_work_item_type
+        CHECK (resolution_type IN ('PRE_INPUT', 'PROMPT')),
+    CONSTRAINT ck_pqa_resolution_work_item_state
+        CHECK (resolution_state IN (
+            'OPEN', 'ACTION_READY', 'ACTION_RUNNING', 'ACTION_DONE',
+            'READY_TO_REVERIFY', 'RESOLVED', 'BLOCKED',
+            'ACTION_REQUIRED', 'SUPERSEDED_BY_INPUT_RESOLUTION'
+        ))
+);
+
+create table if not exists prompt_runtime_governance_scope_type_contract (
+    scope_type varchar(64) primary key,
+    scope_priority integer not null,
+    scope_description text not null,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp
+);
+
+create table if not exists prompt_runtime_governance_action_policy (
+    id bigserial primary key,
+    contract_version varchar(128) not null,
+    prompt_key varchar(128) not null default 'SECURITY_DECISION',
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    issue_key varchar(512),
+    action_type varchar(128) not null,
+    policy_basis text not null,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uq_prompt_runtime_governance_action_policy
+        unique (contract_version, prompt_key, metric_code, check_code),
+    constraint fk_prompt_runtime_governance_action_policy_type
+        foreign key (action_type)
+        references prompt_runtime_governance_action_type_contract (action_type)
+);
+
+create table if not exists prompt_runtime_metric_check_slot_contract (
+    id bigserial primary key,
+    contract_version varchar(128) not null,
+    prompt_key varchar(128) not null default 'SECURITY_DECISION',
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    slot_key varchar(256) not null,
+    prompt_location varchar(512) not null,
+    required_role varchar(128),
+    interpretation_role varchar(128),
+    required boolean not null default true,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uq_prompt_runtime_metric_check_slot_contract
+        unique (contract_version, prompt_key, metric_code, check_code, slot_key),
+    constraint fk_prompt_runtime_metric_check_slot_contract_slot
+        foreign key (contract_version, prompt_key, slot_key)
+        references prompt_runtime_slot_contract (contract_version, prompt_key, slot_key)
+);
+
+create table if not exists prompt_runtime_slot_contract (
+    id bigserial primary key,
+    contract_version varchar(128) not null,
+    prompt_key varchar(128) not null default 'SECURITY_DECISION',
+    slot_key varchar(256) not null,
+    prompt_location varchar(512) not null,
+    section_key varchar(256) not null,
+    label_key varchar(256),
+    signal_key varchar(512) not null,
+    canonical_context_path varchar(512) not null,
+    source_producer varchar(256) not null,
+    priority varchar(64) not null,
+    truncation_policy varchar(64) not null,
+    required_role varchar(128),
+    interpretation_role varchar(128),
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uq_prompt_runtime_slot_contract
+        unique (contract_version, prompt_key, slot_key)
+);
+
+create table if not exists prompt_runtime_governance_application_ledger (
+    id bigserial primary key,
+    application_id varchar(256) not null unique,
+    rule_id varchar(256) not null,
+    source_action_id varchar(256) not null,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    tenant_id varchar(256),
+    resource_id varchar(256),
+    resource_url text,
+    http_method varchar(32),
+    request_id varchar(256),
+    system_prompt_hash varchar(128) not null,
+    user_prompt_hash varchar(128) not null,
+    before_prompt_hash varchar(128) not null,
+    after_prompt_hash varchar(128) not null,
+    slot_key varchar(256),
+    rule_type varchar(128) not null,
+    applied_operation varchar(128) not null,
+    result_state varchar(64) not null,
+    changed_prompt boolean not null default false,
+    application_context_json jsonb not null default '{}',
+    applied_at timestamp not null default current_timestamp,
+    constraint fk_prompt_runtime_governance_application_rule
+        foreign key (rule_id)
+        references prompt_runtime_governance_rule (rule_id)
+);
+
+create table if not exists prompt_runtime_governance_check_action_contract (
+    id bigserial primary key,
+    contract_version varchar(128) not null,
+    prompt_key varchar(128) not null default 'SECURITY_DECISION',
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    action_type varchar(128) not null,
+    action_reason text not null,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uq_prompt_runtime_governance_check_action_contract
+        unique (contract_version, prompt_key, metric_code, check_code),
+    constraint fk_prompt_runtime_governance_check_action_contract_type
+        foreign key (action_type)
+        references prompt_runtime_governance_action_type_contract (action_type)
+);
+
+create table if not exists prompt_runtime_governance_action_type_contract (
+    action_type varchar(128) primary key,
+    action_family varchar(128) not null,
+    action_intent text not null,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    display_label text,
+    button_label text,
+    customer_description text
+);
+
+CREATE TABLE IF NOT EXISTS official_prompt_signal_contract (
+    id BIGSERIAL PRIMARY KEY,
+    contract_version VARCHAR(128) NOT NULL,
+    metric_code VARCHAR(32) NOT NULL,
+    check_code VARCHAR(128) NOT NULL,
+    signal_key VARCHAR(256) NOT NULL,
+    prompt_location VARCHAR(512),
+    required_role VARCHAR(128),
+    interpretation_role VARCHAR(128),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT now(),
+    UNIQUE (contract_version, metric_code, check_code, signal_key)
+);
+
+CREATE TABLE IF NOT EXISTS official_metric_evaluation_contract (
+    id BIGSERIAL PRIMARY KEY,
+    contract_version VARCHAR(128) NOT NULL,
+    metric_code VARCHAR(32) NOT NULL,
+    check_code VARCHAR(128) NOT NULL,
+    purpose_question TEXT NOT NULL,
+    pass_condition TEXT NOT NULL,
+    fail_condition TEXT NOT NULL,
+    issue_key VARCHAR(512),
+    customer_visible BOOLEAN NOT NULL DEFAULT TRUE,
+    readiness_scope VARCHAR(128) NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT now()
+);
+
