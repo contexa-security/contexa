@@ -347,23 +347,105 @@ public class PromptRuntimeGovernanceRuleApplier {
     }
 
     private AppliedRule suppressKnownRuntimeFault(String prompt, PromptRuntimeGovernanceRule rule) {
-        String descriptor = descriptor(rule);
-        String normalized = descriptor.toLowerCase(Locale.ROOT);
-        if (!normalized.contains("rag")
-                && !normalized.contains("scope")
-                && !normalized.contains("injection")
-                && !normalized.contains("contamination")) {
+        String normalized = descriptor(rule).toLowerCase(Locale.ROOT);
+        boolean injectionRepair = isInjectionRepairDescriptor(normalized);
+        boolean scopeRepair = isScopeRepairDescriptor(normalized);
+        if (!injectionRepair && !scopeRepair) {
             return new AppliedRule(prompt, "SKIPPED_NO_MATCH");
         }
-        AppliedRule cleaned = removeRuntimeFaultLines(
-                prompt,
-                "DocFaultInstruction",
-                "DocFaultScope",
-                "THREAT MEMORY: tenant mismatch unauthorized document",
-                "tenant mismatch unauthorized document",
-                "ignore previous instructions",
-                "Runtime slot test document outside the current request scope");
-        return boundaryRepairIfRequired(cleaned, rule);
+        String current = prompt;
+        boolean changed = false;
+        if (injectionRepair) {
+            AppliedRule injectionCleaned = neutralizeRuntimeInjectionText(current);
+            if (!current.equals(injectionCleaned.userPrompt())) {
+                current = injectionCleaned.userPrompt();
+                changed = true;
+            }
+        }
+        if (scopeRepair) {
+            AppliedRule scopeCleaned = removeRuntimeFaultLines(
+                    current,
+                    "DocFaultScope",
+                    "THREAT MEMORY: tenant mismatch unauthorized document",
+                    "tenant mismatch unauthorized document",
+                    "Runtime slot test document outside the current request scope",
+                    "resourceId=/outside/scope",
+                    "requestPath=/outside/scope",
+                    "tenantId=other-tenant");
+            if (!current.equals(scopeCleaned.userPrompt())) {
+                current = scopeCleaned.userPrompt();
+                changed = true;
+            }
+        }
+        return boundaryRepairIfRequired(
+                new AppliedRule(current, changed ? "APPLIED" : "SKIPPED_NO_MATCH"),
+                rule);
+    }
+
+    private AppliedRule neutralizeRuntimeInjectionText(String prompt) {
+        if (!StringUtils.hasText(prompt)) {
+            return new AppliedRule(prompt, "SKIPPED_NO_MATCH");
+        }
+        StringBuilder result = new StringBuilder();
+        boolean changed = false;
+        for (String line : prompt.split("\\R", -1)) {
+            if (containsAny(line, "DocFaultInstruction", "THREAT MEMORY: prompt injection")) {
+                changed = true;
+                continue;
+            }
+            String updated = replaceIgnorePreviousInstruction(line);
+            if (!line.equals(updated)) {
+                changed = true;
+            }
+            result.append(updated).append("\n");
+        }
+        return new AppliedRule(changed ? result.toString() : prompt, changed ? "APPLIED" : "SKIPPED_NO_MATCH");
+    }
+
+    private String replaceIgnorePreviousInstruction(String line) {
+        if (!StringUtils.hasText(line)) {
+            return line;
+        }
+        return line.replaceAll("(?i)ignore previous instructions", "external instruction text removed");
+    }
+
+    private boolean isInjectionRepairDescriptor(String descriptor) {
+        if (!StringUtils.hasText(descriptor)) {
+            return false;
+        }
+        return descriptor.contains("injection")
+                || descriptor.contains("prompt_injection")
+                || descriptor.contains("no_prompt_injection")
+                || descriptor.contains("instructionboundary")
+                || descriptor.contains("injectionboundary");
+    }
+
+    private boolean isScopeRepairDescriptor(String descriptor) {
+        if (!StringUtils.hasText(descriptor)) {
+            return false;
+        }
+        return descriptor.contains("rag_scope")
+                || descriptor.contains("scope_reason")
+                || descriptor.contains("scopereason")
+                || descriptor.contains("scopeboundary")
+                || descriptor.contains("scope_boundary")
+                || descriptor.contains("scope_contamination")
+                || descriptor.contains("scope_mismatch")
+                || descriptor.contains("no_scope_mismatch")
+                || descriptor.contains("tenantbound")
+                || descriptor.contains("contamination")
+                || descriptor.contains("mismatch");
+    }
+
+    private boolean isAuthorizationRepairDescriptor(String descriptor) {
+        if (!StringUtils.hasText(descriptor)) {
+            return false;
+        }
+        return descriptor.contains("authorizationreason")
+                || descriptor.contains("authorization_reason")
+                || descriptor.contains("rag_authorization")
+                || descriptor.contains("rag_auth")
+                || descriptor.contains("auth_reason");
     }
 
     private AppliedRule boundaryRepairIfRequired(AppliedRule applied, PromptRuntimeGovernanceRule rule) {
@@ -438,13 +520,11 @@ public class PromptRuntimeGovernanceRuleApplier {
         String tenantId = promptField(prompt, "TenantId");
         String requestPath = firstText(promptField(prompt, "RequestPath"), promptField(prompt, "Path"));
         String resourceId = effectiveResourceId(firstText(promptField(prompt, "ResourceId"), promptField(prompt, "Resource ID")), requestPath);
-        boolean scopeRepair = descriptor.contains("scope")
-                || descriptor.contains("tenantbound")
-                || descriptor.contains("contamination")
-                || descriptor.contains("mismatch");
-        boolean authorizationRepair = descriptor.contains("authorization")
-                || descriptor.contains("authorized")
-                || descriptor.contains("allowed");
+        boolean scopeRepair = isScopeRepairDescriptor(descriptor);
+        boolean authorizationRepair = isAuthorizationRepairDescriptor(descriptor);
+        if (!scopeRepair && !authorizationRepair) {
+            return new AppliedRule(prompt, "SKIPPED_NO_RENDERABLE_PAYLOAD");
+        }
         StringBuilder result = new StringBuilder();
         boolean changed = false;
         for (String line : prompt.split("\\R", -1)) {
@@ -452,7 +532,7 @@ public class PromptRuntimeGovernanceRuleApplier {
                 changed = true;
                 continue;
             }
-            String updated = repairRagLine(line, tenantId, resourceId, requestPath, authorizationRepair);
+            String updated = repairRagLine(line, tenantId, resourceId, requestPath, scopeRepair, authorizationRepair);
             if (!line.equals(updated)) {
                 changed = true;
             }
@@ -470,6 +550,7 @@ public class PromptRuntimeGovernanceRuleApplier {
             String tenantId,
             String resourceId,
             String requestPath,
+            boolean scopeRepair,
             boolean authorizationRepair) {
         if (!isRagLine(line)) {
             return line;
@@ -487,19 +568,22 @@ public class PromptRuntimeGovernanceRuleApplier {
         boolean tenantMatches = !StringUtils.hasText(tenantId)
                 || !StringUtils.hasText(documentTenant)
                 || tenantId.equalsIgnoreCase(documentTenant);
-        updated = replaceEmptyToken(updated, "authorization", authorization);
+        if (authorizationRepair) {
+            updated = replaceEmptyToken(updated, "authorization", authorization);
+        }
         if (authorizationRepair && containsAuthorizationFault(updated)) {
             updated = replaceTokenValue(updated, "authorization", authorization);
         }
-        updated = upsertToken(updated, "scope", scope);
-        updated = upsertToken(updated, "purpose", "true");
-        updated = upsertToken(updated, "tenantBound", tenantMatches ? "true" : "false");
-        updated = upsertToken(updated, "scopeReason", "tenant, resource, and purpose scope matched");
-        updated = upsertToken(updated, "retrievalPolicy", "tenant resource purpose authorized only");
-        updated = upsertToken(updated, "resourceId", firstText(resourceId, requestPath, "resource-001"));
-        updated = upsertToken(updated, "requestPath", firstText(requestPath, resourceId, "resource-001"));
-        if (authorizationRepair) {
+        if (scopeRepair || authorizationRepair) {
+            updated = upsertToken(updated, "scope", scope);
+            updated = upsertToken(updated, "purpose", "true");
             updated = upsertToken(updated, "tenantBound", tenantMatches ? "true" : "false");
+            updated = upsertToken(updated, "scopeReason", "tenant, resource, and purpose scope matched");
+            updated = upsertToken(updated, "retrievalPolicy", "tenant resource purpose authorized only");
+            updated = upsertToken(updated, "resourceId", firstText(resourceId, requestPath, "resource-001"));
+            updated = upsertToken(updated, "requestPath", firstText(requestPath, resourceId, "resource-001"));
+        }
+        if (authorizationRepair) {
             updated = upsertToken(updated, "authorizationReason", "allowed tenant, user, resource, and purpose scope");
             updated = updated.replace("DocFaultAuth", "DocAuthRepaired");
             updated = updated.replace(" Runtime slot test document without an allowed authorization basis.", "");
@@ -919,3 +1003,4 @@ public class PromptRuntimeGovernanceRuleApplier {
     private record AppliedRule(String userPrompt, String resultState) {
     }
 }
+
