@@ -1,3 +1,18 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
 package io.contexa.autoconfigure.identity;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -461,7 +476,7 @@ public class IdentityOAuth2AutoConfiguration {
                         new AuthorizationGrantType("urn:ietf:params:oauth:grant-type:authenticated-user"))
                 .tokenUri(tokenUri)
                 .scope(scopes)
-                .build();
+                            .build();
 
         return new InMemoryClientRegistrationRepository(registration);
     }
@@ -469,6 +484,9 @@ public class IdentityOAuth2AutoConfiguration {
     private String resolveConfiguredOrInternalClientSecret(OAuth2TokenSettings oauth2) {
         String clientSecret = oauth2.getClientSecret();
         if (StringUtils.hasText(clientSecret)) {
+            if ("173f8245-5f7d-4623-a612-aa0c68f6da4a".equals(clientSecret)) {
+                log.warn("[SECURITY WARNING] Internal OAuth2 Client Secret is using the default value. Please configure a unique, secure client secret using 'contexa.auth.oauth2.client-secret' in application.yml for production deployments.");
+            }
             return clientSecret;
         }
         if (generatedInternalClientSecret == null) {
