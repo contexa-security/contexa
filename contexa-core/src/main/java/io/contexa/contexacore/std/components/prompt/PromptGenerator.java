@@ -21,6 +21,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -32,8 +33,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 public class PromptGenerator {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PromptGenerator.class);
 
     private static final Map<String, PromptTemplate> promptTemplates = new ConcurrentHashMap<>();
     private final List<PromptTemplate> templateBeans;
