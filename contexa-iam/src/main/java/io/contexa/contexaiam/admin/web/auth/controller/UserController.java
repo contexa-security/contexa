@@ -55,15 +55,15 @@ public class UserController {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
-    @GetMapping("/register")
+    @GetMapping("/contexa/register")
     public String registerPage(Model model) {
         if (!systemSettingsService.getSettings().isRegistrationEnabled()) {
             model.addAttribute("registrationDisabled", true);
         }
-        return "register";
+        return "contexa/register";
     }
 
-    @PostMapping("/api/register")
+    @PostMapping("/contexa/api/register")
     @ResponseBody
     public ResponseEntity<Serializable> processRegister(@RequestBody UserRegistrationRequest userDto) {
 
@@ -95,12 +95,12 @@ public class UserController {
         return ResponseEntity.<Serializable>ok().body("success");
     }
 
-    @GetMapping("/users")
+    @GetMapping("/contexa/users")
     public String usersPage(Model model) {
-        return "users";
+        return "contexa/users";
     }
 
-    @GetMapping("/api/users")
+    @GetMapping("/contexa/api/users")
     @ResponseBody
     public ResponseEntity<List<UserDto>> users() {
         List<UserDto> users = userRepository.findAll().stream()

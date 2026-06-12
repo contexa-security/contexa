@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import org.springframework.web.bind.annotation.RequestParam;
 
-@RequestMapping("/admin")
+@RequestMapping("/contexa/admin")
 @RequiredArgsConstructor
 @Controller
 public class DashboardController {
@@ -36,6 +36,6 @@ public class DashboardController {
         model.addAttribute("dashboardData", dashboardService.getDashboardData(days));
         model.addAttribute("activePage", "dashboard");
         model.addAttribute("selectedRange", days);
-        return "admin/dashboard";
+        return "contexa/admin/dashboard";
     }
 }

@@ -33,7 +33,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/admin/api/blacklist")
+@RequestMapping("/contexa/admin/api/blacklist")
 @RequiredArgsConstructor
 public class BlacklistApiController {
 

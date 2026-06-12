@@ -42,7 +42,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.List;
 
 @Controller
-@RequestMapping("/admin/permissions")
+@RequestMapping("/contexa/admin/permissions")
 @RequiredArgsConstructor
 @Slf4j
 public class PermissionController {
@@ -73,14 +73,14 @@ public class PermissionController {
         model.addAttribute("permissions", dtoPage.getContent());
         model.addAttribute("page", dtoPage);
         model.addAttribute("keyword", keyword);
-        return "admin/permissions";
+        return "contexa/admin/permissions";
     }
 
-    @GetMapping("/register")
+    @GetMapping("/contexa/register")
     public String registerPermissionForm(Model model) {
         model.addAttribute("permission", new PermissionDto());
         
-        return "admin/permissiondetails";
+        return "contexa/admin/permissiondetails";
     }
 
     @PostMapping
@@ -88,7 +88,7 @@ public class PermissionController {
         Permission permission = modelMapper.map(permissionDto, Permission.class);
         permissionService.createPermission(permission);
         ra.addFlashAttribute("message", msg("msg.permission.created", permission.getName()));
-        return "redirect:/admin/permissions";
+        return "redirect:/contexa/admin/permissions";
     }
 
     @GetMapping("/{id}")
@@ -99,7 +99,7 @@ public class PermissionController {
         PermissionDto permissionDto = convertToDto(permission);
         model.addAttribute("permission", permissionDto);
         
-        return "admin/permissiondetails";
+        return "contexa/admin/permissiondetails";
     }
 
     @PostMapping("/{id}/edit")
@@ -107,7 +107,7 @@ public class PermissionController {
                                    RedirectAttributes ra) {
         Permission permission = permissionService.updatePermission(id, permissionDto);
         ra.addFlashAttribute("message", msg("msg.permission.updated", permission.getName()));
-        return "redirect:/admin/permissions";
+        return "redirect:/contexa/admin/permissions";
     }
 
     private void addCommonAttributesToModel(Model model) {
@@ -142,7 +142,7 @@ public class PermissionController {
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.permission.delete.error", e.getMessage()));
         }
-        return "redirect:/admin/permissions";
+        return "redirect:/contexa/admin/permissions";
     }
 
     private PermissionDto convertToDto(Permission permission) {

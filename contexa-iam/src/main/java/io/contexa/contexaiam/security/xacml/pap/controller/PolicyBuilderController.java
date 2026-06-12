@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Controller
-@RequestMapping("/admin/policy-builder")
+@RequestMapping("/contexa/admin/policy-builder")
 @RequiredArgsConstructor
 @Slf4j
 public class PolicyBuilderController {
@@ -91,7 +91,7 @@ public class PolicyBuilderController {
         addContextAwareConditionsToModel(model);
 
         model.addAttribute("activePage", "policy-builder");
-        return "admin/policy-builder";
+        return "contexa/admin/policy-builder";
     }
 
     private void addContextAwareConditionsToModel(Model model) {
@@ -288,7 +288,7 @@ public class PolicyBuilderController {
         model.addAttribute("allPermissions", permissionDtos);
         model.addAttribute("activePage", "policy-builder");
         
-        return "admin/policy-builder";
+        return "contexa/admin/policy-builder";
     }
 
 }

@@ -34,7 +34,7 @@ import java.util.List;
 
 @Slf4j
 @Controller
-@RequestMapping("/admin/blacklist")
+@RequestMapping("/contexa/admin/blacklist")
 @RequiredArgsConstructor
 public class BlacklistController {
 
@@ -80,7 +80,7 @@ public class BlacklistController {
         model.addAttribute("blockedUsers", blockedUsers);
         model.addAttribute("currentFilter", filter);
         model.addAttribute("keyword", keyword);
-        return "admin/blacklist";
+        return "contexa/admin/blacklist";
     }
 
     @GetMapping("/{id}")
@@ -88,11 +88,11 @@ public class BlacklistController {
         return blockedUserService.getBlockDetail(id)
                 .map(blocked -> {
                     model.addAttribute("blocked", blocked);
-                    return "admin/blacklist-detail";
+                    return "contexa/admin/blacklist-detail";
                 })
                 .orElseGet(() -> {
                     ra.addFlashAttribute("errorMessage", msg("msg.blacklist.not.found", id));
-                    return "redirect:/admin/blacklist";
+                    return "redirect:/contexa/admin/blacklist";
                 });
     }
 
@@ -108,9 +108,9 @@ public class BlacklistController {
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to resolve block: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.resolve.error", e.getMessage()));
-            return "redirect:/admin/blacklist/" + id;
+            return "redirect:/contexa/admin/blacklist/" + id;
         }
-        return "redirect:/admin/blacklist";
+        return "redirect:/contexa/admin/blacklist";
     }
 
     @PostMapping("/{id}/delete")
@@ -122,7 +122,7 @@ public class BlacklistController {
             log.error("[BlacklistController] Failed to delete block record: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.delete.error", e.getMessage()));
         }
-        return "redirect:/admin/blacklist";
+        return "redirect:/contexa/admin/blacklist";
     }
 
     private String extractCurrentUserId() {

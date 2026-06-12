@@ -54,7 +54,7 @@ public class SessionStateAdapter implements StateAdapter {
             String primaryLoginPage = authProps.getUrls().getPrimary().getFormLoginPage();
             logoutSuccessUrl = urlPrefix + primaryLoginPage;
         } else {
-            logoutSuccessUrl = "/admin/login";
+            logoutSuccessUrl = "/contexa/admin/login";
         }
 
         http.logout(logout -> logout

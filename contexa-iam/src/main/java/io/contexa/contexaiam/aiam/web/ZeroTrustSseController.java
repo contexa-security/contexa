@@ -31,7 +31,7 @@ import java.security.Principal;
  * SSE subscription endpoint for Zero Trust analysis notifications.
  */
 @RestController
-@RequestMapping("/admin/api/aiam/sse/zero-trust")
+@RequestMapping("/contexa/admin/api/aiam/sse/zero-trust")
 @RequiredArgsConstructor
 public class ZeroTrustSseController {
 

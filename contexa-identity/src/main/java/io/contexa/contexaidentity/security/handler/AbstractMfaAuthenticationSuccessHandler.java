@@ -656,7 +656,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             safeLogError("[MFA] Failed to process block MFA success for user: {}", e, userId);
         }
 
-        String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
+        String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 
         if (isApiRequest(request)) {
             Map<String, Object> responseData = new HashMap<>();

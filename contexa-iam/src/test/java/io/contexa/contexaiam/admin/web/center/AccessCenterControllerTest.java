@@ -69,7 +69,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
-
+
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("AccessCenterController contract")
@@ -138,7 +139,7 @@ class AccessCenterControllerTest {
             when(roleRepository.count()).thenReturn(3L);
             when(permissionRepository.count()).thenReturn(4L);
 
-            mockMvc.perform(get("/admin/access-center").param("tab", "roles"))
+            mockMvc.perform(get("/contexa/admin/access-center").param("tab", "roles"))
                     .andExpect(status().isOk())
                     .andExpect(view().name("admin/access-center"))
                     .andExpect(model().attribute("activePage", "access-center"))
@@ -189,7 +190,7 @@ class AccessCenterControllerTest {
                     any(), any(), any()))
                     .thenReturn(new PageImpl<>(List.of(user), PageRequest.of(0, 20), 1));
 
-            mockMvc.perform(get("/admin/access-center/api/users")
+            mockMvc.perform(get("/contexa/admin/access-center/api/users")
                             .param("keyword", "ali")
                             .param("page", "0")
                             .param("size", "20"))
@@ -210,7 +211,7 @@ class AccessCenterControllerTest {
             Users user = userWithRelations();
             when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
 
-            mockMvc.perform(get("/admin/access-center/api/users/1/detail"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/users/1/detail"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(1))
                     .andExpect(jsonPath("$.username").value("alice"))
@@ -228,7 +229,7 @@ class AccessCenterControllerTest {
         void getUserDetailNotFound() throws Exception {
             when(userRepository.findByIdWithGroupsRolesAndPermissions(404L)).thenReturn(Optional.empty());
 
-            mockMvc.perform(get("/admin/access-center/api/users/404/detail"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/users/404/detail"))
                     .andExpect(status().isNotFound());
         }
 
@@ -240,7 +241,7 @@ class AccessCenterControllerTest {
             when(userRepository.findById(1L)).thenReturn(Optional.of(user));
             when(groupRepository.findById(20L)).thenReturn(Optional.of(group));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/groups")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/groups")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"groupIds\":[20]}"))
                     .andExpect(status().isOk())
@@ -257,7 +258,7 @@ class AccessCenterControllerTest {
             Users user = Users.builder().id(1L).username("alice").name("Alice").build();
             when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/groups")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/groups")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"groupIds\":null}"))
                     .andExpect(status().isBadRequest())
@@ -270,7 +271,7 @@ class AccessCenterControllerTest {
             Users user = Users.builder().id(1L).username("alice").name("Alice").build();
             when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/groups")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/groups")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isOk())
@@ -294,7 +295,7 @@ class AccessCenterControllerTest {
             when(permissionRepository.findByName("READ")).thenReturn(Optional.of(read));
             when(permissionRepository.findByName("DELETE")).thenReturn(Optional.of(delete));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/roles")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/roles")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"roleAssignments":[{"roleId":10,"crudPermissions":["DELETE"]}]}
@@ -324,7 +325,7 @@ class AccessCenterControllerTest {
             Users user = Users.builder().id(1L).username("alice").name("Alice").build();
             when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/roles")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/roles")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"roleIds\":null}"))
                     .andExpect(status().isBadRequest())
@@ -341,7 +342,7 @@ class AccessCenterControllerTest {
             when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
             when(permissionRepository.findByName("READ")).thenReturn(Optional.of(read));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/roles")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/roles")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"roleAssignments":[{"roleId":10}]}
@@ -364,7 +365,7 @@ class AccessCenterControllerTest {
             when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
             when(permissionRepository.findByName("READ")).thenReturn(Optional.of(read));
 
-            mockMvc.perform(post("/admin/access-center/api/users/1/roles")
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/roles")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"roleAssignments":[{"roleId":10,"crudPermissions":null}]}
@@ -384,7 +385,7 @@ class AccessCenterControllerTest {
             when(groupRepository.findAll()).thenReturn(List.of(
                     Group.builder().id(20L).name("Operators").description("Ops group").build()));
 
-            mockMvc.perform(get("/admin/access-center/api/groups"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/groups"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(20))
                     .andExpect(jsonPath("$[0].name").value("Operators"))
@@ -400,7 +401,7 @@ class AccessCenterControllerTest {
             when(groupRepository.findById(20L)).thenReturn(Optional.of(group));
             when(userRepository.findAll()).thenReturn(List.of(member));
 
-            mockMvc.perform(get("/admin/access-center/api/groups/20/detail"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/groups/20/detail"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(20))
                     .andExpect(jsonPath("$.name").value("Operators"))
@@ -415,7 +416,7 @@ class AccessCenterControllerTest {
         void getGroupDetailNotFound() throws Exception {
             when(groupRepository.findById(404L)).thenReturn(Optional.empty());
 
-            mockMvc.perform(get("/admin/access-center/api/groups/404/detail"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/groups/404/detail"))
                     .andExpect(status().isNotFound());
         }
 
@@ -433,7 +434,7 @@ class AccessCenterControllerTest {
             when(groupRepository.findById(20L)).thenReturn(Optional.of(group));
             when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
 
-            mockMvc.perform(post("/admin/access-center/api/groups/20/roles")
+            mockMvc.perform(post("/contexa/admin/access-center/api/groups/20/roles")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"roleIds\":[10]}"))
                     .andExpect(status().isOk())
@@ -457,7 +458,7 @@ class AccessCenterControllerTest {
             Group group = Group.builder().id(20L).name("Operators").build();
             when(groupRepository.findById(20L)).thenReturn(Optional.of(group));
 
-            mockMvc.perform(post("/admin/access-center/api/groups/20/roles")
+            mockMvc.perform(post("/contexa/admin/access-center/api/groups/20/roles")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"roleIds\":null}"))
                     .andExpect(status().isBadRequest())
@@ -475,7 +476,7 @@ class AccessCenterControllerTest {
             Role role = roleWithPermission();
             when(roleRepository.findAllWithPermissions()).thenReturn(List.of(role));
 
-            mockMvc.perform(get("/admin/access-center/api/roles"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/roles"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(10))
                     .andExpect(jsonPath("$[0].name").value("ADMIN"))
@@ -492,7 +493,7 @@ class AccessCenterControllerTest {
             when(userRoleRepository.findByRoleIdWithUser(10L))
                     .thenReturn(List.of(UserRole.builder().user(user).role(role).build()));
 
-            mockMvc.perform(get("/admin/access-center/api/roles/10/detail"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/roles/10/detail"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(10))
                     .andExpect(jsonPath("$.name").value("ADMIN"))
@@ -506,7 +507,7 @@ class AccessCenterControllerTest {
         void getRoleDetailNotFound() throws Exception {
             when(roleService.getRole(404L)).thenThrow(new IllegalArgumentException("Role not found"));
 
-            mockMvc.perform(get("/admin/access-center/api/roles/404/detail"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/roles/404/detail"))
                     .andExpect(status().isNotFound());
         }
 
@@ -516,7 +517,7 @@ class AccessCenterControllerTest {
             Role role = Role.builder().id(10L).roleName("ADMIN").build();
             when(roleService.getRole(10L)).thenReturn(role);
 
-            mockMvc.perform(post("/admin/access-center/api/roles/10/permissions")
+            mockMvc.perform(post("/contexa/admin/access-center/api/roles/10/permissions")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"permissionIds\":[100,101]}"))
                     .andExpect(status().isOk())
@@ -532,7 +533,7 @@ class AccessCenterControllerTest {
             Role role = Role.builder().id(10L).roleName("ADMIN").build();
             when(roleService.getRole(10L)).thenReturn(role);
 
-            mockMvc.perform(post("/admin/access-center/api/roles/10/permissions")
+            mockMvc.perform(post("/contexa/admin/access-center/api/roles/10/permissions")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"permissionIds\":null}"))
                     .andExpect(status().isBadRequest())
@@ -545,7 +546,7 @@ class AccessCenterControllerTest {
             Role role = Role.builder().id(10L).roleName("ADMIN").build();
             when(roleService.getRole(10L)).thenReturn(role);
 
-            mockMvc.perform(post("/admin/access-center/api/roles/10/permissions")
+            mockMvc.perform(post("/contexa/admin/access-center/api/roles/10/permissions")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isOk())
@@ -563,7 +564,7 @@ class AccessCenterControllerTest {
             Role role = Role.builder().id(10L).roleName("ADMIN").roleDesc("Admin role").build();
             when(roleRepository.findAllWithPermissions()).thenReturn(List.of(role));
 
-            mockMvc.perform(get("/admin/access-center/api/all-roles"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/all-roles"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(10))
                     .andExpect(jsonPath("$[0].name").value("ADMIN"))
@@ -582,7 +583,7 @@ class AccessCenterControllerTest {
                     .build();
             when(permissionRepository.findAll()).thenReturn(List.of(permission));
 
-            mockMvc.perform(get("/admin/access-center/api/all-permissions"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/all-permissions"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(100))
                     .andExpect(jsonPath("$[0].name").value("READ"))
@@ -599,11 +600,11 @@ class AccessCenterControllerTest {
             when(groupRolePermissionRepository.findByGroupIdAndRoleId(20L, 10L))
                     .thenReturn(List.of(new GroupRolePermission(null, null, read, null, null)));
 
-            mockMvc.perform(get("/admin/access-center/api/users/1/roles/10/cruds"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/users/1/roles/10/cruds"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0]").value("READ"));
 
-            mockMvc.perform(get("/admin/access-center/api/groups/20/roles/10/cruds"))
+            mockMvc.perform(get("/contexa/admin/access-center/api/groups/20/roles/10/cruds"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0]").value("READ"));
         }

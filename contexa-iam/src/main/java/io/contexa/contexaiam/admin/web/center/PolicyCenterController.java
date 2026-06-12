@@ -71,7 +71,7 @@ import java.util.List;
  * into a single integrated interface.
  */
 @Controller
-@RequestMapping("/admin/policy-center")
+@RequestMapping("/contexa/admin/policy-center")
 @RequiredArgsConstructor
 @Slf4j
 public class PolicyCenterController {
@@ -118,7 +118,7 @@ public class PolicyCenterController {
                     msg("msg.policy.load.error"));
         }
 
-        return "admin/policy-center";
+        return "contexa/admin/policy-center";
     }
 
     // ==================== Resources Tab ====================
@@ -132,7 +132,7 @@ public class PolicyCenterController {
             log.error("Failed to refresh resources", e);
             ra.addFlashAttribute("errorMessage", msg("msg.policy.refresh.error", e.getMessage()));
         }
-        return "redirect:/admin/policy-center?tab=resources";
+        return "redirect:/contexa/admin/policy-center?tab=resources";
     }
 
     // ==================== Quick Mode API ====================
@@ -245,7 +245,7 @@ public class PolicyCenterController {
         } else {
             ra.addFlashAttribute("errorMessage", response.message());
         }
-        return "redirect:/admin/policy-center?tab=list";
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     // ==================== Policy Validation API ====================

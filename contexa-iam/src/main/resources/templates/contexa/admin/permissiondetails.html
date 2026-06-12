@@ -97,7 +97,7 @@
                     </h3>
                     <div class="p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
                         <p class="text-sm font-mono" style="color: #94a3b8; word-break: break-all; overflow-wrap: break-word;" th:text="${permission.linkedResourceIdentifier}"></p>
-                        <a th:href="@{/admin/policy-center(tab='resources',keyword=${permission.linkedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
+                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources',keyword=${permission.linkedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
                             <i class="fas fa-external-link-alt mr-1"></i> <span th:text="#{admin.permissions.detail.view.policy.center}">View in Policy Center</span>
                         </a>
                     </div>
@@ -114,7 +114,7 @@
             </form>
 
             <div class="mt-6 text-center">
-                <a th:href="@{/admin/permissions}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
+                <a th:href="@{/contexa/admin/permissions}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
                     <i class="fas fa-arrow-left mr-2"></i>
                     <span th:text="#{admin.permissions.detail.back}">Back to Permission List</span>
                 </a>

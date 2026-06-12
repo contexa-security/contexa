@@ -44,7 +44,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.List;
 
 @Controller
-@RequestMapping("/admin/workbench/resources")
+@RequestMapping("/contexa/admin/workbench/resources")
 @RequiredArgsConstructor
 @Slf4j
 public class ResourceAdminController {
@@ -63,7 +63,7 @@ public class ResourceAdminController {
         model.addAttribute("resourcePage", pageModel.resourcePage());
         model.addAttribute("serviceOwners", pageModel.serviceOwners());
         model.addAttribute("criteria", pageModel.criteria());
-        return "admin/resource-workbench";
+        return "contexa/admin/resource-workbench";
     }
 
     @PostMapping("/refresh")
@@ -74,7 +74,7 @@ public class ResourceAdminController {
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.refresh.error", e.getMessage()));
         }
-        return "redirect:/admin/workbench/resources";
+        return "redirect:/contexa/admin/workbench/resources";
     }
 
     @PostMapping("/{id}/define")
@@ -134,6 +134,6 @@ public class ResourceAdminController {
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.status.change.error", e.getMessage()));
         }
-        return "redirect:/admin/workbench/resources";
+        return "redirect:/contexa/admin/workbench/resources";
     }
 }

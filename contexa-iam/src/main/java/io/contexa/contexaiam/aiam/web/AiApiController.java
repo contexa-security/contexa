@@ -37,7 +37,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/admin/api/ai/policies")
+@RequestMapping("/contexa/admin/api/ai/policies")
 @RequiredArgsConstructor
 @Slf4j
 public class AiApiController {

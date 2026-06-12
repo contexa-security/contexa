@@ -41,7 +41,7 @@ import java.util.List;
 
 @Slf4j
 @Controller
-@RequestMapping("/admin/system-settings")
+@RequestMapping("/contexa/admin/system-settings")
 @PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class SystemSettingsController {
@@ -62,7 +62,7 @@ public class SystemSettingsController {
         model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings()));
         model.addAttribute("roles", loadRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
-        return "admin/system-settings";
+        return "contexa/admin/system-settings";
     }
 
     @PostMapping
@@ -88,7 +88,7 @@ public class SystemSettingsController {
             ra.addFlashAttribute("errorMessage",
                     msg("admin.system.settings.save.failed") + ": " + e.getMessage());
         }
-        return "redirect:/admin/system-settings";
+        return "redirect:/contexa/admin/system-settings";
     }
 
     /**

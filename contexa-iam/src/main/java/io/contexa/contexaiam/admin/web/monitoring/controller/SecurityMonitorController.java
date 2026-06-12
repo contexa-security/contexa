@@ -47,7 +47,7 @@ import java.util.stream.Stream;
  * All queries use DB-level pagination to handle millions of records.
  */
 @Controller
-@RequestMapping("/admin/security-monitor")
+@RequestMapping("/contexa/admin/security-monitor")
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityMonitorController {
@@ -136,7 +136,7 @@ public class SecurityMonitorController {
         model.addAttribute("mfaVerified", mfaVerified);
         model.addAttribute("adminOverride", adminOverride);
 
-        return "admin/security-monitor";
+        return "contexa/admin/security-monitor";
     }
 
     @GetMapping("/{id}")
@@ -148,11 +148,11 @@ public class SecurityMonitorController {
             String message = "Audit log not found: " + id;
             ra.addFlashAttribute("errorMessage", message);
             log.warn(message);
-            return "redirect:/admin/security-monitor";
+            return "redirect:/contexa/admin/security-monitor";
         }
 
         model.addAttribute("log", auditLog);
-        return "admin/security-monitor-detail";
+        return "contexa/admin/security-monitor-detail";
     }
 
     @GetMapping("/export")

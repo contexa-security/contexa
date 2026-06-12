@@ -98,7 +98,7 @@ class AdminMenuControllerTest {
             when(adminMenuService.getAllMenus()).thenReturn(List.of(parent, child, otherParent));
             when(roleRepository.findAll()).thenReturn(List.of(Role.builder().id(10L).roleName("ADMIN").build()));
 
-            MvcResult result = mockMvc.perform(get("/admin/menu-management"))
+            MvcResult result = mockMvc.perform(get("/contexa/admin/menu-management"))
                     .andExpect(status().isOk())
                     .andExpect(view().name("admin/menu-management"))
                     .andExpect(model().attribute("activePage", "menu-management"))
@@ -162,7 +162,7 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("toggle keeps success JSON")
         void toggle() throws Exception {
-            mockMvc.perform(post("/admin/menu-management/api/toggle/1"))
+            mockMvc.perform(post("/contexa/admin/menu-management/api/toggle/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
 
@@ -172,7 +172,7 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("role update keeps request and response contract")
         void updateRoles() throws Exception {
-            mockMvc.perform(post("/admin/menu-management/api/roles/1")
+            mockMvc.perform(post("/contexa/admin/menu-management/api/roles/1")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"roles\":[\"ADMIN\",\"AUDITOR\"]}"))
                     .andExpect(status().isOk())
@@ -186,7 +186,7 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("order update keeps array request contract")
         void updateOrder() throws Exception {
-            mockMvc.perform(post("/admin/menu-management/api/order")
+            mockMvc.perform(post("/contexa/admin/menu-management/api/order")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     [{"id":1,"order":3},{"id":2,"order":"4"}]
@@ -201,7 +201,7 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("order update rejects invalid numeric fields without partial updates")
         void updateOrderInvalidNumber() throws Exception {
-            mockMvc.perform(post("/admin/menu-management/api/order")
+            mockMvc.perform(post("/contexa/admin/menu-management/api/order")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     [{"id":1,"order":3},{"id":2,"order":"bad"}]
@@ -222,12 +222,12 @@ class AdminMenuControllerTest {
                 return menu;
             });
 
-            mockMvc.perform(post("/admin/menu-management/api/create")
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
                                       "name":"Custom",
-                                      "url":"/admin/custom",
+                                      "url":"/contexa/admin/custom",
                                       "icon":"fas fa-star",
                                       "dataPage":"custom",
                                       "menuType":"CORE",
@@ -244,7 +244,7 @@ class AdminMenuControllerTest {
             verify(adminMenuService).saveMenu(captor.capture());
             AdminMenu saved = captor.getValue();
             assertThat(saved.getName()).isEqualTo("Custom");
-            assertThat(saved.getUrl()).isEqualTo("/admin/custom");
+            assertThat(saved.getUrl()).isEqualTo("/contexa/admin/custom");
             assertThat(saved.getIcon()).isEqualTo("fas fa-star");
             assertThat(saved.getDataPage()).isEqualTo("custom");
             assertThat(saved.getMenuType()).isEqualTo("CORE");
@@ -256,7 +256,7 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("create rejects invalid numeric fields without saving")
         void createMenuInvalidNumber() throws Exception {
-            mockMvc.perform(post("/admin/menu-management/api/create")
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -278,7 +278,7 @@ class AdminMenuControllerTest {
             AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
             when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
 
-            mockMvc.perform(put("/admin/menu-management/api/1")
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -312,7 +312,7 @@ class AdminMenuControllerTest {
             AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
             when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
 
-            mockMvc.perform(put("/admin/menu-management/api/1")
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -331,7 +331,7 @@ class AdminMenuControllerTest {
         void updateMissing() throws Exception {
             when(adminMenuService.getMenuById(404L)).thenReturn(Optional.empty());
 
-            mockMvc.perform(put("/admin/menu-management/api/404")
+            mockMvc.perform(put("/contexa/admin/menu-management/api/404")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Missing\"}"))
                     .andExpect(status().isBadRequest())
@@ -344,7 +344,7 @@ class AdminMenuControllerTest {
         void deleteCustom() throws Exception {
             when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu(1L, "Custom", "/custom", null, 1, true)));
 
-            mockMvc.perform(delete("/admin/menu-management/api/1"))
+            mockMvc.perform(delete("/contexa/admin/menu-management/api/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
 
@@ -354,9 +354,9 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("delete system menu keeps existing bad request JSON")
         void deleteSystem() throws Exception {
-            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu(1L, "menu.dashboard", "/admin/dashboard", null, 1, true)));
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu(1L, "menu.dashboard", "/contexa/admin/dashboard", null, 1, true)));
 
-            mockMvc.perform(delete("/admin/menu-management/api/1"))
+            mockMvc.perform(delete("/contexa/admin/menu-management/api/1"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.error").value("System menu cannot be deleted"));
@@ -369,7 +369,7 @@ class AdminMenuControllerTest {
         void deleteMissing() throws Exception {
             when(adminMenuService.getMenuById(404L)).thenReturn(Optional.empty());
 
-            mockMvc.perform(delete("/admin/menu-management/api/404"))
+            mockMvc.perform(delete("/contexa/admin/menu-management/api/404"))
                     .andExpect(status().isNotFound());
         }
     }
@@ -390,7 +390,7 @@ class AdminMenuControllerTest {
             menu.addRole("AUDITOR");
             when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
 
-            mockMvc.perform(get("/admin/menu-management/api/1"))
+            mockMvc.perform(get("/contexa/admin/menu-management/api/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(1))
                     .andExpect(jsonPath("$.name").value("Custom"))
@@ -409,7 +409,7 @@ class AdminMenuControllerTest {
         void getMenuMissing() throws Exception {
             when(adminMenuService.getMenuById(404L)).thenReturn(Optional.empty());
 
-            mockMvc.perform(get("/admin/menu-management/api/404"))
+            mockMvc.perform(get("/contexa/admin/menu-management/api/404"))
                     .andExpect(status().isNotFound());
         }
     }

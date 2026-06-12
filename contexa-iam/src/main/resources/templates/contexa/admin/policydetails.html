@@ -23,7 +23,7 @@
                     </h1>
                     <p class="text-sm mt-1" style="color:#94a3b8;" th:text="#{admin.policy.detail.subtitle}">Define targets, rules, and conditions for this policy.</p>
                 </div>
-                <a th:href="@{/admin/policy-center(tab='list')}" class="modern-btn-secondary">
+                <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}" class="modern-btn-secondary">
                     <i class="fas fa-arrow-left mr-1"></i> <span th:text="#{admin.policy.detail.back}">Back</span>
                 </a>
             </div>
@@ -407,7 +407,7 @@ var PolicyDetailUI = {
         };
         document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + _impI18n.analyzing + '</p>';
 
-        fetch('/admin/policy-center/api/impact-analysis', {
+        fetch('/contexa/admin/policy-center/api/impact-analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', [PolicyVersionUI.csrfHeader()]: PolicyVersionUI.csrfToken() },
             body: JSON.stringify(policyDto)
@@ -463,7 +463,7 @@ var PolicyVersionUI = {
         var noHistoryText = /*[[#{msg.policy.version.empty}]]*/ 'No version history.';
         container.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + loadingText + '</p>';
 
-        fetch('/admin/policy-center/api/' + this.policyId + '/versions', {
+        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/versions', {
             headers: { [this.csrfHeader()]: this.csrfToken() }
         })
         .then(function(r) { return r.json(); })
@@ -533,7 +533,7 @@ var PolicyVersionUI = {
         };
         resultDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + _verI18n.comparing + '</p>';
 
-        fetch('/admin/policy-center/api/' + this.policyId + '/versions/compare?v1=' + v1 + '&v2=' + v2, {
+        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/versions/compare?v1=' + v1 + '&v2=' + v2, {
             headers: { [this.csrfHeader()]: this.csrfToken() }
         })
         .then(function(r) { return r.json(); })
@@ -564,7 +564,7 @@ var PolicyVersionUI = {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
 
-        fetch('/admin/policy-center/api/' + this.policyId + '/versions/' + versionNumber, {
+        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/versions/' + versionNumber, {
             headers: { [this.csrfHeader()]: this.csrfToken() }
         })
         .then(function(r) { return r.json(); })
@@ -677,7 +677,7 @@ var PolicyVersionUI = {
         }
         var versionNumber = this._pendingRollbackVersion;
         this.closeReasonModal();
-        fetch('/admin/policy-center/api/' + this.policyId + '/rollback/' + versionNumber, {
+        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/rollback/' + versionNumber, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', [this.csrfHeader()]: this.csrfToken() },
             body: JSON.stringify({ reason: reason })
@@ -739,7 +739,7 @@ var PolicyDetailValidation = {
         try {
             var csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
             var csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
-            var resp = await fetch('/admin/policy-center/api/validate', {
+            var resp = await fetch('/contexa/admin/policy-center/api/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
                 body: JSON.stringify(dto)

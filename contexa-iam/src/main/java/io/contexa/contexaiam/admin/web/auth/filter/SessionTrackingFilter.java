@@ -59,7 +59,7 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 if (tracked != null && tracked.isExpired()) {
                     session.invalidate();
                     SecurityContextHolder.clearContext();
-                    response.sendRedirect(request.getContextPath() + "/admin/login");
+                    response.sendRedirect(request.getContextPath() + "/contexa/admin/login");
                     return;
                 }
             }
@@ -96,7 +96,7 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 || uri.startsWith("/webjars/")
                 || uri.startsWith("/actuator/")
                 || uri.startsWith("/demo/")
-                || uri.equals("/admin/test/guided")
-                || uri.startsWith("/admin/api/guided/");
+                || uri.equals("/contexa/admin/test/guided")
+                || uri.startsWith("/contexa/admin/api/guided/");
     }
 }

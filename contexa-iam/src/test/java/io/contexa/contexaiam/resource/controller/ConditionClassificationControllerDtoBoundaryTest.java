@@ -69,7 +69,7 @@ class ConditionClassificationControllerDtoBoundaryTest {
                 condition(1L, "universal", ConditionTemplate.ConditionClassification.UNIVERSAL, true),
                 condition(2L, "custom", ConditionTemplate.ConditionClassification.CUSTOM_COMPLEX, false)));
 
-        newMockMvc().perform(get("/admin/api/conditions/classified"))
+        newMockMvc().perform(get("/contexa/admin/api/conditions/classified"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(2))
                 .andExpect(jsonPath("$.byClassification.UNIVERSAL[0].name").value("universal"))
@@ -101,7 +101,7 @@ class ConditionClassificationControllerDtoBoundaryTest {
                         ConditionTemplate.ConditionClassification.UNIVERSAL,
                         false)));
 
-        newMockMvc().perform(get("/admin/api/conditions/compatible/10"))
+        newMockMvc().perform(get("/contexa/admin/api/conditions/compatible/10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resourceId").value(10))
                 .andExpect(jsonPath("$.resourceIdentifier").value("UserController.list"))
@@ -117,7 +117,7 @@ class ConditionClassificationControllerDtoBoundaryTest {
         ConditionTemplate template = condition(1L, "condition", ConditionTemplate.ConditionClassification.UNIVERSAL, false);
         when(conditionTemplateRepository.findById(1L)).thenReturn(Optional.of(template));
 
-        newMockMvc().perform(put("/admin/api/conditions/1/classification")
+        newMockMvc().perform(put("/contexa/admin/api/conditions/1/classification")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -141,7 +141,7 @@ class ConditionClassificationControllerDtoBoundaryTest {
     void regenerateFixedTemplatesPreservesNoResourceErrorJson() throws Exception {
         when(managedResourceRepository.count()).thenReturn(0L);
 
-        newMockMvc().perform(post("/admin/api/conditions/regenerate-fixed-templates"))
+        newMockMvc().perform(post("/contexa/admin/api/conditions/regenerate-fixed-templates"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("No ManagedResource data found"))
@@ -155,7 +155,7 @@ class ConditionClassificationControllerDtoBoundaryTest {
         when(autoConditionTemplateService.generateConditionTemplates()).thenReturn(List.of(
                 condition(7L, "generated", ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT, true)));
 
-        newMockMvc().perform(post("/admin/api/conditions/generate-managed-resource-based"))
+        newMockMvc().perform(post("/contexa/admin/api/conditions/generate-managed-resource-based"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.generatedCount").value(1))

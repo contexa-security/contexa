@@ -48,7 +48,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import java.util.List;
 
 @Controller
-@RequestMapping("/admin/access-center")
+@RequestMapping("/contexa/admin/access-center")
 @RequiredArgsConstructor
 @Slf4j
 public class AccessCenterController {
@@ -68,10 +68,10 @@ public class AccessCenterController {
         model.addAttribute("roleCount", stats.roleCount());
         model.addAttribute("permissionCount", stats.permissionCount());
 
-        return "admin/access-center";
+        return "contexa/admin/access-center";
     }
 
-    @GetMapping("/api/users")
+    @GetMapping("/contexa/api/users")
     @ResponseBody
     public ResponseEntity<AccessPageResponse<AccessUserSummaryResponse>> searchUsers(
             @RequestParam(required = false) String keyword,

@@ -52,7 +52,7 @@ public class AdminMenuService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void initializeDefaultMenusIfEmpty() {
         if (menuRepository.count() == 0) {
-            Long dashId = createMenu("menu.dashboard", "/admin/dashboard", svgHome(), null, 1, "CORE", "dashboard");
+            Long dashId = createMenu("menu.dashboard", "/contexa/admin/dashboard", svgHome(), null, 1, "CORE", "dashboard");
             Long policyId = createMenu("menu.nav.policy", null, svgShield(), null, 2, "CORE", "policy");
             Long accessId = createMenu("menu.nav.access", null, svgKey(), null, 3, "CORE", "access");
             Long iamId = createMenu("menu.nav.iam", null, svgPeople(), null, 4, "CORE", "iam");
@@ -60,35 +60,35 @@ public class AdminMenuService {
             Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 6, "ENTERPRISE", "enterprise");
             Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 7, "SAAS", "saas");
 
-            createMenu("menu.policy.center", "/admin/policy-center", "", policyId, 1, "CORE", "policy-center");
-            createMenu("menu.access.center", "/admin/access-center", "", accessId, 1, "CORE", "access-center");
-            createMenu("menu.iam.users", "/admin/users", "", iamId, 1, "CORE", "users");
-            createMenu("menu.iam.groups", "/admin/groups", "", iamId, 2, "CORE", "groups");
-            createMenu("menu.iam.roles", "/admin/roles", "", iamId, 3, "CORE", "roles");
-            createMenu("menu.iam.permissions", "/admin/permissions", "", iamId, 4, "CORE", "permissions");
-            createMenu("menu.iam.role.hierarchies", "/admin/role-hierarchies", "", iamId, 5, "CORE", "role-hierarchies");
-            createMenu("menu.iam.password.policy", "/admin/password-policy", "", iamId, 6, "CORE", "password-policy");
-            createMenu("menu.iam.system.settings", "/admin/system-settings", "", iamId, 7, "CORE", "system-settings");
-            createMenu("menu.iam.menu.management", "/admin/menu-management", "", iamId, 8, "CORE", "menu-management");
-            createMenu("menu.zerotrust.monitor", "/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
-            createMenu("menu.zerotrust.blacklist", "/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
-            createMenu("menu.security.sessions", "/admin/session-management", "", securityId, 3, "CORE", "session-management");
-            createMenu("menu.security.ip", "/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
-            createMenu("menu.enterprise.zerotrust", "/admin/enterprise/zerotrust", "", securityId, 5, "ENTERPRISE", "enterprise-zerotrust");
-            createMenu("menu.enterprise.incidents", "/admin/enterprise/incidents", "", securityId, 6, "ENTERPRISE", "enterprise-incidents");
-            createMenu("menu.enterprise.home", "/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
-            createMenu("menu.enterprise.approvals", "/admin/enterprise/approvals", "", enterpriseId, 2, "ENTERPRISE", "enterprise-approvals");
-            createMenu("menu.enterprise.mcp", "/admin/enterprise/mcp", "", enterpriseId, 3, "ENTERPRISE", "enterprise-mcp");
-            createMenu("menu.enterprise.permits", "/admin/enterprise/permits", "", enterpriseId, 4, "ENTERPRISE", "enterprise-permits");
-            createMenu("menu.enterprise.executions", "/admin/enterprise/executions", "", enterpriseId, 5, "ENTERPRISE", "enterprise-executions");
-            createMenu("menu.enterprise.playbooks", "/admin/enterprise/playbooks", "", enterpriseId, 6, "ENTERPRISE", "enterprise-playbooks");
-            createMenu("menu.enterprise.metrics", "/admin/enterprise/metrics", "", enterpriseId, 7, "ENTERPRISE", "enterprise-metrics");
-            createMenu("menu.enterprise.integration", "/admin/enterprise/integration", "", enterpriseId, 8, "ENTERPRISE", "enterprise-integration");
-            createMenu("menu.saas.tenants", "/admin/saas/tenants", "", saasId, 1, "SAAS", "saas-platform-tenants");
-            createMenu("menu.saas.billing", "/admin/saas/billing", "", saasId, 2, "SAAS", "saas-platform-billing");
-            createMenu("menu.saas.dedicated", "/admin/saas/dedicated", "", saasId, 3, "SAAS", "saas-platform-dedicated");
-            createMenu("menu.saas.release.governance", "/admin/saas/release-governance", "", saasId, 4, "SAAS", "saas-release-governance");
-            createMenu("menu.saas.tenant.workspace", "/admin/saas/tenant/workspace", "", saasId, 5, "SAAS", "saas-tenant-workspace");
+            createMenu("menu.policy.center", "/contexa/admin/policy-center", "", policyId, 1, "CORE", "policy-center");
+            createMenu("menu.access.center", "/contexa/admin/access-center", "", accessId, 1, "CORE", "access-center");
+            createMenu("menu.iam.users", "/contexa/admin/users", "", iamId, 1, "CORE", "users");
+            createMenu("menu.iam.groups", "/contexa/admin/groups", "", iamId, 2, "CORE", "groups");
+            createMenu("menu.iam.roles", "/contexa/admin/roles", "", iamId, 3, "CORE", "roles");
+            createMenu("menu.iam.permissions", "/contexa/admin/permissions", "", iamId, 4, "CORE", "permissions");
+            createMenu("menu.iam.role.hierarchies", "/contexa/admin/role-hierarchies", "", iamId, 5, "CORE", "role-hierarchies");
+            createMenu("menu.iam.password.policy", "/contexa/admin/password-policy", "", iamId, 6, "CORE", "password-policy");
+            createMenu("menu.iam.system.settings", "/contexa/admin/system-settings", "", iamId, 7, "CORE", "system-settings");
+            createMenu("menu.iam.menu.management", "/contexa/admin/menu-management", "", iamId, 8, "CORE", "menu-management");
+            createMenu("menu.zerotrust.monitor", "/contexa/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
+            createMenu("menu.zerotrust.blacklist", "/contexa/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
+            createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 3, "CORE", "session-management");
+            createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
+            createMenu("menu.enterprise.zerotrust", "/contexa/admin/enterprise/zerotrust", "", securityId, 5, "ENTERPRISE", "enterprise-zerotrust");
+            createMenu("menu.enterprise.incidents", "/contexa/admin/enterprise/incidents", "", securityId, 6, "ENTERPRISE", "enterprise-incidents");
+            createMenu("menu.enterprise.home", "/contexa/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
+            createMenu("menu.enterprise.approvals", "/contexa/admin/enterprise/approvals", "", enterpriseId, 2, "ENTERPRISE", "enterprise-approvals");
+            createMenu("menu.enterprise.mcp", "/contexa/admin/enterprise/mcp", "", enterpriseId, 3, "ENTERPRISE", "enterprise-mcp");
+            createMenu("menu.enterprise.permits", "/contexa/admin/enterprise/permits", "", enterpriseId, 4, "ENTERPRISE", "enterprise-permits");
+            createMenu("menu.enterprise.executions", "/contexa/admin/enterprise/executions", "", enterpriseId, 5, "ENTERPRISE", "enterprise-executions");
+            createMenu("menu.enterprise.playbooks", "/contexa/admin/enterprise/playbooks", "", enterpriseId, 6, "ENTERPRISE", "enterprise-playbooks");
+            createMenu("menu.enterprise.metrics", "/contexa/admin/enterprise/metrics", "", enterpriseId, 7, "ENTERPRISE", "enterprise-metrics");
+            createMenu("menu.enterprise.integration", "/contexa/admin/enterprise/integration", "", enterpriseId, 8, "ENTERPRISE", "enterprise-integration");
+            createMenu("menu.saas.tenants", "/contexa/admin/saas/tenants", "", saasId, 1, "SAAS", "saas-platform-tenants");
+            createMenu("menu.saas.billing", "/contexa/admin/saas/billing", "", saasId, 2, "SAAS", "saas-platform-billing");
+            createMenu("menu.saas.dedicated", "/contexa/admin/saas/dedicated", "", saasId, 3, "SAAS", "saas-platform-dedicated");
+            createMenu("menu.saas.release.governance", "/contexa/admin/saas/release-governance", "", saasId, 4, "SAAS", "saas-release-governance");
+            createMenu("menu.saas.tenant.workspace", "/contexa/admin/saas/tenant/workspace", "", saasId, 5, "SAAS", "saas-tenant-workspace");
         }
 
         deduplicateMenusByDataPage();
@@ -138,7 +138,7 @@ public class AdminMenuService {
             return;
         }
         Long saasId = ensureMenu("menu.nav.saas", null, svgCloud(), null, 7, "SAAS", "saas");
-        ensureMenu("menu.saas.learning", "/admin/saas/learning/overview", "", saasId, 6, "SAAS", "saas-learning-overview");
+        ensureMenu("menu.saas.learning", "/contexa/admin/saas/learning/overview", "", saasId, 6, "SAAS", "saas-learning-overview");
     }
 
     private Long createMenu(String name, String url, String icon, Long parentId, int order, String type, String dataPage) {

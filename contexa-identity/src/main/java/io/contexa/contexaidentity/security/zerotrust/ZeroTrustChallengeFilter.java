@@ -111,7 +111,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
-        if (requestUri.startsWith("/api/mfa/") || requestUri.startsWith("/admin/api/mfa/")) {
+        if (requestUri.startsWith("/api/mfa/") || requestUri.startsWith("/contexa/admin/api/mfa/")) {
             return true;
         }
 
@@ -123,7 +123,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
-        if (requestUri.startsWith("/zero-trust")) {
+        if (requestUri.startsWith("/contexa/zero-trust")) {
             return true;
         }
 
@@ -248,7 +248,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
     private String buildChallengeNoticeUrl(String mfaPageUrl, HttpServletRequest request) {
         String encodedMfaUrl = URLEncoder.encode(mfaPageUrl, StandardCharsets.UTF_8);
-        return request.getContextPath() + "/zero-trust/challenge-required?mfaUrl=" + encodedMfaUrl;
+        return request.getContextPath() + "/contexa/zero-trust/challenge-required?mfaUrl=" + encodedMfaUrl;
     }
 
     private void writeMfaChallengeResponse(HttpServletResponse response,

@@ -106,7 +106,7 @@ const AccessCenter = {
 
             try {
                 const data = await AccessCenter.fetchJson(
-                    '/admin/access-center/api/users?keyword=' + encodeURIComponent(keyword) + '&size=20'
+                    '/contexa/admin/access-center/api/users?keyword=' + encodeURIComponent(keyword) + '&size=20'
                 );
                 this.renderUserList(data.content || []);
             } catch (e) {
@@ -178,7 +178,7 @@ const AccessCenter = {
 
             try {
                 const data = await AccessCenter.fetchJson(
-                    '/admin/access-center/api/users/' + encodeURIComponent(userId) + '/detail'
+                    '/contexa/admin/access-center/api/users/' + encodeURIComponent(userId) + '/detail'
                 );
                 this.userDetailCache = data;
                 this.renderUserDetail(data);
@@ -324,7 +324,7 @@ const AccessCenter = {
 
             try {
                 if (!this.allGroupsCache) {
-                    this.allGroupsCache = await AccessCenter.fetchJson('/admin/access-center/api/all-groups');
+                    this.allGroupsCache = await AccessCenter.fetchJson('/contexa/admin/access-center/api/all-groups');
                 }
                 const userGroups = (this.userDetailCache?.groups || []).map(g => String(g.id));
                 this.renderGroupCheckboxes(this.allGroupsCache || [], userGroups, gridEl);
@@ -356,8 +356,8 @@ const AccessCenter = {
 
             try {
                 const [roles, allPerms] = await Promise.all([
-                    AccessCenter.fetchJson('/admin/access-center/api/all-roles'),
-                    AccessCenter.fetchJson('/admin/access-center/api/all-permissions')
+                    AccessCenter.fetchJson('/contexa/admin/access-center/api/all-roles'),
+                    AccessCenter.fetchJson('/contexa/admin/access-center/api/all-permissions')
                 ]);
                 this.allRolesCache = roles || [];
                 const crudNames = new Set(['READ', 'WRITE', 'UPDATE', 'DELETE']);
@@ -450,7 +450,7 @@ const AccessCenter = {
 
             if (self.selectedUserId) {
                 directRoleIds.forEach(rid => {
-                    AccessCenter.fetchJson('/admin/access-center/api/users/' + self.selectedUserId + '/roles/' + rid + '/cruds')
+                    AccessCenter.fetchJson('/contexa/admin/access-center/api/users/' + self.selectedUserId + '/roles/' + rid + '/cruds')
                         .then(cruds => {
                             if (!cruds) return;
                             container.querySelectorAll('.ac-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
@@ -507,7 +507,7 @@ const AccessCenter = {
             const groupIds = Array.from(checkboxes).map(cb => cb.value);
 
             try {
-                await AccessCenter.fetchJson('/admin/access-center/api/users/' + encodeURIComponent(this.selectedUserId) + '/groups', {
+                await AccessCenter.fetchJson('/contexa/admin/access-center/api/users/' + encodeURIComponent(this.selectedUserId) + '/groups', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -543,7 +543,7 @@ const AccessCenter = {
             });
 
             try {
-                await AccessCenter.fetchJson('/admin/access-center/api/users/' + encodeURIComponent(this.selectedUserId) + '/roles', {
+                await AccessCenter.fetchJson('/contexa/admin/access-center/api/users/' + encodeURIComponent(this.selectedUserId) + '/roles', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -586,7 +586,7 @@ const AccessCenter = {
                 '</div>';
 
             try {
-                this.allGroups = await AccessCenter.fetchJson('/admin/access-center/api/groups');
+                this.allGroups = await AccessCenter.fetchJson('/contexa/admin/access-center/api/groups');
                 this.filterAndRender();
             } catch (e) {
                 listEl.innerHTML =
@@ -657,7 +657,7 @@ const AccessCenter = {
 
             try {
                 const data = await AccessCenter.fetchJson(
-                    '/admin/access-center/api/groups/' + encodeURIComponent(groupId) + '/detail'
+                    '/contexa/admin/access-center/api/groups/' + encodeURIComponent(groupId) + '/detail'
                 );
                 this.renderGroupDetail(data);
             } catch (e) {
@@ -715,8 +715,8 @@ const AccessCenter = {
 
             try {
                 const [roles, allPerms] = await Promise.all([
-                    AccessCenter.fetchJson('/admin/access-center/api/all-roles'),
-                    AccessCenter.fetchJson('/admin/access-center/api/all-permissions')
+                    AccessCenter.fetchJson('/contexa/admin/access-center/api/all-roles'),
+                    AccessCenter.fetchJson('/contexa/admin/access-center/api/all-permissions')
                 ]);
                 this.allRolesCache = roles || [];
                 const crudNames = new Set(['READ', 'WRITE', 'UPDATE', 'DELETE']);
@@ -806,7 +806,7 @@ const AccessCenter = {
                         const extrasIndex = new Map();
                         (self.allExtraPermsCache || []).forEach(pp => extrasIndex.set(String(pp.id), pp));
                         groupRoleIds.forEach(rid => {
-                            AccessCenter.fetchJson('/admin/access-center/api/groups/' + self.selectedGroupId + '/roles/' + rid + '/cruds')
+                            AccessCenter.fetchJson('/contexa/admin/access-center/api/groups/' + self.selectedGroupId + '/roles/' + rid + '/cruds')
                                 .then(cruds => {
                                     if (!cruds) return;
                                     gridEl.querySelectorAll('.ac-grp-crud-cb[data-role-id="' + rid + '"]').forEach(cb => {
@@ -872,7 +872,7 @@ const AccessCenter = {
             });
 
             try {
-                await AccessCenter.fetchJson('/admin/access-center/api/groups/' + encodeURIComponent(this.selectedGroupId) + '/roles', {
+                await AccessCenter.fetchJson('/contexa/admin/access-center/api/groups/' + encodeURIComponent(this.selectedGroupId) + '/roles', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -912,7 +912,7 @@ const AccessCenter = {
                 '</div>';
 
             try {
-                this.allRoles = await AccessCenter.fetchJson('/admin/access-center/api/roles');
+                this.allRoles = await AccessCenter.fetchJson('/contexa/admin/access-center/api/roles');
                 this.filterAndRender();
             } catch (e) {
                 listEl.innerHTML =
@@ -983,7 +983,7 @@ const AccessCenter = {
 
             try {
                 const data = await AccessCenter.fetchJson(
-                    '/admin/access-center/api/roles/' + encodeURIComponent(roleId) + '/detail'
+                    '/contexa/admin/access-center/api/roles/' + encodeURIComponent(roleId) + '/detail'
                 );
                 this.renderRoleDetail(data);
             } catch (e) {
@@ -1050,7 +1050,7 @@ const AccessCenter = {
 
             try {
                 if (!this.allPermsCache) {
-                    this.allPermsCache = await AccessCenter.fetchJson('/admin/access-center/api/all-permissions');
+                    this.allPermsCache = await AccessCenter.fetchJson('/contexa/admin/access-center/api/all-permissions');
                 }
                 const rolePermIds = (data.permissions || []).map(p => String(p.id));
                 const gridEl = document.getElementById('ac-role-perms-grid');
@@ -1118,7 +1118,7 @@ const AccessCenter = {
             const permissionIds = Array.from(checkboxes).map(cb => cb.value);
 
             try {
-                await AccessCenter.fetchJson('/admin/access-center/api/roles/' + encodeURIComponent(this.selectedRoleId) + '/permissions', {
+                await AccessCenter.fetchJson('/contexa/admin/access-center/api/roles/' + encodeURIComponent(this.selectedRoleId) + '/permissions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

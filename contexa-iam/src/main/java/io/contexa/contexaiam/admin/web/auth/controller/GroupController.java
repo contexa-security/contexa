@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Controller
-@RequestMapping("/admin/groups")
+@RequestMapping("/contexa/admin/groups")
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class GroupController {
@@ -76,16 +76,16 @@ public class GroupController {
         model.addAttribute("groups", dtoPage.getContent());
         model.addAttribute("page", dtoPage);
         model.addAttribute("keyword", keyword);
-        return "admin/groups";
+        return "contexa/admin/groups";
     }
-    @GetMapping("/register")
+    @GetMapping("/contexa/register")
     public String registerGroupForm(Model model) {
         GroupDto groupDto = new GroupDto();
         groupDto.setEnabled(true);
         model.addAttribute("group", groupDto);
         model.addAttribute("roleList", roleService.getRoles());
         model.addAttribute("selectedRoleIds", new HashSet<Long>());
-        return "admin/groupdetails";
+        return "contexa/admin/groupdetails";
     }
 
     @PostMapping
@@ -105,7 +105,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", msg("msg.group.create.error", e.getMessage()));
             log.error("Error creating group", e);
         }
-        return "redirect:/admin/groups";
+        return "redirect:/contexa/admin/groups";
     }
 
     @GetMapping("/{id}")
@@ -130,7 +130,7 @@ public class GroupController {
             model.addAttribute("group", groupDto);
             model.addAttribute("roleList", roleListDtos);
             model.addAttribute("selectedRoleIds", selectedRoleIds);
-            return "admin/groupdetails";
+            return "contexa/admin/groupdetails";
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to load group details: {}", e.getMessage());
@@ -138,7 +138,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", msg("msg.group.load.failed", e.getMessage()));
             log.error("Error loading group details for ID: {}", id, e);
         }
-        return "redirect:/admin/groups";
+        return "redirect:/contexa/admin/groups";
     }
 
     @PostMapping("/{id}/edit")
@@ -159,7 +159,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", msg("msg.group.update.error", e.getMessage()));
             log.error("Error updating group", e);
         }
-        return "redirect:/admin/groups";
+        return "redirect:/contexa/admin/groups";
     }
 
     @PostMapping("/delete/{id}")
@@ -172,6 +172,6 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", msg("msg.group.delete.error", e.getMessage()));
             log.error("Error deleting group ID: {}", id, e);
         }
-        return "redirect:/admin/groups";
+        return "redirect:/contexa/admin/groups";
     }
 }

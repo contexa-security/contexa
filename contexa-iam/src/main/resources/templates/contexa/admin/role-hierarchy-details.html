@@ -30,7 +30,7 @@
             </div>
 
             <form id="hierarchyForm" method="post"
-                  th:action="${hierarchy.id != null} ? @{/admin/role-hierarchies/{id}/edit(id=${hierarchy.id})} : @{/admin/role-hierarchies}"
+                  th:action="${hierarchy.id != null} ? @{/contexa/admin/role-hierarchies/{id}/edit(id=${hierarchy.id})} : @{/contexa/admin/role-hierarchies}"
                   th:object="${hierarchy}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${hierarchy.id != null}" />
                 <input type="hidden" id="hierarchyString" th:field="*{hierarchyString}" />
@@ -181,7 +181,7 @@
                         <i class="fas fa-save mr-2"></i>
                         <span th:text="${hierarchy.id != null} ? #{admin.role.hierarchy.detail.save.edit} : #{admin.role.hierarchy.detail.save.create}"></span>
                     </button>
-                    <a th:href="@{/admin/role-hierarchies}"
+                    <a th:href="@{/contexa/admin/role-hierarchies}"
                        class="flex-1 text-center py-3 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700">
                         <i class="fas fa-times mr-2"></i> <span th:text="#{common.cancel}">Cancel</span>
                     </a>

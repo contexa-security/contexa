@@ -35,9 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-
+
+
 @Controller
-@RequestMapping("/admin/policies")
+@RequestMapping("/contexa/admin/policies")
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -59,16 +60,16 @@ public class PolicyController {
                 .map(p -> modelMapper.map(p, PolicyDto.class))
                 .collect(Collectors.toList());
         model.addAttribute("policies", dtoList);
-        return "admin/policies";
+        return "contexa/admin/policies";
     }
 
-    @GetMapping("/register")
+    @GetMapping("/contexa/register")
     public String registerForm(Model model, PolicyDto policyDto) {
         model.addAttribute("activePage", "policy-center");
         policyDto.getTargets().add(new TargetDto());
         policyDto.getRules().add(new RuleDto());
         model.addAttribute("policy", policyDto);
-        return "admin/policydetails";
+        return "contexa/admin/policydetails";
     }
 
     @PostMapping
@@ -84,7 +85,7 @@ public class PolicyController {
             log.error("Failed to create policy", e);
             ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
         }
-        return "redirect:/admin/policy-center?tab=list";
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     @GetMapping("/{id}")
@@ -96,7 +97,7 @@ public class PolicyController {
             dto.getRules().add(new RuleDto());
         }
         model.addAttribute("policy", dto);
-        return "admin/policydetails";
+        return "contexa/admin/policydetails";
     }
 
     @PostMapping("/{id}/edit")
@@ -113,7 +114,7 @@ public class PolicyController {
             log.error("Failed to update policy", e);
             ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
         }
-        return "redirect:/admin/policy-center?tab=list";
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     private PolicyDto toDto(Policy policy) {
@@ -173,7 +174,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", e.getMessage()));
             log.error("Error deleting policy", e);
         }
-        return "redirect:/admin/policy-center?tab=list";
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     @PostMapping("/{id}/approve")
@@ -187,7 +188,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.error("Error approving policy", e);
         }
-        return "redirect:/admin/policy-center?tab=list";
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     @PostMapping("/{id}/reject")
@@ -201,7 +202,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.error("Error rejecting policy", e);
         }
-        return "redirect:/admin/policy-center?tab=list";
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     private String extractCurrentUsername() {

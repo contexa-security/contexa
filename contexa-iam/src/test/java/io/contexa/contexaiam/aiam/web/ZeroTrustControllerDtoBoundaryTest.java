@@ -56,7 +56,7 @@ class ZeroTrustControllerDtoBoundaryTest {
                 .standaloneSetup(new ZeroTrustSseController(ssePublisher))
                 .build();
 
-        mockMvc.perform(get("/admin/api/aiam/sse/zero-trust/status")
+        mockMvc.perform(get("/contexa/admin/api/aiam/sse/zero-trust/status")
                         .principal(() -> "alice"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value("alice"))
@@ -70,7 +70,7 @@ class ZeroTrustControllerDtoBoundaryTest {
                 .standaloneSetup(newZeroTrustUnblockController())
                 .build();
 
-        mockMvc.perform(post("/admin/api/aiam/zero-trust/initiate-block-mfa"))
+        mockMvc.perform(post("/contexa/admin/api/aiam/zero-trust/initiate-block-mfa"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Authentication required"));
@@ -84,7 +84,7 @@ class ZeroTrustControllerDtoBoundaryTest {
                 .standaloneSetup(newZeroTrustUnblockController())
                 .build();
 
-        mockMvc.perform(post("/admin/api/aiam/zero-trust/initiate-block-mfa")
+        mockMvc.perform(post("/contexa/admin/api/aiam/zero-trust/initiate-block-mfa")
                         .principal(() -> "alice"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -102,7 +102,7 @@ class ZeroTrustControllerDtoBoundaryTest {
                 .standaloneSetup(newZeroTrustUnblockController())
                 .build();
 
-        mockMvc.perform(post("/admin/api/aiam/zero-trust/unblock-request")
+        mockMvc.perform(post("/contexa/admin/api/aiam/zero-trust/unblock-request")
                         .principal(() -> "alice")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"resolved\"}"))
@@ -119,7 +119,7 @@ class ZeroTrustControllerDtoBoundaryTest {
                 .standaloneSetup(newZeroTrustUnblockController())
                 .build();
 
-        mockMvc.perform(post("/admin/api/aiam/zero-trust/unblock-request")
+        mockMvc.perform(post("/contexa/admin/api/aiam/zero-trust/unblock-request")
                         .principal(() -> "alice")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"resolved\"}"))

@@ -13,7 +13,7 @@
         <div class="mx-auto" style="max-width: 72rem;">
 
             <div class="mb-8">
-                <a th:href="@{/admin/blacklist}" class="text-sm transition-all duration-300 inline-flex items-center gap-2"
+                <a th:href="@{/contexa/admin/blacklist}" class="text-sm transition-all duration-300 inline-flex items-center gap-2"
                    style="color: #818cf8;"><i class="fas fa-arrow-left"></i> <span th:text="#{admin.blacklist.detail.back}">Back to Blocked Users List</span></a>
             </div>
 
@@ -230,7 +230,7 @@
                 <h3 class="text-lg font-bold mb-6" style="color: #e2e8f0;">
                     <i class="fas fa-unlock mr-2" style="color: #818cf8;"></i> <span th:text="#{admin.blacklist.detail.unblock.title}">Unblock User</span>
                 </h3>
-                <form th:action="@{/admin/blacklist/{id}/resolve(id=${blocked.id})}" method="post" id="resolveForm">
+                <form th:action="@{/contexa/admin/blacklist/{id}/resolve(id=${blocked.id})}" method="post" id="resolveForm">
 
                     <div class="mb-6">
                         <label class="block text-base font-medium mb-3" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.unblock.action}">Resolution Action</label>

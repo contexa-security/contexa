@@ -113,7 +113,7 @@ class ZeroTrustAccessControlFilterTest {
 
     @Test
     void shouldNotFilter_zeroTrustPath() throws Exception {
-        when(request.getRequestURI()).thenReturn("/zero-trust/blocked");
+        when(request.getRequestURI()).thenReturn("/contexa/zero-trust/blocked");
 
         filter.doFilter(request, response, filterChain);
 
@@ -164,7 +164,7 @@ class ZeroTrustAccessControlFilterTest {
             filter.doFilter(request, response, filterChain);
 
             verify(filterChain, never()).doFilter(eq(request), eq(response));
-            verify(response).sendRedirect("/zero-trust/blocked");
+            verify(response).sendRedirect("/contexa/zero-trust/blocked");
         }
     }
 
@@ -209,7 +209,7 @@ class ZeroTrustAccessControlFilterTest {
 
             verify(actionRedisRepository).saveAction(eq("testUser"), eq(ZeroTrustAction.BLOCK), any());
             verify(actionRedisRepository).setBlockedFlag("testUser");
-            verify(response).sendRedirect("/zero-trust/blocked");
+            verify(response).sendRedirect("/contexa/zero-trust/blocked");
         }
     }
 

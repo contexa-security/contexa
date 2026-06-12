@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.permissions.title})}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.roles.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -13,17 +13,17 @@
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.permissions.title}">Permission List</h1>
-                    <p class="text-dark-muted mt-1" th:text="#{admin.permissions.subtitle}">Define and manage detailed permissions.</p>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.roles.title}">Role List</h1>
+                    <p class="text-dark-muted mt-1" th:text="#{admin.roles.subtitle}">Define system roles and assign permissions.</p>
                 </div>
-                <a th:href="@{/admin/permissions/register}"
+                <a th:href="@{/contexa/admin/roles/register}"
                    class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                    <span th:text="#{admin.permissions.new}">New Permission</span>
+                    <span th:text="#{admin.roles.new}">New Role</span>
                 </a>
             </div>
 
-            <form th:action="@{/admin/permissions}" method="get" class="mb-6 flex gap-3">
+            <form th:action="@{/contexa/admin/roles}" method="get" class="mb-6 flex gap-3">
                 <div class="relative flex-1">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
                     <input type="text" name="keyword" th:value="${keyword}"
@@ -35,7 +35,7 @@
                         style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
                     <i class="fas fa-search mr-1"></i> <span th:text="#{common.action.search}">Search</span>
                 </button>
-                <a th:href="@{/admin/permissions}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
+                <a th:href="@{/contexa/admin/roles}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
                    style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
                    th:text="#{common.action.reset}">
                     Reset
@@ -47,42 +47,38 @@
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.id}">ID</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.name}">Permission</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.friendly.name}">Friendly Name</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.description}">Description</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.target.type}">Target Type</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.action.type}">Action Type</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.roles.table.name}">Role Name</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.roles.table.description}">Description</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.roles.table.expression}">Expression</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.roles.table.permission.count}">Assigned Permissions</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
-                    <tr th:each="permission : ${permissions}" style="border-color: rgba(71, 85, 105, 0.3);">
-                        <td class="py-4 px-6" th:text="${permission.id}">1</td>
-                        <td class="py-4 px-6 font-mono text-sm" th:text="${permission.name}">DOCUMENT_READ</td>
-                        <td class="py-4 px-6 font-mono text-sm" th:text="${permission.friendlyName}">DOCUMENT_READ</td>
-                        <td class="py-4 px-6" th:text="${permission.description}" style="color: #cbd5e1;">Document read permission</td>
+                    <tr th:each="role : ${roles}" style="border-color: rgba(71, 85, 105, 0.3);">
+                        <td class="py-4 px-6" th:text="${role.id}">1</td>
+                        <td class="py-4 px-6 font-medium font-mono" th:text="${role.roleName}">ROLE_USER</td>
+                        <td class="py-4 px-6" th:text="${role.roleDesc}" style="color: #cbd5e1;">General user role</td>
                         <td class="py-4 px-6">
                             <span class="px-2 py-1 rounded-full text-xs font-semibold"
-                                  th:style="${permission.targetType == 'URL' ? 'background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);' : 'background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3);'}"
-                                  th:text="${permission.targetType}">DOCUMENT</span>
+                                  th:style="${role.expression ? 'background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);' : 'background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3);'}"
+                                  th:text="${role.expression ? 'Y' : 'N'}">N</span>
                         </td>
+                        <td class="py-4 px-6" th:text="${role.permissionCount}">0</td>
                         <td class="py-4 px-6">
-                            <span class="font-medium" th:text="${permission.actionType}">READ</span>
-                        </td>
-                        <td class="py-4 px-6">
-                            <a th:href="@{/admin/permissions/{id}(id=${permission.id})}"
+                            <a th:href="@{/contexa/admin/roles/{id}(id=${role.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
                                th:text="#{common.action.edit}">Edit</a>
                             <button type="button" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
                                     style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;"
-                                    th:onclick="'openDeleteModal(' + ${permission.id} + ')'"
+                                    th:onclick="'openDeleteModal(' + ${role.id} + ')'"
                                     th:text="#{common.action.delete}">Delete</button>
                         </td>
                     </tr>
-                    <tr th:if="${#lists.isEmpty(permissions)}">
-                        <td colspan="7" class="py-4 px-6 text-center" style="color: #94a3b8;">
-                            <span th:text="#{admin.permissions.empty}">No permissions to display.</span>
+                    <tr th:if="${#lists.isEmpty(roles)}">
+                        <td colspan="6" class="py-4 px-6 text-center" style="color: #94a3b8;">
+                            <span th:text="#{admin.roles.empty}">No roles to display.</span>
                         </td>
                     </tr>
                     </tbody>
@@ -90,18 +86,18 @@
             </div>
 
             <nav th:if="${page != null and page.totalPages > 1}" class="flex justify-center mt-6 gap-2">
-                <a th:if="${!page.first}" th:href="@{/admin/permissions(keyword=${keyword},page=${page.number - 1},size=${page.size})}"
+                <a th:if="${!page.first}" th:href="@{/contexa/admin/roles(keyword=${keyword},page=${page.number - 1},size=${page.size})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     <i class="fas fa-chevron-left"></i>
                 </a>
                 <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
-                    <a th:href="@{/admin/permissions(keyword=${keyword},page=${i},size=${page.size})}"
+                    <a th:href="@{/contexa/admin/roles(keyword=${keyword},page=${i},size=${page.size})}"
                        th:text="${i + 1}"
                        class="px-3 py-2 rounded text-sm"
                        th:style="${i == page.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
                     </a>
                 </th:block>
-                <a th:if="${!page.last}" th:href="@{/admin/permissions(keyword=${keyword},page=${page.number + 1},size=${page.size})}"
+                <a th:if="${!page.last}" th:href="@{/contexa/admin/roles(keyword=${keyword},page=${page.number + 1},size=${page.size})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     <i class="fas fa-chevron-right"></i>
                 </a>
@@ -111,10 +107,10 @@
     </main>
 </div>
 
-<div th:replace="~{fragments/delete-policy-modal :: modal(#{msg.delete.confirm.permission}, '/admin/permissions/api', '/admin/permissions/delete', true)}"></div>
+<div th:replace="~{fragments/delete-policy-modal :: modal(#{msg.delete.confirm.role}, '/admin/roles/api', '/admin/roles/delete', false)}"></div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
-<th:block th:replace="~{fragments/delete-policy-modal :: script('/admin/permissions/api', '/admin/permissions/delete', true)}"></th:block>
+<th:block th:replace="~{fragments/delete-policy-modal :: script('/admin/roles/api', '/admin/roles/delete', false)}"></th:block>
 <script th:inline="javascript">
     /*<![CDATA[*/
     document.addEventListener('DOMContentLoaded', function() {

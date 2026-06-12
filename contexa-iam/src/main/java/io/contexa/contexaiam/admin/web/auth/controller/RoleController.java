@@ -45,7 +45,7 @@ import java.util.List;
 
 @Slf4j
 @Controller
-@RequestMapping("/admin/roles")
+@RequestMapping("/contexa/admin/roles")
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class RoleController {
@@ -79,17 +79,17 @@ public class RoleController {
 		model.addAttribute("roles", dtoPage.getContent());
 		model.addAttribute("page", dtoPage);
 		model.addAttribute("keyword", keyword);
-		return "admin/roles";
+		return "contexa/admin/roles";
 	}
 
-	@GetMapping("/register")
+	@GetMapping("/contexa/register")
 	public String registerRoleForm(Model model) {
 		RoleDto roleDto = new RoleDto();
 		roleDto.setEnabled(true);
 		model.addAttribute("role", roleDto);
 		model.addAttribute("permissionList", permissionService.getAllPermissions());
 		model.addAttribute("selectedPermissionIds", new ArrayList<Long>());
-		return "admin/rolesdetails";
+		return "contexa/admin/rolesdetails";
 	}
 
 	@PostMapping
@@ -98,7 +98,7 @@ public class RoleController {
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.createRole(role, roleDto.getPermissionIds());
 		ra.addFlashAttribute("message", msg("msg.role.created"));
-		return "redirect:/admin/roles";
+		return "redirect:/contexa/admin/roles";
 	}
 
 	@GetMapping("/{id}")
@@ -114,7 +114,7 @@ public class RoleController {
 		model.addAttribute("role", roleDto);
 		model.addAttribute("permissionList", permissionList);
 		model.addAttribute("selectedPermissionIds", selectedPermissionIds);
-		return "admin/rolesdetails";
+		return "contexa/admin/rolesdetails";
 	}
 
 	@PostMapping("/{id}/edit")
@@ -124,7 +124,7 @@ public class RoleController {
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.updateRole(role, roleDto.getPermissionIds());
 		ra.addFlashAttribute("message", msg("msg.role.updated"));
-		return "redirect:/admin/roles";
+		return "redirect:/contexa/admin/roles";
 	}
 
 	@GetMapping("/api/{id}/affected-policies")
@@ -151,6 +151,6 @@ public class RoleController {
 		} catch (Exception e) {
 			ra.addFlashAttribute("errorMessage", e.getMessage());
 		}
-		return "redirect:/admin/roles";
+		return "redirect:/contexa/admin/roles";
 	}
 }

@@ -112,7 +112,7 @@ class BlacklistApiControllerTest {
     void listBlockedUsersPreservesJsonFields() throws Exception {
         when(blockedUserService.getBlockedUsers()).thenReturn(List.of(sampleBlockedUser()));
 
-        mockMvc.perform(get("/admin/api/blacklist")
+        mockMvc.perform(get("/contexa/admin/api/blacklist")
                         .param("status", "BLOCKED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(7))
@@ -135,7 +135,7 @@ class BlacklistApiControllerTest {
     void getBlockDetailPreservesJsonFields() throws Exception {
         when(blockedUserService.getBlockDetail(7L)).thenReturn(Optional.of(sampleBlockedUser()));
 
-        mockMvc.perform(get("/admin/api/blacklist/7"))
+        mockMvc.perform(get("/contexa/admin/api/blacklist/7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(7))
                 .andExpect(jsonPath("$.userId").value("user-1"))
@@ -145,7 +145,7 @@ class BlacklistApiControllerTest {
     @Test
     @DisplayName("resolveBlock preserves success and validation JSON fields")
     void resolveBlockPreservesJsonFields() throws Exception {
-        mockMvc.perform(post("/admin/api/blacklist/7/resolve")
+        mockMvc.perform(post("/contexa/admin/api/blacklist/7/resolve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -162,7 +162,7 @@ class BlacklistApiControllerTest {
         verify(blockedUserService)
                 .resolveBlockById(eq(7L), eq("admin"), eq("UNBLOCK"), eq("verified"));
 
-        mockMvc.perform(post("/admin/api/blacklist/7/resolve")
+        mockMvc.perform(post("/contexa/admin/api/blacklist/7/resolve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"missing action\"}"))
                 .andExpect(status().isBadRequest())
@@ -174,7 +174,7 @@ class BlacklistApiControllerTest {
     @Test
     @DisplayName("resolveBlock rejects null body without server error")
     void resolveBlockRejectsNullBody() throws Exception {
-        mockMvc.perform(post("/admin/api/blacklist/7/resolve")
+        mockMvc.perform(post("/contexa/admin/api/blacklist/7/resolve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("null"))
                 .andExpect(status().isBadRequest())
@@ -185,7 +185,7 @@ class BlacklistApiControllerTest {
     @Test
     @DisplayName("deleteBlockRecord preserves success and error JSON fields")
     void deleteBlockRecordPreservesJsonFields() throws Exception {
-        mockMvc.perform(delete("/admin/api/blacklist/7"))
+        mockMvc.perform(delete("/contexa/admin/api/blacklist/7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.id").value(7))
@@ -194,7 +194,7 @@ class BlacklistApiControllerTest {
         doThrow(new RuntimeException("Cannot delete active block"))
                 .when(blockedUserService).deleteBlockRecord(8L);
 
-        mockMvc.perform(delete("/admin/api/blacklist/8"))
+        mockMvc.perform(delete("/contexa/admin/api/blacklist/8"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("Cannot delete active block"))

@@ -31,18 +31,18 @@
             </div>
 
             <div class="flex flex-wrap gap-2 mb-6 items-center">
-                <a th:href="@{/admin/ip-management(keyword=${keyword})}"
+                <a th:href="@{/contexa/admin/ip-management(keyword=${keyword})}"
                    th:classappend="${currentType == null} ? 'filter-active' : 'filter-inactive'"
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.all}">All</a>
-                <a th:href="@{/admin/ip-management(type='ALLOW', keyword=${keyword})}"
+                <a th:href="@{/contexa/admin/ip-management(type='ALLOW', keyword=${keyword})}"
                    th:classappend="${currentType == 'ALLOW'} ? 'filter-active-allow' : 'filter-inactive'"
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.allow}">Allow</a>
-                <a th:href="@{/admin/ip-management(type='DENY', keyword=${keyword})}"
+                <a th:href="@{/contexa/admin/ip-management(type='DENY', keyword=${keyword})}"
                    th:classappend="${currentType == 'DENY'} ? 'filter-active-deny' : 'filter-inactive'"
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.ip.filter.deny}">Deny</a>
 
                 <span style="flex:1;"></span>
-                <form th:action="@{/admin/ip-management}" method="get" class="flex items-center gap-2" style="margin:0;">
+                <form th:action="@{/contexa/admin/ip-management}" method="get" class="flex items-center gap-2" style="margin:0;">
                     <input type="hidden" name="type" th:value="${currentType}" />
                     <input type="text" name="keyword" th:value="${keyword}"
                            class="px-3 py-2 rounded-lg text-sm"
@@ -52,7 +52,7 @@
                             style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
                         <i class="fas fa-search"></i>
                     </button>
-                    <a th:href="@{/admin/ip-management(type=${currentType})}" class="px-3 py-2 rounded-lg text-sm font-medium"
+                    <a th:href="@{/contexa/admin/ip-management(type=${currentType})}" class="px-3 py-2 rounded-lg text-sm font-medium"
                        style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
                         <i class="fas fa-times"></i>
                     </a>
@@ -61,7 +61,7 @@
 
             <div class="mb-6 p-4 rounded-lg" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3);">
                 <h3 class="text-sm font-semibold mb-3" style="color: #e2e8f0;" th:text="#{admin.ip.create.title}">Create IP Rule</h3>
-                <form th:action="@{/admin/ip-management/create}" method="post" class="flex flex-wrap items-end gap-3">
+                <form th:action="@{/contexa/admin/ip-management/create}" method="post" class="flex flex-wrap items-end gap-3">
                     <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <div class="flex-1 min-w-[180px]">
                         <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.ip}">IP Address</label>
@@ -134,7 +134,7 @@
                             <span th:if="${rule.expiresAt == null}" class="text-xs" style="color: #64748b;" th:text="#{admin.ip.permanent}">Permanent</span>
                         </td>
                         <td class="py-4 px-6">
-                            <form th:action="@{/admin/ip-management/{id}/toggle(id=${rule.id})}" method="post" class="inline-block">
+                            <form th:action="@{/contexa/admin/ip-management/{id}/toggle(id=${rule.id})}" method="post" class="inline-block">
                                 <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                 <button type="submit" class="px-3 py-1 rounded-full text-xs font-semibold transition-all duration-300"
                                         th:style="${rule.enabled} ? 'background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(71,85,105,0.2); color: #64748b; border: 1px solid rgba(71,85,105,0.3);'"
@@ -142,7 +142,7 @@
                             </form>
                         </td>
                         <td class="py-4 px-6">
-                            <form th:action="@{/admin/ip-management/{id}/delete(id=${rule.id})}" method="post" class="inline-block"
+                            <form th:action="@{/contexa/admin/ip-management/{id}/delete(id=${rule.id})}" method="post" class="inline-block"
                                   th:data-confirm-msg="#{common.confirm.delete.record}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                 <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
@@ -161,25 +161,25 @@
             </div>
 
             <nav th:if="${rules != null and rules.totalPages > 1}" class="flex justify-center mt-6 gap-2">
-                <a th:if="${!rules.first}" th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number - 1})}"
+                <a th:if="${!rules.first}" th:href="@{/contexa/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number - 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &laquo;
                 </a>
                 <th:block th:each="i : ${#numbers.sequence(0, rules.totalPages - 1)}">
-                    <a th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${i})}"
+                    <a th:href="@{/contexa/admin/ip-management(type=${currentType},keyword=${keyword},page=${i})}"
                        th:text="${i + 1}"
                        class="px-3 py-2 rounded text-sm"
                        th:style="${i == rules.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
                     </a>
                 </th:block>
-                <a th:if="${!rules.last}" th:href="@{/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number + 1})}"
+                <a th:if="${!rules.last}" th:href="@{/contexa/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number + 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &raquo;
                 </a>
             </nav>
 
             <div class="mt-4 flex justify-end">
-                <a th:href="@{/admin/ip-management/export(type=${currentType})}"
+                <a th:href="@{/contexa/admin/ip-management/export(type=${currentType})}"
                    class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300"
                    style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
                    th:text="#{admin.ip.export.csv}">CSV Download</a>

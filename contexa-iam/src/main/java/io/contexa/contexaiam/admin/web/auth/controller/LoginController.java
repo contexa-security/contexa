@@ -22,9 +22,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class LoginController {
 
-    @GetMapping("/admin/login")
+    @GetMapping("/contexa/admin/login")
     public String registerPage(Model model) {
-        return "admin/login";
+        return "contexa/admin/login";
     }
 
 }

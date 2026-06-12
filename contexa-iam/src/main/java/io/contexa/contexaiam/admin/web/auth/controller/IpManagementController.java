@@ -42,7 +42,7 @@ import java.util.List;
 
 @Slf4j
 @Controller
-@RequestMapping("/admin/ip-management")
+@RequestMapping("/contexa/admin/ip-management")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('ADMIN')")
 public class IpManagementController {
@@ -93,7 +93,7 @@ public class IpManagementController {
         model.addAttribute("allowCount", ipAccessRuleService.countAllowRules());
         model.addAttribute("denyCount", ipAccessRuleService.countDenyRules());
         model.addAttribute("totalCount", ipAccessRuleService.countAllowRules() + ipAccessRuleService.countDenyRules());
-        return "admin/ip-management";
+        return "contexa/admin/ip-management";
     }
 
     @PostMapping("/create")
@@ -104,7 +104,7 @@ public class IpManagementController {
                              RedirectAttributes ra) {
         if (!ipAccessRuleService.isValidIpOrCidr(ipAddress)) {
             ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.ip"));
-            return "redirect:/admin/ip-management";
+            return "redirect:/contexa/admin/ip-management";
         }
 
         IpAccessRule.RuleType type;
@@ -112,12 +112,12 @@ public class IpManagementController {
             type = IpAccessRule.RuleType.valueOf(ruleType.toUpperCase());
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.ip"));
-            return "redirect:/admin/ip-management";
+            return "redirect:/contexa/admin/ip-management";
         }
 
         if (ipAccessRuleService.existsByIpAndType(ipAddress.trim(), type)) {
             ra.addFlashAttribute("errorMessage", msg("admin.ip.duplicate"));
-            return "redirect:/admin/ip-management";
+            return "redirect:/contexa/admin/ip-management";
         }
 
         LocalDateTime expires = null;
@@ -132,7 +132,7 @@ public class IpManagementController {
         String createdBy = extractCurrentUserId();
         ipAccessRuleService.createRule(ipAddress.trim(), type, description, createdBy, expires);
         ra.addFlashAttribute("message", msg("admin.ip.created"));
-        return "redirect:/admin/ip-management";
+        return "redirect:/contexa/admin/ip-management";
     }
 
     @PostMapping("/{id}/delete")
@@ -144,7 +144,7 @@ public class IpManagementController {
             log.error("Failed to delete IP rule: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error", e.getMessage()));
         }
-        return "redirect:/admin/ip-management";
+        return "redirect:/contexa/admin/ip-management";
     }
 
     @PostMapping("/{id}/toggle")
@@ -156,7 +156,7 @@ public class IpManagementController {
             log.error("Failed to toggle IP rule: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error", e.getMessage()));
         }
-        return "redirect:/admin/ip-management";
+        return "redirect:/contexa/admin/ip-management";
     }
 
     @GetMapping("/export")

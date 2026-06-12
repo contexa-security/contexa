@@ -167,7 +167,7 @@ class IpAccessFilterTest {
     }
 
     private MockHttpServletRequest requestFrom(String remoteAddr) {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/users");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/admin/users");
         request.setRemoteAddr(remoteAddr);
         return request;
     }

@@ -45,7 +45,7 @@ function initiateBlockMfa() {
     btn.textContent = _i18n('mfaInitializing', 'Initializing MFA...');
     btn.style.opacity = '0.5';
 
-    fetch('/admin/api/aiam/zero-trust/initiate-block-mfa', {
+    fetch('/contexa/admin/api/aiam/zero-trust/initiate-block-mfa', {
         method: 'POST',
         headers: getHeaders()
     })
@@ -81,7 +81,7 @@ function requestUnblock() {
     btn.textContent = _i18n('requesting', 'Requesting...');
     btn.style.opacity = '0.5';
 
-    fetch('/admin/api/aiam/zero-trust/unblock-request', {
+    fetch('/contexa/admin/api/aiam/zero-trust/unblock-request', {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({reason: reason})

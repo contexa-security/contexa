@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Controller
-@RequestMapping("/admin/role-hierarchies")
+@RequestMapping("/contexa/admin/role-hierarchies")
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -83,14 +83,14 @@ public class RoleHierarchyController {
         model.addAttribute("hierarchies", dtoPage.getContent());
         model.addAttribute("hierarchyPage", dtoPage);
         model.addAttribute("keyword", keyword);
-        return "admin/role-hierarchies";
+        return "contexa/admin/role-hierarchies";
     }
 
-    @GetMapping("/register")
+    @GetMapping("/contexa/register")
     public String registerRoleHierarchyForm(Model model) {
         model.addAttribute("hierarchy", new RoleHierarchyDto());
         prepareHierarchyFormModel(model, new ArrayList<>(), null);
-        return "admin/role-hierarchy-details";
+        return "contexa/admin/role-hierarchy-details";
     }
 
     @PostMapping
@@ -102,9 +102,9 @@ public class RoleHierarchyController {
             ra.addFlashAttribute("message", msg("msg.hierarchy.created"));
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
-            return "redirect:/admin/role-hierarchies/register";
+            return "redirect:/contexa/admin/role-hierarchies/register";
         }
-        return "redirect:/admin/role-hierarchies";
+        return "redirect:/contexa/admin/role-hierarchies";
     }
 
     @GetMapping("/{id}")
@@ -148,10 +148,10 @@ public class RoleHierarchyController {
         } catch (Exception e) {
             log.error("Error loading role hierarchy details for ID: {}", id, e);
             model.addAttribute("error", msg("msg.hierarchy.load.error"));
-            return "redirect:/admin/role-hierarchies";
+            return "redirect:/contexa/admin/role-hierarchies";
         }
 
-        return "admin/role-hierarchy-details";
+        return "contexa/admin/role-hierarchy-details";
     }
 
     @PostMapping("/{id}/edit")
@@ -164,9 +164,9 @@ public class RoleHierarchyController {
             ra.addFlashAttribute("message", msg("msg.hierarchy.updated"));
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
-            return "redirect:/admin/role-hierarchies/" + id;
+            return "redirect:/contexa/admin/role-hierarchies/" + id;
         }
-        return "redirect:/admin/role-hierarchies";
+        return "redirect:/contexa/admin/role-hierarchies";
     }
 
     @PostMapping("/delete/{id}")
@@ -179,7 +179,7 @@ public class RoleHierarchyController {
             ra.addFlashAttribute("error", e.getMessage());
             log.error("Error deleting role hierarchy ID: {}", id, e);
         }
-        return "redirect:/admin/role-hierarchies";
+        return "redirect:/contexa/admin/role-hierarchies";
     }
 
     @PostMapping("/{id}/activate")
@@ -192,7 +192,7 @@ public class RoleHierarchyController {
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
         }
-        return "redirect:/admin/role-hierarchies";
+        return "redirect:/contexa/admin/role-hierarchies";
     }
 
     private void prepareHierarchyFormModel(Model model, List<RoleHierarchyDto.HierarchyPair> existingPairs, Long excludeId) {

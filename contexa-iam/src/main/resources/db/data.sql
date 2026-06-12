@@ -142,7 +142,7 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO POLICY_TARGET (
     id, policy_id, target_type, target_identifier, http_method, target_order, source_type
 ) VALUES (
-    2, 2, 'URL', '/admin/**', 'ANY', 1, 'MANUAL'
+    2, 2, 'URL', '/contexa/admin/**', 'ANY', 1, 'MANUAL'
 )
 ON CONFLICT (id) DO UPDATE SET
                                policy_id = EXCLUDED.policy_id,

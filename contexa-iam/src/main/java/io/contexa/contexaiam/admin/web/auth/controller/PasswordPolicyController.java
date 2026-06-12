@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequestMapping("/admin/password-policy")
+@RequestMapping("/contexa/admin/password-policy")
 @RequiredArgsConstructor
 public class PasswordPolicyController {
 
@@ -47,7 +47,7 @@ public class PasswordPolicyController {
     public String showPolicy(Model model) {
         model.addAttribute("policy", PasswordPolicyForm.from(passwordPolicyService.getCurrentPolicy()));
         model.addAttribute("activePage", "password-policy");
-        return "admin/password-policy";
+        return "contexa/admin/password-policy";
     }
 
     @PostMapping
@@ -58,7 +58,7 @@ public class PasswordPolicyController {
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.policy.update.error", e.getMessage()));
         }
-        return "redirect:/admin/password-policy";
+        return "redirect:/contexa/admin/password-policy";
     }
 
     @GetMapping("/api/rules")

@@ -5,18 +5,18 @@
     <header class="shadow-2xl relative" style="background: linear-gradient(135deg, #050810 0%, #0a0f1c 50%, #0f172a 100%); border-bottom: 2px solid #1e293b; z-index: 40;">
         <div class="absolute inset-0 overflow-hidden pointer-events-none header-bg-wrapper"><div class="absolute inset-0 bg-gradient-to-r from-violet-600/5 via-transparent to-indigo-600/5"></div></div>
         <div class="flex items-center justify-between h-16 relative z-10 px-6">
-            <a th:href="@{/admin}" style="text-decoration:none;display:flex;align-items:center;margin-left:6rem;flex-shrink:0;">
+            <a th:href="@{/templates/admin}" style="text-decoration:none;display:flex;align-items:center;margin-left:6rem;flex-shrink:0;">
                 <img th:src="@{/img/logo.png}" alt="Contexa" style="width:200px;height:auto;object-fit:contain;" />
             </a>
             <nav class="header-actions flex items-center space-x-2" style="flex-shrink:0;white-space:nowrap;">
-                <a id="homeLink" th:href="@{/admin}" class="nav-link group">
+                <a id="homeLink" th:href="@{/templates/admin}" class="nav-link group">
                     <span class="nav-icon"><i class="fas fa-home"></i></span>
                     <span th:text="#{header.home}">Home</span>
                     <span class="nav-glow"></span>
                 </a>
 
                 <th:block sec:authorize="isAnonymous()">
-                    <a id="loginLink" th:href="@{/admin/login}" class="nav-link group">
+                    <a id="loginLink" th:href="@{/contexa/admin/login}" class="nav-link group">
                         <span class="nav-icon"><i class="fas fa-sign-in-alt"></i></span>
                         <span th:text="#{header.login}">Login</span>
                         <span class="nav-glow"></span>
@@ -29,7 +29,7 @@
                         <span th:text="#{header.user.info}">User Info</span>
                         <span class="nav-glow"></span>
                     </a>
-                    <a id="adminLink" th:href="@{/admin}" class="nav-link group nav-admin">
+                    <a id="adminLink" th:href="@{/templates/admin}" class="nav-link group nav-admin">
                         <span class="nav-icon"><i class="fas fa-shield-alt"></i></span>
                         <span th:text="#{header.admin}">Admin</span>
                         <span class="nav-glow"></span>

@@ -54,7 +54,8 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-
+
+
 class AbstractMfaAuthenticationSuccessHandlerTest {
 
     @AfterEach
@@ -107,7 +108,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                 false
         );
 
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin/login/mfa-ott");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/admin/login/mfa-ott");
         request.addHeader("Accept", "application/json");
         MockHttpServletResponse response = new MockHttpServletResponse();
         Authentication authentication = new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN");
@@ -164,7 +165,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                 true
         );
 
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin/login/mfa-ott");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/admin/login/mfa-ott");
         request.addHeader("Accept", "application/json");
         MockHttpServletResponse response = new MockHttpServletResponse();
         Authentication authentication = new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN");
@@ -178,7 +179,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                 eq(HttpServletResponse.SC_INTERNAL_SERVER_ERROR),
                 eq("MFA_POST_SUCCESS_PIPELINE_FAILED"),
                 contains("buildResponseData"),
-                eq("/admin/login/mfa-ott"),
+                eq("/contexa/admin/login/mfa-ott"),
                 detailCaptor.capture());
         assertThat(detailCaptor.getValue())
                 .containsEntry("status", "MFA_POST_SUCCESS_PIPELINE_FAILED")

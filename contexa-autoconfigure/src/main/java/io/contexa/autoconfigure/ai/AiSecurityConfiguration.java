@@ -19,10 +19,12 @@ import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResolutionConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.SessionSecurityContextRepositoryConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
+import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -35,6 +37,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 import java.util.UUID;
 
@@ -66,11 +69,17 @@ public class AiSecurityConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(PlatformConfig.class)
-    public PlatformConfig platformDslConfig(
-            ApplicationContext applicationContext,
-            AISessionSecurityContextRepository aiSessionSecurityContextRepository) throws Exception {
+    public PlatformConfig platformDslConfig(ApplicationContext applicationContext,
+                                            CustomDynamicAuthorizationManager customDynamicAuthorizationManager) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
         SecurityMode securityMode = resolveSecurityMode();
+        SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
+            http
+                    .authorizeHttpRequests(authReq -> authReq
+                            .anyRequest().access(customDynamicAuthorizationManager)
+                    )
+            ;
+        };
 
         if (securityMode == SecurityMode.SANDBOX) {
             return registry
@@ -78,6 +87,7 @@ public class AiSecurityConfiguration {
                         http.csrf(AbstractHttpConfigurer::disable);
                         http.cors(AbstractHttpConfigurer::disable);
                         http.headers(AbstractHttpConfigurer::disable);
+                        http.authorizeHttpRequests(authReq -> authReq.requestMatchers("/contexa/admin/**").authenticated());
                     })
                     .mfa(mfa -> mfa.requiredFactors(1)
                             .primaryAuthentication(auth -> auth
@@ -92,7 +102,7 @@ public class AiSecurityConfiguration {
         }
 
         return registry
-                .global(http -> {})
+                .global(globalHttpCustomizer)
                 .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth
                                 .formLogin(form -> form.defaultSuccessUrl("/")))

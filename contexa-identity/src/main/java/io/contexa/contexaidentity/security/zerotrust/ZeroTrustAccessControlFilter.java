@@ -108,11 +108,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
 
         return requestUri.startsWith("/logout")
-                || requestUri.startsWith("/zero-trust")
-                || requestUri.startsWith("/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/api/aiam/zero-trust")
-                || requestUri.startsWith("/admin/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/admin/api/aiam/zero-trust")
+                || requestUri.startsWith("/contexa/zero-trust")
+                || requestUri.startsWith("/contexa/api/aiam/sse/zero-trust")
+                || requestUri.startsWith("/contexa/api/aiam/zero-trust")
+                || requestUri.startsWith("/contexa/admin/api/aiam/sse/zero-trust")
+                || requestUri.startsWith("/contexa/admin/api/aiam/zero-trust")
                 || requestUri.startsWith("/.well-known/");
     }
 
@@ -185,7 +185,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private boolean isMfaRelatedPath(String requestUri) {
         if (requestUri.startsWith("/mfa/")
                 || requestUri.startsWith("/api/mfa/")
-                || requestUri.startsWith("/admin/api/mfa/")
+                || requestUri.startsWith("/contexa/admin/api/mfa/")
                 || requestUri.startsWith("/webauthn/")
                 || requestUri.startsWith("/login/mfa-")) {
             return true;
@@ -275,7 +275,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                HttpServletResponse response,
                                String userId) throws IOException {
 
-        String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
+        String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 
         Map<String, Object> body = new HashMap<>();
         body.put("error", "ACCOUNT_BLOCKED");
@@ -321,7 +321,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         String returnUrl = URLEncoder.encode(request.getRequestURI(), StandardCharsets.UTF_8);
         String redirectUrl = request.getContextPath()
-                + "/zero-trust/analysis-pending?returnUrl=" + returnUrl;
+                + "/contexa/zero-trust/analysis-pending?returnUrl=" + returnUrl;
 
         Map<String, Object> body = new HashMap<>();
         body.put("error", "SECURITY_REVIEW_IN_PROGRESS");
@@ -426,11 +426,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (authUrlProvider != null) {
             try {
                 String urlPrefix = authUrlProvider.getUrlPrefix();
-                return (urlPrefix != null ? urlPrefix : "") + "/zero-trust/blocked";
+                return (urlPrefix != null ? urlPrefix : "") + "/contexa/zero-trust/blocked";
             } catch (Exception ignored) {
             }
         }
-        return "/zero-trust/blocked";
+        return "/contexa/zero-trust/blocked";
     }
 
     private String resolveRequestUri(HttpServletRequest request) {

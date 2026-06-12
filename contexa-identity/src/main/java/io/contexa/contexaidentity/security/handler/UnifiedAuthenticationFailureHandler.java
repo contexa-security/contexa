@@ -47,7 +47,8 @@ import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
-
+
+
 @Slf4j
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
@@ -287,7 +288,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             log.error("[UnifiedAuthFailure] BLOCK MFA failed, attempt {}/{}: userId={}", failCount, MAX_BLOCK_MFA_ATTEMPTS, userId);
         }
 
-        String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
+        String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 
         Map<String, Object> body = new HashMap<>();
         body.put("blockMfaFailed", true);

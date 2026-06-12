@@ -42,21 +42,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     var groupMap = {
-        '/admin/dashboard': 'dashboard',
-        '/admin/policy-center': 'policy',
-        '/admin/access-center': 'access',
-        '/admin/users': 'iam', '/admin/groups': 'iam', '/admin/roles': 'iam',
-        '/admin/permissions': 'iam', '/admin/role-hierarchies': 'iam', '/admin/password-policy': 'iam',
-        '/admin/security-monitor': 'security', '/admin/blacklist': 'security', '/admin/session-management': 'security', '/admin/ip-management': 'security',
-        '/admin/enterprise/zerotrust': 'security', '/admin/enterprise/incidents': 'security',
-        '/admin/enterprise': 'enterprise',
-        '/admin/enterprise/approvals': 'enterprise', '/admin/enterprise/mcp': 'enterprise',
-        '/admin/enterprise/permits': 'enterprise', '/admin/enterprise/executions': 'enterprise',
-        '/admin/enterprise/playbooks': 'enterprise', '/admin/enterprise/verification': 'enterprise',
-        '/admin/enterprise/verification/context': 'enterprise', '/admin/enterprise/verification/decision': 'enterprise',
-        '/admin/enterprise/metrics': 'enterprise',
-        '/admin/enterprise/integration': 'enterprise',
-        '/admin/saas': 'saas'
+        '/contexa/admin/dashboard': 'dashboard',
+        '/contexa/admin/policy-center': 'policy',
+        '/contexa/admin/access-center': 'access',
+        '/contexa/admin/users': 'iam', '/contexa/admin/groups': 'iam', '/contexa/admin/roles': 'iam',
+        '/contexa/admin/permissions': 'iam', '/contexa/admin/role-hierarchies': 'iam', '/contexa/admin/password-policy': 'iam',
+        '/contexa/admin/security-monitor': 'security', '/contexa/admin/blacklist': 'security', '/contexa/admin/session-management': 'security', '/contexa/admin/ip-management': 'security',
+        '/contexa/admin/enterprise/zerotrust': 'security', '/contexa/admin/enterprise/incidents': 'security',
+        '/contexa/admin/enterprise': 'enterprise',
+        '/contexa/admin/enterprise/approvals': 'enterprise', '/contexa/admin/enterprise/mcp': 'enterprise',
+        '/contexa/admin/enterprise/permits': 'enterprise', '/contexa/admin/enterprise/executions': 'enterprise',
+        '/contexa/admin/enterprise/playbooks': 'enterprise', '/contexa/admin/enterprise/verification': 'enterprise',
+        '/contexa/admin/enterprise/verification/context': 'enterprise', '/contexa/admin/enterprise/verification/decision': 'enterprise',
+        '/contexa/admin/enterprise/metrics': 'enterprise',
+        '/contexa/admin/enterprise/integration': 'enterprise',
+        '/contexa/admin/saas': 'saas'
     };
 
     var activeGroup = null;
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
             activeGroup = groupMap[keys[i]];
         }
     }
-    if (path === '/admin/dashboard' || path === '/admin' || path === '/admin/') activeGroup = 'dashboard';
+    if (path === '/contexa/admin/dashboard' || path === '/contexa/admin' || path === '/contexa/admin/') activeGroup = 'dashboard';
 
     if (activeGroup) {
         var mainLink = document.querySelector('.main-menu-link[data-group="' + activeGroup + '"]');

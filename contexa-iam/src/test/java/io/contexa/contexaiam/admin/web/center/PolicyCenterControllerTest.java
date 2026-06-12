@@ -421,7 +421,7 @@ class PolicyCenterControllerTest {
         @Test
         @DisplayName("searchResourcesApi rejects invalid enum filters without server error")
         void searchResourcesApiInvalidEnum() throws Exception {
-            mockMvc.perform(get("/admin/policy-center/api/resources")
+            mockMvc.perform(get("/contexa/admin/policy-center/api/resources")
                             .param("resourceType", "not-a-type"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.content").isArray())
@@ -952,7 +952,7 @@ class PolicyCenterControllerTest {
             Policy saved = Policy.builder().id(99L).name("Orders").build();
             when(businessPolicyService.createPolicyFromBusinessRule(any())).thenReturn(saved);
 
-            mockMvc.perform(post("/admin/policy-center/api/quick-create")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/quick-create")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -996,7 +996,7 @@ class PolicyCenterControllerTest {
                             PageRequest.of(0, 20),
                             1));
 
-            mockMvc.perform(get("/admin/policy-center/api/available-permissions")
+            mockMvc.perform(get("/contexa/admin/policy-center/api/available-permissions")
                             .param("keyword", "wri")
                             .param("roleIds", "10")
                             .param("size", "20"))
@@ -1026,7 +1026,7 @@ class PolicyCenterControllerTest {
             when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(changed));
             when(managedResourceRepository.findById(2L)).thenReturn(Optional.of(unchanged));
 
-            mockMvc.perform(post("/admin/policy-center/api/reset-policy-status")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/reset-policy-status")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("[1,2]"))
                     .andExpect(status().isOk())
@@ -1040,7 +1040,7 @@ class PolicyCenterControllerTest {
         void versionSnapshotErrorJsonContract() throws Exception {
             when(policyVersionService.getVersion(1L, 99)).thenReturn(Optional.empty());
 
-            mockMvc.perform(get("/admin/policy-center/api/1/versions/99"))
+            mockMvc.perform(get("/contexa/admin/policy-center/api/1/versions/99"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("Version not found"))
                     .andExpect(jsonPath("$.versionNumber").doesNotExist())
@@ -1050,7 +1050,7 @@ class PolicyCenterControllerTest {
         @Test
         @DisplayName("rollback binds typed request body and preserves response fields")
         void rollbackBindsTypedRequestBody() throws Exception {
-            mockMvc.perform(post("/admin/policy-center/api/1/rollback/2")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/1/rollback/2")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"reason\":\"because\"}"))
                     .andExpect(status().isOk())
@@ -1072,7 +1072,7 @@ class PolicyCenterControllerTest {
                     .build();
             when(conditionTemplateRepository.findAll()).thenReturn(List.of(template));
 
-            mockMvc.perform(get("/admin/policy-center/api/conditions")
+            mockMvc.perform(get("/contexa/admin/policy-center/api/conditions")
                             .param("keyword", "owner"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(7))
@@ -1087,7 +1087,7 @@ class PolicyCenterControllerTest {
             when(policyValidationService.validateAll())
                     .thenReturn(new FullValidationReport(2, "HEALTHY", List.of(), List.of()));
 
-            mockMvc.perform(get("/admin/policy-center/api/validation-report"))
+            mockMvc.perform(get("/contexa/admin/policy-center/api/validation-report"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.totalPolicies").value(2))
                     .andExpect(jsonPath("$.healthStatus").value("HEALTHY"))
@@ -1101,7 +1101,7 @@ class PolicyCenterControllerTest {
             when(policyService.validateBeforeCreate(any(PolicyDto.class)))
                     .thenReturn(new PolicyValidationReport(List.of(), List.of(), true, null));
 
-            mockMvc.perform(post("/admin/policy-center/api/validate")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/validate")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -1158,7 +1158,7 @@ class PolicyCenterControllerTest {
                             false,
                             "blocked"));
 
-            mockMvc.perform(post("/admin/policy-center/api/validate-quick")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/validate-quick")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -1186,7 +1186,7 @@ class PolicyCenterControllerTest {
                     true,
                     null));
 
-            mockMvc.perform(get("/admin/policy-center/api/10/ai-validation"))
+            mockMvc.perform(get("/contexa/admin/policy-center/api/10/ai-validation"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.items[0].checkName").value("conflict"))
                     .andExpect(jsonPath("$.items[0].result").value("PASS"))
@@ -1201,7 +1201,7 @@ class PolicyCenterControllerTest {
                     List.of(),
                     new SimulationReport.SimulationSummary(1, 2, 3, 4)));
 
-            mockMvc.perform(post("/admin/policy-center/api/simulate")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/simulate")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {
@@ -1247,7 +1247,7 @@ class PolicyCenterControllerTest {
                             List.of("Orders"))),
                     new PolicyImpactReport.AccessChangeSummary(1, 0, 0, 0)));
 
-            mockMvc.perform(post("/admin/policy-center/api/impact-analysis")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/impact-analysis")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Orders\",\"effect\":\"ALLOW\"}"))
                     .andExpect(status().isOk())
@@ -1270,7 +1270,7 @@ class PolicyCenterControllerTest {
                             false))),
                     List.of(new PolicyMatrixReport.ConflictCell(0, 0, "HIGH"))));
 
-            mockMvc.perform(get("/admin/policy-center/api/matrix")
+            mockMvc.perform(get("/contexa/admin/policy-center/api/matrix")
                             .param("resourceFilter", "orders")
                             .param("roleFilter", "ADMIN"))
                     .andExpect(status().isOk())
@@ -1295,7 +1295,7 @@ class PolicyCenterControllerTest {
                     .thenReturn(new PolicyValidationReport(List.of(), List.of(), true, null));
             when(policyRepository.save(any(Policy.class))).thenReturn(saved);
 
-            mockMvc.perform(post("/admin/policy-center/api/batch-create")
+            mockMvc.perform(post("/contexa/admin/policy-center/api/batch-create")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {

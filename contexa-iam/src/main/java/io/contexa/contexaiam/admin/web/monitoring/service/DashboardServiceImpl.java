@@ -334,7 +334,7 @@ public class DashboardServiceImpl implements DashboardService {
                     "CRITICAL",
                     "Admin accounts without MFA detected",
                     mfaDisabledAdmins + " admin accounts do not have MFA enabled, posing a high risk of account compromise.",
-                    "/admin/users"
+                    "/contexa/admin/users"
             ));
         }
 
@@ -348,7 +348,7 @@ public class DashboardServiceImpl implements DashboardService {
                     "WARNING",
                     "AI policies pending approval",
                     pendingPolicies + " AI-generated policies are awaiting approval. Please review and approve or reject.",
-                    "/admin/policies"
+                    "/contexa/admin/policies"
             ));
         }
 
@@ -357,7 +357,7 @@ public class DashboardServiceImpl implements DashboardService {
                     "WARNING",
                     "High number of access denials in last 24 hours",
                     denyCount24h + " access attempts were denied in the last 24 hours. This may indicate abnormal access attempts.",
-                    "/admin/studio"
+                    "/contexa/admin/studio"
             ));
         }
 
@@ -367,7 +367,7 @@ public class DashboardServiceImpl implements DashboardService {
                     "WARNING",
                     "Role hierarchy not defined",
                     "No role hierarchy has been defined. Set up inheritance relationships between roles to streamline permission management.",
-                    "/admin/role-hierarchies"
+                    "/contexa/admin/role-hierarchies"
             ));
         }
 

@@ -34,7 +34,7 @@ import java.security.Principal;
 
 @Slf4j
 @RestController
-@RequestMapping("/admin/api/aiam/zero-trust")
+@RequestMapping("/contexa/admin/api/aiam/zero-trust")
 @RequiredArgsConstructor
 public class ZeroTrustUnblockController {
 

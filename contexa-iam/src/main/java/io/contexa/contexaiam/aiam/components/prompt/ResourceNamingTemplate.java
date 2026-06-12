@@ -166,7 +166,7 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
     private String getJsonSchemaExample() {
         return """
             {
-              "/admin/users": {
+              "/contexa/admin/users": {
                 "friendlyName": "User Management",
                 "description": "Interface for viewing and managing all user accounts in the system."
               },

@@ -71,7 +71,7 @@ const PolicyCenter = {
 
         try {
             const token = this.getCsrfToken();
-            const response = await fetch('/admin/policy-center/refresh-resources', {
+            const response = await fetch('/contexa/admin/policy-center/refresh-resources', {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': token
@@ -90,7 +90,7 @@ const PolicyCenter = {
             
             // 100% 찰칵 차는 시각 효과를 위해 아주 잠깐 대기
             await new Promise(resolve => setTimeout(resolve, 400));
-            window.location.href = '/admin/policy-center?tab=resources';
+            window.location.href = '/contexa/admin/policy-center?tab=resources';
         }
     },
 
@@ -156,7 +156,7 @@ const PolicyCenter = {
             const formData = new URLSearchParams();
             formData.append('friendlyName', modal.dataset.friendlyName);
             formData.append('description', modal.dataset.description);
-            const response = await fetch('/admin/workbench/resources/' + resourceId + '/define', {
+            const response = await fetch('/contexa/admin/workbench/resources/' + resourceId + '/define', {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': this.getCsrfToken() },
                 body: formData
@@ -216,7 +216,7 @@ const PolicyCenter = {
             if (createBtn) createBtn.classList.add('active');
             var modeBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
             PolicyCenter.switchCreateMode('quick', modeBtn);
-            history.pushState(null, '', '/admin/policy-center?tab=create');
+            history.pushState(null, '', '/contexa/admin/policy-center?tab=create');
             PolicyCenter.MultiSelect.updateBar();
 
         } catch (e) {
@@ -275,7 +275,7 @@ const PolicyCenter = {
             if (createBtn) createBtn.classList.add('active');
             var modeBtn = document.querySelector('.pc-mode-card[onclick*="ai"]');
             PolicyCenter.switchCreateMode('ai', modeBtn);
-            history.pushState(null, '', '/admin/policy-center?tab=create');
+            history.pushState(null, '', '/contexa/admin/policy-center?tab=create');
             PolicyCenter.MultiSelect.updateBar();
 
             var queryInput = document.getElementById('ai-query-input');
@@ -307,7 +307,7 @@ const PolicyCenter = {
         var headers = { 'Content-Type': 'application/json' };
         headers[header] = token;
 
-        var resp = await fetch('/admin/workbench/resources/define-batch', {
+        var resp = await fetch('/contexa/admin/workbench/resources/define-batch', {
             method: 'POST',
             headers: headers,
             body: JSON.stringify(requests)
@@ -360,7 +360,7 @@ const PolicyCenter = {
             }, 100);
         }
 
-        history.pushState(null, '', '/admin/policy-center?tab=create');
+        history.pushState(null, '', '/contexa/admin/policy-center?tab=create');
         PolicyCenter.MultiSelect.updateBar();
     },
 
@@ -371,7 +371,7 @@ const PolicyCenter = {
         if (resTab) resTab.classList.add('active');
         const resBtn = document.querySelector('.pc-tab-btn[href*="tab=resources"]');
         if (resBtn) resBtn.classList.add('active');
-        history.pushState(null, '', '/admin/policy-center?tab=resources');
+        history.pushState(null, '', '/contexa/admin/policy-center?tab=resources');
         PolicyCenter.MultiSelect.updateBar();
     },
 
@@ -379,7 +379,7 @@ const PolicyCenter = {
         const resourceId = button.dataset.resourceId;
         this.setLoading(button, true);
         try {
-            const response = await fetch('/admin/workbench/resources/' + resourceId + '/exclude', {
+            const response = await fetch('/contexa/admin/workbench/resources/' + resourceId + '/exclude', {
                 method: 'POST', headers: { 'X-CSRF-TOKEN': this.getCsrfToken() }
             });
             const result = await response.json();
@@ -396,7 +396,7 @@ const PolicyCenter = {
         const resourceId = button.dataset.resourceId;
         this.setLoading(button, true);
         try {
-            const response = await fetch('/admin/workbench/resources/' + resourceId + '/restore', {
+            const response = await fetch('/contexa/admin/workbench/resources/' + resourceId + '/restore', {
                 method: 'POST', headers: { 'X-CSRF-TOKEN': this.getCsrfToken() }
             });
             const result = await response.json();
@@ -748,7 +748,7 @@ const PolicyCenter = {
                     });
                 });
 
-                var resp = await fetch('/admin/policy-center/api/batch-create', {
+                var resp = await fetch('/contexa/admin/policy-center/api/batch-create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
                     body: JSON.stringify({
@@ -822,7 +822,7 @@ const PolicyCenter = {
             if (!list) return;
             list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
             try {
-                const resp = await fetch('/admin/policy-center/api/roles?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
+                const resp = await fetch('/contexa/admin/policy-center/api/roles?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
                 const page = await resp.json();
                 this.renderRoleList(page.content || []);
             } catch (e) {
@@ -899,7 +899,7 @@ const PolicyCenter = {
             const roleIdArr = Array.from(this.selectedRoles.keys());
             const roleParam = roleIdArr.length > 0 ? '&roleIds=' + roleIdArr.join(',') : '';
             try {
-                const resp = await fetch('/admin/policy-center/api/available-permissions?keyword=' + encodeURIComponent(keyword || '') + roleParam + '&size=50');
+                const resp = await fetch('/contexa/admin/policy-center/api/available-permissions?keyword=' + encodeURIComponent(keyword || '') + roleParam + '&size=50');
                 const page = await resp.json();
                 this.rolePermissionMap = page.rolePermissionMap || {};
                 this.allPermissions = page.content || [];
@@ -1005,7 +1005,7 @@ const PolicyCenter = {
             if (!list) return;
             list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
             try {
-                const resp = await fetch('/admin/policy-center/api/spel-permissions?keyword=' + encodeURIComponent(keyword || ''));
+                const resp = await fetch('/contexa/admin/policy-center/api/spel-permissions?keyword=' + encodeURIComponent(keyword || ''));
                 const data = await resp.json();
                 this._cachedSpels = data || [];
                 this.renderSpelList(this._cachedSpels);
@@ -1130,7 +1130,7 @@ const PolicyCenter = {
             }
 
             try {
-                const resp = await fetch('/admin/policy-center/api/quick-create', {
+                const resp = await fetch('/contexa/admin/policy-center/api/quick-create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
                     body: JSON.stringify(Object.assign({
@@ -1150,11 +1150,11 @@ const PolicyCenter = {
                     showToast(result.warning, 'warning');
                     setTimeout(() => {
                         showToast(PolicyCenter._i18n('policyCreated', 'Policy created successfully.'), 'success');
-                        setTimeout(() => { window.location.href = '/admin/policy-center?tab=list'; }, 1500);
+                        setTimeout(() => { window.location.href = '/contexa/admin/policy-center?tab=list'; }, 1500);
                     }, 2000);
                 } else {
                     showToast(PolicyCenter._i18n('policyCreated', 'Policy created successfully.'), 'success');
-                    setTimeout(() => { window.location.href = '/admin/policy-center?tab=list'; }, 1500);
+                    setTimeout(() => { window.location.href = '/contexa/admin/policy-center?tab=list'; }, 1500);
                 }
             } catch (e) {
                 PolicyCenter.MultiSelect.selectedResources.clear();
@@ -1213,7 +1213,7 @@ const PolicyCenter = {
             block.innerHTML =
                 '<div class="col-span-3"><select name="targets[' + idx + '].targetType" onchange="PolicyCenter.Manual.toggleHttpMethod(this)" class="modern-select"><option value="URL">URL</option><option value="METHOD">METHOD</option></select></div>' +
                 '<div class="col-span-2"><select name="targets[' + idx + '].httpMethod" class="http-method-select modern-select"><option value="ALL">ALL</option><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>' +
-                '<div class="col-span-6"><input type="text" name="targets[' + idx + '].targetIdentifier" class="modern-input" placeholder="/admin/** or com.example.*" required /></div>' +
+                '<div class="col-span-6"><input type="text" name="targets[' + idx + '].targetIdentifier" class="modern-input" placeholder="/contexa/admin/** or com.example.*" required /></div>' +
                 '<input type="hidden" name="targets[' + idx + '].targetOrder" value="0" />' +
                 '<input type="hidden" name="targets[' + idx + '].sourceType" value="RESOURCE" />' +
                 '<div class="col-span-1 text-center"><button type="button" onclick="PolicyCenter.Manual.removeElement(this, \'.target-block\')" class="remove-btn">&times;</button></div>';
@@ -1381,7 +1381,7 @@ const PolicyCenter = {
 
         async loadContextDashboard() {
             try {
-                const resp = await fetch('/admin/policy-center/api/stats');
+                const resp = await fetch('/contexa/admin/policy-center/api/stats');
                 const stats = await resp.json();
                 const el = (id) => document.getElementById(id);
                 el('ai-stat-roles-count').textContent = stats.roleCount || 0;
@@ -1465,7 +1465,7 @@ const PolicyCenter = {
                 if (typeof ContexaLLM !== 'undefined' && ContexaLLM.analyzeStreaming) {
                     this.updateProgress('analyze', 40, 'AI analyzing policy requirements...');
                     await ContexaLLM.analyzeStreaming(
-                        '/admin/api/ai/policies/generate/stream',
+                        '/contexa/admin/api/ai/policies/generate/stream',
                         requestPayload,
                         {
                             modalTitle: PolicyCenter._i18n('aiAnalyzing', 'AI policy analysis in progress'),
@@ -1486,7 +1486,7 @@ const PolicyCenter = {
                     );
                 } else {
                     this.updateProgress('analyze', 40, 'Sending request to AI...');
-                    const response = await fetch('/admin/api/ai/policies/generate/stream', {
+                    const response = await fetch('/contexa/admin/api/ai/policies/generate/stream', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1653,9 +1653,9 @@ const PolicyCenter = {
         async fetchAvailableItems() {
             if (this._cachedAvailableItems) return this._cachedAvailableItems;
             const [rolesResp, permsResp, condsResp] = await Promise.all([
-                fetch('/admin/policy-center/api/roles?size=10000'),
-                fetch('/admin/policy-center/api/available-permissions?size=10000'),
-                fetch('/admin/policy-center/api/conditions')
+                fetch('/contexa/admin/policy-center/api/roles?size=10000'),
+                fetch('/contexa/admin/policy-center/api/available-permissions?size=10000'),
+                fetch('/contexa/admin/policy-center/api/conditions')
             ]);
             const rolesPage = await rolesResp.json();
             const permsPage = await permsResp.json();
@@ -1803,15 +1803,15 @@ const PolicyCenter = {
             try {
                 let items = [];
                 if (type === 'role') {
-                    const resp = await fetch('/admin/policy-center/api/roles?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
+                    const resp = await fetch('/contexa/admin/policy-center/api/roles?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
                     const page = await resp.json();
                     items = (page.content || []).map(r => ({ id: r.id, name: r.roleName, desc: r.roleDesc || '' }));
                 } else if (type === 'permission') {
-                    const resp = await fetch('/admin/policy-center/api/available-permissions?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
+                    const resp = await fetch('/contexa/admin/policy-center/api/available-permissions?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
                     const page = await resp.json();
                     items = (page.content || []).map(p => ({ id: p.id, name: p.friendlyName || p.name, desc: p.description || '' }));
                 } else if (type === 'condition') {
-                    const resp = await fetch('/admin/policy-center/api/conditions?keyword=' + encodeURIComponent(keyword || ''));
+                    const resp = await fetch('/contexa/admin/policy-center/api/conditions?keyword=' + encodeURIComponent(keyword || ''));
                     const conditions = await resp.json();
                     items = (conditions || []).map(c => ({ id: c.id, name: c.name, desc: c.description || '' }));
                 }
@@ -1901,7 +1901,7 @@ const PolicyCenter = {
 
             try {
                 if (!this._cachedPolicySummaries) {
-                    const resp = await fetch('/admin/policy-center/api/policy-summaries');
+                    const resp = await fetch('/contexa/admin/policy-center/api/policy-summaries');
                     this._cachedPolicySummaries = await resp.json();
                 }
 
@@ -2045,7 +2045,7 @@ const PolicyCenter = {
             if (btn) btn.disabled = true;
 
             try {
-                var resp = await fetch('/admin/api/policies/build-from-business-rule', {
+                var resp = await fetch('/contexa/admin/api/policies/build-from-business-rule', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2059,7 +2059,7 @@ const PolicyCenter = {
                 }
                 this.closeConfirmModal();
                 showToast(PolicyCenter._i18n('aiSaveSuccess', 'Policy saved successfully.'), 'success');
-                setTimeout(function() { window.location.href = '/admin/policy-center?tab=list'; }, 1500);
+                setTimeout(function() { window.location.href = '/contexa/admin/policy-center?tab=list'; }, 1500);
             } catch (e) {
                 showToast(PolicyCenter._i18n('aiSaveError', 'Policy save failed: ') + e.message, 'error');
                 if (btn) btn.disabled = false;
@@ -2287,7 +2287,7 @@ PolicyCenter.MultiSelect = {
             return;
         }
         try {
-            var resp = await fetch('/admin/policy-center/api/reset-policy-status', {
+            var resp = await fetch('/contexa/admin/policy-center/api/reset-policy-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
                 body: JSON.stringify(ids)
@@ -2376,7 +2376,7 @@ PolicyCenter.Validation = {
         const btn = document.getElementById('policy-health-check-btn');
         if (btn) PolicyCenter.setLoading(btn, true);
 
-        fetch('/admin/policy-center/api/validation-report', {
+        fetch('/contexa/admin/policy-center/api/validation-report', {
             headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
         })
         .then(r => r.json())
@@ -2514,7 +2514,7 @@ PolicyCenter.Validation = {
 
     async validateQuickPolicy(quickRequest) {
         try {
-            const response = await fetch('/admin/policy-center/api/validate-quick', {
+            const response = await fetch('/contexa/admin/policy-center/api/validate-quick', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2531,7 +2531,7 @@ PolicyCenter.Validation = {
 
     async analyzeImpact(policyDto) {
         try {
-            const response = await fetch('/admin/policy-center/api/impact-analysis', {
+            const response = await fetch('/contexa/admin/policy-center/api/impact-analysis', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2548,7 +2548,7 @@ PolicyCenter.Validation = {
 
     async simulate(candidatePolicy, testCases) {
         try {
-            const response = await fetch('/admin/policy-center/api/simulate', {
+            const response = await fetch('/contexa/admin/policy-center/api/simulate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2568,7 +2568,7 @@ PolicyCenter.Validation = {
             const params = new URLSearchParams();
             if (resourceFilter) params.append('resourceFilter', resourceFilter);
             if (roleFilter) params.append('roleFilter', roleFilter);
-            const response = await fetch('/admin/policy-center/api/matrix?' + params.toString(), {
+            const response = await fetch('/contexa/admin/policy-center/api/matrix?' + params.toString(), {
                 headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
             });
             return await response.json();
@@ -2580,7 +2580,7 @@ PolicyCenter.Validation = {
 
     async validateBeforeCreate(policyDto) {
         try {
-            const response = await fetch('/admin/policy-center/api/validate', {
+            const response = await fetch('/contexa/admin/policy-center/api/validate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2638,7 +2638,7 @@ PolicyCenter.SimulatorUI = {
             '<div class="sim-case grid grid-cols-12 gap-3 mb-3 items-center">'
             + this._buildUserInput()
             + '<div class="col-span-2"><select class="modern-select sim-targetType" onchange="PolicyCenter.SimulatorUI.toggleTargetType(this)"><option value="URL">URL</option><option value="METHOD">METHOD</option></select></div>'
-            + '<div class="col-span-4"><input type="text" class="modern-input sim-path" placeholder="/admin/dashboard" /></div>'
+            + '<div class="col-span-4"><input type="text" class="modern-input sim-path" placeholder="/contexa/admin/dashboard" /></div>'
             + '<div class="col-span-3 sim-method-wrap"><select class="modern-select sim-method"><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
             + '<div class="col-span-1"><button type="button" onclick="this.closest(\'.sim-case\').remove()" class="remove-btn">&times;</button></div></div>');
     },
@@ -2652,7 +2652,7 @@ PolicyCenter.SimulatorUI = {
             pathInput.placeholder = 'com.example.Service.method';
         } else {
             methodWrap.style.display = '';
-            pathInput.placeholder = '/admin/dashboard';
+            pathInput.placeholder = '/contexa/admin/dashboard';
         }
     },
 
@@ -2700,7 +2700,7 @@ PolicyCenter.SimulatorUI = {
         if (keyword.length < 1) { dropdown.classList.add('hidden'); return; }
 
         this._searchTimeout = setTimeout(function() {
-            fetch('/admin/access-center/api/users?keyword=' + encodeURIComponent(keyword) + '&size=10', {
+            fetch('/contexa/admin/access-center/api/users?keyword=' + encodeURIComponent(keyword) + '&size=10', {
                 headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
             })
             .then(function(r) { return r.json(); })
@@ -2841,7 +2841,7 @@ PolicyCenter.MatrixUI = {
                     var color = cell.access === 'ALLOW' ? '#4ade80' : '#f87171';
                     var style = 'background:' + bg + ';color:' + color + ';' + borderStyle;
                     var label = cell.access + (cell.inherited ? ' *' : '');
-                    var clickHandler = cell.policyId ? ' onclick="window.location.href=\'/admin/policies/' + cell.policyId + '\'"' : '';
+                    var clickHandler = cell.policyId ? ' onclick="window.location.href=\'/contexa/admin/policies/' + cell.policyId + '\'"' : '';
                     html += '<td class="py-3 px-3 text-center cursor-pointer" style="' + style + '" title="' + PolicyCenter.escapeHtml(cell.policyName || '') + '"' + clickHandler + '>'
                         + '<span class="text-xs font-bold">' + label + '</span></td>';
                 }
@@ -2873,7 +2873,7 @@ PolicyCenter.AIValidationModal = {
         document.getElementById('ai-validation-blocked').classList.add('hidden');
 
         try {
-            var response = await fetch('/admin/policy-center/api/' + policyId + '/ai-validation', {
+            var response = await fetch('/contexa/admin/policy-center/api/' + policyId + '/ai-validation', {
                 headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
             });
             var report = await response.json();
@@ -2903,7 +2903,7 @@ PolicyCenter.AIValidationModal = {
 
         if (report.canApprove) {
             approveBtn.disabled = false;
-            approveForm.action = '/admin/policies/' + policyId + '/approve';
+            approveForm.action = '/contexa/admin/policies/' + policyId + '/approve';
             blockedDiv.classList.add('hidden');
         } else {
             approveBtn.disabled = true;
@@ -3056,7 +3056,7 @@ PolicyCenter.DeleteModal = {
 
         var form = document.createElement('form');
         form.method = 'POST';
-        form.action = '/admin/policies/delete/' + this.currentPolicyId;
+        form.action = '/contexa/admin/policies/delete/' + this.currentPolicyId;
 
         var csrfMeta = document.querySelector('meta[name="_csrf"]');
         var csrfParamMeta = document.querySelector('meta[name="_csrf_parameter"]');
@@ -3149,7 +3149,7 @@ PolicyCenter.BatchResult = {
     close: function() {
         var modal = document.getElementById('batch-result-modal');
         modal.style.display = 'none';
-        window.location.href = '/admin/policy-center?tab=list';
+        window.location.href = '/contexa/admin/policy-center?tab=list';
     }
 };
 

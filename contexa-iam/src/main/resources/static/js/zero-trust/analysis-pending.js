@@ -46,7 +46,7 @@
         if (action === 'ALLOW') {
             window.location.href = decodeURIComponent(returnUrl);
         } else if (action === 'BLOCK') {
-            window.location.href = '/zero-trust/blocked';
+            window.location.href = '/contexa/zero-trust/blocked';
         } else if (action === 'CHALLENGE') {
             showError(_i18n('mfaRequired', 'Additional authentication required. Redirecting to MFA login page.'));
             setTimeout(function () {
@@ -70,7 +70,7 @@
             eventSource.close();
         }
 
-        eventSource = new EventSource('/admin/api/aiam/sse/zero-trust/subscribe');
+        eventSource = new EventSource('/contexa/admin/api/aiam/sse/zero-trust/subscribe');
 
         eventSource.addEventListener('connected', function () {
             updateSseStatus(true);

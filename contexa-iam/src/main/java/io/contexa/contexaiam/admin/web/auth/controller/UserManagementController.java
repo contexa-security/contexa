@@ -43,7 +43,7 @@ import java.util.List;
 
 @Slf4j
 @Controller
-@RequestMapping("/admin/users")
+@RequestMapping("/contexa/admin/users")
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class UserManagementController {
@@ -82,7 +82,7 @@ public class UserManagementController {
 		model.addAttribute("users", dtoPage.getContent());
 		model.addAttribute("page", dtoPage);
 		model.addAttribute("keyword", keyword);
-		return "admin/users";
+		return "contexa/admin/users";
 	}
 
 	@GetMapping("/new")
@@ -97,7 +97,7 @@ public class UserManagementController {
 		model.addAttribute("selectedGroupIds", List.of());
 		model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
 
-		return "admin/userdetails";
+		return "contexa/admin/userdetails";
 	}
 
 	@GetMapping("/{id}")
@@ -118,7 +118,7 @@ public class UserManagementController {
 			model.addAttribute("selectedGroupIds", selectedGroupIds);
 			model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
 
-			return "admin/userdetails";
+			return "contexa/admin/userdetails";
 		} catch (IllegalArgumentException e) {
 			ra.addFlashAttribute("errorMessage", e.getMessage());
 			log.warn("Failed to load user details: {}", e.getMessage());
@@ -126,7 +126,7 @@ public class UserManagementController {
 			ra.addFlashAttribute("errorMessage", msg("msg.user.load.failed", e.getMessage()));
 			log.error("Error loading user details for ID: {}", id, e);
 		}
-		return "redirect:/admin/users";
+		return "redirect:/contexa/admin/users";
 	}
 
 	@PutMapping("/{id}")
@@ -143,9 +143,9 @@ public class UserManagementController {
 					} catch (Exception e) {
 			log.error("Error modifying user: ", e);
 			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", e.getMessage()));
-			return "redirect:/admin/users/" + id;
+			return "redirect:/contexa/admin/users/" + id;
 		}
-		return "redirect:/admin/users";
+		return "redirect:/contexa/admin/users";
 	}
 
 	@PostMapping("/{id}")
@@ -175,9 +175,9 @@ public class UserManagementController {
 			model.addAttribute("groupList", groupService.getAllGroups());
 			model.addAttribute("selectedGroupIds", selectedGroupIds != null ? selectedGroupIds : List.of());
 			model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
-			return "admin/userdetails";
+			return "contexa/admin/userdetails";
 		}
-		return "redirect:/admin/users";
+		return "redirect:/contexa/admin/users";
 	}
 
 	@DeleteMapping("/{id}")
@@ -190,7 +190,7 @@ public class UserManagementController {
 			log.error("Error deleting user: ", e);
 			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", e.getMessage()));
 		}
-		return "redirect:/admin/users";
+		return "redirect:/contexa/admin/users";
 	}
 
 	@PostMapping("/delete/{id}")

@@ -43,7 +43,7 @@ import java.util.List;
  */
 @Slf4j
 @Controller
-@RequestMapping("/admin/session-management")
+@RequestMapping("/contexa/admin/session-management")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('ADMIN')")
 public class SessionManagementController {
@@ -80,7 +80,7 @@ public class SessionManagementController {
         model.addAttribute("sessionPage", sessionPage);
         model.addAttribute("activeCount", activeCount);
         model.addAttribute("keyword", keyword);
-        return "admin/session-management";
+        return "contexa/admin/session-management";
     }
 
     @PostMapping("/{sessionId}/invalidate")
@@ -92,7 +92,7 @@ public class SessionManagementController {
             log.error("[SessionManagement] Failed to invalidate session: {}", sessionId, e);
             ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", e.getMessage()));
         }
-        return "redirect:/admin/session-management";
+        return "redirect:/contexa/admin/session-management";
     }
 
     @PostMapping("/user/{userId}/invalidate-all")
@@ -104,7 +104,7 @@ public class SessionManagementController {
             log.error("[SessionManagement] Failed to invalidate all sessions for user: {}", userId, e);
             ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", e.getMessage()));
         }
-        return "redirect:/admin/session-management";
+        return "redirect:/contexa/admin/session-management";
     }
 
     @GetMapping("/export")

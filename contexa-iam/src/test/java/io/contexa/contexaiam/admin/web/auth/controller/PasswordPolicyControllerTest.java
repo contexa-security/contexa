@@ -137,7 +137,7 @@ class PasswordPolicyControllerTest {
     void getPolicyRulesPreservesJsonFields() throws Exception {
         when(passwordPolicyService.getCurrentPolicy()).thenReturn(samplePolicy());
 
-        mockMvc.perform(get("/admin/password-policy/api/rules"))
+        mockMvc.perform(get("/contexa/admin/password-policy/api/rules"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.minLength").value(12))
                 .andExpect(jsonPath("$.maxLength").value(64))
@@ -150,7 +150,7 @@ class PasswordPolicyControllerTest {
     @Test
     @DisplayName("updatePolicy binds existing form field names and delegates unchanged values")
     void updatePolicyBindsExistingFormFieldNames() throws Exception {
-        mockMvc.perform(post("/admin/password-policy")
+        mockMvc.perform(post("/contexa/admin/password-policy")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("minLength", "10")
                         .param("maxLength", "80")
@@ -163,7 +163,7 @@ class PasswordPolicyControllerTest {
                         .param("passwordExpiryDays", "30")
                         .param("historyCount", "5"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/password-policy"))
+                .andExpect(redirectedUrl("/contexa/admin/password-policy"))
                 .andExpect(flash().attribute("message", "msg.password.policy.updated"));
 
         verify(passwordPolicyService).updatePolicy(argThat(policy ->

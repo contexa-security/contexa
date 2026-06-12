@@ -32,7 +32,7 @@ import java.security.Principal;
  * Page controller serving Zero Trust BLOCK/ESCALATE dedicated pages.
  */
 @Controller
-@RequestMapping("/zero-trust")
+@RequestMapping("/contexa/zero-trust")
 @RequiredArgsConstructor
 public class ZeroTrustPageController {
 
@@ -63,7 +63,7 @@ public class ZeroTrustPageController {
         model.addAttribute("mfaFailCount", mfaFailCount);
         model.addAttribute("maxMfaAttempts", maxAttempts);
         model.addAttribute("mfaExhausted", mfaFailed || mfaFailCount >= maxAttempts);
-        return "zero-trust/blocked";
+        return "contexa/zero-trust/blocked";
     }
 
     @GetMapping("/challenge-required")
@@ -74,7 +74,7 @@ public class ZeroTrustPageController {
         }
         String safeMfaUrl = sanitizeRelativeUrl(mfaUrl, "/mfa/select-factor");
         model.addAttribute("mfaUrl", safeMfaUrl);
-        return "zero-trust/challenge-required";
+        return "contexa/zero-trust/challenge-required";
     }
 
     private String sanitizeRelativeUrl(String url, String fallback) {
@@ -95,6 +95,6 @@ public class ZeroTrustPageController {
             @RequestParam(required = false, defaultValue = "/") String returnUrl,
             Model model) {
         model.addAttribute("returnUrl", returnUrl);
-        return "zero-trust/analysis-pending";
+        return "contexa/zero-trust/analysis-pending";
     }
 }

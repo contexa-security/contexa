@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/admin/api/policies")
+@RequestMapping("/contexa/admin/api/policies")
 @RequiredArgsConstructor
 public class PolicyApiController {
 

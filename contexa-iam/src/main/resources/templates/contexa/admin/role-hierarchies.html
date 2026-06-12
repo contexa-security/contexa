@@ -16,14 +16,14 @@
                     <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.role.hierarchy.title}">Role Hierarchy Management</h1>
                     <p class="text-dark-muted mt-1" th:text="#{admin.role.hierarchy.subtitle}">Define hierarchical relationships between roles. Multiple hierarchies can be active simultaneously and are automatically merged.</p>
                 </div>
-                <a th:href="@{/admin/role-hierarchies/register}"
+                <a th:href="@{/contexa/admin/role-hierarchies/register}"
                    class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
                     <span th:text="#{admin.role.hierarchy.new}">Register New Hierarchy</span>
                 </a>
             </div>
 
-            <form th:action="@{/admin/role-hierarchies}" method="get" class="mb-6 flex gap-3">
+            <form th:action="@{/contexa/admin/role-hierarchies}" method="get" class="mb-6 flex gap-3">
                 <div class="relative flex-1">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
                     <input type="text" name="keyword" th:value="${keyword}"
@@ -35,7 +35,7 @@
                         style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
                     <i class="fas fa-search mr-1"></i> <span th:text="#{common.action.search}">Search</span>
                 </button>
-                <a th:href="@{/admin/role-hierarchies}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
+                <a th:href="@{/contexa/admin/role-hierarchies}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
                    style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
                    th:text="#{common.action.reset}">Reset</a>
             </form>
@@ -64,16 +64,16 @@
                                   style="background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3);" th:text="#{admin.role.hierarchy.inactive}">Inactive</span>
                         </td>
                         <td class="py-4 px-6 space-x-3 whitespace-nowrap">
-                            <a th:href="@{/admin/role-hierarchies/{id}(id=${h.id})}"
+                            <a th:href="@{/contexa/admin/role-hierarchies/{id}(id=${h.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" th:text="#{common.edit}">Edit</a>
-                            <form th:action="@{/admin/role-hierarchies/delete/{id}(id=${h.id})}" method="post" class="inline"
+                            <form th:action="@{/contexa/admin/role-hierarchies/delete/{id}(id=${h.id})}" method="post" class="inline"
                                   th:data-confirm-msg="#{common.confirm.delete.hierarchy}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
                                         style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);" th:text="#{common.delete}">Delete</button>
                             </form>
-                            <form th:action="@{/admin/role-hierarchies/{id}/activate(id=${h.id})}" method="post" class="inline">
+                            <form th:action="@{/contexa/admin/role-hierarchies/{id}/activate(id=${h.id})}" method="post" class="inline">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
                                         th:style="${h.isActive ? 'background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3);'}"
@@ -91,18 +91,18 @@
             </div>
 
             <nav th:if="${hierarchyPage != null and hierarchyPage.totalPages > 1}" class="flex justify-center mt-6 gap-2">
-                <a th:if="${!hierarchyPage.first}" th:href="@{/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number - 1})}"
+                <a th:if="${!hierarchyPage.first}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number - 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &laquo;
                 </a>
                 <th:block th:each="i : ${#numbers.sequence(0, hierarchyPage.totalPages - 1)}">
-                    <a th:href="@{/admin/role-hierarchies(keyword=${keyword},page=${i})}"
+                    <a th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${i})}"
                        th:text="${i + 1}"
                        class="px-3 py-2 rounded text-sm"
                        th:style="${i == hierarchyPage.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
                     </a>
                 </th:block>
-                <a th:if="${!hierarchyPage.last}" th:href="@{/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number + 1})}"
+                <a th:if="${!hierarchyPage.last}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number + 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &raquo;
                 </a>

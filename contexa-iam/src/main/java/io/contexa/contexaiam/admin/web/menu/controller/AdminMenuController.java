@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import java.util.List;
 
 @Controller
-@RequestMapping("/admin/menu-management")
+@RequestMapping("/contexa/admin/menu-management")
 @RequiredArgsConstructor
 public class AdminMenuController {
 
@@ -51,7 +51,7 @@ public class AdminMenuController {
         model.addAttribute("menus", pageModel.menus());
         model.addAttribute("parentIds", pageModel.parentIds());
         model.addAttribute("allRoles", pageModel.allRoles());
-        return "admin/menu-management";
+        return "contexa/admin/menu-management";
     }
 
     @PostMapping("/api/toggle/{id}")

@@ -47,14 +47,14 @@ public class PasswordChangeController {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
-    @GetMapping("/password-change")
+    @GetMapping("/contexa/password-change")
     public String showPasswordChangeForm(@RequestParam String username, Model model) {
         model.addAttribute("username", username);
         model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
-        return "password-change";
+        return "contexa/password-change";
     }
 
-    @PostMapping("/password-change")
+    @PostMapping("/contexa/password-change")
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public String processPasswordChange(
@@ -68,32 +68,32 @@ public class PasswordChangeController {
         Users user = userRepository.findByUsername(username).orElse(null);
         if (user == null) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.change.user.not.found"));
-            return "redirect:/password-change?username=" + username;
+            return "redirect:/contexa/password-change?username=" + username;
         }
 
         // Validate current password
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.change.current.incorrect"));
-            return "redirect:/password-change?username=" + username;
+            return "redirect:/contexa/password-change?username=" + username;
         }
 
         // Validate new password confirmation
         if (!newPassword.equals(confirmPassword)) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.change.mismatch"));
-            return "redirect:/password-change?username=" + username;
+            return "redirect:/contexa/password-change?username=" + username;
         }
 
         // Validate against password policy
         List<String> violations = passwordPolicyService.validatePassword(newPassword);
         if (!violations.isEmpty()) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.change.policy.violation", String.join(", ", violations)));
-            return "redirect:/password-change?username=" + username;
+            return "redirect:/contexa/password-change?username=" + username;
         }
 
         // Check password reuse
         if (passwordPolicyService.isPasswordReused(user.getId(), newPassword)) {
             ra.addFlashAttribute("errorMessage", msg("msg.password.change.reused"));
-            return "redirect:/password-change?username=" + username;
+            return "redirect:/contexa/password-change?username=" + username;
         }
 
         // Record current password in history before changing
@@ -106,6 +106,6 @@ public class PasswordChangeController {
         userRepository.save(user);
 
         ra.addFlashAttribute("message", msg("msg.password.change.success"));
-        return "redirect:/admin/mfa/login";
+        return "redirect:/contexa/admin/mfa/login";
     }
 }

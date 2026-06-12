@@ -58,7 +58,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
-
+
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ResourceAdminController contract")
@@ -107,7 +108,7 @@ class ResourceAdminControllerTest {
                     .thenReturn(new PageImpl<>(List.of(resource), PageRequest.of(0, 10), 1));
             when(resourceRegistryService.getAllServiceOwners()).thenReturn(Set.of("billing"));
 
-            MvcResult result = mockMvc.perform(get("/admin/workbench/resources"))
+            MvcResult result = mockMvc.perform(get("/contexa/admin/workbench/resources"))
                     .andExpect(status().isOk())
                     .andExpect(view().name("admin/resource-workbench"))
                     .andExpect(model().attribute("activePage", "policy-center"))
@@ -143,7 +144,7 @@ class ResourceAdminControllerTest {
             Permission permission = Permission.builder().id(100L).friendlyName("Orders Read").build();
             when(resourceRegistryService.defineResourceAsPermission(any(), any())).thenReturn(permission);
 
-            mockMvc.perform(post("/admin/workbench/resources/1/define")
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/define")
                             .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                             .param("friendlyName", "Orders Read")
                             .param("description", "Read orders"))
@@ -159,7 +160,7 @@ class ResourceAdminControllerTest {
             when(resourceRegistryService.defineResourceAsPermission(any(), any()))
                     .thenThrow(new RuntimeException("definition failed"));
 
-            mockMvc.perform(post("/admin/workbench/resources/1/define")
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/define")
                             .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                             .param("friendlyName", "Orders Read"))
                     .andExpect(status().isBadRequest())
@@ -183,7 +184,7 @@ class ResourceAdminControllerTest {
             when(resourceRegistryService.defineResourceAsPermission(Mockito.eq(3L), any()))
                     .thenThrow(new RuntimeException("create failed"));
 
-            mockMvc.perform(post("/admin/workbench/resources/define-batch")
+            mockMvc.perform(post("/contexa/admin/workbench/resources/define-batch")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     [
@@ -217,7 +218,7 @@ class ResourceAdminControllerTest {
             when(resourceRegistryService.defineResourceAsPermission(Mockito.eq(2L), any()))
                     .thenReturn(newPermission);
 
-            mockMvc.perform(post("/admin/workbench/resources/define-batch")
+            mockMvc.perform(post("/contexa/admin/workbench/resources/define-batch")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     [
@@ -233,7 +234,7 @@ class ResourceAdminControllerTest {
         @Test
         @DisplayName("batch define rejects null request body without server error")
         void defineResourcesBatchNullBody() throws Exception {
-            mockMvc.perform(post("/admin/workbench/resources/define-batch")
+            mockMvc.perform(post("/contexa/admin/workbench/resources/define-batch")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("null"))
                     .andExpect(status().isBadRequest())
@@ -249,7 +250,7 @@ class ResourceAdminControllerTest {
         @Test
         @DisplayName("restore keeps response JSON")
         void restoreResource() throws Exception {
-            mockMvc.perform(post("/admin/workbench/resources/1/restore"))
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/restore"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Resource restored to management"))
                     .andExpect(jsonPath("$.resourceId").value(1))
@@ -263,7 +264,7 @@ class ResourceAdminControllerTest {
         @Test
         @DisplayName("exclude keeps response JSON")
         void excludeResource() throws Exception {
-            mockMvc.perform(post("/admin/workbench/resources/1/exclude"))
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/exclude"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.message").value("Resource excluded from management"))
                     .andExpect(jsonPath("$.resourceId").value(1))

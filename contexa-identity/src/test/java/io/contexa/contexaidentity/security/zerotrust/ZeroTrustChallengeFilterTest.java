@@ -48,7 +48,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.core.GrantedAuthority;
-
+
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ZeroTrustChallengeFilterTest {
@@ -120,7 +121,7 @@ class ZeroTrustChallengeFilterTest {
     @Test
     @DisplayName("제로트러스트 안내 경로는 challenge filter를 건너뛴다")
     void zero() throws Exception {
-        when(request.getRequestURI()).thenReturn("/zero-trust/blocked");
+        when(request.getRequestURI()).thenReturn("/contexa/zero-trust/blocked");
 
         filter.doFilter(request, response, filterChain);
 

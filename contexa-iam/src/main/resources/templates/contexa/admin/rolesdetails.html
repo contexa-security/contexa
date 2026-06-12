@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.groups.detail.title})}">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.roles.detail.title})}">
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -14,44 +14,55 @@
         <div class="w-full max-w-2xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
             <div class="text-center mb-8">
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
-                    <i class="fas fa-users text-2xl text-white"></i>
+                    <i class="fas fa-shield-alt text-2xl text-white"></i>
                 </div>
-                <h2 class="text-3xl font-bold text-gradient" th:text="${group.id != null} ? #{admin.groups.detail.edit.title} : #{admin.groups.detail.create.title}">Group Details</h2>
+                <h2 class="text-3xl font-bold text-gradient" th:text="${role.id != null} ? #{admin.roles.detail.edit.title} : #{admin.roles.detail.create.title}">Role Details</h2>
             </div>
 
-            <form th:action="${group.id != null ? '/admin/groups/' + group.id + '/edit' : '/admin/groups'}" method="post" th:object="${group}" class="space-y-6">
-                <input type="hidden" th:field="*{id}" th:if="${group.id != null}" />
+            <form th:action="${role.id != null ? '/admin/roles/' + role.id + '/edit' : '/admin/roles'}" method="post" th:object="${role}" class="space-y-6">
+                <input type="hidden" th:field="*{id}" th:if="${role.id != null}" />
 
                 <div class="space-y-4">
                     <h3 class="text-lg font-semibold flex items-center gap-2" style="color: #e2e8f0;">
                         <i class="fas fa-info-circle" style="color: #818cf8;"></i>
-                        <span th:text="#{admin.groups.detail.basic.info}">Basic Information</span>
+                        <span th:text="#{admin.roles.detail.basic.info}">Basic Information</span>
                     </h3>
 
                     <div>
-                        <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.groups.detail.name}">Group Name (unique)</span>
+                        <label for="roleName" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.name}">Role Name (unique, e.g. ADMIN)</span>
                         </label>
-                        <input type="text" id="name" th:field="*{name}"
-                               class="detail-input"
-                               th:placeholder="#{admin.groups.detail.name.placeholder}" placeholder="e.g. DEVELOPERS" required />
+                        <input type="text" id="roleName" th:field="*{roleName}"
+                               class="detail-input font-mono"
+                               placeholder="ROLE_USER" required />
                     </div>
 
                     <div>
-                        <label for="description" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.groups.detail.description}">Description</span>
+                        <label for="roleDesc" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.description}">Description</span>
                         </label>
-                        <input type="text" id="description" th:field="*{description}"
+                        <input type="text" id="roleDesc" th:field="*{roleDesc}"
                                class="detail-input"
-                               th:placeholder="#{admin.groups.detail.description.placeholder}" placeholder="Enter group description" />
+                               th:placeholder="#{admin.roles.detail.description.placeholder}" placeholder="Enter role description" />
+                    </div>
+
+                    <div>
+                        <label for="isExpression" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-code mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.expression}">Expression</span>
+                        </label>
+                        <select id="isExpression" th:field="*{expression}"
+                                class="detail-input">
+                            <option value="false" th:text="#{common.no}">No (N)</option>
+                            <option value="true" th:text="#{common.yes}">Yes (Y)</option>
+                        </select>
                     </div>
 
                     <div class="flex items-center justify-between p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
                         <div>
                             <label class="block text-sm font-medium" style="color: #cbd5e1;">
-                                <i class="fas fa-power-off mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.groups.detail.enabled}">Active Status</span>
+                                <i class="fas fa-power-off mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.enabled}">Active Status</span>
                             </label>
-                            <p class="text-xs mt-1" style="color: #64748b;" th:text="#{admin.groups.detail.enabled.desc}">Permissions of this group will not apply when disabled.</p>
+                            <p class="text-xs mt-1" style="color: #64748b;" th:text="#{admin.roles.detail.enabled.desc}">Permissions of this role will not apply when disabled.</p>
                         </div>
                         <label class="switch">
                             <input type="checkbox" id="enabled" th:field="*{enabled}" />
@@ -63,69 +74,65 @@
                 <div class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <div class="flex items-center justify-between mb-4">
                         <label class="block text-sm font-medium" style="color: #cbd5e1;">
-                            <i class="fas fa-shield-alt mr-2" style="color: #818cf8;"></i>
-                            <span th:text="#{admin.groups.detail.roles}">Assigned Roles</span>
+                            <i class="fas fa-key mr-2" style="color: #818cf8;"></i>
+                            <span th:text="#{admin.roles.detail.permissions}">Assigned Permissions</span>
                         </label>
-                        <a th:href="@{/admin/access-center(tab='groups')}" class="text-xs font-medium px-3 py-1 rounded border transition-all duration-200"
+                        <a th:href="@{/contexa/admin/access-center(tab='roles')}" class="text-xs font-medium px-3 py-1 rounded border transition-all duration-200"
                            style="color: #818cf8; border-color: rgba(99,102,241,0.3); text-decoration: none;">
                             <i class="fas fa-external-link-alt mr-1"></i><span th:text="#{admin.users.detail.manage.at.access.center}">Manage at Access Center</span>
                         </a>
                     </div>
 
                     <div class="flex flex-wrap gap-2">
-                        <div th:each="role : ${roleList}" th:if="${#lists.contains(selectedRoleIds, role.id)}">
+                        <div th:each="permission : ${permissionList}" th:if="${#lists.contains(selectedPermissionIds, permission.id)}">
                             <span class="px-3 py-1 rounded-full text-sm font-semibold"
-                                  style="background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3);"
-                                  th:text="${role.roleName}"></span>
+                                  style="background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3);"
+                                  th:text="${permission.friendlyName ?: permission.name}"></span>
                         </div>
-                        <div th:if="${#lists.isEmpty(selectedRoleIds)}">
-                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.groups.detail.roles.empty}">No roles assigned.</span>
+                        <div th:if="${#lists.isEmpty(selectedPermissionIds)}">
+                            <span class="text-sm" style="color: #64748b;" th:text="#{admin.roles.detail.permissions.empty}">No permissions assigned.</span>
                         </div>
                     </div>
 
-                    <div th:each="rid : ${selectedRoleIds}">
-                        <input type="hidden" name="selectedRoleIds" th:value="${rid}" />
+                    <div th:each="pid : ${selectedPermissionIds}">
+                        <input type="hidden" name="permissionIds" th:value="${pid}" />
                     </div>
                 </div>
 
-                <div th:if="${group.id != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
+                <div th:if="${role.id != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-history" style="color: #818cf8;"></i>
-                        <span th:text="#{admin.groups.detail.audit.title}">Audit Information</span>
+                        <span th:text="#{admin.roles.detail.audit.title}">Audit Information</span>
                     </h3>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">
-                                <i class="fas fa-calendar-plus mr-1"></i> <span th:text="#{admin.groups.detail.audit.created.at}">Created At</span>
+                                <i class="fas fa-calendar-plus mr-1"></i> <span th:text="#{admin.roles.detail.audit.created.at}">Created At</span>
                             </label>
-                            <input type="text" th:value="${group.createdAt != null ? #temporals.format(group.createdAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
+                            <input type="text" th:value="${role.createdAt != null ? #temporals.format(role.createdAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
                                    class="detail-input text-sm" disabled />
                         </div>
                         <div>
                             <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">
-                                <i class="fas fa-calendar-check mr-1"></i> <span th:text="#{admin.groups.detail.audit.updated.at}">Updated At</span>
+                                <i class="fas fa-calendar-check mr-1"></i> <span th:text="#{admin.roles.detail.audit.updated.at}">Updated At</span>
                             </label>
-                            <input type="text" th:value="${group.updatedAt != null ? #temporals.format(group.updatedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
+                            <input type="text" th:value="${role.updatedAt != null ? #temporals.format(role.updatedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
                                    class="detail-input text-sm" disabled />
                         </div>
                     </div>
 
-                    <div class="mt-4" th:if="${group.createdBy != null}">
+                    <div class="mt-4" th:if="${role.createdBy != null}">
                         <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">
-                            <i class="fas fa-user-edit mr-1"></i> <span th:text="#{admin.groups.detail.audit.created.by}">Created By</span>
+                            <i class="fas fa-user-edit mr-1"></i> <span th:text="#{admin.roles.detail.audit.created.by}">Created By</span>
                         </label>
-                        <input type="text" th:value="${group.createdBy}" class="detail-input text-sm" disabled />
+                        <input type="text" th:value="${role.createdBy}" class="detail-input text-sm" disabled />
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 mt-4">
-                        <div class="p-3 rounded-lg text-center" style="background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2);">
-                            <div class="text-2xl font-bold" style="color: #818cf8;" th:text="${group.roleCount}">0</div>
-                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.groups.detail.stat.roles}">Assigned Roles</div>
-                        </div>
-                        <div class="p-3 rounded-lg text-center" style="background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.2);">
-                            <div class="text-2xl font-bold" style="color: #34d399;" th:text="${group.userCount}">0</div>
-                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.groups.detail.stat.users}">Member Count</div>
+                    <div class="mt-4">
+                        <div class="p-3 rounded-lg text-center" style="background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2);">
+                            <div class="text-2xl font-bold" style="color: #fbbf24;" th:text="${role.permissionCount}">0</div>
+                            <div class="text-xs" style="color: #94a3b8;" th:text="#{admin.roles.detail.stat.permissions}">Assigned Permissions</div>
                         </div>
                     </div>
                 </div>
@@ -135,15 +142,15 @@
                             class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
                             style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
                         <i class="fas fa-check mr-2"></i>
-                        <span th:text="${group.id != null} ? #{admin.groups.detail.save} : #{admin.groups.detail.register}">Save</span>
+                        <span th:text="${role.id != null} ? #{admin.roles.detail.save} : #{admin.roles.detail.register}">Save</span>
                     </button>
                 </div>
             </form>
 
             <div class="mt-6 text-center">
-                <a th:href="@{/admin/groups}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
+                <a th:href="@{/contexa/admin/roles}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
                     <i class="fas fa-arrow-left mr-2"></i>
-                    <span th:text="#{admin.groups.detail.back}">Back to Group List</span>
+                    <span th:text="#{admin.roles.detail.back}">Back to Role List</span>
                 </a>
             </div>
         </div>
