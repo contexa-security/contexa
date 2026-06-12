@@ -16,9 +16,11 @@
 package io.contexa.autoconfigure.core;
 
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
+import org.springframework.context.annotation.AnnotationBeanNameGenerator;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.ResourceLoaderAware;
 import org.springframework.core.env.Environment;
@@ -28,9 +30,22 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.jpa.repository.config.JpaRepositoryConfigExtension;
 import org.springframework.data.repository.config.AnnotationRepositoryConfigurationSource;
 import org.springframework.data.repository.config.RepositoryConfigurationDelegate;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryPostProcessor,
         EnvironmentAware, ResourceLoaderAware {
+
+    private static final String ENABLED_PROPERTY = "contexa.jpa.repositories.enabled";
+    private static final String CONFLICT_MESSAGE = "Contexa repository packages must not be registered by the "
+            + "application's @EnableJpaRepositories. Contexa repositories are bound to contexaEntityManagerFactory "
+            + "and contexaTransactionManager by the Contexa auto-configuration.";
+    private static final List<String> CONTEXA_REPOSITORY_PACKAGES = List.of(
+            "io.contexa.contexacommon.repository",
+            "io.contexa.contexacore.repository",
+            "io.contexa.contexaiam.repository"
+    );
 
     private Environment environment;
     private ResourceLoader resourceLoader;
@@ -55,6 +70,11 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
 
     @Override
     public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
+        if (!repositoriesEnabled()) {
+            return;
+        }
+        assertApplicationDidNotPreRegisterContexaRepositories(registry);
+
         AnnotationMetadata metadata = AnnotationMetadata.introspect(ContexaRepositoriesConfiguration.class);
         AnnotationRepositoryConfigurationSource source = new AnnotationRepositoryConfigurationSource(
                 metadata, EnableJpaRepositories.class, this.resourceLoader, this.environment, registry, null);
@@ -67,6 +87,60 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
         // No-op
     }
 
+    private boolean repositoriesEnabled() {
+        return environment == null || environment.getProperty(ENABLED_PROPERTY, Boolean.class, true);
+    }
+
+    private void assertApplicationDidNotPreRegisterContexaRepositories(BeanDefinitionRegistry registry) {
+        for (String beanName : registry.getBeanDefinitionNames()) {
+            BeanDefinition beanDefinition = registry.getBeanDefinition(beanName);
+            String repositoryInterface = repositoryInterface(beanDefinition);
+            if (isContexaRepository(repositoryInterface)) {
+                throw new IllegalStateException(CONFLICT_MESSAGE + " Conflicting bean: " + beanName
+                        + ", repositoryInterface=" + repositoryInterface);
+            }
+        }
+    }
+
+    private String repositoryInterface(BeanDefinition beanDefinition) {
+        Object value = beanDefinition.getPropertyValues().get("repositoryInterface");
+        if (value == null) {
+            value = beanDefinition.getAttribute("repositoryInterface");
+        }
+        if (value != null) {
+            return repositoryInterfaceName(value);
+        }
+        for (var holder : beanDefinition.getConstructorArgumentValues().getGenericArgumentValues()) {
+            String repositoryInterface = repositoryInterfaceName(holder.getValue());
+            if (StringUtils.hasText(repositoryInterface)) {
+                return repositoryInterface;
+            }
+        }
+        for (var holder : beanDefinition.getConstructorArgumentValues().getIndexedArgumentValues().values()) {
+            String repositoryInterface = repositoryInterfaceName(holder.getValue());
+            if (StringUtils.hasText(repositoryInterface)) {
+                return repositoryInterface;
+            }
+        }
+        return null;
+    }
+
+    private String repositoryInterfaceName(Object value) {
+        if (value instanceof Class<?> repositoryInterface) {
+            return repositoryInterface.getName();
+        }
+        return value == null ? null : value.toString();
+    }
+
+    private boolean isContexaRepository(String repositoryInterface) {
+        if (!StringUtils.hasText(repositoryInterface)) {
+            return false;
+        }
+        String normalized = repositoryInterface.replace("class ", "").trim();
+        return CONTEXA_REPOSITORY_PACKAGES.stream()
+                .anyMatch(repositoryPackage -> normalized.startsWith(repositoryPackage + "."));
+    }
+
     @EnableJpaRepositories(
             basePackages = {
                     "io.contexa.contexacommon.repository",
@@ -74,8 +148,22 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
                     "io.contexa.contexaiam.repository"
             },
             entityManagerFactoryRef = "contexaEntityManagerFactory",
-            transactionManagerRef = "contexaTransactionManager"
+            transactionManagerRef = "contexaTransactionManager",
+            nameGenerator = ContexaRepositoryBeanNameGenerator.class
     )
     private static class ContexaRepositoriesConfiguration {
+    }
+
+    public static final class ContexaRepositoryBeanNameGenerator extends AnnotationBeanNameGenerator {
+
+        @Override
+        public String generateBeanName(BeanDefinition definition, BeanDefinitionRegistry registry) {
+            String beanName = super.generateBeanName(definition, registry);
+            if (!StringUtils.hasText(beanName)) {
+                return beanName;
+            }
+            String capitalized = Character.toUpperCase(beanName.charAt(0)) + beanName.substring(1);
+            return "contexa" + capitalized;
+        }
     }
 }

@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -35,9 +36,9 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import javax.sql.DataSource;
 
 @Slf4j
-@AutoConfiguration(after = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class})
+@AutoConfiguration(after = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class, CoreDataAutoConfiguration.class})
 @ConditionalOnClass(DataSource.class)
-@ConditionalOnBean({DataSource.class, PlatformConfig.class})
+@ConditionalOnBean(value = PlatformConfig.class, name = "contexaDataSource")
 @ConditionalOnProperty(prefix = "contexa.iam.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IamSeedDataAutoConfiguration {
 

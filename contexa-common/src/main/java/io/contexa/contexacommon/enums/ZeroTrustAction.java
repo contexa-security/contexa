@@ -40,8 +40,8 @@ public enum ZeroTrustAction {
     }
 
     public static ZeroTrustAction fromString(String action) {
-        if (action == null || action.isBlank()) {
-            return ESCALATE;
+        if (action == null) {
+            return PENDING_ANALYSIS;
         }
 
         return switch (action.trim().toUpperCase()) {

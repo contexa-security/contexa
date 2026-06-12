@@ -19,6 +19,7 @@ import io.contexa.contexacore.properties.ContexaSchedulerLockProperties;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
 import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -46,6 +47,7 @@ import javax.sql.DataSource;
  */
 @AutoConfiguration(after = DataSourceAutoConfiguration.class)
 @ConditionalOnClass({LockProvider.class, JdbcTemplateLockProvider.class})
+@ConditionalOnBean(name = "contexaDataSource")
 @ConditionalOnProperty(prefix = "contexa.scheduler.lock", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaSchedulerLockProperties.class)
 @EnableSchedulerLock(defaultLockAtMostFor = "PT5M")

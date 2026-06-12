@@ -23,6 +23,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.OAuth2TokenSettings;
 import io.contexa.contexacore.security.session.SessionIdResolver;
@@ -118,8 +119,8 @@ import org.springframework.util.StringUtils;
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
-@ConditionalOnBean(PlatformConfig.class)
+@AutoConfigureAfter({IdentitySecurityCoreAutoConfiguration.class, CoreDataAutoConfiguration.class})
+@ConditionalOnBean(value = PlatformConfig.class, name = {"contexaJdbcTemplate", "contexaTransactionTemplate"})
 public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
@@ -308,7 +309,7 @@ public class IdentityOAuth2AutoConfiguration {
         return repository;
     }
 
-    private void initializeAuthorizationServerSchema(DataSource dataSource) {
+    private void initializeAuthorizationServerSchema(@Qualifier("contexaDataSource") DataSource dataSource) {
         if (dataSource == null) {
             throw new IllegalStateException("DataSource is required for OAuth2 authorization server schema initialization");
         }

@@ -57,6 +57,7 @@ import java.util.Set;
 public class CoreDataAutoConfiguration implements EnvironmentAware {
 
     @Bean
+    @ConditionalOnProperty(prefix = "contexa.jpa.repositories", name = "enabled", havingValue = "true", matchIfMissing = true)
     public static ContexaRepositoriesPostProcessor contexaRepositoriesPostProcessor(
             Environment environment, ResourceLoader resourceLoader) {
         return new ContexaRepositoriesPostProcessor(environment, resourceLoader);
