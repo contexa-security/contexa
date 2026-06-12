@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.security.monitor.detail.page.title})}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.security.monitor.detail.page.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 
 <div class="flex flex-1 overflow-hidden">
-    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
 
     <main class="flex-1 p-8 lg:p-12 overflow-y-auto">
         <div style="max-width: 72rem; margin: 0 auto;">
@@ -117,6 +117,6 @@
     </main>
 </div>
 
-<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 </body>
 </html>

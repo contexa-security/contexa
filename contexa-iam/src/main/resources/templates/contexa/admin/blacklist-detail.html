@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.blacklist.detail.title})}"></head>
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.blacklist.detail.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
 
 <div class="flex flex-1">
-    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
 
     <main class="flex-1 p-8 md:p-12">
         <div class="mx-auto" style="max-width: 72rem;">
@@ -285,7 +285,7 @@
     </main>
 </div>
 
-<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 
 <div id="i18nBlacklistDetail" style="display:none"
      th:data-reason-min="#{admin.blacklist.detail.js.reason.min}"

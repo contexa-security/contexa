@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></head>
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
 
 <div class="flex flex-1">
-    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
 
     <main class="flex-1 p-6 md:p-10">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
@@ -277,7 +277,7 @@
     </div>
 </div>
 
-<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 <div id="menu-i18n" style="display:none" th:data-add="#{admin.menu.management.add}" th:data-edit="#{admin.menu.management.field.edit}"></div>
 <script th:src="@{/js/toast.js}"></script>
 <script>

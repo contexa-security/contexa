@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></head>
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></head>
 <body>
 <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
 <link rel="stylesheet" th:href="@{/css/system-settings.css}" />
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 <div style="display: flex; min-height: 100vh;">
-    <div th:insert="~{fragments/admin-menu :: menu}"></div>
+    <div th:insert="~{contexa/fragments/admin-menu :: menu}"></div>
     <main class="main-content system-settings-page" style="flex: 1; padding: 2rem;">
 
         <div class="system-settings-container">
@@ -89,7 +89,7 @@
 
     </main>
 </div>
-<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 <script th:src="@{/js/toast.js}"></script>
 <script th:src="@{/js/system-settings.js}"></script>
 </body>
