@@ -76,6 +76,7 @@ public class AiSecurityConfiguration {
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
                     .authorizeHttpRequests(authReq -> authReq
+                            .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
             ;
@@ -87,7 +88,9 @@ public class AiSecurityConfiguration {
                         http.csrf(AbstractHttpConfigurer::disable);
                         http.cors(AbstractHttpConfigurer::disable);
                         http.headers(AbstractHttpConfigurer::disable);
-                        http.authorizeHttpRequests(authReq -> authReq.requestMatchers("/contexa/admin/**").authenticated());
+                        http.authorizeHttpRequests(authReq -> authReq
+                                .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                                .requestMatchers("/contexa/admin/**").authenticated());
                     })
                     .mfa(mfa -> mfa.requiredFactors(1)
                             .primaryAuthentication(auth -> auth
