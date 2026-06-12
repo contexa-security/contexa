@@ -47,11 +47,11 @@
         <div class="mb-8">
             <div class="flex items-center justify-between mb-5">
                 <h2 class="text-xl font-bold" style="color: #e2e8f0;"><i class="fas fa-shield-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.dashboard.policy.center.title}">Policy Center</span></h2>
-                <a th:href="@{/contexa/contexa/admin/policy-center}" class="text-sm font-medium" style="color: #818cf8; text-decoration: none;"><span th:text="#{admin.dashboard.policy.center.link}">Policy Center</span> <i class="fas fa-arrow-right ml-1"></i></a>
+                <a th:href="@{/contexa/admin/policy-center}" class="text-sm font-medium" style="color: #818cf8; text-decoration: none;"><span th:text="#{admin.dashboard.policy.center.link}">Policy Center</span> <i class="fas fa-arrow-right ml-1"></i></a>
             </div>
 
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1.25rem;margin-bottom:1.5rem;">
-                <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}"
+                <a th:href="@{/contexa/admin/policy-center(tab='list')}"
                    th:style="${dashboardData.policyHealth.healthStatus() == 'CRITICAL' ? 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#dc2626,#991b1b);box-shadow:0 4px 20px rgba(220,38,38,0.3);' : (dashboardData.policyHealth.healthStatus() == 'WARNING' ? 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#d97706,#92400e);box-shadow:0 4px 20px rgba(217,119,6,0.3);' : 'text-decoration:none;padding:1.5rem;border-radius:1rem;transition:transform 0.2s,box-shadow 0.2s;background:linear-gradient(135deg,#059669,#065f46);box-shadow:0 4px 20px rgba(5,150,105,0.3);')}"
                    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
@@ -69,7 +69,7 @@
                         <span th:text="#{admin.dashboard.policy.health.duplicates}">Duplicates</span> <strong style="color:rgba(255,255,255,0.9);" th:text="${dashboardData.policyHealth.duplicateCount()}">0</strong>
                     </div>
                 </a>
-                <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}" style="text-decoration:none;padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#4f46e5,#3730a3);box-shadow:0 4px 20px rgba(79,70,229,0.3);transition:transform 0.2s;"
+                <a th:href="@{/contexa/admin/policy-center(tab='list')}" style="text-decoration:none;padding:1.5rem;border-radius:1rem;background:linear-gradient(135deg,#4f46e5,#3730a3);box-shadow:0 4px 20px rgba(79,70,229,0.3);transition:transform 0.2s;"
                    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
                         <span class="text-sm font-medium" style="color:rgba(255,255,255,0.7);" th:text="#{admin.dashboard.policies}">Policies</span>
@@ -154,7 +154,7 @@
                 <div class="dash-card" style="padding:1.5rem;border-color:rgba(71,85,105,0.2);margin:0;">
                     <div class="text-sm font-semibold mb-4" style="color:#e2e8f0;" th:text="#{admin.dashboard.policy.status.title}">Policy Status</div>
                     <div style="display:flex;flex-direction:column;gap:0.75rem;">
-                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='list',approvalStatus='PENDING')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);transition:all 0.2s;cursor:pointer;"
+                        <a th:href="@{/contexa/admin/policy-center(tab='list',approvalStatus='PENDING')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);transition:all 0.2s;cursor:pointer;"
                            onmouseover="this.style.background='rgba(251,191,36,0.15)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(251,191,36,0.06)';this.style.transform='none'">
                             <div style="display:flex;align-items:center;gap:0.75rem;">
                                 <i class="fas fa-clock" style="color:#fbbf24;font-size:1rem;"></i>
@@ -162,7 +162,7 @@
                             </div>
                             <span class="text-2xl font-bold" style="color:#fbbf24;" th:text="${dashboardData.policyStatus.pendingApproval()}">0</span>
                         </a>
-                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='list',approvalStatus='APPROVED')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);transition:all 0.2s;cursor:pointer;"
+                        <a th:href="@{/contexa/admin/policy-center(tab='list',approvalStatus='APPROVED')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);transition:all 0.2s;cursor:pointer;"
                            onmouseover="this.style.background='rgba(34,197,94,0.15)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(34,197,94,0.06)';this.style.transform='none'">
                             <div style="display:flex;align-items:center;gap:0.75rem;">
                                 <i class="fas fa-check-circle" style="color:#4ade80;font-size:1rem;"></i>
@@ -170,7 +170,7 @@
                             </div>
                             <span class="text-2xl font-bold" style="color:#4ade80;" th:text="${dashboardData.policyStatus.approvedPolicies()}">0</span>
                         </a>
-                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='list',approvalStatus='REJECTED')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);transition:all 0.2s;cursor:pointer;"
+                        <a th:href="@{/contexa/admin/policy-center(tab='list',approvalStatus='REJECTED')}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-radius:0.75rem;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);transition:all 0.2s;cursor:pointer;"
                            onmouseover="this.style.background='rgba(239,68,68,0.15)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(239,68,68,0.06)';this.style.transform='none'">
                             <div style="display:flex;align-items:center;gap:0.75rem;">
                                 <i class="fas fa-times-circle" style="color:#f87171;font-size:1rem;"></i>
@@ -490,7 +490,7 @@
                         </div>
                     </div>
                 </a>
-                <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(34,211,238,0.06)'" onmouseout="this.style.background='transparent'">
+                <a th:href="@{/contexa/admin/policy-center(tab='list')}" style="text-decoration:none;display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;border-radius:0.625rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(34,211,238,0.06)'" onmouseout="this.style.background='transparent'">
                     <div style="width:2.25rem;height:2.25rem;border-radius:0.625rem;background:rgba(34,211,238,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-shield-alt" style="color:#22d3ee;font-size:0.9rem;"></i>
                     </div>
@@ -514,7 +514,7 @@
         <div class="mb-8">
             <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;"><i class="fas fa-th-large mr-2" style="color:#a78bfa;"></i><span th:text="#{admin.dashboard.shortcuts}">Shortcuts</span></h2>
             <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <a th:href="@{/contexa/contexa/admin/policy-center}" class="dash-action" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
+                <a th:href="@{/contexa/admin/policy-center}" class="dash-action" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
                     <div style="background: rgba(255,255,255,0.1); width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
                         <i class="fas fa-shield-alt text-lg"></i>
                     </div>
@@ -535,7 +535,7 @@
                     <div class="font-bold" th:text="#{admin.dashboard.shortcut.create.group}">Create Group</div>
                     <div class="text-xs mt-0.5" style="opacity: 0.8;" th:text="#{admin.dashboard.shortcut.create.group.desc}">Organize team structure</div>
                 </a>
-                <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources')}" class="dash-action" style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+                <a th:href="@{/contexa/admin/policy-center(tab='resources')}" class="dash-action" style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
                     <div style="background: rgba(255,255,255,0.1); width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
                         <i class="fas fa-cube text-lg"></i>
                     </div>

@@ -21,13 +21,13 @@
             </div>
 
             <nav class="pc-tab-nav mb-6">
-                <a th:href="@{/contexa/contexa/admin/policy-center(tab='create')}"
+                <a th:href="@{/contexa/admin/policy-center(tab='create')}"
                    class="pc-tab-btn" th:classappend="${activeTab == 'create' or activeTab == 'resources'} ? ' active' : ''">
                     <i class="fas fa-plus-circle"></i>
                     <span th:text="#{admin.policy.center.tab.create}">Policy Creation</span>
                     <span class="tab-count" th:text="${resourcePage?.totalElements} ?: '0'"></span>
                 </a>
-                <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}"
+                <a th:href="@{/contexa/admin/policy-center(tab='list')}"
                    class="pc-tab-btn" th:classappend="${activeTab == 'list'} ? ' active' : ''">
                     <i class="fas fa-list-alt"></i>
                     <span th:text="#{admin.policy.center.tab.list}">Policy List (List)</span>
@@ -47,7 +47,7 @@
 
             <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources' or activeTab == 'create'} ? ' active' : ''">
 
-                <form th:action="@{/contexa/contexa/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
+                <form th:action="@{/contexa/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="create" />
                     <div class="flex gap-2 justify-end mb-4">
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.refreshResources(this)"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
@@ -71,7 +71,7 @@
                         <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.keyword}">Keyword</span>
                         <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" th:placeholder="#{admin.policy.center.resource.keyword.placeholder}">
                         <button type="submit" class="modern-btn-primary" style="white-space:nowrap;"><i class="fas fa-search"></i> <span th:text="#{admin.policy.center.resource.search}">Search</span></button>
-                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center" style="white-space:nowrap;"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.resource.clear.filter}">Clear Filter</span></a>
+                        <a th:href="@{/contexa/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center" style="white-space:nowrap;"><i class="fas fa-times"></i> <span th:text="#{admin.policy.center.resource.clear.filter}">Clear Filter</span></a>
                     </div>
                 </form>
 
@@ -195,17 +195,17 @@
                     <ul class="modern-pagination">
                         <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-left"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <!-- 이전 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=${currentPage - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
                         </li>
 
                         <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
                         <th:block th:if="${startPage > 0}">
                             <li class="page-item">
-                                <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}">1</a>
+                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}">1</a>
                             </li>
                             <li class="page-item disabled" th:if="${startPage > 1}">
                                 <span class="page-link">...</span>
@@ -215,7 +215,7 @@
                         <!-- 동적 페이지 번호 루프 -->
                         <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
                             class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=${pageNumber}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${pageNumber + 1}"></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${pageNumber}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${pageNumber + 1}"></a>
                         </li>
 
                         <!-- endPage와 마지막 페이지 사이에 생략이 있으면 ...과 마지막 페이지 표시 -->
@@ -224,17 +224,17 @@
                                 <span class="page-link">...</span>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${totalPages}"></a>
+                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${totalPages}"></a>
                             </li>
                         </th:block>
 
                         <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=${currentPage + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
                         </li>
                         <!-- 끝 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-right"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>
@@ -271,7 +271,7 @@
                         <p class="text-base" style="color: #94a3b8; max-width: 40rem; margin: 0 auto 3.5rem; white-space: nowrap;" th:text="#{admin.policy.center.create.guide}">
                             Select a resource in the Resources tab and click the "Create Permission &amp; Policy" button.
                         </p>
-                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources')}" class="modern-btn-primary" style="padding: 0.875rem 2rem; font-size: 1rem;">
+                        <a th:href="@{/contexa/admin/policy-center(tab='resources')}" class="modern-btn-primary" style="padding: 0.875rem 2rem; font-size: 1rem;">
                             <i class="fas fa-arrow-left mr-2"></i><span th:text="#{admin.policy.center.create.go.resources}">Go to Resources Tab</span>
                         </a>
                     </div>
@@ -397,7 +397,7 @@
                         <p class="text-sm" style="color: #94a3b8;" th:text="#{admin.policy.center.create.manual.subtitle}">Create precise access control policies by directly setting Target, Rule, and Condition.</p>
                     </div>
 
-                    <form id="manual-create-form" th:action="@{/contexa/contexa/admin/policy-center/create-policy}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyCenter.Manual.validateAndSubmit(event)">
+                    <form id="manual-create-form" th:action="@{/contexa/admin/policy-center/create-policy}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyCenter.Manual.validateAndSubmit(event)">
                         <div class="manual-form-section">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
@@ -519,11 +519,11 @@
                         <div class="flex flex-wrap items-center justify-center gap-3" style="padding: 0.5rem 0;">
                             <a th:href="@{/contexa/admin/roles}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-users"></i> <span th:text="#{admin.dashboard.roles}">Roles</span> <strong id="ai-stat-roles-count">-</strong></a>
                             <a th:href="@{/contexa/admin/permissions}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-key"></i> <span th:text="#{admin.dashboard.permissions}">Permissions</span> <strong id="ai-stat-perms-count">-</strong></a>
-                            <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-shield-alt"></i> <span th:text="#{admin.dashboard.policies}">Policies</span> <strong id="ai-stat-policies-count">-</strong></a>
+                            <a th:href="@{/contexa/admin/policy-center(tab='list')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-shield-alt"></i> <span th:text="#{admin.dashboard.policies}">Policies</span> <strong id="ai-stat-policies-count">-</strong></a>
                             <span style="color: #334155; font-size: 1.25rem;">|</span>
-                            <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources',status='PERMISSION_CREATED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24;"><i class="fas fa-exclamation-triangle"></i> <span th:text="#{admin.policy.center.create.ai.awaiting.policy}">Awaiting Policy</span> <strong id="ai-stat-resource-unprotected">-</strong></a>
-                            <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources',status='POLICY_CONNECTED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80;"><i class="fas fa-shield-alt"></i> <span th:text="#{admin.policy.center.create.ai.connected}">Connected</span> <strong id="ai-stat-resource-connected">-</strong></a>
-                            <a th:href="@{/contexa/contexa/admin/policy-center(tab='resources',status='NEEDS_DEFINITION')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171;"><i class="fas fa-exclamation-circle"></i> <span th:text="#{admin.policy.center.create.ai.incomplete}">Incomplete</span> <strong id="ai-stat-resource-needs-def">-</strong></a>
+                            <a th:href="@{/contexa/admin/policy-center(tab='resources',status='PERMISSION_CREATED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24;"><i class="fas fa-exclamation-triangle"></i> <span th:text="#{admin.policy.center.create.ai.awaiting.policy}">Awaiting Policy</span> <strong id="ai-stat-resource-unprotected">-</strong></a>
+                            <a th:href="@{/contexa/admin/policy-center(tab='resources',status='POLICY_CONNECTED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80;"><i class="fas fa-shield-alt"></i> <span th:text="#{admin.policy.center.create.ai.connected}">Connected</span> <strong id="ai-stat-resource-connected">-</strong></a>
+                            <a th:href="@{/contexa/admin/policy-center(tab='resources',status='NEEDS_DEFINITION')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171;"><i class="fas fa-exclamation-circle"></i> <span th:text="#{admin.policy.center.create.ai.incomplete}">Incomplete</span> <strong id="ai-stat-resource-needs-def">-</strong></a>
                         </div>
                         <span class="hidden" id="ai-stat-conditions-count">-</span>
                         <span class="hidden" id="ai-stat-resource-total">-</span>
@@ -697,7 +697,7 @@
                     <div id="health-details" class="mt-3 hidden"></div>
                 </div>
 
-                <form th:action="@{/contexa/contexa/admin/policy-center}" method="get" class="filter-container mb-6">
+                <form th:action="@{/contexa/admin/policy-center}" method="get" class="filter-container mb-6">
                     <input type="hidden" name="tab" value="list" />
                     <div class="flex gap-4 items-end">
                         <div class="flex-1">
@@ -705,7 +705,7 @@
                             <input type="text" name="policyKeyword" th:value="${policyKeyword}" class="modern-input" th:placeholder="#{admin.policy.center.list.search.placeholder}" placeholder="Search by name, description..." />
                         </div>
                         <button type="submit" class="modern-btn-primary"><i class="fas fa-search"></i> <span th:text="#{common.search}">Search</span></button>
-                        <a th:href="@{/contexa/contexa/admin/policy-center(tab='list')}" class="modern-btn-secondary" th:text="#{common.reset}">Reset</a>
+                        <a th:href="@{/contexa/admin/policy-center(tab='list')}" class="modern-btn-secondary" th:text="#{common.reset}">Reset</a>
                     </div>
                 </form>
 
@@ -805,17 +805,17 @@
                     <ul class="modern-pagination">
                         <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-left"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <!-- 이전 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=${currentPage - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
                         </li>
 
                         <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
                         <th:block th:if="${startPage > 0}">
                             <li class="page-item">
-                                <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}">1</a>
+                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}">1</a>
                             </li>
                             <li class="page-item disabled" th:if="${startPage > 1}">
                                 <span class="page-link">...</span>
@@ -825,7 +825,7 @@
                         <!-- 동적 페이지 번호 루프 -->
                         <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
                             class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=${pageNumber}, policyKeyword=${policyKeyword})}" th:text="${pageNumber + 1}"></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${pageNumber}, policyKeyword=${policyKeyword})}" th:text="${pageNumber + 1}"></a>
                         </li>
 
                         <!-- endPage와 마지막 페이지 사이에 생략이 있으면 ...과 마지막 페이지 표시 -->
@@ -834,17 +834,17 @@
                                 <span class="page-link">...</span>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}" th:text="${totalPages}"></a>
+                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}" th:text="${totalPages}"></a>
                             </li>
                         </th:block>
 
                         <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=${currentPage + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
                         </li>
                         <!-- 끝 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-right"></i></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>
@@ -1264,7 +1264,7 @@
         </div>
         <div id="br-body" style="flex:1;overflow-y:auto;padding:1rem 1.5rem;"></div>
         <div style="padding:1rem 1.5rem;border-top:1px solid rgba(71,85,105,0.3);text-align:right;">
-            <a href="/contexa/contexa/admin/policy-center?tab=list" class="modern-btn-primary" style="text-decoration:none;">
+            <a href="/contexa/admin/policy-center?tab=list" class="modern-btn-primary" style="text-decoration:none;">
                 <i class="fas fa-list mr-1"></i> <span th:text="#{admin.policy.center.tab.list}">Policy List</span>
             </a>
         </div>
