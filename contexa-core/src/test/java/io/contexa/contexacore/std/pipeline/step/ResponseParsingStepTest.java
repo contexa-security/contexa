@@ -15,18 +15,17 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-import org.junit.jupiter.api.Test;
-
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+import org.junit.jupiter.api.Test;
+
 class ResponseParsingStepTest {
 
     @Test
@@ -41,7 +40,7 @@ class ResponseParsingStepTest {
         Object result = step.execute(request, context).block();
 
         assertThat(result).isInstanceOf(Map.class);
-        assertThat(result).isInstanceOf(java.util.HashMap.class);
+        assertThat(result).isInstanceOf(HashMap.class);
         assertThat(context.getMetadata("parsingComplete", Boolean.class)).isTrue();
         assertThat(context.getMetadata("responseType", String.class)).isEqualTo("HashMap");
     }

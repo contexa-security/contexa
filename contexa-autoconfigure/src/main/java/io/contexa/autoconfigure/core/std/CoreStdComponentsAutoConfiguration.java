@@ -20,7 +20,6 @@ import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.domain.PromptTemplate;
-import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponseProcessor;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.properties.ContexaRagProperties;
@@ -37,19 +36,20 @@ import io.contexa.contexacore.std.components.retriever.AuthorizedContextRetrieve
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.std.labs.DefaultAILabFactory;
-import io.contexa.contexacore.std.llm.config.LLMClient;
-import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.llm.config.LLMClient;
+import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
-import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
 import io.contexa.contexacore.std.pipeline.executor.StreamingUniversalPipelineExecutor;
 import io.contexa.contexacore.std.pipeline.executor.UniversalPipelineExecutor;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
@@ -58,27 +58,26 @@ import io.contexa.contexacore.std.rag.service.VectorOperations;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
+
 @AutoConfiguration
 @AutoConfigureAfter(name = {
         "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
@@ -301,7 +300,7 @@ public class CoreStdComponentsAutoConfiguration {
             ApplicationContext applicationContext,
             ContexaProperties contexaProperties,
             ContexaLlmBindingProperties contexaLlmBindingProperties) {
-        return new SpringLlmRuntimeCatalog((org.springframework.context.ConfigurableApplicationContext) applicationContext,
+        return new SpringLlmRuntimeCatalog((ConfigurableApplicationContext) applicationContext,
                 contexaProperties, contexaLlmBindingProperties);
     }
 

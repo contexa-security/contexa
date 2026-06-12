@@ -15,8 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.learning.evidence;
 
+import java.util.Arrays;
 import java.util.List;
-
+
 public record LearningContextEvidence(
         CurrentLearningContextSnapshot current,
         BaselineEvidenceSnapshot personalBaseline,
@@ -356,7 +357,7 @@ public record LearningContextEvidence(
         if (facts == null) {
             return null;
         }
-        String joined = java.util.Arrays.stream(facts)
+        String joined = Arrays.stream(facts)
                 .filter(this::hasText)
                 .reduce((left, right) -> left + " | " + right)
                 .orElse(null);
@@ -367,7 +368,7 @@ public record LearningContextEvidence(
         if (dimensions == null) {
             return null;
         }
-        String joined = java.util.Arrays.stream(dimensions)
+        String joined = Arrays.stream(dimensions)
                 .filter(this::hasText)
                 .reduce((left, right) -> left + ", " + right)
                 .orElse(null);

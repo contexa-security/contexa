@@ -15,35 +15,40 @@
  */
 package io.contexa.contexaidentity.security.filter.handler;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.MfaSettings;
+import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
-import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
-import io.contexa.contexaidentity.security.utils.MfaTimeUtils;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.MfaTimeUtils;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
-
+import jakarta.servlet.ServletException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.concurrent.Executor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
+
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
@@ -401,8 +406,8 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 && request.getContentType() != null
                 && request.getContentType().contains("application/json")) {
             try {
-                String body = new String(request.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-                com.fasterxml.jackson.databind.JsonNode json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+                String body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                JsonNode json = new ObjectMapper().readTree(body);
                 if (json.has("factorType")) {
                     selectedFactor = json.get("factorType").asText();
                 } else if (json.has("factor")) {
@@ -550,12 +555,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             Set<String> completedStepIds = context.getCompletedFactors().stream()
                     .map(AuthenticationStepConfig::getStepId)
-                    .collect(java.util.stream.Collectors.toSet());
+                    .collect(Collectors.toSet());
 
             flowConfig.getStepConfigs().stream()
                     .filter(step -> selectedFactor.equalsIgnoreCase(step.getType()))
                     .filter(step -> !completedStepIds.contains(step.getStepId()))
-                    .min(java.util.Comparator.comparingInt(AuthenticationStepConfig::getOrder))
+                    .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder))
                     .ifPresent(step -> context.setCurrentStepId(step.getStepId()));
         } catch (Exception e) {
             log.error("Failed to set currentStepId for factor: {}", selectedFactor, e);
@@ -574,7 +579,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void scheduleStateMachineCleanup(String sessionId) {
 
-        applicationContext.getBean("taskExecutor", java.util.concurrent.Executor.class)
+        applicationContext.getBean("taskExecutor", Executor.class)
                 .execute(() -> {
                     try {
                         Thread.sleep(5000);

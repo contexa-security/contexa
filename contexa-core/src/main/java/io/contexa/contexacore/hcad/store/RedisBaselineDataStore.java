@@ -16,19 +16,20 @@
 package io.contexa.contexacore.hcad.store;
 
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+
 @Slf4j
 @RequiredArgsConstructor
 public class RedisBaselineDataStore implements BaselineDataStore {
@@ -185,7 +186,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
 
     private static void putIfNonEmpty(Map<String, Object> data, String field, Object[] array) {
         if (array != null && array.length > 0) {
-            data.put(field, new java.util.ArrayList<>(Arrays.asList(array)));
+            data.put(field, new ArrayList<>(Arrays.asList(array)));
         }
     }
 
@@ -256,13 +257,13 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (value instanceof Object[] objArr) {
             return Arrays.stream(objArr)
                     .map(this::coerceInteger)
-                    .filter(java.util.Objects::nonNull)
+                    .filter(Objects::nonNull)
                     .toArray(Integer[]::new);
         }
         if (value instanceof List<?> list) {
             return list.stream()
                     .map(this::coerceInteger)
-                    .filter(java.util.Objects::nonNull)
+                    .filter(Objects::nonNull)
                     .toArray(Integer[]::new);
         }
         return null;

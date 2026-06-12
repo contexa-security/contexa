@@ -18,30 +18,32 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityResponse;
+import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
+import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
+import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
-import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
-import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
-import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
-import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
@@ -54,28 +56,27 @@ import io.contexa.contexacore.std.pipeline.step.StructuredOutputExecutionExcepti
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputPolicy;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
-import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.filter.Filter;
-import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.util.StringUtils;
-import reactor.core.publisher.Mono;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.util.StringUtils;
+import reactor.core.publisher.Mono;
+
 @Slf4j
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
@@ -871,8 +872,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
         } catch (Exception e) {
             Throwable cause = e;
-            while ((cause instanceof java.util.concurrent.CompletionException
-                    || cause instanceof java.util.concurrent.ExecutionException)
+            while ((cause instanceof CompletionException
+                    || cause instanceof ExecutionException)
                     && cause.getCause() != null) {
                 cause = cause.getCause();
             }
@@ -1392,7 +1393,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         public void setAccessFrequency(int accessFrequency) { this.accessFrequency = accessFrequency; }
     }
 
-
     protected static class BaseBehaviorAnalysis {
         protected List<String> similarEvents = new ArrayList<>();
         protected boolean baselineEstablished;
@@ -1403,7 +1403,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         public boolean isBaselineEstablished() { return baselineEstablished; }
         public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
     }
-
 
     protected String extractJsonObject(String response) {
         if (response == null || response.isEmpty()) {

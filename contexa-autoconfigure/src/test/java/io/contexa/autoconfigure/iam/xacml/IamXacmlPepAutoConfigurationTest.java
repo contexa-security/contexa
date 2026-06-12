@@ -15,18 +15,18 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-
-import java.lang.reflect.Method;
-import java.util.Arrays;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+import org.springframework.security.access.expression.SecurityExpressionHandler;
+
 /**
  * Tests IamXacmlPepAutoConfiguration annotation structure and bean definitions.
  * Uses reflection instead of ApplicationContextRunner due to complex transitive dependencies.
@@ -55,8 +55,8 @@ class IamXacmlPepAutoConfigurationTest {
         void shouldHaveResolverBean() throws Exception {
             Method method = IamXacmlPepAutoConfiguration.class
                     .getDeclaredMethod("expressionAuthorizationManagerResolver",
-                            java.util.List.class,
-                            org.springframework.security.access.expression.SecurityExpressionHandler.class);
+                            List.class,
+                            SecurityExpressionHandler.class);
 
             assertThat(method.getAnnotation(Bean.class)).isNotNull();
             assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();

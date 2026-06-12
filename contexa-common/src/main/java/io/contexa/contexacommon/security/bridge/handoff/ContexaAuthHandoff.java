@@ -15,13 +15,13 @@
  */
 package io.contexa.contexacommon.security.bridge.handoff;
 
-import org.springframework.lang.Nullable;
-
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
-
+import org.springframework.lang.Nullable;
+
 public record ContexaAuthHandoff(
         Object principal,
         Collection<?> authorities,
@@ -35,12 +35,12 @@ public record ContexaAuthHandoff(
         if (principal == null) {
             throw new IllegalArgumentException("principal must not be null");
         }
-        authorities = authorities == null ? java.util.List.of() : java.util.List.copyOf(new LinkedHashSet<>(authorities));
+        authorities = authorities == null ? List.of() : List.copyOf(new LinkedHashSet<>(authorities));
         attributes = attributes == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(attributes));
     }
 
     public static ContexaAuthHandoff of(Object principal) {
-        return new ContexaAuthHandoff(principal, java.util.List.of(), Map.of(), null, null, null);
+        return new ContexaAuthHandoff(principal, List.of(), Map.of(), null, null, null);
     }
 
     public static ContexaAuthHandoff of(Object principal, Collection<?> authorities) {

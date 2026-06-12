@@ -15,13 +15,13 @@
  */
 package io.contexa.contexacore.autonomous.context.support;
 
-import org.springframework.util.StringUtils;
-
-import java.util.*;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
-
+import java.lang.reflect.Array;
+import java.util.*;
+import org.springframework.util.StringUtils;
+
 /**
  * Static utility for normalizing identity tokens (roles, authorities, permissions).
  * Extracted from DefaultCanonicalSecurityContextProvider to satisfy SRP.
@@ -76,9 +76,9 @@ public final class IdentityTokenNormalizer {
                 continue;
             }
             if (rawValue.getClass().isArray()) {
-                int length = java.lang.reflect.Array.getLength(rawValue);
+                int length = Array.getLength(rawValue);
                 for (int index = 0; index < length; index++) {
-                    addFlattenedToken(values, java.lang.reflect.Array.get(rawValue, index));
+                    addFlattenedToken(values, Array.get(rawValue, index));
                 }
                 continue;
             }

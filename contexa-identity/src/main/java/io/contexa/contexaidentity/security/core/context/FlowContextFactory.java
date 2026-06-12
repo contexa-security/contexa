@@ -17,23 +17,22 @@ package io.contexa.contexaidentity.security.core.context;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.function.Supplier;
+import java.util.List;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.util.CollectionUtils;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Supplier;
-
+
 public class FlowContextFactory {
 
     private static final Logger log = LoggerFactory.getLogger(FlowContextFactory.class);
@@ -67,7 +66,7 @@ public class FlowContextFactory {
         return flows;
     }
 
-    private void setupSharedObjectsForFlow(io.contexa.contexaidentity.security.core.context.FlowContext fc) {
+    private void setupSharedObjectsForFlow(FlowContext fc) {
         HttpSecurity http = fc.http();
         AuthenticationFlowConfig flowConfig = fc.flow();
         ApplicationContext appContext = this.applicationContext;

@@ -15,20 +15,20 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.RestAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.DefaultRestLoginPageGeneratingFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import java.util.Objects;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import java.util.Objects;
-
+
 public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapter<RestAuthenticationConfigurer<HttpSecurity>> {
 
     @Override
@@ -82,7 +82,7 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
         String loginPageUrl = currentFlow.getUrlPrefix() != null
                 ? currentFlow.getUrlPrefix() + "/api/login" : "/api/login";
         DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter(loginPageUrl);
-        MessageSource messageSource = http.getSharedObject(org.springframework.context.ApplicationContext.class)
+        MessageSource messageSource = http.getSharedObject(ApplicationContext.class)
                 .getBean(MessageSource.class);
         loginPageFilter.setMessageSource(messageSource);
         http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);

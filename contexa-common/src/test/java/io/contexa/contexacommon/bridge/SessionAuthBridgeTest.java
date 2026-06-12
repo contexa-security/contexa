@@ -15,16 +15,16 @@
  */
 package io.contexa.contexacommon.bridge;
 
-import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.bridge.BridgedUser;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.SessionAuthBridge;
-import org.junit.jupiter.api.Test;
-
 import java.time.Instant;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpSession;
+
 class SessionAuthBridgeTest {
 
     private final SessionAuthBridge bridge = new SessionAuthBridge(new BridgeProperties.Session());
@@ -125,15 +125,15 @@ class SessionAuthBridgeTest {
     }
 
     private static class MockHttpServletRequestBuilder {
-        private final org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
-        private final org.springframework.mock.web.MockHttpSession session = new org.springframework.mock.web.MockHttpSession();
+        private final MockHttpServletRequest request = new MockHttpServletRequest();
+        private final MockHttpSession session = new MockHttpSession();
 
         void setSessionAttribute(String key, Object value) {
             session.setAttribute(key, value);
             request.setSession(session);
         }
 
-        org.springframework.mock.web.MockHttpServletRequest request() {
+        MockHttpServletRequest request() {
             return request;
         }
     }

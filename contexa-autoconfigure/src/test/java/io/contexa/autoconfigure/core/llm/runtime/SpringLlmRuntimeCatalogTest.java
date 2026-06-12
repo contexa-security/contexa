@@ -15,26 +15,25 @@
  */
 package io.contexa.autoconfigure.core.llm.runtime;
 
-import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
-import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.std.llm.runtime.LlmRuntimeBinding;
-import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.context.ConfigurableApplicationContext;
-
-import java.util.List;
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
+import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.std.llm.runtime.LlmRuntimeBinding;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.context.ConfigurableApplicationContext;
+
 class SpringLlmRuntimeCatalogTest {
 
     @Test
@@ -46,8 +45,8 @@ class SpringLlmRuntimeCatalogTest {
         when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
         when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"ollamaChatModel", "openAiChatModel"});
         when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[0]);
-        org.mockito.Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
-        org.mockito.Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
+        Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
+        Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
         when(beanFactory.containsBeanDefinition("ollamaChatModel")).thenReturn(true);
         when(beanFactory.containsBeanDefinition("openAiChatModel")).thenReturn(true);
         when(beanFactory.getBeanDefinition("ollamaChatModel")).thenReturn(ollamaDefinition);
@@ -77,7 +76,7 @@ class SpringLlmRuntimeCatalogTest {
         when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
         when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"geminiChatModel"});
         when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[0]);
-        org.mockito.Mockito.doReturn((Class<?>) ChatModel.class).when(beanFactory).getType("geminiChatModel", false);
+        Mockito.doReturn((Class<?>) ChatModel.class).when(beanFactory).getType("geminiChatModel", false);
         when(beanFactory.containsBeanDefinition("geminiChatModel")).thenReturn(true);
         when(beanFactory.getBeanDefinition("geminiChatModel")).thenReturn(geminiDefinition);
         when(geminiDefinition.isPrimary()).thenReturn(true);
@@ -110,8 +109,8 @@ class SpringLlmRuntimeCatalogTest {
         when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
         when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"geminiChatModel", "vertexChatModel"});
         when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[0]);
-        org.mockito.Mockito.doReturn((Class<?>) GeminiRuntimeStub.class).when(beanFactory).getType("geminiChatModel", false);
-        org.mockito.Mockito.doReturn((Class<?>) VertexRuntimeStub.class).when(beanFactory).getType("vertexChatModel", false);
+        Mockito.doReturn((Class<?>) GeminiRuntimeStub.class).when(beanFactory).getType("geminiChatModel", false);
+        Mockito.doReturn((Class<?>) VertexRuntimeStub.class).when(beanFactory).getType("vertexChatModel", false);
         when(beanFactory.containsBeanDefinition("geminiChatModel")).thenReturn(true);
         when(beanFactory.containsBeanDefinition("vertexChatModel")).thenReturn(true);
         when(beanFactory.getBeanDefinition("geminiChatModel")).thenReturn(geminiDefinition);
@@ -148,8 +147,8 @@ class SpringLlmRuntimeCatalogTest {
         when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
         when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"ollamaChatModel", "openAiChatModel"});
         when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[0]);
-        org.mockito.Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
-        org.mockito.Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
+        Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
+        Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
         when(beanFactory.containsBeanDefinition("ollamaChatModel")).thenReturn(true);
         when(beanFactory.containsBeanDefinition("openAiChatModel")).thenReturn(true);
         when(beanFactory.getBeanDefinition("ollamaChatModel")).thenReturn(ollamaDefinition);
@@ -175,8 +174,8 @@ class SpringLlmRuntimeCatalogTest {
         when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
         when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"ollamaChatModel", "openAiChatModel"});
         when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[0]);
-        org.mockito.Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
-        org.mockito.Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
+        Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
+        Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
         when(beanFactory.containsBeanDefinition("ollamaChatModel")).thenReturn(true);
         when(beanFactory.containsBeanDefinition("openAiChatModel")).thenReturn(true);
         when(beanFactory.getBeanDefinition("ollamaChatModel")).thenReturn(ollamaDefinition);

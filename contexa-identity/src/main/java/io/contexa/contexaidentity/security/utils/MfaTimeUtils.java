@@ -15,15 +15,15 @@
  */
 package io.contexa.contexaidentity.security.utils;
 
-import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.properties.MfaSettings;
-import lombok.experimental.UtilityClass;
-
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-
+import lombok.experimental.UtilityClass;
+
 @UtilityClass
 public class MfaTimeUtils {
 
@@ -56,7 +56,7 @@ public class MfaTimeUtils {
     }
 
     public static boolean isChallengeExpired(FactorContext context, MfaSettings mfaSettings) {
-        Object challengeTime = context.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT);
+        Object challengeTime = context.getAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT);
         if (challengeTime instanceof Long challengeTimeMs) {
             return mfaSettings.isChallengeExpired(challengeTimeMs);
         } else if (challengeTime instanceof Instant challengeInstant) {

@@ -1,23 +1,23 @@
 package io.contexa.contexacore.verification.capture;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
-
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
+import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 /**
  * Enterprise-grade prompt trace store that captures PromptGenerationResult
  * along with SecurityDecisionContext for sealed evidence assembly.
@@ -88,8 +88,8 @@ public class SealedEvidencePromptTraceStore {
 
         Object sessionContext = getFieldValue(context, "sessionContext");
         Object behaviorAnalysis = getFieldValue(context, "behaviorAnalysis");
-        List<org.springframework.ai.document.Document> relatedDocuments =
-                (List<org.springframework.ai.document.Document>) getFieldValue(context, "relatedDocuments");
+        List<Document> relatedDocuments =
+                (List<Document>) getFieldValue(context, "relatedDocuments");
 
         SealedEvidencePromptSnapshot snapshot = new SealedEvidencePromptSnapshot(
                 requestId,

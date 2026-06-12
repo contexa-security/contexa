@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
@@ -24,14 +25,12 @@ import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayl
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
 class SecurityDecisionForwardingPayloadMapperTest {
 
     @Test
@@ -185,7 +184,7 @@ class SecurityDecisionForwardingPayloadMapperTest {
                         .objectiveDriftSummary("Delegated objective comparison is incomplete because comparable delegated action/resource family inputs are missing.")
                         .build())
                 .build();
-        return event -> java.util.Optional.of(canonicalSecurityContext);
+        return event -> Optional.of(canonicalSecurityContext);
     }
 
     private SecurityEventContext context() {
@@ -273,5 +272,4 @@ class SecurityDecisionForwardingPayloadMapperTest {
         return context;
     }
 }
-
 

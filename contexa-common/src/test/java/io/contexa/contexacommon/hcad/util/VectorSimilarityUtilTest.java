@@ -15,15 +15,15 @@
  */
 package io.contexa.contexacommon.hcad.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 @ExtendWith(MockitoExtension.class)
 class VectorSimilarityUtilTest {
 
@@ -42,7 +42,7 @@ class VectorSimilarityUtilTest {
         void shouldReturnOneForIdenticalVectors() {
             double[] vec = {1.0, 2.0, 3.0, 4.0};
             double result = VectorSimilarityUtil.cosineSimilarity(vec, vec);
-            assertThat(result).isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-6));
+            assertThat(result).isCloseTo(1.0, Offset.offset(1e-6));
         }
 
         @Test
@@ -51,7 +51,7 @@ class VectorSimilarityUtilTest {
             double[] vecA = {1.0, 0.0, 0.0, 0.0};
             double[] vecB = {0.0, 1.0, 0.0, 0.0};
             double result = VectorSimilarityUtil.cosineSimilarity(vecA, vecB);
-            assertThat(result).isCloseTo(0.5, org.assertj.core.data.Offset.offset(1e-6));
+            assertThat(result).isCloseTo(0.5, Offset.offset(1e-6));
         }
 
         @Test
@@ -60,7 +60,7 @@ class VectorSimilarityUtilTest {
             double[] vecA = {1.0, 2.0, 3.0, 4.0};
             double[] vecB = {-1.0, -2.0, -3.0, -4.0};
             double result = VectorSimilarityUtil.cosineSimilarity(vecA, vecB);
-            assertThat(result).isCloseTo(0.0, org.assertj.core.data.Offset.offset(1e-6));
+            assertThat(result).isCloseTo(0.0, Offset.offset(1e-6));
         }
 
         @Test
@@ -124,7 +124,7 @@ class VectorSimilarityUtilTest {
         void shouldReturnOneForIdenticalFloatVectors() {
             float[] vec = {1.0f, 2.0f, 3.0f, 4.0f};
             double result = VectorSimilarityUtil.cosineSimilarity(vec, vec);
-            assertThat(result).isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-5));
+            assertThat(result).isCloseTo(1.0, Offset.offset(1e-5));
         }
 
         @Test
@@ -170,7 +170,7 @@ class VectorSimilarityUtilTest {
             float[] vecA = {1.0f, 2.0f, 3.0f, 4.0f};
             float[] vecB = {-1.0f, -2.0f, -3.0f, -4.0f};
             double result = VectorSimilarityUtil.cosineSimilarity(vecA, vecB);
-            assertThat(result).isCloseTo(0.0, org.assertj.core.data.Offset.offset(1e-5));
+            assertThat(result).isCloseTo(0.0, Offset.offset(1e-5));
         }
     }
 }

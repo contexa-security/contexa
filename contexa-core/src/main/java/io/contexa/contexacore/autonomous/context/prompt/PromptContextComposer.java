@@ -15,19 +15,20 @@
  */
 package io.contexa.contexacore.autonomous.context.prompt;
 
-import org.springframework.util.StringUtils;
-
-import java.util.ArrayList;
-import java.util.List;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.model.ContextEvidenceRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
-import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-
+import java.util.ArrayList;
+import java.util.function.Consumer;
+import java.util.List;
+import java.util.Locale;
+import org.springframework.util.StringUtils;
+
 public class PromptContextComposer {
 
     public static final String PRODUCER_DEVICE_SECTION = "PromptContextComposer.composeDeviceSection";
@@ -159,7 +160,7 @@ public class PromptContextComposer {
         return composeSection(context, section -> appendMissingKnowledgeSection(section, context));
     }
 
-    private String composeSection(CanonicalSecurityContext context, java.util.function.Consumer<StringBuilder> composer) {
+    private String composeSection(CanonicalSecurityContext context, Consumer<StringBuilder> composer) {
         if (context == null) {
             return null;
         }
@@ -991,7 +992,7 @@ public class PromptContextComposer {
         if (value == null) {
             return "0%";
         }
-        return String.format(java.util.Locale.ROOT, "%.0f%%", value * 100.0d);
+        return String.format(Locale.ROOT, "%.0f%%", value * 100.0d);
     }
 
     private void appendComparisonEvidence(

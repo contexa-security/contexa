@@ -15,21 +15,20 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcOperations;
-
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 /**
  * Tests the conditional activation gates of IdentitySecurityCoreAutoConfiguration.
  * Full bean creation tests are omitted due to deep dependency chains.
@@ -57,7 +56,7 @@ class IdentitySecurityCoreAutoConfigurationTest {
         @DisplayName("Should not activate when contexa.identity.security-core.enabled=false")
         void shouldNotActivateWhenDisabled() {
             contextRunner
-                    .withBean(PlatformConfig.class, () -> org.mockito.Mockito.mock(PlatformConfig.class))
+                    .withBean(PlatformConfig.class, () -> Mockito.mock(PlatformConfig.class))
                     .withPropertyValues("contexa.identity.security-core.enabled=false")
                     .run(context -> {
                         assertThat(context).doesNotHaveBean(IdentitySecurityCoreAutoConfiguration.class);

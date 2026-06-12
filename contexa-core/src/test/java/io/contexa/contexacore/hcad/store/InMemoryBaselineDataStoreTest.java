@@ -15,15 +15,14 @@
  */
 package io.contexa.contexacore.hcad.store;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import java.time.Instant;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.time.Instant;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 class InMemoryBaselineDataStoreTest {
 
     private InMemoryBaselineDataStore store;
@@ -62,7 +61,7 @@ class InMemoryBaselineDataStoreTest {
     @Test
     @DisplayName("getUserBaseline throws NullPointerException for null userId")
     void getUserBaseline_nullUserId_throwsNpe() {
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> store.getUserBaseline(null))
+        Assertions.assertThatThrownBy(() -> store.getUserBaseline(null))
                 .isInstanceOf(NullPointerException.class);
     }
 

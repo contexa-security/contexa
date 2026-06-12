@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
@@ -24,6 +25,8 @@ import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,11 +34,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-
-import java.lang.reflect.Method;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 /**
  * Tests CoreAutonomousAutoConfiguration conditional annotations and mode switching structure.
  */
@@ -135,7 +134,7 @@ class CoreAutonomousAutoConfigurationTest {
         }
 
         private Method findMethod(String name) {
-            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+            return Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
                     .filter(method -> method.getName().equals(name))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Method not found: " + name));
@@ -164,7 +163,7 @@ class CoreAutonomousAutoConfigurationTest {
         }
 
         private Method findMethod(String name) {
-            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+            return Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
                     .filter(method -> method.getName().equals(name))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Method not found: " + name));
@@ -186,7 +185,7 @@ class CoreAutonomousAutoConfigurationTest {
         }
 
         private Method findMethod(String name) {
-            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+            return Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
                     .filter(method -> method.getName().equals(name))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Method not found: " + name));
@@ -215,7 +214,7 @@ class CoreAutonomousAutoConfigurationTest {
         }
 
         private Method findMethod(String name) {
-            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+            return Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
                     .filter(method -> method.getName().equals(name))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Method not found: " + name));

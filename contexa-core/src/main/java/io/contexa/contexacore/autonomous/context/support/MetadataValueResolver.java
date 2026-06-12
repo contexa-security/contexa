@@ -15,13 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.context.support;
 
-import org.springframework.util.StringUtils;
-
-import java.util.*;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
-
+import java.lang.reflect.Array;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.springframework.util.StringUtils;
+
 /**
  * Static utility for resolving typed values from heterogeneous metadata maps.
  * Extracted from DefaultCanonicalSecurityContextProvider to satisfy SRP.
@@ -142,9 +144,9 @@ public final class MetadataValueResolver {
                 continue;
             }
             if (rawValue.getClass().isArray()) {
-                int length = java.lang.reflect.Array.getLength(rawValue);
+                int length = Array.getLength(rawValue);
                 for (int index = 0; index < length; index++) {
-                    addNormalizedScalar(values, java.lang.reflect.Array.get(rawValue, index));
+                    addNormalizedScalar(values, Array.get(rawValue, index));
                 }
                 continue;
             }
@@ -210,11 +212,11 @@ public final class MetadataValueResolver {
     }
 
     public static String extractAuthorityLiteral(String rawValue) {
-        java.util.regex.Matcher quotedMatcher = java.util.regex.Pattern.compile("authority='([^']+)'").matcher(rawValue);
+        Matcher quotedMatcher = Pattern.compile("authority='([^']+)'").matcher(rawValue);
         if (quotedMatcher.find()) {
             return quotedMatcher.group(1);
         }
-        java.util.regex.Matcher plainMatcher = java.util.regex.Pattern.compile("authority=([^,}\\]]+)").matcher(rawValue);
+        Matcher plainMatcher = Pattern.compile("authority=([^,}\\]]+)").matcher(rawValue);
         if (plainMatcher.find()) {
             return plainMatcher.group(1).trim();
         }

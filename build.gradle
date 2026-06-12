@@ -28,6 +28,12 @@ tasks.withType(Javadoc) {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
+tasks.register('checkJavaStyle', Exec) {
+    group = 'verification'
+    description = 'Check Java style requirements'
+    commandLine 'node', "${rootDir}/check-java-style.js", '--all'
+}
+
 subprojects {
     apply plugin: 'java'
     apply plugin: 'java-library'
@@ -93,6 +99,7 @@ subprojects {
 
     tasks.withType(JavaCompile) {
         options.encoding = 'UTF-8'
+        dependsOn ':checkJavaStyle'
     }
 
     tasks.withType(org.springframework.boot.gradle.tasks.run.BootRun).configureEach {

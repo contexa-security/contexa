@@ -19,25 +19,26 @@ import io.contexa.contexaidentity.security.statemachine.action.*;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.guard.*;
-import lombok.RequiredArgsConstructor;
+import java.util.EnumSet;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.Message;
 import org.springframework.statemachine.action.StateDoActionPolicy;
-import org.springframework.statemachine.config.EnableStateMachineFactory;
-import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
 import org.springframework.statemachine.config.builders.StateMachineConfigurationConfigurer;
 import org.springframework.statemachine.config.builders.StateMachineStateConfigurer;
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
+import org.springframework.statemachine.config.EnableStateMachineFactory;
+import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
 import org.springframework.statemachine.listener.StateMachineListener;
 import org.springframework.statemachine.listener.StateMachineListenerAdapter;
 import org.springframework.statemachine.state.State;
+import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.transition.TransitionConflictPolicy;
-
-import java.util.EnumSet;
-
+
 @Slf4j
 @Configuration
 @EnableStateMachineFactory
@@ -337,7 +338,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
             }
 
             @Override
-            public void stateMachineError(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine,
+            public void stateMachineError(StateMachine<MfaState, MfaEvent> stateMachine,
                                           Exception exception) {
                 String machineId = stateMachine.getId();
                 MfaState currentState = stateMachine.getState() != null ?
@@ -348,7 +349,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
             }
 
             @Override
-            public void eventNotAccepted(org.springframework.messaging.Message<MfaEvent> event) {
+            public void eventNotAccepted(Message<MfaEvent> event) {
                 MfaEvent mfaEvent = event.getPayload();
                 Object sessionId = event.getHeaders().get("sessionId");
 
@@ -357,7 +358,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
             }
 
             @Override
-            public void stateMachineStopped(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine) {
+            public void stateMachineStopped(StateMachine<MfaState, MfaEvent> stateMachine) {
                 String machineId = stateMachine.getId();
             }
         };

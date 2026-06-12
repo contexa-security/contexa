@@ -15,38 +15,6 @@
  */
 package io.contexa.contexaiam.admin.web.metadata.controller;
 
-import io.contexa.contexacommon.entity.ManagedResource;
-import io.contexa.contexacommon.entity.Permission;
-import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceManagementForm;
-import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
-import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
-import io.contexa.contexaiam.repository.ManagedResourceRepository;
-import io.contexa.contexaiam.resource.service.ResourceRegistryService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.context.MessageSource;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
-
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -58,7 +26,39 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
-
+import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceManagementForm;
+import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
+import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.resource.service.ResourceRegistryService;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.quality.Strictness;
+import org.springframework.context.MessageSource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ResourceAdminController contract")
@@ -91,7 +91,7 @@ class ResourceAdminControllerTest {
 
     @Nested
     @DisplayName("page")
-    class Page {
+    class PageWorkbench {
 
         @Test
         @DisplayName("keeps existing view and model names")
@@ -117,8 +117,8 @@ class ResourceAdminControllerTest {
             assertThat(result.getModelAndView().getModel().get("serviceOwners")).isEqualTo(Set.of("billing"));
             assertThat(result.getModelAndView().getModel().get("criteria")).isNotNull();
 
-            org.springframework.data.domain.Page<?> resourcePage =
-                    (org.springframework.data.domain.Page<?>) result.getModelAndView().getModel().get("resourcePage");
+            Page<?> resourcePage =
+                    (Page<?>) result.getModelAndView().getModel().get("resourcePage");
             Object resourceView = resourcePage.getContent().get(0);
             Object resourceType = resourceView.getClass().getMethod("getResourceType").invoke(resourceView);
             Object status = resourceView.getClass().getMethod("getStatus").invoke(resourceView);
@@ -178,9 +178,9 @@ class ResourceAdminControllerTest {
             when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(existingResource));
             when(managedResourceRepository.findById(2L)).thenReturn(Optional.empty());
             when(managedResourceRepository.findById(3L)).thenReturn(Optional.empty());
-            when(resourceRegistryService.defineResourceAsPermission(org.mockito.Mockito.eq(2L), any()))
+            when(resourceRegistryService.defineResourceAsPermission(Mockito.eq(2L), any()))
                     .thenReturn(newPermission);
-            when(resourceRegistryService.defineResourceAsPermission(org.mockito.Mockito.eq(3L), any()))
+            when(resourceRegistryService.defineResourceAsPermission(Mockito.eq(3L), any()))
                     .thenThrow(new RuntimeException("create failed"));
 
             mockMvc.perform(post("/admin/workbench/resources/define-batch")
@@ -214,7 +214,7 @@ class ResourceAdminControllerTest {
         void defineResourcesBatchNumericStringId() throws Exception {
             Permission newPermission = Permission.builder().id(200L).friendlyName("New Permission").build();
             when(managedResourceRepository.findById(2L)).thenReturn(Optional.empty());
-            when(resourceRegistryService.defineResourceAsPermission(org.mockito.Mockito.eq(2L), any()))
+            when(resourceRegistryService.defineResourceAsPermission(Mockito.eq(2L), any()))
                     .thenReturn(newPermission);
 
             mockMvc.perform(post("/admin/workbench/resources/define-batch")
@@ -256,7 +256,7 @@ class ResourceAdminControllerTest {
                     .andExpect(jsonPath("$.newStatus").value("NEEDS_DEFINITION"));
 
             ArgumentCaptor<ResourceManagementDto> captor = ArgumentCaptor.forClass(ResourceManagementDto.class);
-            verify(resourceRegistryService).updateResourceManagementStatus(org.mockito.Mockito.eq(1L), captor.capture());
+            verify(resourceRegistryService).updateResourceManagementStatus(Mockito.eq(1L), captor.capture());
             assertThat(captor.getValue().getStatus()).isEqualTo(ManagedResource.Status.NEEDS_DEFINITION);
         }
 

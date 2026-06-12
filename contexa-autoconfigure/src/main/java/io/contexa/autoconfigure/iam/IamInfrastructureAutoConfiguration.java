@@ -15,33 +15,34 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.Pointcut;
+import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
 import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.Pointcuts;
-import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
-import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
-import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
@@ -51,9 +52,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
-
-import java.time.Duration;
-
+
 @Slf4j
 @AutoConfiguration
 @EnableCaching
@@ -65,7 +64,7 @@ public class IamInfrastructureAutoConfiguration {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(500)
-                .expireAfterWrite(java.time.Duration.ofMinutes(5)));
+                .expireAfterWrite(Duration.ofMinutes(5)));
         return manager;
     }
 
@@ -152,5 +151,4 @@ public class IamInfrastructureAutoConfiguration {
         return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
     }
 }
-
 

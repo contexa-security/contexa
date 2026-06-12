@@ -17,23 +17,23 @@ package io.contexa.contexaiam.security.xacml.pip.attribute;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.contexa.contexacommon.cache.ContexaCacheService;
-import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.entity.business.BusinessResource;
+import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+
 @Slf4j
 @RequiredArgsConstructor
 public class DatabaseAttributePIP implements AttributeInformationPoint {
@@ -253,7 +253,7 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
 
         Object createdAt = attributes.get("accountCreated");
         if (createdAt instanceof LocalDateTime) {
-            long daysSinceCreation = java.time.temporal.ChronoUnit.DAYS.between((LocalDateTime) createdAt, LocalDateTime.now());
+            long daysSinceCreation = ChronoUnit.DAYS.between((LocalDateTime) createdAt, LocalDateTime.now());
             if (daysSinceCreation > 30) {
                 score += 0.1; 
             }

@@ -15,19 +15,19 @@
  */
 package io.contexa.contexaidentity.security.filter.handler;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.Map;
-
+import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
 public class MfaStateMachineIntegrator {
 
@@ -175,7 +175,7 @@ public class MfaStateMachineIntegrator {
             reason.append(String.format("Valid events for %s: [%s]. ", currentState, validEvents));
         }
 
-        Object recommended = context.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
+        Object recommended = context.getAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
         if (recommended != null) {
             reason.append(String.format("Recommended event: [%s]. ", recommended));
         } else {

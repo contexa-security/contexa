@@ -16,6 +16,11 @@
 package io.contexa.contexacommon.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,12 +28,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.springframework.security.core.GrantedAuthority;
-
-import java.io.Serializable;
-import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Map;
-
+
 
 @Data
 @Builder
@@ -67,9 +67,9 @@ public class UserDto implements Serializable {
     private String locale;
     private String timezone;
     private Collection<? extends GrantedAuthority> authorities;
-    private java.util.List<String> roles;
-    private java.util.List<String> permissions;
-    private java.util.List<Long> selectedGroupIds;
+    private List<String> roles;
+    private List<String> permissions;
+    private List<Long> selectedGroupIds;
     private Double trustScore;
     private String trustTier;
     private Map<String, Object> trustMetadata;

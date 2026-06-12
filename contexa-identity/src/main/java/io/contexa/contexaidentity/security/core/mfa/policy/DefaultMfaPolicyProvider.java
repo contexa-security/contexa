@@ -15,6 +15,10 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.policy;
 
+import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -22,21 +26,17 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.AbstractMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
-import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacommon.entity.Users;
-import io.contexa.contexacommon.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-
-import java.util.*;
-import java.util.stream.Collectors;
-
+
 @Slf4j
 public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
@@ -45,7 +45,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     protected final AuthContextProperties properties;
     protected final MfaPolicyEvaluator policyEvaluator;
     protected final PlatformConfig platformConfig;
-    private final Map<String, AuthenticationFlowConfig> cachedMfaFlowConfigs = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, AuthenticationFlowConfig> cachedMfaFlowConfigs = new ConcurrentHashMap<>();
 
     public DefaultMfaPolicyProvider(
             UserRepository userRepository,

@@ -16,17 +16,18 @@
 package io.contexa.contexacore.hcad.store;
 
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.condition.EnabledIf;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
-
-import java.time.Duration;
-
+
 @EnabledIf("io.contexa.contexacore.hcad.store.RedisHCADDataStoreContractTest#isLocalRedisAvailable")
 class RedisHCADDataStoreContractTest extends AbstractHCADDataStoreContractTest {
 
@@ -41,8 +42,8 @@ class RedisHCADDataStoreContractTest extends AbstractHCADDataStoreContractTest {
     private static RedisTemplate<String, Object> redisTemplate;
 
     static boolean isLocalRedisAvailable() {
-        try (java.net.Socket socket = new java.net.Socket()) {
-            socket.connect(new java.net.InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
             return true;
         } catch (Exception ex) {
             return false;

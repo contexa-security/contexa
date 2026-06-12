@@ -15,16 +15,15 @@
  */
 package io.contexa.autoconfigure.core.hcad;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-
-import java.lang.reflect.Method;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 /**
  * Tests CoreHCADAutoConfiguration conditional annotations and inner class structure.
  */
@@ -58,7 +57,7 @@ class CoreHCADAutoConfigurationTest {
 
             assertThat(distributedClass).isNotNull();
             assertThat(distributedClass.getAnnotation(
-                    org.springframework.boot.autoconfigure.condition.ConditionalOnBean.class))
+                    ConditionalOnBean.class))
                     .isNotNull();
         }
 

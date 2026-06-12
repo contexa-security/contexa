@@ -15,25 +15,25 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
-import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
-import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacommon.domain.context.DomainContext;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
-
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
 @Slf4j
 public class PostprocessingStep implements PipelineStep {
 
@@ -199,7 +199,7 @@ public class PostprocessingStep implements PipelineStep {
 
         try {
 
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            ObjectMapper mapper = new ObjectMapper();
             String jsonResponse = mapper.writeValueAsString(fallbackData);
 
             DefaultAIResponse fallback = new DefaultAIResponse(jsonResponse);

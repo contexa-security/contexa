@@ -19,18 +19,18 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
-import org.springframework.ai.document.Document;
-import org.springframework.util.StringUtils;
-
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.function.Function;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+import org.springframework.ai.document.Document;
+import org.springframework.util.StringUtils;
+
 public class LearningContextEvidenceAssembler {
 
     public LearningContextEvidence assemble(
@@ -664,7 +664,7 @@ public class LearningContextEvidenceAssembler {
                 .toList();
     }
 
-    private List<String> normalizeStrings(String[] values, java.util.function.Function<String, String> normalizer) {
+    private List<String> normalizeStrings(String[] values, Function<String, String> normalizer) {
         if (values == null || values.length == 0 || normalizer == null) {
             return List.of();
         }

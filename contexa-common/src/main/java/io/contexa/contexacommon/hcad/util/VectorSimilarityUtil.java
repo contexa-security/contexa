@@ -16,14 +16,15 @@
 package io.contexa.contexacommon.hcad.util;
 
 import lombok.extern.slf4j.Slf4j;
-
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.ops.transforms.Transforms;
+
 
 @Slf4j
 public class VectorSimilarityUtil {
 
-
     private static volatile Boolean nd4jAvailable = null;
-
 
     public static double cosineSimilarity(double[] vecA, double[] vecB) {
         if (vecA == null || vecB == null) {
@@ -52,7 +53,6 @@ public class VectorSimilarityUtil {
         return cosineSimilarityPureJava(vecA, vecB);
     }
 
-
     public static double cosineSimilarity(float[] vecA, float[] vecB) {
         if (vecA == null || vecB == null) {
             log.warn("[VectorSimilarityUtil] Null vector provided");
@@ -79,44 +79,36 @@ public class VectorSimilarityUtil {
         return cosineSimilarityPureJava(vecA, vecB);
     }
 
-
     private static double cosineSimilarityWithND4J(double[] vecA, double[] vecB) {
-        org.nd4j.linalg.api.ndarray.INDArray ndA = org.nd4j.linalg.factory.Nd4j.create(vecA);
-        org.nd4j.linalg.api.ndarray.INDArray ndB = org.nd4j.linalg.factory.Nd4j.create(vecB);
-        double similarity = org.nd4j.linalg.ops.transforms.Transforms.cosineSim(ndA, ndB);
-
+        INDArray ndA = Nd4j.create(vecA);
+        INDArray ndB = Nd4j.create(vecB);
+        double similarity = Transforms.cosineSim(ndA, ndB);
 
         if (Double.isNaN(similarity) || Double.isInfinite(similarity)) {
             log.warn("[VectorSimilarityUtil] ND4J returned invalid value: {}", similarity);
             return Double.NaN;
         }
 
-
         return (similarity + 1.0) / 2.0;
     }
-
 
     private static double cosineSimilarityWithND4J(float[] vecA, float[] vecB) {
-        org.nd4j.linalg.api.ndarray.INDArray ndA = org.nd4j.linalg.factory.Nd4j.create(vecA);
-        org.nd4j.linalg.api.ndarray.INDArray ndB = org.nd4j.linalg.factory.Nd4j.create(vecB);
-        double similarity = org.nd4j.linalg.ops.transforms.Transforms.cosineSim(ndA, ndB);
-
+        INDArray ndA = Nd4j.create(vecA);
+        INDArray ndB = Nd4j.create(vecB);
+        double similarity = Transforms.cosineSim(ndA, ndB);
 
         if (Double.isNaN(similarity) || Double.isInfinite(similarity)) {
             log.warn("[VectorSimilarityUtil] ND4J returned invalid value: {}", similarity);
             return Double.NaN;
         }
 
-
         return (similarity + 1.0) / 2.0;
     }
-
 
     private static double cosineSimilarityPureJava(double[] vecA, double[] vecB) {
         double dotProduct = 0.0;
         double normA = 0.0;
         double normB = 0.0;
-
 
         int i = 0;
         int len = vecA.length;
@@ -132,13 +124,11 @@ public class VectorSimilarityUtil {
             normB += b0 * b0 + b1 * b1 + b2 * b2 + b3 * b3;
         }
 
-
         for (; i < len; i++) {
             dotProduct += vecA[i] * vecB[i];
             normA += vecA[i] * vecA[i];
             normB += vecB[i] * vecB[i];
         }
-
 
         if (normA == 0.0 || normB == 0.0) {
             return Double.NaN;
@@ -146,16 +136,13 @@ public class VectorSimilarityUtil {
 
         double similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 
-
         return (similarity + 1.0) / 2.0;
     }
-
 
     private static double cosineSimilarityPureJava(float[] vecA, float[] vecB) {
         double dotProduct = 0.0;
         double normA = 0.0;
         double normB = 0.0;
-
 
         int i = 0;
         int len = vecA.length;
@@ -171,13 +158,11 @@ public class VectorSimilarityUtil {
             normB += (double) b0 * b0 + (double) b1 * b1 + (double) b2 * b2 + (double) b3 * b3;
         }
 
-
         for (; i < len; i++) {
             dotProduct += (double) vecA[i] * vecB[i];
             normA += (double) vecA[i] * vecA[i];
             normB += (double) vecB[i] * vecB[i];
         }
-
 
         if (normA == 0.0 || normB == 0.0) {
             return Double.NaN;
@@ -187,7 +172,6 @@ public class VectorSimilarityUtil {
 
         return (similarity + 1.0) / 2.0;
     }
-
 
     private static boolean isND4JAvailable() {
         if (nd4jAvailable == null) {
@@ -199,7 +183,6 @@ public class VectorSimilarityUtil {
         }
         return nd4jAvailable;
     }
-
 
     private static boolean checkND4JAvailability() {
         try {
@@ -213,7 +196,6 @@ public class VectorSimilarityUtil {
             return false;
         }
     }
-
 
     public static void resetND4JCheck() {
         synchronized (VectorSimilarityUtil.class) {

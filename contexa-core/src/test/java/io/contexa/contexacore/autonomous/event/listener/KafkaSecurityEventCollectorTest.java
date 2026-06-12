@@ -15,25 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.event.listener;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.event.SecurityEventListener;
-import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
-import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
-import io.contexa.contexacore.properties.SecurityKafkaProperties;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.Acknowledgment;
-
-import java.util.concurrent.CompletableFuture;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +25,25 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
+import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import java.util.concurrent.CompletableFuture;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.quality.Strictness;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.Acknowledgment;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class KafkaSecurityEventCollectorTest {
@@ -121,7 +120,7 @@ class KafkaSecurityEventCollectorTest {
         when(objectMapper.readValue(eq("{json}"), eq(ZeroTrustSpringEvent.class))).thenReturn(event);
         doReturn(CompletableFuture.completedFuture(null))
                 .when(kafkaTemplate).send(anyString(), any());
-        org.mockito.Mockito.doThrow(new IllegalStateException("listener boom"))
+        Mockito.doThrow(new IllegalStateException("listener boom"))
                 .when(listener).onSecurityEvent(any());
 
         assertThatThrownBy(() -> collector.consumeZeroTrustEvents("{json}", "security.events.auth", 1, 99L, acknowledgment))

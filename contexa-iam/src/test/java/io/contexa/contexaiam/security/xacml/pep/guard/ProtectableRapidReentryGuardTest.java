@@ -15,35 +15,34 @@
  */
 package io.contexa.contexaiam.security.xacml.pep.guard;
 
-import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
-import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
-import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
-import jakarta.servlet.http.HttpServletRequest;
-import org.aopalliance.intercept.MethodInvocation;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-
-import java.lang.reflect.Method;
-import java.time.Duration;
-
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-
+import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
+import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
+import jakarta.servlet.http.HttpServletRequest;
+import java.lang.reflect.Method;
+import java.time.Duration;
+import org.aopalliance.intercept.MethodInvocation;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.quality.Strictness;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ProtectableRapidReentryGuardTest {
@@ -109,7 +108,7 @@ class ProtectableRapidReentryGuardTest {
 
                 boolean acquired = guard.tryAcquire(authentication, methodInvocation);
 
-                org.assertj.core.api.Assertions.assertThat(acquired).isFalse();
+                Assertions.assertThat(acquired).isFalse();
             }
         }
 

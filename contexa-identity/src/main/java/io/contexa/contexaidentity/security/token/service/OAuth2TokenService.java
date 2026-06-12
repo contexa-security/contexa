@@ -23,15 +23,18 @@ import io.contexa.contexaidentity.security.token.transport.TokenTransportStrateg
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
@@ -45,10 +48,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
+
 @Slf4j
 public class OAuth2TokenService implements TokenService {
 
@@ -280,7 +280,7 @@ public class OAuth2TokenService implements TokenService {
         }
 
         return TokenTransportResult.builder()
-                .body(java.util.Map.of(
+                .body(Map.of(
                         "access_token", accessToken,
                         "token_type", "Bearer",
                         "refresh_token", refreshToken != null ? refreshToken : ""

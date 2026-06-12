@@ -15,19 +15,24 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -40,11 +45,7 @@ import org.springframework.security.crypto.keygen.KeyGenerators;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
-
-import java.io.IOException;
-import java.security.SecureRandom;
-import java.util.Base64;
-
+
 @Slf4j
 public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
 
@@ -257,8 +258,8 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
                 System.currentTimeMillis();
 
         try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(clientInfo.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(clientInfo.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
         } catch (Exception e) {
             log.warn("Failed to generate distributed device ID, using fallback", e);

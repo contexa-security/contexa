@@ -15,21 +15,23 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
-import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.lang.Nullable;
-import org.springframework.security.core.AuthenticationException;
-
+import jakarta.servlet.ServletException;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.core.AuthenticationException;
+
 @Slf4j
 public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler {
 
@@ -72,10 +74,10 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             }
         }
 
-        if (exception instanceof org.springframework.security.authentication.CredentialsExpiredException) {
+        if (exception instanceof CredentialsExpiredException) {
             String expiredUsername = request.getParameter("username");
             String passwordChangeUrl = request.getContextPath() + "/password-change?username="
-                    + java.net.URLEncoder.encode(expiredUsername != null ? expiredUsername : "", java.nio.charset.StandardCharsets.UTF_8) + "&expired=true";
+                    + URLEncoder.encode(expiredUsername != null ? expiredUsername : "", StandardCharsets.UTF_8) + "&expired=true";
             if (isApiRequest(request)) {
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("authenticated", false);

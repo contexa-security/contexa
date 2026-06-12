@@ -1,11 +1,12 @@
 package io.contexa.contexacore.verification.capture;
 
 import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
-
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 public class LazyDelegatingMap implements Map<String, Object> {
     private final CompletableFuture<Map<String, Object>> future;
     private volatile Map<String, Object> resolvedMap;
@@ -13,7 +14,7 @@ public class LazyDelegatingMap implements Map<String, Object> {
     public LazyDelegatingMap(CompletableFuture<Map<String, Object>> future) {
         // 예외가 발생하더라도 CompletionException으로 전체 호출부가 깨지는 것을 방지
         this.future = future.exceptionally(ex -> {
-            java.util.Map<String, Object> errMap = new java.util.HashMap<>();
+            Map<String, Object> errMap = new HashMap<>();
             errMap.put("error", "Failed to resolve metadata asynchronously");
             errMap.put("errorMessage", ex.getMessage());
             return errMap;

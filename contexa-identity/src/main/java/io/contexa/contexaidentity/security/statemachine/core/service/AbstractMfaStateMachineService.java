@@ -21,25 +21,31 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.support.StateContextHelper;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.core.Authentication;
+import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.ExtendedState;
+import org.springframework.statemachine.persist.StateMachinePersister;
 import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.StateMachineContext;
 import org.springframework.statemachine.StateMachineEventResult;
-import org.springframework.statemachine.config.StateMachineFactory;
-import org.springframework.statemachine.persist.StateMachinePersister;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
 import reactor.core.publisher.Mono;
-
-import java.io.Serializable;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-
+
 /**
  * Abstract base for MFA StateMachine service implementations.
  * Contains all business logic; subclasses provide lock mechanism only.
@@ -64,20 +70,17 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         this.properties = properties;
     }
 
-
     protected abstract boolean tryAcquireLock(String sessionId, long waitTime, TimeUnit unit) throws InterruptedException;
 
     protected abstract void releaseLock(String sessionId);
 
     protected abstract void onReleaseStateMachine(String sessionId);
 
-
     protected void beforeSaveFactorContext(String sessionId) {
     }
 
     protected void afterSaveFactorContext(String sessionId) {
     }
-
 
     @Override
     public void initializeStateMachine(FactorContext context, HttpServletRequest request) {
@@ -333,7 +336,6 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         }
     }
 
-
     protected StateMachine<MfaState, MfaEvent> acquireStateMachine(String sessionId) {
         return stateMachineFactory.getStateMachine(sessionId);
     }
@@ -576,13 +578,13 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
                 || value instanceof Character
                 || value instanceof Byte
                 || value instanceof Short
-                || value instanceof java.math.BigDecimal
-                || value instanceof java.math.BigInteger
-                || value instanceof java.time.LocalDate
-                || value instanceof java.time.LocalDateTime
-                || value instanceof java.time.ZonedDateTime
-                || value instanceof java.time.Instant
-                || value instanceof java.util.UUID
+                || value instanceof BigDecimal
+                || value instanceof BigInteger
+                || value instanceof LocalDate
+                || value instanceof LocalDateTime
+                || value instanceof ZonedDateTime
+                || value instanceof Instant
+                || value instanceof UUID
                 || value.getClass().isEnum();
     }
 

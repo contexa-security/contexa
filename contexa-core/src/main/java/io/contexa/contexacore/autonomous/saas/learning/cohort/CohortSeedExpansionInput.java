@@ -16,9 +16,9 @@
 package io.contexa.contexacore.autonomous.saas.learning.cohort;
 
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
-
+import java.util.List;
 import java.util.Map;
-
+
 /**
  * Input for cohort seed expansion.
  */
@@ -34,7 +34,7 @@ public record CohortSeedExpansionInput(
 
     public CohortSeedExpansionInput {
         qualificationDecision = qualificationDecision == null
-                ? new CohortSeedQualificationDecision(false, CohortSeedSupportLevel.INSUFFICIENT, null, java.util.List.of(), java.util.List.of())
+                ? new CohortSeedQualificationDecision(false, CohortSeedSupportLevel.INSUFFICIENT, null, List.of(), List.of())
                 : qualificationDecision;
         sizeBand = normalize(sizeBand);
         earlyAssessmentSampleCount = Math.max(earlyAssessmentSampleCount, 0L);

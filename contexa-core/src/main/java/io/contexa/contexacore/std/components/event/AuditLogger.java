@@ -15,20 +15,21 @@
  */
 package io.contexa.contexacore.std.components.event;
 
+import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
-import io.contexa.contexacommon.domain.context.DomainContext;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
+
 public class AuditLogger {
     
     private static final Logger log = LoggerFactory.getLogger(AuditLogger.class);
@@ -66,7 +67,7 @@ public class AuditLogger {
         }
 
         entry.endTime = LocalDateTime.now();
-        entry.duration = java.time.Duration.between(entry.startTime, entry.endTime).toMillis();
+        entry.duration = Duration.between(entry.startTime, entry.endTime).toMillis();
         entry.status = "SUCCESS";
         entry.responseType = response.getClass().getSimpleName();
 
@@ -81,7 +82,7 @@ public class AuditLogger {
         }
 
         entry.endTime = LocalDateTime.now();
-        entry.duration = java.time.Duration.between(entry.startTime, entry.endTime).toMillis();
+        entry.duration = Duration.between(entry.startTime, entry.endTime).toMillis();
         entry.status = "FAILED";
         entry.errorMessage = error.getMessage();
         entry.errorType = error.getClass().getSimpleName();
@@ -98,7 +99,7 @@ public class AuditLogger {
     
     private String getCurrentUser() {
         try {
-            return org.springframework.security.core.context.SecurityContextHolder
+            return SecurityContextHolder
                     .getContext().getAuthentication().getName();
         } catch (Exception e) {
             return "SYSTEM";

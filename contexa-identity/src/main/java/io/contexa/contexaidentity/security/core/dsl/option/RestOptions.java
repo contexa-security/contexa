@@ -17,12 +17,11 @@ package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.RestAsepAttributes;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import java.util.Objects;
 import lombok.Getter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.Assert;
-
-import java.util.Objects;
-
+
 @Getter
 public final class RestOptions extends AuthenticationProcessingOptions {
 
@@ -43,11 +42,11 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes;
     }
 
-    public static Builder builder(org.springframework.context.ApplicationContext applicationContext) {
+    public static Builder builder(ApplicationContext applicationContext) {
         return new Builder(applicationContext, false);
     }
 
-    public static Builder builderForMfa(org.springframework.context.ApplicationContext applicationContext) {
+    public static Builder builderForMfa(ApplicationContext applicationContext) {
         return new Builder(applicationContext, true);
     }
 

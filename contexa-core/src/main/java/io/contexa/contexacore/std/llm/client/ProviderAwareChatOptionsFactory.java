@@ -14,14 +14,15 @@
  * under the License.
  */
 package io.contexa.contexacore.std.llm.client;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.ChatOptions;
 
+import io.contexa.contexacore.config.TieredLLMProperties;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Locale;
-
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
+
 @Slf4j
 public final class ProviderAwareChatOptionsFactory {
 
@@ -93,7 +94,7 @@ public final class ProviderAwareChatOptionsFactory {
         return buildRuntimeOptions(context, selectedModel, null);
     }
 
-    public static ChatOptions buildRuntimeOptions(ExecutionContext context, ChatModel selectedModel, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+    public static ChatOptions buildRuntimeOptions(ExecutionContext context, ChatModel selectedModel, TieredLLMProperties tieredLLMProperties) {
         if (context == null) {
             return ChatOptions.builder().build();
         }
@@ -339,7 +340,7 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     @SuppressWarnings("unchecked")
-    private static ChatOptions buildOllamaOptions(ExecutionContext context, ChatModel selectedModel, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+    private static ChatOptions buildOllamaOptions(ExecutionContext context, ChatModel selectedModel, TieredLLMProperties tieredLLMProperties) {
         try {
             String modelName = determineOllamaModelName(context, selectedModel, tieredLLMProperties);
             ChatOptions defaultOptions = selectedModel.getDefaultOptions();
@@ -380,7 +381,7 @@ public final class ProviderAwareChatOptionsFactory {
         }
     }
 
-    private static String determineOllamaModelName(ExecutionContext context, ChatModel selectedModel, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+    private static String determineOllamaModelName(ExecutionContext context, ChatModel selectedModel, TieredLLMProperties tieredLLMProperties) {
         String selectedModelId = resolveSelectedModelId(context);
         if (selectedModelId != null) {
             return selectedModelId;
@@ -425,7 +426,7 @@ public final class ProviderAwareChatOptionsFactory {
         return null;
     }
 
-    private static String resolveConfiguredModelNameForTier(Integer tier, io.contexa.contexacore.config.TieredLLMProperties tieredLLMProperties) {
+    private static String resolveConfiguredModelNameForTier(Integer tier, TieredLLMProperties tieredLLMProperties) {
         if (tieredLLMProperties == null) {
             return "qwen2.5:7b";
         }

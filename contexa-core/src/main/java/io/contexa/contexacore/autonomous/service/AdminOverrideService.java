@@ -19,24 +19,24 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
 import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-
+import lombok.extern.slf4j.Slf4j;
+import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
+
 @Slf4j
 public class AdminOverrideService {
 
@@ -100,7 +100,7 @@ public class AdminOverrideService {
                 .requestId(requestId)
                 .userId(userId)
                 .adminId(adminId)
-                .timestamp(java.time.Instant.now())
+                .timestamp(Instant.now())
                 .originalAction(originalAction)
                 .overriddenAction(overriddenAction)
                 .reason(reason)

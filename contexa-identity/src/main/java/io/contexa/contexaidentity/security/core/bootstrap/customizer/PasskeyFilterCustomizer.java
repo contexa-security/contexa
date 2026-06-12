@@ -15,21 +15,23 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.customizer;
 
+import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.filter.ContexaWebAuthnRegistrationPageFilter;
 import io.contexa.contexaidentity.security.filter.ContexaWebAuthnResourceFilter;
 import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexacommon.enums.StateType;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import jakarta.servlet.Filter;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.MessageSource;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.authentication.ui.DefaultResourcesFilter;
+import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.webauthn.authentication.PublicKeyCredentialRequestOptionsFilter;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
@@ -37,9 +39,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 import org.springframework.security.web.webauthn.registration.PublicKeyCredentialCreationOptionsFilter;
 import org.springframework.security.web.webauthn.registration.WebAuthnRegistrationFilter;
 import org.springframework.util.StringUtils;
-
-import java.util.List;
-
+
 /**
  * Applies per-flow URL prefix to WebAuthn (Passkey) filters.
  * Also handles WebAuthn handler replacement and registration page replacement.
@@ -182,8 +182,8 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
             ContexaWebAuthnRegistrationPageFilter contexaFilter =
                     new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
             try {
-                org.springframework.context.MessageSource messageSource =
-                        appContext.getBean(org.springframework.context.MessageSource.class);
+                MessageSource messageSource =
+                        appContext.getBean(MessageSource.class);
                 contexaFilter.setMessageSource(messageSource);
             } catch (Exception ignored) {
             }

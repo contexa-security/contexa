@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
@@ -22,13 +24,13 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-
+
 @DisplayName("DistributedLockService registration across modes")
 class DistributedLockServiceRegistrationTest {
 
@@ -70,10 +72,10 @@ class DistributedLockServiceRegistrationTest {
         }
     }
 
-    @org.springframework.context.annotation.Configuration
+    @Configuration
     static class StandaloneLockTestConfiguration {
-        @org.springframework.context.annotation.Bean
-        @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(DistributedLockService.class)
+        @Bean
+        @ConditionalOnMissingBean(DistributedLockService.class)
         public InMemoryDistributedLockService inMemoryDistributedLockService() {
             return new InMemoryDistributedLockService();
         }

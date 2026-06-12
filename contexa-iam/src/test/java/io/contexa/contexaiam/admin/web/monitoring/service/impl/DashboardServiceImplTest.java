@@ -15,6 +15,17 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import io.contexa.contexacommon.entity.AuditLog;
+import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.support.context.dto.RecentActivityDto;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.monitoring.dto.*;
@@ -24,42 +35,31 @@ import io.contexa.contexaiam.admin.web.monitoring.service.PermissionMatrixServic
 import io.contexa.contexaiam.admin.web.monitoring.service.SecurityScoreCalculator;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
-import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
-import io.contexa.contexacommon.entity.AuditLog;
-import io.contexa.contexacommon.entity.ManagedResource;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.quality.Strictness;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class DashboardServiceImplTest {
@@ -208,9 +208,9 @@ class DashboardServiceImplTest {
         when(policyRepository.findTop5ByOrderByCreatedAtDesc()).thenReturn(Collections.emptyList());
         when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
         when(policyValidationService.validateAll()).thenReturn(
-                new io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport(0, "HEALTHY", List.of(), List.of()));
+                new FullValidationReport(0, "HEALTHY", List.of(), List.of()));
         when(policyCombiningProperties.getCombiningAlgorithm()).thenReturn(
-                io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm.FIRST_APPLICABLE);
+                CombiningAlgorithm.FIRST_APPLICABLE);
         when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());
     }
 

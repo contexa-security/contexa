@@ -15,15 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.domain;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
-
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -112,7 +112,7 @@ public class SecurityEventContext {
         this.processingStatus = ProcessingStatus.COMPLETED;
         if (processingMetrics != null && createdAt != null) {
             processingMetrics.setTotalTimeMs(
-                java.time.Duration.between(createdAt, LocalDateTime.now()).toMillis()
+                Duration.between(createdAt, LocalDateTime.now()).toMillis()
             );
         }
         updateTimestamp();

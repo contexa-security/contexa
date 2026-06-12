@@ -15,52 +15,54 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
-import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
 import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightState;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
-import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.ArgumentCaptor;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.quality.Strictness;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
-
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.quality.Strictness;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AbstractTieredStrategyTest {
@@ -325,19 +327,19 @@ class AbstractTieredStrategyTest {
     @DisplayName("clearPromptRuntimeTelemetry should remove stale prompt runtime facts")
     void clearPromptRuntimeTelemetry_removesStaleFacts() {
         SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(java.util.Map.ofEntries(
-                        java.util.Map.entry("promptVersion", "stale-version"),
-                        java.util.Map.entry("promptHash", "sha256:stale"),
-                        java.util.Map.entry("budgetProfile", "CORTEX_L1_STANDARD"),
-                        java.util.Map.entry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME"),
-                        java.util.Map.entry("officialVerificationPinnedModelId", "qwen3:8b"),
-                        java.util.Map.entry("officialVerificationTemperature", 0.0d),
-                        java.util.Map.entry("officialVerificationTopP", 0.2d),
-                        java.util.Map.entry("officialVerificationSeed", 7),
-                        java.util.Map.entry("officialVerificationMaxTokens", 96),
-                        java.util.Map.entry("promptRuntimeTelemetryLinked", true),
-                        java.util.Map.entry("promptRuntimeTelemetryLayer", "Layer1"),
-                        java.util.Map.entry("preserveKey", "preserveValue"))))
+                .metadata(new LinkedHashMap<>(Map.ofEntries(
+                        Map.entry("promptVersion", "stale-version"),
+                        Map.entry("promptHash", "sha256:stale"),
+                        Map.entry("budgetProfile", "CORTEX_L1_STANDARD"),
+                        Map.entry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME"),
+                        Map.entry("officialVerificationPinnedModelId", "qwen3:8b"),
+                        Map.entry("officialVerificationTemperature", 0.0d),
+                        Map.entry("officialVerificationTopP", 0.2d),
+                        Map.entry("officialVerificationSeed", 7),
+                        Map.entry("officialVerificationMaxTokens", 96),
+                        Map.entry("promptRuntimeTelemetryLinked", true),
+                        Map.entry("promptRuntimeTelemetryLayer", "Layer1"),
+                        Map.entry("preserveKey", "preserveValue"))))
                 .build();
 
         strategy.clearPromptRuntimeTelemetryForTest(event);
@@ -519,7 +521,7 @@ class AbstractTieredStrategyTest {
         ArgumentCaptor<String> retrievalPurposeCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<AuthorizedPromptContext> promptContextCaptor = ArgumentCaptor.forClass(AuthorizedPromptContext.class);
         verify(promptContextAuditForwardingService, times(1))
-                .capture(org.mockito.ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
+                .capture(ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
         assertThat(retrievalPurposeCaptor.getValue()).isEqualTo("security_investigation");
         assertThat(promptContextCaptor.getValue().documents()).isEmpty();
         assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(3);
@@ -546,7 +548,7 @@ class AbstractTieredStrategyTest {
         ArgumentCaptor<String> retrievalPurposeCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<AuthorizedPromptContext> promptContextCaptor = ArgumentCaptor.forClass(AuthorizedPromptContext.class);
         verify(promptContextAuditForwardingService, times(1))
-                .capture(org.mockito.ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
+                .capture(ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
         assertThat(retrievalPurposeCaptor.getValue()).isEqualTo("security_investigation");
         assertThat(promptContextCaptor.getValue().documents()).isEmpty();
         assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(2);
@@ -596,7 +598,7 @@ class AbstractTieredStrategyTest {
         when(promptContextAuthorizationService.authorize(
                 any(SecurityEvent.class),
                 any(),
-                org.mockito.ArgumentMatchers.<List<Document>>any()))
+                ArgumentMatchers.<List<Document>>any()))
                 .thenAnswer(invocation -> {
                     List<Document> documents = invocation.getArgument(2);
                     return new AuthorizedPromptContext(
@@ -640,8 +642,8 @@ class AbstractTieredStrategyTest {
         BaselineSeedSnapshot seedSnapshot = new BaselineSeedSnapshot(
                 "tenant-a", true, true, true, "FINTECH_APAC_LARGE", "FINTECH", "APAC", 18, 420L,
                 List.of(9, 10), List.of(1, 2), List.of("WINDOWS"), Map.of(), Map.of(), Map.of(),
-                java.time.LocalDate.of(2026, 4, 8), java.time.LocalDateTime.of(2026, 4, 8, 12, 0));
-        SaasBaselineSeedService baselineSeedService = org.mockito.Mockito.mock(SaasBaselineSeedService.class);
+                LocalDate.of(2026, 4, 8), LocalDateTime.of(2026, 4, 8, 12, 0));
+        SaasBaselineSeedService baselineSeedService = Mockito.mock(SaasBaselineSeedService.class);
         when(baselineLearningService.getBaseline("user-123")).thenReturn(null);
         when(baselineLearningService.describeBaselineMaturity("user-123", null))
                 .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(

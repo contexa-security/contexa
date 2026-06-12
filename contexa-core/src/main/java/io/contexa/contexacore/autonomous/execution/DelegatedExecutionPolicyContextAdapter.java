@@ -15,8 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.execution;
 
+import java.util.List;
 import java.util.Locale;
-
+
 public class DelegatedExecutionPolicyContextAdapter {
 
     public ExecutionPolicyView adapt(DelegatedExecutionPolicyContext context) {
@@ -35,13 +36,13 @@ public class DelegatedExecutionPolicyContextAdapter {
                     null,
                     null,
                     null,
-                    java.util.List.of(),
-                    java.util.List.of(),
-                    java.util.List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
                     false,
                     false,
-                    java.util.List.of(),
-                    java.util.List.of(),
+                    List.of(),
+                    List.of(),
                     null,
                     null,
                     ExecutionProtocolTypes.UNKNOWN,

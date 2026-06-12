@@ -18,13 +18,14 @@ package io.contexa.contexacore.autonomous.saas.learning.release;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactReleaseState;
 import io.contexa.contexacore.domain.entity.LearningArtifactReleaseLedgerRecord;
 import io.contexa.contexacore.repository.LearningArtifactReleaseLedgerRecordRepository;
-import org.springframework.data.domain.PageRequest;
-
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
+
 /**
  * JPA-backed ledger store for learning artifact release history.
  */
@@ -42,7 +43,7 @@ public class JpaLearningArtifactReleaseLedgerStore implements LearningArtifactRe
     }
 
     @Override
-    public java.util.Optional<LearningArtifactReleaseLedgerEntry> findLatest(String tenantId, String artifactType, String artifactKey) {
+    public Optional<LearningArtifactReleaseLedgerEntry> findLatest(String tenantId, String artifactType, String artifactKey) {
         return repository.findFirstByTenantIdAndArtifactTypeAndArtifactKeyOrderByCreatedAtDescIdDesc(
                         tenantId,
                         artifactType,
@@ -73,7 +74,7 @@ public class JpaLearningArtifactReleaseLedgerStore implements LearningArtifactRe
                         PageRequest.of(0, 1000))
                 .stream()
                 .map(this::toEntry)
-                .collect(java.util.stream.Collectors.toMap(
+                .collect(Collectors.toMap(
                         LearningArtifactReleaseLedgerEntry::tenantId,
                         entry -> entry,
                         (left, right) -> left,

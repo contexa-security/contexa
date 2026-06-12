@@ -15,15 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.tiered.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SecurityEventEnricherTest {
@@ -124,7 +124,7 @@ class SecurityEventEnricherTest {
     void shouldDecodeUrlEncodedStrings() {
         // given
         SecurityEventEnricher enricher = new SecurityEventEnricher();
-        io.contexa.contexacore.autonomous.domain.SecurityEvent event = io.contexa.contexacore.autonomous.domain.SecurityEvent.builder()
+        SecurityEvent event = SecurityEvent.builder()
                 .build();
         event.addMetadata("requestPayload", "hello%20world%21");
 
@@ -145,7 +145,7 @@ class SecurityEventEnricherTest {
         SecurityEventEnricher enricher = new SecurityEventEnricher();
         // "Hello World!" in Base64
         String base64Value = "SGVsbG8gV29ybGQh";
-        io.contexa.contexacore.autonomous.domain.SecurityEvent event = io.contexa.contexacore.autonomous.domain.SecurityEvent.builder()
+        SecurityEvent event = SecurityEvent.builder()
                 .build();
         event.addMetadata("requestPayload", base64Value);
 
@@ -188,7 +188,7 @@ class SecurityEventEnricherTest {
     void shouldReturnEmptyForNoPayload() {
         // given
         SecurityEventEnricher enricher = new SecurityEventEnricher();
-        io.contexa.contexacore.autonomous.domain.SecurityEvent event = io.contexa.contexacore.autonomous.domain.SecurityEvent.builder()
+        SecurityEvent event = SecurityEvent.builder()
                 .build();
 
         // when

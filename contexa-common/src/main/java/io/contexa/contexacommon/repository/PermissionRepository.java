@@ -15,19 +15,19 @@
  */
 package io.contexa.contexacommon.repository;
 
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.repository.query.Param;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
 public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
     @Query(value = "SELECT p FROM Permission p LEFT JOIN FETCH p.managedResource mr " +
@@ -62,20 +62,19 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             "AND mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.EXCLUDED")
     List<Permission> findDefinedPermissionsWithDetails();
 
-
     @Query("SELECT p FROM Permission p " +
             "JOIN p.managedResource mr " +
             "WHERE mr.resourceType = :resourceType " +
             "AND mr.resourceIdentifier = :resourceIdentifier")
     List<Permission> findByResourceTypeAndIdentifier(
-            @org.springframework.data.repository.query.Param("resourceType") io.contexa.contexacommon.entity.ManagedResource.ResourceType resourceType,
-            @org.springframework.data.repository.query.Param("resourceIdentifier") String resourceIdentifier
+            @Param("resourceType") ManagedResource.ResourceType resourceType,
+            @Param("resourceIdentifier") String resourceIdentifier
     );
 
     @Query("SELECT COUNT(rp) FROM RolePermission rp WHERE rp.permission.id = :permissionId")
-    long countRoleAssignments(@org.springframework.data.repository.query.Param("permissionId") Long permissionId);
+    long countRoleAssignments(@Param("permissionId") Long permissionId);
 
-    @org.springframework.data.jpa.repository.Modifying
+    @Modifying
     @Query("DELETE FROM Permission p WHERE p.id IN :ids")
     void deleteAllByIds(@Param("ids") Collection<Long> ids);
 }

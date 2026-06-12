@@ -17,29 +17,29 @@ package io.contexa.contexaidentity.config;
 
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.lettuce.core.ClientOptions;
-import io.lettuce.core.SocketOptions;
-import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.metrics.CommandLatencyRecorder;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
+import io.lettuce.core.SocketOptions;
+import io.lettuce.core.TimeoutOptions;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-
-import java.time.Duration;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-
+
 @AutoConfiguration(before = RedisAutoConfiguration.class)
 @RequiredArgsConstructor
 @EnableConfigurationProperties(RedisProperties.class)
@@ -78,8 +78,8 @@ public class ZeroTrustRedisConfig {
                 .timeoutOptions(TimeoutOptions.enabled(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout())))  
                 .build();
 
-        org.apache.commons.pool2.impl.GenericObjectPoolConfig poolConfig = 
-                new org.apache.commons.pool2.impl.GenericObjectPoolConfig();
+        GenericObjectPoolConfig poolConfig = 
+                new GenericObjectPoolConfig();
         poolConfig.setMaxTotal(100);  
         poolConfig.setMaxIdle(50);    
         poolConfig.setMinIdle(10);    

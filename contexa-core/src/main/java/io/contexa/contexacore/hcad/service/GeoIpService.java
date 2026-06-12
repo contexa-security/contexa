@@ -17,17 +17,17 @@ package io.contexa.contexacore.hcad.service;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.CityResponse;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
-
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * GeoIP lookup service with Caffeine cache for performance.
  * Uses MaxMind GeoLite2-City database in memory-mapped mode.
@@ -52,7 +52,7 @@ public class GeoIpService implements Closeable {
             if (dbFile.exists() && dbFile.isFile()) {
                 try {
                     r = new DatabaseReader.Builder(dbFile)
-                            .fileMode(com.maxmind.db.Reader.FileMode.MEMORY_MAPPED)
+                            .fileMode(Reader.FileMode.MEMORY_MAPPED)
                             .build();
                     log.error("[GeoIpService] GeoLite2 database loaded: {}", dbPath);
                 } catch (IOException e) {

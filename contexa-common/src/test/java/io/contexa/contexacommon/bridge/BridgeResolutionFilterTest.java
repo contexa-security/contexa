@@ -15,16 +15,20 @@
  */
 package io.contexa.contexacommon.bridge;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.bridge.*;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
+import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -32,12 +36,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.context.SecurityContextHolder;
-
-import java.time.Instant;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 class BridgeResolutionFilterTest {
 
     @AfterEach
@@ -128,7 +127,7 @@ class BridgeResolutionFilterTest {
         assertThat(result.authorizationStamp().attributes())
                 .containsEntry("authorizationEvidenceState", "DERIVED_RUNTIME_FALLBACK");
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.AUTHORIZATION_CONTEXT);
-        assertThat(result.coverageReport().missingContexts()).contains(io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext.AUTHORIZATION_EFFECT);
+        assertThat(result.coverageReport().missingContexts()).contains(MissingBridgeContext.AUTHORIZATION_EFFECT);
         assertThat(result.coverageReport().summary()).contains("Bridge completeness reached authentication");
     }
 
@@ -419,7 +418,4 @@ class BridgeResolutionFilterTest {
         }
     }
 }
-
-
-
 

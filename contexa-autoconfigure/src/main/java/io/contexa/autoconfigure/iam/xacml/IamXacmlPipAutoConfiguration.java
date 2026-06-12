@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -24,7 +25,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-
+
 
 @AutoConfiguration
 public class IamXacmlPipAutoConfiguration {
@@ -35,7 +36,7 @@ public class IamXacmlPipAutoConfiguration {
             UserRepository userRepository,
             AuditLogRepository auditLogRepository,
             BusinessResourceActionRepository resourceActionRepository,
-            io.contexa.contexacommon.cache.ContexaCacheService cacheService) {
+            ContexaCacheService cacheService) {
         return new DatabaseAttributePIP(userRepository, auditLogRepository, resourceActionRepository, cacheService);
     }
 
@@ -43,7 +44,7 @@ public class IamXacmlPipAutoConfiguration {
     @ConditionalOnMissingBean
     public DefaultContextHandler defaultContextHandler(
             UserRepository userRepository,
-            io.contexa.contexacommon.cache.ContexaCacheService cacheService) {
+            ContexaCacheService cacheService) {
         return new DefaultContextHandler(userRepository, cacheService);
     }
 }

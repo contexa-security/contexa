@@ -15,10 +15,14 @@
  */
 package io.contexa.contexaidentity.security.token.validator;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -30,11 +34,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.stream.Collectors;
-
+
 @Slf4j
 public class OAuth2TokenValidator implements TokenValidator {
 
@@ -171,7 +171,7 @@ public class OAuth2TokenValidator implements TokenValidator {
         if (scopes == null) {
             String scopeString = jwt.getClaimAsString("scope");
             if (scopeString != null && !scopeString.isBlank()) {
-                scopes = java.util.Arrays.asList(scopeString.split("\\s+"));
+                scopes = Arrays.asList(scopeString.split("\\s+"));
             }
         }
         Collection<GrantedAuthority> scopeAuthorities = scopes != null ?

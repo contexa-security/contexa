@@ -15,33 +15,32 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
-import org.springframework.context.MessageSource;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto.DuplicateType;
 import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto.Severity;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
+import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
 import org.mockito.quality.Strictness;
-
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-
+import org.springframework.context.MessageSource;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PolicyValidationServiceTest {
@@ -55,7 +54,7 @@ class PolicyValidationServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class)))
+        when(messageSource.getMessage(any(String.class), any(), any(Locale.class)))
                 .thenAnswer(inv -> {
                     String code = inv.getArgument(0);
                     return switch (code) {

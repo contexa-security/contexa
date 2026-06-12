@@ -17,10 +17,10 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
+import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRule;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplication;
@@ -39,39 +39,41 @@ import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEviden
 import io.contexa.contexacore.autonomous.learning.evidence.ObservedPatternSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.RetrievedBehaviorEvidence;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
+import io.contexa.contexacore.autonomous.saas.dto.*;
+import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyRuntimePack;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.BehaviorAnalysis;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.DetectedPatterns;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.SessionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.StructuredPrompt;
-import io.contexa.contexacore.autonomous.saas.dto.*;
-import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyRuntimePack;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptCompressionLedger;
+import io.contexa.contexacore.std.components.prompt.PromptDuplicationRecord;
 import io.contexa.contexacore.std.components.prompt.PromptEvidenceCompleteness;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolution;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
-import io.contexa.contexacore.std.components.prompt.PromptViewProfile;
-import io.contexa.contexacore.std.components.prompt.PromptDuplicationRecord;
 import io.contexa.contexacore.std.components.prompt.PromptOmissionRecord;
 import io.contexa.contexacore.std.components.prompt.PromptOmissionType;
 import io.contexa.contexacore.std.components.prompt.PromptSectionPriorityClass;
 import io.contexa.contexacore.std.components.prompt.PromptSemanticRisk;
-import io.contexa.contexacore.std.components.prompt.PromptCompressionLedger;
+import io.contexa.contexacore.std.components.prompt.PromptViewProfile;
 import io.contexa.contexacore.std.components.prompt.SecurityPromptSectionCatalog;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
-
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
+
 /**
  * Builds security analysis prompts for Zero Trust AI evaluation.
  * <p>
@@ -1083,8 +1085,6 @@ public class SecurityDecisionPromptSections {
         return section.toString();
     }
 
-
-
     String buildCurrentRequestNarrative(SecurityEvent event,
             BehaviorAnalysis behaviorAnalysis,
             CanonicalSecurityContext canonicalSecurityContext,
@@ -1986,9 +1986,6 @@ public class SecurityDecisionPromptSections {
         return section.toString();
     }
 
-
-
-
     String buildCohortBaselineSeedSection(BehaviorAnalysis behaviorAnalysis) {
         if (behaviorAnalysis == null || !behaviorAnalysis.isCohortSeedApplied()) {
             return null;
@@ -2882,8 +2879,8 @@ public class SecurityDecisionPromptSections {
         if (!StringUtils.hasText(text) || !StringUtils.hasText(key)) {
             return null;
         }
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("(?i)(?:^|[\\s,;|])" + java.util.regex.Pattern.quote(key.trim()) + "\\s*=\\s*([^\\s,;|.\\]]+)")
+        Matcher matcher = Pattern
+                .compile("(?i)(?:^|[\\s,;|])" + Pattern.quote(key.trim()) + "\\s*=\\s*([^\\s,;|.\\]]+)")
                 .matcher(text);
         return matcher.find() ? matcher.group(1).trim() : null;
     }
@@ -2892,7 +2889,7 @@ public class SecurityDecisionPromptSections {
         if (!StringUtils.hasText(text)) {
             return null;
         }
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
+        Matcher matcher = Pattern
                 .compile("(/[^\\s,;|\\]]+)")
                 .matcher(text);
         return matcher.find() ? matcher.group(1).trim() : null;
@@ -3226,7 +3223,7 @@ public class SecurityDecisionPromptSections {
             }
             return false;
         }
-        return value.toString().toUpperCase(java.util.Locale.ROOT).contains(expected.toUpperCase(java.util.Locale.ROOT));
+        return value.toString().toUpperCase(Locale.ROOT).contains(expected.toUpperCase(Locale.ROOT));
     }
     private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
         if (metadata == null) {
@@ -3396,5 +3393,4 @@ public class SecurityDecisionPromptSections {
     }
 
 }
-
 

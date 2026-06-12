@@ -1,3 +1,5 @@
+create extension if not exists vector;
+
 create table users
 (
     id                    bigserial
@@ -630,9 +632,6 @@ alter table soar_approval_votes
 
 create index idx_soar_approval_vote_request_id
     on soar_approval_votes (request_id);
-
-create index idx_soar_approval_vote_decision
-    on soar_approval_votes (decision);
 
 create index idx_soar_approval_vote_created_at
     on soar_approval_votes (created_at);
@@ -1500,7 +1499,6 @@ create table shedlock
 alter table shedlock
     owner to contexa_sim;
 
-
 -- ----------------------------------------------------------------
 -- Enterprise Migrated Tables DDL
 -- ----------------------------------------------------------------
@@ -1672,6 +1670,48 @@ create table if not exists prompt_governance_runtime_cache_invalidation (
     consumed_at timestamp
 );
 
+create table if not exists prompt_runtime_governance_action_type_contract (
+    action_type varchar(128) primary key,
+    action_family varchar(128) not null,
+    action_intent text not null,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    display_label text,
+    button_label text,
+    customer_description text
+);
+
+create table if not exists prompt_runtime_governance_action (
+    id bigserial primary key,
+    action_id varchar(256) not null unique,
+    package_id varchar(256) not null,
+    aggregate_run_id varchar(256) not null,
+    issue_id varchar(256) not null,
+    work_item_id varchar(256) not null,
+    problem_id varchar(256),
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    slot_key varchar(256) not null,
+    prompt_location varchar(512) not null,
+    action_type varchar(128) not null,
+    action_status varchar(64) not null,
+    action_source varchar(64) not null,
+    candidate_basis_json jsonb not null default '{}',
+    request_payload_json jsonb not null default '{}',
+    actor_id varchar(256),
+    current_result boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint ck_prompt_runtime_governance_action_status
+        check (action_status in ('DRAFT', 'REQUESTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
+    constraint ck_prompt_runtime_governance_action_source
+        check (action_source in ('PROMPT_RESOLUTION_BUTTON', 'SYSTEM_SYNC')),
+    constraint fk_prompt_runtime_governance_action_type
+        foreign key (action_type)
+        references prompt_runtime_governance_action_type_contract (action_type)
+);
+
 create table if not exists prompt_runtime_governance_rule (
     id bigserial primary key,
     rule_id varchar(256) not null unique,
@@ -1707,36 +1747,6 @@ create table if not exists prompt_runtime_governance_rule (
         references prompt_runtime_governance_action (action_id),
     constraint fk_prompt_runtime_governance_rule_type
         foreign key (rule_type)
-        references prompt_runtime_governance_action_type_contract (action_type)
-);
-
-create table if not exists prompt_runtime_governance_action (
-    id bigserial primary key,
-    action_id varchar(256) not null unique,
-    package_id varchar(256) not null,
-    aggregate_run_id varchar(256) not null,
-    issue_id varchar(256) not null,
-    work_item_id varchar(256) not null,
-    problem_id varchar(256),
-    metric_code varchar(32) not null,
-    check_code varchar(128) not null,
-    slot_key varchar(256) not null,
-    prompt_location varchar(512) not null,
-    action_type varchar(128) not null,
-    action_status varchar(64) not null,
-    action_source varchar(64) not null,
-    candidate_basis_json jsonb not null default '{}',
-    request_payload_json jsonb not null default '{}',
-    actor_id varchar(256),
-    current_result boolean not null default true,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp,
-    constraint ck_prompt_runtime_governance_action_status
-        check (action_status in ('DRAFT', 'REQUESTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
-    constraint ck_prompt_runtime_governance_action_source
-        check (action_source in ('PROMPT_RESOLUTION_BUTTON', 'SYSTEM_SYNC')),
-    constraint fk_prompt_runtime_governance_action_type
-        foreign key (action_type)
         references prompt_runtime_governance_action_type_contract (action_type)
 );
 
@@ -1809,27 +1819,6 @@ create table if not exists prompt_runtime_governance_action_policy (
         references prompt_runtime_governance_action_type_contract (action_type)
 );
 
-create table if not exists prompt_runtime_metric_check_slot_contract (
-    id bigserial primary key,
-    contract_version varchar(128) not null,
-    prompt_key varchar(128) not null default 'SECURITY_DECISION',
-    metric_code varchar(32) not null,
-    check_code varchar(128) not null,
-    slot_key varchar(256) not null,
-    prompt_location varchar(512) not null,
-    required_role varchar(128),
-    interpretation_role varchar(128),
-    required boolean not null default true,
-    active boolean not null default true,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp,
-    constraint uq_prompt_runtime_metric_check_slot_contract
-        unique (contract_version, prompt_key, metric_code, check_code, slot_key),
-    constraint fk_prompt_runtime_metric_check_slot_contract_slot
-        foreign key (contract_version, prompt_key, slot_key)
-        references prompt_runtime_slot_contract (contract_version, prompt_key, slot_key)
-);
-
 create table if not exists prompt_runtime_slot_contract (
     id bigserial primary key,
     contract_version varchar(128) not null,
@@ -1850,6 +1839,27 @@ create table if not exists prompt_runtime_slot_contract (
     updated_at timestamp not null default current_timestamp,
     constraint uq_prompt_runtime_slot_contract
         unique (contract_version, prompt_key, slot_key)
+);
+
+create table if not exists prompt_runtime_metric_check_slot_contract (
+    id bigserial primary key,
+    contract_version varchar(128) not null,
+    prompt_key varchar(128) not null default 'SECURITY_DECISION',
+    metric_code varchar(32) not null,
+    check_code varchar(128) not null,
+    slot_key varchar(256) not null,
+    prompt_location varchar(512) not null,
+    required_role varchar(128),
+    interpretation_role varchar(128),
+    required boolean not null default true,
+    active boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uq_prompt_runtime_metric_check_slot_contract
+        unique (contract_version, prompt_key, metric_code, check_code, slot_key),
+    constraint fk_prompt_runtime_metric_check_slot_contract_slot
+        foreign key (contract_version, prompt_key, slot_key)
+        references prompt_runtime_slot_contract (contract_version, prompt_key, slot_key)
 );
 
 create table if not exists prompt_runtime_governance_application_ledger (
@@ -1899,18 +1909,6 @@ create table if not exists prompt_runtime_governance_check_action_contract (
         references prompt_runtime_governance_action_type_contract (action_type)
 );
 
-create table if not exists prompt_runtime_governance_action_type_contract (
-    action_type varchar(128) primary key,
-    action_family varchar(128) not null,
-    action_intent text not null,
-    active boolean not null default true,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp,
-    display_label text,
-    button_label text,
-    customer_description text
-);
-
 CREATE TABLE IF NOT EXISTS official_prompt_signal_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
@@ -1935,6 +1933,15 @@ CREATE TABLE IF NOT EXISTS official_metric_evaluation_contract (
     issue_key VARCHAR(512),
     customer_visible BOOLEAN NOT NULL DEFAULT TRUE,
     readiness_scope VARCHAR(128) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT now()
+    problem_title TEXT,
+    short_problem TEXT,
+    expected_message TEXT,
+    pass_message TEXT,
+    failure_message TEXT,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT now(),
+    CONSTRAINT uq_official_metric_evaluation_contract
+        UNIQUE (contract_version, metric_code, check_code)
 );
 
+create index idx_soar_approval_vote_decision
+    on soar_approval_votes (decision);

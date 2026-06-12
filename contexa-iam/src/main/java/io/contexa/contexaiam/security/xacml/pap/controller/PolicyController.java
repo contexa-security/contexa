@@ -16,28 +16,26 @@
 package io.contexa.contexaiam.security.xacml.pap.controller;
 
 import io.contexa.contexaiam.domain.dto.ConditionDto;
+import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.dto.RuleDto;
 import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
-import io.contexa.contexaiam.domain.dto.PolicyDto;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
-import org.springframework.ui.Model;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-
-import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
-
 import java.util.List;
 import java.util.stream.Collectors;
-
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.modelmapper.ModelMapper;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
 @Controller
 @RequestMapping("/admin/policies")
 @RequiredArgsConstructor
@@ -79,7 +77,7 @@ public class PolicyController {
         try {
             policyService.createPolicy(policyDto);
             ra.addFlashAttribute("message", msg("msg.policy.created"));
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException e) {
             log.error("Duplicate policy name", e);
             ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {
@@ -108,7 +106,7 @@ public class PolicyController {
             policyDto.setId(id);
             policyService.updatePolicy(policyDto);
             ra.addFlashAttribute("message", msg("msg.policy.updated"));
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException e) {
             log.error("Duplicate policy name on update", e);
             ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {

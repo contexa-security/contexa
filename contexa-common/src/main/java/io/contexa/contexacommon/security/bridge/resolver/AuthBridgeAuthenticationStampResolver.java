@@ -16,18 +16,18 @@
 package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.AuthBridge;
+import io.contexa.contexacommon.security.bridge.BridgedUser;
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
-import io.contexa.contexacommon.security.bridge.BridgedUser;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import jakarta.servlet.http.HttpServletRequest;
-
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Optional;
-
+
 public class AuthBridgeAuthenticationStampResolver implements AuthenticationStampResolver {
 
     private final AuthBridge authBridge;
@@ -46,10 +46,10 @@ public class AuthBridgeAuthenticationStampResolver implements AuthenticationStam
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(bridgedUser.attributes());
-        Instant authenticationTime = BridgeObjectExtractor.extractInstant(attributes, java.util.List.of("authenticationTime"));
-        Boolean mfaCompleted = BridgeObjectExtractor.extractBoolean(attributes, java.util.List.of("mfaCompleted"));
-        String authenticationType = BridgeObjectExtractor.extractString(attributes, java.util.List.of("authenticationType"));
-        String authenticationAssurance = BridgeObjectExtractor.extractString(attributes, java.util.List.of("authenticationAssurance"));
+        Instant authenticationTime = BridgeObjectExtractor.extractInstant(attributes, List.of("authenticationTime"));
+        Boolean mfaCompleted = BridgeObjectExtractor.extractBoolean(attributes, List.of("mfaCompleted"));
+        String authenticationType = BridgeObjectExtractor.extractString(attributes, List.of("authenticationType"));
+        String authenticationAssurance = BridgeObjectExtractor.extractString(attributes, List.of("authenticationAssurance"));
         attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
         attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted));
         attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));

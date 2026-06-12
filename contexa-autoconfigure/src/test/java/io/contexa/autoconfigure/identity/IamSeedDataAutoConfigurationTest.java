@@ -15,15 +15,14 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import java.lang.reflect.Method;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
-
-import java.lang.reflect.Method;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 class IamSeedDataAutoConfigurationTest {
 
     @Test
@@ -37,7 +36,7 @@ class IamSeedDataAutoConfigurationTest {
     @Test
     @DisplayName("IAM seed data should run before demo persona JPA provisioning")
     void iamSeedDataRunsBeforePersonaProvisioning() throws NoSuchMethodException {
-        Method runner = IamSeedDataAutoConfiguration.class.getDeclaredMethod("iamSeedDataRunner", javax.sql.DataSource.class);
+        Method runner = IamSeedDataAutoConfiguration.class.getDeclaredMethod("iamSeedDataRunner", DataSource.class);
 
         assertThat(runner.getAnnotation(Order.class))
                 .as("IAM seed must run before demo persona runners so users_id_seq is synced first")

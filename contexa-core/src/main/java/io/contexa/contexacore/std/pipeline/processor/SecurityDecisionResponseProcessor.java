@@ -19,11 +19,11 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-
+
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 
     private static final int MAX_REASONING_WORDS = 40;
@@ -210,7 +210,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         if (words.length <= maxWords) {
             return reasoning.trim();
         }
-        return String.join(" ", java.util.Arrays.copyOf(words, maxWords));
+        return String.join(" ", Arrays.copyOf(words, maxWords));
     }
 
     private String defaultReasoning(String action) {

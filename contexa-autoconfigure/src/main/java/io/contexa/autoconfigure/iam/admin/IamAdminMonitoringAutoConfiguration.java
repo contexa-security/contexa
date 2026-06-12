@@ -15,23 +15,23 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
+import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.admin.web.menu.controller.AdminMenuController;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuManagementService;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuQueryCache;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
-import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
-import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import org.springframework.beans.factory.ObjectProvider;
@@ -39,7 +39,8 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-
+import org.springframework.context.MessageSource;
+
 @AutoConfiguration
 public class IamAdminMonitoringAutoConfiguration {
 
@@ -155,7 +156,7 @@ public class IamAdminMonitoringAutoConfiguration {
     public AdminMenuManagementService adminMenuManagementService(
             AdminMenuService adminMenuService,
             RoleRepository roleRepository,
-            org.springframework.context.MessageSource messageSource) {
+            MessageSource messageSource) {
         return new AdminMenuManagementService(
                 adminMenuService,
                 roleRepository,

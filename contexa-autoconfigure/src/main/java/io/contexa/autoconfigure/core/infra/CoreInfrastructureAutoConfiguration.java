@@ -19,12 +19,15 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.*;
 import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
+import io.contexa.contexacore.properties.OpenTelemetryProperties;
 import io.contexa.contexacore.security.async.InMemoryAsyncSecurityContextProvider;
 import io.contexa.contexacore.security.async.RedisAsyncSecurityContextProvider;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -32,18 +35,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
-
-import org.redisson.api.RedissonClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
-
+
 @AutoConfiguration
 @AutoConfigureAfter(name = {
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, io.contexa.contexacore.properties.OpenTelemetryProperties.class })
+@EnableConfigurationProperties({ ContexaProperties.class, OpenTelemetryProperties.class })
 @Import({
         ApplicationConfig.class,
         AsyncConfig.class,
@@ -53,7 +53,6 @@ public class CoreInfrastructureAutoConfiguration {
 
     public CoreInfrastructureAutoConfiguration() {
     }
-
 
     @Configuration
     @ConditionalOnClass(name = "org.redisson.api.RedissonClient")
@@ -88,7 +87,6 @@ public class CoreInfrastructureAutoConfiguration {
             return new RedisAsyncSecurityContextProvider(redisTemplate);
         }
     }
-
 
     @Configuration
     @ConditionalOnMissingBean(name = "generalRedisTemplate")

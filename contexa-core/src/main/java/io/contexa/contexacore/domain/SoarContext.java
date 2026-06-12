@@ -18,15 +18,18 @@ package io.contexa.contexacore.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.ai.chat.messages.AssistantMessage;
-
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
+
 @Getter
 @Setter
 public class SoarContext extends DomainContext {
@@ -137,7 +140,7 @@ public class SoarContext extends DomainContext {
     }
 
     private List<ApprovalRequest> approvalRequests = new ArrayList<>();
-    private java.util.Set<String> approvedTools = new java.util.HashSet<>();
+    private Set<String> approvedTools = new HashSet<>();
 
     public void addApprovalRequest(ApprovalRequest request) {
         if (this.approvalRequests == null) {
@@ -155,14 +158,14 @@ public class SoarContext extends DomainContext {
 
     public void approveTool(String toolName) {
         if (this.approvedTools == null) {
-            this.approvedTools = new java.util.HashSet<>();
+            this.approvedTools = new HashSet<>();
         }
         this.approvedTools.add(toolName);
     }
 
-    public java.util.Set<String> getApprovedTools() {
+    public Set<String> getApprovedTools() {
         if (this.approvedTools == null) {
-            this.approvedTools = new java.util.HashSet<>();
+            this.approvedTools = new HashSet<>();
         }
         return this.approvedTools;
     }
@@ -245,18 +248,18 @@ public class SoarContext extends DomainContext {
         this.executedTools.add(toolName);
     }
 
-    private Map<String, Object> extractedEntities = new java.util.HashMap<>();
+    private Map<String, Object> extractedEntities = new HashMap<>();
 
     public Map<String, Object> getExtractedEntities() {
         if (this.extractedEntities == null) {
-            this.extractedEntities = new java.util.HashMap<>();
+            this.extractedEntities = new HashMap<>();
         }
         return this.extractedEntities;
     }
 
     public void addEntity(String key, Object value) {
         if (this.extractedEntities == null) {
-            this.extractedEntities = new java.util.HashMap<>();
+            this.extractedEntities = new HashMap<>();
         }
         this.extractedEntities.put(key, value);
     }
@@ -276,7 +279,7 @@ public class SoarContext extends DomainContext {
 
     public void addToolExecutionResult(String toolName, Object result) {
         if (this.extractedEntities == null) {
-            this.extractedEntities = new java.util.HashMap<>();
+            this.extractedEntities = new HashMap<>();
         }
         this.extractedEntities.put("tool_result_" + toolName, result);
     }
@@ -300,7 +303,7 @@ public class SoarContext extends DomainContext {
 
     public void putAdditionalInfo(String key, Object value) {
         if (this.additionalInfo == null) {
-            this.additionalInfo = new java.util.LinkedHashMap<>();
+            this.additionalInfo = new LinkedHashMap<>();
         }
         this.additionalInfo.put(key, value);
     }

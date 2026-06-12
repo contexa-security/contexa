@@ -20,11 +20,16 @@ import io.contexa.contexaidentity.security.token.wrapper.OAuth2TokenRequestWrapp
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.temporal.ChronoUnit;
+import java.util.function.Consumer;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.http.HttpHeaders;
 import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,6 +40,7 @@ import org.springframework.security.oauth2.core.*;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
 import org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
+import org.springframework.security.web.authentication.AuthenticationConverter;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.Assert;
@@ -42,12 +48,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-
+
 public final class RestClientAuthenticatedUserTokenResponseClient
         implements OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> {
 
@@ -57,10 +58,10 @@ public final class RestClientAuthenticatedUserTokenResponseClient
     private ObjectProvider<FilterChainProxy> filterChainProxyProvider;
 
     @Nullable
-    private org.springframework.security.web.authentication.AuthenticationConverter clientSecretBasicConverter;
+    private AuthenticationConverter clientSecretBasicConverter;
 
     @Nullable
-    private org.springframework.security.authentication.AuthenticationProvider clientSecretAuthenticationProvider;
+    private AuthenticationProvider clientSecretAuthenticationProvider;
 
     @Nullable
     private Filter oauth2TokenEndpointFilter; 
@@ -331,11 +332,11 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         this.filterChainProxyProvider = filterChainProxyProvider;
     }
 
-    public void setClientSecretBasicConverter(org.springframework.security.web.authentication.AuthenticationConverter clientSecretBasicConverter) {
+    public void setClientSecretBasicConverter(AuthenticationConverter clientSecretBasicConverter) {
         this.clientSecretBasicConverter = clientSecretBasicConverter;
     }
 
-    public void setClientSecretAuthenticationProvider(org.springframework.security.authentication.AuthenticationProvider clientSecretAuthenticationProvider) {
+    public void setClientSecretAuthenticationProvider(AuthenticationProvider clientSecretAuthenticationProvider) {
         this.clientSecretAuthenticationProvider = clientSecretAuthenticationProvider;
     }
 

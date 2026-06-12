@@ -15,19 +15,20 @@
  */
 package io.contexa.contexacore.domain.entity;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.domain.IncidentHistoryLog;
 import io.contexa.contexacore.domain.SoarIncidentStatus;
 import io.contexa.contexacore.utils.JpaListConverter;
 import jakarta.persistence.*;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
 @Entity
 @Table(name = "soar_incidents")
 @EntityListeners(AuditingEntityListener.class)
@@ -94,10 +95,10 @@ public class SoarIncident {
     public void setDescription(String description) { this.description = description; }
     public String getMetadata() { return metadata; }
     public void setMetadata(String metadata) { this.metadata = metadata; }
-    public void setMetadata(java.util.Map<String, Object> metadataMap) {
+    public void setMetadata(Map<String, Object> metadataMap) {
         if (metadataMap != null) {
             try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                ObjectMapper mapper = new ObjectMapper();
                 this.metadata = mapper.writeValueAsString(metadataMap);
             } catch (Exception e) {
                 this.metadata = metadataMap.toString();

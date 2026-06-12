@@ -52,18 +52,18 @@ import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessUserMem
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessUserSummaryResponse;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateRolePermissionsRequest;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGroupsRequest;
-import lombok.RequiredArgsConstructor;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
+
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -425,8 +425,8 @@ public class AccessCenterService {
         return new AccessActionResponse(true, "Role permissions updated successfully.");
     }
 
-    private static final java.util.Set<String> CRUD_PERMISSION_NAMES =
-            java.util.Set.of("READ", "WRITE", "UPDATE", "DELETE");
+    private static final Set<String> CRUD_PERMISSION_NAMES =
+            Set.of("READ", "WRITE", "UPDATE", "DELETE");
 
     private static boolean isCrudPermission(Permission p) {
         return p != null && p.getName() != null && CRUD_PERMISSION_NAMES.contains(p.getName());
@@ -438,7 +438,7 @@ public class AccessCenterService {
                     List<Permission> mapped = r.getRolePermissions() != null
                             ? r.getRolePermissions().stream()
                                     .map(rp -> rp.getPermission())
-                                    .filter(java.util.Objects::nonNull)
+                                    .filter(Objects::nonNull)
                                     .toList()
                             : List.of();
                     // Classification is name-based (not target_type-based) so admins can

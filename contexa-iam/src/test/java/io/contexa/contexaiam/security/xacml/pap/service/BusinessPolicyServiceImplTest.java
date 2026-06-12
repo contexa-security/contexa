@@ -15,6 +15,18 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
+import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.entity.RolePermission;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -26,33 +38,21 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
-import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacommon.entity.ManagedResource;
-import io.contexa.contexacommon.entity.Permission;
-import io.contexa.contexacommon.entity.Role;
-import io.contexa.contexacommon.entity.RolePermission;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.RoleRepository;
+import java.util.*;
+import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
-
-import java.util.*;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.*;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BusinessPolicyServiceImplTest {
@@ -97,8 +97,8 @@ class BusinessPolicyServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(java.util.List.of());
+        when(messageSource.getMessage(any(String.class), any(), any(Locale.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(policyConflictAnalyzer.analyze(any(Policy.class))).thenReturn(List.of());
         service = new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository,
                 permissionRepository, conditionTemplateRepository,

@@ -28,9 +28,13 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
+import java.util.Arrays;
+import java.util.Collections;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.MessageSource;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.ExceptionHandlingConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -39,10 +43,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.accept.ContentNegotiationStrategy;
 import org.springframework.web.accept.HeaderContentNegotiationStrategy;
-
-import java.util.Arrays;
-import java.util.Collections;
-
+
 @Slf4j
 @Component
 public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
@@ -95,14 +96,14 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     mailConfigured
             );
             try {
-                org.springframework.context.MessageSource messageSource =
-                        applicationContext.getBean(org.springframework.context.MessageSource.class);
+                MessageSource messageSource =
+                        applicationContext.getBean(MessageSource.class);
                 mfaPageFilter.setMessageSource(messageSource);
             } catch (Exception ignored) {
             }
             try {
-                org.springframework.jdbc.core.JdbcTemplate jdbcTemplate =
-                        applicationContext.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
+                JdbcTemplate jdbcTemplate =
+                        applicationContext.getBean(JdbcTemplate.class);
                 mfaPageFilter.setJdbcTemplate(jdbcTemplate);
             } catch (Exception ignored) {
             }

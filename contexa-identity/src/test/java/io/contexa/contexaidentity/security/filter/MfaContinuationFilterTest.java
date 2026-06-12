@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -26,26 +28,23 @@ import io.contexa.contexaidentity.security.filter.handler.StateMachineAwareMfaRe
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaUrlMatcher;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.lang.reflect.Field;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
+import org.junit.jupiter.api.Test;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.web.util.matcher.RequestMatcher;
-
-import java.lang.reflect.Field;
-
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MfaContinuationFilterTest {
@@ -120,7 +119,7 @@ class MfaContinuationFilterTest {
         // Stub context for valid path
         when(factorContext.getMfaSessionId()).thenReturn("session-1");
         when(factorContext.getCurrentState())
-                .thenReturn(io.contexa.contexaidentity.security.statemachine.enums.MfaState.AWAITING_FACTOR_SELECTION);
+                .thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
         when(urlMatcher.getRequestType(request)).thenReturn(MfaRequestType.FACTOR_SELECTION);
 
         try (MockedStatic<MfaContextValidator> validator = mockStatic(MfaContextValidator.class)) {
@@ -172,7 +171,7 @@ class MfaContinuationFilterTest {
         when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(factorContext);
         when(factorContext.getMfaSessionId()).thenReturn("session-1");
         when(factorContext.getCurrentState())
-                .thenReturn(io.contexa.contexaidentity.security.statemachine.enums.MfaState.MFA_SUCCESSFUL);
+                .thenReturn(MfaState.MFA_SUCCESSFUL);
 
         try (MockedStatic<MfaContextValidator> validator = mockStatic(MfaContextValidator.class)) {
             ValidationResult validResult = new ValidationResult();
@@ -192,7 +191,7 @@ class MfaContinuationFilterTest {
         when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(factorContext);
         when(factorContext.getMfaSessionId()).thenReturn("session-1");
         when(factorContext.getCurrentState())
-                .thenReturn(io.contexa.contexaidentity.security.statemachine.enums.MfaState.AWAITING_FACTOR_SELECTION);
+                .thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
         when(urlMatcher.getRequestType(request)).thenReturn(MfaRequestType.FACTOR_SELECTION);
 
         try (MockedStatic<MfaContextValidator> validator = mockStatic(MfaContextValidator.class)) {
@@ -213,7 +212,7 @@ class MfaContinuationFilterTest {
         when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(factorContext);
         when(factorContext.getMfaSessionId()).thenReturn("session-1");
         when(factorContext.getCurrentState())
-                .thenReturn(io.contexa.contexaidentity.security.statemachine.enums.MfaState.AWAITING_FACTOR_SELECTION);
+                .thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
 
         RuntimeException ex = new RuntimeException("unexpected error");
         when(urlMatcher.getRequestType(request)).thenThrow(ex);

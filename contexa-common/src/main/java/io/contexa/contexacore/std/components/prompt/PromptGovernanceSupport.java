@@ -17,12 +17,12 @@ package io.contexa.contexacore.std.components.prompt;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-
+import java.util.Map;
+
 public final class PromptGovernanceSupport {
 
     private static final PromptTokenEstimatorRegistry PROMPT_TOKEN_ESTIMATOR_REGISTRY =
@@ -50,10 +50,10 @@ public final class PromptGovernanceSupport {
         return buildExecutionMetadata(
                 descriptor,
                 PromptBudgetProfile.CORTEX_L1_STANDARD,
-                java.util.List.of(),
-                java.util.List.of(),
-                java.util.List.of(),
-                java.util.List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 PromptEvidenceCompleteness.SUFFICIENT,
                 modelHint,
                 systemPrompt,
@@ -61,16 +61,16 @@ public final class PromptGovernanceSupport {
                 systemPrompt,
                 userPrompt,
                 PromptCompressionLedger.identity(systemPrompt, userPrompt),
-                java.util.Map.of());
+                Map.of());
     }
 
     public static PromptExecutionMetadata buildExecutionMetadata(
             PromptGovernanceDescriptor descriptor,
             PromptBudgetProfile budgetProfile,
-            java.util.List<String> sectionSet,
-            java.util.List<String> omittedSections,
-            java.util.List<PromptOmissionRecord> omissionLedger,
-            java.util.List<PromptDuplicationRecord> duplicationInventory,
+            List<String> sectionSet,
+            List<String> omittedSections,
+            List<PromptOmissionRecord> omissionLedger,
+            List<PromptDuplicationRecord> duplicationInventory,
             PromptEvidenceCompleteness promptEvidenceCompleteness,
             String systemPrompt,
             String userPrompt) {
@@ -90,10 +90,10 @@ public final class PromptGovernanceSupport {
     public static PromptExecutionMetadata buildExecutionMetadata(
             PromptGovernanceDescriptor descriptor,
             PromptBudgetProfile budgetProfile,
-            java.util.List<String> sectionSet,
-            java.util.List<String> omittedSections,
-            java.util.List<PromptOmissionRecord> omissionLedger,
-            java.util.List<PromptDuplicationRecord> duplicationInventory,
+            List<String> sectionSet,
+            List<String> omittedSections,
+            List<PromptOmissionRecord> omissionLedger,
+            List<PromptDuplicationRecord> duplicationInventory,
             PromptEvidenceCompleteness promptEvidenceCompleteness,
             String modelHint,
             String systemPrompt,
@@ -112,16 +112,16 @@ public final class PromptGovernanceSupport {
                 systemPrompt,
                 userPrompt,
                 PromptCompressionLedger.identity(systemPrompt, userPrompt),
-                java.util.Map.of());
+                Map.of());
     }
 
     public static PromptExecutionMetadata buildExecutionMetadata(
             PromptGovernanceDescriptor descriptor,
             PromptBudgetProfile budgetProfile,
-            java.util.List<String> sectionSet,
-            java.util.List<String> omittedSections,
-            java.util.List<PromptOmissionRecord> omissionLedger,
-            java.util.List<PromptDuplicationRecord> duplicationInventory,
+            List<String> sectionSet,
+            List<String> omittedSections,
+            List<PromptOmissionRecord> omissionLedger,
+            List<PromptDuplicationRecord> duplicationInventory,
             PromptEvidenceCompleteness promptEvidenceCompleteness,
             String modelHint,
             String systemPrompt,
@@ -143,16 +143,16 @@ public final class PromptGovernanceSupport {
                 rawSystemPrompt,
                 rawUserPrompt,
                 promptCompressionLedger,
-                java.util.Map.of());
+                Map.of());
     }
 
     public static PromptExecutionMetadata buildExecutionMetadata(
             PromptGovernanceDescriptor descriptor,
             PromptBudgetProfile budgetProfile,
-            java.util.List<String> sectionSet,
-            java.util.List<String> omittedSections,
-            java.util.List<PromptOmissionRecord> omissionLedger,
-            java.util.List<PromptDuplicationRecord> duplicationInventory,
+            List<String> sectionSet,
+            List<String> omittedSections,
+            List<PromptOmissionRecord> omissionLedger,
+            List<PromptDuplicationRecord> duplicationInventory,
             PromptEvidenceCompleteness promptEvidenceCompleteness,
             String modelHint,
             String systemPrompt,
@@ -160,7 +160,7 @@ public final class PromptGovernanceSupport {
             String rawSystemPrompt,
             String rawUserPrompt,
             PromptCompressionLedger promptCompressionLedger,
-            java.util.Map<String, Object> supplementalMetadata) {
+            Map<String, Object> supplementalMetadata) {
         String normalizedSystemPrompt = systemPrompt != null ? systemPrompt : "";
         String normalizedUserPrompt = userPrompt != null ? userPrompt : "";
         String normalizedRawSystemPrompt = rawSystemPrompt != null ? rawSystemPrompt : "";
@@ -251,7 +251,7 @@ public final class PromptGovernanceSupport {
                 "unevaluated",
                 "none",
                 "Default prompt governance descriptor",
-                java.util.List.of(),
+                List.of(),
                 templateClass.getName());
     }
 

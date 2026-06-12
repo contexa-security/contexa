@@ -15,14 +15,14 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
-import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponseProcessor;
-import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
+import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponseProcessor;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
 class SecurityDecisionResponseProcessorTest {
 
     @Test
@@ -156,7 +156,7 @@ class SecurityDecisionResponseProcessorTest {
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
 
         assertThatThrownBy(() -> processor.wrapResponse(
-                java.util.Map.of("action", "CHALLENGE"),
+                Map.of("action", "CHALLENGE"),
                 new PipelineExecutionContext("req-6")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Expected SecurityDecisionResponseLite");

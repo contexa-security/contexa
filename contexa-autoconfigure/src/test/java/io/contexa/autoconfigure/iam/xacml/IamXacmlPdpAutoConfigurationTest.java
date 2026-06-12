@@ -15,15 +15,17 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
-import io.contexa.contexaiam.security.xacml.pdp.translator.*;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.WebSpelExpressionEvaluator;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthenticatedExpressionEvaluator;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthorityExpressionEvaluator;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthenticatedExpressionEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthorityExpressionEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.WebSpelExpressionEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.translator.*;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.DisplayName;
@@ -31,10 +33,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+
 /**
  * Tests IamXacmlPdpAutoConfiguration bean registration.
  * Provides mock beans for dependencies that cause context startup failure.
@@ -51,8 +51,8 @@ class IamXacmlPdpAutoConfigurationTest {
             .withBean(AuditLogRepository.class, () -> mock(AuditLogRepository.class))
             .withBean(ZeroTrustActionRepository.class, () -> mock(ZeroTrustActionRepository.class))
             .withBean(ContextHandler.class, () -> mock(ContextHandler.class))
-            .withBean(org.springframework.security.access.hierarchicalroles.RoleHierarchy.class,
-                    () -> mock(org.springframework.security.access.hierarchicalroles.RoleHierarchy.class));
+            .withBean(RoleHierarchy.class,
+                    () -> mock(RoleHierarchy.class));
 
     @Nested
     @DisplayName("SpEL function translator beans")

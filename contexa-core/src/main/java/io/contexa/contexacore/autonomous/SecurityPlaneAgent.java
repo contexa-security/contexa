@@ -26,23 +26,23 @@ import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.CommandLineRunner;
-
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.CommandLineRunner;
+
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {
@@ -58,7 +58,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
     private ExecutorService[] stripeExecutors = new ExecutorService[0];
-
 
     @PostConstruct
     public void initialize() {
@@ -118,11 +117,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (exception instanceof EventProcessingInFlightException) {
             return "event_processing_in_flight";
         }
-        if (exception instanceof java.util.concurrent.RejectedExecutionException) {
+        if (exception instanceof RejectedExecutionException) {
             return "llm_executor_rejected";
         }
         Throwable cause = exception.getCause();
-        if (cause instanceof java.util.concurrent.RejectedExecutionException) {
+        if (cause instanceof RejectedExecutionException) {
             return "llm_executor_rejected";
         }
         if (cause instanceof TimeoutException) {

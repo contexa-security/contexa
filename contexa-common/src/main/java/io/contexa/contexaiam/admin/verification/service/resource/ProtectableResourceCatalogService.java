@@ -1,7 +1,5 @@
 package io.contexa.contexaiam.admin.verification.service.resource;
 
-import org.springframework.transaction.annotation.Transactional;
-
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.repository.PromptQualityCertificateLedgerRepository;
 import io.contexa.contexacore.repository.ProtectableResourceRegistryRepository;
@@ -11,10 +9,25 @@ import io.contexa.contexaiam.admin.verification.service.resource.PromptQualityCe
 import io.contexa.contexaiam.admin.verification.service.resource.PromptQualityCertificateService.PromptQualityCertificateState;
 import io.contexa.contexaiam.admin.verification.service.resource.PromptQualityCertificateService.ProtectableResourceOperationalState;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.ListableBeanFactory;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,21 +37,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
-
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.HexFormat;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
-
+
 @Transactional(transactionManager = "contexaTransactionManager")
 public class ProtectableResourceCatalogService {
 
@@ -727,7 +726,7 @@ public class ProtectableResourceCatalogService {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             String material = values == null
                     ? ""
-                    : String.join("|", java.util.Arrays.stream(values)
+                    : String.join("|", Arrays.stream(values)
                     .map(value -> valueOrDefault(value, ""))
                     .toList());
             return HexFormat.of().formatHex(digest.digest(material.getBytes(StandardCharsets.UTF_8)));

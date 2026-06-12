@@ -22,6 +22,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateGenerationLab;
@@ -30,9 +31,10 @@ import io.contexa.contexaiam.aiam.labs.data.PolicyGenerationCollectionService;
 import io.contexa.contexaiam.aiam.labs.policy.AdvancedPolicyGenerationLab;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingLab;
-import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,16 +43,13 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.MessageSource;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-
-import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
-
+
 
 @AutoConfiguration
 @AutoConfigureAfter(name = "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration")
 public class IamAiamLabsAutoConfiguration {
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -59,7 +58,7 @@ public class IamAiamLabsAutoConfiguration {
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
             ContexaRagProperties ragProperties,
-            org.springframework.context.MessageSource messageSource) {
+            MessageSource messageSource) {
         return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics, ragProperties, messageSource);
     }
 

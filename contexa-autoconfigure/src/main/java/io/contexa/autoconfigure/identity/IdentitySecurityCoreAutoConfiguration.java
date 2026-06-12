@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.identity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -44,10 +45,10 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.validator.*;
+import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
-import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
@@ -60,10 +61,14 @@ import io.contexa.contexaidentity.security.zerotrust.ChallengeMfaInitializer;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import jakarta.servlet.Filter;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -71,24 +76,19 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
+
 
 @Slf4j
 @AutoConfiguration
@@ -286,7 +286,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             BlockMfaStateStore blockMfaStateStore,
             CentralAuditFacade centralAuditFacade,
             BlockingSignalBroadcaster blockingSignalBroadcaster,
-            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
+            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
                 authUrlProvider, mfaFlowUrlRegistry, zeroTrustEventPublisher, actionRedisRepository, securityLearningService,
@@ -304,7 +304,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthContextProperties authContextProperties,
             IBlockedUserRecorder blockedUserRecorder,
             @Autowired(required = false) CentralAuditFacade centralAuditFacade,
-            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
+            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
                 mfaSessionRepository, zeroTrustEventPublisher, actionRedisRepository,
                 authContextProperties.getMfa(), blockedUserRecorder, centralAuditFacade, loginPolicyHandler);

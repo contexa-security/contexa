@@ -16,14 +16,16 @@
 package io.contexa.contexacore.domain;
 
 import io.contexa.contexacommon.domain.DiagnosisType;
-import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacommon.domain.TemplateType;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.util.Map;
-import java.util.HashMap;
-
+
 @Getter
 @Setter
 public class SoarRequest extends AIRequest<SoarContext> {
@@ -123,13 +125,13 @@ public class SoarRequest extends AIRequest<SoarContext> {
         }
     }
     
-    public void setConversationHistory(java.util.List<io.contexa.contexacore.domain.Message> history) {
+    public void setConversationHistory(List<Message> history) {
         if (getContext() != null) {
             getContext().setConversationHistory(history);
         }
     }
     
-    public void setApprovedTools(java.util.Set<String> approvedTools) {
+    public void setApprovedTools(Set<String> approvedTools) {
         if (getContext() != null) {
             getContext().getApprovedTools().addAll(approvedTools);
         }
@@ -147,7 +149,7 @@ public class SoarRequest extends AIRequest<SoarContext> {
         }
     }
     
-    public void setTimestamp(java.time.LocalDateTime timestamp) {
+    public void setTimestamp(LocalDateTime timestamp) {
         if (metadata == null) {
             metadata = new HashMap<>();
         }

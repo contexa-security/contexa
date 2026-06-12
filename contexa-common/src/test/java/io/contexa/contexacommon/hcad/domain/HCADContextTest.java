@@ -15,17 +15,16 @@
  */
 package io.contexa.contexacommon.hcad.domain;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.Instant;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 @ExtendWith(MockitoExtension.class)
 class HCADContextTest {
 
@@ -245,7 +244,7 @@ class HCADContextTest {
             HCADContext ctx = HCADContext.builder()
                     .currentTrustScore(0.8)
                     .build();
-            assertThat(ctx.getAnomalyScore()).isCloseTo(0.2, org.assertj.core.data.Offset.offset(1e-10));
+            assertThat(ctx.getAnomalyScore()).isCloseTo(0.2, Offset.offset(1e-10));
         }
 
         @Test

@@ -18,23 +18,23 @@ package io.contexa.contexacore.autonomous.saas.learning.orchestration;
 import io.contexa.contexacore.autonomous.saas.dto.DecisionQualityProfileSnapshot;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactGuardrail;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactMetadata;
+import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactMetrics;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactTypeNames;
 import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityLearningInput;
 import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityLearningPortfolio;
-import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityScenarioResult;
 import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityLearningService;
-import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityProfileSnapshotAssembler;
 import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityProfileCandidate;
+import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityProfileSnapshotAssembler;
 import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityQualificationDecision;
 import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityQualificationPolicy;
+import io.contexa.contexacore.autonomous.saas.learning.quality.DecisionQualityScenarioResult;
 import io.contexa.contexacore.autonomous.saas.learning.sanitization.LearningArtifactSanitizationService;
 import io.contexa.contexacore.autonomous.saas.learning.transfer.ArtifactTransferEligibilityInput;
 import io.contexa.contexacore.autonomous.saas.learning.transfer.ArtifactTransferRiskAssessment;
 import io.contexa.contexacore.autonomous.saas.learning.transfer.CrossTenantTransferEligibilityService;
-
 import java.util.List;
 import java.util.Locale;
-
+
 /**
  * End-to-end pipeline that turns scenario-level decision-quality learning into governance telemetry.
  */
@@ -81,7 +81,7 @@ public class DecisionQualityArtifactPipeline {
                 result,
                 new LearningArtifactMetadata(
                         decision.recommendedReleaseState(),
-                        io.contexa.contexacore.autonomous.saas.learning.LearningArtifactMetrics.empty(),
+                        LearningArtifactMetrics.empty(),
                         decision.blockingReasons().stream()
                                 .map(reason -> new LearningArtifactGuardrail(toGuardrailCode(reason), reason, true))
                                 .toList()),

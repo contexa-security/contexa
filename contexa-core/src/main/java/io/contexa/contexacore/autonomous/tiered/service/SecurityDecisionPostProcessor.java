@@ -16,23 +16,23 @@
 package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
-
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
+
 @Slf4j
 public class SecurityDecisionPostProcessor {
 
@@ -84,7 +84,6 @@ public class SecurityDecisionPostProcessor {
                     event.getEventId(), e);
         }
     }
-
 
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
@@ -186,7 +185,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision) {
         try {
             String content = buildThreatContent(event, decision);
@@ -223,7 +221,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-
     private void storeSuspiciousDocument(SecurityEvent event, SecurityDecision decision) {
         try {
             String content = buildSuspiciousContent(event, decision);
@@ -248,7 +245,6 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-
     private void storeAmbiguousDocument(SecurityEvent event, SecurityDecision decision) {
         try {
             String content = buildAmbiguousContent(event, decision);
@@ -272,7 +268,6 @@ public class SecurityDecisionPostProcessor {
 
         return sb.toString();
     }
-
 
     private String buildActionSummary(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sentence = new StringBuilder();
@@ -357,7 +352,7 @@ public class SecurityDecisionPostProcessor {
 
         metadata.put(VectorDocumentMetadata.SOURCE_TYPE, documentType);
         metadata.put(VectorDocumentMetadata.ACCESS_SCOPE, event.getUserId() != null ? "USER" : "GLOBAL");
-        metadata.put(VectorDocumentMetadata.ARTIFACT_ID, event.getEventId() != null ? event.getEventId() : java.util.UUID.randomUUID().toString());
+        metadata.put(VectorDocumentMetadata.ARTIFACT_ID, event.getEventId() != null ? event.getEventId() : UUID.randomUUID().toString());
         metadata.put(VectorDocumentMetadata.ARTIFACT_VERSION, "1.0");
         metadata.put(VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation");
         metadata.put(VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event");

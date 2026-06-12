@@ -16,11 +16,12 @@
 package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.context.MessageSource;
-import io.contexa.contexacommon.security.authority.AuthorityResolver;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.authority.AuthorityResolver;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
@@ -31,10 +32,9 @@ import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
+import io.contexa.contexaiam.repository.PolicyVersionRepository;
+import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
-import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
-import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
-import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
 import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyDuplicateDetector;
@@ -42,15 +42,15 @@ import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
-import io.contexa.contexaiam.repository.PolicyVersionRepository;
+import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
+import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
+import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
 import io.contexa.contexaiam.security.xacml.pap.service.*;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
-import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.modelmapper.ModelMapper;
 import org.redisson.api.RedissonClient;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -60,7 +60,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
-
+import org.springframework.context.MessageSource;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -190,7 +192,7 @@ public class IamXacmlPapAutoConfiguration {
             IntegrationEventBus eventBus,
             PermissionRepository permissionRepository,
             ManagedResourceRepository managedResourceRepository,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
+            CentralAuditFacade centralAuditFacade,
             PolicyConflictAnalyzer policyConflictAnalyzer,
             PolicyValidationService policyValidationService,
             PolicyVersionService policyVersionService,
@@ -235,8 +237,8 @@ public class IamXacmlPapAutoConfiguration {
             ConditionTemplateRepository conditionTemplateRepository,
             PolicyEnrichmentService policyEnrichmentService,
             CustomDynamicAuthorizationManager authorizationManager,
-            io.contexa.contexaiam.repository.SecuritySpelRepository securitySpelRepository,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
+            SecuritySpelRepository securitySpelRepository,
+            CentralAuditFacade centralAuditFacade,
             PolicyConflictAnalyzer policyConflictAnalyzer,
             PolicyVersionService policyVersionService,
             MessageSource messageSource) {

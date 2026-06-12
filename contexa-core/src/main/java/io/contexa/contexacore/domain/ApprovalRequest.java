@@ -16,16 +16,18 @@
 package io.contexa.contexacore.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.Data;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-
 import java.io.Serializable;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -65,7 +67,7 @@ public class ApprovalRequest implements Serializable {
     private String requesterEmail;
     private String requesterPhone;
     private String approver;
-    private java.time.Instant approvalTime;
+    private Instant approvalTime;
 
     public String getRequesterEmail() {
         if (requesterEmail != null) {
@@ -205,7 +207,7 @@ public class ApprovalRequest implements Serializable {
         public ApprovalRequestBuilder toolDescription(String description) {
             
             if (request.metadata == null) {
-                request.metadata = new java.util.HashMap<>();
+                request.metadata = new HashMap<>();
             }
             request.metadata.put("toolDescription", description);
             return this;
@@ -217,7 +219,7 @@ public class ApprovalRequest implements Serializable {
         }
         
         public ApprovalRequestBuilder toolParameters(Map<String, Object> toolParameters) {
-            request.parameters = new java.util.HashMap<>(toolParameters);
+            request.parameters = new HashMap<>(toolParameters);
             return this;
         }
         
@@ -243,7 +245,7 @@ public class ApprovalRequest implements Serializable {
         
         public ApprovalRequestBuilder riskAssessment(String assessment) {
             if (request.metadata == null) {
-                request.metadata = new java.util.HashMap<>();
+                request.metadata = new HashMap<>();
             }
             request.metadata.put("riskAssessment", assessment);
             return this;
@@ -267,7 +269,7 @@ public class ApprovalRequest implements Serializable {
         public ApprovalRequest build() {
             request.requestedAt = LocalDateTime.now();
             if (request.requiredRoles == null) {
-                request.requiredRoles = new java.util.HashSet<>();
+                request.requiredRoles = new HashSet<>();
             }
             return request;
         }

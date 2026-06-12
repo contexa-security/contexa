@@ -66,6 +66,7 @@ INSERT INTO ROLE_HIERARCHY_CONFIG (hierarchy_id, description, hierarchy_string, 
     (1, '표준 4단계 역할 계층', 'ROLE_ADMIN > ROLE_DEVELOPER\nROLE_DEVELOPER > ROLE_INFRA\nROLE_INFRA > ROLE_USER', TRUE)
 ON CONFLICT (hierarchy_id) DO NOTHING;
 
+
 -- ----------------------------------------------------------------
 -- PERMISSION — Customer-data permission set.
 -- Required NOT NULL: auto_created, created_at, permission_name.
@@ -1256,4 +1257,3 @@ on conflict (contract_version, prompt_key, metric_code, check_code, slot_key) do
        required = true,
        active = true,
        updated_at = current_timestamp;
-

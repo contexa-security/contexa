@@ -15,18 +15,19 @@
  */
 package io.contexa.contexacore.config;
 
-import lombok.RequiredArgsConstructor;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.Redisson;
+import lombok.RequiredArgsConstructor;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
+import org.redisson.Redisson;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
+
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -42,7 +43,7 @@ public class RedissonConfiguration {
         Config config = new Config();
 
         String address = String.format("redis://%s:%d", redisProperties.getHost(), redisProperties.getPort());
-        java.time.Duration timeout = redisProperties.getTimeout() != null ? redisProperties.getTimeout() : java.time.Duration.ofMillis(5000);
+        Duration timeout = redisProperties.getTimeout() != null ? redisProperties.getTimeout() : Duration.ofMillis(5000);
         config.useSingleServer()
             .setAddress(address)
             .setPassword(null)

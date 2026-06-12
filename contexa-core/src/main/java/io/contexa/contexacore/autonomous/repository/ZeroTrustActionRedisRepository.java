@@ -18,6 +18,12 @@ package io.contexa.contexacore.autonomous.repository;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
@@ -26,13 +32,7 @@ import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+
 @Slf4j
 public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository {
 
@@ -51,9 +51,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
                                           StringRedisTemplate stringRedisTemplate,
                                           Duration failCountTtl) {
-        this.redisTemplate = java.util.Objects.requireNonNull(redisTemplate, "redisTemplate");
-        this.stringRedisTemplate = java.util.Objects.requireNonNull(stringRedisTemplate, "stringRedisTemplate");
-        this.failCountTtl = java.util.Objects.requireNonNull(failCountTtl, "failCountTtl");
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate");
+        this.stringRedisTemplate = Objects.requireNonNull(stringRedisTemplate, "stringRedisTemplate");
+        this.failCountTtl = Objects.requireNonNull(failCountTtl, "failCountTtl");
     }
 
     public ZeroTrustAction getCurrentAction(String userId) {

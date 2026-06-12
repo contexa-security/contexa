@@ -15,34 +15,31 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
-import io.contexa.contexaiam.admin.web.monitoring.dto.DashboardDto;
-import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyHealthDto;
-import io.contexa.contexaiam.admin.web.monitoring.dto.RiskIndicatorDto;
-import io.contexa.contexaiam.admin.web.monitoring.dto.StatisticsDto;
-import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyStatusDto;
-import io.contexa.contexaiam.admin.web.monitoring.dto.RecentPolicyDto;
-import io.contexa.contexaiam.admin.web.monitoring.dto.AccessTrendDto;
-import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
-import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
-import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
-import io.contexa.contexaiam.admin.support.context.service.UserContextService;
-import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.repository.PolicyRepository;
-import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.entity.AuditLog;
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
-import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
-import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.admin.support.context.service.UserContextService;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AccessTrendDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.DashboardDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyHealthDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.PolicyStatusDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.RecentPolicyDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.RiskIndicatorDto;
+import io.contexa.contexaiam.admin.web.monitoring.dto.StatisticsDto;
+import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.transaction.annotation.Transactional;
-
+import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.RoleHierarchyRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -50,7 +47,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
+
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
 
@@ -292,7 +292,7 @@ public class DashboardServiceImpl implements DashboardService {
             Map<String, long[]> dailyData = new TreeMap<>();
             LocalDateTime current = since;
             LocalDateTime now = LocalDateTime.now();
-            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("MM-dd");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
             while (current.isBefore(now) || current.toLocalDate().isEqual(now.toLocalDate())) {
                 dailyData.put(current.format(formatter), new long[]{0, 0});
                 current = current.plusDays(1);

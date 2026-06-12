@@ -15,8 +15,17 @@
  */
 package io.contexa.autoconfigure.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacommon.config.JpaAuditingConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import jakarta.persistence.EntityManagerFactory;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
@@ -27,22 +36,12 @@ import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionManager;
-
-import jakarta.persistence.EntityManagerFactory;
-import javax.sql.DataSource;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-
+
 class CoreDataAutoConfigurationTest {
 
     @Test
@@ -104,8 +103,8 @@ class CoreDataAutoConfigurationTest {
                         DataSourceAutoConfiguration.class,
                         HibernateJpaAutoConfiguration.class,
                         CoreDataAutoConfiguration.class))
-                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
-                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(PlatformConfig.class,
+                        () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
                         "spring.datasource.url=jdbc:h2:mem:application-metadata;DB_CLOSE_DELAY=-1",
@@ -146,8 +145,8 @@ class CoreDataAutoConfigurationTest {
                         DataSourceAutoConfiguration.class,
                         HibernateJpaAutoConfiguration.class,
                         CoreDataAutoConfiguration.class))
-                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
-                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(PlatformConfig.class,
+                        () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
                         "spring.datasource.url=jdbc:h2:mem:application;DB_CLOSE_DELAY=-1",
@@ -175,8 +174,8 @@ class CoreDataAutoConfigurationTest {
                         JdbcTemplateAutoConfiguration.class,
                         HibernateJpaAutoConfiguration.class,
                         CoreDataAutoConfiguration.class))
-                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
-                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(PlatformConfig.class,
+                        () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
                         "spring.datasource.url=jdbc:h2:mem:application-defaults;DB_CLOSE_DELAY=-1",
@@ -217,8 +216,8 @@ class CoreDataAutoConfigurationTest {
                         DataSourceAutoConfiguration.class,
                         HibernateJpaAutoConfiguration.class,
                         CoreDataAutoConfiguration.class))
-                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
-                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(PlatformConfig.class,
+                        () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
                         "spring.datasource.url=jdbc:h2:mem:auditing-coexistence;DB_CLOSE_DELAY=-1",
@@ -245,8 +244,8 @@ class CoreDataAutoConfigurationTest {
                         JdbcTemplateAutoConfiguration.class,
                         HibernateJpaAutoConfiguration.class,
                         CoreDataAutoConfiguration.class))
-                .withBean(io.contexa.contexaidentity.security.core.config.PlatformConfig.class,
-                        () -> io.contexa.contexaidentity.security.core.config.PlatformConfig.builder().build())
+                .withBean(PlatformConfig.class,
+                        () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
                         "spring.jpa.hibernate.ddl-auto=none",

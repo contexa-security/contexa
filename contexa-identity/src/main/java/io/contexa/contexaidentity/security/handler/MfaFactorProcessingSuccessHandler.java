@@ -15,6 +15,10 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -23,38 +27,37 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
-import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
-import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-
+
 @Slf4j
 public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
@@ -209,7 +212,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     2
             );
 
-            java.util.List<Map<String, Object>> factorDetails = factorContext.getRemainingFactors().stream()
+            List<Map<String, Object>> factorDetails = factorContext.getRemainingFactors().stream()
                     .map(authType -> createFactorDetail(authType.name()))
                     .toList();
             responseBody.put("availableFactors", factorDetails);
@@ -362,7 +365,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                         .username(entity.getName())
                         .build();
 
-                java.util.Set<GrantedAuthority> authorities = new java.util.HashSet<>((java.util.Collection<? extends GrantedAuthority>) authentication.getAuthorities());
+                Set<GrantedAuthority> authorities = new HashSet<>((Collection<? extends GrantedAuthority>) authentication.getAuthorities());
                 return RestAuthenticationToken.authenticated(new UnifiedCustomUserDetails(userDto, authorities), authentication.getAuthorities());
 
             } catch (Exception e) {

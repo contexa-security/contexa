@@ -15,6 +15,11 @@
  */
 package io.contexa.contexaiam.resource.service;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
@@ -22,19 +27,13 @@ import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.springframework.context.support.StaticMessageSource;
-
-import java.util.List;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+
 @DisplayName("ResourceRegistryServiceImpl condition-templates enabled gate")
 class ResourceRegistryServiceImplConditionTemplatesGateTest {
 
@@ -52,7 +51,7 @@ class ResourceRegistryServiceImplConditionTemplatesGateTest {
         iamAdminProperties = new IamAdminProperties();
 
         when(managedResourceRepository.findAllWithPermission()).thenReturn(List.of());
-        when(managedResourceRepository.findByStatusInWithPermission(org.mockito.ArgumentMatchers.anyList()))
+        when(managedResourceRepository.findByStatusInWithPermission(ArgumentMatchers.anyList()))
                 .thenReturn(List.of());
         when(policyRepository.findAllWithDetails()).thenReturn(List.of());
     }

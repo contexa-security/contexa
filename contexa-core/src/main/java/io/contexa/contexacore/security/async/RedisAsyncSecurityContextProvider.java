@@ -17,13 +17,13 @@ package io.contexa.contexacore.security.async;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
-
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
+
 @Slf4j
 public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityContextProvider {
 
@@ -41,8 +41,8 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
 
     public RedisAsyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate,
                                              Duration localCacheTtl) {
-        this.redisTemplate = java.util.Objects.requireNonNull(redisTemplate, "redisTemplate");
-        this.localCacheTtl = java.util.Objects.requireNonNull(localCacheTtl, "localCacheTtl");
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate");
+        this.localCacheTtl = Objects.requireNonNull(localCacheTtl, "localCacheTtl");
         this.authCache = Caffeine.newBuilder()
                 .maximumSize(1000)
                 .expireAfterWrite(this.localCacheTtl)

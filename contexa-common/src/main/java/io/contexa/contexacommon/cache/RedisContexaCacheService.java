@@ -20,14 +20,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import jakarta.annotation.PostConstruct;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-
+
 
 @Slf4j
 public class RedisContexaCacheService extends AbstractContexaCacheService {
@@ -49,7 +49,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
     }
 
-
     @Override
     public <T> T get(String key, Supplier<T> loader, TypeReference<T> typeRef, String domain) {
 
@@ -65,7 +64,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
                 }
             }
         }
-
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             String redisKey = properties.getRedis().getKeyPrefix() + key;
@@ -84,7 +82,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
         }
 
-
         T value = loader.get();
         if (value != null) {
             put(key, value, domain);
@@ -92,18 +89,15 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         return value;
     }
 
-
     @Override
     public <T> void put(String key, T value, String domain) {
         try {
             String json = objectMapper.writeValueAsString(value);
 
-
             if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
                 Cache<String, String> localCache = getOrCreateDomainCache(domain);
                 localCache.put(key, json);
             }
-
 
             if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
                 String redisKey = properties.getRedis().getKeyPrefix() + key;
@@ -111,16 +105,13 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
                 redisTemplate.opsForValue().set(redisKey, json, ttlSeconds, TimeUnit.SECONDS);
             }
 
-
         } catch (JsonProcessingException e) {
             log.error("Cache serialization failed: {}", key, e);
         }
     }
 
-
     @Override
     public void invalidate(String key) {
-
 
         if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
             if (key.contains("*")) {
@@ -145,7 +136,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
         }
 
-
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             String redisPattern = properties.getRedis().getKeyPrefix() + key;
             if (key.contains("*")) {
@@ -158,17 +148,14 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
         }
 
-
         if (properties.getType() == ContexaCacheProperties.CacheType.HYBRID
                 && properties.getPubsub().isEnabled()) {
             publishInvalidationEvent(key);
         }
     }
 
-
     @Override
     public void invalidateAll() {
-
 
         if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
             domainCaches.values().forEach(Cache::invalidateAll);
@@ -177,7 +164,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
         }
 
-
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             Set<String> keys = scanKeys(properties.getRedis().getKeyPrefix() + "*");
             if (!keys.isEmpty()) {
@@ -185,20 +171,17 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
         }
 
-
         if (properties.getType() == ContexaCacheProperties.CacheType.HYBRID
                 && properties.getPubsub().isEnabled()) {
             publishInvalidationEvent("*");
         }
     }
 
-
     @Override
     public void invalidateLocalOnly(String key) {
         if (properties.getType() == ContexaCacheProperties.CacheType.REDIS) {
             return;
         }
-
 
         if ("*".equals(key)) {
             domainCaches.values().forEach(Cache::invalidateAll);
@@ -225,12 +208,10 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
     }
 
-
     @Override
     public ContexaCacheProperties.CacheType getCacheType() {
         return properties.getType();
     }
-
 
     private void backfillToL1(String key, String json, String domain) {
         try {
@@ -240,7 +221,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             log.error("L1 backfill failed: {}", key, e);
         }
     }
-
 
     private int getRedisTtl(String domain) {
         if (domain == null) {
@@ -260,9 +240,8 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         };
     }
 
-
     private Set<String> scanKeys(String pattern) {
-        Set<String> keys = new java.util.HashSet<>();
+        Set<String> keys = new HashSet<>();
         try (var cursor = redisTemplate.scan(
                 ScanOptions.scanOptions().match(pattern).count(100).build())) {
             while (cursor.hasNext()) {

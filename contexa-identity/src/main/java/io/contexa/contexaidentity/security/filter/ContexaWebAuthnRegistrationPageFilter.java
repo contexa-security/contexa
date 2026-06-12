@@ -16,12 +16,22 @@
 package io.contexa.contexaidentity.security.filter;
 
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
-import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -33,17 +43,8 @@ import org.springframework.security.web.webauthn.management.PublicKeyCredentialU
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.util.Assert;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
-
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
+
 /**
  * Contexa replacement for Spring Security's DefaultWebAuthnRegistrationPageGeneratingFilter.
  * Supports dynamic URL via setRequestMatcher() and uses unified Contexa MFA CSS styling.
@@ -75,16 +76,16 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         this.messageSource = messageSource;
     }
 
-    private java.util.Locale resolveLocale(HttpServletRequest request) {
-        jakarta.servlet.http.HttpSession session = request.getSession(false);
+    private Locale resolveLocale(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
         if (session != null) {
             Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
-            if (locale instanceof java.util.Locale) {
-                return (java.util.Locale) locale;
+            if (locale instanceof Locale) {
+                return (Locale) locale;
             }
         }
-        java.util.Locale requestLocale = request.getLocale();
-        return requestLocale != null ? requestLocale : java.util.Locale.KOREAN;
+        Locale requestLocale = request.getLocale();
+        return requestLocale != null ? requestLocale : Locale.KOREAN;
     }
 
     private String msg(HttpServletRequest request, String code, String defaultMsg) {
@@ -110,8 +111,6 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
     public void setWebauthnContextPath(String webauthnContextPath) {
         this.webauthnContextPath = webauthnContextPath;
     }
-
-
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)

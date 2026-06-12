@@ -16,25 +16,35 @@
 package io.contexa.contexaidentity.security.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.MfaPageConfig;
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.MfaPageConfig;
-import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
-import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,16 +52,8 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.jdbc.core.JdbcTemplate;
-
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
+
 @Slf4j
 public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
@@ -72,16 +74,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    private java.util.Locale resolveLocale(HttpServletRequest request) {
-        jakarta.servlet.http.HttpSession session = request.getSession(false);
+    private Locale resolveLocale(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
         if (session != null) {
             Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
-            if (locale instanceof java.util.Locale) {
-                return (java.util.Locale) locale;
+            if (locale instanceof Locale) {
+                return (Locale) locale;
             }
         }
-        java.util.Locale requestLocale = request.getLocale();
-        return requestLocale != null ? requestLocale : java.util.Locale.KOREAN;
+        Locale requestLocale = request.getLocale();
+        return requestLocale != null ? requestLocale : Locale.KOREAN;
     }
 
     private String msg(HttpServletRequest request, String code, String defaultMsg) {
@@ -1363,10 +1365,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         }
 
         List<AuthType> availableFactors = ctx != null && ctx.getRemainingFactors() != null
-                ? new java.util.ArrayList<>(ctx.getRemainingFactors()) : new java.util.ArrayList<>();
+                ? new ArrayList<>(ctx.getRemainingFactors()) : new ArrayList<>();
 
         if (availableFactors.isEmpty() && mfaFlowConfig.getRegisteredFactorOptions() != null) {
-            availableFactors = new java.util.ArrayList<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
+            availableFactors = new ArrayList<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
         }
 
         if (availableFactors.isEmpty()) {

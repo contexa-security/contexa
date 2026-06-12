@@ -15,16 +15,16 @@
  */
 package io.contexa.contexacore.hcad.store;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+
 abstract class AbstractBaselineDataStoreContractTest {
 
     protected BaselineDataStore store;
@@ -119,7 +119,7 @@ abstract class AbstractBaselineDataStoreContractTest {
         store.saveOrganizationBaseline("org-b", orgBaseline("org-b"));
         store.saveOrganizationBaseline("org-c", orgBaseline("org-c"));
 
-        java.util.List<BaselineVector> loaded = new java.util.ArrayList<>();
+        List<BaselineVector> loaded = new ArrayList<>();
         store.listOrganizationBaselines().forEach(loaded::add);
 
         assertThat(loaded)

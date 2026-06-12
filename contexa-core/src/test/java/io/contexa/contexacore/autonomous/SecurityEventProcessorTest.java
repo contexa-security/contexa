@@ -15,29 +15,28 @@
  */
 package io.contexa.contexacore.autonomous;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.quality.Strictness;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SecurityEventProcessorTest {
@@ -88,7 +87,7 @@ class SecurityEventProcessorTest {
         assertThat(result).isNotNull();
         assertThat(result.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.COMPLETED);
 
-        var inOrder = org.mockito.Mockito.inOrder(handler2, handler3, handler1);
+        var inOrder = Mockito.inOrder(handler2, handler3, handler1);
         inOrder.verify(handler2).handle(any());
         inOrder.verify(handler3).handle(any());
         inOrder.verify(handler1).handle(any());

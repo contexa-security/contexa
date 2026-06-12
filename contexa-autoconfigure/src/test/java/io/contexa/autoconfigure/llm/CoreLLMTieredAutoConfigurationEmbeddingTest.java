@@ -133,10 +133,12 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         ObjectProvider<WebClient.Builder> webClientBuilderProvider = mock(ObjectProvider.class);
         ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider = mock(ObjectProvider.class);
 
-        assertThatThrownBy(() -> configuration.contexaDedicatedEmbeddingOllamaApi(
+        CoreLLMTieredAutoConfiguration.OllamaConfiguration ollamaConfig = new CoreLLMTieredAutoConfiguration.OllamaConfiguration();
+        assertThatThrownBy(() -> ollamaConfig.contexaDedicatedEmbeddingOllamaApi(
                 restClientBuilderProvider,
                 webClientBuilderProvider,
-                responseErrorHandlerProvider))
+                responseErrorHandlerProvider,
+                properties))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("contexa.llm.embedding.ollama.base-url");
     }

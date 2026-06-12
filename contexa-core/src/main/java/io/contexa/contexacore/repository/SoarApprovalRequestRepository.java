@@ -17,6 +17,10 @@ package io.contexa.contexacore.repository;
 
 import io.contexa.contexacore.domain.entity.SoarApprovalRequest;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,11 +28,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-
+
 @Repository
 public interface SoarApprovalRequestRepository extends JpaRepository<SoarApprovalRequest, Long> {
 
@@ -62,7 +62,7 @@ public interface SoarApprovalRequestRepository extends JpaRepository<SoarApprova
 
     List<SoarApprovalRequest> findByRequestIdIn(Collection<String> requestIds);
 
-    List<SoarApprovalRequest> findByCreatedAtBetweenOrderByCreatedAtDesc(java.time.LocalDateTime startDate, java.time.LocalDateTime endDate);
+    List<SoarApprovalRequest> findByCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime startDate, LocalDateTime endDate);
 
     List<SoarApprovalRequest> findTop20ByToolNameOrderByCreatedAtDesc(String toolName);
 

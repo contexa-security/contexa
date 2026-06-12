@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.MfaSettings;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -32,20 +33,21 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
-import io.contexa.contexacommon.security.LoginPolicyHandler;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
+
 @Slf4j
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
@@ -131,7 +133,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         factorContext.setAttribute("retryCount_" + currentProcessingFactor.name(),
                 factorContext.getAttemptCount(currentProcessingFactor));
 
-
         try {
             stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
         } catch (Exception e) {
@@ -184,9 +185,9 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             cleanupSessionUsingRepository(request, response, factorContext.getMfaSessionId());
         }
 
-        if (exception instanceof org.springframework.security.authentication.CredentialsExpiredException) {
+        if (exception instanceof CredentialsExpiredException) {
             String passwordChangeUrl = request.getContextPath() + "/password-change?username="
-                    + java.net.URLEncoder.encode(usernameForLog, java.nio.charset.StandardCharsets.UTF_8) + "&expired=true";
+                    + URLEncoder.encode(usernameForLog, StandardCharsets.UTF_8) + "&expired=true";
             response.sendRedirect(passwordChangeUrl);
             return;
         }

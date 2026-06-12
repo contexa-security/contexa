@@ -16,17 +16,18 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import lombok.extern.slf4j.Slf4j;
-
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
-
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * In-memory implementation of ZeroTrustActionRepository for standalone mode.
  * Uses ConcurrentHashMap instead of Redis Hash/String operations.
@@ -46,19 +47,19 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, ReentrantLock> userLocks = new ConcurrentHashMap<>();
 
     private final Duration failCountTtl;
-    private final java.time.Clock clock;
+    private final Clock clock;
 
     public InMemoryZeroTrustActionRepository() {
-        this(DEFAULT_FAIL_COUNT_TTL, java.time.Clock.systemUTC());
+        this(DEFAULT_FAIL_COUNT_TTL, Clock.systemUTC());
     }
 
     public InMemoryZeroTrustActionRepository(Duration failCountTtl) {
-        this(failCountTtl, java.time.Clock.systemUTC());
+        this(failCountTtl, Clock.systemUTC());
     }
 
-    public InMemoryZeroTrustActionRepository(Duration failCountTtl, java.time.Clock clock) {
-        this.failCountTtl = java.util.Objects.requireNonNull(failCountTtl, "failCountTtl");
-        this.clock = java.util.Objects.requireNonNull(clock, "clock");
+    public InMemoryZeroTrustActionRepository(Duration failCountTtl, Clock clock) {
+        this.failCountTtl = Objects.requireNonNull(failCountTtl, "failCountTtl");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override

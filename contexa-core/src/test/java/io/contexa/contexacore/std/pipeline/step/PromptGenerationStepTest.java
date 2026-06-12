@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
@@ -26,19 +27,18 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
-import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.document.Document;
+
 class PromptGenerationStepTest {
 
     @Test
@@ -76,7 +76,7 @@ class PromptGenerationStepTest {
                 "systemMetadata");
         context.addStepResult(
                 PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
-                new ContextRetriever.ContextRetrievalResult("contextInfo", List.<org.springframework.ai.document.Document>of(), java.util.Map.of()));
+                new ContextRetriever.ContextRetrievalResult("contextInfo", List.<Document>of(), Map.of()));
 
         Object result = step.execute(request, context).block();
 
@@ -122,24 +122,24 @@ class PromptGenerationStepTest {
         assertThat(eventMetadata.get("promptCacheSystemHash")).asString().startsWith("sha256:");
         assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "securityEvent.metadata.requestPath")
                         .containsEntry("valueText", "/admin/api/security-test/sensitive/resource-001"));
         assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "sessionContext.userId")
                         .containsEntry("valueText", "alice"))
                 .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "behaviorAnalysis.personalBaselineEvidence.scope"))
                 .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "relatedDocuments.size")
                         .containsEntry("valueText", "0"));
         assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                        .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("fieldKey", "source:securityEvent.metadata.requestPath")
                         .containsEntry("fieldState", "VALUE_PRESENT")
                         .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
@@ -154,7 +154,7 @@ class PromptGenerationStepTest {
         assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
                 .anySatisfy(item -> {
                     assertThat(item)
-                            .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                            .asInstanceOf(InstanceOfAssertFactories.MAP)
                             .containsEntry("sourceType", "FINAL_USER_PROMPT_FIELD")
                             .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
                             .containsKey("metricCodes");
@@ -209,7 +209,7 @@ class PromptGenerationStepTest {
                 "systemMetadata");
         context.addStepResult(
                 PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
-                new ContextRetriever.ContextRetrievalResult("contextInfo", List.<org.springframework.ai.document.Document>of(), Map.of()));
+                new ContextRetriever.ContextRetrievalResult("contextInfo", List.<Document>of(), Map.of()));
 
         Object result = step.execute(request, context).block();
 

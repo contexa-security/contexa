@@ -21,11 +21,12 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Set;
 import org.springframework.util.StringUtils;
-
+
 public final class SafePromptNormalizationLLMViewComposer implements LLMViewComposer {
 
     private static final PromptTokenEstimatorRegistry PROMPT_TOKEN_ESTIMATOR_REGISTRY =
@@ -1423,15 +1424,15 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         return 10;
     }
 
-    private java.util.Optional<FactLine> extractFact(String line, String prefix, String group) {
+    private Optional<FactLine> extractFact(String line, String prefix, String group) {
         if (line == null || !line.startsWith(prefix)) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         String value = line.substring(prefix.length()).trim();
         if (value.isBlank()) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
-        return java.util.Optional.of(new FactLine(group, value));
+        return Optional.of(new FactLine(group, value));
     }
 
     private PromptTransformResult enforceBudget(
@@ -1890,8 +1891,4 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         }
     }
 }
-
-
-
-
 

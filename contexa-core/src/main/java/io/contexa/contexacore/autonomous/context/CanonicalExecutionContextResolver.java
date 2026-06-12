@@ -18,21 +18,21 @@ package io.contexa.contexacore.autonomous.context;
 import io.contexa.contexacore.autonomous.execution.AttestationEnvelope;
 import io.contexa.contexacore.autonomous.execution.CanonicalExecutionBinding;
 import io.contexa.contexacore.autonomous.execution.CanonicalExecutionMapper;
+import io.contexa.contexacore.autonomous.execution.DelegatedExecutionContext;
 import io.contexa.contexacore.autonomous.execution.ExecutionEnvelope;
-import io.contexa.contexacore.autonomous.execution.ExecutionProvenance;
 import io.contexa.contexacore.autonomous.execution.ExecutionProtocolTypes;
+import io.contexa.contexacore.autonomous.execution.ExecutionProvenance;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubject;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
-import io.contexa.contexacore.autonomous.execution.DelegatedExecutionContext;
-import org.springframework.util.StringUtils;
-
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-
+import org.springframework.util.StringUtils;
+
 public class CanonicalExecutionContextResolver {
 
     private final CanonicalExecutionMapper canonicalExecutionMapper;
@@ -223,7 +223,7 @@ public class CanonicalExecutionContextResolver {
     }
 
     private List<String> normalizeList(Object... values) {
-        java.util.LinkedHashSet<String> normalized = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
         for (Object value : values) {
             if (value == null) {
                 continue;

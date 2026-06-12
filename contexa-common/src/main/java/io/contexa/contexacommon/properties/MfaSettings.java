@@ -15,13 +15,13 @@
  */
 package io.contexa.contexacommon.properties;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
-
-import java.time.Duration;
-import java.util.concurrent.TimeUnit;
-
+
 
 @Getter
 @Setter
@@ -160,8 +160,8 @@ public class MfaSettings {
     }
 
     
-    public boolean isSessionExpired(java.time.Instant lastActivityTime) {
-        return java.time.Instant.now().isAfter(lastActivityTime.plusMillis(sessionTimeoutMs));
+    public boolean isSessionExpired(Instant lastActivityTime) {
+        return Instant.now().isAfter(lastActivityTime.plusMillis(sessionTimeoutMs));
     }
 
     
@@ -170,8 +170,8 @@ public class MfaSettings {
     }
 
     
-    public boolean isChallengeExpired(java.time.Instant challengeStartTime) {
-        return java.time.Instant.now().isAfter(challengeStartTime.plusMillis(challengeTimeoutMs));
+    public boolean isChallengeExpired(Instant challengeStartTime) {
+        return Instant.now().isAfter(challengeStartTime.plusMillis(challengeTimeoutMs));
     }
 
     
@@ -180,12 +180,12 @@ public class MfaSettings {
     }
 
     
-    public boolean needsSessionRefresh(java.time.Instant lastRefreshTime) {
-        return java.time.Instant.now().isAfter(lastRefreshTime.plusMillis(sessionRefreshIntervalMs));
+    public boolean needsSessionRefresh(Instant lastRefreshTime) {
+        return Instant.now().isAfter(lastRefreshTime.plusMillis(sessionRefreshIntervalMs));
     }
 
     
-    public java.time.Instant calculateSessionExpiry(java.time.Instant lastActivityTime) {
+    public Instant calculateSessionExpiry(Instant lastActivityTime) {
         return lastActivityTime.plusMillis(sessionTimeoutMs);
     }
 
@@ -195,7 +195,7 @@ public class MfaSettings {
     }
 
     
-    public java.time.Instant calculateChallengeExpiry(java.time.Instant challengeStartTime) {
+    public Instant calculateChallengeExpiry(Instant challengeStartTime) {
         return challengeStartTime.plusMillis(challengeTimeoutMs);
     }
 
@@ -277,7 +277,6 @@ public class MfaSettings {
     }
 }
 
-
 @Getter
 @Setter
 class SmsFactorSettings {
@@ -286,7 +285,6 @@ class SmsFactorSettings {
     private int maxDailyAttempts = 10;
     private boolean enabled = true;
 }
-
 
 @Getter
 @Setter
@@ -297,7 +295,6 @@ class EmailFactorSettings {
     private boolean enabled = true;
 }
 
-
 @Getter
 @Setter
 class HttpSessionSettings {
@@ -305,7 +302,6 @@ class HttpSessionSettings {
     private boolean createSessionIfNotExists = true;
     private String sessionAttributeName = "MFA_SESSION_ID";
 }
-
 
 @Getter
 @Setter
@@ -319,7 +315,6 @@ class RedisSettings {
     private int connectionTimeout = 3000;
     private int maxRetries = 3;
 }
-
 
 @Getter
 @Setter

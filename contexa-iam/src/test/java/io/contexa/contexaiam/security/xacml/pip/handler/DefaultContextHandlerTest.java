@@ -15,6 +15,10 @@
  */
 package io.contexa.contexaiam.security.xacml.pip.handler;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.Group;
@@ -25,28 +29,23 @@ import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.DefaultContextHandler;
 import jakarta.servlet.http.HttpServletRequest;
+import java.lang.reflect.Method;
+import java.util.*;
+import java.util.function.Supplier;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-
-import java.lang.reflect.Method;
-import java.util.*;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.*;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class DefaultContextHandlerTest {
@@ -64,7 +63,7 @@ class DefaultContextHandlerTest {
     void setUpCacheService() {
         when(cacheService.get(anyString(), any(), any(), anyString()))
                 .thenAnswer(inv -> {
-                    java.util.function.Supplier<?> supplier = inv.getArgument(1);
+                    Supplier<?> supplier = inv.getArgument(1);
                     return supplier.get();
                 });
     }

@@ -15,14 +15,14 @@
  */
 package io.contexa.contexacommon.domain.response;
 
-import io.contexa.contexacommon.domain.TrustAssessment;
 import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexacommon.domain.TrustAssessment;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
-import java.util.Map;
-
+
 
 @Getter
 @Setter
@@ -52,7 +52,7 @@ public class RiskAssessmentResponse extends AIResponse {
     public static RiskAssessmentResponse defaultSafe() {
         TrustAssessment safeAssessment = new TrustAssessment(
             0.3, 
-            java.util.List.of("AI_SYSTEM_ERROR"),
+            List.of("AI_SYSTEM_ERROR"),
             "AI system unavailable - conservative assessment applied"
         );
         

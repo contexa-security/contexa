@@ -15,16 +15,16 @@
  */
 package io.contexa.contexacommon.domain.context;
 
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import lombok.Getter;
+import lombok.Setter;
+
 @Getter
 @Setter
 public class BehavioralAnalysisContext extends DomainContext {
@@ -140,7 +140,7 @@ public class BehavioralAnalysisContext extends DomainContext {
         if (ip.contains(":")) {
             String[] groups = ip.split(":");
             int len = Math.min(groups.length, 4);
-            return String.join(":", java.util.Arrays.copyOf(groups, len));
+            return String.join(":", Arrays.copyOf(groups, len));
         }
         int lastDot = ip.lastIndexOf('.');
         if (lastDot > 0) {

@@ -16,34 +16,34 @@
 package io.contexa.autoconfigure.identity;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
-import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
-import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.OAuth2TokenSettings;
+import io.contexa.contexacore.security.session.SessionIdResolver;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.AuthenticatedUserOAuth2AuthorizedClientProvider;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.RestClientAuthenticatedUserTokenResponseClient;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthorityMixin;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.ZeroTrustLogoutStrategy;
-import io.contexa.contexacore.security.session.SessionIdResolver;
-import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
-import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacommon.properties.OAuth2TokenSettings;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
-import org.springframework.context.annotation.Primary;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategyFactory;
 import io.contexa.contexaidentity.security.token.validator.OAuth2TokenValidator;
@@ -51,17 +51,36 @@ import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.InputStream;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.UUID;
+import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -76,44 +95,27 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.jackson2.SecurityJackson2Modules;
-import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
+import org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
+import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.token.*;
-import org.springframework.security.web.FilterChainProxy;
+import org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
-
-import javax.sql.DataSource;
-import java.io.InputStream;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.KeyStore;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
+
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
@@ -312,7 +314,7 @@ public class IdentityOAuth2AutoConfiguration {
         }
 
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
-                new org.springframework.core.io.ClassPathResource("contexa-oauth2-authorization-schema.sql"));
+                new ClassPathResource("contexa-oauth2-authorization-schema.sql"));
         populator.setContinueOnError(false);
         populator.execute(dataSource);
     }
@@ -565,10 +567,10 @@ public class IdentityOAuth2AutoConfiguration {
         tokenResponseClient.setFilterChainProxyProvider(filterChainProxyProvider);
 
         tokenResponseClient.setClientSecretBasicConverter(
-                new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter());
+                new ClientSecretBasicAuthenticationConverter());
 
         tokenResponseClient.setClientSecretAuthenticationProvider(
-                new org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider(
+                new ClientSecretAuthenticationProvider(
                         registeredClientRepository,
                         authorizationService));
 

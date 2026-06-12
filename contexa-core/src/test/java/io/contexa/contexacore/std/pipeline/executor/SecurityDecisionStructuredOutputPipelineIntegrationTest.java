@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacore.std.pipeline.executor;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
@@ -39,22 +42,21 @@ import io.contexa.contexacore.std.pipeline.step.ContextRetrievalStep;
 import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
 import io.contexa.contexacore.std.pipeline.step.PostprocessingStep;
 import io.contexa.contexacore.std.pipeline.step.PreprocessingStep;
+import io.contexa.contexacore.std.pipeline.step.PromptGenerationStep;
 import io.contexa.contexacore.std.pipeline.step.ResponseParsingStep;
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputPolicy;
-import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.document.Document;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
 class SecurityDecisionStructuredOutputPipelineIntegrationTest {
 
     @Test
@@ -129,7 +131,7 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
         return new UniversalPipelineExecutor(
                 new ContextRetrievalStep(retrieverRegistry),
                 new PreprocessingStep(),
-                new io.contexa.contexacore.std.pipeline.step.PromptGenerationStep(promptGenerator),
+                new PromptGenerationStep(promptGenerator),
                 new LLMExecutionStep(llmClient),
                 null,
                 new ResponseParsingStep(),
@@ -177,11 +179,11 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
     private static final class EmptyContextRetriever extends ContextRetriever {
 
         private EmptyContextRetriever() {
-            super((org.springframework.ai.vectorstore.VectorStore) null, new ContexaRagProperties());
+            super((VectorStore) null, new ContexaRagProperties());
         }
 
         @Override
-        public ContextRetrievalResult retrieveContext(io.contexa.contexacommon.domain.request.AIRequest<? extends io.contexa.contexacommon.domain.context.DomainContext> request) {
+        public ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
             return new ContextRetrievalResult("", List.<Document>of(), Map.of("documentsFound", 0));
         }
     }

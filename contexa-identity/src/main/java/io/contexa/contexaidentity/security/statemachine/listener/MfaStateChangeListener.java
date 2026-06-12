@@ -17,16 +17,16 @@ package io.contexa.contexaidentity.security.statemachine.listener;
 
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
+import java.time.LocalDateTime;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.listener.StateMachineListenerAdapter;
 import org.springframework.statemachine.state.State;
+import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.transition.Transition;
 import org.springframework.stereotype.Component;
-
-import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-
+
 @Slf4j
 @Component
 public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState, MfaEvent>
@@ -53,7 +53,7 @@ public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState
     }
 
     @Override
-    public void stateMachineError(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine,
+    public void stateMachineError(StateMachine<MfaState, MfaEvent> stateMachine,
                                   Exception exception) {
         log.error("State machine error occurred: {}", exception.getMessage(), exception);
         handleStateMachineError(stateMachine.getId(), exception);

@@ -16,22 +16,22 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
-import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.web.authentication.AuthenticationConverter;
+import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
-
-import java.util.HashMap;
-import java.util.Map;
-
+
 @Slf4j
 public class AuthenticatedUserGrantAuthenticationConverter implements AuthenticationConverter {
 
@@ -101,7 +101,7 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
     private static class OAuth2EndpointUtils {
         static MultiValueMap<String, String> getParameters(HttpServletRequest request) {
             Map<String, String[]> parameterMap = request.getParameterMap();
-            MultiValueMap<String, String> parameters = new org.springframework.util.LinkedMultiValueMap<>();
+            MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
             parameterMap.forEach((key, values) -> {
                 for (String value : values) {
                     parameters.add(key, value);

@@ -23,12 +23,18 @@ import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionOutputParser;
-import lombok.RequiredArgsConstructor;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
-import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -37,12 +43,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
+import reactor.util.retry.Retry;
+
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClient {
@@ -100,8 +102,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return execution;
         }
 
-        return execution.retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
-                .filter(throwable -> throwable instanceof java.io.IOException)
+        return execution.retryWhen(Retry.backoff(2, Duration.ofSeconds(1))
+                .filter(throwable -> throwable instanceof IOException)
                 .doBeforeRetry(retrySignal -> log.error("LLM Retry #{} - RequestId: {}, Error: {}",
                         retrySignal.totalRetries() + 1, context.getRequestId(),
                         retrySignal.failure().getMessage())));
@@ -156,8 +158,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                         error))
                 .transform(entityExecution -> isRetryDisabled(context)
                         ? entityExecution
-                        : entityExecution.retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
-                        .filter(throwable -> throwable instanceof java.io.IOException)
+                        : entityExecution.retryWhen(Retry.backoff(2, Duration.ofSeconds(1))
+                        .filter(throwable -> throwable instanceof IOException)
                         .doBeforeRetry(retrySignal -> log.error("LLM Entity Retry #{} - RequestId: {}, Error: {}",
                                 retrySignal.totalRetries() + 1,
                                 context.getRequestId(),
@@ -656,7 +658,4 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return false;
     }
 }
-
-
-
 

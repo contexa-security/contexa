@@ -15,18 +15,18 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
+import io.contexa.contexacommon.entity.AuditLog;
+import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityScoreDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-
+import lombok.RequiredArgsConstructor;
+
 @RequiredArgsConstructor
 public class SecurityScoreCalculatorImpl implements SecurityScoreCalculator {
 
@@ -136,7 +136,7 @@ public class SecurityScoreCalculatorImpl implements SecurityScoreCalculator {
 
     private int calculateAccessDenyScore() {
         LocalDateTime last24Hours = LocalDateTime.now().minusHours(24);
-        List<io.contexa.contexacommon.entity.AuditLog> recentLogs =
+        List<AuditLog> recentLogs =
                 auditLogRepository.findByCreatedAtAfter(last24Hours);
 
         if (recentLogs.isEmpty()) {

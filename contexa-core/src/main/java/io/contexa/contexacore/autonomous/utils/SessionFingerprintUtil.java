@@ -15,18 +15,19 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import lombok.extern.slf4j.Slf4j;
-
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HexFormat;
-
+import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
 public class SessionFingerprintUtil {
 
@@ -79,7 +80,7 @@ public class SessionFingerprintUtil {
 
         if (context.getTimestamp() != null) {
             LocalDateTime dateTime = LocalDateTime.ofInstant(context.getTimestamp(),
-                java.time.ZoneId.systemDefault());
+                ZoneId.systemDefault());
             int hourOfDay = dateTime.getHour();
             fingerprint.append("TH:").append(hourOfDay).append("|");
         }
@@ -107,7 +108,7 @@ public class SessionFingerprintUtil {
 
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
             String fullHash = HEX_FORMAT.formatHex(hash);
             return fullHash.substring(0, 8);
         } catch (NoSuchAlgorithmException e) {
@@ -153,7 +154,7 @@ public class SessionFingerprintUtil {
         }
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
             return HEX_FORMAT.formatHex(hash).substring(0, 16);
         } catch (NoSuchAlgorithmException e) {
             log.error("[SessionFingerprint] SHA-256 algorithm not available", e);

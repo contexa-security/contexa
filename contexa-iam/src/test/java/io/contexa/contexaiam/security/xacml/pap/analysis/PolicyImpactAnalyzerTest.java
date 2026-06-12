@@ -15,6 +15,11 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.authority.AuthorityResolver;
@@ -26,29 +31,23 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.core.GrantedAuthority;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PolicyImpactAnalyzerTest {
@@ -70,7 +69,7 @@ class PolicyImpactAnalyzerTest {
         // AuthorityResolver delegates to buildUser's role setup
         when(authorityResolver.resolveAuthorities(any(Users.class))).thenAnswer(inv -> {
             Users u = inv.getArgument(0);
-            java.util.Set<org.springframework.security.core.GrantedAuthority> auths = new java.util.HashSet<>();
+            Set<GrantedAuthority> auths = new HashSet<>();
             if (u.getUserGroups() != null) {
                 u.getUserGroups().forEach(ug -> {
                     if (ug.getGroup() != null && ug.getGroup().getGroupRoles() != null) {
@@ -221,7 +220,7 @@ class PolicyImpactAnalyzerTest {
             // Override authorityResolver to simulate role hierarchy: ROLE_ADMIN -> ROLE_USER
             when(authorityResolver.resolveAuthorities(any(Users.class))).thenAnswer(inv -> {
                 Users u = inv.getArgument(0);
-                java.util.Set<org.springframework.security.core.GrantedAuthority> auths = new java.util.HashSet<>();
+                Set<GrantedAuthority> auths = new HashSet<>();
                 if (u.getUserGroups() != null) {
                     u.getUserGroups().forEach(ug -> {
                         if (ug.getGroup() != null && ug.getGroup().getGroupRoles() != null) {

@@ -15,24 +15,6 @@
  */
 package io.contexa.contexacore.hcad.service;
 
-import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.store.BaselineDataStore;
-import io.contexa.contexacore.properties.HcadProperties;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-
-import java.time.LocalDateTime;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -40,7 +22,24 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.hcad.store.BaselineDataStore;
+import io.contexa.contexacore.properties.HcadProperties;
+import java.time.LocalDateTime;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.quality.Strictness;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BaselineLearningServiceTest {
@@ -136,7 +135,7 @@ class BaselineLearningServiceTest {
         BaselineVector saved = captor.getValue();
         // The baseline learner uses verified action semantics for trust, so ALLOW contributes 1.0.
         double expectedTrust = alpha * 1.0 + (1 - alpha) * existingTrust;
-        assertThat(saved.getAvgTrustScore()).isCloseTo(expectedTrust, org.assertj.core.api.Assertions.within(0.001));
+        assertThat(saved.getAvgTrustScore()).isCloseTo(expectedTrust, Assertions.within(0.001));
     }
 
     @Test

@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -38,18 +39,17 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
-import io.contexa.contexacommon.security.LoginPolicyHandler;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.*;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
-
-import java.io.IOException;
-import java.util.*;
-
+
 @Slf4j
 
 public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
@@ -213,7 +213,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 2
         );
 
-        java.util.List<Map<String, Object>> factorDetails = factorContext.getRemainingFactors().stream()
+        List<Map<String, Object>> factorDetails = factorContext.getRemainingFactors().stream()
                 .map(authType -> createFactorDetail(authType.name()))
                 .toList();
         responseBody.put("availableFactors", factorDetails);

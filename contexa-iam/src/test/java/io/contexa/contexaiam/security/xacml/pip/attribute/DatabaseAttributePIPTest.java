@@ -15,34 +15,33 @@
  */
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.cache.ContexaCacheService;
-import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.entity.business.BusinessResource;
+import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.EnvironmentDetails;
 import io.contexa.contexaiam.security.xacml.pip.context.ResourceDetails;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.security.core.Authentication;
-
 import java.time.LocalDateTime;
 import java.util.*;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-
+import java.util.function.Supplier;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.quality.Strictness;
+import org.springframework.security.core.Authentication;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class DatabaseAttributePIPTest {
@@ -66,7 +65,7 @@ class DatabaseAttributePIPTest {
     void setUpCacheService() {
         when(cacheService.get(anyString(), any(), any(), anyString()))
                 .thenAnswer(inv -> {
-                    java.util.function.Supplier<?> supplier = inv.getArgument(1);
+                    Supplier<?> supplier = inv.getArgument(1);
                     return supplier.get();
                 });
     }

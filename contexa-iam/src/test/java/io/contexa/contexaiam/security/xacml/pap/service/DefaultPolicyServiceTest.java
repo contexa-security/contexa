@@ -15,9 +15,14 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.common.event.dto.PolicyChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
@@ -30,33 +35,29 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
-import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
-import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.AIPolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import java.util.*;
+import java.util.Locale;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
-
-import java.util.*;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class DefaultPolicyServiceTest {
@@ -108,9 +109,9 @@ class DefaultPolicyServiceTest {
 
     private DefaultPolicyService policyService;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
-        when(messageSource.getMessage(any(String.class), any(), any(java.util.Locale.class)))
+        when(messageSource.getMessage(any(String.class), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         policyService = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
@@ -271,7 +272,7 @@ class DefaultPolicyServiceTest {
         @DisplayName("should delete policy by ID and publish event")
         void shouldDeleteAndPublishEvent() {
             Policy policy = createPolicyWithCondition(50L, "test-delete", "hasAuthority('ROLE_USER')");
-            when(policyRepository.findByIdWithDetails(50L)).thenReturn(java.util.Optional.of(policy));
+            when(policyRepository.findByIdWithDetails(50L)).thenReturn(Optional.of(policy));
 
             policyService.deletePolicy(50L);
 
@@ -285,7 +286,7 @@ class DefaultPolicyServiceTest {
         @DisplayName("should reload authorization system after deletion")
         void shouldReloadAfterDelete() {
             Policy policy = createPolicyWithCondition(51L, "test-reload", "hasAuthority('ROLE_USER')");
-            when(policyRepository.findByIdWithDetails(51L)).thenReturn(java.util.Optional.of(policy));
+            when(policyRepository.findByIdWithDetails(51L)).thenReturn(Optional.of(policy));
 
             policyService.deletePolicy(51L);
 

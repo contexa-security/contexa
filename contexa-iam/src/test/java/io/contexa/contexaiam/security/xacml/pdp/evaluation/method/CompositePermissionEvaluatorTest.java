@@ -15,24 +15,23 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.context.ApplicationContext;
-import org.springframework.security.core.Authentication;
-
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
-
+import java.io.Serializable;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationContext;
+import org.springframework.security.core.Authentication;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CompositePermissionEvaluatorTest {
@@ -81,7 +80,7 @@ class CompositePermissionEvaluatorTest {
         }
 
         @Override
-        public boolean hasPermission(Authentication auth, java.io.Serializable targetId, String targetType, Object permission) {
+        public boolean hasPermission(Authentication auth, Serializable targetId, String targetType, Object permission) {
             return hasPermissionResult;
         }
     }

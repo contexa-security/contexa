@@ -15,12 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import org.junit.jupiter.api.Test;
-
-import java.time.LocalDateTime;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.DefaultRoleScopeCollector;
@@ -42,7 +36,13 @@ import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
-
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
 class DefaultCanonicalSecurityContextProviderTest {
 
     @Test
@@ -419,9 +419,9 @@ class DefaultCanonicalSecurityContextProviderTest {
         event.addMetadata("reinforcedCaseCount", 2L);
         event.addMetadata("retentionTier", "WARM");
         event.addMetadata("protectableAccessHistory", List.of(
-                java.util.Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
-                java.util.Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
-                java.util.Map.of("resourceId", "/api/customer/export", "actionFamily", "EXPORT", "result", "DENIED", "isSensitiveResource", true)));
+                Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/export", "actionFamily", "EXPORT", "result", "DENIED", "isSensitiveResource", true)));
 
         CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
 
@@ -493,7 +493,7 @@ class DefaultCanonicalSecurityContextProviderTest {
     @Test
     void resolveShouldPopulateSessionNarrativeFromCollectorWithoutSyntheticMetadata() {
         SessionNarrativeCollector collector =
-                new DefaultSessionNarrativeCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
+                new DefaultSessionNarrativeCollector(new InMemorySecurityContextDataStore());
         DefaultCanonicalSecurityContextProvider provider =
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
@@ -545,7 +545,7 @@ class DefaultCanonicalSecurityContextProviderTest {
     @Test
     void resolveShouldPopulateWorkProfileFromCollectorWithoutSyntheticMetadata() {
         ProtectableWorkProfileCollector collector =
-                new DefaultProtectableWorkProfileCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
+                new DefaultProtectableWorkProfileCollector(new InMemorySecurityContextDataStore());
         DefaultCanonicalSecurityContextProvider provider =
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
@@ -635,7 +635,7 @@ class DefaultCanonicalSecurityContextProviderTest {
     @Test
     void resolveShouldPopulateRoleScopeFromCollectorWithoutSyntheticMetadata() {
         RoleScopeCollector collector =
-                new DefaultRoleScopeCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
+                new DefaultRoleScopeCollector(new InMemorySecurityContextDataStore());
         DefaultCanonicalSecurityContextProvider provider =
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),

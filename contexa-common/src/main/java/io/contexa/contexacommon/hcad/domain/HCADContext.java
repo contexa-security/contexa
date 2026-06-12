@@ -15,21 +15,21 @@
  */
 package io.contexa.contexacommon.hcad.domain;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-
-import java.time.Instant;
-import java.util.Map;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.stream.IntStream;
-
+
 
 @Data
 @Builder
@@ -182,10 +182,10 @@ public class HCADContext {
 
         
         long epochSecond = timestamp.getEpochSecond();
-        int hour = timestamp.atZone(java.time.ZoneId.systemDefault()).getHour();
-        int dayOfWeek = timestamp.atZone(java.time.ZoneId.systemDefault()).getDayOfWeek().getValue();
-        int dayOfMonth = timestamp.atZone(java.time.ZoneId.systemDefault()).getDayOfMonth();
-        int month = timestamp.atZone(java.time.ZoneId.systemDefault()).getMonthValue();
+        int hour = timestamp.atZone(ZoneId.systemDefault()).getHour();
+        int dayOfWeek = timestamp.atZone(ZoneId.systemDefault()).getDayOfWeek().getValue();
+        int dayOfMonth = timestamp.atZone(ZoneId.systemDefault()).getDayOfMonth();
+        int month = timestamp.atZone(ZoneId.systemDefault()).getMonthValue();
 
         
         for (int i = 0; i < 24; i++) {

@@ -15,18 +15,17 @@
  */
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacommon.domain.request.AIRequest;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
 @DisplayName("ResourceNamingTemplate prompt-injection defence")
 class ResourceNamingTemplatePromptInjectionTest {
 
@@ -89,7 +88,7 @@ class ResourceNamingTemplatePromptInjectionTest {
     @DisplayName("Null identifier entries are rendered as empty so escape is safe")
     void nullIdentifier_isHandledSafely() {
         String userPrompt = template.generateUserPrompt(
-                request(java.util.Arrays.asList("/api/ok", null)), "");
+                request(Arrays.asList("/api/ok", null)), "");
 
         assertThat(userPrompt)
                 .contains("[RESOURCE_START_1]")

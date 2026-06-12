@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.std.rag.constants;
 
+import java.util.Map;
+
 public final class VectorDocumentMetadata {
 
     public static final String ID = "id";
@@ -87,7 +89,7 @@ public final class VectorDocumentMetadata {
         throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
     }
 
-    public static boolean hasRequiredFields(java.util.Map<String, Object> metadata) {
+    public static boolean hasRequiredFields(Map<String, Object> metadata) {
         return metadata != null &&
                metadata.containsKey(ID) &&
                metadata.containsKey(TIMESTAMP) &&

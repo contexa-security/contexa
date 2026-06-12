@@ -15,6 +15,11 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
@@ -22,28 +27,22 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
 import io.contexa.contexaiam.domain.entity.policy.PolicyVersion.ChangeType;
 import io.contexa.contexaiam.repository.PolicyVersionRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.modelmapper.ModelMapper;
-
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.Mock;
+import org.mockito.quality.Strictness;
+import org.modelmapper.ModelMapper;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PolicyVersionServiceTest {
@@ -283,10 +282,10 @@ class PolicyVersionServiceTest {
             when(versionRepository.findByPolicyIdAndVersionNumber(10L, 1)).thenReturn(Optional.of(v1));
             when(versionRepository.findByPolicyIdAndVersionNumber(10L, 2)).thenReturn(Optional.of(v2));
 
-            Map<String, Object> map1 = new java.util.HashMap<>();
+            Map<String, Object> map1 = new HashMap<>();
             map1.put("name", "test");
             map1.put("oldField", "removed");
-            Map<String, Object> map2 = new java.util.HashMap<>();
+            Map<String, Object> map2 = new HashMap<>();
             map2.put("name", "test");
             map2.put("newField", "added");
 

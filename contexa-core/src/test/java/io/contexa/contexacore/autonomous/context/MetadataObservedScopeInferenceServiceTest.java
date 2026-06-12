@@ -15,15 +15,13 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
-import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
-
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
-
+import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
 class MetadataObservedScopeInferenceServiceTest {
 
     @Test
@@ -36,9 +34,9 @@ class MetadataObservedScopeInferenceServiceTest {
         event.addMetadata("requestPath", "/api/customer/export");
         event.addMetadata("httpMethod", "POST");
         event.addMetadata("protectableAccessHistory", List.of(
-                java.util.Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
-                java.util.Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
-                java.util.Map.of("resourceId", "/api/customer/export", "actionFamily", "EXPORT", "result", "DENIED", "isSensitiveResource", true)));
+                Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/list", "actionFamily", "READ", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/export", "actionFamily", "EXPORT", "result", "DENIED", "isSensitiveResource", true)));
 
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .resource(CanonicalSecurityContext.Resource.builder()

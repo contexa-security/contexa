@@ -20,13 +20,14 @@ import io.contexa.contexacore.domain.entity.BaselineSignalOutboxRecord;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.repository.BaselineSignalOutboxRepository;
-
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
-
+import java.util.function.Function;
+
 public class BaselineSignalAggregationService {
 
     private static final String FREQ_PREFIX_HOUR = "hour:";
@@ -105,7 +106,7 @@ public class BaselineSignalAggregationService {
                 hourDistribution,
                 dayDistribution,
                 operatingSystemDistribution,
-                java.time.LocalDateTime.now(clock));
+                LocalDateTime.now(clock));
         return baselineSignalOutboxRepository.save(record);
     }
 
@@ -131,7 +132,7 @@ public class BaselineSignalAggregationService {
     private Map<String, Long> aggregateIntegerDistribution(
             List<BaselineVector> baselines,
             String prefix,
-            java.util.function.Function<BaselineVector, Integer[]> fallbackExtractor,
+            Function<BaselineVector, Integer[]> fallbackExtractor,
             int limit) {
         LinkedHashMap<String, Long> aggregated = new LinkedHashMap<>();
         for (BaselineVector baseline : baselines) {
@@ -165,7 +166,7 @@ public class BaselineSignalAggregationService {
     private Map<String, Long> aggregateStringDistribution(
             List<BaselineVector> baselines,
             String prefix,
-            java.util.function.Function<BaselineVector, String[]> fallbackExtractor,
+            Function<BaselineVector, String[]> fallbackExtractor,
             int limit) {
         LinkedHashMap<String, Long> aggregated = new LinkedHashMap<>();
         for (BaselineVector baseline : baselines) {

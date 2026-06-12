@@ -17,11 +17,12 @@ package io.contexa.contexacommon.annotation;
 
 import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
+import java.util.Map;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.SpringBootVersion;
 import org.springframework.context.annotation.ImportSelector;
 import org.springframework.core.type.AnnotationMetadata;
-
-import java.util.Map;
-
+
 /**
  * Import selector that loads {@code AiSecurityConfiguration} by class name.
  * <p>
@@ -40,9 +41,9 @@ public class AiSecurityImportSelector implements ImportSelector {
 
     @Override
     public String[] selectImports(AnnotationMetadata importingClassMetadata) {
-        String version = org.springframework.boot.SpringBootVersion.getVersion();
+        String version = SpringBootVersion.getVersion();
         if (version.startsWith("4.")) {
-            org.slf4j.LoggerFactory.getLogger(AiSecurityImportSelector.class)
+            LoggerFactory.getLogger(AiSecurityImportSelector.class)
                 .error("Contexa does not support Spring Boot 4.x. Current version: {}. Please downgrade to Spring Boot 3.x.", version);
             throw new IllegalStateException("Spring Boot 4.x is not supported by Contexa. Current version: " + version);
         }
