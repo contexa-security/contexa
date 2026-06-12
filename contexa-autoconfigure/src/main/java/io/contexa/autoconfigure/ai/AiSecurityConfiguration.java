@@ -89,8 +89,9 @@ public class AiSecurityConfiguration {
                         http.cors(AbstractHttpConfigurer::disable);
                         http.headers(AbstractHttpConfigurer::disable);
                         http.authorizeHttpRequests(authReq -> authReq
-                                .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
-                                .requestMatchers("/contexa/admin/**").authenticated());
+                                .requestMatchers("/contexa/admin/**").authenticated()
+                                .anyRequest().permitAll());
+
                     })
                     .mfa(mfa -> mfa.requiredFactors(1)
                             .primaryAuthentication(auth -> auth
