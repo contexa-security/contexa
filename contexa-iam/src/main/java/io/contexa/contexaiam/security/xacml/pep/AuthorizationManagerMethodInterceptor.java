@@ -32,6 +32,8 @@ import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.method.AuthorizationAdvisor;
 import org.springframework.security.authorization.method.AuthorizationInterceptorsOrder;
@@ -58,6 +60,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private SynchronousProtectableDecisionService synchronousProtectableDecisionService;
     private SecurityZeroTrustProperties securityZeroTrustProperties;
     private ProtectableResourceCertificationGate protectableResourceCertificationGate;
+    private AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
 
     public AuthorizationManagerMethodInterceptor(
             Pointcut pointcut,
@@ -149,8 +152,9 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
     private Authentication getAuthentication() {
         Authentication authentication = this.securityContextHolderStrategy.get().getContext().getAuthentication();
-        if (authentication == null) {
-            throw new AuthenticationCredentialsNotFoundException("An Authentication object was not found in the SecurityContext");
+        boolean isAnonymous = this.authenticationTrustResolver.isAnonymous(authentication);
+        if (authentication == null || isAnonymous) {
+            throw new AuthenticationCredentialsNotFoundException("Authentication is anonymousUser or was not found in the SecurityContext");
         }
         return authentication;
     }

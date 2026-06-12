@@ -48,7 +48,7 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     }
 
     @Override
-    public final void execute(StateContext<MfaState, MfaEvent> context) {
+    public void execute(StateContext<MfaState, MfaEvent> context) {
         String sessionId = extractSessionId(context);
 
         FactorContext factorContext = null;
