@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='IAM Dashboard')}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='IAM Dashboard')}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         body { background-color: #02040a !important; background: linear-gradient(180deg, #02040a 0%, #050b1a 50%, #0a1128 100%) !important; background-attachment: fixed !important; color: white !important; }
@@ -37,10 +37,10 @@
 </head>
 <body class="flex flex-col min-h-screen">
 
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 
 <div class="flex flex-1 overflow-hidden">
-    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
 
@@ -555,7 +555,7 @@
     </main>
 </div>
 
-<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

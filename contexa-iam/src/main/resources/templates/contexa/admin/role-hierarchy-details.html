@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.role.hierarchy.detail.title})}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.role.hierarchy.detail.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/role-hierarchy.css}">
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -15,12 +15,12 @@
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
 <div id="tooltip" class="tooltip"></div>
 
 <div class="flex flex-1">
-    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
 
     <main class="flex-1 p-6 md:p-10">
         <div class="dark-card p-6 rounded-xl">
@@ -232,7 +232,7 @@
     </div>
 </div>
 
-<div th:insert="~{fragments/footer :: footer}"></div>
+<div th:insert="~{contexa/fragments/footer :: footer}"></div>
 
 <div id="i18n-hierarchy" style="display:none;"
      th:data-select-parent="#{admin.role.hierarchy.detail.js.select.parent}"

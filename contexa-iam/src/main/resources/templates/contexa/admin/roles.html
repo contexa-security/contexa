@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.roles.title})}"></head>
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.roles.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
-<div th:insert="~{fragments/header :: header}"></div>
+<div th:insert="~{contexa/fragments/header :: header}"></div>
 <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
 
 <div class="flex flex-1">
-    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
 
     <main class="flex-1 p-6 md:p-10">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
@@ -107,10 +107,10 @@
     </main>
 </div>
 
-<div th:replace="~{fragments/delete-policy-modal :: modal(#{msg.delete.confirm.role}, '/admin/roles/api', '/admin/roles/delete', false)}"></div>
+<div th:replace="~{contexa/fragments/delete-policy-modal :: modal(#{msg.delete.confirm.role}, '/admin/roles/api', '/admin/roles/delete', false)}"></div>
 
-<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
-<th:block th:replace="~{fragments/delete-policy-modal :: script('/admin/roles/api', '/admin/roles/delete', false)}"></th:block>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<th:block th:replace="~{contexa/fragments/delete-policy-modal :: script('/admin/roles/api', '/admin/roles/delete', false)}"></th:block>
 <script th:inline="javascript">
     /*<![CDATA[*/
     document.addEventListener('DOMContentLoaded', function() {

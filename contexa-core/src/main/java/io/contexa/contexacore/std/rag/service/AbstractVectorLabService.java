@@ -134,12 +134,12 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    public final List<Document> searchSimilar(String query) {
+    public List<Document> searchSimilar(String query) {
         return searchSimilar(query, Collections.emptyMap());
     }
 
     @Override
-    public final List<Document> searchSimilar(String query, Map<String, Object> filters) {
+    public List<Document> searchSimilar(String query, Map<String, Object> filters) {
         long startTime = System.currentTimeMillis();
 
         try {
@@ -181,7 +181,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    public final List<Document> searchSimilar(SearchRequest searchRequest) {
+    public List<Document> searchSimilar(SearchRequest searchRequest) {
         long startTime = System.currentTimeMillis();
 
         try {

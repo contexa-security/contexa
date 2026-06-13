@@ -133,7 +133,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     @Override
-    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager")
     public boolean isCredentialsExpired(String username) {
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
         if (policy.getPasswordExpiryDays() <= 0) return false;
@@ -145,7 +145,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     @Override
-    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager")
     public boolean isIpBlocked(String ip) {
         if (ip == null || ip.isBlank()) return false;
         return loginAttemptIpRepository.findByIpAddress(ip)
