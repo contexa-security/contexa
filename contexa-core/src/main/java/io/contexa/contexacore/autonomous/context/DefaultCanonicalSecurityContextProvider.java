@@ -440,7 +440,12 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .sessionId(firstText(event.getSessionId(), metadata.get("sessionId")))
                 .clientIp(firstText(event.getSourceIp(), metadata.get("clientIp")))
                 .userAgent(firstText(event.getUserAgent(), metadata.get("userAgent")))
-                .authenticationType(firstText(metadata.get("authenticationType"), metadata.get("authType"), metadata.get("auth_type")))
+                .authenticationType(firstText(
+                        metadata.get("authMethod"),
+                        metadata.get("auth_method"),
+                        metadata.get("authenticationType"),
+                        metadata.get("authType"),
+                        metadata.get("auth_type")))
                 .authenticationAssurance(firstText(metadata.get("authenticationAssurance"), metadata.get("authAssurance"), metadata.get("auth_assurance")))
                 .mfaVerified(resolveBoolean(metadata.get("mfaVerified"), metadata.get("mfa_verified")))
                 .recentMfaFailureCount(resolveInteger(metadata.get("recentMfaFailureCount"), metadata.get("recent_mfa_failure_count"), metadata.get("mfaFailureCount"), metadata.get("mfa_failure_count")))

@@ -1069,6 +1069,7 @@ public class SecurityDecisionPromptSections {
             if (httpMethod != null && !httpMethod.toString().isEmpty()) {
                 section.append("HttpMethod: ").append(httpMethod).append("\n");
             }
+            appendMetadataIfPresent(section, metadataObj, "authMethod", "AuthMethod");
             appendMetadataIfPresent(section, metadataObj, "auth.failure_count", "FailureCount");
             appendMetadataIfPresent(section, metadataObj, "failedLoginAttempts", "FailedLoginAttempts");
             appendMetadataIfPresent(section, metadataObj, "isNewDevice", "NewDevice");

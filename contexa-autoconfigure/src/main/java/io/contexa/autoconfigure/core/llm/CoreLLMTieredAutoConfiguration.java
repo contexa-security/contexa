@@ -78,6 +78,7 @@ import org.springframework.web.reactive.function.client.WebClient;
         "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration",
         "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
+@ConditionalOnProperty(prefix = "contexa.llm", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class})
 public class CoreLLMTieredAutoConfiguration {
 

@@ -33,6 +33,7 @@ import org.springframework.data.repository.config.RepositoryConfigurationDelegat
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryPostProcessor,
         EnvironmentAware, ResourceLoaderAware {
@@ -45,6 +46,9 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
             "io.contexa.contexacommon.repository",
             "io.contexa.contexacore.repository",
             "io.contexa.contexaiam.repository"
+    );
+    private static final List<String> OSS_OFFICIAL_REPOSITORY_PACKAGES = List.of(
+            "io.contexa.contexacore.verification.evidence"
     );
 
     private Environment environment;
@@ -75,7 +79,10 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
         }
         assertApplicationDidNotPreRegisterContexaRepositories(registry);
 
-        AnnotationMetadata metadata = AnnotationMetadata.introspect(ContexaRepositoriesConfiguration.class);
+        AnnotationMetadata metadata = AnnotationMetadata.introspect(
+                includeOssOfficialRepositories()
+                        ? ContexaRepositoriesWithOfficialEvidenceConfiguration.class
+                        : ContexaRepositoriesConfiguration.class);
         AnnotationRepositoryConfigurationSource source = new AnnotationRepositoryConfigurationSource(
                 metadata, EnableJpaRepositories.class, this.resourceLoader, this.environment, registry, null);
         RepositoryConfigurationDelegate delegate = new RepositoryConfigurationDelegate(source, this.resourceLoader, this.environment);
@@ -89,6 +96,11 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
 
     private boolean repositoriesEnabled() {
         return environment == null || environment.getProperty(ENABLED_PROPERTY, Boolean.class, true);
+    }
+
+    private boolean includeOssOfficialRepositories() {
+        return environment == null
+                || !environment.getProperty("contexa.enterprise.enabled", Boolean.class, false);
     }
 
     private void assertApplicationDidNotPreRegisterContexaRepositories(BeanDefinitionRegistry registry) {
@@ -137,8 +149,18 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
             return false;
         }
         String normalized = repositoryInterface.replace("class ", "").trim();
-        return CONTEXA_REPOSITORY_PACKAGES.stream()
+        return contexaRepositoryPackages().stream()
                 .anyMatch(repositoryPackage -> normalized.startsWith(repositoryPackage + "."));
+    }
+
+    private List<String> contexaRepositoryPackages() {
+        if (!includeOssOfficialRepositories()) {
+            return CONTEXA_REPOSITORY_PACKAGES;
+        }
+        return Stream.concat(
+                        CONTEXA_REPOSITORY_PACKAGES.stream(),
+                        OSS_OFFICIAL_REPOSITORY_PACKAGES.stream())
+                .toList();
     }
 
     @EnableJpaRepositories(
@@ -152,6 +174,20 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
             nameGenerator = ContexaRepositoryBeanNameGenerator.class
     )
     private static class ContexaRepositoriesConfiguration {
+    }
+
+    @EnableJpaRepositories(
+            basePackages = {
+                    "io.contexa.contexacommon.repository",
+                    "io.contexa.contexacore.repository",
+                    "io.contexa.contexacore.verification.evidence",
+                    "io.contexa.contexaiam.repository"
+            },
+            entityManagerFactoryRef = "contexaEntityManagerFactory",
+            transactionManagerRef = "contexaTransactionManager",
+            nameGenerator = ContexaRepositoryBeanNameGenerator.class
+    )
+    private static class ContexaRepositoriesWithOfficialEvidenceConfiguration {
     }
 
     public static final class ContexaRepositoryBeanNameGenerator extends AnnotationBeanNameGenerator {

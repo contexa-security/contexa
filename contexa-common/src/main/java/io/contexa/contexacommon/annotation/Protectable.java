@@ -25,10 +25,10 @@ import java.lang.annotation.Target;
  * <p>
  * At application startup {@code ProtectableResourceCatalogService} auto-scans
  * annotated beans and registers matching methods into
- * {@code protectable_resource_registry}. Registered resources must obtain a
- * {@code PromptQualityCertificate} through
- * {@code EnterpriseProtectableResourceCertificationGate} before being admitted
- * to LLM zero-trust operation.
+ * {@code protectable_resource_registry}. Registered resources can be evaluated
+ * by the prompt quality inspection flow before they are used for LLM
+ * zero-trust operation. Enterprise deployments may add certificate and
+ * promotion gates on top of that inspection result.
  */
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
@@ -55,8 +55,8 @@ public @interface Protectable {
      * dot-notation or kebab-case convention (for example,
      * {@code user.profile.read}).
      * <p>
-     * A certificate, once issued, is bound to this identifier. Changing it
-     * transitions the existing certificate to {@code EXPIRED}.
+     * If an operational certificate is used, it is bound to this identifier.
+     * Changing the identifier can require re-verification.
      * <p>
      * Owner: architect or security lead.
      */
@@ -101,15 +101,13 @@ public @interface Protectable {
     String criticality() default "standard";
 
     /**
-     * Whether the certification gate must be enforced for this resource.
+     * Whether prompt quality verification must be enforced for this resource.
      * <p>
-     * {@code true} (default): at invocation time
-     * {@code EnterpriseProtectableResourceCertificationGate} checks for a
-     * valid certificate and blocks the call when none is available.
+     * {@code true} (default): at invocation time the runtime policy checks
+     * whether the resource has the required prompt quality state.
      * <p>
-     * {@code false}: the gate is skipped. Reserved for exceptional cases
-     * such as authentication primitives or health checks, and requires audit
-     * approval with an explicit reason.
+     * {@code false}: the verification gate is skipped. Reserved for exceptional
+     * cases such as authentication primitives or health checks.
      */
     boolean verificationRequired() default true;
 

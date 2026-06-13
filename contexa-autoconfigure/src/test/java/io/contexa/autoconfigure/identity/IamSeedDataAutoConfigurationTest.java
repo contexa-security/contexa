@@ -17,6 +17,9 @@ package io.contexa.autoconfigure.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,5 +46,54 @@ class IamSeedDataAutoConfigurationTest {
                 .isNotNull()
                 .extracting(Order::value)
                 .isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("IAM schema initialization should strip environment-specific owner statements")
+    void iamSchemaInitializationStripsOwnerStatements() {
+        String sql = """
+                create table one_time_tokens
+                (
+                    token_value varchar(36) not null
+                        primary key
+                );
+
+                alter table one_time_tokens
+                    owner to contexa_sim;
+
+                create index idx_one_time_tokens_username
+                    on one_time_tokens (token_value);
+                """;
+
+        String sanitized = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql);
+
+        assertThat(sanitized)
+                .contains("create table one_time_tokens")
+                .contains("create index idx_one_time_tokens_username")
+                .doesNotContain("owner to contexa_sim");
+    }
+
+    @Test
+    @DisplayName("IAM schema initialization should skip DDL when CLI already installed the schema")
+    void iamSchemaInitializationSkipsDdlWhenSchemaIsAlreadyInstalled() {
+        Set<String> allMarkers = Arrays.stream(IamSeedDataAutoConfiguration.SCHEMA_MARKER_TABLES)
+                .collect(Collectors.toSet());
+
+        assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(allMarkers))
+                .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE);
+    }
+
+    @Test
+    @DisplayName("IAM schema initialization should execute DDL only for an empty Contexa schema")
+    void iamSchemaInitializationExecutesDdlOnlyForEmptySchema() {
+        assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(Set.of()))
+                .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.ABSENT);
+    }
+
+    @Test
+    @DisplayName("IAM schema initialization should fail fast for partial schema installs")
+    void iamSchemaInitializationRejectsPartialSchema() {
+        assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(Set.of("users")))
+                .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.PARTIAL);
     }
 }

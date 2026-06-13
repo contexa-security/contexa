@@ -61,6 +61,7 @@ import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -77,6 +78,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -195,6 +198,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({LLMExecutionStep.class, StreamingLLMExecutionStep.class})
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -212,6 +216,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "universalPipelineExecutor")
+    @ConditionalOnBean(LLMExecutionStep.class)
     public UniversalPipelineExecutor universalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -224,6 +229,55 @@ public class CoreStdComponentsAutoConfiguration {
                 llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep);
     }
 
+    @Bean(name = "offlineUniversalPipelineExecutor")
+    @ConditionalOnMissingBean(PipelineExecutor.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.offline-fallback", name = "enabled", havingValue = "true")
+    public UniversalPipelineExecutor offlineUniversalPipelineExecutor(
+            ContextRetrievalStep contextRetrievalStep,
+            PreprocessingStep preprocessingStep,
+            PromptGenerationStep promptGenerationStep,
+            ResponseParsingStep responseParsingStep,
+            PostprocessingStep postprocessingStep,
+            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
+        LLMExecutionStep offlineLlmExecutionStep = new LLMExecutionStep(
+                offlineLlmClient(),
+                structuredOutputCapabilityRegistry);
+        return new UniversalPipelineExecutor(
+                contextRetrievalStep,
+                preprocessingStep,
+                promptGenerationStep,
+                offlineLlmExecutionStep,
+                null,
+                responseParsingStep,
+                postprocessingStep);
+    }
+
+    @Bean(name = "offlineFallbackLlmClient")
+    @ConditionalOnMissingBean(LLMClient.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.offline-fallback", name = "enabled", havingValue = "true")
+    public LLMClient offlineFallbackLlmClient() {
+        return offlineLlmClient();
+    }
+
+    private LLMClient offlineLlmClient() {
+        return new LLMClient() {
+            @Override
+            public Mono<String> call(Prompt prompt) {
+                return Mono.error(new IllegalStateException("No runtime LLM client is configured."));
+            }
+
+            @Override
+            public <T> Mono<T> entity(Prompt prompt, Class<T> targetType) {
+                return Mono.error(new IllegalStateException("No runtime LLM client is configured."));
+            }
+
+            @Override
+            public Flux<String> stream(Prompt prompt) {
+                return Flux.error(new IllegalStateException("No runtime LLM client is configured."));
+            }
+        };
+    }
+
     @Bean
     @ConditionalOnBean(ContextRetrieverRegistry.class)
     @ConditionalOnMissingBean
@@ -233,11 +287,11 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @Qualifier("llmExecutionStep")
-    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
+    @ConditionalOnBean(LLMClient.class)
     public LLMExecutionStep llmExecutionStep(
-            UnifiedLLMOrchestrator unifiedLLMOrchestrator,
+            LLMClient llmClient,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
-        return new LLMExecutionStep(unifiedLLMOrchestrator, structuredOutputCapabilityRegistry);
+        return new LLMExecutionStep(llmClient, structuredOutputCapabilityRegistry);
     }
     @Bean
     @ConditionalOnMissingBean

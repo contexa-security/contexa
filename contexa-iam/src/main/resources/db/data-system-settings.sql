@@ -7,3 +7,18 @@
 INSERT INTO system_settings (audit_log_retention_days, default_role, policy_combining_algorithm, registration_enabled, created_at)
 SELECT 90, 'ROLE_USER', 'FIRST_APPLICABLE', FALSE, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM system_settings);
+
+-- Keep future settings rows safe when manual data was loaded with explicit ids.
+DO $$
+DECLARE
+    max_id BIGINT;
+BEGIN
+    BEGIN
+        SELECT MAX(id) INTO max_id FROM system_settings;
+        IF max_id IS NOT NULL THEN
+            EXECUTE format('SELECT setval(%L, %s, true)', 'system_settings_id_seq', max_id);
+        END IF;
+    EXCEPTION WHEN undefined_table OR undefined_column OR undefined_object OR insufficient_privilege THEN
+        NULL;
+    END;
+END $$;

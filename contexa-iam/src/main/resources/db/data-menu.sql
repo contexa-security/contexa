@@ -126,3 +126,29 @@ SELECT r.name, r.url, r.icon, r.parent_id, r.menu_order, r.enabled, r.menu_type,
   FROM resolved r
  WHERE NOT EXISTS (SELECT 1 FROM updated u WHERE u.data_page = r.data_page)
    AND NOT EXISTS (SELECT 1 FROM admin_menu m WHERE m.data_page = r.data_page);
+
+-- ----------------------------------------------------------------
+-- Sequence sync.
+-- Menu rows are seeded without fixed ids, and older/manual data may have
+-- advanced ids independently. Keep future UI-created rows from reusing ids.
+-- ----------------------------------------------------------------
+DO $$
+DECLARE
+    pairs TEXT[][] := ARRAY[
+        ARRAY['admin_menu_id_seq', 'admin_menu', 'id'],
+        ARRAY['admin_menu_role_id_seq', 'admin_menu_role', 'id']
+    ];
+    pair TEXT[];
+    max_id BIGINT;
+BEGIN
+    FOREACH pair SLICE 1 IN ARRAY pairs LOOP
+        BEGIN
+            EXECUTE format('SELECT MAX(%I) FROM %I', pair[3], pair[2]) INTO max_id;
+            IF max_id IS NOT NULL THEN
+                EXECUTE format('SELECT setval(%L, %s, true)', pair[1], max_id);
+            END IF;
+        EXCEPTION WHEN undefined_table OR undefined_column OR undefined_object OR insufficient_privilege THEN
+            NULL;
+        END;
+    END LOOP;
+END $$;

@@ -69,6 +69,9 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
             "io.contexa.contexaiam.domain.entity",
             "io.contexa.contexacore.saas.domain.entity");
 
+    private static final String OSS_OFFICIAL_EVIDENCE_PACKAGE =
+            "io.contexa.contexacore.verification.evidence";
+
     private Environment environment;
 
     public CoreDataAutoConfiguration() {
@@ -192,6 +195,9 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
 
     private String[] packagesToScan(ObjectProvider<ContexaJpaManagedPackageProvider> packageProviders) {
         Set<String> packages = new LinkedHashSet<>(DEFAULT_PACKAGES_TO_SCAN);
+        if (includeOssOfficialEvidencePackage()) {
+            packages.add(OSS_OFFICIAL_EVIDENCE_PACKAGE);
+        }
         if (packageProviders != null) {
             packageProviders.orderedStream()
                     .map(ContexaJpaManagedPackageProvider::getPackagesToScan)
@@ -211,5 +217,10 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
         }
 
         return packages.toArray(String[]::new);
+    }
+
+    private boolean includeOssOfficialEvidencePackage() {
+        return environment == null
+                || !environment.getProperty("contexa.enterprise.enabled", Boolean.class, false);
     }
 }

@@ -120,9 +120,9 @@ public class CapabilityRequirementResolver {
                     platformConfigPresent,
                     "AI security bridge is active");
             case PQA_ENGINE -> activeWhen(capability,
-                    enterpriseEnabled && classPresent("io.contexa.contexaiamenterprise.admin.verification.controller.PromptQualityVerificationApiController"),
-                    contexaOwnedApplication && enterpriseEnabled,
-                    "enterprise prompt quality assurance engine is available");
+                    classPresent("io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityInspectionController"),
+                    contexaOwnedApplication,
+                    "prompt quality official inspection engine is available");
             case ENTERPRISE_SOAR -> activeWhen(capability,
                     enterpriseEnabled && classPresent("io.contexa.contexacoreenterprise.soar.retriever.SoarContextRetriever"),
                     contexaOwnedApplication && enterpriseEnabled,

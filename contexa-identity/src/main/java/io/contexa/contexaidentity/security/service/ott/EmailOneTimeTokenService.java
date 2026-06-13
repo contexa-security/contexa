@@ -34,16 +34,19 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
     private final TransactionTemplate transactionTemplate;
     private final AuthContextProperties authContextProperties;
     private final JdbcTemplate jdbcTemplate;
+    private final boolean failOnEmailError;
 
     public EmailOneTimeTokenService(EmailService emailService,
                                     JdbcTemplate primaryJdbcTemplate,
                                     TransactionTemplate transactionTemplate,
-                                    AuthContextProperties authContextProperties) {
+                                    AuthContextProperties authContextProperties,
+                                    boolean failOnEmailError) {
         this.emailService = emailService;
         this.delegate = new JdbcOneTimeTokenService(primaryJdbcTemplate);
         this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
         this.jdbcTemplate = primaryJdbcTemplate;
+        this.failOnEmailError = failOnEmailError;
     }
 
     @Override
@@ -95,10 +98,25 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         }
 
         if (!emailService.isMailSenderConfigured()) {
-            throw new IllegalStateException("Email sender is not configured. Please configure Spring mail properties.");
+            IllegalStateException failure = new IllegalStateException(
+                    "Email sender is not configured. Please configure Spring mail properties.");
+            if (failOnEmailError) {
+                throw failure;
+            }
+            log.warn("OTT email sender is not configured; token was generated but email delivery was skipped for username={}",
+                    username);
+            return internalOneTimeToken.get();
         }
 
-        emailService.sendHtmlMessage(to, emailSubject, htmlBody);
+        try {
+            emailService.sendHtmlMessage(to, emailSubject, htmlBody);
+        } catch (RuntimeException ex) {
+            if (failOnEmailError) {
+                throw ex;
+            }
+            log.warn("OTT email delivery failed; token was generated and retained for local verification. username={}, to={}",
+                    username, to, ex);
+        }
 
         return internalOneTimeToken.get();
     }

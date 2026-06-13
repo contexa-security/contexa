@@ -34,11 +34,10 @@ public class PasswordPolicyService {
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional(transactionManager = "contexaTransactionManager")
     public PasswordPolicy getCurrentPolicy() {
         return repository.findAll().stream()
                 .findFirst()
-                .orElseGet(() -> repository.save(PasswordPolicy.builder().build()));
+                .orElseGet(() -> PasswordPolicy.builder().build());
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")

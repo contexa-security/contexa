@@ -63,7 +63,7 @@ public class PolicyController {
         return "contexa/admin/policies";
     }
 
-    @GetMapping("/contexa/register")
+    @GetMapping("/register")
     public String registerForm(Model model, PolicyDto policyDto) {
         model.addAttribute("activePage", "policy-center");
         policyDto.getTargets().add(new TargetDto());

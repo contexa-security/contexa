@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- Contexa IAM Seed Data
 -- Schema source-of-truth: contexa_tables.sql (operational DB dump 2026-05-07).
 -- All INSERTs satisfy NOT NULL columns and are idempotent (ON CONFLICT DO NOTHING).
@@ -67,44 +67,6 @@ INSERT INTO ROLE_HIERARCHY_CONFIG (hierarchy_id, description, hierarchy_string, 
 ON CONFLICT (hierarchy_id) DO NOTHING;
 
 
--- ----------------------------------------------------------------
--- PERMISSION — Customer-data permission set.
--- Required NOT NULL: auto_created, created_at, permission_name.
--- ----------------------------------------------------------------
-INSERT INTO PERMISSION (permission_id, permission_name, friendly_name, description, target_type, action_type, auto_created, created_at) VALUES
-    (301, 'CUSTOMER_DATA_READ',        '고객 데이터 조회',           '고객의 개인정보 및 프로필 데이터를 조회할 수 있습니다',                  'BUSINESS', 'READ',   FALSE, CURRENT_TIMESTAMP),
-    (302, 'CUSTOMER_DATA_DELETE',      '고객 데이터 삭제',           '고객의 개인정보를 영구적으로 삭제할 수 있습니다 - 매우 위험한 작업입니다', 'BUSINESS', 'DELETE', FALSE, CURRENT_TIMESTAMP),
-    (303, 'CUSTOMER_DATA_UPDATE',      '고객 데이터 수정',           '고객의 개인정보 및 프로필을 수정할 수 있습니다',                          'BUSINESS', 'UPDATE', FALSE, CURRENT_TIMESTAMP),
-    (304, 'CUSTOMER_DATA_EXPORT',      '고객 데이터 내보내기',       '고객 데이터를 외부 시스템으로 내보낼 수 있습니다',                        'BUSINESS', 'EXPORT', FALSE, CURRENT_TIMESTAMP),
-    (305, 'CUSTOMER_PROFILE_READ',     '고객 프로필 조회',           '고객의 기본 프로필 정보를 조회할 수 있습니다',                            'BUSINESS', 'READ',   FALSE, CURRENT_TIMESTAMP),
-    (306, 'CUSTOMER_TRANSACTION_READ', '고객 거래내역 조회',         '고객의 결제 및 거래 이력을 조회할 수 있습니다',                           'BUSINESS', 'READ',   FALSE, CURRENT_TIMESTAMP)
-ON CONFLICT (permission_id) DO NOTHING;
-
--- ----------------------------------------------------------------
--- ROLE_PERMISSIONS — required NOT NULL: assigned_at, permission_id, role_id.
--- ----------------------------------------------------------------
-INSERT INTO ROLE_PERMISSIONS (role_id, permission_id, assigned_at) VALUES
-    (1, 301, CURRENT_TIMESTAMP), (1, 302, CURRENT_TIMESTAMP), (1, 303, CURRENT_TIMESTAMP), (1, 304, CURRENT_TIMESTAMP), (1, 305, CURRENT_TIMESTAMP), (1, 306, CURRENT_TIMESTAMP),
-    (2, 301, CURRENT_TIMESTAMP), (2, 302, CURRENT_TIMESTAMP), (2, 303, CURRENT_TIMESTAMP), (2, 305, CURRENT_TIMESTAMP), (2, 306, CURRENT_TIMESTAMP),
-    (3, 301, CURRENT_TIMESTAMP), (3, 305, CURRENT_TIMESTAMP),
-    (4, 306, CURRENT_TIMESTAMP)
-ON CONFLICT (role_id, permission_id) DO NOTHING;
-
-INSERT INTO PERMISSION (permission_id, permission_name, friendly_name, description, target_type, action_type, managed_resource_id, auto_created, created_at) VALUES
-    (102, 'METHOD_DOCUMENTSERVICE_GETDOCUMENTBYID', '문서 조회', '문서를 조회하는 권한입니다.',  'METHOD', 'EXECUTE', 102, FALSE, CURRENT_TIMESTAMP),
-    (103, 'METHOD_GROUPSERVICEIMPL_GETGROUP',       '그룹 조회', '그룹 정보를 조회하는 권한입니다.', 'METHOD', 'EXECUTE', 103, FALSE, CURRENT_TIMESTAMP),
-    (201, 'METHOD_DOCUMENTSERVICE_UPDATEDOCUMENT',  '문서 수정', '문서 내용을 수정하는 권한',     'METHOD', 'EXECUTE', 201, FALSE, CURRENT_TIMESTAMP)
-ON CONFLICT (permission_id) DO NOTHING;
-
--- ROLE_ADMIN → resource-bound permissions
-INSERT INTO ROLE_PERMISSIONS (role_id, permission_id, assigned_at) VALUES
-    (1, 102, CURRENT_TIMESTAMP),
-    (1, 103, CURRENT_TIMESTAMP),
-    (1, 201, CURRENT_TIMESTAMP),
-    (2, 102, CURRENT_TIMESTAMP),
-    (2, 201, CURRENT_TIMESTAMP),
-    (4, 102, CURRENT_TIMESTAMP)
-ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
 -- POLICY — canonical seed policy id=2. NOT NULL: is_active, priority, created_at, effect, name.
@@ -212,15 +174,6 @@ ON CONFLICT (name) DO UPDATE SET
 -- create stale scheduler locks, so only the table schema is required.
 -- ----------------------------------------------------------------
 
--- ----------------------------------------------------------------
--- PERMISSION — common CRUD permissions.
--- ----------------------------------------------------------------
-INSERT INTO PERMISSION (permission_name, friendly_name, description, auto_created, target_type, action_type, created_at) VALUES
-    ('READ',   'Read Access',   'Permission to read/view resources',         FALSE, 'CRUD', 'READ',   CURRENT_TIMESTAMP),
-    ('WRITE',  'Write Access',  'Permission to create new resources',        FALSE, 'CRUD', 'WRITE',  CURRENT_TIMESTAMP),
-    ('UPDATE', 'Update Access', 'Permission to modify existing resources',   FALSE, 'CRUD', 'UPDATE', CURRENT_TIMESTAMP),
-    ('DELETE', 'Delete Access', 'Permission to remove resources',            FALSE, 'CRUD', 'DELETE', CURRENT_TIMESTAMP)
-ON CONFLICT (permission_name) DO NOTHING;
 
 -- ----------------------------------------------------------------
 -- Sequence sync (PostgreSQL identity columns).
@@ -232,13 +185,15 @@ DECLARE
         ARRAY['users_id_seq',              'users',              'id'],
         ARRAY['app_group_group_id_seq',    'app_group',          'group_id'],
         ARRAY['role_role_id_seq',          'role',               'role_id'],
-        ARRAY['permission_permission_id_seq','permission',       'permission_id'],
+        ARRAY['role_hierarchy_config_hierarchy_id_seq', 'role_hierarchy_config', 'hierarchy_id'],
         ARRAY['policy_id_seq',             'policy',             'id'],
         ARRAY['policy_target_id_seq',      'policy_target',      'id'],
         ARRAY['policy_rule_id_seq',        'policy_rule',        'id'],
         ARRAY['policy_condition_id_seq',   'policy_condition',   'id'],
         ARRAY['condition_template_id_seq', 'condition_template', 'id'],
-        ARRAY['security_spel_id_seq',      'security_spel',      'id']
+        ARRAY['security_spel_id_seq',      'security_spel',      'id'],
+        ARRAY['official_metric_evaluation_contract_id_seq', 'official_metric_evaluation_contract', 'id'],
+        ARRAY['official_prompt_signal_contract_id_seq', 'official_prompt_signal_contract', 'id']
     ];
     pair TEXT[];
     max_id BIGINT;
@@ -257,7 +212,7 @@ BEGIN
 END $$;
 
 -- ----------------------------------------------------------------
--- Enterprise Migrated Tables Seed Data
+-- OSS PQA Official Inspection Contract Seed Data
 -- ----------------------------------------------------------------
 
 insert into official_metric_evaluation_contract (contract_version, metric_code, check_code, purpose_question, pass_condition, fail_condition, issue_key, customer_visible, readiness_scope, problem_title, short_problem, expected_message, pass_message, failure_message, created_at) values
@@ -1011,249 +966,4 @@ insert into official_prompt_signal_contract (contract_version, metric_code, chec
     ('2026-05-14.final-user-prompt.v2', 'MTR', 'PROMPT_SIGNAL_REGISTRY', 'PriorRoundVerificationBoundary', 'finalUserPrompt.roundProgress.priorRoundVerificationBoundary', 'CONTRACTED_PROMPT_SIGNAL', 'CONTRACTED_PROMPT_SIGNAL', current_timestamp)
 on conflict (contract_version, metric_code, check_code, signal_key) do update set prompt_location = excluded.prompt_location, required_role = excluded.required_role, interpretation_role = excluded.interpretation_role;
 
-insert into prompt_runtime_governance_action_type_contract (
-    action_type, action_family, action_intent, active, created_at, updated_at,
-    display_label, button_label, customer_description
-) values
-    ('ADD_SLOT', 'SLOT_STRUCTURE', 'Add a required prompt slot before runtime rendering.', true, current_timestamp, current_timestamp,
-     '입력 항목 추가', '다음 요청에 입력 추가', '다음 LLM 입력을 만들기 전에 필요한 입력 항목을 추가합니다.'),
-    ('UPDATE_SLOT_VALUE', 'SLOT_VALUE', 'Replace or enrich an existing prompt slot value.', true, current_timestamp, current_timestamp,
-     '입력값 정리', '다음 요청에 값 정리', '다음 LLM 입력을 만들기 전에 잘못되었거나 부족한 값을 정리합니다.'),
-    ('ADD_NARRATIVE', 'SLOT_MEANING', 'Add decision meaning so the LLM can interpret the slot.', true, current_timestamp, current_timestamp,
-     '판단 설명 추가', '다음 요청에 설명 반영', 'LLM이 입력값의 의미를 이해할 수 있도록 설명을 추가합니다.'),
-    ('ADD_LIMITATION', 'SLOT_BOUNDARY', 'Add a limitation so unknown or thin evidence is not overclaimed.', true, current_timestamp, current_timestamp,
-     '판단 한계 추가', '다음 요청에 한계 반영', '알 수 없음, 부족한 근거, 임시 근거가 확정 근거처럼 보이지 않도록 한계를 추가합니다.'),
-    ('SUPPRESS_SLOT', 'SLOT_STRUCTURE', 'Exclude a prompt slot that must not influence the LLM decision.', true, current_timestamp, current_timestamp,
-     '판단 근거 제외', '다음 요청에서 제외', 'LLM 판단에 영향을 주면 안 되는 항목을 다음 입력에서 제외합니다.'),
-    ('REORDER_SLOT', 'SLOT_ORDER', 'Change prompt slot order for decision priority.', true, current_timestamp, current_timestamp,
-     '표시 순서 조정', '다음 요청 순서 조정', '중요한 판단 항목이 다음 입력에서 먼저 보이도록 순서를 조정합니다.'),
-    ('RAISE_PRIORITY', 'SLOT_PRIORITY', 'Raise a slot priority so it is protected from omission.', true, current_timestamp, current_timestamp,
-     '우선순위 높이기', '다음 요청에서 우선 표시', '필수 판단 항목이 누락되지 않도록 우선순위를 높입니다.'),
-    ('FORBID_TRUNCATION', 'SLOT_TRUNCATION', 'Prevent required decision material from being truncated or replaced by placeholders.', true, current_timestamp, current_timestamp,
-     '잘림 방지', '다음 요청에서 잘림 방지', '필수 판단 항목이 줄임표나 자리표시자로 잘리지 않도록 보호합니다.'),
-    ('REPLACE_SECTION_POLICY', 'SECTION_POLICY', 'Replace the section composition policy.', true, current_timestamp, current_timestamp,
-     '섹션 정책 변경', '다음 요청 섹션 변경', '다음 LLM 입력에서 해당 섹션을 조립하는 방식을 변경합니다.'),
-    ('RECOLLECT_INPUT', 'INPUT_COLLECTION', 'Collect missing input again before prompt rendering.', true, current_timestamp, current_timestamp,
-     '입력 다시 수집', '입력 다시 수집', '프롬프트를 직접 바꾸지 않고 필요한 입력이나 증거를 다시 수집합니다.')
-on conflict (action_type) do update
-   set action_family = excluded.action_family,
-       action_intent = excluded.action_intent,
-       display_label = excluded.display_label,
-       button_label = excluded.button_label,
-       customer_description = excluded.customer_description,
-       active = true,
-       updated_at = current_timestamp;
-
-insert into prompt_runtime_governance_scope_type_contract (
-    scope_type, scope_priority, scope_description, active, created_at, updated_at
-) values
-    ('RESOURCE_ID', 10, 'Rule applies to one actual resource id.', true, current_timestamp, current_timestamp),
-    ('RESOURCE_URL_METHOD', 20, 'Rule applies to one request URL and HTTP method.', true, current_timestamp, current_timestamp),
-    ('METRIC_CHECK', 30, 'Rule applies to one metric check contract.', true, current_timestamp, current_timestamp),
-    ('RESOURCE_TYPE', 40, 'Rule applies to one resource type.', true, current_timestamp, current_timestamp),
-    ('ACTION_FAMILY', 50, 'Rule applies to one action family.', true, current_timestamp, current_timestamp),
-    ('SENSITIVITY', 60, 'Rule applies to one resource sensitivity level.', true, current_timestamp, current_timestamp),
-    ('TENANT', 70, 'Rule applies to one tenant.', true, current_timestamp, current_timestamp),
-    ('GLOBAL', 80, 'Rule applies to every prompt using the same common contract.', true, current_timestamp, current_timestamp)
-on conflict (scope_type) do update
-   set scope_priority = excluded.scope_priority,
-       scope_description = excluded.scope_description,
-       active = true,
-       updated_at = current_timestamp;
-
-insert into prompt_runtime_governance_check_action_contract (
-    contract_version, prompt_key, metric_code, check_code,
-    action_type, action_reason, active, created_at, updated_at
-)
-select c.contract_version,
-       'SECURITY_DECISION',
-       c.metric_code,
-       c.check_code,
-       case
-           when upper(c.metric_code || ' ' || c.check_code || ' ' || coalesce(c.issue_key, '')) like '%TRUNC%'
-             or upper(c.metric_code || ' ' || c.check_code || ' ' || coalesce(c.issue_key, '')) like '%PLACEHOLDER%'
-             then 'FORBID_TRUNCATION'
-           when c.metric_code = 'COR' then 'SUPPRESS_SLOT'
-           when c.metric_code in ('MTR', 'PRE') then 'RECOLLECT_INPUT'
-           when c.metric_code = 'CCSR' then 'UPDATE_SLOT_VALUE'
-           when upper(c.check_code) like '%UNKNOWN%'
-             or upper(c.check_code) like '%NO_COMPARABLE%'
-             or upper(c.check_code) like '%NOT_OVERCLAIMED%'
-             then 'ADD_LIMITATION'
-           else 'ADD_NARRATIVE'
-       end,
-       coalesce(c.expected_message, c.pass_condition, c.problem_title, c.check_code),
-       true,
-       current_timestamp,
-       current_timestamp
-  from official_metric_evaluation_contract c
- where c.contract_version = '2026-05-14.final-user-prompt.v2'
-on conflict (contract_version, prompt_key, metric_code, check_code) do update
-   set action_type = excluded.action_type,
-       action_reason = excluded.action_reason,
-       active = true,
-       updated_at = current_timestamp;
-
-with signal_source as (
-    select distinct
-           s.contract_version,
-           s.metric_code,
-           s.check_code,
-           s.signal_key,
-           s.prompt_location,
-           s.required_role,
-           s.interpretation_role
-      from official_prompt_signal_contract s
-      join official_metric_evaluation_contract c
-        on c.contract_version = s.contract_version
-       and c.metric_code = s.metric_code
-       and c.check_code = s.check_code
-     where s.contract_version is not null
-       and s.metric_code is not null
-       and s.check_code is not null
-       and s.signal_key is not null
-       and s.prompt_location is not null
-),
-slot_source as (
-    select
-        contract_version,
-        'SECURITY_DECISION'::varchar(128) as prompt_key,
-        (
-            left(
-                lower(regexp_replace(
-                    regexp_replace(
-                        replace(replace(prompt_location, 'finalUserPrompt.', 'user.'), 'finalSystemPrompt.', 'system.')
-                        || '.' || replace(signal_key, ':', '.'),
-                        '[^A-Za-z0-9]+',
-                        '_',
-                        'g'
-                    ),
-                    '(^_|_$)',
-                    '',
-                    'g'
-                )),
-                180
-            )
-            || '_' || substr(md5(prompt_location || '|' || signal_key), 1, 12)
-        )::varchar(256) as slot_key,
-        prompt_location,
-        case
-            when signal_key like 'section:%' then substring(signal_key from 9)
-            else prompt_location
-        end::varchar(256) as section_key,
-        case
-            when signal_key like 'label:%' then substring(signal_key from 7)
-            else null
-        end::varchar(256) as label_key,
-        signal_key,
-        ('canonical.' || lower(regexp_replace(replace(signal_key, ':', '.'), '[^A-Za-z0-9]+', '.', 'g')))::varchar(512)
-            as canonical_context_path,
-        case
-            when signal_key like 'section:%' then 'SecurityDecisionPromptSections'
-            when prompt_location like 'finalSystemPrompt.%' then 'SecurityDecisionStandardPromptTemplate'
-            else 'PromptContextComposer'
-        end::varchar(256) as source_producer,
-        case
-            when required_role = 'ALL' then 'P0_REQUIRED'
-            when required_role like '%DECIDABLE%' then 'P1_HIGH_VALUE'
-            else 'P2_SUPPORTING'
-        end::varchar(64) as priority,
-        case
-            when lower(signal_key) like '%truncated%'
-              or lower(prompt_location) like '%truncated%'
-              or signal_key like '%BaselineContextSummary%' then 'FORBID_TRUNCATION'
-            when required_role = 'ALL' then 'PROTECT'
-            else 'STANDARD'
-        end::varchar(64) as truncation_policy,
-        required_role,
-        interpretation_role
-    from signal_source
-)
-insert into prompt_runtime_slot_contract (
-    contract_version, prompt_key, slot_key, prompt_location, section_key, label_key,
-    signal_key, canonical_context_path, source_producer, priority, truncation_policy,
-    required_role, interpretation_role, active, created_at, updated_at
-)
-select distinct
-       contract_version, prompt_key, slot_key, prompt_location, section_key, label_key,
-       signal_key, canonical_context_path, source_producer, priority, truncation_policy,
-       required_role, interpretation_role, true, current_timestamp, current_timestamp
-  from slot_source
-on conflict (contract_version, prompt_key, slot_key) do update
-   set prompt_location = excluded.prompt_location,
-       section_key = excluded.section_key,
-       label_key = excluded.label_key,
-       signal_key = excluded.signal_key,
-       canonical_context_path = excluded.canonical_context_path,
-       source_producer = excluded.source_producer,
-       priority = excluded.priority,
-       truncation_policy = excluded.truncation_policy,
-       required_role = excluded.required_role,
-       interpretation_role = excluded.interpretation_role,
-       active = true,
-       updated_at = current_timestamp;
-
-with signal_source as (
-    select distinct
-           s.contract_version,
-           s.metric_code,
-           s.check_code,
-           s.signal_key,
-           s.prompt_location,
-           s.required_role,
-           s.interpretation_role
-      from official_prompt_signal_contract s
-      join official_metric_evaluation_contract c
-        on c.contract_version = s.contract_version
-       and c.metric_code = s.metric_code
-       and c.check_code = s.check_code
-     where s.contract_version is not null
-       and s.metric_code is not null
-       and s.check_code is not null
-       and s.signal_key is not null
-       and s.prompt_location is not null
-),
-slot_source as (
-    select
-        s.contract_version,
-        'SECURITY_DECISION'::varchar(128) as prompt_key,
-        s.metric_code,
-        s.check_code,
-        (
-            left(
-                lower(regexp_replace(
-                    regexp_replace(
-                        replace(replace(s.prompt_location, 'finalUserPrompt.', 'user.'), 'finalSystemPrompt.', 'system.')
-                        || '.' || replace(s.signal_key, ':', '.'),
-                        '[^A-Za-z0-9]+',
-                        '_',
-                        'g'
-                    ),
-                    '(^_|_$)',
-                    '',
-                    'g'
-                )),
-                180
-            )
-            || '_' || substr(md5(s.prompt_location || '|' || s.signal_key), 1, 12)
-        )::varchar(256) as slot_key,
-        s.prompt_location,
-        s.required_role,
-        s.interpretation_role
-    from signal_source s
-)
-insert into prompt_runtime_metric_check_slot_contract (
-    contract_version, prompt_key, metric_code, check_code, slot_key, prompt_location,
-    required_role, interpretation_role, required, active, created_at, updated_at
-)
-select distinct
-       contract_version, prompt_key, metric_code, check_code, slot_key, prompt_location,
-       required_role, interpretation_role, true, true, current_timestamp, current_timestamp
-  from slot_source
-on conflict (contract_version, prompt_key, metric_code, check_code, slot_key) do update
-   set prompt_location = excluded.prompt_location,
-       required_role = excluded.required_role,
-       interpretation_role = excluded.interpretation_role,
-       required = true,
-       active = true,
-       updated_at = current_timestamp;
+-- OSS PQA seeds stop at official metric/signal contracts.

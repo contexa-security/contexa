@@ -103,7 +103,7 @@ public final class PromptFieldPolicyCatalog {
             rule(SourceType.SOURCE_CONTEXT, FieldMatch.path("behaviorAnalysis.sessionNarrativeProfile"), contract("BEHAVIOR_CONTEXT_REQUIRED", "BEHAVIOR_CONTEXT_PRODUCER", List.of("BSR", "USNS"))),
             rule(SourceType.SOURCE_CONTEXT, FieldMatch.path("behaviorAnalysis.roleScopeProfile"), contract("AUTHORIZATION_CONTEXT_REQUIRED", "AUTH_CONTEXT_PRODUCER", List.of("CCR", "BSR"))),
             rule(SourceType.SOURCE_CONTEXT, FieldMatch.path("behaviorAnalysis.frictionProfile"), contract("BEHAVIOR_CONTEXT_REQUIRED", "BEHAVIOR_CONTEXT_PRODUCER", List.of("BSR"))),
-            rule(SourceType.SOURCE_CONTEXT, FieldMatch.path("relatedDocuments"), contract("RAG_AUTHORIZATION_CONTEXT_REQUIRED", "RAG_CONTEXT_PRODUCER", List.of("RAP", "CoR")))
+            rule(SourceType.SOURCE_CONTEXT, FieldMatch.path("relatedDocuments"), contract("RAG_AUTHORIZATION_CONTEXT_REQUIRED", "RAG_CONTEXT_PRODUCER", List.of("RAP", "COR")))
     );
 
     private PromptFieldPolicyCatalog() {
