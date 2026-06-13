@@ -111,10 +111,10 @@
     </main>
 </div>
 
-<div th:replace="~{contexa/fragments/delete-policy-modal :: modal(#{msg.delete.confirm.permission}, '/admin/permissions/api', '/admin/permissions/delete', true)}"></div>
+<div th:replace="~{contexa/fragments/delete-policy-modal :: modal(#{msg.delete.confirm.permission}, '/contexa/admin/permissions/api', '/contexa/admin/permissions/delete', true)}"></div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<th:block th:replace="~{contexa/fragments/delete-policy-modal :: script('/admin/permissions/api', '/admin/permissions/delete', true)}"></th:block>
+<th:block th:replace="~{contexa/fragments/delete-policy-modal :: script('/contexa/admin/permissions/api', '/contexa/admin/permissions/delete', true)}"></th:block>
 <script th:inline="javascript">
     /*<![CDATA[*/
     document.addEventListener('DOMContentLoaded', function() {

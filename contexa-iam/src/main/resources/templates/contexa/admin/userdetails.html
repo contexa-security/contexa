@@ -33,7 +33,7 @@
                 <span id="serverMsg" th:if="${message}" th:text="${message}"></span>
                 <span id="serverErr" th:if="${errorMessage}" th:text="${errorMessage}"></span>
             </div>
-            <form id="userForm" th:action="${user.id != null ? '/admin/users/' + user.id : '/admin/users'}" method="post" th:object="${user}" class="space-y-6">
+            <form id="userForm" th:action="${user.id != null ? '/contexa/admin/users/' + user.id : '/contexa/admin/users'}" method="post" th:object="${user}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${user.id != null}" />
 
                 <div class="space-y-4">

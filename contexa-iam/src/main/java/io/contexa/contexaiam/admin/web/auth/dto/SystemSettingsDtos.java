@@ -19,7 +19,7 @@ import io.contexa.contexacommon.entity.SystemSettings;
 import lombok.Data;
 
 /**
- * Form-binding DTOs for the {@code /admin/system-settings} screen.
+ * Form-binding DTOs for the {@code /contexa/admin/system-settings} screen.
  *
  * <p>Binding the form straight onto the {@link SystemSettings} entity exposes a
  * mass-assignment surface (the client could submit {@code id}, {@code createdAt},

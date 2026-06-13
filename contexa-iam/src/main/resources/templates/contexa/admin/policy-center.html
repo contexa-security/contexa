@@ -440,7 +440,7 @@
                                         </select>
                                     </div>
                                     <div class="col-span-6">
-                                        <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" class="modern-input" th:placeholder="#{admin.policy.center.create.manual.target.ph}" placeholder="/admin/** or com.example.*" required />
+                                        <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" class="modern-input" th:placeholder="#{admin.policy.center.create.manual.target.ph}" placeholder="/contexa/admin/** or com.example.*" required />
                                     </div>
                                     <input type="hidden" th:field="*{targets[__${stat.index}__].targetOrder}" />
                                     <input type="hidden" th:field="*{targets[__${stat.index}__].sourceType}" />
@@ -873,7 +873,7 @@
                                     <option value="URL">URL</option><option value="METHOD">METHOD</option>
                                 </select>
                             </div>
-                            <div class="col-span-4"><input type="text" class="modern-input sim-path" placeholder="/admin/dashboard" /></div>
+                            <div class="col-span-4"><input type="text" class="modern-input sim-path" placeholder="/contexa/admin/dashboard" /></div>
                             <div class="col-span-3 sim-method-wrap">
                                 <select class="modern-select sim-method">
                                     <option value="GET">GET</option><option value="POST">POST</option>

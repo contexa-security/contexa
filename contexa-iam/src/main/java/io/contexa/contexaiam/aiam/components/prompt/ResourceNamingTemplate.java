@@ -133,7 +133,7 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
 
             Processing rules:
             - camelCase/snake_case -> human-readable name
-            - URL path -> feature name (e.g., /admin/users -> User Management)
+            - URL path -> feature name (e.g., /contexa/admin/users -> User Management)
             - Method name -> action description (e.g., updateUser -> Update User Information)
             - CRUD operations -> clear verbs (Create, Read, Update, Delete)
             - API endpoints -> descriptive feature names

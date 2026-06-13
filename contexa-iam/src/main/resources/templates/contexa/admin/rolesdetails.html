@@ -19,7 +19,7 @@
                 <h2 class="text-3xl font-bold text-gradient" th:text="${role.id != null} ? #{admin.roles.detail.edit.title} : #{admin.roles.detail.create.title}">Role Details</h2>
             </div>
 
-            <form th:action="${role.id != null ? '/admin/roles/' + role.id + '/edit' : '/admin/roles'}" method="post" th:object="${role}" class="space-y-6">
+            <form th:action="${role.id != null ? '/contexa/admin/roles/' + role.id + '/edit' : '/contexa/admin/roles'}" method="post" th:object="${role}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${role.id != null}" />
 
                 <div class="space-y-4">

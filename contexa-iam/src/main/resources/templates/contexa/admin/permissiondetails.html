@@ -19,7 +19,7 @@
                 <h2 class="text-3xl font-bold text-gradient" th:text="${permission.id != null} ? #{admin.permissions.detail.edit.title} : #{admin.permissions.detail.create.title}">Permission Details</h2>
             </div>
 
-            <form th:action="${permission.id != null ? '/admin/permissions/' + permission.id + '/edit' : '/admin/permissions'}" method="post" th:object="${permission}" class="space-y-6">
+            <form th:action="${permission.id != null ? '/contexa/admin/permissions/' + permission.id + '/edit' : '/contexa/admin/permissions'}" method="post" th:object="${permission}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${permission.id != null}" />
 
                 <div class="space-y-4">

@@ -31,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
  * testing) without creating a duplicate row.</p>
  *
  * <p>Defence-in-depth: a method-level {@code @PreAuthorize} guard runs in addition to the
- * URL-pattern protection on {@code /admin/**}. If the SecurityFilterChain rule is ever
+ * URL-pattern protection on {@code /contexa/admin/**}. If the SecurityFilterChain rule is ever
  * misconfigured, the service still rejects unauthenticated callers.</p>
  */
 @PreAuthorize("hasRole('ADMIN')")

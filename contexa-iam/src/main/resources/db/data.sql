@@ -84,7 +84,7 @@ INSERT INTO POLICY (
         TRUE,
         'MANUAL',
         'NOT_REQUIRED',
-        '인증된 사용자만 /admin/** 보호 리소스에 접근할 수 있습니다.',
+        '인증된 사용자만 /contexa/admin/** 보호 리소스에 접근할 수 있습니다.',
         CURRENT_TIMESTAMP
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -161,7 +161,7 @@ INSERT INTO SECURITY_SPEL (name, expression, description, category) VALUES
     ('DENY_ALL',             'denyAll',                'Deny all access',                        'AUTH'),
     ('POLICY_2_ADMIN_AUTHENTICATED',
      'isAuthenticated()',
-     'policy id=2: /admin/** 보호 리소스는 인증된 사용자만 접근할 수 있습니다.',
+     'policy id=2: /contexa/admin/** 보호 리소스는 인증된 사용자만 접근할 수 있습니다.',
      'POLICY')
 ON CONFLICT (name) DO UPDATE SET
                                   expression = EXCLUDED.expression,

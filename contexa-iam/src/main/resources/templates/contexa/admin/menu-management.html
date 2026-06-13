@@ -180,7 +180,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;">URL</label>
-                    <input type="text" id="menu-url" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="/admin/users" />
+                    <input type="text" id="menu-url" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="/contexa/admin/users" />
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
@@ -320,7 +320,7 @@ var MenuMgmt = {
 
     openEditModal: function(id) {
         document.getElementById('menu-modal-title').textContent = document.getElementById('menu-i18n').dataset.edit || 'Edit Menu';
-        fetch('/admin/menu-management/api/' + id, {
+        fetch('/contexa/admin/menu-management/api/' + id, {
             headers: { [this._csrfHeader()]: this._csrfToken() }
         })
         .then(function(r) { return MenuMgmt._checkResponse(r).json(); })
@@ -364,7 +364,7 @@ var MenuMgmt = {
             enabled: String(document.getElementById('menu-enabled').checked)
         };
         var method = id ? 'PUT' : 'POST';
-        var url = id ? '/admin/menu-management/api/' + id : '/admin/menu-management/api/create';
+        var url = id ? '/contexa/admin/menu-management/api/' + id : '/contexa/admin/menu-management/api/create';
         fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json', [this._csrfHeader()]: this._csrfToken() },
@@ -378,7 +378,7 @@ var MenuMgmt = {
     closeModal: function() { this._hideModal('menu-modal'); },
 
     toggle: function(id) {
-        fetch('/admin/menu-management/api/toggle/' + id, {
+        fetch('/contexa/admin/menu-management/api/toggle/' + id, {
             method: 'POST', headers: { [this._csrfHeader()]: this._csrfToken() }
         })
         .then(MenuMgmt._checkResponse)
@@ -391,7 +391,7 @@ var MenuMgmt = {
         this._showModal('delete-modal');
     },
     executeDelete: function() {
-        fetch('/admin/menu-management/api/' + this._deleteMenuId, {
+        fetch('/contexa/admin/menu-management/api/' + this._deleteMenuId, {
             method: 'DELETE', headers: { [this._csrfHeader()]: this._csrfToken() }
         })
         .then(MenuMgmt._checkResponse)
@@ -411,7 +411,7 @@ var MenuMgmt = {
     saveRoles: function() {
         var roles = [];
         document.querySelectorAll('.role-cb:checked').forEach(function(cb) { roles.push(cb.value); });
-        fetch('/admin/menu-management/api/roles/' + this._currentMenuId, {
+        fetch('/contexa/admin/menu-management/api/roles/' + this._currentMenuId, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', [this._csrfHeader()]: this._csrfToken() },
             body: JSON.stringify({ roles: roles })

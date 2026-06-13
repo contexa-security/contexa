@@ -19,7 +19,7 @@
                 <h2 class="text-3xl font-bold text-gradient" th:text="${group.id != null} ? #{admin.groups.detail.edit.title} : #{admin.groups.detail.create.title}">Group Details</h2>
             </div>
 
-            <form th:action="${group.id != null ? '/admin/groups/' + group.id + '/edit' : '/admin/groups'}" method="post" th:object="${group}" class="space-y-6">
+            <form th:action="${group.id != null ? '/contexa/admin/groups/' + group.id + '/edit' : '/contexa/admin/groups'}" method="post" th:object="${group}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${group.id != null}" />
 
                 <div class="space-y-4">

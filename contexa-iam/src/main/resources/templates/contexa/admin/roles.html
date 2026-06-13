@@ -107,10 +107,10 @@
     </main>
 </div>
 
-<div th:replace="~{contexa/fragments/delete-policy-modal :: modal(#{msg.delete.confirm.role}, '/admin/roles/api', '/admin/roles/delete', false)}"></div>
+<div th:replace="~{contexa/fragments/delete-policy-modal :: modal(#{msg.delete.confirm.role}, '/contexa/admin/roles/api', '/contexa/admin/roles/delete', false)}"></div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<th:block th:replace="~{contexa/fragments/delete-policy-modal :: script('/admin/roles/api', '/admin/roles/delete', false)}"></th:block>
+<th:block th:replace="~{contexa/fragments/delete-policy-modal :: script('/contexa/admin/roles/api', '/contexa/admin/roles/delete', false)}"></th:block>
 <script th:inline="javascript">
     /*<![CDATA[*/
     document.addEventListener('DOMContentLoaded', function() {

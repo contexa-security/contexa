@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/admin/api/prompt-quality/official")
+@RequestMapping("/contexa/admin/api/prompt-quality/official")
 public class OfficialPromptQualityInspectionController {
 
     private final OfficialPromptQualityInspectionService inspectionService;
