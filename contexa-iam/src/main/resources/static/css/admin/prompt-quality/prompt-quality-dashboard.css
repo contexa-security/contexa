@@ -1,0 +1,697 @@
+.pqa-dashboard-note {
+    color: var(--pqa-text-muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.pqa-dashboard-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.pqa-dashboard-strip .pqa-summary-item {
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pqa-dashboard-strip .pqa-summary-item::before {
+    opacity: 0.9;
+}
+
+.pqa-dashboard-strip .pqa-summary-item span {
+    color: rgba(248, 250, 252, 0.78);
+}
+
+.pqa-dashboard-strip .pqa-summary-item strong {
+    color: #ffffff;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+.pqa-summary-item-ready,
+.pqa-summary-item-pending,
+.pqa-summary-item-reverify,
+.pqa-summary-item-blocked,
+.pqa-summary-item-neutral {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(71, 85, 105, 0.3);
+    box-shadow: none;
+}
+
+.pqa-summary-item-ready strong { color: #34d399; }
+.pqa-summary-item-pending strong { color: #818cf8; }
+.pqa-summary-item-reverify strong { color: #a78bfa; }
+.pqa-summary-item-blocked strong { color: #f87171; }
+.pqa-summary-item-neutral strong { color: #f1f5f9; }
+
+.pqa-summary-item-ready::before,
+.pqa-summary-item-pending::before,
+.pqa-summary-item-reverify::before,
+.pqa-summary-item-blocked::before,
+.pqa-summary-item-neutral::before {
+    content: none;
+}
+
+.pqa-tag {
+    display: inline-block;
+    margin-left: 0.45rem;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.55);
+    color: #cbd5e1;
+    font-size: 0.72rem;
+    font-weight: 800;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/*
+ * Table row state highlights. The previous version painted a coloured 90deg
+ * gradient across each row plus a 4px inset side stripe. Policy-center /
+ * access-center never paint full rows; they keep the row neutral and convey
+ * state through the badge / icon column. We mirror that exactly - rows now
+ * use the same neutral hover tone reference uses (rgba(71,85,105,0.15)) and
+ * drop the side stripe.
+ */
+.pqa-row-blocked,
+.pqa-row-pending {
+    background: rgba(71, 85, 105, 0.15) !important;
+    box-shadow: none;
+}
+
+/* === PQA Dashboard Mega Hero === */
+.pqa-dash-hero-mega {
+    margin-top: 1.2rem;
+}
+
+/*
+ * Dashboard hero panel. The previous version used a tinted slate gradient
+ * (rgba 0.85 → 0.7) with a 1px violet-ish border. Policy-center uses a
+ * single .modern-card surface (rgba(15,23,42,0.8) + blur(20px) + 0 8px 30px
+ * shadow) with a neutral slate border; this hero now matches that exactly
+ * so it reads as "the same product" the operator sees on policy-center.
+ */
+.pqa-dash-hero {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1.8rem;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    align-items: center;
+}
+
+/*
+ * Hero state variants. Reference does not paint chunky 8px coloured rails
+ * down the side of cards - status is conveyed by the headline colour and
+ * by adjacent badges/icons. We keep the neutral slate border from the base
+ * .pqa-dash-hero rule and only colour the accompanying text.
+ */
+.pqa-dash-hero-ready  { color: #34d399; }
+.pqa-dash-hero-warn   { color: #fbbf24; }
+.pqa-dash-hero-danger { color: #f87171; }
+
+.pqa-dash-hero-gauge {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.pqa-dash-hero-gauge-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.pqa-dash-hero-gauge-value span {
+    font-size: 1.2rem;
+    margin-left: 0.2rem;
+    color: #cbd5e1;
+}
+
+.pqa-dash-hero-gauge-caption {
+    position: absolute;
+    bottom: -0.5rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.pqa-dash-hero-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    color: #e2e8f0;
+    min-width: 0;
+}
+
+.pqa-dash-hero-tone {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pqa-dash-hero-body h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #ffffff;
+    line-height: 1.4;
+}
+
+.pqa-dash-hero-body p {
+    margin: 0;
+    line-height: 1.55;
+    font-size: 0.92rem;
+    color: #cbd5e1;
+}
+
+.pqa-dash-hero-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.8rem;
+    margin-top: 0.4rem;
+}
+
+.pqa-dash-hero-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.8rem 1rem;
+    border-radius: 0.7rem;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    color: #e2e8f0;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pqa-dash-hero-kpi:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.45);
+}
+
+.pqa-dash-hero-kpi-value {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.1;
+}
+
+.pqa-dash-hero-kpi-label {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.pqa-dash-hero-kpi-ready { border-left: 3px solid #34d399; }
+.pqa-dash-hero-kpi-info { border-left: 3px solid #38bdf8; }
+.pqa-dash-hero-kpi-pending { border-left: 3px solid #38bdf8; }
+.pqa-dash-hero-kpi-warn { border-left: 3px solid #fbbf24; }
+.pqa-dash-hero-kpi-danger { border-left: 3px solid #f87171; }
+.pqa-dash-hero-kpi-neutral { border-left: 3px solid #94a3b8; }
+
+.pqa-dash-kpi-icon {
+    position: absolute;
+    right: 0.85rem;
+    top: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(226, 232, 240, 0.86);
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+@media (max-width: 900px) {
+    .pqa-dash-hero { grid-template-columns: 1fr; text-align: center; }
+}
+
+/* === Pipeline === */
+.pqa-dash-pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    overflow-x: auto;
+    padding: 0.6rem 0;
+    margin-top: 0.6rem;
+}
+
+.pqa-dash-pipe-stage {
+    flex: 0 0 auto;
+    min-width: 138px;
+    padding: 0.8rem 1rem;
+    border-radius: 0.8rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    color: #e2e8f0;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pqa-dash-pipe-stage:hover {
+    transform: translateY(-2px);
+    border-color: #60a5fa;
+}
+
+.pqa-dash-pipe-idx {
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.2);
+    color: #bae6fd;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pqa-dash-pipe-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.pqa-dash-pipe-count {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.pqa-dash-pipe-label {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    text-align: center;
+    line-height: 1.3;
+    font-weight: 600;
+}
+
+.pqa-dash-pipe-ready { border-top: 3px solid #34d399; }
+.pqa-dash-pipe-info { border-top: 3px solid #38bdf8; }
+.pqa-dash-pipe-warn { border-top: 3px solid #fbbf24; }
+.pqa-dash-pipe-danger { border-top: 3px solid #f87171; }
+.pqa-dash-pipe-neutral { border-top: 3px solid #94a3b8; }
+
+.pqa-dash-pipe-meter {
+    width: 100%;
+    height: 0.34rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.16);
+    overflow: hidden;
+}
+
+.pqa-dash-pipe-meter span {
+    display: block;
+    width: var(--pqa-stage-score, 12%);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+}
+
+.pqa-dash-pipe-warn .pqa-dash-pipe-meter span { background: linear-gradient(90deg, #fbbf24, #fb7185); }
+.pqa-dash-pipe-danger .pqa-dash-pipe-meter span { background: linear-gradient(90deg, #fb7185, #ef4444); }
+.pqa-dash-pipe-neutral .pqa-dash-pipe-meter span { background: linear-gradient(90deg, #64748b, #94a3b8); }
+
+.pqa-dash-pipe-arrow {
+    color: #64748b;
+    font-size: 1.6rem;
+    flex: 0 0 auto;
+    font-weight: 700;
+}
+
+/* === 4-Grid Charts === */
+.pqa-dash-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.4rem;
+}
+
+.pqa-dash-chart-grid .section-card {
+    min-height: 360px;
+}
+
+.pqa-chart-box {
+    min-height: 250px;
+}
+
+/* === Alert Stream 3 cols === */
+.pqa-dash-alert-stream {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.4rem;
+}
+
+/* === 13 Menu Tiles === */
+.pqa-dash-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.9rem;
+    margin-top: 0.8rem;
+}
+
+.pqa-dash-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.95rem 1rem;
+    border-radius: 0.7rem;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    color: #e2e8f0;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pqa-dash-tile:hover {
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.4);
+    background: rgba(71, 85, 105, 0.15);
+}
+
+.pqa-dash-tile-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.1;
+}
+
+.pqa-dash-tile-label {
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.pqa-dash-tile-icon {
+    position: absolute;
+    right: 0.9rem;
+    top: 0.85rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(226, 232, 240, 0.82);
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.pqa-dash-tool-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.pqa-dash-tool-card {
+    min-height: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1.15rem;
+    border-radius: 0.75rem;
+    color: #e2e8f0;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    box-shadow: none;
+    transition: all 0.3s;
+}
+
+.pqa-dash-tool-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.pqa-dash-tool-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.pqa-dash-tool-icon {
+    width: 2.65rem;
+    height: 2.65rem;
+    border-radius: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #f8fafc;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.26), rgba(52, 211, 153, 0.12));
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.pqa-dash-tool-badge {
+    padding: 0.24rem 0.58rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #bae6fd;
+    background: rgba(14, 165, 233, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.24);
+}
+
+.pqa-dash-tool-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+}
+
+.pqa-dash-tool-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.pqa-dash-tool-metrics span {
+    padding: 0.72rem 0.8rem;
+    border-radius: 0.78rem;
+    background: rgba(30, 41, 59, 0.49);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.pqa-dash-tool-metrics strong {
+    display: block;
+    font-size: 1.4rem;
+    line-height: 1;
+    color: #ffffff;
+}
+
+.pqa-dash-tool-metrics small {
+    display: block;
+    margin-top: 0.34rem;
+    color: #94a3b8;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.pqa-dash-tool-note {
+    min-height: 2.6rem;
+    color: #cbd5e1;
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+
+.pqa-dash-tool-action {
+    margin-top: auto;
+    color: #93c5fd;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.pqa-dash-tool-ready {
+    border-top: 3px solid #34d399;
+}
+
+.pqa-dash-tool-info {
+    border-top: 3px solid #38bdf8;
+}
+
+.pqa-dash-tool-warn {
+    border-top: 3px solid #fbbf24;
+}
+
+.pqa-dash-tool-neutral {
+    border-top: 3px solid #94a3b8;
+}
+
+.pqa-signal-blocked {
+    box-shadow: inset 4px 0 0 #f87171;
+}
+
+.pqa-signal-warn {
+    box-shadow: inset 4px 0 0 #fbbf24;
+}
+
+@media (max-width: 720px) {
+    .pqa-dash-pipe-stage {
+        min-width: 126px;
+        padding: 0.75rem 0.8rem;
+    }
+
+    .pqa-dash-chart-grid .section-card {
+        min-height: 320px;
+    }
+}
+
+.pqa-resource-state-search {
+    margin-bottom: 1.4rem;
+}
+
+.pqa-resource-state-search-form {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(240px, 2fr) minmax(140px, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-auto-flow: column;
+    column-gap: 0.75rem;
+    row-gap: 0.375rem;
+    align-items: end;
+}
+
+.pqa-resource-state-search-form .input-label {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+
+.pqa-resource-state-search-form .button.primary,
+.pqa-resource-state-search-form button[type="submit"] {
+    grid-row: 2 / 3;
+    grid-column: 4 / 5;
+    align-self: end;
+    height: fit-content;
+    white-space: nowrap;
+}
+
+.pqa-resource-state-search-result {
+    margin-top: 1rem;
+}
+
+.pqa-resource-state-result-head,
+.pqa-resource-state-stage,
+.pqa-resource-state-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.pqa-resource-state-result-head {
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.pqa-resource-state-current,
+.pqa-resource-state-stage-badges {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.pqa-resource-state-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.65rem;
+    margin: 0.9rem 0;
+}
+
+.pqa-resource-state-metric {
+    display: grid;
+    gap: 0.3rem;
+    min-height: 74px;
+    padding: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    background: rgba(15, 23, 42, 0.34);
+}
+
+.pqa-resource-state-metric strong {
+    font-size: 1.35rem;
+}
+
+.pqa-resource-state-stage-list {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pqa-resource-state-stage {
+    padding: 0.7rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.24);
+}
+
+.pqa-resource-state-stage-index {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.18);
+    color: #bfdbfe;
+    font-weight: 800;
+}
+
+.pqa-resource-state-actions {
+    justify-content: flex-start;
+    margin-top: 1rem;
+}
+
+.pqa-search-error {
+    color: #fecaca;
+}
+
+@media (max-width: 860px) {
+    .pqa-resource-state-search-form,
+    .pqa-resource-state-result-head,
+    .pqa-resource-state-stage {
+        grid-template-columns: 1fr;
+        display: grid;
+    }
+}

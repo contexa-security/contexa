@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/enterprise-operations.css}">
+    <link rel="stylesheet" th:href="@{/css/saas-control-plane.css}">
+</head>
+<body class="page-shell">
+<div th:replace="~{contexa/fragments/header :: header}"></div>
+<div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
+
+<main class="page-body pqa-shell"
+      data-pqa-page="resource-overlay-edit"
+      data-pqa-stage="PROTECTABLE_RESOURCES"
+      th:attr="data-resource-id=${resourceId},data-resource-url=${resourceUrl},data-http-method=${httpMethod},data-tenant-id=${tenantId}">
+    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
+    <section class="pqa-workspace">
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.resourceOverlayEdit.pageTitle}, #{enterprise.pqa.resourceOverlayEdit.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
+
+        <section class="status-banner warning" style="margin-bottom:1rem;">
+            <span>
+                <strong th:text="#{enterprise.pqa.resourceOverlayEdit.warning.title}"></strong>
+                <span th:text="#{enterprise.pqa.resourceOverlayEdit.warning.body}"></span>
+            </span>
+        </section>
+
+        <section class="summary-grid" data-pqa-resource-meta
+                 style="display:flex !important;flex-direction:column !important;gap:0.55rem !important;grid-template-columns:none !important;"></section>
+
+        <form class="pqa-overlay-form" data-pqa-overlay-form novalidate>
+            <section class="detail-grid two-columns" style="margin-top:1rem;">
+                <article class="section-card">
+                    <div class="section-header-inline">
+                        <h2 class="section-title" th:text="#{enterprise.pqa.resourceOverlayEdit.section.policy.title}"></h2>
+                    </div>
+                    <p class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.section.policy.subtitle}"></p>
+                    <dl class="detail-list">
+                        <div>
+                            <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.label}"></dt>
+                            <dd>
+                                <select class="input-field" name="overlayCriticality" data-pqa-field="overlayCriticality">
+                                    <option value="" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.keepDeclared}"></option>
+                                    <option value="standard" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.standard}"></option>
+                                    <option value="sensitive" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.sensitive}"></option>
+                                    <option value="critical" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.critical}"></option>
+                                    <option value="delegated" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.delegated}"></option>
+                                </select>
+                                <div class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.help}"></div>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.verificationRequired.label}"></dt>
+                            <dd>
+                                <select class="input-field" name="overlayVerificationRequired" data-pqa-field="overlayVerificationRequired">
+                                    <option value="" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.keepDeclared}"></option>
+                                    <option value="true" th:text="#{enterprise.pqa.resourceOverlayEdit.field.verificationRequired.true}"></option>
+                                    <option value="false" th:text="#{enterprise.pqa.resourceOverlayEdit.field.verificationRequired.false}"></option>
+                                </select>
+                                <div class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.field.verificationRequired.help}"></div>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.sync.label}"></dt>
+                            <dd>
+                                <select class="input-field" name="overlaySync" data-pqa-field="overlaySync">
+                                    <option value="" th:text="#{enterprise.pqa.resourceOverlayEdit.field.criticality.keepDeclared}"></option>
+                                    <option value="true" th:text="#{enterprise.pqa.resourceOverlayEdit.field.sync.true}"></option>
+                                    <option value="false" th:text="#{enterprise.pqa.resourceOverlayEdit.field.sync.false}"></option>
+                                </select>
+                                <div class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.field.sync.help}"></div>
+                            </dd>
+                        </div>
+                    </dl>
+                </article>
+
+                <article class="section-card">
+                    <div class="section-header-inline">
+                        <h2 class="section-title" th:text="#{enterprise.pqa.resourceOverlayEdit.section.identity.title}"></h2>
+                    </div>
+                    <p class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.section.identity.subtitle}"></p>
+                    <dl class="detail-list">
+                        <div>
+                            <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.ownerField.label}"></dt>
+                            <dd>
+                                <input class="input-field" type="text" name="overlayOwnerField" data-pqa-field="overlayOwnerField" maxlength="128"
+                                       th:placeholder="#{enterprise.pqa.resourceOverlayEdit.field.ownerField.placeholder}">
+                                <div class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.field.ownerField.help}"></div>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.resourceUrl.label}"></dt>
+                            <dd>
+                                <input class="input-field" type="text" name="overlayResourceUrl" data-pqa-field="overlayResourceUrl" maxlength="512"
+                                       th:placeholder="#{enterprise.pqa.resourceOverlayEdit.field.resourceUrl.placeholder}">
+                                <div class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.field.resourceUrl.help}"></div>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.expiresAt.label}"></dt>
+                            <dd>
+                                <input class="input-field" type="datetime-local" name="overrideExpiresAt" data-pqa-field="overrideExpiresAt">
+                                <div class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.field.expiresAt.help}"></div>
+                            </dd>
+                        </div>
+                    </dl>
+                </article>
+            </section>
+
+            <section class="section-card" style="margin-top:1rem;">
+                <div class="section-header-inline">
+                    <h2 class="section-title" th:text="#{enterprise.pqa.resourceOverlayEdit.section.reason.title}"></h2>
+                </div>
+                <p class="muted" th:text="#{enterprise.pqa.resourceOverlayEdit.section.reason.subtitle}"></p>
+                <dl class="detail-list">
+                    <div>
+                        <dt th:text="#{enterprise.pqa.resourceOverlayEdit.field.acknowledge.label}"></dt>
+                        <dd>
+                            <label style="display:inline-flex;align-items:center;gap:0.55rem;">
+                                <input type="checkbox" name="acknowledgeSecurityRisk" data-pqa-field="acknowledgeSecurityRisk">
+                                <span th:text="#{enterprise.pqa.resourceOverlayEdit.field.acknowledge.help}"></span>
+                            </label>
+                        </dd>
+                    </div>
+                </dl>
+                <div style="display:block;margin-top:1.25rem;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.55rem;font-weight:700;color:#f1f5f9;">
+                        <span th:text="#{enterprise.pqa.resourceOverlayEdit.field.reason.label}"></span>
+                        <span class="badge error" th:text="#{enterprise.pqa.resourceOverlayEdit.field.reason.required}"></span>
+                    </label>
+                    <textarea class="input-field" name="overrideReason" data-pqa-field="overrideReason" rows="6" maxlength="2000" required
+                              style="width:100%;display:block;box-sizing:border-box;resize:vertical;font-family:inherit;line-height:1.65;"
+                              th:placeholder="#{enterprise.pqa.resourceOverlayEdit.field.reason.placeholder}"></textarea>
+                    <div class="muted" style="margin-top:0.55rem;" th:text="#{enterprise.pqa.resourceOverlayEdit.field.reason.help}"></div>
+                </div>
+            </section>
+
+            <section class="section-card" style="margin-top:1rem;">
+                <div class="action-button-row" style="display:flex;gap:0.85rem;flex-wrap:wrap;align-items:center;">
+                    <button type="submit" data-pqa-overlay-save class="button primary"
+                            style="padding:0.95rem 1.75rem;font-size:1.05rem;font-weight:800;letter-spacing:0.01em;box-shadow:0 12px 26px rgba(37,99,235,0.35);"
+                            th:text="#{enterprise.pqa.resourceOverlayEdit.action.save}"></button>
+                    <button type="button" data-pqa-overlay-delete class="button secondary"
+                            style="padding:0.9rem 1.6rem;font-size:1rem;font-weight:700;"
+                            th:text="#{enterprise.pqa.resourceOverlayEdit.action.delete}"></button>
+                    <a data-pqa-overlay-cancel href="#" class="inline-link" style="margin-left:auto;"
+                       th:text="#{enterprise.pqa.resourceOverlayEdit.action.cancel}"></a>
+                </div>
+            </section>
+        </form>
+    </section>
+</main>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script type="module" th:src="@{/js/admin/prompt-quality/resource-overlay-edit-page.js}"></script>
+</body>
+</html>

@@ -1,0 +1,706 @@
+/* ============================================================
+   Runtime Evidence Screen Premium Redesign
+   ============================================================ */
+
+/* 1. 검색 필터 폼 고급 글래스모피즘화 */
+.pqa-runtime-filter {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.2rem;
+    margin-top: 1.25rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.pqa-runtime-filter label {
+    display: grid;
+    gap: 0.5rem;
+    color: rgba(226, 232, 240, 0.75);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+/* 폼 컨트롤 세련미 보강 */
+.pqa-runtime-filter input,
+.pqa-runtime-filter select {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    background: rgba(15, 23, 42, 0.65);
+    color: #f8fafc;
+    font-size: 0.88rem;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pqa-runtime-filter input:focus,
+.pqa-runtime-filter select:focus {
+    border-color: rgba(96, 165, 250, 0.5);
+    box-shadow: 0 0 12px rgba(96, 165, 250, 0.25), inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: rgba(15, 23, 42, 0.85);
+    outline: none;
+}
+
+.pqa-runtime-filter-actions {
+    display: flex;
+    align-items: end;
+    gap: 0.6rem;
+}
+
+.pqa-runtime-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+    gap: 1rem;
+}
+
+/* 2. 결과 테이블 래퍼 및 테이블 미세 트랜지션 효과 추가 */
+.pqa-runtime-results-panel {
+    width: 100%;
+}
+
+.pqa-runtime-results-panel .pqa-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(15, 23, 42, 0.4);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 테이블의 행 호버 시 입체감 및 부드러운 승격 */
+.pqa-runtime-results-panel table tbody tr {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.pqa-runtime-results-panel table tbody tr:hover {
+    background: rgba(96, 165, 250, 0.08) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 3. 모달 레이아웃 글래스모피즘 극대화 */
+.pqa-runtime-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    padding: 2rem 1rem;
+}
+
+.pqa-runtime-modal-backdrop[hidden] {
+    display: none !important;
+}
+
+.pqa-runtime-modal-panel {
+    width: min(1000px, 100%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.pqa-runtime-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.pqa-runtime-modal-head h2 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.pqa-runtime-modal-head h2::before {
+    content: "";
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path fill='%2338bdf8' d='M256 0c4.6 0 9.2 1.4 13 4.1L474 153.4c11.7 8.3 18 22.4 16.5 36.6c-9.1 84-40.3 227-217.2 318c-4.4 2.3-9.3 3.5-14.3 3.5s-9.9-1.2-14.3-3.5C67.8 417 36.6 274 27.5 190c-1.5-14.2 4.8-28.3 16.5-36.6L243 4.1c3.9-2.7 8.4-4.1 13-4.1zm115.3 195.3c-9.4-9.4-24.6-9.4-33.9 0L224 309.1l-45.3-45.3c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l62.3 62.3c9.4 9.4 24.6 9.4 33.9 0l115.3-115.3c9.4-9.4 9.4-24.6 0-33.9z'/></svg>");
+    background-repeat: no-repeat;
+    background-size: contain;
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+}
+
+.pqa-runtime-modal-head p {
+    margin: 0.4rem 0 0;
+    color: var(--pqa-text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.pqa-runtime-modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1.75rem 2rem;
+}
+
+.pqa-runtime-modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.pqa-runtime-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.pqa-runtime-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.5);
+    border-radius: 4px;
+}
+
+.pqa-runtime-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.7);
+}
+
+.pqa-runtime-detail-panel {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+}
+
+/* 4. 빈 상태 및 상세 정보 카드 입체감 부여 */
+.pqa-runtime-detail-empty,
+.pqa-runtime-detail-card {
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.6) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.pqa-runtime-detail-card pre {
+    max-height: 260px;
+    overflow: auto;
+    border-radius: 8px;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.78);
+    color: #e0f2fe;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    font-family: var(--pqa-font-mono), monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pqa-runtime-section-note {
+    margin: 0.25rem 0 0.85rem;
+    color: var(--pqa-text-muted);
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+
+/* 5. 목적 카드 (pqa-runtime-purpose-card) 특수 가공 */
+.pqa-runtime-purpose-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(15, 23, 42, 0.5) 100%);
+    box-shadow: 0 6px 16px rgba(14, 165, 233, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.pqa-runtime-purpose-card i {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    font-size: 1.1rem;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.pqa-runtime-purpose-card strong {
+    display: block;
+    color: #f8fafc;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.pqa-runtime-purpose-card p {
+    margin: 0.25rem 0 0;
+    color: var(--pqa-text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+/* 6. 준비도 preflight 카드 극대화 */
+.pqa-runtime-preflight-card {
+    display: grid;
+    gap: 1rem;
+    margin: 1.25rem 0;
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 12px;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.7) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.pqa-runtime-preflight-card.is-ready {
+    border-color: rgba(52, 211, 153, 0.35) !important;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%) !important;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.pqa-runtime-preflight-card.is-blocked {
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%) !important;
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.pqa-runtime-preflight-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.pqa-runtime-preflight-head h3,
+.pqa-runtime-preflight-head p {
+    margin: 0;
+}
+
+.pqa-runtime-preflight-head p {
+    margin-top: 0.3rem;
+    color: var(--pqa-text-muted);
+    font-size: 0.84rem;
+    line-height: 1.5;
+}
+
+.pqa-runtime-preflight-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.pqa-runtime-preflight-metrics div {
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    background: rgba(30, 41, 59, 0.45);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pqa-runtime-preflight-metrics dt {
+    color: var(--pqa-text-muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.pqa-runtime-preflight-metrics dd {
+    margin: 0.25rem 0 0;
+    color: #f8fafc;
+    font-size: 1.35rem;
+    font-weight: 900;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+/* 7. 차단 사유(failures) 고급형 */
+.pqa-runtime-preflight-failures {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 1rem;
+}
+
+.pqa-runtime-preflight-failures strong {
+    color: #fca5a5;
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.pqa-runtime-preflight-failures strong::before {
+    content: "\f071";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    color: #ef4444;
+}
+
+.pqa-runtime-preflight-failures ul {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pqa-runtime-preflight-failures li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid rgba(239, 68, 68, 0.25) !important;
+    border-radius: 8px !important;
+    padding: 0.65rem 0.85rem !important;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(127, 29, 29, 0.2) 100%) !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.pqa-runtime-preflight-failures span {
+    color: #fee2e2 !important;
+    font-weight: 700 !important;
+    font-size: 0.85rem !important;
+}
+
+.pqa-runtime-preflight-failures em {
+    color: #fca5a5 !important;
+    font-style: normal !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+}
+
+.pqa-runtime-signal-list {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.8rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* 8. 경고 및 임계값 리스트 필렛화 */
+.pqa-runtime-signal-list li {
+    border: 1px solid rgba(245, 158, 11, 0.25) !important;
+    border-radius: 6px !important;
+    padding: 0.5rem 0.85rem !important;
+    background: rgba(245, 158, 11, 0.08) !important;
+    color: #fde68a !important;
+    font-size: 0.84rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.45rem !important;
+}
+
+.pqa-runtime-signal-list li::before {
+    content: "\f0a9";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    color: #f59e0b;
+}
+
+/* 9. 프롬프트 미리보기 요약 영역 입체화 */
+.pqa-runtime-prompt-preview {
+    margin-top: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 10px !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.pqa-runtime-prompt-preview summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    cursor: pointer;
+    padding: 0.9rem 1.15rem !important;
+    color: #f8fafc !important;
+    font-weight: 800 !important;
+    transition: background 0.2s ease;
+}
+
+.pqa-runtime-prompt-preview summary:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pqa-runtime-prompt-preview summary small {
+    color: var(--pqa-text-muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.pqa-runtime-prompt-preview pre {
+    margin: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 0 0 10px 10px !important;
+}
+
+.pqa-runtime-signal-detail-list {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 0.8rem;
+}
+
+.pqa-runtime-signal-groups {
+    display: grid;
+    gap: 1rem;
+    margin-top: 0.85rem;
+}
+
+.pqa-runtime-signal-group {
+    display: grid;
+    gap: 0.72rem;
+}
+
+/* 10. 신호 그룹들 간격 및 가시성 극대화 */
+.pqa-runtime-signal-group > header {
+    border-left: 4px solid #38bdf8 !important;
+    padding-left: 0.85rem !important;
+    gap: 0.35rem !important;
+}
+
+.pqa-runtime-signal-category {
+    border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    border-radius: 4px !important;
+    padding: 0.2rem 0.6rem !important;
+    background: rgba(3, 105, 161, 0.25) !important;
+    color: #e0f2fe !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.02em;
+}
+
+.pqa-runtime-signal-group > header p {
+    margin: 0;
+    color: var(--pqa-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.pqa-runtime-signal-group .pqa-runtime-signal-detail-list {
+    margin-top: 0;
+}
+
+.pqa-runtime-signal-detail {
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 12px !important;
+    padding: 1.25rem 1.5rem !important;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.7) 100%) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+    transition: border-color 0.25s ease;
+}
+
+.pqa-runtime-signal-detail:hover {
+    border-color: rgba(251, 191, 36, 0.25) !important;
+}
+
+.pqa-runtime-signal-detail header {
+    display: grid;
+    gap: 0.35rem;
+    margin-bottom: 0.8rem;
+}
+
+.pqa-runtime-signal-detail strong {
+    color: #f1f5f9;
+    font-size: 0.98rem;
+}
+
+.pqa-runtime-signal-code {
+    border: 1px solid rgba(251, 191, 36, 0.3) !important;
+    border-radius: 4px !important;
+    padding: 0.2rem 0.55rem !important;
+    background: rgba(251, 191, 36, 0.08) !important;
+    color: #fbbf24 !important;
+    font-size: 0.68rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.03em;
+}
+
+.pqa-runtime-signal-detail dl {
+    display: grid;
+    gap: 0.58rem;
+    margin: 0;
+}
+
+.pqa-runtime-signal-detail dl div {
+    display: grid;
+    grid-template-columns: 6.8rem minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.pqa-runtime-signal-detail dt {
+    color: #fde68a !important;
+    font-size: 0.75rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase;
+}
+
+.pqa-runtime-signal-detail dd {
+    margin: 0;
+    color: #cbd5e1 !important;
+    font-size: 0.85rem !important;
+    line-height: 1.6 !important;
+}
+
+.pqa-runtime-signal-detail code {
+    color: #60a5fa !important;
+    background: rgba(96, 165, 250, 0.08);
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    border: 1px solid rgba(96, 165, 250, 0.15);
+}
+
+.pqa-result-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.pqa-runtime-summary-card {
+    margin-bottom: 1rem;
+}
+
+.pqa-runtime-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.pqa-runtime-evidence-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.pqa-runtime-evidence-title i {
+    color: var(--pqa-accent);
+}
+
+@media (max-width: 1100px) {
+    .pqa-runtime-filter,
+    .pqa-runtime-grid,
+    .pqa-runtime-result-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .pqa-runtime-detail-panel {
+        position: static;
+    }
+
+    .pqa-runtime-signal-detail dl div {
+        grid-template-columns: 1fr;
+        gap: 0.2rem;
+    }
+}
+
+/* ============================================================
+   요약 정보 카드 (.pqa-summary-item) 프리미엄 재디자인
+   ============================================================ */
+.pqa-workspace .pqa-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.pqa-workspace .pqa-summary-item {
+    padding: 1.25rem 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.6) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #f1f5f9;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* 요약 카드별 고유 네온 그라데이션 광택 테두리 선사 */
+/* 1번째 카드 (검색된 증거): 블루-스카이블루 네온 */
+.pqa-workspace .pqa-summary-item:nth-child(1) {
+    border-color: rgba(96, 165, 250, 0.25);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.pqa-workspace .pqa-summary-item:nth-child(1):hover {
+    border-color: rgba(96, 165, 250, 0.5);
+    box-shadow: 0 12px 30px rgba(59, 130, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.pqa-workspace .pqa-summary-item:nth-child(1) i {
+    color: #60a5fa;
+    filter: drop-shadow(0 0 4px rgba(96, 165, 250, 0.4));
+}
+
+/* 2번째 카드 (무결성 통과): 에메랄드 네온 */
+.pqa-workspace .pqa-summary-item:nth-child(2) {
+    border-color: rgba(52, 211, 153, 0.25);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.pqa-workspace .pqa-summary-item:nth-child(2):hover {
+    border-color: rgba(52, 211, 153, 0.5);
+    box-shadow: 0 12px 30px rgba(16, 185, 129, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.pqa-workspace .pqa-summary-item:nth-child(2) i {
+    color: #34d399;
+    filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.4));
+}
+
+/* 3번째 카드 (확인 필요): 오렌지/레드 네온 */
+.pqa-workspace .pqa-summary-item:nth-child(3) {
+    border-color: rgba(245, 158, 11, 0.25);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%);
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.pqa-workspace .pqa-summary-item:nth-child(3):hover {
+    border-color: rgba(245, 158, 11, 0.5);
+    box-shadow: 0 12px 30px rgba(245, 158, 11, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.pqa-workspace .pqa-summary-item:nth-child(3) i {
+    color: #fbbf24;
+    filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.4));
+}
+
+.pqa-workspace .pqa-summary-item:hover {
+    transform: translateY(-3px);
+}
+
+.pqa-workspace .pqa-summary-item span {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: rgba(226, 232, 240, 0.7);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.pqa-workspace .pqa-summary-item strong {
+    display: block;
+    margin-top: 0.65rem;
+    color: #ffffff;
+    font-size: 1.85rem;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}

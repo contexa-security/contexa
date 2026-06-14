@@ -1,0 +1,252 @@
+[data-pqa-page="resource-detail"] [data-pqa-resource-strip] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    align-items: stretch;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-section {
+    margin-top: 1rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta {
+    display: block;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 1.1rem 0.3rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-row:last-child,
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-row.is-last {
+    border-bottom: none;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-label {
+    flex-shrink: 0;
+    min-width: 190px;
+    color: #94a3b8;
+    font-size: 0.88rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-value {
+    flex: 1;
+    min-width: 0;
+    color: #f8fafc;
+    font-size: 1.18rem;
+    font-weight: 600;
+    line-height: 1.55;
+    word-break: break-all;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-code {
+    font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    background: transparent;
+    padding: 0;
+    border: none;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-meta-link {
+    text-decoration: none;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-muted {
+    font-size: 1.02rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-badge-large {
+    font-size: 1.02rem;
+    padding: 0.4rem 1rem;
+    font-weight: 700;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.42rem 0.95rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    white-space: nowrap;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-chip-label {
+    color: #94a3b8;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-chip-value {
+    font-size: 0.98rem;
+    padding: 0.32rem 0.85rem;
+    font-weight: 700;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-actions {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    gap: 0.85rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-button-primary {
+    padding: 0.95rem 1.75rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.35);
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-detail-button-secondary {
+    padding: 0.9rem 1.6rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-lineage-artifacts,
+[data-pqa-page="resource-detail"] .pqa-resource-lineage-empty,
+[data-pqa-page="resource-detail"] .pqa-resource-lineage-table {
+    margin-top: 1rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-lineage-artifact-link {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-lineage-artifact-badge {
+    font-size: 0.92rem;
+    padding: 0.45rem 0.85rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-timeline {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.8rem;
+    padding: 0.95rem;
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.44);
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-step.is-current {
+    border-color: rgba(52, 211, 153, 0.7);
+    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18);
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-index {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.18);
+    color: #e2e8f0;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-step.is-current .pqa-resource-process-index {
+    background: #34d399;
+    color: #042f2e;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main {
+    min-width: 0;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main strong {
+    display: block;
+    color: #f8fafc;
+    font-size: 1rem;
+    font-weight: 850;
+    line-height: 1.35;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main p {
+    margin: 0;
+    color: #cbd5e1;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main dl {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.7rem 0 0;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main dl div {
+    display: grid;
+    gap: 0.2rem;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main dt {
+    color: #94a3b8;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+[data-pqa-page="resource-detail"] .pqa-resource-process-main dd {
+    margin: 0;
+    color: #e2e8f0;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+@media (max-width: 900px) {
+    [data-pqa-page="resource-detail"] .pqa-resource-detail-meta-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.55rem;
+    }
+
+    [data-pqa-page="resource-detail"] .pqa-resource-detail-meta-label {
+        min-width: 0;
+    }
+
+    [data-pqa-page="resource-detail"] .pqa-resource-process-timeline {
+        grid-template-columns: 1fr;
+    }
+}

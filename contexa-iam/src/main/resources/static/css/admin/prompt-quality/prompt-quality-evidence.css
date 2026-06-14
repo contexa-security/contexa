@@ -1,0 +1,337 @@
+.pqa-inline-link {
+    color: #818cf8;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.pqa-inline-link:hover {
+    color: #a5b4fc;
+    text-decoration: underline;
+}
+
+.pqa-evidence-intro {
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    color: #e2e8f0;
+}
+
+.pqa-evidence-warning {
+    color: #f59e0b;
+    font-weight: 700;
+}
+
+.pqa-evidence-intro-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.pqa-evidence-section {
+    margin-top: 1rem;
+}
+
+.pqa-evidence-section-summary {
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.5rem 0;
+}
+
+.pqa-evidence-section-help {
+    margin: 0.5rem 0;
+}
+
+.pqa-explain-grid,
+.pqa-form-grid,
+.pqa-json-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.pqa-explain-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pqa-explain-grid article {
+    padding: 1.1rem 1.2rem;
+    border: 1px solid var(--pqa-border);
+    border-radius: var(--pqa-radius-md);
+    background: var(--pqa-surface);
+    box-shadow: var(--pqa-shadow-sm);
+    color: var(--pqa-text);
+    position: relative;
+    overflow: hidden;
+}
+
+.pqa-explain-grid article::before {
+    content: none;
+}
+
+.pqa-explain-grid strong {
+    display: block;
+    color: #f1f5f9;
+    font-size: 0.98rem;
+}
+
+.pqa-explain-grid span {
+    display: block;
+    margin-top: 0.45rem;
+    color: var(--pqa-text-muted);
+    line-height: 1.6;
+}
+
+.pqa-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pqa-json-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1rem;
+}
+
+.pqa-evidence-form label {
+    display: grid;
+    gap: 0.45rem;
+    color: var(--pqa-text);
+    font-weight: 700;
+    font-size: 0.86rem;
+    letter-spacing: 0.02em;
+}
+
+.pqa-evidence-form input,
+.pqa-evidence-form select,
+.pqa-evidence-form textarea {
+    width: 100%;
+    border: 1px solid var(--pqa-border);
+    border-radius: var(--pqa-radius-sm);
+    padding: 0.75rem 0.95rem;
+    color: #f1f5f9;
+    background: rgba(15, 23, 42, 0.65);
+    font: inherit;
+    transition: border-color 0.15s var(--pqa-ease), box-shadow 0.15s var(--pqa-ease), background 0.15s var(--pqa-ease);
+}
+
+.pqa-evidence-form input::placeholder,
+.pqa-evidence-form textarea::placeholder {
+    color: rgba(148, 163, 184, 0.6);
+}
+
+.pqa-evidence-form input:focus,
+.pqa-evidence-form select:focus,
+.pqa-evidence-form textarea:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    outline: none;
+    background: rgba(30, 41, 59, 0.8);
+}
+
+.pqa-evidence-form textarea {
+    min-height: 150px;
+    resize: vertical;
+    font-family: "Consolas", "D2Coding", monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.pqa-evidence-form select option {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.pqa-registration-result {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.6);
+    color: #e2e8f0;
+    box-shadow: none;
+}
+
+.pqa-registration-result.blocked {
+    border-color: rgba(71, 85, 105, 0.3);
+    background: rgba(15, 23, 42, 0.6);
+    color: #f87171;
+}
+
+.pqa-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+.pqa-action-row:empty {
+    display: none;
+}
+
+.pqa-registration-meta {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.pqa-registration-meta div {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.pqa-registration-meta dt {
+    color: #cbd5e1;
+    font-weight: 700;
+}
+
+.pqa-registration-meta dd {
+    margin: 0;
+}
+
+.pqa-detail-block {
+    display: grid;
+    gap: 0.6rem;
+    padding: 0;
+    margin: 0 0 1.2rem 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.pqa-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.4rem;
+}
+
+.pqa-section-heading {
+    margin: 0 0 0.4rem 0;
+    padding-left: 0;
+    border-left: none;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    letter-spacing: 0;
+}
+
+.pqa-detail-dl {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) 1fr;
+    gap: 0.5rem 1rem;
+    margin: 0;
+    padding: 0;
+}
+
+.pqa-detail-dl dt {
+    margin: 0;
+    padding: 0;
+    font-weight: 700;
+    color: #cbd5f5;
+    letter-spacing: 0.01em;
+    word-break: break-word;
+}
+
+.pqa-detail-dl dd {
+    margin: 0;
+    padding: 0;
+    color: #f1f5f9;
+    word-break: break-word;
+    line-height: 1.55;
+}
+
+.pqa-detail-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.pqa-detail-item {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.1rem 0 0.9rem 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.25);
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.pqa-detail-item:last-child {
+    border-bottom: none;
+}
+
+.pqa-detail-item .pqa-pill {
+    justify-self: start;
+}
+
+.pqa-detail-scalar {
+    color: #f1f5f9;
+}
+
+.pqa-detail-null {
+    color: rgba(148, 163, 184, 0.75);
+    font-style: italic;
+}
+
+.pqa-finding-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.8rem;
+}
+
+.pqa-finding-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem 0.9rem;
+    align-items: start;
+    padding: 0.6rem 0 0.8rem 0;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.25);
+}
+
+.pqa-finding-item:last-child {
+    border-bottom: none;
+}
+
+.pqa-finding-body {
+    display: grid;
+    gap: 0.35rem;
+    color: #f1f5f9;
+}
+
+.pqa-finding-problem {
+    font-weight: 700;
+}
+
+.pqa-finding-action {
+    color: #e2e8f0;
+}
+
+.pqa-finding-reason {
+    font-size: 0.9rem;
+}
+
+@media (max-width: 960px) {
+    .pqa-form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .pqa-explain-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .pqa-form-grid,
+    .pqa-json-grid {
+        grid-template-columns: 1fr;
+    }
+    .pqa-detail-grid {
+        grid-template-columns: 1fr;
+    }
+    .pqa-detail-dl {
+        grid-template-columns: 1fr;
+    }
+}

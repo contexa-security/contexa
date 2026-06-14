@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260522-contract-context-items')}">
+</head>
+<body class="page-shell">
+<div th:replace="~{contexa/fragments/header :: header}"></div>
+<div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
+
+<main class="page-body pqa-shell"
+      data-pqa-page="verification"
+      data-pqa-stage="OFFICIAL_VERIFICATION"
+      data-pqa-verification-stage="run"
+      th:attr="data-pqa-verification-stage=${verificationStage}">
+    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
+    <section class="pqa-workspace">
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.verification}, #{enterprise.pqa.verification.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
+
+        <section class="pqa-verification-stage-hero">
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
+                <span>Official Prompt Assurance</span>
+                <h1>Confirm sealed evidence for inspection.</h1>
+                <p>Only stored runtime evidence is used as official inspection input.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'run'}">
+                <span>Official Prompt Assurance</span>
+                <h1>Evaluate LLM input readiness with 12 metrics.</h1>
+                <p>The latest official run for the same evidence becomes the active result.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'comparison'}">
+                <span>Official Prompt Assurance</span>
+                <h1>Review actual prompt problems first.</h1>
+                <p>Shows the problems found by official inspection and the affected metrics.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'metrics'}">
+                <span>Official Prompt Assurance</span>
+                <h1>Separate metric verdict reasons clearly.</h1>
+                <p>Review found problems, affected metrics, and check criteria in one place.</p>
+            </div>
+            <div class="pqa-verification-stage-rules">
+                <article><strong>Basis</strong><span>LLM user prompt</span></article>
+                <article><strong>Target</strong><span>Latest run for the same evidence</span></article>
+                <article><strong>View</strong><span>Problems first</span></article>
+            </div>
+        </section>
+
+        <nav class="pqa-verification-subnav"
+             data-pqa-verification-subnav
+             aria-label="공식 품질 검사 하위 화면"
+             th:aria-label="#{enterprise.pqa.verification.subnav.aria}">
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="readiness"
+               th:href="@{/contexa/admin/prompt-quality/verification/readiness}"
+               th:classappend="${verificationStage == 'readiness'} ? ' active' : ''">
+                <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">증거·프롬프트 일치성</span>
+            </a>
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="run"
+               th:href="@{/contexa/admin/prompt-quality/verification/run}"
+               th:classappend="${verificationStage == 'run'} ? ' active' : ''">
+                <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">검사 실행</span>
+            </a>
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="comparison"
+               th:href="@{/contexa/admin/prompt-quality/verification/prompt-comparison}"
+               th:classappend="${verificationStage == 'comparison'} ? ' active' : ''">
+                <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">실제 프롬프트 비교</span>
+            </a>
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="metrics"
+               th:href="@{/contexa/admin/prompt-quality/verification/metrics}"
+               th:classappend="${verificationStage == 'metrics'} ? ' active' : ''">
+                <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12개 프롬프트 품질 지표 상세</span>
+            </a>
+        </nav>
+
+        <section class="pqa-summary-strip" data-pqa-verification-summary th:if="${verificationStage == 'readiness'}"></section>
+
+        <section class="pqa-panel" th:if="${verificationStage == 'readiness'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-filter" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.title}">검사할 봉인 증거 찾기</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.find.description}">증거 번호를 몰라도 최근 저장된 실제 요청 증거가 자동으로 표시됩니다.</p>
+                </div>
+                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.pill}">최종 보증 전용</span></span>
+            </div>
+            <form class="pqa-runtime-filter" data-pqa-verification-search-form>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.startTime}">시작 시각</span>
+                    <input type="datetime-local" name="from">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.endTime}">종료 시각</span>
+                    <input type="datetime-local" name="to">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.tenant}">테넌트</span>
+                    <input type="text" name="tenantId" placeholder="default">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.user}">사용자</span>
+                    <input type="text" name="userId" placeholder="사용자 ID" th:placeholder="#{enterprise.pqa.verification.find.userPlaceholder}">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.requestUrl}">요청 URL</span>
+                    <input type="text" name="resourceUrl" placeholder="/api/...">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.resourceId}">리소스 ID</span>
+                    <input type="text" name="resourceId" placeholder="@Protectable resourceId">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.verification.find.httpMethod}">HTTP 방식</span>
+                    <select name="httpMethod">
+                        <option value="" th:text="#{enterprise.pqa.verification.find.httpMethodAll}">전체</option>
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PUT</option>
+                        <option>PATCH</option>
+                        <option>DELETE</option>
+                    </select>
+                </label>
+                <div class="pqa-runtime-filter-actions">
+                    <button type="submit" class="pqa-link-button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.searchBtn}">검색</span></button>
+                    <button type="button" class="pqa-action-button" data-pqa-verification-reset><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.resetBtn}">초기화</span></button>
+                </div>
+                <details class="pqa-verification-advanced">
+                    <summary th:text="#{enterprise.pqa.verification.advancedSearch}">고급 검색: 증거 번호를 알고 있을 때만 사용</summary>
+                    <label>
+                        <span th:text="#{enterprise.pqa.verification.advancedSearch.packageId}">요청 증거 번호</span>
+                        <input type="text" name="packageId" placeholder="sep-...">
+                    </label>
+                </details>
+            </form>
+        </section>
+
+        <section class="pqa-verification-grid" th:if="${verificationStage == 'readiness'}">
+            <section class="pqa-panel">
+                <div class="pqa-panel-head">
+                    <div>
+                        <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.list.title}">봉인 증거 목록</span></h2>
+                        <p th:text="#{enterprise.pqa.verification.list.description}">선택한 증거가 공식 품질 검사의 입력이 됩니다.</p>
+                    </div>
+                </div>
+                <div class="pqa-table-wrap" data-pqa-verification-results></div>
+            </section>
+
+            <section class="pqa-panel pqa-runtime-detail-panel">
+                <div class="pqa-panel-head">
+                    <div>
+                        <h2><i class="fa-solid fa-file-shield" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.preview.title}">선택 증거 미리보기</span></h2>
+                        <p th:text="#{enterprise.pqa.verification.preview.description}">봉인, 프롬프트 저장, 판정 결과를 실행 전에 확인합니다.</p>
+                    </div>
+                </div>
+                <div data-pqa-verification-detail class="pqa-runtime-detail-empty">
+                    <p th:text="#{enterprise.pqa.verification.preview.empty}">목록에서 증거를 선택하면 검사 가능 여부가 표시됩니다.</p>
+                </div>
+            </section>
+        </section>
+
+        <section class="pqa-panel pqa-prompt-consistency-panel"
+                  data-pqa-prompt-consistency-stage
+                  th:if="${verificationStage == 'readiness'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.title}">증거·프롬프트 일치성</span></h2>
+                    <p th:text="#{enterprise.pqa.promptConsistency.description}">봉인 증거가 실제 LLM 프롬프트를 대표하는지 먼저 확인합니다.</p>
+                </div>
+                <span class="pqa-section-pill"><i class="fa-solid fa-fingerprint" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">증거 확인</span></span>
+            </div>
+            <div data-pqa-prompt-consistency-content class="pqa-runtime-detail-empty">
+                <p th:text="#{enterprise.pqa.promptConsistency.empty}">봉인 증거를 선택하면 실제 프롬프트와의 일치성을 확인합니다.</p>
+            </div>
+        </section>
+
+        <section class="pqa-panel pqa-verification-run-panel" th:if="${verificationStage == 'run'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.titleAlt}">공식 검사 실행</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.run.description}">선택한 실제 요청 증거를 12개 프롬프트 품질 지표로 검사합니다.</p>
+                </div>
+                <button type="button"
+                        class="pqa-link-button is-disabled"
+                        data-pqa-run-verification
+                        aria-disabled="true"
+                        th:attr="data-pqa-disabled-reason=#{enterprise.pqa.verification.run.needEvidence.detail}">
+                    <i class="fa-solid fa-certificate" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.execute}">12개 프롬프트 품질 지표 검사 실행</span>
+                </button>
+            </div>
+            <div class="pqa-verification-progress"
+                 data-pqa-verification-progress
+                 role="progressbar"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 hidden>
+                <div class="pqa-verification-progress-head">
+                    <strong data-pqa-verification-progress-title
+                            th:text="#{enterprise.pqa.verification.run.progress.start.title}">검사 준비 중</strong>
+                    <span data-pqa-verification-progress-percent>0%</span>
+                </div>
+                <div class="pqa-verification-progress-track">
+                    <i data-pqa-verification-progress-fill style="width:0%"></i>
+                </div>
+                <p data-pqa-verification-progress-message
+                   th:text="#{enterprise.pqa.verification.run.progress.start.detail}">선택한 증거 패키지를 준비하고 있습니다.</p>
+            </div>
+            <div data-pqa-verification-selected class="pqa-verification-selected" th:text="#{enterprise.pqa.verification.run.noSelection}">
+                아직 선택한 봉인 증거가 없습니다.
+            </div>
+        </section>
+
+        <section class="pqa-panel" th:if="${verificationStage == 'run'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-chart-pie" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.result.titleAlt}">검사 결과</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.result.description}">차단된 지표는 문제 진단과 개선 처방 단계에서 원인을 고칩니다.</p>
+                </div>
+            </div>
+            <div data-pqa-run-summary></div>
+            <div class="pqa-runtime-result-layout pqa-verification-result-layout">
+                <div class="pqa-chart-box compact">
+                    <canvas data-pqa-verification-chart
+                            role="img"
+                            aria-label="공식 품질 검사 결과"
+                            th:aria-label="#{enterprise.pqa.verification.result.canvasAria}"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'comparison'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">실제 프롬프트 비교</span></h2>
+                    <p>LLM 사용자 프롬프트에서 발견된 문제와 해결 기준만 확인합니다.</p>
+                </div>
+            </div>
+            <div data-pqa-official-ledger-prompt></div>
+        </section>
+
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'metrics'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12개 프롬프트 품질 지표 상세</span></h2>
+                    <p>지표별 통과, 프롬프트 문제, 사전 입력 문제, 발급 전 확인을 구분합니다.</p>
+                </div>
+            </div>
+            <div class="pqa-official-ledger-runs" data-pqa-official-ledger-runs></div>
+            <div class="pqa-official-run-detail" data-pqa-official-run-detail hidden></div>
+        </section>
+
+    </section>
+</main>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script th:src="@{/js/vendor/chart.umd.min.js}"></script>
+<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260601-evidence-role-labels')}"></script>
+</body>
+</html>

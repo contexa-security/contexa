@@ -1,0 +1,251 @@
+.input-field,
+.input-area {
+    width: 100%;
+    border-radius: 0.85rem;
+    border: 1px solid rgba(71, 85, 105, 0.65);
+    background: rgba(15, 23, 42, 0.88);
+    color: #f8fafc;
+    padding: 0.8rem 0.9rem;
+    font: inherit;
+}
+
+.input-field:focus,
+.input-area:focus {
+    outline: 2px solid rgba(59, 130, 246, 0.55);
+    outline-offset: 2px;
+}
+
+.input-area {
+    min-height: 7rem;
+    resize: vertical;
+}
+
+.input-area.compact {
+    min-height: 4.5rem;
+}
+
+.action-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.scope-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.section-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.compact-grid {
+    gap: 0.9rem;
+}
+
+.credential-form {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.credential-wizard {
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+    display: grid;
+    gap: 0.85rem;
+}
+
+.wizard-step {
+    display: grid;
+    grid-template-columns: 2.25rem 1fr;
+    gap: 0.85rem;
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(71, 85, 105, 0.35);
+}
+
+.wizard-step-number {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    background: rgba(59, 130, 246, 0.18);
+    color: #bfdbfe;
+}
+
+.wizard-step-title {
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.wizard-step-summary,
+.guidance-summary,
+.scope-guide-summary,
+.form-help,
+.quiet-note,
+.audit-meta {
+    margin: 0.35rem 0 0;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.scope-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.85rem;
+    margin-top: 0.75rem;
+}
+
+.scope-guide-item {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(71, 85, 105, 0.35);
+    cursor: pointer;
+}
+
+.scope-guide-item input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+}
+
+.scope-guide-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.scope-guide-name,
+.mono-text {
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.scope-guide-label,
+.form-label,
+.guidance-title {
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.guidance-stack {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.guidance-card {
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(71, 85, 105, 0.35);
+    background: rgba(15, 23, 42, 0.7);
+}
+
+/*
+ * Guidance card status variants. Borders collapse to the neutral slate tone
+ * defined in enterprise-operations.css (--border-neutral) so saas screens
+ * share the visual language of the enterprise screens. Severity is conveyed
+ * through icon + label inside the card, not through a coloured frame.
+ */
+.guidance-card.info,
+.guidance-card.success,
+.guidance-card.warning,
+.guidance-card.error {
+    border-color: var(--border-neutral);
+}
+
+.inline-form-grid {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.inline-form-card {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.85rem;
+    border-radius: 0.9rem;
+    background: rgba(15, 23, 42, 0.56);
+    border: 1px solid rgba(71, 85, 105, 0.28);
+}
+
+.checkbox-inline {
+    display: flex;
+    gap: 0.55rem;
+    align-items: flex-start;
+    color: #e2e8f0;
+}
+
+.scope-reference-panel {
+    border-radius: 0.9rem;
+    border: 1px solid rgba(71, 85, 105, 0.28);
+    background: rgba(15, 23, 42, 0.52);
+    padding: 0.75rem 0.9rem;
+}
+
+.scope-reference-panel summary {
+    cursor: pointer;
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+.audit-timeline {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.audit-item {
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(71, 85, 105, 0.35);
+}
+
+.audit-item-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    align-items: center;
+}
+
+.audit-payload {
+    margin: 0.75rem 0 0;
+    padding: 0.85rem;
+    border-radius: 0.85rem;
+    background: rgba(15, 23, 42, 0.78);
+    color: #cbd5e1;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Custom select overrides - match input-field style, no double border */
+.custom-select-wrapper {
+    z-index: 1;
+}
+
+.custom-select-wrapper:has(.custom-select-options.open) {
+    z-index: 99998;
+}
+
+.custom-select-trigger {
+    border-radius: 0.85rem;
+    border: 1px solid rgba(71, 85, 105, 0.65);
+    background: rgba(15, 23, 42, 0.88);
+    color: #f8fafc;
+    padding: 0.8rem 0.9rem;
+}
+
+@media (max-width: 900px) {
+    .scope-guide-grid {
+        grid-template-columns: 1fr;
+    }
+}

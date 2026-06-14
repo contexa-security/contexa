@@ -1,0 +1,563 @@
+/* ============================================================
+   Prompt Quality reference aliases
+   .pc-* (policy-center) and .ac-* (access-center) class
+   definitions copied verbatim onto matching .pqa-* classes.
+   Loaded after prompt-quality-common.css and prompt-quality-layout.css
+   so cascade order overrides legacy definitions.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   SECTION SPACING — 화면 본문 1차 박스 사이의 일관된 여백.
+   .pqa-workspace 직속 자식은 모두 위쪽 2rem 간격으로 분리.
+   기존 박스의 margin-top/bottom 은 무력화하여 일관성 보장.
+   ------------------------------------------------------------ */
+.pqa-shell .pqa-workspace > * {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.pqa-shell .pqa-workspace > * + * {
+    margin-top: 2rem;
+}
+
+/* ------------------------------------------------------------
+   TITLE ICONS — 모든 화면의 타이틀(h1~h4) 안에 들어간 아이콘 제거.
+   타이틀은 텍스트만, 아이콘은 pill·뱃지·버튼 등 다른 영역에서만.
+   ------------------------------------------------------------ */
+.pqa-shell h1 i,
+.pqa-shell h2 i,
+.pqa-shell h3 i,
+.pqa-shell h4 i,
+.pqa-shell h5 i,
+.pqa-shell h6 i,
+.pqa-shell .section-title i,
+.pqa-shell .pqa-panel-head h1 i,
+.pqa-shell .pqa-panel-head h2 i,
+.pqa-shell .pqa-panel-head h3 i {
+    display: none !important;
+}
+
+/* ------------------------------------------------------------
+   PAGE HEADER  ←  .page-header  +  .pc-header-gradient
+   ------------------------------------------------------------ */
+.pqa-page-header {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.6));
+    border-radius: 0.75rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    display: flex;
+    justify-content: space-between;
+    gap: 1.25rem;
+    position: relative;
+    overflow: visible;
+    color: #e2e8f0;
+}
+
+.pqa-page-header::before,
+.pqa-page-header::after {
+    content: none;
+    background: none;
+}
+
+.pqa-page-header > div {
+    position: static;
+}
+
+.pqa-page-header .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.pqa-page-header .breadcrumb a {
+    color: #94a3b8;
+    text-decoration: none;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    transition: color 0.2s;
+}
+
+.pqa-page-header .breadcrumb a:hover {
+    color: #e2e8f0;
+    background: transparent;
+    border-color: transparent;
+}
+
+.pqa-page-header .breadcrumb span {
+    color: #64748b;
+}
+
+.pqa-page-header h1 {
+    margin: 0.25rem 0 0.5rem !important;
+    background: none !important;
+    background-clip: initial !important;
+    -webkit-background-clip: initial !important;
+    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important;
+    font-size: 1.75rem !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.01em !important;
+    font-weight: 700 !important;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45) !important;
+    display: block !important;
+    gap: 0 !important;
+}
+
+.pqa-page-header h1::before {
+    content: none;
+    background: none;
+    width: 0;
+    height: 0;
+}
+
+.pqa-page-header p {
+    margin: 0;
+    max-width: 760px;
+    color: #94a3b8;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+/* ------------------------------------------------------------
+   PANEL  ←  .modern-card
+   ------------------------------------------------------------ */
+/* 외곽 큰 박스 — 화면 본문 1차 컨테이너. 내부 콘텐츠 박스
+   (rgba(30, 41, 59, 0.5)) 보다 더 진한 톤으로 박스 자체를
+   부각. 강한 그림자 + 두꺼운 padding + 명확한 헤드 영역. */
+.pqa-panel {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 1rem;
+    padding: 2.5rem;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+    margin-top: 1.5rem;
+    transition: all 0.3s;
+    position: relative;
+}
+
+.pqa-panel .pqa-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid rgba(71, 85, 105, 0.4);
+}
+
+.pqa-panel .pqa-panel-head > div {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pqa-panel .pqa-panel-head h2 {
+    margin: 0;
+    color: #f1f5f9;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+}
+
+.pqa-panel .pqa-panel-head p {
+    margin: 0.5rem 0 0;
+    color: #94a3b8;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+}
+
+.pqa-panel-head {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0;
+    border-bottom: none;
+    position: relative;
+}
+
+.pqa-panel-head::after,
+.pqa-panel-head::before {
+    content: none;
+    background: none;
+}
+
+.pqa-panel-head h2 {
+    margin: 0;
+    color: #f1f5f9;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.pqa-panel-head h2::before {
+    content: none;
+    background: none;
+}
+
+.pqa-panel-head p {
+    margin: 0.375rem 0 0;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+/* ------------------------------------------------------------
+   SUMMARY ITEM  ←  .ac-stat-card
+   ------------------------------------------------------------ */
+.pqa-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.pqa-summary-item {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.pqa-summary-item::before,
+.pqa-summary-item::after {
+    content: none;
+    background: none;
+}
+
+.pqa-summary-item:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.pqa-summary-item span {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.pqa-summary-item strong {
+    color: #f1f5f9;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-shadow: none;
+    display: block;
+}
+
+.pqa-summary-item small,
+.pqa-summary-item p {
+    color: #64748b;
+    font-size: 0.8125rem;
+    margin: 0;
+}
+
+/* ------------------------------------------------------------
+   TABS  ←  .pc-tab-nav  +  .pc-tab-btn
+   ------------------------------------------------------------ */
+.pqa-tabs,
+.pqa-tab-nav {
+    display: flex;
+    gap: 0.375rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 0.75rem;
+    padding: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.pqa-tab,
+.pqa-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 1rem 1.75rem;
+    border-radius: 0.625rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.pqa-tab:hover,
+.pqa-tab-btn:hover {
+    color: #e2e8f0;
+    background: rgba(71, 85, 105, 0.2);
+}
+
+.pqa-tab.active,
+.pqa-tab-btn.active,
+.pqa-tab[aria-selected="true"] {
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+/* ------------------------------------------------------------
+   LIST ROW  ←  .ac-list-item (hover/selected included)
+   ------------------------------------------------------------ */
+.pqa-list-item,
+.pqa-row,
+.pqa-clean-list > li,
+.pqa-clean-list > div {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    margin-bottom: 0.25rem;
+    background: transparent;
+}
+
+.pqa-list-item:hover,
+.pqa-row:hover,
+.pqa-clean-list > li:hover {
+    background: rgba(71, 85, 105, 0.15);
+    border-color: rgba(71, 85, 105, 0.3);
+}
+
+.pqa-list-item.selected,
+.pqa-list-item.is-selected,
+.pqa-list-item[aria-selected="true"],
+.pqa-row.selected,
+.pqa-row.is-selected {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* ------------------------------------------------------------
+   TABLE ROW HOVER  ←  .ac-list-item:hover (table flavour)
+   ------------------------------------------------------------ */
+.pqa-table tbody tr {
+    transition: all 0.2s;
+}
+
+.pqa-table tbody tr:hover {
+    background: rgba(71, 85, 105, 0.15);
+}
+
+.pqa-table tbody tr.selected,
+.pqa-table tbody tr[aria-selected="true"] {
+    background: rgba(99, 102, 241, 0.15);
+}
+
+/* ------------------------------------------------------------
+   BADGE  ←  .ac-list-item-badge  +  .ac-source-badge
+   ------------------------------------------------------------ */
+.pqa-badge {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 9999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border: none;
+    text-transform: none;
+    letter-spacing: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pqa-badge::before {
+    content: none;
+    background: none;
+    width: 0;
+    height: 0;
+}
+
+.pqa-badge.ready,
+.pqa-badge.approved,
+.pqa-badge.success,
+.pqa-badge.group {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+.pqa-badge.warning,
+.pqa-badge.hierarchy,
+.pqa-badge.pending,
+.pqa-badge.reverify {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+}
+
+.pqa-badge.blocked,
+.pqa-badge.error,
+.pqa-badge.danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.pqa-badge.neutral,
+.pqa-badge.info,
+.pqa-badge.direct {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+}
+
+/* ------------------------------------------------------------
+   SEARCH / TEXT INPUT  ←  .ac-search-input (focus included)
+   ------------------------------------------------------------ */
+.pqa-shell input[type="text"],
+.pqa-shell input[type="search"],
+.pqa-shell input[type="email"],
+.pqa-shell input[type="number"],
+.pqa-shell input[type="url"],
+.pqa-shell input[type="password"],
+.pqa-shell textarea,
+.pqa-shell select,
+.pqa-search-input,
+.pqa-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.pqa-shell input::placeholder,
+.pqa-shell textarea::placeholder,
+.pqa-search-input::placeholder,
+.pqa-input::placeholder {
+    color: #64748b;
+}
+
+.pqa-shell input:focus,
+.pqa-shell textarea:focus,
+.pqa-shell select:focus,
+.pqa-search-input:focus,
+.pqa-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* ------------------------------------------------------------
+   ACTION BUTTON  ←  .pc-tab-btn.active gradient (primary)
+   ------------------------------------------------------------ */
+.pqa-action-button.primary,
+.pqa-secondary-button.primary,
+.pqa-action-button[data-variant="primary"] {
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    border: none;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pqa-action-button.primary:hover,
+.pqa-secondary-button.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
+}
+
+.pqa-action-button,
+.pqa-secondary-button {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    color: #e2e8f0;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pqa-action-button:hover:not(:disabled):not(.primary),
+.pqa-secondary-button:hover:not(:disabled):not(.primary) {
+    background: rgba(71, 85, 105, 0.4);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #fff;
+}
+
+/* ------------------------------------------------------------
+   PANEL VARIANTS — neutral surface, accent via icon/badge/text
+   (matches reference: status colour never paints the box)
+   ------------------------------------------------------------ */
+.pqa-panel.success,
+.pqa-panel.warning,
+.pqa-panel.error,
+.pqa-panel.danger,
+.pqa-panel.info,
+.pqa-summary-item.success,
+.pqa-summary-item.warning,
+.pqa-summary-item.error,
+.pqa-summary-item.danger,
+.pqa-summary-item.info,
+.pqa-warning-box {
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(71, 85, 105, 0.3);
+}
+
+.pqa-warning-box {
+    padding: 1.25rem 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.pqa-warning-box::before,
+.pqa-warning-box::after {
+    content: none;
+    background: none;
+}
+
+/* ------------------------------------------------------------
+   DASHBOARD HERO  ←  .modern-card (single tone)
+   ------------------------------------------------------------ */
+.pqa-dash-hero {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.pqa-dash-hero.ready,
+.pqa-dash-hero.warn,
+.pqa-dash-hero.danger {
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(71, 85, 105, 0.3);
+    border-left: none;
+}

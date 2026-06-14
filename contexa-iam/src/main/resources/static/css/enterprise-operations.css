@@ -1,0 +1,1139 @@
+﻿/*
+ * Layout spacing tokens.
+ * Centralised so admin/enterprise/** and admin/saas/** screens share a single
+ * vertical/horizontal rhythm. Adjust here once - 26 templates inherit.
+ *   --gap-section : between sibling section-cards (the "outer" rhythm)
+ *   --gap-card    : between sibling cards inside a section
+ *   --gap-row     : between rows inside a card (compact lists, timelines)
+ *   --gap-item    : between small inline items (chips, meta entries)
+ *
+ * Border tone token. All status variants (warning/error/success/info) collapse
+ * to this neutral slate tone - the previous coloured borders were visually
+ * noisy. Status meaning is conveyed through background tint, icons, and
+ * badges; the border itself stays neutral.
+ */
+:root {
+    --gap-section: 1.5rem;
+    --gap-card: 1rem;
+    --gap-row: 0.75rem;
+    --gap-item: 0.5rem;
+    --border-neutral: rgba(71, 85, 105, 0.4);
+    --border-neutral-strong: rgba(100, 116, 139, 0.55);
+}
+
+.page-shell {
+    min-height: 100vh;
+    background: #0a0f1c;
+    color: #e2e8f0;
+}
+
+.page-body {
+    margin-left: 6rem;
+    padding: 1.5rem 2rem;
+    padding-top: 1rem;
+}
+
+.page-panel {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.page-header-block {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.page-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #f8fafc;
+}
+
+.page-subtitle {
+    margin-top: 0.35rem;
+    color: #94a3b8;
+}
+
+.status-banner {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 0.85rem;
+    font-weight: 600;
+}
+
+/*
+ * Status banner variants. Both the border AND the background collapse to the
+ * neutral slate tone used by every other admin card. Status meaning is now
+ * carried only by the text colour and (if present) the leading icon - never
+ * by the box itself. This matches the design language of /admin/policy-center
+ * and /admin/access-center where every panel shares one quiet box surface.
+ */
+.status-banner.success,
+.status-banner.warning,
+.status-banner.error {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid var(--border-neutral);
+}
+
+.status-banner.success { color: #bbf7d0; }
+.status-banner.warning { color: #fde68a; }
+.status-banner.error   { color: #fecaca; }
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--gap-card);
+    margin-bottom: var(--gap-section);
+}
+
+.summary-card {
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s;
+}
+
+/*
+ * Card hover state. Mirrors the reference .ac-stat-card / .ac-list-item
+ * hover - neutral slate brightness bump, no coloured outline. Selection
+ * (the deliberate indigo accent) is reserved for explicit .selected /
+ * .is-selected states applied by Thymeleaf when a row or card is chosen.
+ */
+.summary-card:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(71, 85, 105, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/*
+ * Selected state for list items, summary cards, table rows, and any
+ * collection element that supports selection. Uses the reference indigo
+ * accent so the user knows exactly which item they have picked.
+ */
+.summary-card.selected,
+.summary-card.is-selected,
+.list-item.selected,
+.list-item.is-selected,
+tr.selected,
+tr.is-selected {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+/*
+ * Generic interactive row hover - tables, link rows, list items inside
+ * .section-card. Neutral slate consistent with the reference.
+ */
+.row-hover:hover,
+tbody tr:hover {
+    background: rgba(71, 85, 105, 0.15);
+}
+
+.summary-label {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.summary-value {
+    color: #f8fafc;
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+
+.section-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gap-section);
+}
+
+.section-card {
+    padding: 1.5rem;
+    border-radius: 1rem;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 0.9rem;
+}
+
+.section-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.table-wrap {
+    overflow-x: auto;
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.ops-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ops-table th,
+.ops-table td {
+    padding: 0.85rem 0.9rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.85);
+    text-align: left;
+    vertical-align: top;
+}
+
+.ops-table th {
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ops-table td {
+    color: #e2e8f0;
+    font-size: 0.92rem;
+}
+
+/*
+ * Badge / pill component. Geometry and colour palette mirror the
+ * .ac-source-badge / .ac-list-item-badge tokens from access-center.css so
+ * every badge in the platform reads the same way regardless of which
+ * screen renders it. Background opacity is 0.15 (reference baseline);
+ * meaning is conveyed by the foreground colour, never by the surrounding
+ * box.
+ */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.badge.success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.badge.warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.badge.error   { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.badge.info    { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.badge.neutral { background: rgba(148, 163, 184, 0.15); color: #e2e8f0; }
+
+.inline-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/*
+ * Form controls. Geometry and focus ring mirror .ac-search-input from
+ * access-center.css - neutral slate border at rest, indigo ring on focus.
+ */
+.input,
+.textarea {
+    width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    background: rgba(30, 41, 59, 0.8);
+    color: #e2e8f0;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+    color: #64748b;
+}
+
+.input:focus,
+.textarea:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.textarea {
+    min-height: 5rem;
+    resize: vertical;
+}
+
+/*
+ * Button system. Primary / danger / secondary share the geometry of the
+ * reference .ac-tab-btn (radius 0.625rem, padding ~ 0.65rem 1rem). Primary
+ * uses the reference indigo gradient + soft shadow seen on .ac-tab-btn.active
+ * so every "go" action across the admin reads consistently. Danger keeps a
+ * solid rose tone (semantic). Secondary is the quiet slate variant.
+ */
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.625rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    color: #e2e8f0;
+}
+
+.button.primary {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+.button.primary:hover {
+    background: linear-gradient(135deg, #4f46e5, #4338ca);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.button.danger {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+
+.button.danger:hover {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(239, 68, 68, 0.6);
+}
+
+.button.secondary {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(71, 85, 105, 0.4);
+    color: #e2e8f0;
+}
+
+.button.secondary:hover {
+    background: rgba(71, 85, 105, 0.3);
+    border-color: rgba(71, 85, 105, 0.6);
+}
+
+.button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.metric-list {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.metric-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+.empty-state {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    color: #94a3b8;
+}
+
+.meta-note {
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 1024px) {
+    .page-body {
+        margin-left: 0;
+        padding: 1rem;
+    }
+
+    .section-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.page-header-meta {
+    display: grid;
+    gap: 0.5rem;
+    justify-items: end;
+}
+
+.live-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(71, 85, 105, 0.9);
+    background: rgba(15, 23, 42, 0.9);
+    color: #cbd5e1;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.live-status::before {
+    content: '';
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: #94a3b8;
+}
+
+.live-status.connecting::before {
+    background: #f59e0b;
+}
+
+.live-status.connected::before {
+    background: #22c55e;
+}
+
+.live-status.disconnected::before,
+.live-status.error::before {
+    background: #ef4444;
+}
+
+.live-status.pending::before {
+    background: #38bdf8;
+}
+
+.live-status.degraded::before {
+    background: #a78bfa;
+}
+
+@media (max-width: 1024px) {
+    .page-header-meta {
+        justify-items: start;
+    }
+}
+/*
+ * Summary card status variants. Both border AND background collapse to the
+ * shared neutral slate surface. Status meaning is conveyed by the icon, the
+ * inline badge / pill, and the value's text colour - never by the card body.
+ * This matches the policy-center / access-center design language where every
+ * card is one quiet surface and only deliberate accents (selected items,
+ * primary buttons, active tabs) carry colour.
+ */
+.summary-card.success,
+.summary-card.info,
+.summary-card.warning,
+.summary-card.error {
+    border-color: var(--border-neutral);
+    background: rgba(30, 41, 59, 0.5);
+}
+
+/*
+ * Domain status badges. All variants share the geometry of the base .badge
+ * rule and use the reference palette: emerald for healthy/done, amber for
+ * pending/in-progress, rose for failed/blocked, violet for review states.
+ */
+.badge.connected,
+.badge.executed,
+.badge.completed,
+.badge.approved,
+.badge.active,
+.badge.low {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+.badge.pending,
+.badge.warning-state,
+.badge.medium,
+.badge.executing,
+.badge.timeout {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+}
+
+.badge.failed,
+.badge.blocked,
+.badge.cancelled,
+.badge.canceled,
+.badge.revoked,
+.badge.denied,
+.badge.rejected,
+.badge.critical,
+.badge.high,
+.badge.disconnected {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.badge.degraded,
+.badge.escalated,
+.badge.review {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c4b5fd;
+}
+
+.metric-row.warning,
+.metric-row.error,
+.metric-row.success {
+    border: 1px solid var(--border-neutral);
+    background: rgba(30, 41, 59, 0.5);
+}
+
+.empty-state.warning {
+    border: 1px solid var(--border-neutral);
+    color: #fde68a;
+}
+
+.empty-state.error {
+    border: 1px solid var(--border-neutral);
+    color: #fecaca;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--gap-card);
+    margin-bottom: var(--gap-card);
+}
+
+.status-card {
+    padding: 0.95rem 1rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(71, 85, 105, 0.7);
+    background: rgba(15, 23, 42, 0.88);
+}
+
+.status-card.success,
+.status-card.info,
+.status-card.warning,
+.status-card.error {
+    border-color: var(--border-neutral);
+}
+
+.status-card-label {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.45rem;
+}
+
+.status-card-value {
+    color: #f8fafc;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.status-note {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.ops-table tr.row-error {
+    background: rgba(127, 29, 29, 0.18);
+}
+
+.ops-table tr.row-warning {
+    background: rgba(120, 53, 15, 0.14);
+}
+
+.ops-table tr.row-active {
+    background: rgba(30, 64, 175, 0.14);
+}
+
+.error-snippet {
+    margin-top: 0.3rem;
+    color: #fca5a5;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    white-space: normal;
+}
+
+/*
+ * Section card highlight variants. The previous red/amber border + colored ring
+ * was visually noisy and competed with the actual content. The "pending
+ * approval" reference uses the default neutral slate border, so all highlight
+ * variants now collapse to the same neutral tone. The background tint of the
+ * card and the badges/icons inside still convey severity.
+ */
+.section-card.error-highlight,
+.section-card.warning-highlight {
+    border-color: var(--border-neutral);
+    box-shadow: none;
+}
+
+.stack-form.is-submitting,
+.inline-form.is-submitting {
+    opacity: 0.78;
+}
+
+.button[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+    filter: grayscale(0.4);
+}
+
+.button.is-loading {
+    opacity: 0.72;
+    cursor: wait;
+    pointer-events: none;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--gap-card);
+}
+
+.detail-grid.two-columns {
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--gap-card);
+    margin: 0;
+}
+
+.detail-list > div {
+    padding: 0.85rem 0.9rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+    transition: all 0.3s;
+}
+
+.detail-list > div:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(99, 102, 241, 0.5);
+    transform: translateY(-2px);
+}
+
+.detail-list dt {
+    margin: 0 0 0.35rem 0;
+    color: #94a3b8;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-list dd {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 0.95rem;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.detail-block {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+.detail-copy {
+    margin: 0.5rem 0 0;
+    color: #e2e8f0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.section-header-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+/*
+ * Inline link tone matches the reference .button.primary / .ac-tab-btn.active
+ * indigo so every clickable affordance speaks the same accent colour. Hover
+ * brightens the same hue rather than swapping to a different one.
+ */
+.inline-link {
+    color: #818cf8;
+    font-weight: 700;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.inline-link:hover {
+    color: #a5b4fc;
+    text-decoration: underline;
+}
+
+.muted {
+    color: #94a3b8;
+    font-size: 0.82rem;
+    margin-top: 0.2rem;
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.45rem;
+}
+
+/*
+ * Chip / tag using the reference indigo accent so all "neutral selection"
+ * pills speak the same colour as primary buttons and active tabs.
+ */
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 9999px;
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.workflow-progress-panel {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(71, 85, 105, 0.65);
+}
+
+.workflow-progress-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+}
+
+.workflow-progress-label {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.workflow-progress-stage {
+    margin-top: 0.25rem;
+    color: #f8fafc;
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
+.workflow-progress-value {
+    color: #bfdbfe;
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+
+.progress-track {
+    width: 100%;
+    height: 0.8rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(51, 65, 85, 0.9);
+    border: 1px solid rgba(71, 85, 105, 0.55);
+}
+
+.progress-track.compact {
+    height: 0.55rem;
+}
+
+.progress-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #38bdf8 0%, #4f46e5 100%);
+}
+
+.workflow-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.95rem;
+}
+
+.workflow-meta-grid.compact {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    margin-top: 0.75rem;
+}
+
+.workflow-meta-item {
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+.workflow-meta-label {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.35rem;
+}
+
+.workflow-meta-value {
+    color: #f8fafc;
+    font-size: 0.92rem;
+    font-weight: 700;
+    word-break: break-word;
+}
+
+.workflow-timeline {
+    display: grid;
+    gap: var(--gap-card);
+}
+
+.workflow-timeline.compact {
+    gap: var(--gap-row);
+}
+
+.workflow-timeline.incident {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.workflow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(71, 85, 105, 0.55);
+}
+
+/*
+ * Workflow step state variants. Both border AND background unify to the
+ * shared neutral slate surface. The currently active step gets a slightly
+ * stronger neutral border so the user still sees where the workflow
+ * pointer is - meaning is conveyed by the marker icon and the step label,
+ * not by colour-flooding the row.
+ */
+.workflow-step.complete,
+.workflow-step.pending,
+.workflow-step.blocked {
+    border-color: var(--border-neutral);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.workflow-step.active {
+    border-color: var(--border-neutral-strong);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.workflow-step.approval-card {
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.workflow-step-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+/*
+ * Step marker tone per workflow state. The marker (a small inline icon
+ * disc) is the only place where status colour survives - the surrounding
+ * row background stays neutral. Tones match the reference small-indicator
+ * palette: indigo (active/in-progress), emerald (complete), amber (pending),
+ * rose (blocked). Strong saturated 400-level shades for clear contrast.
+ */
+.workflow-step.complete .workflow-step-marker {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.workflow-step.pending .workflow-step-marker {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.workflow-step.blocked .workflow-step-marker {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.workflow-step-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.workflow-step-title {
+    color: #f8fafc;
+    font-weight: 800;
+    font-size: 0.98rem;
+    text-decoration: none;
+}
+
+.workflow-step-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.workflow-step-copy {
+    margin-top: 0.3rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.workflow-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.row-success {
+    background: rgba(20, 83, 45, 0.18);
+}
+
+.stack-form {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.compact-form {
+    gap: 0.45rem;
+}
+
+.field-label {
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.action-stack {
+    display: grid;
+    gap: 0.9rem;
+    margin-top: 1rem;
+}
+
+.code-panel {
+    margin: 0;
+    padding: 1rem;
+    border-radius: 0.95rem;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(51, 65, 85, 0.8);
+    color: #e2e8f0;
+    font-size: 0.84rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+}
+
+.timeline {
+    display: grid;
+    gap: var(--gap-card);
+}
+
+.timeline-item {
+    display: grid;
+    grid-template-columns: minmax(120px, 180px) 1fr;
+    gap: var(--gap-card);
+    padding: 0.9rem 0.95rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid var(--border-neutral);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+
+.timeline-time {
+    color: #93c5fd;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.timeline-content {
+    color: #e2e8f0;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+    .detail-grid.two-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .timeline-item {
+        grid-template-columns: 1fr;
+    }
+}
+.button.small {
+    padding: 0.45rem 0.8rem;
+    font-size: 0.8rem;
+}
+
+.progress-cell {
+    min-width: 14rem;
+}
+
+.progress-cell.compact {
+    min-width: 11rem;
+}
+
+.progress-label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #13304a;
+    margin-bottom: 0.35rem;
+}
+
+.progress-inline-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.35rem;
+}
+
+.live-updated {
+    animation: liveUpdatedFlash 1.8s ease-out;
+}
+
+/*
+ * Live update / pending feedback. Uses the same indigo accent as the rest
+ * of the system so the user sees a single consistent "in-flight" colour.
+ */
+@keyframes liveUpdatedFlash {
+    0% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.24);
+        background: rgba(99, 102, 241, 0.08);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+        background: transparent;
+    }
+}
+.live-pending {
+    position: relative;
+    border-color: rgba(99, 102, 241, 0.5) !important;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+.live-pending::after {
+    content: 'Refreshing after action...';
+    position: absolute;
+    top: 0.9rem;
+    right: 1rem;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 9999px;
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+/*
+ * Success button keeps semantic emerald but adopts the button system's
+ * shared geometry (radius, padding, transition, font-weight) defined above.
+ */
+.button.success {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(16, 185, 129, 0.45);
+    color: #34d399;
+}
+
+.button.success:hover {
+    background: rgba(16, 185, 129, 0.28);
+    border-color: rgba(16, 185, 129, 0.65);
+}
+
+.action-cell-stack {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.action-drawer {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 15rem;
+}
+
+.action-drawer > summary {
+    list-style: none;
+}
+
+.action-drawer > summary::-webkit-details-marker {
+    display: none;
+}
+
+.action-drawer-body {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.compact-textarea {
+    min-height: 3.5rem;
+}
+
+.result-snippet,
+.error-snippet {
+    max-width: 22rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

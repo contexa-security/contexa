@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<th:block th:fragment="head(pageTitle)">
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=${pageTitle})}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/enterprise-operations.css}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-common.css}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-layout.css}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/policy-center.css}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/access-center.css}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-reference-aliases.css}">
+    <script th:src="@{/js/admin/prompt-quality/prompt-quality-native-select.js}"></script>
+    <script th:src="@{/js/admin/prompt-quality/prompt-quality-nav-dropdown.js}"></script>
+    <script type="module" th:src="@{/js/admin/prompt-quality/prompt-quality-debug.js}"></script>
+</th:block>
+<body>
+<nav th:fragment="engineNav(navigation)" class="pqa-engine-nav"
+     th:aria-label="#{enterprise.pqa.common.nav.aria}">
+    <div class="pqa-nav-head">
+        <span class="pqa-eyebrow" th:text="#{enterprise.pqa.common.nav.eyebrow}"></span>
+        <strong th:text="#{enterprise.pqa.common.nav.title}"></strong>
+        <p th:text="#{enterprise.pqa.common.nav.description}"></p>
+    </div>
+    <div class="pqa-nav-list">
+        <th:block th:each="item : ${navigation}">
+            <div class="pqa-nav-item"
+                 th:classappend="${!#lists.isEmpty(item.children)} ? ' has-submenu' : ''">
+                <a th:href="${item.href}"
+                   th:text="${item.label}"
+                   th:aria-label="${item.responsibility}"
+                   th:classappend="${item.active} ? ' active' : ''"
+                   class="pqa-nav-link"></a>
+                <div th:if="${!#lists.isEmpty(item.children)}" class="pqa-nav-submenu" role="menu">
+                    <a th:each="child : ${item.children}"
+                       th:href="${child.href}"
+                       th:text="${child.label}"
+                       th:classappend="${child.active} ? ' active' : ''"
+                       class="pqa-nav-sublink"
+                       role="menuitem"></a>
+                </div>
+            </div>
+        </th:block>
+    </div>
+</nav>
+
+<section th:fragment="pageHeader(title, subtitle)" class="pqa-page-header">
+    <div class="pqa-page-header-content">
+        <div class="pqa-page-header-icon-box">
+            <i th:class="${activeKey == 'dashboard' ? 'fa-solid fa-house-laptop' : 
+                          activeKey == 'resources' ? 'fa-solid fa-box-open' : 
+                          activeKey == 'runtime-evidence' ? 'fa-solid fa-file-shield' : 
+                          activeKey == 'verification' ? 'fa-solid fa-file-circle-check' : 
+                          activeKey == 'verification-readiness' ? 'fa-solid fa-file-circle-check' : 
+                          activeKey == 'verification-run' ? 'fa-solid fa-play' : 
+                          activeKey == 'verification-comparison' ? 'fa-solid fa-code-compare' : 
+                          activeKey == 'verification-metrics' ? 'fa-solid fa-chart-simple' : 
+                          activeKey == 'verification-handoff' ? 'fa-solid fa-hand-holding-hand' : 
+                          activeKey == 'issues' ? 'fa-solid fa-shield-heart' : 
+                          activeKey == 'governance' ? 'fa-solid fa-building-shield' : 
+                          activeKey == 'evaluations' ? 'fa-solid fa-rotate' : 
+                          activeKey == 'certificates' ? 'fa-solid fa-award' : 
+                          activeKey == 'promotions' ? 'fa-solid fa-shield-halved' : 
+                          activeKey == 'monitoring' ? 'fa-solid fa-chart-line' : 
+                          activeKey == 'reports' ? 'fa-solid fa-file-invoice' : 
+                          activeKey == 'policies' ? 'fa-solid fa-sliders' : 
+                          'fa-solid fa-shield-halved'}" aria-hidden="true"></i>
+        </div>
+        <div class="pqa-page-header-text">
+            <div class="breadcrumb">
+                <a th:href="@{/contexa/admin}" th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.enterprise}"></a>
+                <span>/</span>
+                <a th:href="@{/contexa/admin/prompt-quality}" th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.engine}"></a>
+            </div>
+            <h1 th:text="${title}"></h1>
+            <p th:text="${subtitle}"></p>
+        </div>
+    </div>
+    <div class="pqa-help-box">
+        <strong th:text="#{enterprise.pqa.common.pageHeader.help.title}"></strong>
+        <span th:text="#{enterprise.pqa.common.pageHeader.help.body}"></span>
+    </div>
+</section>
+
+<section th:fragment="apiStatus" class="pqa-status-panel" data-pqa-status>
+    <strong th:text="#{enterprise.pqa.common.status.loading}"></strong>
+    <span th:text="#{enterprise.pqa.common.status.loadingDetail}"></span>
+</section>
+</body>
+</html>

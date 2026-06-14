@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-resource.css}">
+</head>
+<body class="page-shell">
+<div th:replace="~{contexa/fragments/header :: header}"></div>
+<div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
+
+<main class="page-body pqa-shell" data-pqa-page="resources" data-pqa-stage="PROTECTABLE_RESOURCES">
+    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
+    <section class="pqa-workspace">
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.resource.pageTitle}, #{enterprise.pqa.resource.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
+
+        <section style="position:relative;padding:2rem 2.4rem;margin-bottom:1.75rem;border-radius:5rem 1.5rem 5rem 1.5rem;background:linear-gradient(135deg,rgba(29,78,216,0.32) 0%,rgba(15,23,42,0.9) 55%,rgba(30,41,59,0.75) 100%);border:1px solid rgba(96,165,250,0.35);box-shadow:0 22px 48px rgba(0,0,0,0.42);overflow:hidden;">
+            <div style="position:absolute;left:-10px;top:50%;transform:translateY(-50%);width:10px;height:70%;border-radius:999px;background:linear-gradient(180deg,#60a5fa,#2563eb);box-shadow:0 0 22px rgba(96,165,250,0.5);"></div>
+            <div style="position:absolute;right:-100px;top:-140px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,0.22) 0%,transparent 65%);pointer-events:none;"></div>
+            <div style="position:absolute;right:-40px;bottom:-80px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,0.16) 0%,transparent 70%);pointer-events:none;"></div>
+            <div style="position:relative;z-index:1;display:grid;grid-template-columns:auto 1fr;gap:1.75rem;align-items:center;">
+                <div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#2563eb);display:grid;place-items:center;color:#0b1220;font-size:2.4rem;font-weight:900;box-shadow:0 16px 34px rgba(37,99,235,0.5);flex-shrink:0;">◎</div>
+                <div style="min-width:0;">
+                    <div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.3rem 0.8rem;border-radius:999px;background:rgba(96,165,250,0.18);border:1px solid rgba(96,165,250,0.4);margin-bottom:0.75rem;">
+                        <span style="width:6px;height:6px;border-radius:50%;background:#60a5fa;box-shadow:0 0 8px rgba(96,165,250,0.7);"></span>
+                        <span style="color:#93c5fd;font-size:0.8rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;" th:text="#{enterprise.pqa.resource.hero.eyebrow}"></span>
+                    </div>
+                    <h2 style="margin:0;color:#f8fafc;font-size:1.55rem;font-weight:800;letter-spacing:-0.015em;line-height:1.35;" th:text="#{enterprise.pqa.resource.hero.title}"></h2>
+                    <p style="margin:0.55rem 0 0;color:#cbd5e1;font-size:1.02rem;line-height:1.7;" th:text="#{enterprise.pqa.resource.hero.body}"></p>
+                </div>
+            </div>
+            <div data-pqa-summary style="position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:0.9rem;margin-top:1.5rem;justify-content:flex-start;"></div>
+        </section>
+
+        <section style="position:relative;padding:0;margin-bottom:1.5rem;background:transparent;border:none;display:flex;flex-wrap:wrap;gap:0.85rem;align-items:center;">
+            <label style="display:flex;align-items:center;gap:0.65rem;padding:0.65rem 1rem;border-radius:999px;background:rgba(2,6,23,0.7);border:1px solid rgba(71,85,105,0.55);flex:1;min-width:240px;">
+                <span style="color:#94a3b8;font-size:1.05rem;">🔍</span>
+                <input type="search" data-pqa-resource-search
+                       style="flex:1;min-width:0;border:none;outline:none;background:transparent;color:#f8fafc;font-size:1rem;"
+                       th:placeholder="#{enterprise.pqa.resource.toolbar.search.placeholder}"/>
+            </label>
+            <label style="display:flex;align-items:center;gap:0.65rem;padding:0.5rem 1rem;border-radius:999px;background:rgba(2,6,23,0.7);border:1px solid rgba(71,85,105,0.55);flex:1;min-width:200px;">
+                <span style="color:#94a3b8;font-size:0.88rem;font-weight:700;" th:text="#{enterprise.pqa.resource.toolbar.state.label}"></span>
+                <select data-pqa-resource-state
+                        style="flex:1;min-width:0;border:none;outline:none;background:transparent;color:#f8fafc;font-size:1rem;cursor:pointer;">
+                    <option value="" th:text="#{enterprise.pqa.resource.toolbar.state.all}"></option>
+                </select>
+            </label>
+            <div data-pqa-resource-count
+                 style="padding:0.6rem 1.1rem;border-radius:999px;background:rgba(96,165,250,0.18);border:1px solid rgba(96,165,250,0.4);color:#bfdbfe;font-size:0.95rem;font-weight:700;white-space:nowrap;"></div>
+        </section>
+
+        <section data-pqa-resource-stream style="display:grid;gap:0.9rem;"></section>
+    </section>
+</main>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script th:src="@{/js/vendor/chart.umd.min.js}"></script>
+<script type="module" th:src="@{/js/admin/prompt-quality/resources-page.js}"></script>
+</body>
+</html>

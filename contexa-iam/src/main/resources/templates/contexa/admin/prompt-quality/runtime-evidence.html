@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
+    <link rel="modulepreload" th:href="@{/js/admin/verification-ui-common.js}">
+    <link rel="modulepreload" th:href="@{/js/admin/prompt-quality/prompt-quality-api.js}">
+    <link rel="modulepreload" th:href="@{/js/admin/prompt-quality/prompt-quality-page.js}">
+    <link rel="modulepreload" th:href="@{/js/admin/prompt-quality/prompt-quality-i18n.js}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-evidence.css}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-runtime-evidence.css}">
+</head>
+<body class="page-shell">
+<div th:replace="~{contexa/fragments/header :: header}"></div>
+<div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
+
+<main class="page-body pqa-shell" data-pqa-page="runtime-evidence" data-pqa-stage="RUNTIME_EVIDENCE">
+    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
+    <section class="pqa-workspace">
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.runtimeEvidence}, #{enterprise.pqa.runtimeEvidence.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
+
+        <section class="pqa-summary-strip" data-pqa-runtime-summary></section>
+
+        <section class="pqa-panel pqa-runtime-search-panel">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-magnifying-glass-chart" aria-hidden="true"></i><span th:text="#{enterprise.pqa.runtimeEvidence.search.title}">요청 증거 찾기</span></h2>
+                    <p th:text="#{enterprise.pqa.runtimeEvidence.search.description}">증거 번호를 몰라도 최근 요청이 자동으로 표시됩니다. 필요하면 테넌트, 사용자, 리소스로 범위를 좁히십시오.</p>
+                </div>
+                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.runtimeEvidence.search.pill}">운영 증거 전용</span></span>
+            </div>
+            <form class="pqa-runtime-filter" data-pqa-runtime-search-form>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.packageId}">요청 증거 번호</span>
+                    <input type="text" name="packageId" placeholder="예: sep-..." th:placeholder="#{enterprise.pqa.runtimeEvidence.search.packageIdPlaceholder}">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.tenant}">테넌트</span>
+                    <input type="text" name="tenantId" placeholder="default">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.user}">사용자</span>
+                    <input type="text" name="userId" placeholder="사용자 ID" th:placeholder="#{enterprise.pqa.runtimeEvidence.search.userPlaceholder}">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.requestUrl}">요청 URL</span>
+                    <input type="text" name="resourceUrl" placeholder="/api/...">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.resourceId}">리소스 ID</span>
+                    <input type="text" name="resourceId" placeholder="@Protectable resourceId">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.httpMethod}">HTTP 방식</span>
+                    <select name="httpMethod">
+                        <option value="" th:text="#{enterprise.pqa.runtimeEvidence.search.httpMethodAll}">전체</option>
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PUT</option>
+                        <option>PATCH</option>
+                        <option>DELETE</option>
+                    </select>
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.startTime}">시작 시각</span>
+                    <input type="datetime-local" name="from">
+                </label>
+                <label>
+                    <span th:text="#{enterprise.pqa.runtimeEvidence.search.endTime}">종료 시각</span>
+                    <input type="datetime-local" name="to">
+                </label>
+                <div class="pqa-runtime-filter-actions">
+                    <button type="submit" class="pqa-link-button"><i class="fa-solid fa-filter" aria-hidden="true"></i><span th:text="#{enterprise.pqa.runtimeEvidence.search.searchBtn}">검색</span></button>
+                    <button type="button" class="pqa-action-button" data-pqa-runtime-reset><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span th:text="#{enterprise.pqa.runtimeEvidence.search.resetBtn}">초기화</span></button>
+                </div>
+            </form>
+        </section>
+
+        <section class="pqa-panel pqa-runtime-results-panel">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.runtimeEvidence.results.title}">검색 결과</span></h2>
+                    <p th:text="#{enterprise.pqa.runtimeEvidence.results.description}">최종 보증은 여기서 선택한 실제 요청 증거로만 시작됩니다.</p>
+                </div>
+            </div>
+            <div class="pqa-table-wrap" data-pqa-runtime-results></div>
+        </section>
+    </section>
+
+    <div class="pqa-runtime-modal-backdrop" data-pqa-runtime-modal hidden role="presentation">
+        <div class="pqa-runtime-modal-panel" role="dialog" aria-modal="true" aria-labelledby="pqa-runtime-modal-title">
+            <div class="pqa-runtime-modal-head">
+                <div>
+                    <h2 id="pqa-runtime-modal-title"><span th:text="#{enterprise.pqa.runtimeEvidence.detail.title}">증거 상세</span></h2>
+                    <p th:text="#{enterprise.pqa.runtimeEvidence.detail.description}">봉인된 프롬프트와 공식 검사 전 컨텍스트 신호를 확인합니다.</p>
+                </div>
+                <button type="button" class="pqa-action-button" data-pqa-runtime-modal-close aria-label="닫기">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    <span>닫기</span>
+                </button>
+            </div>
+            <div class="pqa-runtime-modal-body">
+                <div data-pqa-runtime-detail class="pqa-runtime-detail-empty">
+                    <p th:text="#{enterprise.pqa.runtimeEvidence.detail.empty}">검색 결과에서 증거를 선택하면 봉인 상태와 프롬프트 미리보기가 표시됩니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script type="module" th:src="@{/js/admin/prompt-quality/runtime-evidence-page.js}"></script>
+</body>
+</html>

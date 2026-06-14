@@ -69,7 +69,19 @@
                         <span class="main-menu-label" th:text="#{menu.nav.security}">Security</span>
                     </div>
                     <div class="submenu-panel"><ul>
-                        <li><a th:href="@{/contexa/admin/prompt-quality}" class="submenu-link" data-page="prompt-quality-official"><span th:text="#{menu.pqa.official}">Prompt Quality Inspection</span></a></li>
+                        <li><a th:href="@{/contexa/admin/security-monitor}" class="submenu-link" data-page="security-monitor"><span th:text="#{menu.zerotrust.monitor}">Real-time Monitor</span></a></li>
+                        <li><a th:href="@{/contexa/admin/blacklist}" class="submenu-link" data-page="blacklist"><span th:text="#{menu.zerotrust.blacklist}">Blocked Users</span></a></li>
+                        <li><a th:href="@{/contexa/admin/session-management}" class="submenu-link" data-page="session-management"><span th:text="#{menu.security.sessions}">Session Management</span></a></li>
+                        <li><a th:href="@{/contexa/admin/ip-management}" class="submenu-link" data-page="ip-management"><span th:text="#{menu.security.ip}">IP Management</span></a></li>
+                    </ul></div>
+                </li>
+                <li class="main-menu-item has-submenu">
+                    <div class="main-menu-link" data-group="prompt-quality">
+                        <div class="main-menu-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 3h6m2.25 5.25h-10.5A2.25 2.25 0 014.5 18V6A2.25 2.25 0 016.75 3.75h6.879c.597 0 1.169.237 1.591.659l3.621 3.621c.422.422.659.994.659 1.591V18a2.25 2.25 0 01-2.25 2.25z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 3.75V8.25c0 .621.504 1.125 1.125 1.125H19.5"/></svg></div>
+                        <span class="main-menu-label" th:text="#{menu.nav.pqa}">Prompt Quality</span>
+                    </div>
+                    <div class="submenu-panel"><ul>
+                        <li><a th:href="@{/contexa/admin/prompt-quality}" class="submenu-link" data-page="prompt-quality-official"><span th:text="#{menu.pqa.official}">Official Inspection</span></a></li>
                     </ul></div>
                 </li>
             </th:block>

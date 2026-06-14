@@ -9,11 +9,11 @@ import io.contexa.contexacore.verification.runtime.OfficialVerificationCasePubli
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.sealed.DefaultOfficialSealedEvidenceVerificationRuntime;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationRuntime;
-import io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityEvidenceController;
 import io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityInspectionController;
+import io.contexa.contexaiam.admin.promptquality.official.api.PromptQualityOfficialConsoleApiController;
 import io.contexa.contexaiam.admin.promptquality.official.application.DefaultOfficialPromptQualityInspectionService;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialPromptQualityInspectionService;
-import io.contexa.contexaiam.admin.promptquality.official.web.OfficialPromptQualityPageController;
+import io.contexa.contexaiam.admin.promptquality.official.web.PromptQualityAssurancePageController;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -99,18 +99,27 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new OfficialPromptQualityInspectionController(inspectionService);
     }
 
-    @Bean(name = "pqaOfficialPromptQualityEvidenceController")
-    @ConditionalOnMissingBean(OfficialPromptQualityEvidenceController.class)
-    public OfficialPromptQualityEvidenceController pqaOfficialPromptQualityEvidenceController(
+    @Bean(name = "pqaPromptQualityOfficialConsoleApiController")
+    @ConditionalOnMissingBean(PromptQualityOfficialConsoleApiController.class)
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
+    public PromptQualityOfficialConsoleApiController pqaPromptQualityOfficialConsoleApiController(
             SealedEvidencePackageLookupService evidenceLookupService,
-            ObjectMapper objectMapper) {
-        return new OfficialPromptQualityEvidenceController(evidenceLookupService, objectMapper);
+            OfficialPromptQualityInspectionService inspectionService,
+            OfficialVerificationRunStore runStore,
+            ObjectMapper objectMapper,
+            @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations) {
+        return new PromptQualityOfficialConsoleApiController(
+                evidenceLookupService,
+                inspectionService,
+                runStore,
+                objectMapper,
+                jdbcOperations);
     }
 
-    @Bean(name = "pqaOfficialPromptQualityPageController")
-    @ConditionalOnMissingBean(OfficialPromptQualityPageController.class)
-    public OfficialPromptQualityPageController pqaOfficialPromptQualityPageController() {
-        return new OfficialPromptQualityPageController();
+    @Bean(name = "pqaPromptQualityAssurancePageController")
+    @ConditionalOnMissingBean(PromptQualityAssurancePageController.class)
+    public PromptQualityAssurancePageController pqaPromptQualityAssurancePageController() {
+        return new PromptQualityAssurancePageController();
     }
 
     @Bean(name = "pqaOssOfficialSealedEvidenceCaptureService")

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260520-readiness-redesign-v2')}">
+</head>
+<body class="page-shell">
+<div th:replace="~{contexa/fragments/header :: header}"></div>
+<div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
+
+<main class="page-body pqa-shell"
+      data-pqa-page="verification"
+      data-pqa-stage="OFFICIAL_VERIFICATION"
+      data-pqa-verification-stage="readiness">
+    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
+    <section class="pqa-workspace">
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.verification}, #{enterprise.pqa.verification.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
+
+        <nav class="pqa-verification-subnav"
+             data-pqa-verification-subnav
+             th:aria-label="#{enterprise.pqa.verification.subnav.aria}">
+            <a class="pqa-verification-subnav-link active"
+               data-pqa-verification-subroute="readiness"
+               th:href="@{/contexa/admin/prompt-quality/verification/readiness}">
+                <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">Evidence and prompt consistency</span>
+            </a>
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="run"
+               th:href="@{/contexa/admin/prompt-quality/verification/run}">
+                <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">Inspection run</span>
+            </a>
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="comparison"
+               th:href="@{/contexa/admin/prompt-quality/verification/prompt-comparison}">
+                <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">Actual prompt comparison</span>
+            </a>
+            <a class="pqa-verification-subnav-link"
+               data-pqa-verification-subroute="metrics"
+               th:href="@{/contexa/admin/prompt-quality/verification/metrics}">
+                <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12 prompt-quality metric detail</span>
+            </a>
+        </nav>
+
+        <section class="pqa-panel pqa-readiness-gate" data-pqa-readiness-stage>
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.title}">Evidence selection handoff</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.readiness.description}">선택한 요청 증거를 공식검사에 사용할 수 있는지 확인합니다.</p>
+                </div>
+                <span class="pqa-section-pill"><i class="fa-solid fa-route" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.pill}">증거 확인</span></span>
+            </div>
+            <div data-pqa-readiness-selected class="pqa-verification-selected"></div>
+        </section>
+
+        <section class="pqa-panel pqa-prompt-consistency-panel" data-pqa-prompt-consistency-stage>
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-fingerprint" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.title}">Evidence and prompt consistency</span></h2>
+                    <p th:text="#{enterprise.pqa.promptConsistency.description}">봉인 증거와 LLM 사용자 프롬프트가 같은 요청에서 만들어졌는지 확인합니다.</p>
+                </div>
+                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">검사 전 확인</span></span>
+            </div>
+            <div data-pqa-prompt-consistency-content class="pqa-runtime-detail-empty">
+                <p th:text="#{enterprise.pqa.promptConsistency.empty}">요청 증거를 선택하면 LLM 사용자 프롬프트와 연결됐는지 확인합니다.</p>
+            </div>
+            <div class="pqa-action-row" data-pqa-readiness-actions></div>
+        </section>
+    </section>
+</main>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260601-evidence-role-labels')}"></script>
+</body>
+</html>
