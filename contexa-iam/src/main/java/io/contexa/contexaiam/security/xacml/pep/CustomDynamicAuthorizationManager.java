@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
+import lombok.Setter;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -64,7 +65,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final AuthorizationMetrics metricsCollector;
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyCombiningEvaluator combiningEvaluator;
-    @lombok.Setter
+    @Setter
     private CombiningAlgorithm combiningAlgorithm;
 
     private final PolicyExpressionConverter expressionConverter = new PolicyExpressionConverter();

@@ -63,6 +63,15 @@
                         <li><a th:href="@{/contexa/admin/permissions}" class="submenu-link" data-page="permissions"><span th:text="#{menu.iam.permissions}">Permissions</span></a></li>
                     </ul></div>
                 </li>
+                <li class="main-menu-item has-submenu">
+                    <div class="main-menu-link" data-group="security">
+                        <div class="main-menu-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75l2.25 2.25L15.75 9M12 3.75l7.5 3v5.25c0 4.28-2.9 8.02-7.5 9-4.6-.98-7.5-4.72-7.5-9V6.75l7.5-3z"/></svg></div>
+                        <span class="main-menu-label" th:text="#{menu.nav.security}">Security</span>
+                    </div>
+                    <div class="submenu-panel"><ul>
+                        <li><a th:href="@{/contexa/admin/prompt-quality}" class="submenu-link" data-page="prompt-quality-official"><span th:text="#{menu.pqa.official}">Prompt Quality Inspection</span></a></li>
+                    </ul></div>
+                </li>
             </th:block>
         </ul>
     </nav>

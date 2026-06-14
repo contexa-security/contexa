@@ -9,9 +9,11 @@ import io.contexa.contexacore.verification.runtime.OfficialVerificationCasePubli
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.sealed.DefaultOfficialSealedEvidenceVerificationRuntime;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationRuntime;
+import io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityEvidenceController;
 import io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityInspectionController;
 import io.contexa.contexaiam.admin.promptquality.official.application.DefaultOfficialPromptQualityInspectionService;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialPromptQualityInspectionService;
+import io.contexa.contexaiam.admin.promptquality.official.web.OfficialPromptQualityPageController;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -95,6 +97,20 @@ public class PqaOfficialInspectionAutoConfiguration {
     public OfficialPromptQualityInspectionController pqaOfficialPromptQualityInspectionController(
             OfficialPromptQualityInspectionService inspectionService) {
         return new OfficialPromptQualityInspectionController(inspectionService);
+    }
+
+    @Bean(name = "pqaOfficialPromptQualityEvidenceController")
+    @ConditionalOnMissingBean(OfficialPromptQualityEvidenceController.class)
+    public OfficialPromptQualityEvidenceController pqaOfficialPromptQualityEvidenceController(
+            SealedEvidencePackageLookupService evidenceLookupService,
+            ObjectMapper objectMapper) {
+        return new OfficialPromptQualityEvidenceController(evidenceLookupService, objectMapper);
+    }
+
+    @Bean(name = "pqaOfficialPromptQualityPageController")
+    @ConditionalOnMissingBean(OfficialPromptQualityPageController.class)
+    public OfficialPromptQualityPageController pqaOfficialPromptQualityPageController() {
+        return new OfficialPromptQualityPageController();
     }
 
     @Bean(name = "pqaOssOfficialSealedEvidenceCaptureService")

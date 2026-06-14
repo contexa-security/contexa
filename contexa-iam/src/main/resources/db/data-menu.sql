@@ -99,9 +99,10 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.iam.system.settings',     '/contexa/admin/system-settings',        '',                'iam',        7,  TRUE, 'CORE',       'system-settings'),
     ('menu.iam.menu.management',     '/contexa/admin/menu-management',        '',                'iam',        8,  TRUE, 'CORE',       'menu-management'),
     ('menu.zerotrust.monitor',       '/contexa/admin/security-monitor',       '',                'security',   1,  TRUE, 'CORE',       'security-monitor'),
-    ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   2,  TRUE, 'CORE',       'blacklist'),
-    ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   3,  TRUE, 'CORE',       'session-management'),
-    ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   4,  TRUE, 'CORE',       'ip-management')
+    ('menu.pqa.official',            '/contexa/admin/prompt-quality',         '',                'security',   2,  TRUE, 'CORE',       'prompt-quality-official'),
+    ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   3,  TRUE, 'CORE',       'blacklist'),
+    ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   4,  TRUE, 'CORE',       'session-management'),
+    ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   5,  TRUE, 'CORE',       'ip-management')
 ),
 resolved AS (
     SELECT s.name, s.url, s.icon, p.id AS parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page
@@ -131,24 +132,11 @@ SELECT r.name, r.url, r.icon, r.parent_id, r.menu_order, r.enabled, r.menu_type,
 -- Sequence sync.
 -- Menu rows are seeded without fixed ids, and older/manual data may have
 -- advanced ids independently. Keep future UI-created rows from reusing ids.
+-- Use plain statements because Spring SQL initialization splits this file on
+-- semicolons and cannot safely execute procedural blocks.
 -- ----------------------------------------------------------------
-DO $$
-DECLARE
-    pairs TEXT[][] := ARRAY[
-        ARRAY['admin_menu_id_seq', 'admin_menu', 'id'],
-        ARRAY['admin_menu_role_id_seq', 'admin_menu_role', 'id']
-    ];
-    pair TEXT[];
-    max_id BIGINT;
-BEGIN
-    FOREACH pair SLICE 1 IN ARRAY pairs LOOP
-        BEGIN
-            EXECUTE format('SELECT MAX(%I) FROM %I', pair[3], pair[2]) INTO max_id;
-            IF max_id IS NOT NULL THEN
-                EXECUTE format('SELECT setval(%L, %s, true)', pair[1], max_id);
-            END IF;
-        EXCEPTION WHEN undefined_table OR undefined_column OR undefined_object OR insufficient_privilege THEN
-            NULL;
-        END;
-    END LOOP;
-END $$;
+SELECT setval('admin_menu_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM admin_menu), 0), 1), COALESCE((SELECT MAX(id) FROM admin_menu), 0) > 0)
+WHERE to_regclass('admin_menu_id_seq') IS NOT NULL;
+
+SELECT setval('admin_menu_role_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM admin_menu_role), 0), 1), COALESCE((SELECT MAX(id) FROM admin_menu_role), 0) > 0)
+WHERE to_regclass('admin_menu_role_id_seq') IS NOT NULL;

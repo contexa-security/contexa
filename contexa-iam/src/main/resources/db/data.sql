@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Contexa IAM Seed Data
 -- Schema source-of-truth: contexa_tables.sql (operational DB dump 2026-05-07).
 -- All INSERTs satisfy NOT NULL columns and are idempotent (ON CONFLICT DO NOTHING).
@@ -69,22 +69,36 @@ ON CONFLICT (hierarchy_id) DO NOTHING;
 
 
 -- ----------------------------------------------------------------
--- POLICY — canonical seed policy id=2. NOT NULL: is_active, priority, created_at, effect, name.
+-- POLICY — canonical seed policies.
+-- id=1 is the public login page. id=2 protects the remaining admin area.
+-- NOT NULL: is_active, priority, created_at, effect, name.
 -- ----------------------------------------------------------------
 INSERT INTO POLICY (
     id, name, description, effect, priority, is_active,
     source, approval_status, friendly_description, created_at
 ) VALUES
     (
+        1,
+        'ALLOW_CONTEXA_ADMIN_LOGIN',
+        '/contexa/admin/login 로그인 화면은 인증 전에도 접근할 수 있습니다.',
+        'ALLOW',
+        10,
+        TRUE,
+        'MANUAL',
+        'NOT_REQUIRED',
+        '로그인 화면은 모든 사용자에게 공개됩니다.',
+        CURRENT_TIMESTAMP
+    ),
+    (
         2,
-        'ALLOW_READ_admin_**',
-        '모든 관리자 화면과 API는 인증된 사용자만 접근할 수 있습니다.',
+        'ALLOW_CONTEXA_ADMIN_AUTHENTICATED',
+        '/contexa/admin/** 관리자 영역은 인증된 사용자만 접근할 수 있습니다.',
         'ALLOW',
         100,
         TRUE,
         'MANUAL',
         'NOT_REQUIRED',
-        '인증된 사용자만 /contexa/admin/** 보호 리소스에 접근할 수 있습니다.',
+        '인증된 사용자만 관리자 보호 리소스에 접근할 수 있습니다.',
         CURRENT_TIMESTAMP
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -99,13 +113,13 @@ ON CONFLICT (id) DO UPDATE SET
                                updated_at = CURRENT_TIMESTAMP;
 
 -- ----------------------------------------------------------------
--- POLICY_TARGET — canonical child row of policy id=2.
+-- POLICY_TARGET — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
 INSERT INTO POLICY_TARGET (
     id, policy_id, target_type, target_identifier, http_method, target_order, source_type
-) VALUES (
-    2, 2, 'URL', '/contexa/admin/**', 'ANY', 1, 'MANUAL'
-)
+) VALUES
+    (1, 1, 'URL', '/contexa/admin/login', 'ANY', 1, 'MANUAL'),
+    (2, 2, 'URL', '/contexa/admin/**', 'ANY', 1, 'MANUAL')
 ON CONFLICT (id) DO UPDATE SET
                                policy_id = EXCLUDED.policy_id,
                                target_type = EXCLUDED.target_type,
@@ -115,26 +129,36 @@ ON CONFLICT (id) DO UPDATE SET
                                source_type = EXCLUDED.source_type;
 
 -- ----------------------------------------------------------------
--- POLICY_RULE — canonical child row of policy id=2.
+-- POLICY_RULE — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
 INSERT INTO POLICY_RULE (id, policy_id, description)
-VALUES (2, 2, '인증된 사용자만 관리자 영역에 접근할 수 있습니다.')
+VALUES
+    (1, 1, '로그인 화면은 인증 전 접근을 허용합니다.'),
+    (2, 2, '인증된 사용자만 관리자 영역에 접근할 수 있습니다.')
 ON CONFLICT (id) DO UPDATE SET
                                policy_id = EXCLUDED.policy_id,
                                description = EXCLUDED.description;
 
 -- ----------------------------------------------------------------
--- POLICY_CONDITION — canonical child row of policy id=2.
+-- POLICY_CONDITION — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
 INSERT INTO POLICY_CONDITION (
     id, rule_id, condition_expression, authorization_phase, description
-) VALUES (
-    2,
-    2,
-    'isAuthenticated()',
-    'PRE_AUTHORIZE',
-    '요청 사용자가 인증되어 있어야 합니다.'
-)
+) VALUES
+    (
+        1,
+        1,
+        'permitAll',
+        'PRE_AUTHORIZE',
+        '로그인 화면은 인증 없이 접근할 수 있습니다.'
+    ),
+    (
+        2,
+        2,
+        'isAuthenticated()',
+        'PRE_AUTHORIZE',
+        '요청 사용자가 인증되어 있어야 합니다.'
+    )
 ON CONFLICT (id) DO UPDATE SET
                                rule_id = EXCLUDED.rule_id,
                                condition_expression = EXCLUDED.condition_expression,
@@ -159,9 +183,13 @@ INSERT INTO SECURITY_SPEL (name, expression, description, category) VALUES
     ('ANONYMOUS',            'isAnonymous()',          'Anonymous user only',                    'AUTH'),
     ('PERMIT_ALL',           'permitAll',              'Allow all access',                       'AUTH'),
     ('DENY_ALL',             'denyAll',                'Deny all access',                        'AUTH'),
+    ('POLICY_1_ADMIN_LOGIN_PERMIT_ALL',
+     'permitAll',
+     'policy id=1: /contexa/admin/login 로그인 화면은 인증 없이 접근할 수 있습니다.',
+     'POLICY'),
     ('POLICY_2_ADMIN_AUTHENTICATED',
      'isAuthenticated()',
-     'policy id=2: /contexa/admin/** 보호 리소스는 인증된 사용자만 접근할 수 있습니다.',
+     'policy id=2: /contexa/admin/** 관리자 영역은 인증된 사용자만 접근할 수 있습니다.',
      'POLICY')
 ON CONFLICT (name) DO UPDATE SET
                                   expression = EXCLUDED.expression,
@@ -177,39 +205,45 @@ ON CONFLICT (name) DO UPDATE SET
 
 -- ----------------------------------------------------------------
 -- Sequence sync (PostgreSQL identity columns).
--- Wrapped in DO block so absent sequences (Hibernate-controlled) do not abort load.
+-- Keep future inserted rows from reusing ids after fixed seed rows.
+-- Use plain statements because Spring SQL initialization splits this file on
+-- semicolons and cannot safely execute procedural blocks.
 -- ----------------------------------------------------------------
-DO $$
-DECLARE
-    pairs TEXT[][] := ARRAY[
-        ARRAY['users_id_seq',              'users',              'id'],
-        ARRAY['app_group_group_id_seq',    'app_group',          'group_id'],
-        ARRAY['role_role_id_seq',          'role',               'role_id'],
-        ARRAY['role_hierarchy_config_hierarchy_id_seq', 'role_hierarchy_config', 'hierarchy_id'],
-        ARRAY['policy_id_seq',             'policy',             'id'],
-        ARRAY['policy_target_id_seq',      'policy_target',      'id'],
-        ARRAY['policy_rule_id_seq',        'policy_rule',        'id'],
-        ARRAY['policy_condition_id_seq',   'policy_condition',   'id'],
-        ARRAY['condition_template_id_seq', 'condition_template', 'id'],
-        ARRAY['security_spel_id_seq',      'security_spel',      'id'],
-        ARRAY['official_metric_evaluation_contract_id_seq', 'official_metric_evaluation_contract', 'id'],
-        ARRAY['official_prompt_signal_contract_id_seq', 'official_prompt_signal_contract', 'id']
-    ];
-    pair TEXT[];
-    max_id BIGINT;
-BEGIN
-    FOREACH pair SLICE 1 IN ARRAY pairs LOOP
-        BEGIN
-            EXECUTE format('SELECT MAX(%I) FROM %I', pair[3], pair[2]) INTO max_id;
-            IF max_id IS NOT NULL THEN
-                EXECUTE format('SELECT setval(%L, %s, true)', pair[1], max_id);
-            END IF;
-        EXCEPTION WHEN undefined_table OR undefined_column OR undefined_object OR insufficient_privilege THEN
-            -- Sequence or table absent in this profile; skip silently.
-            NULL;
-        END;
-    END LOOP;
-END $$;
+SELECT setval('users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM users), 0), 1), COALESCE((SELECT MAX(id) FROM users), 0) > 0)
+WHERE to_regclass('users_id_seq') IS NOT NULL;
+
+SELECT setval('app_group_group_id_seq', GREATEST(COALESCE((SELECT MAX(group_id) FROM app_group), 0), 1), COALESCE((SELECT MAX(group_id) FROM app_group), 0) > 0)
+WHERE to_regclass('app_group_group_id_seq') IS NOT NULL;
+
+SELECT setval('role_role_id_seq', GREATEST(COALESCE((SELECT MAX(role_id) FROM role), 0), 1), COALESCE((SELECT MAX(role_id) FROM role), 0) > 0)
+WHERE to_regclass('role_role_id_seq') IS NOT NULL;
+
+SELECT setval('role_hierarchy_config_hierarchy_id_seq', GREATEST(COALESCE((SELECT MAX(hierarchy_id) FROM role_hierarchy_config), 0), 1), COALESCE((SELECT MAX(hierarchy_id) FROM role_hierarchy_config), 0) > 0)
+WHERE to_regclass('role_hierarchy_config_hierarchy_id_seq') IS NOT NULL;
+
+SELECT setval('policy_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy), 0), 1), COALESCE((SELECT MAX(id) FROM policy), 0) > 0)
+WHERE to_regclass('policy_id_seq') IS NOT NULL;
+
+SELECT setval('policy_target_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy_target), 0), 1), COALESCE((SELECT MAX(id) FROM policy_target), 0) > 0)
+WHERE to_regclass('policy_target_id_seq') IS NOT NULL;
+
+SELECT setval('policy_rule_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy_rule), 0), 1), COALESCE((SELECT MAX(id) FROM policy_rule), 0) > 0)
+WHERE to_regclass('policy_rule_id_seq') IS NOT NULL;
+
+SELECT setval('policy_condition_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy_condition), 0), 1), COALESCE((SELECT MAX(id) FROM policy_condition), 0) > 0)
+WHERE to_regclass('policy_condition_id_seq') IS NOT NULL;
+
+SELECT setval('condition_template_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM condition_template), 0), 1), COALESCE((SELECT MAX(id) FROM condition_template), 0) > 0)
+WHERE to_regclass('condition_template_id_seq') IS NOT NULL;
+
+SELECT setval('security_spel_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM security_spel), 0), 1), COALESCE((SELECT MAX(id) FROM security_spel), 0) > 0)
+WHERE to_regclass('security_spel_id_seq') IS NOT NULL;
+
+SELECT setval('official_metric_evaluation_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM official_metric_evaluation_contract), 0), 1), COALESCE((SELECT MAX(id) FROM official_metric_evaluation_contract), 0) > 0)
+WHERE to_regclass('official_metric_evaluation_contract_id_seq') IS NOT NULL;
+
+SELECT setval('official_prompt_signal_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM official_prompt_signal_contract), 0), 1), COALESCE((SELECT MAX(id) FROM official_prompt_signal_contract), 0) > 0)
+WHERE to_regclass('official_prompt_signal_contract_id_seq') IS NOT NULL;
 
 -- ----------------------------------------------------------------
 -- OSS PQA Official Inspection Contract Seed Data

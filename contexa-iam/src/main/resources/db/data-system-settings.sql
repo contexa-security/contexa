@@ -9,16 +9,7 @@ SELECT 90, 'ROLE_USER', 'FIRST_APPLICABLE', FALSE, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM system_settings);
 
 -- Keep future settings rows safe when manual data was loaded with explicit ids.
-DO $$
-DECLARE
-    max_id BIGINT;
-BEGIN
-    BEGIN
-        SELECT MAX(id) INTO max_id FROM system_settings;
-        IF max_id IS NOT NULL THEN
-            EXECUTE format('SELECT setval(%L, %s, true)', 'system_settings_id_seq', max_id);
-        END IF;
-    EXCEPTION WHEN undefined_table OR undefined_column OR undefined_object OR insufficient_privilege THEN
-        NULL;
-    END;
-END $$;
+-- Use a plain statement because Spring SQL initialization splits this file on
+-- semicolons and cannot safely execute procedural blocks.
+SELECT setval('system_settings_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM system_settings), 0), 1), COALESCE((SELECT MAX(id) FROM system_settings), 0) > 0)
+WHERE to_regclass('system_settings_id_seq') IS NOT NULL;
