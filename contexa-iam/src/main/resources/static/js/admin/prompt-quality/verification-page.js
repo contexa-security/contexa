@@ -4939,7 +4939,8 @@ function renderMetricCriteriaList(checks, passedOnly = false, run = null) {
                 const evidence = metricPurposeEvidenceForCheck(run, check);
                 const label = metricCriteriaCardLabel(run, check);
                 const cardClass = check.pass ? 'is-ready' : label.tone === 'warning' ? 'is-review' : 'is-blocked';
-                const primary = customerVisiblePurposeEvidence(evidence);
+                const primary = customerVisiblePurposeEvidence(evidence)
+                        || metricCriteriaFallbackEvidence(check, evidence, passedOnly);
                 if (!primary) {
                     return '';
                 }
@@ -4973,6 +4974,43 @@ function renderMetricCriteriaList(checks, passedOnly = false, run = null) {
             }).join('')}
         </div>
     `;
+}
+
+function metricCriteriaFallbackEvidence(check, evidence = [], passedOnly = false) {
+    if (!passedOnly && !check?.pass) {
+        return null;
+    }
+    const signalKey = firstCleanText(
+            check?.checkLabel,
+            check?.label,
+            metricPassedFriendlyTitle(check),
+            check?.checkCode,
+            '판정 기준');
+    const evidenceValue = firstCleanText(
+            metricCriteriaResultSummary(check),
+            check?.operatorReason,
+            check?.actualValue,
+            check?.expectedValue,
+            check?.decisionUtility,
+            '검사 기준을 통과했습니다.');
+    const runtimeFacts = customerVisibleItemList(
+            check?.runtimeFacts,
+            check?.facts,
+            check?.evidenceFacts);
+    const contextItems = distinctText([
+        ...customerVisibleItemsFromEvidence(evidence),
+        ...customerVisibleItemList(
+                check?.contextItems,
+                check?.customerVisibleContextItems,
+                check?.promptItems,
+                check?.customerVisiblePromptItems)
+    ]);
+    return {
+        signalKey,
+        evidenceValue,
+        runtimeFacts,
+        contextItems
+    };
 }
 
 function renderMetricEvidenceItems(items = [], type = 'fact') {
