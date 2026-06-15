@@ -61,7 +61,8 @@
             <div class="breadcrumb">
                 <a th:href="@{/contexa/admin}" th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.enterprise}"></a>
                 <span>/</span>
-                <a th:href="@{/contexa/admin/prompt-quality}" th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.engine}"></a>
+                <a th:href="${promptQualityRouteRoot != null ? promptQualityRouteRoot : '/contexa/admin/prompt-quality'}"
+                   th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.engine}"></a>
             </div>
             <h1 th:text="${title}"></h1>
             <p th:text="${subtitle}"></p>

@@ -201,42 +201,42 @@ public class OfficialPromptQualityNarrativeCatalog {
         MetricNarrative metric = metric(metricCode);
         CheckNarrative checkNarrative = checkNarrative(metricCode, check, metric);
         String subject = checkNarrative.subject();
-        String expected = "기준: " + subject + " 항목은 " + operatorValue(check.expectedValue()) + " 상태여야 합니다.";
-        String actual = check.passed()
+        String generatedExpected = "기준: " + subject + " 항목은 " + operatorValue(check.expectedValue()) + " 상태여야 합니다.";
+        String generatedActual = check.passed()
                 ? "확인 결과: " + subject + " 항목은 기준을 충족했습니다. 확인값은 " + operatorValue(check.actualValue()) + "입니다."
                 : "확인 결과: " + subject + " 항목은 기준을 충족하지 못했습니다. 확인값은 " + operatorValue(check.actualValue()) + "입니다.";
-        String label = check.passed()
+        String generatedLabel = check.passed()
                 ? subject + " 확인 완료"
                 : subject + " 보강 필요";
         String owner = checkNarrative.owner();
         String evidenceLocation = evidenceLocation(check.source(), requestPath);
-        String reason = check.passed()
+        String generatedReason = check.passed()
                 ? "공식검사는 packageId " + value(evidencePackage == null ? null : evidencePackage.getPackageId())
                 + "의 실제 요청 증거에서 " + metric.name() + " 기준을 확인했습니다. 근거 위치는 "
                 + evidenceLocation + "이며 현재 항목은 보증 판단 근거로 사용할 수 있습니다."
                 : "문제: " + subject + " 항목이 공식 기준을 충족하지 못했습니다. 원인: "
                 + checkNarrative.cause() + " 근거 위치는 " + evidenceLocation + "입니다. 대상은 "
                 + owner + "입니다.";
-        String nextAction = check.passed()
+        String generatedNextAction = check.passed()
                 ? "조치: 추가 보강 없이 같은 기준으로 감사와 재검증 근거에 사용할 수 있습니다."
                 : "조치: " + checkNarrative.action();
-        String reverify = check.passed()
+        String generatedReverify = check.passed()
                 ? "재검증 기준: 새 요청 증거에서도 " + subject + " 항목이 같은 기준으로 확인되면 통과 상태를 유지합니다."
                 : "재검증 기준: " + checkNarrative.reverify();
 
         return new OfficialMetricCheckObservation(
                 check.checkCode(),
-                label,
-                expected,
-                actual,
+                firstText(check.label(), generatedLabel),
+                firstText(check.expectedValue(), generatedExpected),
+                firstText(check.actualValue(), generatedActual),
                 check.passed(),
                 check.source(),
                 check.passed() ? "INFO" : safe(check.severity(), "BLOCKING"),
                 check.passed() ? "" : safe(check.failureType(), metricCode + "_CHECK_FAILED"),
                 owner,
-                reason,
-                nextAction,
-                reverify,
+                firstText(check.operatorReason(), generatedReason),
+                firstText(check.nextAction(), generatedNextAction),
+                firstText(check.reverifyCriterion(), generatedReverify),
                 check.issueKey(),
                 check.customerVisible(),
                 check.readinessScope(),
@@ -573,6 +573,10 @@ public class OfficialPromptQualityNarrativeCatalog {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String firstText(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
     private String safe(String value, String fallback) {

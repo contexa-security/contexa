@@ -64,6 +64,11 @@ export const ensureObject = (value) => value && typeof value === 'object' && !Ar
 export const ensureArray = (value) => Array.isArray(value) ? value : [];
 
 const ADMIN_ASSET_PATH = '/js/admin/';
+const CORE_PQA_ROUTE_ROOT = '/contexa/admin/prompt-quality';
+const CORE_PQA_API_ROOT = '/contexa/admin/api/prompt-quality';
+const ADMIN_ROUTE_PREFIX = '/contexa/admin/';
+const ADMIN_API_PREFIX = '/contexa/admin/api/';
+const PROMPT_QUALITY_ROUTE_SUFFIX = '/prompt-quality';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 
 function appContextPath() {
@@ -77,12 +82,99 @@ function appContextPath() {
 }
 
 export function appPath(path) {
-    const normalized = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
+    const normalized = rewritePromptQualityPath(
+            String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`);
     const contextPath = appContextPath();
     if (!contextPath || normalized === contextPath || normalized.startsWith(`${contextPath}/`)) {
         return normalized;
     }
     return `${contextPath}${normalized}`;
+}
+
+function rewritePromptQualityPath(path) {
+    if (!path || typeof document === 'undefined') {
+        return path;
+    }
+    const root = document.querySelector('[data-pqa-api-root], [data-pqa-route-root]');
+    const apiRoot = rawText(root?.dataset?.pqaApiRoot) || inferredPromptQualityApiRoot();
+    if (apiRoot && apiRoot !== CORE_PQA_API_ROOT && path.startsWith(CORE_PQA_API_ROOT)) {
+        return `${apiRoot}${path.slice(CORE_PQA_API_ROOT.length)}`;
+    }
+    const routeRoot = rawText(root?.dataset?.pqaRouteRoot) || inferredPromptQualityRouteRoot();
+    if (routeRoot && routeRoot !== CORE_PQA_ROUTE_ROOT && path.startsWith(CORE_PQA_ROUTE_ROOT)) {
+        return `${routeRoot}${path.slice(CORE_PQA_ROUTE_ROOT.length)}`;
+    }
+    return path;
+}
+
+function inferredPromptQualityRouteRoot() {
+    if (typeof window === 'undefined' || !window.location) {
+        return null;
+    }
+    const pathname = String(window.location.pathname || '');
+    const suffixIndex = pathname.indexOf(PROMPT_QUALITY_ROUTE_SUFFIX);
+    if (suffixIndex < 0) {
+        return null;
+    }
+    const routeRoot = pathname.slice(0, suffixIndex + PROMPT_QUALITY_ROUTE_SUFFIX.length);
+    return routeRoot.startsWith(ADMIN_ROUTE_PREFIX) && routeRoot !== CORE_PQA_ROUTE_ROOT
+            ? routeRoot
+            : null;
+}
+
+function inferredPromptQualityApiRoot() {
+    const routeRoot = inferredPromptQualityRouteRoot();
+    if (!routeRoot || !routeRoot.startsWith(ADMIN_ROUTE_PREFIX)) {
+        return null;
+    }
+    return `${ADMIN_API_PREFIX}${routeRoot.slice(ADMIN_ROUTE_PREFIX.length)}`;
+}
+
+export function rewritePromptQualityHref(href) {
+    if (!href || typeof window === 'undefined' || !window.location) {
+        return href;
+    }
+    let url;
+    try {
+        url = new URL(href, window.location.href);
+    } catch {
+        return href;
+    }
+    if (url.origin !== window.location.origin) {
+        return href;
+    }
+    const before = `${url.pathname}${url.search}${url.hash}`;
+    const after = rewritePromptQualityPath(before);
+    return after === before ? href : appPath(after);
+}
+
+export function normalizePromptQualityLinks(root = document) {
+    if (!root || typeof root.querySelectorAll !== 'function') {
+        return;
+    }
+    root.querySelectorAll('a[href]').forEach(anchor => {
+        const current = anchor.getAttribute('href');
+        const rewritten = rewritePromptQualityHref(current);
+        if (rewritten && rewritten !== current) {
+            anchor.setAttribute('href', rewritten);
+        }
+    });
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => normalizePromptQualityLinks(document));
+    document.addEventListener('click', event => {
+        const anchor = event.target?.closest?.('a[href]');
+        if (!anchor) {
+            return;
+        }
+        const current = anchor.getAttribute('href');
+        const rewritten = rewritePromptQualityHref(current);
+        if (rewritten && rewritten !== current) {
+            event.preventDefault();
+            window.location.assign(rewritten);
+        }
+    }, true);
 }
 
 export function setText(root, selector, value) {

@@ -29,6 +29,7 @@ import org.springframework.jdbc.core.JdbcOperations;
 @AutoConfiguration
 @AutoConfigureAfter(IamAdminCenterAutoConfiguration.class)
 @ConditionalOnClass(OfficialSealedEvidenceVerificationRuntime.class)
+@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
 public class PqaOfficialInspectionAutoConfiguration {
 
     @Bean(name = "pqaOfficialVerificationMetricCatalog")

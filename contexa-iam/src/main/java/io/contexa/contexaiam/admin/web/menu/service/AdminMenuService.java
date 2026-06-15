@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -192,7 +193,7 @@ public class AdminMenuService {
 
         List<AdminMenu> filtered = allMenus.stream()
                 .filter(AdminMenu::isEnabled)
-                .filter(m -> isMenuTypeAllowed(m.getMenuType()))
+                .filter(this::isMenuVisibleInCurrentEdition)
                 .filter(m -> isMenuAllowedForUser(m, userAuthorities))
                 .toList();
 
@@ -205,7 +206,7 @@ public class AdminMenuService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<AdminMenu> getAllMenus() {
         return menuQueryCache.findAllWithRoles().stream()
-                .filter(m -> isMenuTypeAllowed(m.getMenuType()))
+                .filter(this::isMenuVisibleInCurrentEdition)
                 .toList();
     }
 
@@ -259,10 +260,42 @@ public class AdminMenuService {
     }
 
     private boolean isMenuTypeAllowed(String menuType) {
-        if ("CORE".equals(menuType)) return true;
-        if ("ENTERPRISE".equals(menuType)) return enterpriseEnabled;
-        if ("SAAS".equals(menuType)) return enterpriseEnabled && saasEnabled;
+        String normalized = normalizeMenuType(menuType);
+        if ("CORE".equals(normalized)) return true;
+        if ("ENTERPRISE".equals(normalized)) return enterpriseEnabled;
+        if ("SAAS".equals(normalized)) return enterpriseEnabled && saasEnabled;
         return true;
+    }
+
+    private boolean isMenuVisibleInCurrentEdition(AdminMenu menu) {
+        if (!isMenuTypeAllowed(menu.getMenuType())) {
+            return false;
+        }
+        return !isEnterprisePromptQualityCoreChild(menu);
+    }
+
+    private boolean isEnterprisePromptQualityCoreChild(AdminMenu menu) {
+        return enterpriseEnabled
+                && menu.getParentId() != null
+                && "CORE".equals(normalizeMenuType(menu.getMenuType()))
+                && isPromptQualityMenu(menu);
+    }
+
+    private boolean isPromptQualityMenu(AdminMenu menu) {
+        String name = normalizeMenuText(menu.getName());
+        String url = normalizeMenuText(menu.getUrl());
+        String dataPage = normalizeMenuText(menu.getDataPage());
+        return name.startsWith("menu.pqa.")
+                || url.contains("/prompt-quality")
+                || dataPage.startsWith("prompt-quality");
+    }
+
+    private String normalizeMenuType(String menuType) {
+        return menuType == null ? "" : menuType.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeMenuText(String text) {
+        return text == null ? "" : text.trim().toLowerCase(Locale.ROOT);
     }
 
     private boolean isMenuAllowedForUser(AdminMenu menu, Set<String> userAuthorities) {

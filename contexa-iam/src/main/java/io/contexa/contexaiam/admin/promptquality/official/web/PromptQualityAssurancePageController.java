@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.web;
 
+import java.util.List;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -7,20 +9,21 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
-
 @Controller
 @RequestMapping("/contexa/admin/prompt-quality")
 public class PromptQualityAssurancePageController {
 
+    private static final String ROUTE_ROOT = "/contexa/admin/prompt-quality";
+    private static final String API_ROOT = "/contexa/admin/api/prompt-quality";
+
     @GetMapping({"", "/"})
     public String index() {
-        return "redirect:/contexa/admin/prompt-quality/dashboard";
+        return "redirect:/contexa/admin/prompt-quality/resources";
     }
 
     @GetMapping("/dashboard")
-    public String dashboard(Model model) {
-        return page(model, "dashboard", "프롬프트 품질 보증 엔진", "contexa/admin/prompt-quality/dashboard");
+    public String dashboard() {
+        return "redirect:/contexa/admin/prompt-quality/resources";
     }
 
     @GetMapping("/resources")
@@ -76,13 +79,13 @@ public class PromptQualityAssurancePageController {
     @GetMapping("/verification/readiness")
     public String verificationReadiness(Model model) {
         model.addAttribute("verificationStage", "readiness");
-        return page(model, "verification-readiness", "공식 품질 검사", "contexa/admin/prompt-quality/verification-readiness");
+        return page(model, "verification-readiness", "공식검사", "contexa/admin/prompt-quality/verification-readiness");
     }
 
     @GetMapping("/verification/run")
     public String verificationRun(Model model) {
         model.addAttribute("verificationStage", "run");
-        return page(model, "verification-run", "공식 품질 검사", "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-run", "공식검사", "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/prompt-comparison")
@@ -106,22 +109,22 @@ public class PromptQualityAssurancePageController {
         model.addAttribute("pageTitle", pageTitle);
         model.addAttribute("activeKey", activeKey);
         model.addAttribute("navigation", navigation(activeKey));
+        model.addAttribute("promptQualityRouteRoot", ROUTE_ROOT);
+        model.addAttribute("promptQualityApiRoot", API_ROOT);
+        model.addAttribute("promptQualityUiMode", "core");
         return viewName;
     }
 
     private List<PromptQualityNavigationItem> navigation(String activeKey) {
         return List.of(
-                item("품질 공정 홈", "/contexa/admin/prompt-quality/dashboard",
-                        "프롬프트 품질 공정의 현재 상태를 확인합니다.",
-                        "dashboard".equals(activeKey)),
                 item("보호 후보", "/contexa/admin/prompt-quality/resources",
-                        "공식검사 후보 리소스를 확인합니다.",
+                        "공식검사 대상 리소스를 확인합니다.",
                         "resources".equals(activeKey)),
                 item("실제 요청 증거", "/contexa/admin/prompt-quality/runtime-evidence",
                         "봉인된 실제 요청 증거를 확인합니다.",
                         "runtime-evidence".equals(activeKey)),
-                item("공식 품질 검사", "/contexa/admin/prompt-quality/verification/readiness",
-                        "봉인 증거로 공식검사를 실행하고 결과를 확인합니다.",
+                item("공식검사", "/contexa/admin/prompt-quality/verification/readiness",
+                        "선택한 요청 증거로 12지표 공식검사를 실행하고 결과를 확인합니다.",
                         activeKey != null && activeKey.startsWith("verification"),
                         List.of(
                                 item("증거 확인", "/contexa/admin/prompt-quality/verification/readiness",

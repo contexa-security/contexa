@@ -12,7 +12,7 @@
       data-pqa-page="verification"
       data-pqa-stage="OFFICIAL_VERIFICATION"
       data-pqa-verification-stage="run"
-      th:attr="data-pqa-verification-stage=${verificationStage}">
+      th:attr="data-pqa-verification-stage=${verificationStage},data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
     <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
     <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.verification}, #{enterprise.pqa.verification.pageSubtitle})}"></div>
@@ -52,25 +52,25 @@
              th:aria-label="#{enterprise.pqa.verification.subnav.aria}">
             <a class="pqa-verification-subnav-link"
                data-pqa-verification-subroute="readiness"
-               th:href="@{/contexa/admin/prompt-quality/verification/readiness}"
+               th:href="${promptQualityRouteRoot + '/verification/readiness'}"
                th:classappend="${verificationStage == 'readiness'} ? ' active' : ''">
                 <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">증거·프롬프트 일치성</span>
             </a>
             <a class="pqa-verification-subnav-link"
                data-pqa-verification-subroute="run"
-               th:href="@{/contexa/admin/prompt-quality/verification/run}"
+               th:href="${promptQualityRouteRoot + '/verification/run'}"
                th:classappend="${verificationStage == 'run'} ? ' active' : ''">
                 <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">검사 실행</span>
             </a>
             <a class="pqa-verification-subnav-link"
                data-pqa-verification-subroute="comparison"
-               th:href="@{/contexa/admin/prompt-quality/verification/prompt-comparison}"
+               th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}"
                th:classappend="${verificationStage == 'comparison'} ? ' active' : ''">
                 <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">실제 프롬프트 비교</span>
             </a>
             <a class="pqa-verification-subnav-link"
                data-pqa-verification-subroute="metrics"
-               th:href="@{/contexa/admin/prompt-quality/verification/metrics}"
+               th:href="${promptQualityRouteRoot + '/verification/metrics'}"
                th:classappend="${verificationStage == 'metrics'} ? ' active' : ''">
                 <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12개 프롬프트 품질 지표 상세</span>
             </a>

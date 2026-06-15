@@ -81,7 +81,9 @@
                         <span class="main-menu-label" th:text="#{menu.nav.pqa}">Prompt Quality</span>
                     </div>
                     <div class="submenu-panel"><ul>
-                        <li><a th:href="@{/contexa/admin/prompt-quality}" class="submenu-link" data-page="prompt-quality-official"><span th:text="#{menu.pqa.official}">Official Inspection</span></a></li>
+                        <li><a th:href="@{/contexa/admin/prompt-quality/resources}" class="submenu-link" data-page="prompt-quality-resources"><span th:text="#{menu.pqa.resources}">Protected Candidates</span></a></li>
+                        <li><a th:href="@{/contexa/admin/prompt-quality/runtime-evidence}" class="submenu-link" data-page="prompt-quality-runtime-evidence"><span th:text="#{menu.pqa.runtimeEvidence}">Real Request Evidence</span></a></li>
+                        <li><a th:href="@{/contexa/admin/prompt-quality/verification/readiness}" class="submenu-link" data-page="prompt-quality-official"><span th:text="#{menu.pqa.official}">Official Inspection</span></a></li>
                     </ul></div>
                 </li>
             </th:block>

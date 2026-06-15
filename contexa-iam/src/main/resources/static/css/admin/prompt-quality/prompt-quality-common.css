@@ -1,6 +1,6 @@
 /*
- * Prompt-quality design tokens, ported from /admin/policy-center and
- * /admin/access-center (the platform's reference design language).
+ * Prompt-quality design tokens, ported from /contexa/admin/policy-center and
+ * /contexa/admin/access-center (the platform's reference design language).
  *
  * Why this rewrite:
  *   - The previous palette piled 11 gradient variables, 9 font sizes (with

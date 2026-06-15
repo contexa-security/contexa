@@ -73,8 +73,8 @@
  * Status banner variants. Both the border AND the background collapse to the
  * neutral slate tone used by every other admin card. Status meaning is now
  * carried only by the text colour and (if present) the leading icon - never
- * by the box itself. This matches the design language of /admin/policy-center
- * and /admin/access-center where every panel shares one quiet box surface.
+ * by the box itself. This matches the design language of /contexa/admin/policy-center
+ * and /contexa/admin/access-center where every panel shares one quiet box surface.
  */
 .status-banner.success,
 .status-banner.warning,

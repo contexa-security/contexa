@@ -16,8 +16,8 @@ spring:
         options:
           model: text-embedding-3-small
           dimensions: 1024
-#    anthropic:
-#      api-key: ${ANTHROPIC_API_KEY:disabled}
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:disabled}
 #      chat:
 #        options:
 #          model: claude-3-sonnet-20240229
