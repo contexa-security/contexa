@@ -10,7 +10,7 @@ import java.util.Map;
 
 public final class OfficialVerificationContractMetadataSupport {
 
-    public static final String TDD_CONTRACT_SOURCE = "spring-boot-starter-contexa-enterprise/src/test";
+    public static final String TDD_CONTRACT_SOURCE = "contexa-official-verification-contract";
     public static final String CONTRACT_VERSION = "2026-04-05";
 
     private OfficialVerificationContractMetadataSupport() {

@@ -8,7 +8,7 @@ const RESOURCES_API = '/contexa/admin/api/prompt-quality/resources/summary';
 const RUNTIME_EVIDENCE_API = '/contexa/admin/api/prompt-quality/runtime-evidence/search?size=100';
 const RESOURCE_STATE_SEARCH_API = '/contexa/admin/api/prompt-quality/resources/state-search';
 
-const charts = { stages: null, evidence: null, issue: null, certificate: null };
+const charts = { stages: null, evidence: null, issue: null };
 const TONE_COLORS = {
     ready: '#34d399',
     info: '#38bdf8',
@@ -43,11 +43,6 @@ async function reload(root) {
         runtimeEvidence: ensureArray(byName.runtimeEvidence),
         bundles: [],
         recipes: [],
-        governance: { stats: {}, releases: [], handoffs: [] },
-        certificates: [],
-        monitoring: {},
-        reports: [],
-        auditEvents: [],
         apiErrors: loaded.filter(item => item.error)
     };
 
@@ -197,12 +192,6 @@ function isRuntimeEvidenceReady(item) {
 
 function runtimeEvidenceWarningCount(items) {
     return ensureArray(items).filter(item => !isRuntimeEvidenceReady(item)).length;
-}
-
-function monitoringSignalCount(p) {
-    return ensureArray(p.monitoring?.runtimeIssues).length
-            + ensureArray(p.monitoring?.qualityWarnings).length
-            + ensureArray(p.monitoring?.repeatedFailurePatterns).length;
 }
 
 function buildStages(p) {
@@ -383,35 +372,6 @@ function renderChartIssue(root, p) {
     });
 }
 
-function renderChartCertificate(root, p) {
-    const canvas = root.querySelector('[data-pqa-dash-chart-certificate]');
-    if (!canvas || typeof window.Chart === 'undefined') return;
-    destroyChart('certificate');
-    const timeline = ensureArray(p.dash?.expiringTimeline).slice(0, 10);
-    const labels = timeline.map(e => text(e.certificateId || e.expiresAt || ''));
-    const data = timeline.map(e => Math.max(0, number(e.daysToExpiry)));
-    const empty = labels.length === 0;
-    charts.certificate = new window.Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: empty ? [t('enterprise.pqa.dashboard.chart.certificate.noData')] : labels,
-            datasets: [{
-                data: empty ? [0] : data,
-                backgroundColor: empty ? '#94a3b8' : data.map(v => v <= 3 ? '#f87171' : v <= 7 ? '#fbbf24' : '#38bdf8'),
-                borderRadius: 3
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
-                y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: 'rgba(148,163,184,0.12)' }, title: { display: true, text: t('enterprise.pqa.dashboard.chart.certificate.axis'), color: '#94a3b8' } }
-            }
-        }
-    });
-}
-
 function lastBuckets(days) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -426,25 +386,6 @@ function lastBuckets(days) {
 
 function dateKey(d) {
     return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
-function renderExpiring(root, p) {
-    const target = root.querySelector('[data-pqa-dash-expiring]');
-    if (!target) return;
-    const items = ensureArray(p.dash?.expiringTimeline).slice(0, 5);
-    if (!items.length) {
-        target.innerHTML = `<div class="empty-state">${escapeHtml(t('enterprise.pqa.dashboard.alert.expiring.empty'))}</div>`;
-        return;
-    }
-    target.innerHTML = `<ul class="pqa-warning-list">${items.map(it => `
-        <li class="pqa-warning-item">
-            <div class="pqa-warning-head">
-                ${badge(it.stateLabel || it.state)}
-                <code>${escapeHtml(text(it.certificateId))}</code>
-                <small class="muted">${escapeHtml(shortDate(it.expiresAt))}</small>
-            </div>
-            <div class="pqa-warning-body muted">${escapeHtml(text(it.plainMeaning || it.nextAction || ''))}</div>
-        </li>`).join('')}</ul>`;
 }
 
 function renderRecurring(root, p) {
@@ -473,16 +414,6 @@ function renderWarnings(root, p) {
             tone: 'blocked',
             label: t('enterprise.pqa.dashboard.signal.api'),
             body: t('enterprise.pqa.dashboard.signal.api.body', item.name)
-        })),
-        ...ensureArray(p.monitoring?.qualityWarnings).map(item => ({
-            tone: 'warn',
-            label: t('enterprise.pqa.dashboard.signal.monitoring'),
-            body: text(item)
-        })),
-        ...ensureArray(p.monitoring?.repeatedFailurePatterns).map(item => ({
-            tone: 'warn',
-            label: t('enterprise.pqa.dashboard.signal.repeat'),
-            body: text(item)
         })),
         ...ensureArray(p.dash?.recentWarnings).map(item => ({
             tone: 'neutral',
@@ -584,21 +515,14 @@ function renderTodo(root, p) {
     const d = p.dash;
     const items = [];
     const blocked = number(d.blockedCount);
-    const expiring = number(d.expiringCertificateCount);
     const reverify = number(d.reverifyRequiredCount);
     const issues = ensureArray(d.recurringIssues).length;
-    const governanceStats = p.governance?.stats || {};
-    const governanceWork = number(governanceStats.candidateCount)
-            + number(governanceStats.pendingWorkflowCount)
-            + number(governanceStats.blockedWorkflowCount);
     const evidenceWarnings = runtimeEvidenceWarningCount(p.runtimeEvidence);
     if (p.apiErrors.length) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.api.title', String(p.apiErrors.length)), body: t('enterprise.pqa.dashboard.todo.api.body'), href: '/contexa/admin/prompt-quality/dashboard', cta: t('enterprise.pqa.dashboard.todo.api.cta') });
     if (p.runtimeEvidence.length === 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.title'), body: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.body'), href: '/contexa/admin/prompt-quality/runtime-evidence', cta: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.cta') });
     if (evidenceWarnings > 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.evidenceWarning.title', String(evidenceWarnings)), body: t('enterprise.pqa.dashboard.todo.evidenceWarning.body'), href: '/contexa/admin/prompt-quality/runtime-evidence', cta: t('enterprise.pqa.dashboard.todo.evidenceWarning.cta') });
     if (blocked > 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.blocked.title', String(blocked)), body: t('enterprise.pqa.dashboard.todo.blocked.body'), href: '/contexa/admin/prompt-quality/verification/metrics', cta: t('enterprise.pqa.dashboard.todo.blocked.cta') });
-    if (governanceWork > 0) items.push({ priority: number(governanceStats.blockedWorkflowCount) > 0 ? 'high' : 'medium', title: t('enterprise.pqa.dashboard.todo.governance.title', String(governanceWork)), body: t('enterprise.pqa.dashboard.todo.governance.body'), href: '/contexa/admin/prompt-quality/verification/metrics', cta: t('enterprise.pqa.dashboard.todo.governance.cta') });
     if (reverify > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.reverify.title', String(reverify)), body: t('enterprise.pqa.dashboard.todo.reverify.body'), href: '/contexa/admin/prompt-quality/verification/run', cta: t('enterprise.pqa.dashboard.todo.reverify.cta') });
-    if (expiring > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.expiring.title', String(expiring)), body: t('enterprise.pqa.dashboard.todo.expiring.body'), href: '/contexa/admin/prompt-quality/verification', cta: t('enterprise.pqa.dashboard.todo.expiring.cta') });
     if (issues > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.issues.title', String(issues)), body: t('enterprise.pqa.dashboard.todo.issues.body'), href: '/contexa/admin/prompt-quality/verification/metrics', cta: t('enterprise.pqa.dashboard.todo.issues.cta') });
     if (!items.length) {
         target.innerHTML = `<div class="empty-state">${escapeHtml(t('enterprise.pqa.dashboard.todo.empty'))}</div>`;

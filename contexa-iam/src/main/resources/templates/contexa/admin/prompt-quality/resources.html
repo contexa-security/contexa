@@ -19,7 +19,9 @@
             <div style="position:absolute;right:-100px;top:-140px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,0.22) 0%,transparent 65%);pointer-events:none;"></div>
             <div style="position:absolute;right:-40px;bottom:-80px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,0.16) 0%,transparent 70%);pointer-events:none;"></div>
             <div style="position:relative;z-index:1;display:grid;grid-template-columns:auto 1fr;gap:1.75rem;align-items:center;">
-                <div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#2563eb);display:grid;place-items:center;color:#0b1220;font-size:2.4rem;font-weight:900;box-shadow:0 16px 34px rgba(37,99,235,0.5);flex-shrink:0;">◎</div>
+                <div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#2563eb);display:grid;place-items:center;color:#0b1220;font-size:2.4rem;font-weight:900;box-shadow:0 16px 34px rgba(37,99,235,0.5);flex-shrink:0;">
+                    <i class="fa-solid fa-box-open" aria-hidden="true"></i>
+                </div>
                 <div style="min-width:0;">
                     <div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.3rem 0.8rem;border-radius:999px;background:rgba(96,165,250,0.18);border:1px solid rgba(96,165,250,0.4);margin-bottom:0.75rem;">
                         <span style="width:6px;height:6px;border-radius:50%;background:#60a5fa;box-shadow:0 0 8px rgba(96,165,250,0.7);"></span>
@@ -34,7 +36,7 @@
 
         <section style="position:relative;padding:0;margin-bottom:1.5rem;background:transparent;border:none;display:flex;flex-wrap:wrap;gap:0.85rem;align-items:center;">
             <label style="display:flex;align-items:center;gap:0.65rem;padding:0.65rem 1rem;border-radius:999px;background:rgba(2,6,23,0.7);border:1px solid rgba(71,85,105,0.55);flex:1;min-width:240px;">
-                <span style="color:#94a3b8;font-size:1.05rem;">🔍</span>
+                <i class="fa-solid fa-magnifying-glass" style="color:#94a3b8;font-size:1.05rem;" aria-hidden="true"></i>
                 <input type="search" data-pqa-resource-search
                        style="flex:1;min-width:0;border:none;outline:none;background:transparent;color:#f8fafc;font-size:1rem;"
                        th:placeholder="#{enterprise.pqa.resource.toolbar.search.placeholder}"/>

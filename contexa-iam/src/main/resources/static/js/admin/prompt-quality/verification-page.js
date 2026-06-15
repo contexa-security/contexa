@@ -1116,7 +1116,7 @@ function renderRun(pageRoot, run) {
             [
                 { label: t('enterprise.pqa.verification.summary.passed'), count: passedMetricCount, tone: 'ready' },
                 { label: t('enterprise.pqa.verification.summary.blocked'), count: blockedMetricCount, tone: 'blocked' },
-                { label: '발급 전 확인', count: gateConditionCount, tone: 'warning' },
+                { label: '추가 확인', count: gateConditionCount, tone: 'warning' },
                 { label: '사전 입력 문제', count: inputReviewCount, tone: 'neutral' },
                 { label: '검사 대상 아님', count: notApplicableMetricCount, tone: 'neutral' }
             ],
@@ -1179,9 +1179,9 @@ function renderRunSummary(pageRoot, run) {
                 </div>
                 <div class="pqa-run-kpi-grid">
                     ${runKpiCard('', '통과 지표', `${passed} / ${total}`, '전체 지표 중 통과', passed === total ? 'ready' : 'neutral')}
-                    ${runKpiCard('', '프롬프트 문제', `${actualProblems}개`, actualProblems ? '문제 해결에서 처리' : '없음', actualProblems ? 'blocked' : 'ready')}
+                    ${runKpiCard('', '프롬프트 문제', `${actualProblems}개`, actualProblems ? '후속 조치 필요' : '없음', actualProblems ? 'blocked' : 'ready')}
                     ${runKpiCard('', '사전 입력 문제', inputReviewMetrics ? `${inputReviewMetrics}개 지표` : '없음', inputReviewMetrics ? '먼저 처리' : '없음', inputReviewMetrics ? 'warning' : 'ready')}
-                    ${runKpiCard('', '발급 전 확인', gateConditions ? `${gateConditions}개` : '없음', gateMetrics ? '발급 전 확인' : '없음', gateMetrics ? 'warning' : 'ready')}
+                    ${runKpiCard('', '추가 확인', gateConditions ? `${gateConditions}개` : '없음', gateMetrics ? '확인 필요' : '없음', gateMetrics ? 'warning' : 'ready')}
                     ${runKpiCard('', '검사 대상 아님', notApplicableMetrics ? `${notApplicableMetrics}개` : '없음', notApplicableMetrics ? '이번 요청 제외' : '없음', notApplicableMetrics ? 'neutral' : 'ready')}
                 </div>
             </section>
@@ -1196,9 +1196,8 @@ function renderRunSummary(pageRoot, run) {
                     ${runInfoItem('요청', `<span>${escapeHtml(requestLabel)}</span>`)}
                     ${runInfoItem('프롬프트 해시', `<code class="pqa-hash">${escapeHtml(promptHash ? shortHash(promptHash) : text(run.promptHash))}</code>`)}
                     ${runInfoItem('컨텍스트 해시', `<code class="pqa-hash">${escapeHtml(contextHash ? shortHash(contextHash) : text(run.contextHash))}</code>`)}
-                    ${runInfoItem('보증서', certificateLink(run))}
                     ${runInfoItem('품질 건', caseLink(run))}
-                    ${runInfoItem('보증 상태', badge(resultTitle || '-', { tone: resultTone }))}
+                    ${runInfoItem('검사 상태', badge(resultTitle || '-', { tone: resultTone }))}
                 </dl>
             </section>
             ${renderGuidance(run, { actualProblems, blockedMetrics, gateMetrics, gateConditions, inputReviewMetrics, gateMetricCodes: gateMetricCodesFromRuns(metrics, run), resultTone })}
@@ -2122,7 +2121,7 @@ function renderOfficialLedgerSummary(target, detail) {
             <div class="pqa-official-decision-grid">
                 ${comparisonKpi('프롬프트 문제', promptTotals.actualProblems, promptTotals.actualProblems ? 'blocked' : 'ready')}
                 ${comparisonKpi('영향 지표', promptTotals.blockedMetrics, promptTotals.blockedMetrics ? 'blocked' : 'ready')}
-                ${comparisonKpi('발급 전 확인', promptTotals.gateConditions ? `${promptTotals.gateConditions}개` : '없음', promptTotals.gateConditions ? 'warning' : 'ready')}
+                ${comparisonKpi('추가 확인', promptTotals.gateConditions ? `${promptTotals.gateConditions}개` : '없음', promptTotals.gateConditions ? 'warning' : 'ready')}
                 ${comparisonKpi('판정 기준', criteriaProgressText(promptTotals), promptTotals.gateMetrics ? 'warning' : 'ready')}
             </div>
             ${renderOfficialNextStepOverview(detail, runs, promptTotals, failures, actionGroups, passedRuns)}
@@ -2223,7 +2222,7 @@ function renderNextWorkOverview(failures, groups, passedRuns) {
         <section class="pqa-official-summary-section pqa-official-next-work">
             <div class="pqa-official-ops-head">
                 <strong>다음에 할 일</strong>
-                <span>공식 품질 검사는 여기서 확정하고, 보강 작업은 문제 해결 공정에서 처리합니다.</span>
+                <span>공식 품질 검사는 여기서 확정하고, 보강 작업은 후속 공정에서 처리합니다.</span>
             </div>
             <div class="pqa-official-next-work-grid">
                 <article>
@@ -2232,9 +2231,9 @@ function renderNextWorkOverview(failures, groups, passedRuns) {
                     <p>${escapeHtml(`${issueCount}개 문제 항목이 ${groupCount || 1}개 해결 담당 묶음으로 정리되었습니다.`)}</p>
                 </article>
                 <article>
-                    <span class="pqa-official-kicker">문제 해결에서 확인</span>
+                    <span class="pqa-official-kicker">후속 조치에서 확인</span>
                     <strong>${escapeHtml(title)}</strong>
-                    <p>해결 담당, 필요한 보강값, 재검증 기준을 문제 해결 화면에서 항목별로 확인하십시오.</p>
+                    <p>해결 담당, 필요한 보강값, 재검증 기준을 후속 공정에서 항목별로 확인하십시오.</p>
                 </article>
                 <article>
                     <span class="pqa-official-kicker">현재 화면 역할</span>
@@ -2262,7 +2261,7 @@ function renderTopBlockingCauses(failures) {
         <section class="pqa-official-summary-section">
             <div class="pqa-official-ops-head">
                 <strong>차단 원인 TOP ${Math.min(3, failures.length)}</strong>
-                <span>먼저 문제 해결로 넘길 항목, 원인, 해결 담당입니다.</span>
+                <span>먼저 후속 조치가 필요한 항목, 원인, 담당 공정입니다.</span>
             </div>
             <div class="pqa-official-top-failures">
                 ${failures.slice(0, 3).map(renderTopBlockingCause).join('')}
@@ -2275,7 +2274,7 @@ function renderTopBlockingCause(item) {
     const problem = rawText(item.problemStatement) || rawText(item.checkLabel) || '공식검사 차단 원인';
     const cause = rawText(item.rootCause) || '저장된 진단 원인을 확인해야 합니다.';
     const target = rawText(item.affectedTarget) || rawText(item.remediationOwner) || rawText(item.metricName) || '해결 담당 확인 필요';
-    const impact = rawText(item.impact) || '이 문제가 해결되지 않으면 프롬프트 품질 보증서 발급을 진행할 수 없습니다.';
+    const impact = rawText(item.impact) || '이 문제가 해결되지 않으면 LLM 입력 품질을 신뢰하기 어렵습니다.';
     return `
         <article class="pqa-official-top-failure">
             <header>
@@ -2287,7 +2286,7 @@ function renderTopBlockingCause(item) {
                 <div><dt>원인</dt><dd>${escapeHtml(cause)}</dd></div>
                 <div><dt>담당 공정</dt><dd>${escapeHtml(target)}</dd></div>
                 <div><dt>영향</dt><dd>${escapeHtml(impact)}</dd></div>
-                <div><dt>문제 해결</dt><dd>${escapeHtml(operatorFullText(item.remediationHint))}</dd></div>
+                <div><dt>후속 조치</dt><dd>${escapeHtml(operatorFullText(item.remediationHint))}</dd></div>
                 <div><dt>재검증</dt><dd>${escapeHtml(operatorFullText(item.reverifyCriterion))}</dd></div>
             </dl>
             <details class="pqa-official-technical-evidence">
@@ -2310,8 +2309,8 @@ function renderSummaryActionGroups(groups) {
     return `
         <section class="pqa-official-summary-section">
             <div class="pqa-official-ops-head">
-                <strong>해결 담당별 보강 작업</strong>
-                <span>같은 해결 담당에 속한 항목을 한 번에 문제 해결로 넘기도록 정리했습니다.</span>
+                <strong>담당별 보강 작업</strong>
+                <span>같은 담당에 속한 항목을 함께 확인할 수 있도록 정리했습니다.</span>
             </div>
             <div class="pqa-official-summary-actions">
                 ${groups.slice(0, 4).map(group => `
@@ -2996,7 +2995,7 @@ function renderComparisonMatrixDetails(items, open = false) {
     return `
         <details class="pqa-official-compare-ledger-details" ${open ? 'open' : ''}>
             <summary>진단 원장 ${escapeHtml(list.length)}개 보기</summary>
-            <p>문제 카드가 없을 때만 원장 기준으로 확인합니다. 실제 문제 해결에는 사용하지 않습니다.</p>
+            <p>문제 카드가 없을 때만 원장 기준으로 확인합니다. 실제 후속 조치에는 사용하지 않습니다.</p>
             ${renderComparisonMatrix(list)}
         </details>
     `;
@@ -3781,7 +3780,7 @@ function renderOfficialFailures(target, detail) {
             ? `<section class="pqa-official-priority-block">
                     <div class="pqa-official-ops-head">
                         <strong>해결해야 할 문제</strong>
-                        <span>공식 검사에서 멈춘 항목을 문제 해결 공정으로 넘겨 프롬프트 보증 가능 상태까지 끌어올립니다.</span>
+                        <span>공식 검사에서 멈춘 항목과 필요한 후속 조치를 확인합니다.</span>
                     </div>
                     ${renderPqaProcessRail()}
                     <ul class="pqa-official-failure-list">${items.slice(0, 8).map(item => renderFailureItem(item, detail)).join('')}</ul>
@@ -3793,13 +3792,13 @@ function renderOfficialFailures(target, detail) {
 
 function renderPqaProcessRail() {
     const steps = [
-        ['1', '공식 검사', '보증 차단 원인 식별'],
-        ['2', '문제 해결', '컨텍스트와 프롬프트 근거 보강'],
-        ['3', '프롬프트 통합관리', '보강된 프롬프트 버전 확정'],
+        ['1', '공식 검사', '차단 원인 식별'],
+        ['2', '후속 조치', '컨텍스트와 프롬프트 근거 보강'],
+        ['3', '확장 관리', '보강 결과 적용 범위 확인'],
         ['4', '재검증', '같은 증거 흐름으로 통과 확인']
     ];
     return `
-        <ol class="pqa-official-process-rail" aria-label="공식 품질 검사 이후 문제 해결 흐름">
+        <ol class="pqa-official-process-rail" aria-label="공식 품질 검사 이후 후속 조치 흐름">
             ${steps.map(([number, label, description]) => `
                 <li>
                     <span class="pqa-rail-icon" aria-hidden="true">${escapeHtml(number)}</span>
@@ -3815,7 +3814,7 @@ function renderFailureItem(item, detail) {
     const title = conciseProblemTitle(item);
     const cause = conciseCause(item);
     const action = conciseAction(item);
-    const owner = rawText(item.remediationOwner) || rawText(item.affectedTarget) || rawText(item.metricName) || '문제 해결 담당 확인 필요';
+    const owner = rawText(item.remediationOwner) || rawText(item.affectedTarget) || rawText(item.metricName) || '담당 확인 필요';
     const actual = operatorFullText(item.actualValue);
     const reverify = operatorFullText(item.reverifyCriterion);
     const expected = operatorFullText(item.expectedValue);
@@ -3836,7 +3835,7 @@ function renderFailureItem(item, detail) {
                     <p>${escapeHtml(cause)}</p>
                 </section>
                 <section class="pqa-finding-panel action">
-                    <span class="pqa-official-kicker">문제 해결 공정에서 할 일</span>
+                    <span class="pqa-official-kicker">후속 공정에서 할 일</span>
                     <p>${escapeHtml(action)}</p>
                 </section>
                 <section class="pqa-finding-panel verify">
@@ -3855,7 +3854,7 @@ function renderFailureItem(item, detail) {
                 </div>
                 <div>
                     <dt>다음 공정</dt>
-                    <dd>문제 해결 후 프롬프트 통합관리와 재검증으로 이동</dd>
+                    <dd>후속 조치 후 같은 요청 흐름으로 재검증</dd>
                 </div>
             </dl>
             <details class="pqa-official-technical-evidence">
@@ -3954,12 +3953,12 @@ function remediationKind(item) {
     const metric = upperText(item?.metricCode);
     const owner = rawText(item?.remediationOwner) || rawText(item?.affectedTarget);
     if (metric === 'PFR' || /프롬프트/.test(owner)) {
-        return '프롬프트 통합관리에서 보강할 항목입니다.';
+        return '프롬프트 구성 보강이 필요한 항목입니다.';
     }
     if (/기준선|행동|검색|컨텍스트|권한/.test(owner)) {
-        return '문제 해결 공정에서 운영 근거를 보강할 항목입니다.';
+        return '후속 공정에서 운영 근거를 보강할 항목입니다.';
     }
-    return '문제 해결 공정에서 담당 영역과 보강 방식을 확정할 항목입니다.';
+    return '후속 공정에서 담당 영역과 보강 방식을 확정할 항목입니다.';
 }
 
 function dedupeRemediationGroups(groups) {
@@ -4112,7 +4111,7 @@ function renderMetricCheckTotals(runs, detail = {}) {
                 <small>${escapeHtml(criteriaIssueSplitText(totals))}</small>
             </article>
             <article class="${totals.gateMetrics ? 'is-pending' : 'is-ready'}">
-                <span>발급 전 확인</span>
+                <span>추가 확인</span>
                 <strong>${escapeHtml(totals.gateConditions ? `${totals.gateConditions}개` : '없음')}</strong>
                 <small>${escapeHtml(totals.gateMetrics ? `${totals.gateMetrics}개 지표 확인 필요` : '추가 확인 없음')}</small>
             </article>
@@ -4414,7 +4413,7 @@ function renderMetricCheckSummary(countsOrPassed, failed, total) {
             <span class="${counts.actualProblemCount ? 'is-blocked' : 'is-ready'}">문제 ${escapeHtml(String(counts.actualProblemCount || 0))}개</span>
             <span>${escapeHtml(criteriaProgressText(counts))}</span>
             ${counts.inputFailed ? `<span class="is-pending">사전 입력 문제 ${escapeHtml(String(counts.inputFailed))}개</span>` : ''}
-            ${counts.gateFailed ? `<span class="is-pending">발급 전 확인 ${escapeHtml(String(counts.gateFailed))}개</span>` : ''}
+            ${counts.gateFailed ? `<span class="is-pending">추가 확인 ${escapeHtml(String(counts.gateFailed))}개</span>` : ''}
             ${counts.otherFailed ? `<span class="is-pending">확인 필요 ${escapeHtml(String(counts.otherFailed))}개</span>` : ''}
         </div>
     `;
@@ -4443,7 +4442,7 @@ function criteriaIssueSplitText(counts = {}) {
         parts.push(`프롬프트 문제 ${promptProblems}개`);
     }
     if (gateChecks > 0 || certificateChecks > 0) {
-        parts.push(`발급 전 확인 ${gateChecks || certificateChecks}개`);
+        parts.push(`추가 확인 ${gateChecks || certificateChecks}개`);
     }
     if (inputChecks > 0) {
         parts.push(`사전 입력 문제 ${inputChecks}개`);
@@ -4465,7 +4464,7 @@ function metricScoreDisplay(run, counts = {}) {
         return '사전 입력 문제';
     }
     if (counts.gateFailed > 0 || counts.gateReview || metricGateReview(run, { actualPromptProblems: run?.actualPromptProblems || [] })) {
-        return '발급 전 확인';
+        return '추가 확인';
     }
     if (counts.otherFailed > 0) {
         return '확인 필요';
@@ -4484,7 +4483,7 @@ function metricDisplayStateLabel(run, counts = {}) {
         return '사전 입력 문제';
     }
     if (counts.gateFailed > 0 || metricGateReview(run, { actualPromptProblems: run?.actualPromptProblems || [] })) {
-        return '발급 전 확인';
+        return '추가 확인';
     }
     if (counts.otherFailed > 0 || (!passState(run?.state) && rawText(run?.state))) {
         return '확인 필요';
@@ -4507,7 +4506,7 @@ function metricGateSummaryText(run, counts = {}) {
     if (code === 'PRE') {
         return failedCount ? `보호 리소스 ${failedCount}개를 확인해야 합니다.` : '보호 리소스 확인이 필요합니다.';
     }
-    return failedCount ? `발급 전 확인 ${failedCount}개를 처리해야 합니다.` : '발급 전 확인이 필요합니다.';
+    return failedCount ? `추가 확인 ${failedCount}개를 처리해야 합니다.` : '추가 확인이 필요합니다.';
 }
 function metricDisplayStateTone(run, counts = {}) {
     if (metricNotApplicable(run)) {
@@ -4655,7 +4654,7 @@ function renderMetricModalHero(run, counts) {
             : actualBlocked
             ? '프롬프트 개선 필요'
             : internalBlocked
-                    ? '발급 전 확인 필요'
+                    ? '추가 확인 필요'
                     : inputBlocked
                             ? '사전 입력 문제'
                             : 'LLM 투입 가능';
@@ -4664,7 +4663,7 @@ function renderMetricModalHero(run, counts) {
             : actualBlocked
             ? '아래 문제를 해결한 뒤 다시 검사하십시오.'
             : internalBlocked
-                    ? '프롬프트 문제는 없습니다. 보증서, 리소스, 검사 기록 조건을 확인하십시오.'
+            ? '프롬프트 문제는 없습니다. 리소스와 검사 기록 조건을 확인하십시오.'
                     : inputBlocked
                             ? '프롬프트 문제로 판정하지 않습니다. 최신 봉인 증거를 선택한 뒤 다시 검사하십시오.'
                             : '이 지표의 판정 기준을 충족했습니다.';
@@ -4764,9 +4763,9 @@ function renderMetricDetailSummary(run, counts) {
     if ((summary.gateFailed || 0) > 0) {
         cards.push({
             tone: 'pending',
-            label: '발급 전 확인',
+            label: '추가 확인',
             value: `${summary.gateFailed || 0}개`,
-            hint: '발급 전 처리'
+            hint: '추가 확인'
         });
     }
     if ((summary.otherFailed || 0) > 0) {
@@ -4820,7 +4819,7 @@ function renderMetricFailureCards(run) {
         const message = counts.inputReview
                 ? '프롬프트 문제는 없습니다. 최신 봉인 증거를 선택한 뒤 다시 검사하십시오.'
                 : counts.technicalFailed > 0
-                        ? '프롬프트 문제는 없습니다. 아래 발급 전 확인 항목을 처리하십시오.'
+                        ? '프롬프트 문제는 없습니다. 아래 추가 확인 항목을 처리하십시오.'
                         : '이 지표에 연결된 프롬프트 문제가 없습니다.';
         return `<section class="pqa-official-run-subsection"><div class="pqa-empty"><p>${escapeHtml(message)}</p></div></section>`;
     }
@@ -5115,7 +5114,7 @@ function metricCriteriaCardLabel(run, check) {
         return { kicker: '사전 입력 항목', badge: '입력 준비', tone: 'warning' };
     }
     if (evidence.some(item => upperText(item?.readinessScope) === 'INTERNAL_EXECUTION_GATE')) {
-        return { kicker: '발급 전 확인 항목', badge: '확인 필요', tone: 'warning' };
+        return { kicker: '추가 확인 항목', badge: '확인 필요', tone: 'warning' };
     }
     if (evidence.some(item => Boolean(item?.customerVisible)
             && upperText(item?.readinessScope) === 'CUSTOMER_PROMPT_QUALITY')) {
@@ -5170,7 +5169,7 @@ function metricReviewSectionLabel(run, checks = []) {
         return '사전 입력 문제';
     }
     if (evidence.some(item => upperText(item?.readinessScope) === 'INTERNAL_EXECUTION_GATE')) {
-        return '발급 전 확인';
+        return '추가 확인';
     }
     return '추가 확인';
 }
@@ -5178,10 +5177,10 @@ function metricReviewSectionLabel(run, checks = []) {
 function metricReviewActionText(run, checks = []) {
     const evidence = checks.flatMap(check => metricPurposeEvidenceForCheck(run, check));
     if (evidence.some(item => upperText(item?.readinessScope) === 'INPUT_READINESS')) {
-        return '사전 입력 문제 해결에서 필요한 입력을 처리한 뒤 다시 검사하십시오.';
+        return '사전 입력값을 보강한 뒤 다시 검사하십시오.';
     }
     if (evidence.some(item => upperText(item?.readinessScope) === 'INTERNAL_EXECUTION_GATE')) {
-        return '발급 전 확인에서 필요한 항목을 처리하십시오.';
+        return '추가 확인에서 필요한 항목을 처리하십시오.';
     }
     return '아래 항목을 확인한 뒤 다시 검사하십시오.';
 }
@@ -5602,7 +5601,7 @@ function friendlyRemediationOwner(owner) {
         return '행동 정보';
     }
     if (upper.includes('GOVERNANCE')) {
-        return '프롬프트 통합관리';
+        return '확장 관리';
     }
     return value;
 }
@@ -5620,7 +5619,7 @@ function metricGroupLabel(groupName) {
         return '구현 정합성';
     }
     if (upper.includes('GOVERNANCE')) {
-        return '프롬프트 통합관리';
+        return '확장 관리';
     }
     if (upper.includes('EVIDENCE')) {
         return '증거 무결성';
@@ -5864,7 +5863,7 @@ function conciseAction(item) {
     return operatorFullText(
             rawText(item?.remediationHint)
             || rawText(item?.nextAction)
-            || '문제 해결 공정에서 담당 영역의 증거 생산 또는 프롬프트 조립 근거를 보강하십시오.');
+            || '후속 공정에서 담당 영역의 증거 생산 또는 프롬프트 조립 근거를 보강하십시오.');
 }
 
 function renderEmptyResult(pageRoot) {
