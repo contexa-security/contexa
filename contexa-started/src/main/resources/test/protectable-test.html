@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@Protectable Command Center - Contexa</title>
+    <!-- Google Fonts Outfit & Fira Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-primary: #030712;
+            --bg-card: #0e1220;
+            --bg-card-hover: #13182b;
+            --border-color: rgba(99, 102, 241, 0.16);
+            --border-hover: rgba(99, 102, 241, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #4b5563;
+            
+            --accent-async: #0ea5e9;
+            --accent-sync: #10b981;
+            --accent-owner: #8b5cf6;
+            --accent-danger: #ef4444;
+            
+            --btn-bg: rgba(255, 255, 255, 0.02);
+            --btn-border: rgba(255, 255, 255, 0.04);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* Top Header */
+        .header {
+            background: rgba(3, 7, 18, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+
+        .header h1 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #ffffff 60%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn-logout {
+            background: rgba(239, 68, 68, 0.03);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.45rem 0.9rem;
+            border-radius: 6px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-logout:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+            color: #ffffff;
+        }
+
+        /* Symmetric 3-Column Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr 420px;
+            gap: 1.75rem;
+            max-width: 1650px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1400px) {
+            .dashboard-grid {
+                grid-template-columns: 240px 1fr;
+            }
+            .console-column {
+                grid-column: span 2;
+            }
+        }
+        @media (max-width: 992px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .sidebar-column, .console-column {
+                grid-column: span 1;
+            }
+        }
+
+        /* Cards Base */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.75rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.03);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(99, 102, 241, 0.08);
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #f8fafc;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.85rem;
+        }
+
+        .card-title i {
+            color: #818cf8;
+            font-size: 0.95rem;
+        }
+
+        /* Column 1: Sidebar System Status Info */
+        .sidebar-column {
+            position: sticky;
+            top: 5.5rem;
+        }
+
+        .status-widget {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .status-item {
+            background: #040711;
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .status-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-value {
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .indicator-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent-sync);
+            box-shadow: 0 0 10px var(--accent-sync);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .info-panel {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-top: 1.25rem;
+            background: rgba(99, 102, 241, 0.04);
+            border: 1px dashed rgba(99, 102, 241, 0.3);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .info-panel p {
+            margin-bottom: 0.75rem;
+        }
+
+        .info-panel p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Column 2: Central Playground Console */
+        .pattern-card {
+            background: #121826;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 1.75rem;
+            margin-bottom: 1.75rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .pattern-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .pattern-card.async-card {
+            border-color: rgba(14, 165, 233, 0.15);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+        .pattern-card.async-card:hover {
+            background: #151d30;
+            border-color: rgba(14, 165, 233, 0.45);
+            box-shadow: 0 12px 30px rgba(14, 165, 233, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .pattern-card.owner-card {
+            border-color: rgba(139, 92, 246, 0.15);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+        .pattern-card.owner-card:hover {
+            background: #181d32;
+            border-color: rgba(139, 92, 246, 0.45);
+            box-shadow: 0 12px 30px rgba(139, 92, 246, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .pattern-card.sync-card {
+            border-color: rgba(16, 185, 129, 0.15);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+        .pattern-card.sync-card:hover {
+            background: #141f2d;
+            border-color: rgba(16, 185, 129, 0.45);
+            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .pattern-card.danger-card {
+            border-color: rgba(239, 68, 68, 0.15);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+        .pattern-card.danger-card:hover {
+            background: #1f1b26;
+            border-color: rgba(239, 68, 68, 0.45);
+            box-shadow: 0 12px 30px rgba(239, 68, 68, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .pattern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .pattern-title {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #f8fafc;
+            letter-spacing: -0.01em;
+        }
+
+        .pattern-desc {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            margin-bottom: 1.25rem;
+            line-height: 1.6;
+        }
+
+        .pattern-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+            gap: 1rem;
+        }
+
+        .pattern-path {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.72rem;
+            color: #a5b4fc;
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            padding: 0.3rem 0.65rem;
+            border-radius: 6px;
+        }
+
+        .tags { display: flex; gap: 0.35rem; }
+
+        .tag {
+            font-size: 0.62rem;
+            font-weight: 800;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .tag-async { background: rgba(14, 165, 233, 0.08); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.2); }
+        .tag-sync { background: rgba(16, 185, 129, 0.08); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .tag-owner { background: rgba(139, 92, 246, 0.08); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.2); }
+
+        /* Neumorphic Input Forms */
+        .input-box {
+            background: #060913;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .input-label {
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            min-width: 100px;
+        }
+
+        .input-row input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0.45rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            outline: none;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+
+        .input-row input:focus {
+            border-color: rgba(99, 102, 241, 0.35);
+            background: rgba(255, 255, 255, 0.03);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 10px rgba(99, 102, 241, 0.1);
+        }
+
+        /* Buttons Layout */
+        .btn {
+            width: 100%;
+            padding: 0.65rem 1.25rem;
+            border: 1px solid var(--btn-border);
+            border-radius: 6px;
+            background: var(--btn-bg);
+            color: #f8fafc;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn i {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: color 0.25s ease;
+        }
+
+        /* Glow effects for buttons on hover */
+        .btn-async:hover {
+            background: rgba(14, 165, 233, 0.06);
+            border-color: rgba(14, 165, 233, 0.4);
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.15);
+        }
+        .btn-async:hover i { color: #38bdf8; }
+
+        .btn-owner:hover {
+            background: rgba(139, 92, 246, 0.06);
+            border-color: rgba(139, 92, 246, 0.4);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
+        }
+        .btn-owner:hover i { color: #c084fc; }
+
+        .btn-sync:hover {
+            background: rgba(16, 185, 129, 0.06);
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+        }
+        .btn-sync:hover i { color: #34d399; }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.06);
+            border-color: rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+        }
+        .btn-danger:hover i { color: #fca5a5; }
+
+        /* Column 3: Terminal Response & Log Timeline */
+        .console-column {
+            position: sticky;
+            top: 5.5rem;
+        }
+
+        .json-panel {
+            background: #02040a;
+            border-radius: 8px;
+            padding: 1.25rem;
+            border: 1px solid rgba(99, 102, 241, 0.18);
+            max-height: 320px;
+            min-height: 180px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+            transition: border-color 0.25s ease;
+        }
+
+        .json-panel:hover {
+            border-color: rgba(99, 102, 241, 0.35);
+        }
+
+        .json-panel pre {
+            color: #94a3b8;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.5;
+        }
+
+        /* HTTP Status Badge */
+        .response-status-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .response-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.35rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            border: 1px solid transparent;
+        }
+
+        .status-200, .status-201, .status-204 {
+            background: rgba(16, 185, 129, 0.08);
+            color: #34d399;
+            border-color: rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+        }
+
+        .status-401 {
+            background: rgba(245, 158, 11, 0.08);
+            color: #fbbf24;
+            border-color: rgba(245, 158, 11, 0.2);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.1);
+        }
+
+        .status-403 {
+            background: rgba(239, 68, 68, 0.08);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.2);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);
+        }
+
+        .status-423 {
+            background: rgba(139, 92, 246, 0.08);
+            color: #c084fc;
+            border-color: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.1);
+        }
+
+        .status-500 {
+            background: rgba(239, 68, 68, 0.12);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.35);
+        }
+
+        .response-time {
+            font-size: 0.68rem;
+            color: var(--text-secondary);
+            font-family: 'Fira Code', monospace;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-left: 0.6rem;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        /* Live Timeline */
+        .timeline {
+            max-height: 280px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            padding-right: 0.25rem;
+        }
+
+        .timeline-entry {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.6rem 0.85rem;
+            background: #040711;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            align-items: center;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.01);
+        }
+
+        .timeline-time {
+            color: var(--text-muted);
+            font-family: 'Fira Code', monospace;
+            font-size: 0.65rem;
+            white-space: nowrap;
+        }
+
+        .timeline-msg {
+            flex: 1;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .timeline-entry.success { border-color: rgba(16, 185, 129, 0.15); }
+        .timeline-entry.success .timeline-msg { color: #a7f3d0; }
+        
+        .timeline-entry.error { border-color: rgba(239, 68, 68, 0.15); }
+        .timeline-entry.error .timeline-msg { color: #fecaca; }
+        
+        .timeline-entry.info { border-color: rgba(255, 255, 255, 0.05); }
+        .timeline-entry.info .timeline-msg { color: #e2e8f0; }
+        
+        .timeline-entry.warning { border-color: rgba(245, 158, 11, 0.15); }
+        .timeline-entry.warning .timeline-msg { color: #fef08a; }
+        
+        .timeline-entry.escalate { border-color: rgba(139, 92, 246, 0.15); }
+        .timeline-entry.escalate .timeline-msg { color: #f5d0fe; }
+
+        /* Scrollbar customizing */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.03); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.08); }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-logo">
+            <div class="logo-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <h1>@Protectable Pattern Control Console</h1>
+            </div>
+        </div>
+        <div class="header-right">
+            <a th:href="@{/logout}" class="btn-logout">
+                <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+            </a>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <!-- Column 1: System Info & Metrics -->
+        <aside class="sidebar-column">
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-server"></i> System Status
+                </div>
+                <div class="status-widget">
+                    <div class="status-item">
+                        <span class="status-label">Engine Mode</span>
+                        <span class="status-value"><span class="indicator-dot"></span> ENFORCE</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">API Port</span>
+                        <span class="status-value">8080</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Connection</span>
+                        <span class="status-value" style="color: #34d399;">STABLE</span>
+                    </div>
+                </div>
+                
+                <div class="info-panel">
+                    <p>
+                        <strong>Zero-Trust Engine</strong><br>
+                        각 API 요청은 백엔드의 실시간 AI 인공지능 정책 판단 및 동적 리소스 소유자 검증 엔진에 의해 제어됩니다.
+                    </p>
+                    <p>
+                        <strong>Sync vs Async</strong><br>
+                        비동기 패턴은 결과를 즉시 리턴하며 백그라운드에서 분석하고, 동기 패턴은 분석이 완료될 때까지 지연되어 제어권을 반환합니다.
+                    </p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Column 2: Test Playground -->
+        <main class="main-content">
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-terminal"></i> API Playground
+                </div>
+
+                <!-- Pattern 1: Basic Async -->
+                <div class="pattern-card async-card">
+                    <div class="pattern-header">
+                        <span class="pattern-title">Pattern 1: Basic Async</span>
+                        <div class="tags">
+                            <span class="tag tag-async">async</span>
+                        </div>
+                    </div>
+                    <div class="pattern-desc">전체 주문 목록을 조회합니다. 결과를 비동기적으로 스캔하며 AI 엔진이 실시간으로 관찰을 시작합니다.</div>
+                    <div class="pattern-meta">
+                        <span class="pattern-path">GET /api/orders</span>
+                    </div>
+                    <button class="btn btn-async" onclick="App.listOrders()">
+                        <i class="fa-solid fa-list-ul"></i> List All Orders
+                    </button>
+                </div>
+
+                <!-- Pattern 3: Sync -->
+                <div class="pattern-card sync-card">
+                    <div class="pattern-header">
+                        <span class="pattern-title">Pattern 3: Sync (Wait for AI)</span>
+                        <div class="tags">
+                            <span class="tag tag-sync">sync</span>
+                        </div>
+                    </div>
+                    <div class="pattern-desc">새 주문을 발송합니다. AI 정책 엔진이 동기적으로 의사 결정을 마무리할 때까지 최종 승인이 보류됩니다.</div>
+                    <div class="pattern-meta">
+                        <span class="pattern-path">POST /api/orders</span>
+                    </div>
+                    
+                    <div class="input-box">
+                        <div class="input-row">
+                            <span class="input-label">Product Name</span>
+                            <input type="text" id="input-product" placeholder="Product name" value="Laptop">
+                        </div>
+                        <div class="input-row">
+                            <span class="input-label">Quantity</span>
+                            <input type="number" id="input-quantity" placeholder="Qty" value="1">
+                        </div>
+                    </div>
+                    <button class="btn btn-sync" onclick="App.createOrder()">
+                        <i class="fa-solid fa-file-invoice-dollar"></i> Create Order (Sync)
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Column 3: Terminal Console & Live Log -->
+        <section class="console-column">
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-terminal"></i> Response Console
+                </div>
+                <div class="response-status-container">
+                    <div id="response-status"></div>
+                </div>
+                <div class="json-panel">
+                    <pre id="response-body">Click a pattern button in the center to test @Protectable behavior.</pre>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Live Action Log
+                </div>
+                <div class="timeline" id="timeline">
+                    <div class="timeline-entry info">
+                        <span class="timeline-time">--:--:--</span>
+                        <span class="timeline-msg"><i class="fa-solid fa-circle-play" style="margin-right: 0.35rem; color: #818cf8;"></i> 시스템이 활성화되었습니다. 테스트를 시작하십시오.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script th:src="@{/js/protectable-test.js}"></script>
+</body>
+</html>

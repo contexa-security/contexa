@@ -16,7 +16,9 @@
 package io.contexa.autoconfigure.core.llm;
 
 import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
+import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
@@ -24,7 +26,9 @@ import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
+import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
+import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.micrometer.observation.ObservationRegistry;
@@ -53,6 +57,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -67,6 +73,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 @RequiredArgsConstructor
 @AutoConfigureAfter(name = {
+        "io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration",
         "org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration",
         "org.springframework.ai.model.ollama.autoconfigure.OllamaEmbeddingAutoConfiguration",
         "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration",
@@ -79,7 +86,7 @@ import org.springframework.web.reactive.function.client.WebClient;
         "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.llm", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class})
+@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class, ContexaLlmBindingProperties.class})
 public class CoreLLMTieredAutoConfiguration {
 
     private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
@@ -93,6 +100,35 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Autowired
     private ContexaLlmSelectionProperties contexaLlmSelectionProperties;
+
+    @Bean
+    @ConditionalOnMissingBean
+    public LlmRuntimeCatalog llmRuntimeCatalog(
+            ApplicationContext applicationContext,
+            ContexaProperties contexaProperties,
+            ContexaLlmBindingProperties contexaLlmBindingProperties) {
+        return new SpringLlmRuntimeCatalog((ConfigurableApplicationContext) applicationContext,
+                contexaProperties, contexaLlmBindingProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DynamicModelRegistry dynamicModelRegistry(
+            ApplicationContext applicationContext,
+            TieredLLMProperties tieredLLMProperties,
+            LlmRuntimeCatalog llmRuntimeCatalog) {
+        return new DynamicModelRegistry(applicationContext, tieredLLMProperties, llmRuntimeCatalog);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ChatModel.class)
+    public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
+            DynamicModelRegistry dynamicModelRegistry,
+            TieredLLMProperties tieredLLMProperties,
+            ChatModel primaryChatModel) {
+        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
+    }
 
     @Bean(name = "primaryChatModel")
     @Primary

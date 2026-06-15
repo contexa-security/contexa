@@ -50,7 +50,7 @@ export const rawText = (value) => {
     return normalized === '' ? null : normalized;
 };
 
-export const text = (value) => rawText(value) ?? '—';
+export const text = (value) => rawText(value) ?? '-';
 
 export const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')

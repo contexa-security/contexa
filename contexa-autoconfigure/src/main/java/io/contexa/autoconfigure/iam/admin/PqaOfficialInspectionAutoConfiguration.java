@@ -29,7 +29,6 @@ import org.springframework.jdbc.core.JdbcOperations;
 @AutoConfiguration
 @AutoConfigureAfter(IamAdminCenterAutoConfiguration.class)
 @ConditionalOnClass(OfficialSealedEvidenceVerificationRuntime.class)
-@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
 public class PqaOfficialInspectionAutoConfiguration {
 
     @Bean(name = "pqaOfficialVerificationMetricCatalog")
@@ -125,6 +124,7 @@ public class PqaOfficialInspectionAutoConfiguration {
     @Bean(name = "pqaOssOfficialSealedEvidenceCaptureService")
     @ConditionalOnMissingBean(OssOfficialSealedEvidenceCaptureService.class)
     @ConditionalOnProperty(prefix = "contexa.pqa.oss.sealed-evidence", name = "capture-enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
     public OssOfficialSealedEvidenceCaptureService pqaOssOfficialSealedEvidenceCaptureService(
             SealedEvidencePackageRepository repository,
             SealedEvidencePackageIntegrity integrity,
@@ -134,6 +134,7 @@ public class PqaOfficialInspectionAutoConfiguration {
 
     @Bean(name = "pqaOssOfficialSealedEvidenceCaptureFilter")
     @ConditionalOnMissingBean(name = "pqaOssOfficialSealedEvidenceCaptureFilter")
+    @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
     public FilterRegistrationBean<OssOfficialSealedEvidenceCaptureFilter> pqaOssOfficialSealedEvidenceCaptureFilter(
             OssOfficialSealedEvidenceCaptureService captureService) {
         FilterRegistrationBean<OssOfficialSealedEvidenceCaptureFilter> registration = new FilterRegistrationBean<>();

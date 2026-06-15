@@ -1,0 +1,61 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: contexa-started
+  ai:
+    retry:
+      max-attempts: 1
+    openai:
+      api-key: ${OPENAI_API_KEY:disabled}
+      base-url: https://api.openai.com
+      chat:
+        options:
+          model: gpt-5-nano
+      embedding:
+        options:
+          model: text-embedding-3-small
+          dimensions: 1024
+#    anthropic:
+#      api-key: ${ANTHROPIC_API_KEY:disabled}
+#      chat:
+#        options:
+#          model: claude-3-sonnet-20240229
+  data:
+    redis:
+      host: ${CONTEXA_REDIS_HOST:localhost}
+      port: ${CONTEXA_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${CONTEXA_KAFKA_SERVERS:localhost:9092}
+contexa:
+  llm:
+    selection:
+      chat:
+        mode: dynamic-priority
+        priority: ollama,openai,anthropic
+    chat:
+      ollama:
+        baseUrl: ${CONTEXA_CHAT_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+        model: ${CONTEXA_CHAT_OLLAMA_MODEL:qwen2.5:7b}
+        keepAlive: ${CONTEXA_OLLAMA_CHAT_KEEP_ALIVE:30m}
+    embedding:
+      ollama:
+        dedicatedRuntimeEnabled: false
+        model: ${CONTEXA_EMBEDDING_OLLAMA_MODEL:mxbai-embed-large}
+        dimensions: ${CONTEXA_EMBEDDING_OLLAMA_DIMENSIONS:1024}
+  datasource:
+    url: ${CONTEXA_DB_URL:${DB_URL:jdbc:postgresql://localhost:5432/contexa}}
+    username: ${CONTEXA_DB_USERNAME:${DB_USERNAME:contexa}}
+    password: ${CONTEXA_DB_PASSWORD:${DB_PASSWORD:contexa1234!@#}}
+    driver-class-name: ${CONTEXA_DB_DRIVER:org.postgresql.Driver}
+    isolation:
+      contexa-owned-application: true
+  security:
+    zerotrust:
+      mode: ENFORCE
+  hcad:
+    geoip:
+      enabled: true
+      dbPath: data/GeoLite2-City.mmdb
+  infrastructure:
+    mode: standalone
