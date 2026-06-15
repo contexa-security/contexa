@@ -73,7 +73,7 @@ class PolicyBuilderControllerDtoBoundaryTest {
         Model model = new ExtendedModelMap();
         String viewName = newController().policyBuilder(model);
 
-        assertThat(viewName).isEqualTo("admin/policy-builder");
+        assertThat(viewName).isEqualTo("contexa/admin/policy-builder");
         Object resourceContext = model.asMap().get("resourceContext");
         Object conditionStatistics = model.asMap().get("conditionStatistics");
 
@@ -117,7 +117,7 @@ class PolicyBuilderControllerDtoBoundaryTest {
         Model model = new ExtendedModelMap();
         String viewName = newController().policyBuilderFromResource(10L, 20L, model);
 
-        assertThat(viewName).isEqualTo("admin/policy-builder");
+        assertThat(viewName).isEqualTo("contexa/admin/policy-builder");
         Object resourceContext = model.asMap().get("resourceContext");
 
         assertThat(resourceContext).isNotInstanceOf(Map.class);

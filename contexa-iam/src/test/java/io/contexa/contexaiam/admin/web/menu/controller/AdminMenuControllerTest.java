@@ -47,6 +47,8 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -100,7 +102,7 @@ class AdminMenuControllerTest {
 
             MvcResult result = mockMvc.perform(get("/contexa/admin/menu-management"))
                     .andExpect(status().isOk())
-                    .andExpect(view().name("admin/menu-management"))
+                    .andExpect(view().name("contexa/admin/menu-management"))
                     .andExpect(model().attribute("activePage", "menu-management"))
                     .andReturn();
 
@@ -124,7 +126,7 @@ class AdminMenuControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.menuManagement(model);
 
-            assertThat(viewName).isEqualTo("admin/menu-management");
+            assertThat(viewName).isEqualTo("contexa/admin/menu-management");
             assertThat(model.getAttribute("activePage")).isEqualTo("menu-management");
             assertThat(asList(model.getAttribute("menus"))).hasSize(2);
             assertThat(asObjectSet(model.getAttribute("parentIds"))).containsExactly(1L);
@@ -146,7 +148,7 @@ class AdminMenuControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.menuManagement(model);
 
-            assertThat(viewName).isEqualTo("admin/menu-management");
+            assertThat(viewName).isEqualTo("contexa/admin/menu-management");
             assertThat(asList(model.getAttribute("menus")))
                     .extracting(menu -> property(menu, "id"))
                     .containsExactly(1L, 2L, 3L, 4L);
@@ -211,6 +213,34 @@ class AdminMenuControllerTest {
                     .andExpect(jsonPath("$.error").value("order must be a number"));
 
             verify(adminMenuService, never()).updateMenuOrder(any(), any(Integer.class));
+        }
+
+        @Test
+        @DisplayName("order update returns bad request on IllegalArgumentException")
+        void updateOrderException() throws Exception {
+            when(adminMenuService.getMenuById(any())).thenReturn(Optional.empty()); // or throw in management service
+            // Mocking updateOrder to throw
+            doThrow(new IllegalArgumentException("Invalid order")).when(adminMenuService).updateMenuOrder(any(), anyInt());
+
+            mockMvc.perform(post("/contexa/admin/menu-management/api/order")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("[{\"id\":1,\"order\":3}]"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Invalid order"));
+        }
+
+        @Test
+        @DisplayName("create returns bad request on IllegalArgumentException")
+        void createMenuException() throws Exception {
+            doThrow(new IllegalArgumentException("Constraint violation")).when(adminMenuService).saveMenu(any());
+
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Bad\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Constraint violation"));
         }
 
         @Test
@@ -324,6 +354,21 @@ class AdminMenuControllerTest {
                     .andExpect(jsonPath("$.error").value("menuOrder must be a number"));
 
             verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
+        @DisplayName("update rejects IllegalArgumentException from service")
+        void updateMenuException() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+            doThrow(new IllegalArgumentException("Constraint on save")).when(adminMenuService).saveMenu(any());
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"New\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Constraint on save"));
         }
 
         @Test

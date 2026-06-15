@@ -71,7 +71,7 @@ public class AccessCenterController {
         return "contexa/admin/access-center";
     }
 
-    @GetMapping("/contexa/api/users")
+    @GetMapping("/api/users")
     @ResponseBody
     public ResponseEntity<AccessPageResponse<AccessUserSummaryResponse>> searchUsers(
             @RequestParam(required = false) String keyword,

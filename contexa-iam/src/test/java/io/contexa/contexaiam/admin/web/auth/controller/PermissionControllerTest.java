@@ -118,7 +118,7 @@ class PermissionControllerTest {
 
             String view = controller.getPermissions(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/permissions");
+            assertThat(view).isEqualTo("contexa/admin/permissions");
             assertThat(model.getAttribute("permissions")).isNotNull();
         }
 
@@ -139,7 +139,7 @@ class PermissionControllerTest {
 
             String view = controller.getPermissions(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/permissions");
+            assertThat(view).isEqualTo("contexa/admin/permissions");
             assertThat(dto.getLinkedResourceId()).isEqualTo(10L);
             assertThat(dto.getLinkedResourceIdentifier()).isEqualTo("api/users");
         }
@@ -156,7 +156,7 @@ class PermissionControllerTest {
 
             String view = controller.registerPermissionForm(model);
 
-            assertThat(view).isEqualTo("admin/permissiondetails");
+            assertThat(view).isEqualTo("contexa/admin/permissiondetails");
             assertThat(model.getAttribute("permission")).isInstanceOf(PermissionDto.class);
         }
     }
@@ -176,7 +176,7 @@ class PermissionControllerTest {
 
             String view = controller.createPermission(permDto, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/permissions");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/permissions");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("WRITE_USER");
             verify(permissionService).createPermission(permission);
         }
@@ -199,7 +199,7 @@ class PermissionControllerTest {
 
             String view = controller.permissionDetails(1L, model);
 
-            assertThat(view).isEqualTo("admin/permissiondetails");
+            assertThat(view).isEqualTo("contexa/admin/permissiondetails");
             assertThat(model.getAttribute("permission")).isEqualTo(dto);
         }
 
@@ -229,7 +229,7 @@ class PermissionControllerTest {
 
             String view = controller.updatePermission(1L, permDto, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/permissions");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/permissions");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("UPDATED");
         }
     }
@@ -245,7 +245,7 @@ class PermissionControllerTest {
 
             String view = controller.deletePermission(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/permissions");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/permissions");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("1");
             verify(permissionService).deletePermission(1L);
         }
@@ -259,7 +259,7 @@ class PermissionControllerTest {
 
             String view = controller.deletePermission(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/permissions");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/permissions");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString()
                     .contains("Permission is assigned to roles");
         }
@@ -273,7 +273,7 @@ class PermissionControllerTest {
 
             String view = controller.deletePermission(999L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/permissions");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/permissions");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString()
                     .contains("Permission not found");
         }

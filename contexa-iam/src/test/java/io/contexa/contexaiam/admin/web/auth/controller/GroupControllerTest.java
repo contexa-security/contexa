@@ -114,7 +114,7 @@ class GroupControllerTest {
 
             String view = controller.getGroups(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/groups");
+            assertThat(view).isEqualTo("contexa/admin/groups");
             assertThat(model.getAttribute("groups")).isNotNull();
             verify(groupRepository).findAll(pageable);
         }
@@ -134,7 +134,7 @@ class GroupControllerTest {
 
             String view = controller.getGroups(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/groups");
+            assertThat(view).isEqualTo("contexa/admin/groups");
             assertThat(dto.getRoleCount()).isZero();
             assertThat(dto.getUserCount()).isZero();
         }
@@ -153,7 +153,7 @@ class GroupControllerTest {
 
             String view = controller.registerGroupForm(model);
 
-            assertThat(view).isEqualTo("admin/groupdetails");
+            assertThat(view).isEqualTo("contexa/admin/groupdetails");
             assertThat(model.getAttribute("group")).isInstanceOf(GroupDto.class);
             assertThat(model.getAttribute("roleList")).isEqualTo(roles);
             assertThat(model.getAttribute("selectedRoleIds")).isInstanceOf(HashSet.class);
@@ -175,7 +175,7 @@ class GroupControllerTest {
 
             String view = controller.createGroup(groupDto, List.of(1L), ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("NewGroup");
             verify(groupService).createGroup(group, List.of(1L));
         }
@@ -191,7 +191,7 @@ class GroupControllerTest {
 
             String view = controller.createGroup(groupDto, null, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Duplicate name");
         }
 
@@ -206,7 +206,7 @@ class GroupControllerTest {
 
             String view = controller.createGroup(groupDto, null, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
         }
     }
@@ -237,7 +237,7 @@ class GroupControllerTest {
 
             String view = controller.getGroupDetails(1L, model, ra);
 
-            assertThat(view).isEqualTo("admin/groupdetails");
+            assertThat(view).isEqualTo("contexa/admin/groupdetails");
             assertThat(model.getAttribute("group")).isEqualTo(groupDto);
             assertThat(model.getAttribute("roleList")).isNotNull();
             assertThat(model.getAttribute("selectedRoleIds")).isNotNull();
@@ -252,7 +252,7 @@ class GroupControllerTest {
 
             String view = controller.getGroupDetails(999L, model, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999");
         }
 
@@ -270,7 +270,7 @@ class GroupControllerTest {
 
             String view = controller.getGroupDetails(1L, model, ra);
 
-            assertThat(view).isEqualTo("admin/groupdetails");
+            assertThat(view).isEqualTo("contexa/admin/groupdetails");
             assertThat(model.getAttribute("selectedRoleIds")).isEqualTo(List.of());
         }
     }
@@ -290,7 +290,7 @@ class GroupControllerTest {
 
             String view = controller.updateGroup(1L, groupDto, List.of(2L), ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("Updated");
             assertThat(groupDto.getId()).isEqualTo(1L);
             verify(groupService).updateGroup(group, List.of(2L));
@@ -307,7 +307,7 @@ class GroupControllerTest {
 
             String view = controller.updateGroup(1L, groupDto, null, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
         }
 
@@ -322,7 +322,7 @@ class GroupControllerTest {
 
             String view = controller.updateGroup(1L, groupDto, null, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
         }
     }
@@ -338,7 +338,7 @@ class GroupControllerTest {
 
             String view = controller.deleteGroup(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("1");
             verify(groupService).deleteGroup(1L);
         }
@@ -351,7 +351,7 @@ class GroupControllerTest {
 
             String view = controller.deleteGroup(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/groups");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Constraint violation");
         }
     }

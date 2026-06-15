@@ -141,7 +141,7 @@ class AccessCenterControllerTest {
 
             mockMvc.perform(get("/contexa/admin/access-center").param("tab", "roles"))
                     .andExpect(status().isOk())
-                    .andExpect(view().name("admin/access-center"))
+                    .andExpect(view().name("contexa/admin/access-center"))
                     .andExpect(model().attribute("activePage", "access-center"))
                     .andExpect(model().attribute("activeTab", "roles"))
                     .andExpect(model().attribute("userCount", 10L))
@@ -161,7 +161,7 @@ class AccessCenterControllerTest {
 
             String viewName = controller.accessCenter("users", model);
 
-            assertThat(viewName).isEqualTo("admin/access-center");
+            assertThat(viewName).isEqualTo("contexa/admin/access-center");
             assertThat(model.getAttribute("activePage")).isEqualTo("access-center");
             assertThat(model.getAttribute("activeTab")).isEqualTo("users");
             assertThat(model.getAttribute("userCount")).isEqualTo(10L);

@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.monitoring.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -354,6 +355,25 @@ class DashboardServiceImplTest {
             // Since it's daily, period should be formatted as MM-dd
             AccessTrendDto firstTrend = result.accessTrends().get(0);
             assertThat(firstTrend.period()).matches("\\d{2}-\\d{2}");
+        }
+
+        @Test
+        @DisplayName("should throw IllegalArgumentException when range days is negative")
+        void negativeRange() {
+            assertThrows(IllegalArgumentException.class, () ->
+                    service.getDashboardData(-5)
+            );
+        }
+
+        @Test
+        @DisplayName("should default confidence score to zero when repository returns null")
+        void nullConfidenceScore() {
+            stubAllDependencies();
+            when(policyRepository.calculateAverageConfidenceScoreForAIPolicies()).thenReturn(null);
+
+            DashboardDto result = service.getDashboardData();
+
+            assertThat(result.policyStatus().averageAiConfidence()).isEqualTo(0.0);
         }
     }
 }

@@ -474,7 +474,7 @@ class PolicyCenterControllerTest {
 
             String view = controller.policyCenter("resources", criteria, pageable, null, null, null, 0, model);
 
-            assertThat(view).isEqualTo("admin/policy-center");
+            assertThat(view).isEqualTo("contexa/admin/policy-center");
             assertThat(model.getAttribute("activePage")).isEqualTo("policy-center");
             assertThat(model.getAttribute("activeTab")).isEqualTo("resources");
             assertThat(model.getAttribute("resourcePage")).isNotNull();
@@ -495,7 +495,7 @@ class PolicyCenterControllerTest {
 
             String view = controller.policyCenter("resources", criteria, pageable, null, null, null, 0, model);
 
-            assertThat(view).isEqualTo("admin/policy-center");
+            assertThat(view).isEqualTo("contexa/admin/policy-center");
             assertThat(model.getAttribute("errorMessage")).asString().contains("msg.policy.load.error");
             assertThat(model.getAttribute("resourcePage")).isEqualTo(Page.empty());
             assertThat(model.getAttribute("serviceOwners")).isEqualTo(Collections.emptySet());
@@ -515,7 +515,7 @@ class PolicyCenterControllerTest {
 
             String view = controller.refreshResources(ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/policy-center?tab=resources");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/policy-center?tab=resources");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("refreshed");
             verify(resourceRegistryService).refreshAndSynchronizeResources();
         }
@@ -529,7 +529,7 @@ class PolicyCenterControllerTest {
 
             String view = controller.refreshResources(ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/policy-center?tab=resources");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/policy-center?tab=resources");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Connection failed");
         }
     }
@@ -548,7 +548,7 @@ class PolicyCenterControllerTest {
 
             String view = controller.createPolicyFromCenter(request, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/policy-center?tab=list");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/policy-center?tab=list");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.policy.created");
         }
 
@@ -562,7 +562,7 @@ class PolicyCenterControllerTest {
 
             String view = controller.createPolicyFromCenter(request, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/policy-center?tab=list");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/policy-center?tab=list");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Duplicate policy name");
         }
     }

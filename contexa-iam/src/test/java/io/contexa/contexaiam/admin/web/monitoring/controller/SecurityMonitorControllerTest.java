@@ -30,8 +30,10 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
@@ -71,7 +73,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, null, null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
             assertThat(model.getAttribute("activePage")).isEqualTo("security-monitor");
             assertThat(model.getAttribute("logPage")).isNotNull();
             assertThat(model.getAttribute("hours")).isEqualTo(24);
@@ -95,7 +97,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor("AUTHENTICATION_SUCCESS", null, null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
             assertThat(model.getAttribute("category")).isEqualTo("AUTHENTICATION_SUCCESS");
             verify(auditLogRepository).findByTimestampAfterAndCategory(
                     any(LocalDateTime.class), eq("AUTHENTICATION_SUCCESS"), any(Pageable.class));
@@ -111,7 +113,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "AFTER_HOURS", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
             assertThat(model.getAttribute("filterType")).isEqualTo("AFTER_HOURS");
         }
 
@@ -126,7 +128,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "HIGH_RISK", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
             assertThat(model.getAttribute("filterType")).isEqualTo("HIGH_RISK");
         }
 
@@ -141,7 +143,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "DECISION_ALLOW", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
         }
 
         @Test
@@ -155,7 +157,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "DECISION_DENY", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
         }
 
         @Test
@@ -173,7 +175,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "DISTINCT_IP", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
             @SuppressWarnings("unchecked")
             List<IpGroupView> ipGroups = (List<IpGroupView>) model.getAttribute("ipGroups");
             assertThat(ipGroups).hasSize(1);
@@ -195,7 +197,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "ZT_ALLOW", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
         }
 
         @Test
@@ -209,7 +211,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.monitor(null, "CUSTOM_FILTER", null, 24, 0, model);
 
-            assertThat(view).isEqualTo("admin/security-monitor");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor");
         }
 
         private void stubRepositoryCounts() {
@@ -243,7 +245,7 @@ class SecurityMonitorControllerTest {
 
             String view = controller.detail(1L, model, ra);
 
-            assertThat(view).isEqualTo("admin/security-monitor-detail");
+            assertThat(view).isEqualTo("contexa/admin/security-monitor-detail");
             assertThat(model.getAttribute("log")).isEqualTo(auditLog);
             assertThat(model.getAttribute("activePage")).isEqualTo("security-monitor");
         }
@@ -257,8 +259,25 @@ class SecurityMonitorControllerTest {
 
             String view = controller.detail(999L, model, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/security-monitor");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/security-monitor");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999");
+        }
+    }
+
+    @Nested
+    @DisplayName("export")
+    class Export {
+
+        @Test
+        @DisplayName("should export audit logs to CSV successfully")
+        void exportCsv() throws Exception {
+            HttpServletResponse httpResponse = mock(HttpServletResponse.class);
+            when(auditLogRepository.findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(new AuditLog())));
+
+            controller.exportCsv(null, null, 24, httpResponse);
+
+            verify(csvExportService).export(eq(httpResponse), eq("audit-log"), anyList(), any());
         }
     }
 }

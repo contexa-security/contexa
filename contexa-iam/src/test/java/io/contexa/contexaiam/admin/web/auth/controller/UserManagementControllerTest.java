@@ -110,7 +110,7 @@ class UserManagementControllerTest {
 
             String view = controller.getUsers(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/users");
+            assertThat(view).isEqualTo("contexa/admin/users");
             assertThat(model.getAttribute("users")).isNotNull();
             verify(userRepository).findAll(pageable);
         }
@@ -131,7 +131,7 @@ class UserManagementControllerTest {
 
             String view = controller.showCreateForm(model);
 
-            assertThat(view).isEqualTo("admin/userdetails");
+            assertThat(view).isEqualTo("contexa/admin/userdetails");
             assertThat(model.getAttribute("user")).isNotNull();
             assertThat(model.getAttribute("roleList")).isEqualTo(roles);
             assertThat(model.getAttribute("groupList")).isEqualTo(groups);
@@ -158,7 +158,7 @@ class UserManagementControllerTest {
 
             String view = controller.getUser(1L, model, ra);
 
-            assertThat(view).isEqualTo("admin/userdetails");
+            assertThat(view).isEqualTo("contexa/admin/userdetails");
             assertThat(model.getAttribute("user")).isEqualTo(userDto);
             assertThat(model.getAttribute("roleList")).isEqualTo(roles);
             assertThat(model.getAttribute("groupList")).isEqualTo(groups);
@@ -178,7 +178,7 @@ class UserManagementControllerTest {
 
             String view = controller.getUser(1L, model, ra);
 
-            assertThat(view).isEqualTo("admin/userdetails");
+            assertThat(view).isEqualTo("contexa/admin/userdetails");
             assertThat(model.getAttribute("selectedGroupIds")).isEqualTo(List.of());
         }
 
@@ -191,7 +191,7 @@ class UserManagementControllerTest {
 
             String view = controller.getUser(999L, model, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
         }
     }
@@ -208,7 +208,7 @@ class UserManagementControllerTest {
 
             String view = controller.updateUser(1L, userDto, List.of(10L), ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("testuser");
             verify(userManagementService).modifyUser(userDto);
             assertThat(userDto.getId()).isEqualTo(1L);
@@ -224,7 +224,7 @@ class UserManagementControllerTest {
 
             String view = controller.updateUser(1L, userDto, null, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users/1");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users/1");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
         }
     }
@@ -241,7 +241,7 @@ class UserManagementControllerTest {
 
             String view = controller.updateUserPost(1L, userDto, List.of(10L), ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             verify(userManagementService).modifyUser(userDto);
         }
     }
@@ -257,7 +257,7 @@ class UserManagementControllerTest {
 
             String view = controller.removeUser(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("1");
             verify(userManagementService).deleteUser(1L);
         }
@@ -270,7 +270,7 @@ class UserManagementControllerTest {
 
             String view = controller.removeUser(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
         }
     }
@@ -286,7 +286,7 @@ class UserManagementControllerTest {
 
             String view = controller.removeUserGet(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/users");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             verify(userManagementService).deleteUser(1L);
         }
     }

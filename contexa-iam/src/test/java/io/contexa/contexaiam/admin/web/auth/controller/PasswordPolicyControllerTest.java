@@ -115,7 +115,7 @@ class PasswordPolicyControllerTest {
 
         String view = controller.showPolicy(model);
 
-        assertThat(view).isEqualTo("admin/password-policy");
+        assertThat(view).isEqualTo("contexa/admin/password-policy");
         assertThat(model.getAttribute("activePage")).isEqualTo("password-policy");
         Object form = model.getAttribute("policy");
         assertThat(form).isNotNull();

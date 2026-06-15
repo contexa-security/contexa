@@ -38,6 +38,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -459,5 +461,16 @@ class SecurityScoreCalculatorImplTest {
             logs.add(log);
         }
         return logs;
+    }
+
+    @Test
+    @DisplayName("should handle exception gracefully when user repository throws error during calculate")
+    void repoException() {
+        stubAllFactorsDefault();
+        when(userRepository.countByRoles("ADMIN")).thenThrow(new RuntimeException("DB down"));
+
+        assertThrows(RuntimeException.class, () ->
+                calculator.calculate()
+        );
     }
 }

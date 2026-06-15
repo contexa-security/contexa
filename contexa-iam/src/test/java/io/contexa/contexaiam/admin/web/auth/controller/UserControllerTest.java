@@ -124,7 +124,7 @@ class UserControllerTest {
                 .registrationEnabled(false)
                 .build());
 
-        mockMvc.perform(post("/api/register")
+        mockMvc.perform(post("/contexa/api/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -147,7 +147,7 @@ class UserControllerTest {
         when(userRepository.findByUsername("alice")).thenReturn(Optional.empty());
         when(passwordPolicyService.validatePassword("weak")).thenReturn(List.of("too short"));
 
-        mockMvc.perform(post("/api/register")
+        mockMvc.perform(post("/contexa/api/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -176,7 +176,7 @@ class UserControllerTest {
         when(modelMapper.map(any(), eq(Users.class))).thenReturn(mapped);
         when(passwordEncoder.encode("Password1!")).thenReturn("encoded");
 
-        mockMvc.perform(post("/api/register")
+        mockMvc.perform(post("/contexa/api/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

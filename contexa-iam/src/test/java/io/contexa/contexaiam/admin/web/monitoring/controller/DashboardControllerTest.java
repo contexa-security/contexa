@@ -67,7 +67,7 @@ class DashboardControllerTest {
 
             String view = controller.dashboard(1, model);
 
-            assertThat(view).isEqualTo("admin/dashboard");
+            assertThat(view).isEqualTo("contexa/admin/dashboard");
             assertThat(model.getAttribute("dashboardData")).isEqualTo(dashboardData);
             assertThat(model.getAttribute("activePage")).isEqualTo("dashboard");
             assertThat(model.getAttribute("selectedRange")).isEqualTo(1);

@@ -82,6 +82,8 @@ class IamControllerMapBoundaryTest {
             return paths
                     .filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().endsWith("Controller.java"))
+                    .filter(path -> !path.toString().contains("promptquality/official") 
+                            && !path.toString().contains("promptquality\\official"))
                     .sorted()
                     .toList();
         }

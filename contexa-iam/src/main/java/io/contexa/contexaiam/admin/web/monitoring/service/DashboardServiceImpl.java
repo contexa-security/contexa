@@ -72,6 +72,9 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public DashboardDto getDashboardData(int days) {
+        if (days < 0) {
+            throw new IllegalArgumentException("Range days must be non-negative");
+        }
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = (authentication != null) ? authentication.getName() : "SYSTEM";
         LocalDateTime since = LocalDateTime.now().minusDays(days);
@@ -212,6 +215,8 @@ public class DashboardServiceImpl implements DashboardService {
                 ))
                 .toList();
 
+        Double avgConfidence = policyRepository.calculateAverageConfidenceScoreForAIPolicies();
+
         return new PolicyStatusDto(
                 policyTotal,
                 policyActive,
@@ -224,7 +229,7 @@ public class DashboardServiceImpl implements DashboardService {
                 approvalCounts.getOrDefault(Policy.ApprovalStatus.APPROVED, 0L),
                 approvalCounts.getOrDefault(Policy.ApprovalStatus.REJECTED, 0L),
                 approvalCounts.getOrDefault(Policy.ApprovalStatus.NOT_REQUIRED, 0L),
-                policyRepository.calculateAverageConfidenceScoreForAIPolicies(),
+                avgConfidence != null ? avgConfidence : 0.0,
                 recentPolicies
         );
     }

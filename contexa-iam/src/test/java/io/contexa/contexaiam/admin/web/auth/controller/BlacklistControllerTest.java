@@ -102,7 +102,7 @@ class BlacklistControllerTest {
 
             String view = controller.listBlockedUsers("all", null, model);
 
-            assertThat(view).isEqualTo("admin/blacklist");
+            assertThat(view).isEqualTo("contexa/admin/blacklist");
             assertThat(model.getAttribute("blockedUsers")).isEqualTo(all);
             assertThat(model.getAttribute("currentFilter")).isEqualTo("all");
         }
@@ -116,7 +116,7 @@ class BlacklistControllerTest {
 
             String view = controller.listBlockedUsers("blocked", null, model);
 
-            assertThat(view).isEqualTo("admin/blacklist");
+            assertThat(view).isEqualTo("contexa/admin/blacklist");
             assertThat(model.getAttribute("blockedUsers")).isEqualTo(blocked);
             assertThat(model.getAttribute("currentFilter")).isEqualTo("blocked");
         }
@@ -130,7 +130,7 @@ class BlacklistControllerTest {
 
             String view = controller.listBlockedUsers("unblock_requested", null, model);
 
-            assertThat(view).isEqualTo("admin/blacklist");
+            assertThat(view).isEqualTo("contexa/admin/blacklist");
             assertThat(model.getAttribute("blockedUsers")).isEqualTo(requested);
         }
 
@@ -144,7 +144,7 @@ class BlacklistControllerTest {
 
             String view = controller.listBlockedUsers("resolved", null, model);
 
-            assertThat(view).isEqualTo("admin/blacklist");
+            assertThat(view).isEqualTo("contexa/admin/blacklist");
             @SuppressWarnings("unchecked")
             List<BlockedUser> result = (List<BlockedUser>) model.getAttribute("blockedUsers");
             assertThat(result).hasSize(1);
@@ -161,7 +161,7 @@ class BlacklistControllerTest {
 
             String view = controller.listBlockedUsers("timeout_responded", null, model);
 
-            assertThat(view).isEqualTo("admin/blacklist");
+            assertThat(view).isEqualTo("contexa/admin/blacklist");
             @SuppressWarnings("unchecked")
             List<BlockedUser> result = (List<BlockedUser>) model.getAttribute("blockedUsers");
             assertThat(result).hasSize(1);
@@ -183,7 +183,7 @@ class BlacklistControllerTest {
 
             String view = controller.getBlockDetail(1L, model, ra);
 
-            assertThat(view).isEqualTo("admin/blacklist-detail");
+            assertThat(view).isEqualTo("contexa/admin/blacklist-detail");
             assertThat(model.getAttribute("blocked")).isEqualTo(blocked);
         }
 
@@ -196,7 +196,7 @@ class BlacklistControllerTest {
 
             String view = controller.getBlockDetail(999L, model, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/blacklist");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999");
         }
     }
@@ -212,7 +212,7 @@ class BlacklistControllerTest {
 
             String view = controller.resolveBlock(1L, "UNBLOCK", "Test reason", ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/blacklist");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("resolved");
             verify(blockedUserService).resolveBlockById(eq(1L), eq("admin"), eq("UNBLOCK"), eq("Test reason"));
         }
@@ -226,7 +226,7 @@ class BlacklistControllerTest {
 
             String view = controller.resolveBlock(1L, "UNBLOCK", "reason", ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/blacklist/1");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist/1");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
         }
 
@@ -239,7 +239,7 @@ class BlacklistControllerTest {
 
             String view = controller.resolveBlock(1L, "UNBLOCK", "reason", ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/blacklist/1");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist/1");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Already resolved");
         }
     }
@@ -255,7 +255,7 @@ class BlacklistControllerTest {
 
             String view = controller.deleteBlockRecord(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/blacklist");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("deleted");
             verify(blockedUserService).deleteBlockRecord(1L);
         }
@@ -269,7 +269,7 @@ class BlacklistControllerTest {
 
             String view = controller.deleteBlockRecord(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/blacklist");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Cannot delete active block");
         }
     }

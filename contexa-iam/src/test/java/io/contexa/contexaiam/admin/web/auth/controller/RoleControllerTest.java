@@ -121,7 +121,7 @@ class RoleControllerTest {
 
             String view = controller.getRoles(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/roles");
+            assertThat(view).isEqualTo("contexa/admin/roles");
             assertThat(model.getAttribute("roles")).isNotNull();
         }
 
@@ -139,7 +139,7 @@ class RoleControllerTest {
 
             String view = controller.getRoles(null, pageable, model);
 
-            assertThat(view).isEqualTo("admin/roles");
+            assertThat(view).isEqualTo("contexa/admin/roles");
             assertThat(dto.getPermissionCount()).isZero();
         }
     }
@@ -157,7 +157,7 @@ class RoleControllerTest {
 
             String view = controller.registerRoleForm(model);
 
-            assertThat(view).isEqualTo("admin/rolesdetails");
+            assertThat(view).isEqualTo("contexa/admin/rolesdetails");
             assertThat(model.getAttribute("role")).isInstanceOf(RoleDto.class);
             assertThat(model.getAttribute("permissionList")).isEqualTo(permissions);
             assertThat(model.getAttribute("selectedPermissionIds")).isInstanceOf(ArrayList.class);
@@ -178,7 +178,7 @@ class RoleControllerTest {
 
             String view = controller.createRole(roleDto, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/roles");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/roles");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.created");
             verify(roleService).createRole(role, List.of(1L));
         }
@@ -209,7 +209,7 @@ class RoleControllerTest {
 
             String view = controller.getRoleDetails(1L, model);
 
-            assertThat(view).isEqualTo("admin/rolesdetails");
+            assertThat(view).isEqualTo("contexa/admin/rolesdetails");
             assertThat(model.getAttribute("role")).isEqualTo(roleDto);
             assertThat(model.getAttribute("permissionList")).isNotNull();
             assertThat(model.getAttribute("selectedPermissionIds")).isNotNull();
@@ -230,7 +230,7 @@ class RoleControllerTest {
 
             String view = controller.updateRole(1L, roleDto, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/roles");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/roles");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.updated");
             assertThat(roleDto.getId()).isEqualTo(1L);
             verify(roleService).updateRole(role, List.of(2L));
@@ -248,7 +248,7 @@ class RoleControllerTest {
 
             String view = controller.deleteRole(1L, ra);
 
-            assertThat(view).isEqualTo("redirect:/admin/roles");
+            assertThat(view).isEqualTo("redirect:/contexa/admin/roles");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("msg.role.deleted");
             verify(roleService).deleteRole(1L);
         }

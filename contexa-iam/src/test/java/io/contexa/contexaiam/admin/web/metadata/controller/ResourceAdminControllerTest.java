@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.metadata.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -110,7 +111,7 @@ class ResourceAdminControllerTest {
 
             MvcResult result = mockMvc.perform(get("/contexa/admin/workbench/resources"))
                     .andExpect(status().isOk())
-                    .andExpect(view().name("admin/resource-workbench"))
+                    .andExpect(view().name("contexa/admin/resource-workbench"))
                     .andExpect(model().attribute("activePage", "policy-center"))
                     .andReturn();
 
@@ -282,8 +283,23 @@ class ResourceAdminControllerTest {
 
             String viewName = controller.updateManagementStatus(1L, dto, redirectAttributes);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/workbench/resources");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/workbench/resources");
             assertThat(redirectAttributes.getFlashAttributes()).containsKey("message");
+        }
+
+        @Test
+        @DisplayName("manage redirect keeps error flash contract on exception")
+        void updateManagementStatusError() {
+            ResourceManagementForm dto = new ResourceManagementForm();
+            dto.setStatus("POLICY_CONNECTED");
+            RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+            doThrow(new RuntimeException("update failed"))
+                    .when(resourceRegistryService).updateResourceManagementStatus(eq(1L), any());
+
+            String viewName = controller.updateManagementStatus(1L, dto, redirectAttributes);
+
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/workbench/resources");
+            assertThat(redirectAttributes.getFlashAttributes()).containsKey("errorMessage");
         }
 
         @Test
@@ -295,8 +311,30 @@ class ResourceAdminControllerTest {
 
             String viewName = controller.refreshResources(redirectAttributes);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/workbench/resources");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/workbench/resources");
             assertThat(redirectAttributes.getFlashAttributes()).containsKey("errorMessage");
+        }
+
+        @Test
+        @DisplayName("restore returns bad request on exception")
+        void restoreException() throws Exception {
+            doThrow(new RuntimeException("restore failed"))
+                    .when(resourceRegistryService).updateResourceManagementStatus(eq(1L), any());
+
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/restore"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("restore failed"));
+        }
+
+        @Test
+        @DisplayName("exclude returns bad request on exception")
+        void excludeException() throws Exception {
+            doThrow(new RuntimeException("exclude failed"))
+                    .when(resourceRegistryService).excludeResourceFromManagement(1L);
+
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/exclude"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("exclude failed"));
         }
     }
 }

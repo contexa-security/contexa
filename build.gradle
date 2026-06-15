@@ -57,6 +57,7 @@ subprojects {
 
     tasks.named('test') {
         useJUnitPlatform()
+        jvmArgs '-XX:+EnableDynamicAgentLoading', '-Dorg.mockito.mock.maker=mock-maker-subclass'
         finalizedBy jacocoTestReport
     }
 

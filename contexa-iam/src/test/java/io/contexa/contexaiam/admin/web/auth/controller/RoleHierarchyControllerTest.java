@@ -135,7 +135,7 @@ class RoleHierarchyControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.getRoleHierarchies(null, 0, model);
 
-            assertThat(viewName).isEqualTo("admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("contexa/admin/role-hierarchies");
             assertThat(model.getAttribute("hierarchies")).isNotNull();
             @SuppressWarnings("unchecked")
             List<RoleHierarchyDto> list = (List<RoleHierarchyDto>) model.getAttribute("hierarchies");
@@ -151,7 +151,7 @@ class RoleHierarchyControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.getRoleHierarchies(null, 0, model);
 
-            assertThat(viewName).isEqualTo("admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("contexa/admin/role-hierarchies");
             @SuppressWarnings("unchecked")
             List<RoleHierarchyDto> list = (List<RoleHierarchyDto>) model.getAttribute("hierarchies");
             assertThat(list).isEmpty();
@@ -174,7 +174,7 @@ class RoleHierarchyControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.registerRoleHierarchyForm(model);
 
-            assertThat(viewName).isEqualTo("admin/role-hierarchy-details");
+            assertThat(viewName).isEqualTo("contexa/admin/role-hierarchy-details");
             assertThat(model.getAttribute("hierarchy")).isNotNull();
             assertThat(model.getAttribute("hierarchy")).isInstanceOf(RoleHierarchyDto.class);
         }
@@ -199,7 +199,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.createRoleHierarchy(dto, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             assertThat(ra.getFlashAttributes()).containsKey("message");
         }
 
@@ -215,7 +215,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.createRoleHierarchy(dto, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies/register");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies/register");
             assertThat(ra.getFlashAttributes()).containsKey("error");
         }
     }
@@ -241,7 +241,7 @@ class RoleHierarchyControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.roleHierarchyDetails(1L, model);
 
-            assertThat(viewName).isEqualTo("admin/role-hierarchy-details");
+            assertThat(viewName).isEqualTo("contexa/admin/role-hierarchy-details");
             assertThat(model.getAttribute("hierarchy")).isNotNull();
         }
 
@@ -271,7 +271,7 @@ class RoleHierarchyControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.roleHierarchyDetails(999L, model);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
         }
 
         @Test
@@ -308,7 +308,7 @@ class RoleHierarchyControllerTest {
             Model model = new ConcurrentModel();
             String viewName = controller.roleHierarchyDetails(1L, model);
 
-            assertThat(viewName).isEqualTo("admin/role-hierarchy-details");
+            assertThat(viewName).isEqualTo("contexa/admin/role-hierarchy-details");
             @SuppressWarnings("unchecked")
             List<ActiveHierarchyView> activeHierarchies =
                     (List<ActiveHierarchyView>) model.getAttribute("activeHierarchies");
@@ -339,7 +339,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.updateRoleHierarchy(1L, dto, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             assertThat(ra.getFlashAttributes()).containsKey("message");
         }
 
@@ -369,7 +369,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.updateRoleHierarchy(1L, dto, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies/1");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies/1");
             assertThat(ra.getFlashAttributes()).containsKey("error");
         }
     }
@@ -388,7 +388,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.deleteRoleHierarchy(1L, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             verify(roleHierarchyService).deleteRoleHierarchy(1L);
             assertThat(ra.getFlashAttributes().get("message").toString()).contains("1");
         }
@@ -401,7 +401,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.deleteRoleHierarchy(999L, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             assertThat(ra.getFlashAttributes().get("error")).asString().contains("Not found");
         }
     }
@@ -422,7 +422,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.activateRoleHierarchy(1L, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             assertThat(ra.getFlashAttributes().get("message").toString()).contains("activated");
         }
 
@@ -434,7 +434,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.activateRoleHierarchy(1L, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             assertThat(ra.getFlashAttributes().get("message").toString()).contains("deactivated");
         }
 
@@ -447,7 +447,7 @@ class RoleHierarchyControllerTest {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             String viewName = controller.activateRoleHierarchy(1L, ra);
 
-            assertThat(viewName).isEqualTo("redirect:/admin/role-hierarchies");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
             assertThat(ra.getFlashAttributes()).containsKey("error");
         }
     }
