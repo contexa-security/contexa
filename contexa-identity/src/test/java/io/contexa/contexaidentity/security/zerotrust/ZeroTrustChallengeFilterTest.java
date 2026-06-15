@@ -215,6 +215,47 @@ class ZeroTrustChallengeFilterTest {
         verify(lockService).unlock(anyString(), anyString());
     }
 
+    @Test
+    @DisplayName("MFA 성공 상태(MFA_SUCCESSFUL)인 경우 세션을 정리한다")
+    void successPass() throws Exception {
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        setUpChallengeAuthentication();
+
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(sessionRepository.getSessionId(request)).thenReturn("session-123");
+        when(sessionRepository.existsSession("session-123")).thenReturn(true);
+        FactorContext factorContext = mock(FactorContext.class);
+        when(factorContext.getCurrentState()).thenReturn(MfaState.MFA_SUCCESSFUL);
+        when(factorContext.getBooleanAttribute("challengeInitiated")).thenReturn(true);
+        when(stateMachineIntegrator.loadFactorContext("session-123")).thenReturn(factorContext);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(stateMachineIntegrator).cleanupSession(request, response);
+    }
+
+    @Test
+    @DisplayName("HTML 요청이고 세션이 진행 중이면 현재 상태의 MFA 페이지로 리다이렉트한다")
+    void existingSessionRedirect() throws Exception {
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        when(request.getHeader("Accept")).thenReturn("text/html");
+        setUpChallengeAuthentication();
+
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(sessionRepository.getSessionId(request)).thenReturn("session-123");
+        when(sessionRepository.existsSession("session-123")).thenReturn(true);
+        FactorContext factorContext = mock(FactorContext.class);
+        when(factorContext.getCurrentState()).thenReturn(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION);
+        when(factorContext.getBooleanAttribute("challengeInitiated")).thenReturn(true);
+        when(stateMachineIntegrator.loadFactorContext("session-123")).thenReturn(factorContext);
+        when(authUrlProvider.getMfaSelectFactor()).thenReturn("/mfa/select-factor");
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(response).sendRedirect(contains("/contexa/zero-trust/challenge-required"));
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
     private void setUpAuthentication() {
         when(authentication.getName()).thenReturn("testUser");
         SecurityContextImpl securityContext = new SecurityContextImpl();

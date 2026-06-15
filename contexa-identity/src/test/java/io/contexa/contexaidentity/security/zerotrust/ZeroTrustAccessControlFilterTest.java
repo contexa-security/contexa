@@ -230,6 +230,55 @@ class ZeroTrustAccessControlFilterTest {
         }
     }
 
+    @Test
+    void shouldPassThrough_whenBlockMfaIsPending() throws Exception {
+        when(request.getRequestURI()).thenReturn("/mfa/verify");
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(true);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(filterChain).doFilter(request, response);
+            verify(response, never()).sendRedirect(anyString());
+        }
+    }
+
+    @Test
+    void shouldBlockImmediately_whenBlockRetryLimitExceeded() throws Exception {
+        when(request.getRequestURI()).thenReturn("/some/path");
+        when(response.getWriter()).thenReturn(mock(PrintWriter.class));
+        setUpAuthentication();
+
+        // 락 해제 재시도 횟수 초과 설정
+        ZeroTrustAccessControlFilter customFilter = new ZeroTrustAccessControlFilter(
+                actionRedisRepository,
+                responseWriter,
+                blockedUserRecorder,
+                challengeMfaInitializer,
+                authUrlProvider,
+                blockingSignalBroadcaster,
+                0 // 시도 가능 횟수 0으로 제한
+        );
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+
+            customFilter.doFilter(request, response, filterChain);
+
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+            verify(response).sendRedirect("/contexa/zero-trust/blocked");
+        }
+    }
+
     private void setUpAuthentication() {
         SecurityContextImpl securityContext = new SecurityContextImpl();
         securityContext.setAuthentication(authentication);

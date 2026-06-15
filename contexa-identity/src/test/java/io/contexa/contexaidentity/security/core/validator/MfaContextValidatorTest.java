@@ -142,6 +142,30 @@ class MfaContextValidatorTest {
         assertThat(result.hasWarnings()).isFalse();
     }
 
+    @Test
+    void validateFactorProcessingContext_shouldReturnError_whenStepIdNullOrEmpty() {
+        setUpValidBaseContext();
+        when(factorContext.getCurrentState()).thenReturn(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION);
+        when(factorContext.getCurrentProcessingFactor()).thenReturn(AuthType.MFA_OTT);
+        when(factorContext.getCurrentStepId()).thenReturn("");
+
+        ValidationResult result = MfaContextValidator.validateFactorProcessingContext(factorContext);
+
+        assertThat(result.hasErrors()).isTrue();
+        assertThat(result.getErrors()).anyMatch(e -> e.contains("Current step ID"));
+    }
+
+    @Test
+    void validateFactorSelectionContext_shouldReturnError_whenInvalidState() {
+        setUpValidBaseContext();
+        when(factorContext.getCurrentState()).thenReturn(MfaState.NONE);
+
+        ValidationResult result = MfaContextValidator.validateFactorSelectionContext(factorContext);
+
+        assertThat(result.hasErrors()).isTrue();
+        assertThat(result.getErrors()).anyMatch(e -> e.contains("Invalid state for factor selection"));
+    }
+
     private void setUpValidBaseContext() {
         when(factorContext.getMfaSessionId()).thenReturn("session-123");
         when(factorContext.getUsername()).thenReturn("testUser");

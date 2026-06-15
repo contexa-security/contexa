@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class SessionSecurityContextRepositoryConfigurerTest {
 
@@ -48,5 +49,21 @@ class SessionSecurityContextRepositoryConfigurerTest {
 
         verify(httpSecurity).setSharedObject(SecurityContextRepository.class, repository);
         verify(httpSecurity).securityContext(any());
+    }
+
+    @Test
+    void configureShouldDoNothingIfRepositoryIsNull() throws Exception {
+        SessionSecurityContextRepositoryConfigurer configurer =
+                new SessionSecurityContextRepositoryConfigurer(null);
+        AuthenticationFlowConfig flowConfig = mock(AuthenticationFlowConfig.class);
+        HttpSecurity httpSecurity = mock(HttpSecurity.class);
+        PlatformContext platformContext = mock(PlatformContext.class);
+        PlatformConfig platformConfig = PlatformConfig.builder().build();
+
+        FlowContext flowContext = new FlowContext(flowConfig, httpSecurity, platformContext, platformConfig);
+
+        configurer.configure(flowContext);
+
+        verifyNoInteractions(httpSecurity);
     }
 }

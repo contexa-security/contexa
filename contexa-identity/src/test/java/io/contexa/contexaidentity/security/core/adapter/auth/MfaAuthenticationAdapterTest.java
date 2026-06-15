@@ -38,6 +38,11 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
+import io.contexa.contexaidentity.security.filter.MfaContinuationFilter;
+import io.contexa.contexaidentity.security.filter.MfaStepFilterWrapper;
+import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,6 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -269,6 +275,71 @@ class MfaAuthenticationAdapterTest {
 
             setupCommonBeans(mfaFlow);
 
+
+            assertThatCode(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("Filter Registration and URL Prefix tests")
+    class FilterRegistrationTests {
+
+        @Test
+        @DisplayName("apply should register filters and initialize them successfully")
+        void applyRegistersFiltersSuccessfully() throws Exception {
+            AuthenticationFlowConfig mfaFlow = mockValidMfaFlow();
+            Map<AuthType, AuthenticationProcessingOptions> factorOpts = new LinkedHashMap<>();
+            factorOpts.put(AuthType.OTT, mock(AuthenticationProcessingOptions.class));
+            when(mfaFlow.getRegisteredFactorOptions()).thenReturn(factorOpts);
+            when(mfaFlow.getStepConfigs()).thenReturn(Collections.emptyList());
+            when(mfaFlow.getPrimaryAuthenticationOptions()).thenReturn(null);
+            when(mfaFlow.getMfaPageConfig()).thenReturn(null);
+            when(mfaFlow.getUrlPrefix()).thenReturn("/custom-mfa");
+
+            setupCommonBeans(mfaFlow);
+
+            adapter.apply(httpSecurity, Collections.emptyList(), stateConfig);
+
+            verify(httpSecurity).addFilterBefore(any(MfaContinuationFilter.class), eq(LogoutFilter.class));
+            verify(httpSecurity).addFilterBefore(any(MfaStepFilterWrapper.class), eq(LogoutFilter.class));
+            verify(httpSecurity).securityMatcher("/custom-mfa/**");
+        }
+
+        @Test
+        @DisplayName("apply with invalid url prefix should throw IllegalStateException")
+        void applyWithInvalidUrlPrefixThrowsException() throws Exception {
+            AuthenticationFlowConfig mfaFlow = mockValidMfaFlow();
+            Map<AuthType, AuthenticationProcessingOptions> factorOpts = new LinkedHashMap<>();
+            factorOpts.put(AuthType.OTT, mock(AuthenticationProcessingOptions.class));
+            when(mfaFlow.getRegisteredFactorOptions()).thenReturn(factorOpts);
+            when(mfaFlow.getStepConfigs()).thenReturn(Collections.emptyList());
+            when(mfaFlow.getPrimaryAuthenticationOptions()).thenReturn(null);
+            when(mfaFlow.getMfaPageConfig()).thenReturn(null);
+            when(mfaFlow.getUrlPrefix()).thenReturn("/invalid#prefix");
+
+            setupCommonBeans(mfaFlow);
+
+            assertThatThrownBy(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasStackTraceContaining("urlPrefix contains invalid characters");
+        }
+
+        @Test
+        @DisplayName("apply when EmailOneTimeTokenService bean is missing should log and proceed")
+        void applyWhenEmailOttServiceMissingProceeds() throws Exception {
+            AuthenticationFlowConfig mfaFlow = mockValidMfaFlow();
+            Map<AuthType, AuthenticationProcessingOptions> factorOpts = new LinkedHashMap<>();
+            factorOpts.put(AuthType.OTT, mock(AuthenticationProcessingOptions.class));
+            when(mfaFlow.getRegisteredFactorOptions()).thenReturn(factorOpts);
+            when(mfaFlow.getStepConfigs()).thenReturn(Collections.emptyList());
+            when(mfaFlow.getPrimaryAuthenticationOptions()).thenReturn(null);
+            when(mfaFlow.getMfaPageConfig()).thenReturn(null);
+            when(mfaFlow.getUrlPrefix()).thenReturn(null);
+
+            setupCommonBeans(mfaFlow);
+            when(applicationContext.getBean(EmailOneTimeTokenService.class))
+                    .thenThrow(new NoSuchBeanDefinitionException("EmailOneTimeTokenService"));
 
             assertThatCode(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))
                     .doesNotThrowAnyException();

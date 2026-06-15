@@ -44,6 +44,7 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.core.Ordered;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
@@ -262,6 +263,27 @@ class SecurityFilterChainRegistrarTest {
             assertThatThrownBy(() -> registrar.buildAndRegisterFilters(fc, applicationContext))
                     .isInstanceOf(RuntimeException.class)
                     .hasCauseInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        @DisplayName("buildAndRegisterFilters should preserve the order of filters returned from HttpSecurity")
+        void buildPreservesFilterOrder() throws Exception {
+            Filter firstFilter = mock(Filter.class);
+            Filter secondFilter = mock(Filter.class);
+
+            FlowContext fc = createMockFlowContext("FORM", 10, List.of());
+            DefaultSecurityFilterChain builtChain = new DefaultSecurityFilterChain(
+                    AnyRequestMatcher.INSTANCE, List.of(firstFilter, secondFilter));
+            when(fc.http().build()).thenReturn(builtChain);
+
+            AuthenticationFlowConfig flowConfig = fc.flow();
+            when(flowConfig.getStepConfigs()).thenReturn(Collections.emptyList());
+
+            OrderedSecurityFilterChain result = registrar.buildAndRegisterFilters(fc, applicationContext);
+
+            assertThat(result).isNotNull();
+            assertThat(result.getFilters()).containsExactly(firstFilter, secondFilter);
+            assertThat(result.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE + 10);
         }
     }
 
