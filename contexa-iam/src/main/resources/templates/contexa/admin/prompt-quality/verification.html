@@ -20,29 +20,29 @@
 
         <section class="pqa-verification-stage-hero">
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
-                <span>Official Prompt Assurance</span>
-                <h1>Confirm sealed evidence for inspection.</h1>
-                <p>Only stored runtime evidence is used as official inspection input.</p>
+                <span>공식 프롬프트 검사</span>
+                <h1>검사할 요청 증거를 확인합니다.</h1>
+                <p>저장된 실제 요청 증거만 공식 검사 입력으로 사용합니다.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'run'}">
-                <span>Official Prompt Assurance</span>
-                <h1>Evaluate LLM input readiness with 12 metrics.</h1>
-                <p>The latest official run for the same evidence becomes the active result.</p>
+                <span>공식 프롬프트 검사</span>
+                <h1>12개 지표로 LLM 입력 준비 상태를 검사합니다.</h1>
+                <p>같은 증거의 최신 공식 검사 결과가 현재 결과가 됩니다.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'comparison'}">
-                <span>Official Prompt Assurance</span>
-                <h1>Review actual prompt problems first.</h1>
-                <p>Shows the problems found by official inspection and the affected metrics.</p>
+                <span>공식 프롬프트 검사</span>
+                <h1>실제 프롬프트에서 발견된 문제를 먼저 확인합니다.</h1>
+                <p>공식 검사에서 발견한 문제와 영향을 받은 지표를 보여줍니다.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'metrics'}">
-                <span>Official Prompt Assurance</span>
-                <h1>Separate metric verdict reasons clearly.</h1>
-                <p>Review found problems, affected metrics, and check criteria in one place.</p>
+                <span>공식 프롬프트 검사</span>
+                <h1>지표별 판정 이유를 구분해서 확인합니다.</h1>
+                <p>발견된 문제, 영향 지표, 검사 기준을 한 화면에서 확인합니다.</p>
             </div>
             <div class="pqa-verification-stage-rules">
-                <article><strong>Basis</strong><span>LLM user prompt</span></article>
-                <article><strong>Target</strong><span>Latest run for the same evidence</span></article>
-                <article><strong>View</strong><span>Problems first</span></article>
+                <article><strong>기준</strong><span>LLM 사용자 입력</span></article>
+                <article><strong>대상</strong><span>같은 증거의 최신 실행</span></article>
+                <article><strong>보기</strong><span>문제 우선</span></article>
             </div>
         </section>
 

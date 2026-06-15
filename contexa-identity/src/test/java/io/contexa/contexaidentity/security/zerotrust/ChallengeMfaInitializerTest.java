@@ -19,8 +19,10 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
+import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.enums.AuthType;
@@ -99,8 +101,8 @@ class ChallengeMfaInitializerTest {
 
         AuthenticationFlowConfig flowConfig = AuthenticationFlowConfig.builder("mfa-flow")
                 .stepConfigs(List.of(step1, step2))
-                .primaryAuthenticationOptions(mock(io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions.class))
-                .registeredFactorOptions(Map.of(AuthType.PASSKEY, mock(io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions.class)))
+                .primaryAuthenticationOptions(mock(PrimaryAuthenticationOptions.class))
+                .registeredFactorOptions(Map.of(AuthType.PASSKEY, mock(AuthenticationProcessingOptions.class)))
                 .build();
 
         when(platformConfig.getFlows()).thenReturn(List.of(flowConfig));
@@ -145,7 +147,7 @@ class ChallengeMfaInitializerTest {
 
         AuthenticationFlowConfig flowConfig = AuthenticationFlowConfig.builder("mfa-flow")
                 .stepConfigs(List.of(step1, step2))
-                .primaryAuthenticationOptions(mock(io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions.class))
+                .primaryAuthenticationOptions(mock(PrimaryAuthenticationOptions.class))
                 .build();
 
         when(platformConfig.getFlows()).thenReturn(List.of(flowConfig));

@@ -24,12 +24,20 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 
 public class AnyChatModelAvailableCondition implements Condition {
 
+    private static final String CONTEXA_PRIMARY_CHAT_MODEL_BEAN = "primaryChatModel";
+
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
         ListableBeanFactory beanFactory = context.getBeanFactory();
         if (beanFactory == null) {
             return false;
         }
-        return BeanFactoryUtils.beanNamesForTypeIncludingAncestors(beanFactory, ChatModel.class, true, false).length > 0;
+        String[] beanNames = BeanFactoryUtils.beanNamesForTypeIncludingAncestors(beanFactory, ChatModel.class, false, false);
+        for (String beanName : beanNames) {
+            if (!CONTEXA_PRIMARY_CHAT_MODEL_BEAN.equals(beanName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

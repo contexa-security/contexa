@@ -137,6 +137,11 @@ public class CoreLLMTieredAutoConfiguration {
     @Bean
     @Primary
     @ConditionalOnMissingBean(UnifiedLLMOrchestrator.class)
+    @Conditional(AnyChatModelAvailableCondition.class)
+    @ConditionalOnBean(
+            value = {ModelSelectionStrategy.class, StreamingHandler.class, AdvisorRegistry.class},
+            name = "primaryChatClient"
+    )
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ObjectProvider<ModelSelectionStrategy> modelSelectionStrategyProvider,
             StreamingHandler streamingHandler,
@@ -156,12 +161,16 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean(name = "llmClient")
     @ConditionalOnMissingBean(LLMClient.class)
+    @Conditional(AnyChatModelAvailableCondition.class)
+    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "toolCapableLLMClient")
     @ConditionalOnMissingBean(ToolCapableLLMClient.class)
+    @Conditional(AnyChatModelAvailableCondition.class)
+    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         return unifiedLLMOrchestrator;
     }

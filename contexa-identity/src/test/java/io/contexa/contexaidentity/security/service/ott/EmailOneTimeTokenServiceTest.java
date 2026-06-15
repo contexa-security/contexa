@@ -38,6 +38,9 @@ import org.springframework.security.authentication.ott.OneTimeTokenAuthenticatio
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -226,7 +229,7 @@ class EmailOneTimeTokenServiceTest {
         // Insert a token manually
         jdbcTemplate.update(
                 "INSERT INTO one_time_tokens(token_value, username, expires_at) VALUES(?, ?, ?)",
-                "token-123", "testuser", java.sql.Timestamp.from(java.time.Instant.now().plusSeconds(300))
+                "token-123", "testuser", Timestamp.from(Instant.now().plusSeconds(300))
         );
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(

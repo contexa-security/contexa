@@ -35,6 +35,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.persist.StateMachinePersister;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeUnit;
 
@@ -81,8 +82,8 @@ class MfaStateMachineServiceImplTest {
         when(redissonClient.getLock(anyString())).thenReturn(lock);
         when(redissonClient.getKeys()).thenReturn(keys);
         when(stateMachineFactory.getStateMachine(anyString())).thenReturn(stateMachine);
-        when(stateMachine.startReactively()).thenReturn(reactor.core.publisher.Mono.empty());
-        when(stateMachine.stopReactively()).thenReturn(reactor.core.publisher.Mono.empty());
+        when(stateMachine.startReactively()).thenReturn(Mono.empty());
+        when(stateMachine.stopReactively()).thenReturn(Mono.empty());
     }
 
     @Test
