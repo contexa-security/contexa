@@ -208,7 +208,7 @@ To help you get started quickly and understand Contexa's core capabilities, we p
 
 1. **[Quickstart Example](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-quickstart)**:
    - Learn the basics of wiring dependencies, setting up basic properties, and running Contexa in **Shadow Mode**.
-2. **[AI Pipeline Example](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-ai-pipeline)**:
+2. **[Contexa-Example-Protectable](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-protectable)**:
    - Deep dive into the **Security Decision Prompt Pipeline** and see how RAG and LLM models make real-time access decisions.
 3. **[Identity & MFA Example](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-identity-mfa)**:
    - Learn how to integrate modern Passkeys, OTP, and adaptive Step-up Authentication inside Spring Security.
