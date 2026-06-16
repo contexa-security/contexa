@@ -33,6 +33,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -123,6 +126,13 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         RequestContextSnapshot requestContext = requestContextCollector.collect(request);
         AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
         AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request, requestContext)
