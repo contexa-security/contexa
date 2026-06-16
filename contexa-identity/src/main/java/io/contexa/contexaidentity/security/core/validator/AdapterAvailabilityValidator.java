@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class FeatureAvailabilityValidator implements Validator<AuthenticationStepConfig> {
+public class AdapterAvailabilityValidator implements Validator<AuthenticationStepConfig> {
 
     private final AdapterRegistry adapterRegistry;
 

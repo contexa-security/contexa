@@ -88,7 +88,8 @@ import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredent
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
-
+
+
 
 @Slf4j
 @AutoConfiguration
@@ -159,8 +160,8 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FeatureAvailabilityValidator featureAvailabilityValidator(AdapterRegistry adapterRegistry) {
-        return new FeatureAvailabilityValidator(adapterRegistry);
+    public AdapterAvailabilityValidator featureAvailabilityValidator(AdapterRegistry adapterRegistry) {
+        return new AdapterAvailabilityValidator(adapterRegistry);
     }
 
     @Bean
