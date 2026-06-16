@@ -18,7 +18,7 @@
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.verification}, #{enterprise.pqa.verification.pageSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 
-        <section class="pqa-verification-stage-hero">
+        <section class="pqa-verification-stage-hero" th:remove="all">
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
                 <span>공식 프롬프트 검사</span>
                 <h1>검사할 요청 증거를 확인합니다.</h1>
@@ -43,6 +43,34 @@
                 <article><strong>기준</strong><span>LLM 사용자 입력</span></article>
                 <article><strong>대상</strong><span>같은 증거의 최신 실행</span></article>
                 <article><strong>보기</strong><span>문제 우선</span></article>
+            </div>
+        </section>
+
+        <section class="pqa-verification-stage-hero">
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.readiness.title}">검사할 요청 증거를 확인합니다.</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.readiness.description}">저장된 실제 요청 증거만 공식 검사 입력으로 사용합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'run'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.run.title}">12개 지표로 LLM 입력 준비 상태를 검사합니다.</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.run.description}">선택한 증거의 최신 공식 검사 결과를 확인합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'comparison'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.comparison.title}">실제 프롬프트에서 발견된 문제를 먼저 확인합니다.</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.comparison.description}">공식 검사에서 발견한 문제와 영향을 받은 지표를 보여줍니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'metrics'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.metrics.title}">지표별 판정 이유를 구분해서 확인합니다.</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.metrics.description}">발견된 문제, 영향 지표, 검사 기준을 한 화면에서 확인합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-rules">
+                <article><strong th:text="#{enterprise.pqa.verification.rule.input.label}">기준</strong><span th:text="#{enterprise.pqa.verification.rule.input.value}">LLM 사용자 입력</span></article>
+                <article><strong th:text="#{enterprise.pqa.verification.rule.target.label}">대상</strong><span th:text="#{enterprise.pqa.verification.rule.target.value}">같은 증거의 최신 실행</span></article>
+                <article><strong th:text="#{enterprise.pqa.verification.rule.view.label}">보기</strong><span th:text="#{enterprise.pqa.verification.rule.view.value}">문제 우선</span></article>
             </div>
         </section>
 

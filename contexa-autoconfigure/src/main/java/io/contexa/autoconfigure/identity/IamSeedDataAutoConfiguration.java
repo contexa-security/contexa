@@ -61,7 +61,7 @@ public class IamSeedDataAutoConfiguration {
             "sealed_evidence_package",
             "official_metric_evaluation_contract",
             "official_prompt_signal_contract",
-            "official_verification_oss_run"
+            "verification_run_ledger"
     };
 
     static final String[] SEED_LOCATIONS = {

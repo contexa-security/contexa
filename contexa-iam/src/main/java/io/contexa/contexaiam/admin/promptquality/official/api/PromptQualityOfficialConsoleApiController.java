@@ -746,7 +746,7 @@ public class PromptQualityOfficialConsoleApiController {
     private Map<String, Object> findRunById(String runId) {
         if (jdbcOperations != null) {
             List<String> packageIds = jdbcOperations.query(
-                    "select package_id from official_verification_oss_run where run_id = ? limit 1",
+                    "select package_id from verification_run_ledger where run_id = ? limit 1",
                     (rs, rowNum) -> rs.getString("package_id"),
                     runId);
             if (!packageIds.isEmpty()) {

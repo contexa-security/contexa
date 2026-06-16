@@ -67,6 +67,17 @@ public class OfficialVerificationRunStore {
                 .orElse(null);
     }
 
+    public OfficialVerificationRunView findDetailedByRunId(String runId) {
+        if (runId == null || runId.isBlank()) {
+            return null;
+        }
+        return detailedRunsByPackageId.values().stream()
+                .flatMap(List::stream)
+                .filter(run -> run.runId().equals(runId))
+                .findFirst()
+                .orElse(null);
+    }
+
     public List<OfficialVerificationRunView> listDetailedByPackageId(String packageId) {
         if (packageId == null || packageId.isBlank()) {
             return List.of();

@@ -1586,26 +1586,50 @@ CREATE TABLE IF NOT EXISTS official_metric_evaluation_contract (
         UNIQUE (contract_version, metric_code, check_code)
 );
 
-CREATE TABLE IF NOT EXISTS official_verification_oss_run (
+CREATE TABLE IF NOT EXISTS verification_run_ledger (
     id BIGSERIAL PRIMARY KEY,
-    aggregate_run_id VARCHAR(256) NOT NULL,
-    package_id VARCHAR(256) NOT NULL,
-    operator_id VARCHAR(160),
-    run_id VARCHAR(256) NOT NULL,
+    run_id VARCHAR(128) NOT NULL UNIQUE,
+    user_id VARCHAR(160) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
-    state VARCHAR(64),
-    score NUMERIC(10, 2),
-    run_record_json TEXT NOT NULL,
-    run_view_json TEXT NOT NULL,
-    created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT current_timestamp,
-    CONSTRAINT uq_official_verification_oss_run_run_id UNIQUE (run_id)
+    execution_path VARCHAR(160) NOT NULL,
+    state VARCHAR(80),
+    state_tone VARCHAR(80),
+    requested_by VARCHAR(160),
+    request_id VARCHAR(160),
+    package_id VARCHAR(160),
+    endpoint_key VARCHAR(80),
+    endpoint_label VARCHAR(255),
+    round_number INTEGER,
+    score DOUBLE PRECISION,
+    passed_checks INTEGER,
+    total_checks INTEGER,
+    processing_time_ms BIGINT,
+    message TEXT,
+    evidence_references_json TEXT,
+    checks_json TEXT,
+    request_facts_json TEXT,
+    event_facts_json TEXT,
+    prompt_facts_json TEXT,
+    analysis_facts_json TEXT,
+    events_json TEXT,
+    raw_evidence_json TEXT,
+    requested_at TIMESTAMP(6),
+    started_at TIMESTAMP(6),
+    completed_at TIMESTAMP(6),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT current_timestamp
 );
 
-CREATE INDEX IF NOT EXISTS idx_oss_run_package_created
-    ON official_verification_oss_run (package_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_user_requested_at
+    ON verification_run_ledger (user_id, requested_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_oss_run_operator_created
-    ON official_verification_oss_run (operator_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_user_metric
+    ON verification_run_ledger (user_id, metric_code, requested_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_user_request
+    ON verification_run_ledger (user_id, request_id);
+
+CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_package_metric
+    ON verification_run_ledger (package_id, metric_code, requested_at DESC);
 
 create index idx_soar_approval_vote_decision
     on soar_approval_votes (decision);
