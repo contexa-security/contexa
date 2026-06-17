@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.service.impl;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -32,6 +32,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -184,5 +185,54 @@ class SecurityMonitoringServiceTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    @DisplayName("batch dispatch failures should stop requeueing after retry budget is exhausted")
+    void shouldStopRequeueingFailedBatchAfterRetryBudgetIsExhausted() throws Exception {
+        SecurityPlaneProperties properties = new SecurityPlaneProperties();
+        properties.getAgent().setMaxDeferredRetries(1);
+        properties.getMonitor().setQueueSize(32);
+        properties.getMonitor().setBatchSize(1);
+        properties.getMonitor().setFlushIntervalMs(20);
+
+        CountDownLatch attemptsLatch = new CountDownLatch(2);
+        AtomicInteger attempts = new AtomicInteger();
+
+        service = new SecurityMonitoringService(eventCollector, properties);
+        service.setBatchProcessor(events -> {
+            attempts.incrementAndGet();
+            attemptsLatch.countDown();
+            throw new IllegalStateException("processor unavailable");
+        });
+        service.initialize();
+
+        ArgumentCaptor<SecurityEventListener> listenerCaptor = ArgumentCaptor.forClass(SecurityEventListener.class);
+        verify(eventCollector).registerListener(listenerCaptor.capture());
+        SecurityEventListener listener = listenerCaptor.getValue();
+
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-requeue-budget").userId("user-1").build();
+        listener.onSecurityEvent(event);
+
+        assertThat(attemptsLatch.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(waitForMetadata(event, "batchRequeueExhausted", true)).isTrue();
+        Thread.sleep(100L);
+
+        assertThat(attempts.get()).isEqualTo(2);
+        assertThat(event.getMetadata())
+                .containsEntry("batchDispatchFailureCount", 2)
+                .containsEntry("batchRequeueExhausted", true)
+                .containsEntry("batchRequeueExhaustedReason", "max_batch_requeue_attempts_exceeded");
+    }
+
+    private boolean waitForMetadata(SecurityEvent event, String key, Object expectedValue) throws InterruptedException {
+        long deadlineAt = System.currentTimeMillis() + 2000L;
+        while (System.currentTimeMillis() < deadlineAt) {
+            if (expectedValue.equals(event.getMetadata().get(key))) {
+                return true;
+            }
+            Thread.sleep(10L);
+        }
+        return expectedValue.equals(event.getMetadata().get(key));
     }
 }

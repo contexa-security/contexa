@@ -16,11 +16,10 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
-import io.contexa.contexacore.autonomous.domain.RiskAssessment;
+import io.contexa.contexacore.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.*;
 import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;

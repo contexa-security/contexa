@@ -17,4 +17,3 @@ public record RuntimeEvidenceReverifyFindingResult(
         String fixedActualValue,
         String operatorSummary) {
 }
-

@@ -22,4 +22,3 @@ public record RuntimeEvidenceReverifyResult(
         findingResults = findingResults == null ? List.of() : List.copyOf(findingResults);
     }
 }
-

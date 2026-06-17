@@ -15,8 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.processor;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -33,7 +33,6 @@ import org.mockito.quality.Strictness;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;

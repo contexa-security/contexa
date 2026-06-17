@@ -116,4 +116,3 @@ public record OfficialRunPackageSummary(
                 detail.attempts());
     }
 }
-

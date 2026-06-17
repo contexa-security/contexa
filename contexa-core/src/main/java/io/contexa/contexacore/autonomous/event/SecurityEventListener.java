@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.event;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +60,7 @@ public interface SecurityEventListener {
     }
 
     default void onNetworkEvent(SecurityEvent event) {
-        
+
         onSecurityEvent(event);
     }
 
@@ -70,12 +70,12 @@ public interface SecurityEventListener {
     }
 
     default void onError(SecurityEvent event, Exception e) {
-        
+
         log.error("[SecurityEventListener] Error processing event {}: {}", event.getEventId(), e.getMessage(), e);
     }
 
     default boolean canHandle(SecurityEvent.EventSource source) {
-        return true; 
+        return true;
     }
 
     default int getPriority() {

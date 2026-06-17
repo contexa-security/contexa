@@ -7,9 +7,19 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupS
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
-import io.contexa.contexaiam.admin.promptquality.official.application.OfficialPromptQualityInspectionService;
-import io.contexa.contexaiam.admin.promptquality.official.model.OfficialInspectionMetricResponse;
-import io.contexa.contexaiam.admin.promptquality.official.model.OfficialInspectionRunResponse;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialRunDetailService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialActualPromptProblem;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunAuditSnapshot;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailureCause;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageListItem;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationExecutionStatus;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRequest;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRun;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.Page;
@@ -54,19 +64,22 @@ public class PromptQualityOfficialConsoleApiController {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final SealedEvidencePackageLookupService evidenceLookupService;
-    private final OfficialPromptQualityInspectionService inspectionService;
+    private final PromptQualityRuntimeVerificationService verificationService;
+    private final PromptQualityOfficialRunDetailService officialRunDetailService;
     private final OfficialVerificationRunStore runStore;
     private final ObjectMapper objectMapper;
     private final JdbcOperations jdbcOperations;
 
     public PromptQualityOfficialConsoleApiController(
             SealedEvidencePackageLookupService evidenceLookupService,
-            OfficialPromptQualityInspectionService inspectionService,
+            PromptQualityRuntimeVerificationService verificationService,
+            PromptQualityOfficialRunDetailService officialRunDetailService,
             OfficialVerificationRunStore runStore,
             ObjectMapper objectMapper,
             JdbcOperations jdbcOperations) {
         this.evidenceLookupService = evidenceLookupService;
-        this.inspectionService = inspectionService;
+        this.verificationService = verificationService;
+        this.officialRunDetailService = officialRunDetailService;
         this.runStore = runStore;
         this.objectMapper = objectMapper;
         this.jdbcOperations = jdbcOperations;
@@ -237,7 +250,7 @@ public class PromptQualityOfficialConsoleApiController {
     }
 
     @PostMapping("/verification/runtime-runs")
-    public Map<String, Object> verifyRuntimeEvidence(
+    public RuntimeEvidenceVerificationRun verifyRuntimeEvidence(
             @RequestParam(required = false) String packageId,
             @RequestBody(required = false) Map<String, Object> body,
             Authentication authentication) {
@@ -248,92 +261,80 @@ public class PromptQualityOfficialConsoleApiController {
         String operator = authentication != null && StringUtils.hasText(authentication.getName())
                 ? authentication.getName()
                 : firstText(stringValue(body, "operatorId"), "oss-admin");
-        OfficialInspectionRunResponse response = inspectionService.execute(resolvedPackageId, operator);
-        return runResponseMap(response, findPackage(resolvedPackageId));
+        return verificationService.verify(new RuntimeEvidenceVerificationRequest(
+                resolvedPackageId,
+                operator,
+                Boolean.TRUE.equals(body == null ? null : body.get("forceReverification")),
+                stringValue(body, "reverificationReason")));
     }
 
     @GetMapping("/verification/runtime-runs")
-    public List<Map<String, Object>> recentOfficialRuns(@RequestParam(defaultValue = "20") int limit) {
-        return searchEvidence(null, null, null, null, null, null, null, null, 0, limit).stream()
-                .map(item -> officialPackageDetail(String.valueOf(item.get("packageId")), null))
-                .toList();
+    public List<OfficialRunPackageListItem> recentOfficialRuns(@RequestParam(defaultValue = "20") int limit) {
+        return officialRunDetailService.listRecentRunSummaries(limit);
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}")
-    public Map<String, Object> packageOfficialRuns(
+    public OfficialRunPackageDetail packageOfficialRuns(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        return officialPackageDetail(packageId, aggregateRunId);
+        return officialRunDetailService.findPackageDetail(packageId, aggregateRunId);
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}/summary")
-    public Map<String, Object> packageOfficialRunSummary(
+    public OfficialRunPackageSummary packageOfficialRunSummary(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        return officialPackageDetail(packageId, aggregateRunId);
+        return officialRunDetailService.findPackageSummary(packageId, aggregateRunId);
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}/technical-ledger")
-    public Map<String, Object> packageTechnicalLedger(
+    public OfficialRunPackageDetail packageTechnicalLedger(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        return officialPackageDetail(packageId, aggregateRunId);
+        return officialRunDetailService.findTechnicalLedger(packageId, aggregateRunId);
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}/failure-details")
-    public List<Map<String, Object>> packageFailureDetails(
+    public List<OfficialRunFailureCause> packageFailureDetails(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        return failures(officialRuns(packageId, aggregateRunId));
+        return officialRunDetailService.findFailureDetails(packageId, aggregateRunId);
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}/audit-payloads")
-    public List<Map<String, Object>> packageAuditPayloads(@PathVariable String packageId) {
-        return List.of();
+    public List<OfficialRunAuditSnapshot> packageAuditPayloads(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        return officialRunDetailService.findAuditPayloads(packageId, aggregateRunId);
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}/execution-status")
-    public Map<String, Object> packageExecutionStatus(@PathVariable String packageId) {
-        List<OfficialVerificationRunView> runs = officialRuns(packageId, null);
-        String aggregateRunId = runs.isEmpty() ? "" : aggregateRunId(runs.get(0));
-        return Map.of(
-                "packageId", packageId,
-                "aggregateRunId", aggregateRunId,
-                "state", runs.isEmpty() ? "NOT_STARTED" : "COMPLETED",
-                "completed", !runs.isEmpty(),
-                "failed", false,
-                "progressPercent", runs.isEmpty() ? 0 : 100,
-                "recoverable", true);
+    public OfficialVerificationExecutionStatus packageExecutionStatus(@PathVariable String packageId) {
+        return verificationService.executionStatus(packageId);
     }
 
     @GetMapping("/verification/runtime-runs/{runId}")
-    public Map<String, Object> officialRunDetail(@PathVariable String runId) {
-        return findRunById(runId);
+    public OfficialVerificationMetricTrace officialRunDetail(@PathVariable String runId) {
+        return officialRunDetailService.findRunDetail(runId);
     }
 
     @GetMapping("/verification/runs/{runId}/metric-detail")
-    public Map<String, Object> officialMetricTrace(@PathVariable String runId) {
-        return findRunById(runId);
+    public OfficialVerificationMetricTrace officialMetricTrace(@PathVariable String runId) {
+        return officialRunDetail(runId);
     }
 
     @GetMapping("/verification/packages/{packageId}/prompt-comparison")
-    public List<Map<String, Object>> packagePromptComparison(
+    public List<OfficialVerificationPromptComparison> packagePromptComparison(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        List<Map<String, Object>> comparisons = new ArrayList<>();
-        for (OfficialVerificationRunView run : officialRuns(packageId, aggregateRunId)) {
-            for (OfficialVerificationCheckResultView check : run.checks()) {
-                comparisons.add(comparisonMap(run, check));
-            }
-        }
-        return comparisons;
+        return packageOfficialRuns(packageId, aggregateRunId).promptComparisons();
     }
 
     @GetMapping("/verification/packages/{packageId}/actual-prompt-problems")
-    public List<Map<String, Object>> packageActualPromptProblems(
+    public List<OfficialActualPromptProblem> packageActualPromptProblems(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        return actualPromptProblems(officialRuns(packageId, aggregateRunId));
+        return officialRunDetailService.findActualPromptProblems(packageId, aggregateRunId);
     }
 
     private void loadProperties(Properties properties, String pattern) {
@@ -491,30 +492,6 @@ public class PromptQualityOfficialConsoleApiController {
                 "actualValue", pass ? "present" : "missing");
     }
 
-    private Map<String, Object> runResponseMap(OfficialInspectionRunResponse response, SealedEvidencePackage pkg) {
-        List<Map<String, Object>> metrics = response.metrics().stream()
-                .map(this::metricResponseMap)
-                .toList();
-        Map<String, Object> run = new LinkedHashMap<>();
-        run.put("runId", response.aggregateRunId());
-        run.put("aggregateRunId", response.aggregateRunId());
-        run.put("packageId", response.packageId());
-        run.put("operatorId", response.operatorId());
-        run.put("generatedAt", response.generatedAt());
-        run.put("integrityValid", response.integrityValid());
-        run.put("totalMetricCount", response.totalMetrics());
-        run.put("passedMetricCount", response.passedMetrics());
-        run.put("certificateIssued", response.passedMetrics() == response.totalMetrics());
-        run.put("certificateStateLabel", response.passedMetrics() == response.totalMetrics() ? "LLM 투입 가능" : "프롬프트 개선 필요");
-        run.put("state", response.passedMetrics() == response.totalMetrics() ? "PASSED" : "BLOCKED");
-        run.put("stateLabel", response.passedMetrics() == response.totalMetrics() ? "통과" : "차단");
-        run.put("metrics", metrics);
-        run.put("actualPromptProblems", actualPromptProblemsFromMetricResponses(response.metrics()));
-        run.put("sealedEvidence", Map.of("summary", evidenceSummary(pkg), "promptConsistency", promptConsistency(pkg)));
-        run.putAll(routeIdentity(evidenceSummary(pkg)));
-        return run;
-    }
-
     private Map<String, Object> officialPackageDetail(String packageId, String aggregateRunId) {
         SealedEvidencePackage pkg = findPackage(packageId);
         List<OfficialVerificationRunView> runs = officialRuns(packageId, aggregateRunId);
@@ -552,37 +529,6 @@ public class PromptQualityOfficialConsoleApiController {
                 "actualProblems", problems.size()));
         detail.putAll(routeIdentity(evidenceSummary(pkg)));
         return detail;
-    }
-
-    private Map<String, Object> metricResponseMap(OfficialInspectionMetricResponse metric) {
-        List<Map<String, Object>> checks = metric.checks().stream()
-                .map(check -> {
-                    Map<String, Object> mapped = new LinkedHashMap<>();
-                    mapped.put("checkCode", check.checkCode());
-                    mapped.put("label", check.label());
-                    mapped.put("pass", check.passed());
-                    mapped.put("passed", check.passed());
-                    mapped.put("expectedValue", check.expectedValue());
-                    mapped.put("actualValue", check.actualValue());
-                    mapped.put("severity", check.severity());
-                    mapped.put("failureType", check.failureType());
-                    mapped.put("source", check.source());
-                    return mapped;
-                })
-                .toList();
-        Map<String, Object> mapped = new LinkedHashMap<>();
-        mapped.put("metricCode", metric.metricCode());
-        mapped.put("endpointKey", metric.metricCode());
-        mapped.put("metricLabel", metric.metricLabel());
-        mapped.put("endpointLabel", metric.metricLabel());
-        mapped.put("state", metric.state());
-        mapped.put("stateLabel", passState(metric.state()) ? "통과" : "차단");
-        mapped.put("score", metric.score());
-        mapped.put("passedChecks", metric.passedChecks());
-        mapped.put("totalChecks", metric.totalChecks());
-        mapped.put("message", metric.message());
-        mapped.put("checks", checks);
-        return mapped;
     }
 
     private Map<String, Object> runViewMap(OfficialVerificationRunView run) {
@@ -647,28 +593,6 @@ public class PromptQualityOfficialConsoleApiController {
                 }
                 problems.add(problemMap(run.endpointKey(), check));
             }
-        }
-        return problems;
-    }
-
-    private List<Map<String, Object>> actualPromptProblemsFromMetricResponses(List<OfficialInspectionMetricResponse> metrics) {
-        List<Map<String, Object>> problems = new ArrayList<>();
-        for (OfficialInspectionMetricResponse metric : metrics) {
-            metric.checks().stream()
-                    .filter(check -> !check.passed())
-                    .forEach(check -> {
-                        Map<String, Object> problem = new LinkedHashMap<>();
-                        problem.put("metricCode", metric.metricCode());
-                        problem.put("checkCode", check.checkCode());
-                        problem.put("promptLabel", check.label());
-                        problem.put("fieldKey", check.source());
-                        problem.put("promptLocation", check.source());
-                        problem.put("problemType", check.failureType());
-                        problem.put("actualState", check.actualValue());
-                        problem.put("whyItMatters", check.expectedValue());
-                        problem.put("fixAction", "공식검사 결과의 확인값을 기준으로 프롬프트 입력을 보강하십시오.");
-                        problems.add(problem);
-                    });
         }
         return problems;
     }

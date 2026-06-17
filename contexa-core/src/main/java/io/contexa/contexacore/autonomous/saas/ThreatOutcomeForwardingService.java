@@ -15,8 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.saas;
 
-import io.contexa.contexacore.autonomous.domain.AdminOverride;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.AdminOverride;
+import io.contexa.contexacore.SecurityEvent;
 
 public interface ThreatOutcomeForwardingService {
 

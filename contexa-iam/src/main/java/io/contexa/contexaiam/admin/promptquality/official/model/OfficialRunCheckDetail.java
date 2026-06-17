@@ -98,4 +98,3 @@ public record OfficialRunCheckDetail(
         return normalized.isBlank() ? "CHECK" : normalized;
     }
 }
-

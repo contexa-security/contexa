@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import org.springframework.ai.document.Document;
 

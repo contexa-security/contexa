@@ -16,8 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;

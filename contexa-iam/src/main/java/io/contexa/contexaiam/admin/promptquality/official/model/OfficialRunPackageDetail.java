@@ -153,4 +153,3 @@ public record OfficialRunPackageDetail(
         auditSnapshots = auditSnapshots == null ? List.of() : List.copyOf(auditSnapshots);
     }
 }
-

@@ -17,7 +17,7 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.std.components.prompt.PromptFieldLineageAnalysis;
 import io.contexa.contexacore.std.components.prompt.PromptFieldLineageAnalyzer;

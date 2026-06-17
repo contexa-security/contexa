@@ -15,4 +15,3 @@ public record PromptQualityProcessStepSnapshot(
         Instant startedAt,
         Instant endedAt) {
 }
-

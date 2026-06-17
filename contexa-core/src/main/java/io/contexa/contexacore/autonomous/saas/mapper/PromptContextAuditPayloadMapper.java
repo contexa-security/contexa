@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.PromptContextAuditPayload;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;

@@ -18,4 +18,3 @@ public record OfficialRunLedgerConsistency(
         boolean readyForIssueResolution,
         List<String> warnings) {
 }
-

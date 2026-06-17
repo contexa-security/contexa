@@ -25,4 +25,3 @@ public record RuntimeEvidenceMissingKnowledgeSignal(
         this(code, null, null, null, title, rule, evidence, explanation, impact, nextAction, source);
     }
 }
-

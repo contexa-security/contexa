@@ -17,9 +17,9 @@ package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -27,7 +27,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import lombok.extern.slf4j.Slf4j;
-
+
+
 @Slf4j
 public class SessionFingerprintUtil {
 

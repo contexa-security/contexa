@@ -18,8 +18,8 @@ package io.contexa.contexacore.autonomous;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
@@ -42,7 +42,8 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
-
+
+
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {
@@ -58,6 +59,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
     private ExecutorService[] stripeExecutors = new ExecutorService[0];
+    private static final String PROCESSING_BUDGET_MS = "processingBudgetMs";
+    private static final String PROCESSING_TIMEOUT_MS = "processingTimeoutMs";
+    private static final String PROCESSING_TIMEOUT_AT = "processingTimeoutAt";
+    private static final String PROCESSING_TIMEOUT_CANCELLATION_REQUESTED = "processingTimeoutCancellationRequested";
+    private static final String LATE_PROCESSING_RESULT_DISCARDED = "lateProcessingResultDiscarded";
+    private static final String LATE_PROCESSING_RESULT_DISCARDED_AT = "lateProcessingResultDiscardedAt";
 
     @PostConstruct
     public void initialize() {
@@ -111,26 +118,28 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private String classifyDeferReason(Exception exception) {
-        if (exception instanceof TimeoutException) {
+        if (hasCause(exception, TimeoutException.class)
+                || hasCause(exception, EventProcessingDeadlineExceededException.class)) {
             return "event_processing_timeout";
         }
-        if (exception instanceof EventProcessingInFlightException) {
+        if (hasCause(exception, EventProcessingInFlightException.class)) {
             return "event_processing_in_flight";
         }
-        if (exception instanceof RejectedExecutionException) {
+        if (hasCause(exception, RejectedExecutionException.class)) {
             return "llm_executor_rejected";
-        }
-        Throwable cause = exception.getCause();
-        if (cause instanceof RejectedExecutionException) {
-            return "llm_executor_rejected";
-        }
-        if (cause instanceof TimeoutException) {
-            return "event_processing_timeout";
-        }
-        if (cause instanceof EventProcessingInFlightException) {
-            return "event_processing_in_flight";
         }
         return "processing_failure";
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> expectedType) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (expectedType.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     @Override
@@ -187,14 +196,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
 
             SecurityEventContext context = securityEventProcessor.process(event);
+            if (SecurityEventProcessor.hasProcessingDeadlineExceeded(event)) {
+                event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED, true);
+                event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED_AT, System.currentTimeMillis());
+                throw new EventProcessingDeadlineExceededException(event.getEventId());
+            }
             markEventProcessed(event.getEventId());
             return context;
 
         } catch (Exception e) {
             releaseEventProcessing(event.getEventId());
-            log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
+            if (e instanceof EventProcessingDeadlineExceededException) {
+                log.warn("[SecurityPlaneAgent] Discarded late processing result after event deadline: eventId={}", event.getEventId());
+            } else {
+                log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
+            }
 
-            if (centralAuditFacade != null) {
+            if (centralAuditFacade != null && !(e instanceof EventProcessingDeadlineExceededException)) {
                 auditError("SecurityPlaneAgent", "processSecurityEvent", e, Map.of(
                         "eventId", event.getEventId(),
                         "userId", event.getUserId() != null ? event.getUserId() : "unknown",
@@ -315,7 +333,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         long timeoutMs = Math.max(1000L, securityPlaneProperties.getAgent().getEventTimeoutMs());
         CompletableFuture<SecurityEventContext> processingFuture = new CompletableFuture<>();
         long submittedAt = System.currentTimeMillis();
+        long deadlineAt = submittedAt + timeoutMs;
         event.addMetadata("analysisSubmittedAt", submittedAt);
+        event.addMetadata(PROCESSING_BUDGET_MS, timeoutMs);
+        event.addMetadata(SecurityEventProcessor.PROCESSING_DEADLINE_AT, deadlineAt);
 
         llmAnalysisExecutor.execute(() -> {
             try (SecurityEventTelemetryContext.Scope ignored = SecurityEventTelemetryContext.open(event)) {
@@ -331,7 +352,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         try {
             SecurityEventContext context = processingFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
             event.addMetadata("analysisCompletedAt", System.currentTimeMillis());
-            event.addMetadata("processingTimedOut", false);
+            event.addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, false);
             if (context != null
                     && context.getProcessingStatus() == SecurityEventContext.ProcessingStatus.SKIPPED
                     && "event_processing_in_flight".equals(context.getMetadata().get("skipReason"))) {
@@ -341,8 +362,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         } catch (TimeoutException timeoutException) {
             processingFuture.cancel(true);
             event.addMetadata("analysisCompletedAt", System.currentTimeMillis());
-            event.addMetadata("processingTimedOut", true);
-            event.addMetadata("processingTimeoutMs", timeoutMs);
+            event.addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, true);
+            event.addMetadata(PROCESSING_TIMEOUT_MS, timeoutMs);
+            event.addMetadata(PROCESSING_TIMEOUT_AT, System.currentTimeMillis());
+            event.addMetadata(PROCESSING_TIMEOUT_CANCELLATION_REQUESTED, true);
             throw timeoutException;
         }
     }
@@ -405,6 +428,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private static final class EventProcessingInFlightException extends RuntimeException {
         private EventProcessingInFlightException(String eventId) {
             super("Event is already being processed: " + eventId);
+        }
+    }
+
+    private static final class EventProcessingDeadlineExceededException extends RuntimeException {
+        private EventProcessingDeadlineExceededException(String eventId) {
+            super("Event processing deadline exceeded: " + eventId);
         }
     }
 }

@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
@@ -38,8 +38,7 @@ import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
-import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileSnapshot;
+
 import io.contexa.contexacore.autonomous.context.model.ContextEvidenceRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;

@@ -45,4 +45,3 @@ public interface PromptQualityOfficialRunDetailService {
 
     OfficialVerificationMetricTrace findRunDetail(String runId);
 }
-

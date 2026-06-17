@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacommon.domain.request.AIResponse;
-import io.contexa.contexacore.autonomous.domain.SecurityResponse;
+import io.contexa.contexacore.SecurityResponse;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

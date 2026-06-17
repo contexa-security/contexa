@@ -15,8 +15,8 @@
  */
 package io.contexa.contexacore.autonomous;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +29,12 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class SecurityEventProcessor {
+
+    static final String PROCESSING_DEADLINE_AT = "processingDeadlineAt";
+    static final String PROCESSING_TIMED_OUT = "processingTimedOut";
+    static final String PROCESSING_DEADLINE_EXCEEDED = "processingDeadlineExceeded";
+    static final String PROCESSING_DEADLINE_EXCEEDED_AT = "processingDeadlineExceededAt";
+    static final String PROCESSING_DEADLINE_EXCEEDED_BEFORE_HANDLER = "processingDeadlineExceededBeforeHandler";
 
     private final List<SecurityEventHandler> handlers;
 
@@ -48,12 +54,16 @@ public class SecurityEventProcessor {
             List<SecurityEventHandler> sortedHandlers = getSortedHandlers();
 
             for (SecurityEventHandler handler : sortedHandlers) {
+                if (markFailedIfProcessingDeadlineExceeded(context, handler.getName())) {
+                    break;
+                }
                 if (!executeHandler(handler, context)) {
                     break;
                 }
             }
 
-            if (context.getProcessingStatus() != SecurityEventContext.ProcessingStatus.FAILED) {
+            if (context.getProcessingStatus() != SecurityEventContext.ProcessingStatus.FAILED
+                    && !markFailedIfProcessingDeadlineExceeded(context, "pipeline-completion")) {
                 context.markAsCompleted();
             }
 
@@ -66,6 +76,46 @@ public class SecurityEventProcessor {
         }
 
         return context;
+    }
+
+    private boolean markFailedIfProcessingDeadlineExceeded(SecurityEventContext context, String nextHandlerName) {
+        if (context == null || !hasProcessingDeadlineExceeded(context.getSecurityEvent())) {
+            return false;
+        }
+        context.addMetadata(PROCESSING_DEADLINE_EXCEEDED, true);
+        context.addMetadata(PROCESSING_DEADLINE_EXCEEDED_AT, System.currentTimeMillis());
+        if (nextHandlerName != null && !nextHandlerName.isBlank()) {
+            context.addMetadata(PROCESSING_DEADLINE_EXCEEDED_BEFORE_HANDLER, nextHandlerName);
+        }
+        context.markAsFailed("Security event processing deadline exceeded");
+        return true;
+    }
+
+    static boolean hasProcessingDeadlineExceeded(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return false;
+        }
+        Object timedOut = event.getMetadata().get(PROCESSING_TIMED_OUT);
+        if (Boolean.TRUE.equals(timedOut)) {
+            return true;
+        }
+        Object deadlineValue = event.getMetadata().get(PROCESSING_DEADLINE_AT);
+        Long deadlineAt = toLong(deadlineValue);
+        return deadlineAt != null && deadlineAt > 0 && System.currentTimeMillis() > deadlineAt;
+    }
+
+    private static Long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String stringValue) {
+            try {
+                return Long.parseLong(stringValue);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private boolean executeHandler(SecurityEventHandler handler, SecurityEventContext context) {

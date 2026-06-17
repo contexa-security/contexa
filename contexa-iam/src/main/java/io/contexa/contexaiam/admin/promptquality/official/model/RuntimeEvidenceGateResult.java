@@ -8,4 +8,3 @@ public record RuntimeEvidenceGateResult(
         List<String> findings,
         List<String> nextActions) {
 }
-

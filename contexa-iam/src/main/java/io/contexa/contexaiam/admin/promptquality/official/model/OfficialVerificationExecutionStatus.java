@@ -38,4 +38,3 @@ public record OfficialVerificationExecutionStatus(
                 List.of());
     }
 }
-

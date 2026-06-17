@@ -120,11 +120,11 @@ public class CapabilityRequirementResolver {
                     platformConfigPresent,
                     "AI security bridge is active");
             case PQA_ENGINE -> activeWhen(capability,
-                    classPresent("io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityInspectionController"),
+                    classPresent("io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService"),
                     contexaOwnedApplication,
                     "prompt quality official inspection engine is available");
             case ENTERPRISE_SOAR -> activeWhen(capability,
-                    enterpriseEnabled && classPresent("io.contexa.contexacoreenterprise.soar.retriever.SoarContextRetriever"),
+                    enterpriseEnabled && hasBeanName("soarContextRetriever"),
                     contexaOwnedApplication && enterpriseEnabled,
                     "enterprise SOAR is available");
             case ENTERPRISE_MCP -> activeWhen(capability,
@@ -132,7 +132,7 @@ public class CapabilityRequirementResolver {
                     false,
                     "enterprise MCP module is available");
             case ENTERPRISE_DASHBOARD -> activeWhen(capability,
-                    enterpriseEnabled && classPresent("io.contexa.contexacoreenterprise.dashboard.metrics.vectorstore.VectorStoreMetricsImpl"),
+                    enterpriseEnabled && hasBeanName("vectorStoreMetrics"),
                     contexaOwnedApplication && enterpriseEnabled,
                     "enterprise dashboard is available");
         };
@@ -215,7 +215,7 @@ public class CapabilityRequirementResolver {
                 guidance.add("Verify autonomous decision auto-configuration completed and required LLM/RAG dependencies are active.");
             }
             case BRIDGE -> guidance.add("Verify AI security bridge configuration is active before invoking protected resources.");
-            case PQA_ENGINE -> guidance.add("Enable enterprise mode and include the enterprise verification modules before using the PQA engine.");
+            case PQA_ENGINE -> guidance.add("Verify the Core prompt quality official inspection modules are on the runtime classpath.");
             case ENTERPRISE_SOAR -> guidance.add("Enable enterprise mode and include the enterprise SOAR module on the runtime classpath.");
             case ENTERPRISE_MCP -> guidance.add("Include the enterprise MCP server module before enabling MCP capability.");
             case ENTERPRISE_DASHBOARD -> guidance.add("Enable enterprise mode and include enterprise dashboard metrics modules on the runtime classpath.");
@@ -274,5 +274,9 @@ public class CapabilityRequirementResolver {
         } catch (ClassNotFoundException ex) {
             return false;
         }
+    }
+
+    private boolean hasBeanName(String beanName) {
+        return beanFactory.containsBean(beanName);
     }
 }

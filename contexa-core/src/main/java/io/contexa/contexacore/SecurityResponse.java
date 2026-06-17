@@ -1,0 +1,204 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.contexa.contexacore;
+
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class SecurityResponse {
+
+    private Double riskScore;
+
+    private Double confidence;
+
+    private String action;
+
+    private String reasoning;
+
+    private String mitre;
+
+    public static SecurityResponse fromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        String trimmed = json.trim();
+        if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+            return null;
+        }
+
+        SecurityResponse response = new SecurityResponse();
+
+        try {
+
+            Double riskScore = extractDouble(json, "\"r\"");
+            if (riskScore == null) {
+                riskScore = extractDouble(json, "\"riskScore\"");
+            }
+            response.setRiskScore(sanitizeScore(riskScore));
+
+            Double confidence = extractDouble(json, "\"c\"");
+            if (confidence == null) {
+                confidence = extractDouble(json, "\"confidence\"");
+            }
+            response.setConfidence(sanitizeScore(confidence));
+
+            String action = extractString(json, "\"a\"");
+            if (action != null) {
+                action = expandAction(action);
+            } else {
+                action = extractString(json, "\"action\"");
+            }
+            response.setAction(action != null ? action : "ESCALATE");
+
+            String reasoning = extractString(json, "\"d\"");
+            if (reasoning == null) {
+                reasoning = extractString(json, "\"reasoning\"");
+            }
+            if (reasoning == null) {
+                reasoning = extractString(json, "\"reason\"");
+            }
+            response.setReasoning(reasoning);
+
+            String mitre = extractString(json, "\"m\"");
+            if (mitre == null) {
+                mitre = extractString(json, "\"mitre\"");
+            }
+            response.setMitre(mitre);
+
+        } catch (Exception e) {
+            log.error("[SecurityResponse] Failed to parse JSON response", e);
+            return null;
+        }
+
+        return response;
+    }
+
+    private static String expandAction(String shortAction) {
+        if (shortAction == null) return null;
+        return ZeroTrustAction.fromString(shortAction).name();
+    }
+
+    private static Double extractDouble(String json, String key) {
+        int keyIndex = json.indexOf(key);
+        if (keyIndex == -1) return null;
+
+        int colonIndex = json.indexOf(':', keyIndex);
+        if (colonIndex == -1) return null;
+
+        int endIndex = findValueEnd(json, colonIndex + 1);
+        String valueStr = json.substring(colonIndex + 1, endIndex).trim();
+
+        try {
+            return Double.parseDouble(valueStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static String extractString(String json, String key) {
+        int keyIndex = json.indexOf(key);
+        if (keyIndex == -1) return null;
+
+        int colonIndex = json.indexOf(':', keyIndex);
+        if (colonIndex == -1) return null;
+
+        int startQuote = json.indexOf('"', colonIndex + 1);
+        if (startQuote == -1) return null;
+
+        int endQuote = findEndQuote(json, startQuote + 1);
+        if (endQuote == -1) return null;
+
+        return json.substring(startQuote + 1, endQuote);
+    }
+
+    private static int findEndQuote(String json, int start) {
+        for (int i = start; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '"') {
+
+                int backslashCount = 0;
+                for (int j = i - 1; j >= start && json.charAt(j) == '\\'; j--) {
+                    backslashCount++;
+                }
+
+                if (backslashCount % 2 == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private static int findValueEnd(String json, int start) {
+        int commaIndex = json.indexOf(',', start);
+        int braceIndex = json.indexOf('}', start);
+
+        if (commaIndex == -1) return braceIndex;
+        if (braceIndex == -1) return commaIndex;
+        return Math.min(commaIndex, braceIndex);
+    }
+
+    private static List<String> extractStringArray(String json, String key) {
+        int keyIndex = json.indexOf(key);
+        if (keyIndex == -1) return null;
+
+        int bracketStart = json.indexOf('[', keyIndex);
+        if (bracketStart == -1) return null;
+
+        int bracketEnd = json.indexOf(']', bracketStart);
+        if (bracketEnd == -1) return null;
+
+        String arrayContent = json.substring(bracketStart + 1, bracketEnd);
+        List<String> result = new ArrayList<>();
+
+        int i = 0;
+        while (i < arrayContent.length()) {
+            int startQuote = arrayContent.indexOf('"', i);
+            if (startQuote == -1) break;
+            int endQuote = findEndQuote(arrayContent, startQuote + 1);
+            if (endQuote == -1) break;
+            result.add(arrayContent.substring(startQuote + 1, endQuote));
+            i = endQuote + 1;
+        }
+
+        return result.isEmpty() ? null : result;
+    }
+
+    public boolean isValid() {
+        return action != null
+            && !action.isBlank();
+    }
+
+    private static Double sanitizeScore(Double value) {
+        if (value == null || !Double.isFinite(value)) {
+            return null;
+        }
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+}

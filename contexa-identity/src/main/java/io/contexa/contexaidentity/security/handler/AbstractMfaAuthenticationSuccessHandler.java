@@ -16,7 +16,6 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
@@ -24,7 +23,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;

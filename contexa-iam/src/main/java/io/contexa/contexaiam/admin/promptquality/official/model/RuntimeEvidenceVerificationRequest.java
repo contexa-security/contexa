@@ -10,4 +10,3 @@ public record RuntimeEvidenceVerificationRequest(
         this(packageId, operatorId, false, null);
     }
 }
-

@@ -36,13 +36,14 @@ import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-
+
+
 class DefaultCanonicalSecurityContextProviderTest {
 
     @Test

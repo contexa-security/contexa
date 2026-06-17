@@ -16,9 +16,9 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityResponse;
-import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityResponse;
+import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
@@ -37,7 +37,6 @@ import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
-import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;

@@ -16,8 +16,8 @@
 package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -214,7 +214,10 @@ class SecurityPlaneAgentTest {
         processorCaptor.getValue().processBatch(List.of(event));
 
         verify(securityMonitor, timeout(4000)).deferEvent(eq(event), anyString());
+        verify(dataStore, timeout(4000)).releaseEventProcessing(eq("evt-timeout"));
+        verify(dataStore, never()).markEventProcessed(eq("evt-timeout"));
         assertThat(event.getMetadata()).containsEntry("processingTimedOut", true);
+        assertThat(event.getMetadata()).containsEntry("lateProcessingResultDiscarded", true);
 
         timedAgent.shutdown();
         actualLlmExecutor.shutdownNow();

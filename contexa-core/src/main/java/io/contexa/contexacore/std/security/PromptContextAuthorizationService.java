@@ -17,7 +17,7 @@ package io.contexa.contexacore.std.security;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import org.springframework.ai.document.Document;
 import org.springframework.lang.Nullable;

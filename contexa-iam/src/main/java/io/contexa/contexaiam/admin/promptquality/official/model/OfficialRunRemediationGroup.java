@@ -20,4 +20,3 @@ public record OfficialRunRemediationGroup(
         affectedCheckCodes = affectedCheckCodes == null ? List.of() : List.copyOf(affectedCheckCodes);
     }
 }
-

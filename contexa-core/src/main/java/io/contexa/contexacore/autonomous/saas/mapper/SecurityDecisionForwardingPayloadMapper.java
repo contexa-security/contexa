@@ -17,8 +17,8 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;

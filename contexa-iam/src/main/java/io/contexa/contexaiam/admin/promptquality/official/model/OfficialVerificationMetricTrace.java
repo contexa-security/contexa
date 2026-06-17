@@ -166,4 +166,3 @@ public record OfficialVerificationMetricTrace(
         return requestPath;
     }
 }
-

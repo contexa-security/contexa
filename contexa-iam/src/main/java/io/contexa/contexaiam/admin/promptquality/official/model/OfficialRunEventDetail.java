@@ -7,4 +7,3 @@ public record OfficialRunEventDetail(
         String status,
         String requestPath) {
 }
-

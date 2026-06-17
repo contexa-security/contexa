@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacore.domain.SoarContext;
-import io.contexa.contexacore.autonomous.domain.NotificationResult;
+import io.contexa.contexacore.NotificationResult;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -30,25 +30,25 @@ public interface ISoarNotifier {
     Map<String, Object> getNotificationStatistics();
 
     default NotificationResult notifyCriticalEvent(Object event, Map<String, Object> data) {
-        
+
         return NotificationResult.success("default-notification", "Default notification");
     }
 
     default NotificationResult notifyWarningEvent(Object event, Map<String, Object> data) {
-        
+
         return NotificationResult.success("default-notification", "Default notification");
     }
 
     default NotificationResult notifyApprovalRequired(Object event, Map<String, Object> data) {
-        
+
         return NotificationResult.success("default-notification", "Default notification");
     }
 
     default NotificationResult notifyEscalation(Object event, Map<String, Object> data) {
-        
+
         return NotificationResult.success("default-notification", "Default notification");
     }
 
     boolean isSoarAvailable();
-    
+
 }

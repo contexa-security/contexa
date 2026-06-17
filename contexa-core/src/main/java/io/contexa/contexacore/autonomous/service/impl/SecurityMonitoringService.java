@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.service.impl;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -55,6 +55,7 @@ public class SecurityMonitoringService {
     private final List<Thread> dispatcherThreads;
     private final long flushIntervalMs;
     private final int batchSize;
+    private final int maxBatchRequeueAttempts;
 
     private volatile SecurityEventBatchProcessor batchProcessor;
 
@@ -75,6 +76,10 @@ public class SecurityMonitoringService {
                 : DEFAULT_BATCH_SIZE;
         this.batchSize = Math.max(1, Math.min(queueSize, configuredBatchSize));
         this.flushIntervalMs = Math.max(10L, monitorSettings.getFlushIntervalMs());
+        SecurityPlaneProperties.AgentSettings agentSettings = securityPlaneProperties.getAgent();
+        this.maxBatchRequeueAttempts = agentSettings != null
+                ? Math.max(0, agentSettings.getMaxDeferredRetries())
+                : 0;
         this.eventQueue = new LinkedBlockingDeque<>(queueSize);
         this.dispatcherThreads = new ArrayList<>(1);
         Thread dispatcherThread = new Thread(this::dispatchLoop, "SecurityMonitoring-BatchDispatcher-0");
@@ -146,7 +151,7 @@ public class SecurityMonitoringService {
                 Thread.interrupted();
             } catch (Exception e) {
                 log.error("[SecurityMonitoringService] Failed to dispatch queued batch", e);
-                requeueAtFront(batch);
+                requeueAtFront(batch, e);
             }
         }
     }
@@ -179,19 +184,50 @@ public class SecurityMonitoringService {
         }
     }
 
-    private void requeueAtFront(List<SecurityEvent> batch) {
+    private void requeueAtFront(List<SecurityEvent> batch, Exception failure) {
         if (batch == null || batch.isEmpty()) {
             return;
         }
 
         for (int i = batch.size() - 1; i >= 0; i--) {
+            SecurityEvent event = batch.get(i);
+            if (!markBatchDispatchFailureForRetry(event, failure)) {
+                continue;
+            }
             try {
-                eventQueue.putFirst(batch.get(i));
+                eventQueue.putFirst(event);
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Interrupted while requeueing failed security event batch", interruptedException);
             }
         }
+    }
+
+    private boolean markBatchDispatchFailureForRetry(SecurityEvent event, Exception failure) {
+        if (event == null) {
+            return false;
+        }
+
+        int failureCount = getIntegerMetadata(event, "batchDispatchFailureCount") + 1;
+        long now = System.currentTimeMillis();
+        event.addMetadata("batchDispatchFailureCount", failureCount);
+        event.addMetadata("lastBatchDispatchFailureAt", now);
+        if (failure != null) {
+            event.addMetadata("lastBatchDispatchFailureClass", failure.getClass().getName());
+            event.addMetadata("lastBatchDispatchFailureMessage", failure.getMessage());
+        }
+
+        if (failureCount > maxBatchRequeueAttempts) {
+            event.addMetadata("batchRequeueExhausted", true);
+            event.addMetadata("batchRequeueExhaustedAt", now);
+            event.addMetadata("batchRequeueExhaustedReason", "max_batch_requeue_attempts_exceeded");
+            log.error("[SecurityMonitoringService] Dropping queued security event after batch requeue budget exhausted: eventId={}, attempts={}, maxAttempts={}",
+                    event.getEventId(), failureCount, maxBatchRequeueAttempts);
+            return false;
+        }
+
+        event.addMetadata("batchRequeueRequestedAt", now);
+        return true;
     }
 
     private void annotateQueueEnqueue(SecurityEvent event, boolean deferred, String reason) {

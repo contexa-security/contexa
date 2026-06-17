@@ -22,4 +22,3 @@ public record OfficialMetricPurposeEvidence(
         contextItems = contextItems == null ? List.of() : List.copyOf(contextItems);
     }
 }
-

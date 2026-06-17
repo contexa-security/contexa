@@ -14,4 +14,3 @@ public record RuntimeEvidenceMetricResult(
         int totalChecks,
         List<RuntimeEvidenceCheckResult> checks) {
 }
-

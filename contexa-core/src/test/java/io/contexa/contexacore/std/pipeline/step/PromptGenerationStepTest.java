@@ -16,7 +16,7 @@
 package io.contexa.contexacore.std.pipeline.step;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
@@ -38,7 +38,8 @@ import java.util.Map;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
-
+
+
 class PromptGenerationStepTest {
 
     @Test

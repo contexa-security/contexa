@@ -21,4 +21,3 @@ public record OfficialRunMetricSummary(
         String officialRunId,
         Instant createdAt) {
 }
-

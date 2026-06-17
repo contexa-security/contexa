@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.handler;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEventContext;
 
 public interface SecurityEventHandler {
 

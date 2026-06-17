@@ -13,4 +13,3 @@ public record OfficialRunAttemptSummary(
         String stateLabel,
         boolean latest) {
 }
-

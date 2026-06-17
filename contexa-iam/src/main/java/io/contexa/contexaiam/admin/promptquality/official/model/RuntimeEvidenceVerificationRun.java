@@ -2,7 +2,7 @@ package io.contexa.contexaiam.admin.promptquality.official.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.contexa.contexaiam.admin.promptquality.official.model.PromptQualityIssue;
+import io.contexa.contexaiam.admin.promptquality.official.domain.PromptQualityIssue;
 
 import java.util.List;
 
@@ -323,4 +323,3 @@ public record RuntimeEvidenceVerificationRun(
         return certificateStateLabel;
     }
 }
-

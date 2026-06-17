@@ -17,4 +17,3 @@ public record OfficialRunSummaryCounts(
         return new OfficialRunSummaryCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 }
-

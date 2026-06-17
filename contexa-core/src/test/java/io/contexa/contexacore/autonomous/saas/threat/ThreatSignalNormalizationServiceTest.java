@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.threat;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.junit.jupiter.api.Test;
 

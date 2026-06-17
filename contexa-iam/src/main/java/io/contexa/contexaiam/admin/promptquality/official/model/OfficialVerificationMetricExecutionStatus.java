@@ -13,4 +13,3 @@ public record OfficialVerificationMetricExecutionStatus(
         Instant startedAt,
         Instant completedAt) {
 }
-

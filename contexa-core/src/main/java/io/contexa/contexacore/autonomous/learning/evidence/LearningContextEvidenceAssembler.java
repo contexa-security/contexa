@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.learning.evidence;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +30,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
-
+
+
 public class LearningContextEvidenceAssembler {
 
     public LearningContextEvidence assemble(

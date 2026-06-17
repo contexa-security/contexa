@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -26,7 +26,7 @@ public final class PromptTemplateUtils {
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private PromptTemplateUtils() {
-        
+
     }
 
     public static boolean isTruncationDisabled() {

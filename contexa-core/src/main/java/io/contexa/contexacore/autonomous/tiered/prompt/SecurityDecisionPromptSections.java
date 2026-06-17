@@ -30,7 +30,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceR
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.context.snapshot.CurrentRequestSnapshot;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentVsObservedDeltaSnapshot;
@@ -73,7 +73,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
-
+
+
 /**
  * Builds security analysis prompts for Zero Trust AI evaluation.
  * <p>

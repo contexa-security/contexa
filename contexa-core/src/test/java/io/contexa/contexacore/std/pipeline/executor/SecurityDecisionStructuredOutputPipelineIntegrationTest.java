@@ -18,7 +18,7 @@ package io.contexa.contexacore.std.pipeline.executor;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
@@ -56,7 +56,8 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
+
+
 class SecurityDecisionStructuredOutputPipelineIntegrationTest {
 
     @Test

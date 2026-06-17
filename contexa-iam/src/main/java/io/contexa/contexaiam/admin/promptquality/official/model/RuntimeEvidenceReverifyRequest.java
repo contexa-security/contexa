@@ -20,4 +20,3 @@ public record RuntimeEvidenceReverifyRequest(
         issueIds = issueIds == null ? List.of() : List.copyOf(issueIds);
     }
 }
-

@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.listener;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import lombok.extern.slf4j.Slf4j;

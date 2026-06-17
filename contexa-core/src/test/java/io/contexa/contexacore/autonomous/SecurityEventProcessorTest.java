@@ -21,10 +21,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
-import java.util.ArrayList;
+
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +36,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.quality.Strictness;
-
+
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SecurityEventProcessorTest {
@@ -137,6 +138,35 @@ class SecurityEventProcessorTest {
         verify(handler1).handle(any());
         verify(handler2).handle(any());
         verify(handler3, never()).handle(any());
+    }
+
+    @Test
+    @DisplayName("Handler chain should stop before enforcement when event deadline is exceeded")
+    void shouldStopChainWhenProcessingDeadlineIsExceeded() {
+        // given
+        when(handler1.getOrder()).thenReturn(10);
+        when(handler2.getOrder()).thenReturn(20);
+        when(handler1.handle(any())).thenAnswer(invocation -> {
+            SecurityEventContext context = invocation.getArgument(0);
+            context.getSecurityEvent().addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, true);
+            return true;
+        });
+
+        List<SecurityEventHandler> handlers = List.of(handler1, handler2);
+        processor = new SecurityEventProcessor(handlers);
+
+        SecurityEvent event = SecurityEvent.builder().build();
+
+        // when
+        SecurityEventContext result = processor.process(event);
+
+        // then
+        verify(handler1).handle(any());
+        verify(handler2, never()).handle(any());
+        assertThat(result.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
+        assertThat(result.getMetadata())
+                .containsEntry(SecurityEventProcessor.PROCESSING_DEADLINE_EXCEEDED, true)
+                .containsEntry(SecurityEventProcessor.PROCESSING_DEADLINE_EXCEEDED_BEFORE_HANDLER, "handler2");
     }
 
     @Test

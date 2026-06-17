@@ -8,4 +8,3 @@ public record PromptQualityProcessEventSnapshot(
         String payloadJson,
         Instant occurredAt) {
 }
-

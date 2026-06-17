@@ -16,4 +16,3 @@ public record PromptQualityProcessHistorySnapshot(
         String reason,
         Instant changedAt) {
 }
-

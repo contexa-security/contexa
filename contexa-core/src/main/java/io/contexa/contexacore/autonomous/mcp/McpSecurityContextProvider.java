@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.mcp;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 
 import java.util.List;
 

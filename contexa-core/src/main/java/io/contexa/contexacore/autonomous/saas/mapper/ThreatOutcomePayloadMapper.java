@@ -16,8 +16,8 @@
 package io.contexa.contexacore.autonomous.saas.mapper;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.domain.AdminOverride;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.AdminOverride;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatOutcomePayload;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 

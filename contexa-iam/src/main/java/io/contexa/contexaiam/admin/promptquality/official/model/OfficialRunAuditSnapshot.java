@@ -26,4 +26,3 @@ public record OfficialRunAuditSnapshot(
         nextActions = nextActions == null ? List.of() : List.copyOf(nextActions);
     }
 }
-

@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
@@ -24,8 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
-import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
-import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeSnapshot;
+
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 
 public class DefaultSessionNarrativeCollector implements SessionNarrativeCollector {

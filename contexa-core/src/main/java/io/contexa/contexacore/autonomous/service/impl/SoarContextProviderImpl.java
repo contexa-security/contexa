@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.service.impl;
 
 import io.contexa.contexacore.autonomous.service.ISoarContextProvider;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
@@ -65,15 +65,15 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         String threatType = primaryEvent.getSeverity() != null ? primaryEvent.getSeverity().toString() : "UNKNOWN";
 
         SoarContext context = new SoarContext(
-                incidentId,                    
-                threatType,                    
-                description,                   
-                affectedSystems,              
-                "ACTIVE",                     
-                "SecurityPlaneAgent",         
-                severity,                     
-                String.join(", ", affectedSystems), 
-                securityPlaneProperties.getAgent().getOrganizationId()         
+                incidentId,
+                threatType,
+                description,
+                affectedSystems,
+                "ACTIVE",
+                "SecurityPlaneAgent",
+                severity,
+                String.join(", ", affectedSystems),
+                securityPlaneProperties.getAgent().getOrganizationId()
         );
 
         context.setExecutionMode(SoarExecutionMode.valueOf(securityPlaneProperties.getAgent().getExecutionMode()));
@@ -138,19 +138,19 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
     }
 
     public SoarContext createDefaultContext() {
-        
+
         String incidentId = "INC-AGENT-" + UUID.randomUUID().toString().substring(0, 8);
 
         SoarContext context = new SoarContext(
-                incidentId,                                    
-                "UNKNOWN",                                      
-                "Default agent context for autonomous monitoring", 
-                List.of("agent-system"),                       
-                "MONITORING",                                   
-                "SecurityPlaneAgent",                          
-                "LOW",                                          
-                "Monitor and observe",                         
-                securityPlaneProperties.getAgent().getOrganizationId()                          
+                incidentId,
+                "UNKNOWN",
+                "Default agent context for autonomous monitoring",
+                List.of("agent-system"),
+                "MONITORING",
+                "SecurityPlaneAgent",
+                "LOW",
+                "Monitor and observe",
+                securityPlaneProperties.getAgent().getOrganizationId()
         );
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);
@@ -161,7 +161,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
     }
 
     private String determineSeverity(List<SecurityEvent> events) {
-        
+
         Set<String> severities = events.stream()
                 .map(e -> {
                     String severity = e.getSeverity().toString();
@@ -206,7 +206,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
     }
 
     private boolean isHighRiskAction(String action) {
-        
+
         Set<String> highRiskActions = Set.of(
                 "block", "isolate", "quarantine", "shutdown",
                 "delete", "terminate", "disable", "revoke"
@@ -263,7 +263,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         );
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);
-        
+
         context.setHumanApprovalNeeded(threatIndicators.stream()
             .anyMatch(indicator -> indicator.getSeverity() == ThreatIndicator.Severity.CRITICAL &&
                                    hasHighConfidence(indicator.getConfidence())));

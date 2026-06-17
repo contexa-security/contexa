@@ -1,18 +1,51 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.verification.adjudication.SealedEvidencePromptScorecard;
+import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupService;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricCatalog;
+import io.contexa.contexacore.verification.persistence.VerificationLedgerService;
+import io.contexa.contexacore.verification.prompt.VerificationPromptReplayBuilder;
+import io.contexa.contexacore.verification.replay.DeterministicReplayService;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCasePublisher;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.sealed.DefaultOfficialSealedEvidenceVerificationRuntime;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationRuntime;
-import io.contexa.contexaiam.admin.promptquality.official.api.OfficialPromptQualityInspectionController;
 import io.contexa.contexaiam.admin.promptquality.official.api.PromptQualityOfficialConsoleApiController;
-import io.contexa.contexaiam.admin.promptquality.official.application.DefaultOfficialPromptQualityInspectionService;
-import io.contexa.contexaiam.admin.promptquality.official.application.OfficialPromptQualityInspectionService;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultPromptQualityOfficialMetricCatalog;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultPromptQualityOfficialRunDetailService;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultPromptQualityRuntimeCertificationPolicy;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultPromptQualityRuntimeEvidenceService;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultPromptQualityRuntimeVerificationService;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultRuntimeEvidencePromptScorecardService;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultRuntimeEvidencePromptConsistencyGate;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultRuntimeEvidenceReplayService;
+import io.contexa.contexaiam.admin.promptquality.official.application.DefaultSealedEvidencePackageQueryService;
+import io.contexa.contexaiam.admin.promptquality.official.application.JdbcOfficialVerificationExecutionLockService;
+import io.contexa.contexaiam.admin.promptquality.official.application.NoopPromptQualityAssuranceCaseService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationExecutionLockService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityAssuranceCaseService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityCertificateService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialMetricCatalog;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialRunDetailService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityProtectableResourceLookup;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeCertificationPolicy;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeEvidenceService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService;
+import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvidencePromptConsistencyGate;
+import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvidencePromptScorecardService;
+import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvidenceReplayService;
+import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeIssueDiagnosticService;
+import io.contexa.contexaiam.admin.promptquality.official.application.SealedEvidencePackageQueryService;
+import io.contexa.contexaiam.admin.promptquality.official.common.DefaultPromptQualityMessageResolver;
+import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
+import io.contexa.contexaiam.admin.promptquality.official.process.NoopPromptQualityProcessRunService;
+import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.web.PromptQualityAssurancePageController;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -23,8 +56,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.JdbcOperations;
+
+import java.util.List;
+import java.util.Optional;
 
 @AutoConfiguration
 @AutoConfigureAfter(IamAdminCenterAutoConfiguration.class)
@@ -53,6 +91,12 @@ public class PqaOfficialInspectionAutoConfiguration {
         return (userId, record) -> {
             // OSS official inspection stops after storing the official run.
         };
+    }
+
+    @Bean(name = "pqaPromptQualityMessageResolver")
+    @ConditionalOnMissingBean(PromptQualityMessageResolver.class)
+    public PromptQualityMessageResolver pqaPromptQualityMessageResolver(MessageSource messageSource) {
+        return new DefaultPromptQualityMessageResolver(messageSource);
     }
 
     @Bean(name = "pqaSealedEvidencePackageIntegrity")
@@ -85,18 +129,214 @@ public class PqaOfficialInspectionAutoConfiguration {
                 objectMapper);
     }
 
-    @Bean(name = "pqaOfficialPromptQualityInspectionService")
-    @ConditionalOnMissingBean(OfficialPromptQualityInspectionService.class)
-    public OfficialPromptQualityInspectionService pqaOfficialPromptQualityInspectionService(
-            OfficialSealedEvidenceVerificationRuntime runtime) {
-        return new DefaultOfficialPromptQualityInspectionService(runtime);
+    @Bean(name = "pqaSealedEvidencePackageQueryService")
+    @ConditionalOnMissingBean(SealedEvidencePackageQueryService.class)
+    public SealedEvidencePackageQueryService pqaSealedEvidencePackageQueryService(
+            SealedEvidencePackageLookupService evidenceLookupService) {
+        return new DefaultSealedEvidencePackageQueryService(evidenceLookupService);
     }
 
-    @Bean(name = "pqaOfficialPromptQualityInspectionController")
-    @ConditionalOnMissingBean(OfficialPromptQualityInspectionController.class)
-    public OfficialPromptQualityInspectionController pqaOfficialPromptQualityInspectionController(
-            OfficialPromptQualityInspectionService inspectionService) {
-        return new OfficialPromptQualityInspectionController(inspectionService);
+    @Bean(name = "pqaVerificationLedgerService")
+    @ConditionalOnMissingBean(VerificationLedgerService.class)
+    public VerificationLedgerService pqaVerificationLedgerService(OfficialVerificationRunStore runStore) {
+        return new VerificationLedgerService(runStore);
+    }
+
+    @Bean(name = "pqaRuntimeEvidencePromptConsistencyGate")
+    @ConditionalOnMissingBean(RuntimeEvidencePromptConsistencyGate.class)
+    public RuntimeEvidencePromptConsistencyGate pqaRuntimeEvidencePromptConsistencyGate(
+            ObjectMapper objectMapper,
+            PromptQualityMessageResolver messageResolver) {
+        return new DefaultRuntimeEvidencePromptConsistencyGate(objectMapper, null, messageResolver);
+    }
+
+    @Bean(name = "pqaPromptQualityRuntimeEvidenceService")
+    @ConditionalOnMissingBean(PromptQualityRuntimeEvidenceService.class)
+    public PromptQualityRuntimeEvidenceService pqaPromptQualityRuntimeEvidenceService(
+            SealedEvidencePackageQueryService queryService,
+            ObjectMapper objectMapper,
+            PromptQualityMessageResolver messageResolver,
+            RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
+            PromptQualityProcessRunService processRunService) {
+        return new DefaultPromptQualityRuntimeEvidenceService(
+                queryService,
+                objectMapper,
+                messageResolver,
+                promptConsistencyGate,
+                null,
+                processRunService);
+    }
+
+    @Bean(name = "pqaPromptQualityOfficialMetricCatalog")
+    @ConditionalOnMissingBean(PromptQualityOfficialMetricCatalog.class)
+    public PromptQualityOfficialMetricCatalog pqaPromptQualityOfficialMetricCatalog(
+            OfficialVerificationMetricCatalog metricCatalog) {
+        return new DefaultPromptQualityOfficialMetricCatalog(metricCatalog);
+    }
+
+    @Bean(name = "pqaCanonicalSecurityContextSerializer")
+    @ConditionalOnMissingBean(CanonicalSecurityContextSerializer.class)
+    public CanonicalSecurityContextSerializer pqaCanonicalSecurityContextSerializer(ObjectMapper objectMapper) {
+        return new CanonicalSecurityContextSerializer(objectMapper);
+    }
+
+    @Bean(name = "pqaVerificationPromptReplayBuilder")
+    @ConditionalOnMissingBean(VerificationPromptReplayBuilder.class)
+    public VerificationPromptReplayBuilder pqaVerificationPromptReplayBuilder() {
+        return new VerificationPromptReplayBuilder();
+    }
+
+    @Bean(name = "pqaDeterministicReplayService")
+    @ConditionalOnMissingBean(DeterministicReplayService.class)
+    public DeterministicReplayService pqaDeterministicReplayService(
+            SealedEvidencePackageLookupService evidenceLookupService,
+            CanonicalSecurityContextSerializer contextSerializer,
+            PromptContextComposer promptContextComposer,
+            SealedEvidencePackageIntegrity integrity,
+            VerificationPromptReplayBuilder promptReplayBuilder) {
+        return new DeterministicReplayService(
+                evidenceLookupService,
+                contextSerializer,
+                promptContextComposer,
+                integrity,
+                promptReplayBuilder);
+    }
+
+    @Bean(name = "pqaSealedEvidencePromptScorecard")
+    @ConditionalOnMissingBean(SealedEvidencePromptScorecard.class)
+    public SealedEvidencePromptScorecard pqaSealedEvidencePromptScorecard(ObjectMapper objectMapper) {
+        return new SealedEvidencePromptScorecard(objectMapper);
+    }
+
+    @Bean(name = "pqaRuntimeEvidenceReplayService")
+    @ConditionalOnMissingBean(RuntimeEvidenceReplayService.class)
+    public RuntimeEvidenceReplayService pqaRuntimeEvidenceReplayService(
+            DeterministicReplayService replayService) {
+        return new DefaultRuntimeEvidenceReplayService(replayService);
+    }
+
+    @Bean(name = "pqaRuntimeEvidencePromptScorecardService")
+    @ConditionalOnMissingBean(RuntimeEvidencePromptScorecardService.class)
+    public RuntimeEvidencePromptScorecardService pqaRuntimeEvidencePromptScorecardService(
+            SealedEvidencePromptScorecard promptScorecard) {
+        return new DefaultRuntimeEvidencePromptScorecardService(promptScorecard);
+    }
+
+    @Bean(name = "pqaPromptQualityRuntimeCertificationPolicy")
+    @ConditionalOnMissingBean(PromptQualityRuntimeCertificationPolicy.class)
+    public PromptQualityRuntimeCertificationPolicy pqaPromptQualityRuntimeCertificationPolicy(
+            ObjectMapper objectMapper) {
+        return new DefaultPromptQualityRuntimeCertificationPolicy(objectMapper, null);
+    }
+
+    @Bean(name = "pqaPromptQualityProtectableResourceLookup")
+    @ConditionalOnMissingBean(PromptQualityProtectableResourceLookup.class)
+    public PromptQualityProtectableResourceLookup pqaPromptQualityProtectableResourceLookup() {
+        return (resourceUrl, resourceId, httpMethod) -> Optional.empty();
+    }
+
+    @Bean(name = "pqaPromptQualityCertificateService")
+    @ConditionalOnMissingBean(PromptQualityCertificateService.class)
+    public PromptQualityCertificateService pqaPromptQualityCertificateService() {
+        return new PromptQualityCertificateService();
+    }
+
+    @Bean(name = "pqaPromptQualityAssuranceCaseService")
+    @ConditionalOnMissingBean(PromptQualityAssuranceCaseService.class)
+    public PromptQualityAssuranceCaseService pqaPromptQualityAssuranceCaseService() {
+        return new NoopPromptQualityAssuranceCaseService();
+    }
+
+    @Bean(name = "pqaRuntimeIssueDiagnosticService")
+    @ConditionalOnMissingBean(RuntimeIssueDiagnosticService.class)
+    public RuntimeIssueDiagnosticService pqaRuntimeIssueDiagnosticService() {
+        return (runId, packageId, httpMethod, metrics, nextActions) -> List.of();
+    }
+
+    @Bean(name = "pqaPromptQualityProcessRunService")
+    @ConditionalOnMissingBean(PromptQualityProcessRunService.class)
+    public PromptQualityProcessRunService pqaPromptQualityProcessRunService() {
+        return new NoopPromptQualityProcessRunService();
+    }
+
+    @Bean(name = "pqaOfficialVerificationOperatorSnapshotService")
+    @ConditionalOnMissingBean(OfficialVerificationOperatorSnapshotService.class)
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
+    public OfficialVerificationOperatorSnapshotService pqaOfficialVerificationOperatorSnapshotService(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            ObjectMapper objectMapper) {
+        return new OfficialVerificationOperatorSnapshotService(jdbcTemplate, objectMapper);
+    }
+
+    @Bean(name = "pqaPromptQualityOfficialRunDetailService")
+    @ConditionalOnMissingBean(PromptQualityOfficialRunDetailService.class)
+    public PromptQualityOfficialRunDetailService pqaPromptQualityOfficialRunDetailService(
+            OfficialSealedEvidenceVerificationRuntime officialRuntime,
+            VerificationLedgerService verificationLedgerService,
+            PromptQualityRuntimeEvidenceService evidenceService,
+            PromptQualityOfficialMetricCatalog metricCatalog,
+            PromptQualityMessageResolver messageResolver,
+            PromptQualityCertificateService certificateService,
+            PromptQualityAssuranceCaseService assuranceCaseService,
+            PromptQualityProcessRunService processRunService,
+            OfficialVerificationOperatorSnapshotService operatorSnapshotService) {
+        return new DefaultPromptQualityOfficialRunDetailService(
+                officialRuntime,
+                verificationLedgerService,
+                evidenceService,
+                metricCatalog,
+                messageResolver,
+                certificateService,
+                assuranceCaseService,
+                processRunService,
+                operatorSnapshotService);
+    }
+
+    @Bean(name = "pqaOfficialVerificationExecutionLockService")
+    @ConditionalOnMissingBean(OfficialVerificationExecutionLockService.class)
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
+    public OfficialVerificationExecutionLockService pqaOfficialVerificationExecutionLockService(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            ObjectMapper objectMapper) {
+        return new JdbcOfficialVerificationExecutionLockService(jdbcTemplate, objectMapper);
+    }
+
+    @Bean(name = "pqaPromptQualityRuntimeVerificationService")
+    @ConditionalOnMissingBean(PromptQualityRuntimeVerificationService.class)
+    public PromptQualityRuntimeVerificationService pqaPromptQualityRuntimeVerificationService(
+            SealedEvidencePackageQueryService queryService,
+            RuntimeEvidenceReplayService replayService,
+            RuntimeEvidencePromptScorecardService promptScorecardService,
+            OfficialSealedEvidenceVerificationRuntime runtime,
+            PromptQualityRuntimeCertificationPolicy certificationPolicy,
+            PromptQualityProtectableResourceLookup resourceLookup,
+            PromptQualityCertificateService certificateService,
+            PromptQualityOfficialMetricCatalog metricCatalog,
+            PromptQualityAssuranceCaseService assuranceCaseService,
+            RuntimeIssueDiagnosticService issueDiagnosticService,
+            PromptQualityMessageResolver messageResolver,
+            ObjectMapper objectMapper,
+            RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
+            OfficialVerificationOperatorSnapshotService operatorSnapshotService,
+            PromptQualityProcessRunService processRunService,
+            OfficialVerificationExecutionLockService executionLockService) {
+        return new DefaultPromptQualityRuntimeVerificationService(
+                queryService,
+                replayService,
+                promptScorecardService,
+                runtime,
+                certificationPolicy,
+                resourceLookup,
+                certificateService,
+                metricCatalog,
+                assuranceCaseService,
+                issueDiagnosticService,
+                messageResolver,
+                objectMapper,
+                promptConsistencyGate,
+                operatorSnapshotService,
+                processRunService,
+                executionLockService);
     }
 
     @Bean(name = "pqaPromptQualityOfficialConsoleApiController")
@@ -104,13 +344,15 @@ public class PqaOfficialInspectionAutoConfiguration {
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialConsoleApiController pqaPromptQualityOfficialConsoleApiController(
             SealedEvidencePackageLookupService evidenceLookupService,
-            OfficialPromptQualityInspectionService inspectionService,
+            PromptQualityRuntimeVerificationService verificationService,
+            PromptQualityOfficialRunDetailService runDetailService,
             OfficialVerificationRunStore runStore,
             ObjectMapper objectMapper,
             @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations) {
         return new PromptQualityOfficialConsoleApiController(
                 evidenceLookupService,
-                inspectionService,
+                verificationService,
+                runDetailService,
                 runStore,
                 objectMapper,
                 jdbcOperations);

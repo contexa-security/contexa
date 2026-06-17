@@ -15,13 +15,13 @@
  */
 package io.contexa.contexacore.autonomous.context.inference;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import io.contexa.contexacore.autonomous.context.inference.ObservedScopeInferenceService;
+
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 
 public class MetadataObservedScopeInferenceService implements ObservedScopeInferenceService {

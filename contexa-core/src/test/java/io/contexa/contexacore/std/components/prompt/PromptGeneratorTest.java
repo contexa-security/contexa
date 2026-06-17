@@ -20,7 +20,7 @@ import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;

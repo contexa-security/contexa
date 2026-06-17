@@ -17,8 +17,8 @@ package io.contexa.contexacore.autonomous.saas;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;
 import io.contexa.contexacore.autonomous.saas.mapper.SecurityDecisionForwardingPayloadMapper;
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;

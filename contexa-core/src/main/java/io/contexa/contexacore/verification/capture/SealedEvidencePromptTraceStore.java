@@ -1,7 +1,7 @@
 package io.contexa.contexacore.verification.capture;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Field;
@@ -17,7 +17,8 @@ import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
+
+
 /**
  * Enterprise-grade prompt trace store that captures PromptGenerationResult
  * along with SecurityDecisionContext for sealed evidence assembly.

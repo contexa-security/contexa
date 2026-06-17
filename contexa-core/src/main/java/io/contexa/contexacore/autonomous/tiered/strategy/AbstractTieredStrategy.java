@@ -20,8 +20,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityResponse;
+import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacore.SecurityResponse;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
@@ -48,7 +48,6 @@ import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
-import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineFailurePolicy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -76,7 +75,8 @@ import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
-
+
+
 @Slf4j
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 

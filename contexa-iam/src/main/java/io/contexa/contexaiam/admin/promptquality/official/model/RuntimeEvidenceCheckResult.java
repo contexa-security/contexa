@@ -197,4 +197,3 @@ public record RuntimeEvidenceCheckResult(
         return normalized.isBlank() ? "CHECK" : normalized;
     }
 }
-

@@ -13,4 +13,3 @@ public record RuntimeGovernanceDescriptorVerificationResult(
         return new RuntimeGovernanceDescriptorVerificationResult(true, List.of(), List.of(), List.of());
     }
 }
-

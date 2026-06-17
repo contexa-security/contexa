@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.contexa.contexaiam.admin.promptquality.official.model.PromptQualityStateDescriptor;
+import io.contexa.contexaiam.admin.promptquality.official.state.PromptQualityStateDescriptor;
 
 import java.time.Instant;
 
@@ -68,4 +68,3 @@ public record RuntimeEvidencePackageSummary(
         return requestPath;
     }
 }
-

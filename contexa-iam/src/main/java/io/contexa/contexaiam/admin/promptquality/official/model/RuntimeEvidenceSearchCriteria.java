@@ -14,4 +14,3 @@ public record RuntimeEvidenceSearchCriteria(
         int page,
         int size) {
 }
-

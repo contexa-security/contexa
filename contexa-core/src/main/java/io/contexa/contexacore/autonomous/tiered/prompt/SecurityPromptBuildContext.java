@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRule;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;

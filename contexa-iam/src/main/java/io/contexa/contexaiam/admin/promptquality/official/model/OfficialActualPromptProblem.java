@@ -31,4 +31,3 @@ public record OfficialActualPromptProblem(
         contextItems = contextItems == null ? List.of() : List.copyOf(contextItems);
     }
 }
-

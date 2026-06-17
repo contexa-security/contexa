@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.event.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
@@ -42,7 +42,8 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
-
+
+
 @Slf4j
 public class KafkaSecurityEventCollector implements SecurityEventCollector {
 

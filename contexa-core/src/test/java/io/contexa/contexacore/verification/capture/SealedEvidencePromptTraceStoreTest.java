@@ -1,6 +1,6 @@
 package io.contexa.contexacore.verification.capture;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.SecurityEvent;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import org.springframework.ai.document.Document;
@@ -129,7 +129,7 @@ class SealedEvidencePromptTraceStoreTest {
         when(result.getUserPrompt()).thenReturn("user prompt");
         when(result.getRawSystemPrompt()).thenReturn("raw system");
         when(result.getRawUserPrompt()).thenReturn("raw user");
-        
+
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("promptSourceContextLedger", "val");
         metadata.put("promptRawUserFieldLedger", "val");
@@ -138,7 +138,7 @@ class SealedEvidencePromptTraceStoreTest {
         metadata.put("promptFieldStateLedger", List.of("item"));
         metadata.put("promptFieldStateSummary", "val");
         when(result.getMetadata()).thenReturn(metadata);
-        
+
         return result;
     }
 
