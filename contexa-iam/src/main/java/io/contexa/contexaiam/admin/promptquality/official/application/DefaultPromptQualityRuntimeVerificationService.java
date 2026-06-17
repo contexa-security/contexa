@@ -1213,7 +1213,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                     PromptQualityStateDimension.CERTIFICATE.name(),
                     certificate.state(),
                     certificate.certificateId(),
-                    "/contexa/admin/enterprise/prompt-quality/certificates/" + certificate.certificateId(),
+                    verificationMetricsRoute(pkg.getPackageId(), processScope, runId),
                     "runtime-pqa",
                     "Quality certificate issued; operational promotion is now waiting.");
         }
@@ -1224,7 +1224,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                     PromptQualityStateDimension.CERTIFICATE.name(),
                     certificate.state(),
                     certificate.certificateId(),
-                    "/contexa/admin/enterprise/prompt-quality/issues",
+                    verificationMetricsRoute(pkg.getPackageId(), processScope, runId),
                     "runtime-pqa",
                     "Official verification produced blocking findings.");
         }
@@ -1384,14 +1384,14 @@ public class DefaultPromptQualityRuntimeVerificationService
     }
 
     private String resourceDetailRoute(PromptQualityProcessScope scope) {
-        return "/contexa/admin/enterprise/prompt-quality/resources/detail"
+        return "/contexa/admin/prompt-quality/resources/detail"
                 + "?resourceUrl=" + encode(scope.resourceUrl())
                 + "&resourceId=" + encode(scope.resourceId())
                 + "&httpMethod=" + encode(scope.httpMethod());
     }
 
     private String runtimeEvidenceRoute(String packageId, PromptQualityProcessScope scope) {
-        StringBuilder route = new StringBuilder("/contexa/admin/enterprise/prompt-quality/runtime-evidence?");
+        StringBuilder route = new StringBuilder("/contexa/admin/prompt-quality/runtime-evidence?");
         appendRouteParam(route, "packageId", packageId);
         appendResourceScope(route, scope);
         return queryRoute(route);
@@ -1401,7 +1401,18 @@ public class DefaultPromptQualityRuntimeVerificationService
             String packageId,
             PromptQualityProcessScope scope,
             String aggregateRunId) {
-        StringBuilder route = new StringBuilder("/contexa/admin/enterprise/prompt-quality/verification/readiness?");
+        StringBuilder route = new StringBuilder("/contexa/admin/prompt-quality/verification/readiness?");
+        appendRouteParam(route, "packageId", packageId);
+        appendRouteParam(route, "aggregateRunId", aggregateRunId);
+        appendResourceScope(route, scope);
+        return queryRoute(route);
+    }
+
+    private String verificationMetricsRoute(
+            String packageId,
+            PromptQualityProcessScope scope,
+            String aggregateRunId) {
+        StringBuilder route = new StringBuilder("/contexa/admin/prompt-quality/verification/metrics?");
         appendRouteParam(route, "packageId", packageId);
         appendRouteParam(route, "aggregateRunId", aggregateRunId);
         appendResourceScope(route, scope);

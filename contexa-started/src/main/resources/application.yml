@@ -53,6 +53,9 @@ contexa:
   security:
     zerotrust:
       mode: ENFORCE
+  identity:
+    ott:
+      fail-on-email-error: false
   hcad:
     geoip:
       enabled: true

@@ -33,6 +33,7 @@ import java.util.Collections;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
+import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -86,6 +87,13 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             } catch (Exception e) {
                 log.warn("EmailService bean not found or failed to check configuration. Defaulting mailConfigured to false.");
             }
+            boolean failOnEmailError = true;
+            try {
+                Environment environment = applicationContext.getBean(Environment.class);
+                failOnEmailError = environment.getProperty("contexa.identity.ott.fail-on-email-error", Boolean.class, true);
+            } catch (Exception e) {
+                log.warn("Failed to resolve contexa.identity.ott.fail-on-email-error. Defaulting to true.");
+            }
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
                     flowConfig,
@@ -93,7 +101,8 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     authUrlProvider,
                     authContextProperties.getMfa(),
                     authContextProperties.getTokenPersistence(),
-                    mailConfigured
+                    mailConfigured,
+                    failOnEmailError
             );
             try {
                 MessageSource messageSource =

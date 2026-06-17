@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.admin.promptquality.official.common;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricCheckContract;
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContract;
@@ -11,12 +10,7 @@ import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.util.StringUtils;
 
 import java.sql.Timestamp;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,8 +27,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
             "WHY_IT_MATTERS",
             "RESOLUTION_ACTION",
             "REVERIFY_CONDITION");
-    private static final String RESOLUTION_CONTRACT_SEED_RESOURCE = "/pqa-resolution-contract-seed.json";
-
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
     private FinalPromptMetricContractCatalog finalPromptMetricContractCatalog;
@@ -47,12 +39,8 @@ public class OfficialMetricPurposeContractCatalogWriter {
     public void upsertFullMetricContractCatalog() {
         FinalPromptMetricContractCatalog catalog = finalPromptMetricContractCatalog();
         String currentVersion = currentContractVersion(catalog);
-        boolean resolutionContractsAvailable = resolutionContractsAvailable();
         removeFallbackContractRows();
         removeCurrentContractRows(currentVersion);
-        if (resolutionContractsAvailable) {
-            upsertResolutionContractSeed();
-        }
         for (String metricCode : catalog.metricCodesInOrder()) {
             FinalPromptMetricContract metricContract = catalog.metric(metricCode);
             for (FinalPromptMetricCheckContract checkContract : metricContract.checks()) {
@@ -60,11 +48,8 @@ public class OfficialMetricPurposeContractCatalogWriter {
                 upsertMetricCheckDisplayEvidenceContract(metricContract.version(), metricCode, checkContract);
             }
         }
-        upsertPromptRuntimeGovernanceActionTypeContracts();
-        upsertPromptRuntimeGovernanceCheckActionContracts(currentVersion, catalog);
         upsertPromptSignalRegistryContracts(currentVersion, catalog);
         upsertPromptRuntimeSlotContracts();
-        refreshPromptRuntimeGovernanceActionPolicy();
         deactivateNonCurrentContractVersions(currentVersion);
     }
 
@@ -112,12 +97,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
         assertCurrentContractRows("official_metric_customer_display_contract", currentVersion, expectedCustomerDisplayRows);
         assertCurrentContractRows("official_metric_customer_display_binding", currentVersion, expectedCustomerDisplayBindingRows);
         assertCurrentContractRows("official_metric_input_contract", currentVersion, expectedInputRows.size());
-        if (resolutionContractsAvailable()) {
-            assertCurrentActionCatalogRows();
-            assertCurrentSignalActionPolicyRows();
-            assertCurrentDisplayTextContractRows(expectedCheckCount * 2 + 17);
-        }
-        assertCurrentPromptRuntimeGovernanceActionPolicyRows(currentVersion, expectedCheckCount);
     }
 
     private void addExpectedInputRows(
@@ -174,17 +153,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
                 fallbackVersion);
         jdbcTemplate.update("delete from official_metric_contract_version where contract_version = ?",
                 fallbackVersion);
-        if (tableExists("pqa_resolution_display_text_contract")) {
-            jdbcTemplate.update("""
-                            update pqa_resolution_display_text_contract
-                               set active = false,
-                                   updated_at = ?
-                             where metric_code is not null
-                               and check_code is not null
-                               and check_code like metric_code || '\\_%' escape '\\'
-                            """,
-                    nowTimestamp());
-        }
     }
 
     private void removeCurrentContractRows(String contractVersion) {
@@ -209,256 +177,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
                 contractVersion);
         jdbcTemplate.update("delete from official_metric_contract_version where contract_version = ?",
                 contractVersion);
-    }
-
-    private void assertCurrentActionCatalogRows() {
-        Integer actualRows = jdbcTemplate.queryForObject(
-                "select count(*) from pqa_resolution_action_catalog where active = true",
-                Integer.class);
-        if (actualRows == null || actualRows < 10) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution action catalog was not persisted."
-                    + " expectedRows>=10, actualRows=" + actualRows);
-        }
-    }
-
-    private void assertCurrentSignalActionPolicyRows() {
-        Integer actualRows = jdbcTemplate.queryForObject(
-                "select count(*) from pqa_resolution_signal_action_policy where active = true",
-                Integer.class);
-        if (actualRows == null || actualRows < 6) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution signal action policy was not persisted."
-                    + " expectedRows>=6, actualRows=" + actualRows);
-        }
-    }
-
-    private void assertCurrentPromptRuntimeGovernanceActionPolicyRows(String contractVersion, int expectedRows) {
-        if (!postgresqlDatabase()
-                || !tableExists("prompt_runtime_governance_action_policy")
-                || !tableExists("prompt_runtime_governance_check_action_contract")) {
-            return;
-        }
-        Integer contractRows = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from prompt_runtime_governance_check_action_contract
-                         where contract_version = ?
-                           and active = true
-                        """,
-                Integer.class,
-                contractVersion);
-        Integer policyRows = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from prompt_runtime_governance_action_policy
-                         where contract_version = ?
-                           and active = true
-                        """,
-                Integer.class,
-                contractVersion);
-        Integer missingPolicyRows = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from official_metric_evaluation_contract c
-                         where c.contract_version = ?
-                           and not exists (
-                               select 1
-                                 from prompt_runtime_governance_action_policy p
-                                where p.contract_version = c.contract_version
-                                  and p.metric_code = c.metric_code
-                                  and p.check_code = c.check_code
-                                  and p.active = true
-                           )
-                        """,
-                Integer.class,
-                contractVersion);
-        Integer missingActionDisplayRows = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from prompt_runtime_governance_action_type_contract
-                         where active = true
-                           and (
-                                display_label is null or btrim(display_label) = ''
-                                or button_label is null or btrim(button_label) = ''
-                                or customer_description is null or btrim(customer_description) = ''
-                           )
-                        """,
-                Integer.class);
-        if (contractRows == null || contractRows != expectedRows
-                || policyRows == null || policyRows != expectedRows
-                || missingPolicyRows == null || missingPolicyRows != 0
-                || missingActionDisplayRows == null || missingActionDisplayRows != 0) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Prompt runtime governance action policy was not persisted."
-                    + " contractVersion=" + contractVersion
-                    + ", expectedRows=" + expectedRows
-                    + ", contractRows=" + contractRows
-                    + ", policyRows=" + policyRows
-                    + ", missingPolicyRows=" + missingPolicyRows
-                    + ", missingActionDisplayRows=" + missingActionDisplayRows);
-        }
-    }
-
-    private void assertCurrentDisplayTextContractRows(int expectedRows) {
-        Integer actualRows = jdbcTemplate.queryForObject(
-                "select count(*) from pqa_resolution_display_text_contract where active = true",
-                Integer.class);
-        if (actualRows == null || actualRows < expectedRows) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution display text contract was not persisted."
-                    + " expectedRows>=" + expectedRows + ", actualRows=" + actualRows);
-        }
-        Integer prefixedRows = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from pqa_resolution_display_text_contract
-                         where active = true
-                           and metric_code is not null
-                           and check_code is not null
-                           and check_code like metric_code || '\\_%' escape '\\'
-                        """,
-                Integer.class);
-        if (prefixedRows != null && prefixedRows > 0) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution display text contract contains prefixed check_code rows."
-                    + " prefixedRows=" + prefixedRows);
-        }
-    }
-
-    private boolean resolutionContractTablesAvailable() {
-        return tableExists("pqa_resolution_action_catalog")
-                && tableExists("pqa_resolution_signal_action_policy")
-                && tableExists("pqa_resolution_display_text_contract");
-    }
-
-    private boolean resolutionContractsAvailable() {
-        return resolutionContractTablesAvailable() && resolutionContractSeedResourceAvailable();
-    }
-
-    private boolean resolutionContractSeedResourceAvailable() {
-        try (InputStream input = OfficialMetricPurposeContractCatalogWriter.class
-                .getResourceAsStream(RESOLUTION_CONTRACT_SEED_RESOURCE)) {
-            return input != null;
-        } catch (Exception exception) {
-            return false;
-        }
-    }
-
-    private void upsertResolutionContractSeed() {
-        JsonNode seed = resolutionContractSeed();
-        for (JsonNode action : requiredArray(seed, "actions")) {
-            upsertResolutionAction(
-                    requiredText(action, "action_type"),
-                    requiredText(action, "resolution_type"),
-                    requiredText(action, "label"),
-                    requiredText(action, "description"),
-                    optionalText(action, "target_page"),
-                    optionalText(action, "route_template"),
-                    requiredText(action, "execution_mode"),
-                    requiredText(action, "primary_button_label"),
-                    requiredText(action, "success_message_template"),
-                    requiredText(action, "failure_message_template"),
-                    requiredInt(action, "expected_duration_seconds"),
-                    requiredText(action, "allowed_state_from"),
-                    requiredText(action, "allowed_state_to"),
-                    requiredText(action, "completion_event_type"),
-                    optionalText(action, "completion_query_key"),
-                    requiredBoolean(action, "requires_confirmation"),
-                    requiredText(action, "idempotency_policy"));
-        }
-        for (JsonNode policy : requiredArray(seed, "signalActionPolicies")) {
-            upsertSignalActionPolicy(
-                    requiredText(policy, "policy_id"),
-                    requiredText(policy, "resolution_type"),
-                    requiredText(policy, "signal_key_pattern"),
-                    optionalText(policy, "input_kind"),
-                    optionalText(policy, "producer_key_pattern"),
-                    optionalText(policy, "producer_key"),
-                    requiredText(policy, "primary_action_type"),
-                    requiredText(policy, "action_readiness_state"),
-                    requiredText(policy, "requirement_state"),
-                    requiredInt(policy, "priority"));
-        }
-        for (JsonNode displayText : requiredArray(seed, "displayTexts")) {
-            upsertResolutionDisplayTextRow(
-                    requiredText(displayText, "text_id"),
-                    requiredText(displayText, "text_key"),
-                    requiredText(displayText, "locale"),
-                    requiredText(displayText, "resolution_type"),
-                    optionalText(displayText, "metric_code"),
-                    optionalText(displayText, "check_code"),
-                    optionalText(displayText, "signal_key_pattern"),
-                    optionalText(displayText, "input_kind"),
-                    requiredText(displayText, "title_template"),
-                    requiredText(displayText, "summary_template"),
-                    requiredText(displayText, "why_it_matters_template"),
-                    requiredText(displayText, "action_title_template"),
-                    requiredText(displayText, "action_detail_template"),
-                    requiredText(displayText, "completion_criterion_template"),
-                    requiredText(displayText, "badge_label"),
-                    requiredText(displayText, "severity_label"),
-                    optionalText(displayText, "empty_state_title"),
-                    optionalText(displayText, "empty_state_description"));
-        }
-    }
-
-    private JsonNode resolutionContractSeed() {
-        try (InputStream input = OfficialMetricPurposeContractCatalogWriter.class
-                .getResourceAsStream(RESOLUTION_CONTRACT_SEED_RESOURCE)) {
-            if (input == null) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution contract seed resource is missing."
-                        + " resource=" + RESOLUTION_CONTRACT_SEED_RESOURCE);
-            }
-            return objectMapper.readTree(input);
-        } catch (Exception exception) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution contract seed resource is unreadable."
-                    + " resource=" + RESOLUTION_CONTRACT_SEED_RESOURCE, exception);
-        }
-    }
-
-    private Iterable<JsonNode> requiredArray(JsonNode node, String fieldName) {
-        JsonNode value = node == null ? null : node.get(fieldName);
-        if (value == null || !value.isArray()) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution contract seed array is missing."
-                    + " resource=" + RESOLUTION_CONTRACT_SEED_RESOURCE
-                    + ", field=" + fieldName);
-        }
-        return value;
-    }
-
-    private String requiredText(JsonNode node, String fieldName) {
-        String value = optionalText(node, fieldName);
-        if (!StringUtils.hasText(value)) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution contract seed text is missing."
-                    + " resource=" + RESOLUTION_CONTRACT_SEED_RESOURCE
-                    + ", field=" + fieldName);
-        }
-        return value;
-    }
-
-    private String optionalText(JsonNode node, String fieldName) {
-        JsonNode value = node == null ? null : node.get(fieldName);
-        return value == null || value.isNull() ? null : value.asText();
-    }
-
-    private int requiredInt(JsonNode node, String fieldName) {
-        JsonNode value = node == null ? null : node.get(fieldName);
-        if (value == null || !value.canConvertToInt()) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution contract seed number is missing."
-                    + " resource=" + RESOLUTION_CONTRACT_SEED_RESOURCE
-                    + ", field=" + fieldName);
-        }
-        return value.asInt();
-    }
-
-    private boolean requiredBoolean(JsonNode node, String fieldName) {
-        JsonNode value = node == null ? null : node.get(fieldName);
-        if (value == null || !value.isBoolean()) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution contract seed boolean is missing."
-                    + " resource=" + RESOLUTION_CONTRACT_SEED_RESOURCE
-                    + ", field=" + fieldName);
-        }
-        return value.asBoolean();
-    }
-
-    private void refreshPromptRuntimeGovernanceActionPolicy() {
-        if (!postgresqlDatabase()
-                || !tableExists("prompt_runtime_governance_action_policy")
-                || !functionExists("refresh_prompt_runtime_governance_action_policy")) {
-            return;
-        }
-        jdbcTemplate.queryForObject("select refresh_prompt_runtime_governance_action_policy()", Integer.class);
     }
 
     private void upsertPromptRuntimeSlotContracts() {
@@ -657,214 +375,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
                         """);
     }
 
-    private void upsertPromptRuntimeGovernanceCheckActionContracts(
-            String contractVersion,
-            FinalPromptMetricContractCatalog catalog) {
-        if (!postgresqlDatabase()
-                || !tableExists("prompt_runtime_governance_check_action_contract")
-                || !tableExists("prompt_runtime_governance_action_type_contract")) {
-            return;
-        }
-        for (String metricCode : catalog.metricCodesInOrder()) {
-            FinalPromptMetricContract metricContract = catalog.metric(metricCode);
-            for (FinalPromptMetricCheckContract checkContract : metricContract.checks()) {
-                jdbcTemplate.update("""
-                                insert into prompt_runtime_governance_check_action_contract (
-                                    contract_version, prompt_key, metric_code, check_code,
-                                    action_type, action_reason, active, created_at, updated_at
-                                ) values (?, 'SECURITY_DECISION', ?, ?, ?, ?, true, ?, ?)
-                                on conflict (contract_version, prompt_key, metric_code, check_code) do update
-                                   set action_type = excluded.action_type,
-                                       action_reason = excluded.action_reason,
-                                       active = true,
-                                       updated_at = excluded.updated_at
-                                """,
-                        contractVersion,
-                        metricCode,
-                        checkContract.checkName(),
-                        promptRuntimeGovernanceActionType(metricCode, checkContract),
-                        promptRuntimeGovernanceActionReason(metricCode, checkContract),
-                        nowTimestamp(),
-                        nowTimestamp());
-            }
-        }
-    }
-
-    private void upsertPromptRuntimeGovernanceActionTypeContracts() {
-        if (!postgresqlDatabase() || !tableExists("prompt_runtime_governance_action_type_contract")) {
-            return;
-        }
-        List<PromptRuntimeGovernanceActionTypeSeed> seeds = List.of(
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "ADD_SLOT",
-                        "SLOT_STRUCTURE",
-                        "Add a required prompt slot before runtime rendering.",
-                        "입력 항목 추가",
-                        "다음 요청에 입력 추가",
-                        "다음 LLM 입력을 만들기 전에 필요한 입력 항목을 추가합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "UPDATE_SLOT_VALUE",
-                        "SLOT_VALUE",
-                        "Replace or enrich an existing prompt slot value.",
-                        "입력값 정리",
-                        "다음 요청에 값 정리",
-                        "다음 LLM 입력을 만들기 전에 잘못되었거나 부족한 값을 정리합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "ADD_NARRATIVE",
-                        "SLOT_MEANING",
-                        "Add decision meaning so the LLM can interpret the slot.",
-                        "판단 설명 추가",
-                        "다음 요청에 설명 반영",
-                        "LLM이 입력값의 의미를 이해할 수 있도록 설명을 추가합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "ADD_LIMITATION",
-                        "SLOT_BOUNDARY",
-                        "Add a limitation so unknown or thin evidence is not overclaimed.",
-                        "판단 한계 추가",
-                        "다음 요청에 한계 반영",
-                        "알 수 없음, 부족한 근거, 임시 근거가 확정 근거처럼 보이지 않도록 한계를 추가합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "SUPPRESS_SLOT",
-                        "SLOT_STRUCTURE",
-                        "Exclude a prompt slot that must not influence the LLM decision.",
-                        "판단 근거 제외",
-                        "다음 요청에서 제외",
-                        "LLM 판단에 영향을 주면 안 되는 항목을 다음 입력에서 제외합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "REORDER_SLOT",
-                        "SLOT_ORDER",
-                        "Change prompt slot order for decision priority.",
-                        "표시 순서 조정",
-                        "다음 요청 순서 조정",
-                        "중요한 판단 항목이 다음 입력에서 먼저 보이도록 순서를 조정합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "RAISE_PRIORITY",
-                        "SLOT_PRIORITY",
-                        "Raise a slot priority so it is protected from omission.",
-                        "우선순위 높이기",
-                        "다음 요청에서 우선 표시",
-                        "필수 판단 항목이 누락되지 않도록 우선순위를 높입니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "FORBID_TRUNCATION",
-                        "SLOT_TRUNCATION",
-                        "Prevent required decision material from being truncated or replaced by placeholders.",
-                        "잘림 방지",
-                        "다음 요청에서 잘림 방지",
-                        "필수 판단 항목이 줄임표나 자리표시자로 잘리지 않도록 보호합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "REPLACE_SECTION_POLICY",
-                        "SECTION_POLICY",
-                        "Replace the section composition policy.",
-                        "섹션 정책 변경",
-                        "다음 요청 섹션 변경",
-                        "다음 LLM 입력에서 해당 섹션을 조립하는 방식을 변경합니다."),
-                new PromptRuntimeGovernanceActionTypeSeed(
-                        "RECOLLECT_INPUT",
-                        "INPUT_COLLECTION",
-                        "Collect missing input again before prompt rendering.",
-                        "입력 다시 수집",
-                        "입력 다시 수집",
-                        "프롬프트를 직접 바꾸지 않고 필요한 입력이나 증거를 다시 수집합니다.")
-        );
-        for (PromptRuntimeGovernanceActionTypeSeed seed : seeds) {
-            jdbcTemplate.update("""
-                            insert into prompt_runtime_governance_action_type_contract (
-                                action_type, action_family, action_intent, active, created_at, updated_at,
-                                display_label, button_label, customer_description
-                            ) values (?, ?, ?, true, ?, ?, ?, ?, ?)
-                            on conflict (action_type) do update
-                               set action_family = excluded.action_family,
-                                   action_intent = excluded.action_intent,
-                                   display_label = excluded.display_label,
-                                   button_label = excluded.button_label,
-                                   customer_description = excluded.customer_description,
-                                   active = true,
-                                   updated_at = excluded.updated_at
-                            """,
-                    seed.actionType(),
-                    seed.actionFamily(),
-                    seed.actionIntent(),
-                    nowTimestamp(),
-                    nowTimestamp(),
-                    seed.displayLabel(),
-                    seed.buttonLabel(),
-                    seed.customerDescription());
-        }
-    }
-
-    private record PromptRuntimeGovernanceActionTypeSeed(
-            String actionType,
-            String actionFamily,
-            String actionIntent,
-            String displayLabel,
-            String buttonLabel,
-            String customerDescription) {
-    }
-
-    private String promptRuntimeGovernanceActionType(String metricCode, FinalPromptMetricCheckContract checkContract) {
-        String checkName = normalizedUpper(checkContract.checkName());
-        String failureType = normalizedUpper(checkContract.failureType());
-        String source = normalizedUpper(checkContract.source());
-        String combined = metricCode.toUpperCase(Locale.ROOT) + " " + checkName + " " + failureType + " " + source;
-        if (combined.contains("TRUNCATED") || combined.contains("COMPACT") || combined.contains("PLACEHOLDER")) {
-            return "FORBID_TRUNCATION";
-        }
-        if (combined.contains("REORDER") || combined.contains("STRONGEST_DELTA") || combined.contains("SUMMARY")) {
-            return "REORDER_SLOT";
-        }
-        if (combined.contains("PRIORITY")) {
-            return "RAISE_PRIORITY";
-        }
-        if ("COR".equalsIgnoreCase(metricCode)
-                || combined.contains("INJECTION")
-                || combined.contains("CONTAMINATION")
-                || combined.contains("SUPPRESS")) {
-            return "SUPPRESS_SLOT";
-        }
-        if ("MTR".equalsIgnoreCase(metricCode)
-                || "PRE".equalsIgnoreCase(metricCode)
-                || combined.contains("TRACE")
-                || combined.contains("ELIGIBILITY")) {
-            return "RECOLLECT_INPUT";
-        }
-        if ("CCSR".equalsIgnoreCase(metricCode)
-                || combined.contains("CONSISTENT")
-                || combined.contains("CONFLICT")) {
-            return "UPDATE_SLOT_VALUE";
-        }
-        if (combined.contains("UNKNOWN")
-                || combined.contains("NO_COMPARABLE")
-                || combined.contains("NOT_OVERCLAIMED")
-                || combined.contains("LIMITATION")) {
-            return "ADD_LIMITATION";
-        }
-        if (combined.contains("SECTION_POLICY") || combined.contains("SESSION_FLOW")) {
-            return "REPLACE_SECTION_POLICY";
-        }
-        return "ADD_NARRATIVE";
-    }
-
-    private String promptRuntimeGovernanceActionReason(String metricCode, FinalPromptMetricCheckContract checkContract) {
-        if (StringUtils.hasText(checkContract.nextAction())) {
-            return checkContract.nextAction();
-        }
-        if (StringUtils.hasText(checkContract.expectedMessage())) {
-            return checkContract.expectedMessage();
-        }
-        if (StringUtils.hasText(checkContract.problemTitle())) {
-            return checkContract.problemTitle();
-        }
-        return "Apply the prompt runtime governance action for "
-                + metricCode + "." + checkContract.checkName() + ".";
-    }
-
-    private String normalizedUpper(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.toUpperCase(Locale.ROOT);
-    }
-
     private boolean tableExists(String tableName) {
         Integer count = jdbcTemplate.queryForObject("""
                         select count(*)
@@ -875,148 +385,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
                 Integer.class,
                 tableName);
         return count != null && count > 0;
-    }
-
-    private boolean functionExists(String functionName) {
-        Integer count = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from pg_proc p
-                          join pg_namespace n on n.oid = p.pronamespace
-                         where n.nspname = 'public'
-                           and p.proname = ?
-                        """,
-                Integer.class,
-                functionName);
-        return count != null && count > 0;
-    }
-
-    private void upsertSignalActionPolicy(
-            String policyId,
-            String resolutionType,
-            String signalKeyPattern,
-            String inputKind,
-            String producerKeyPattern,
-            String producerKey,
-            String primaryActionType,
-            String actionReadinessState,
-            String requirementState,
-            int priority) {
-        String sql = postgresqlDatabase() ? """
-                        insert into pqa_resolution_signal_action_policy (
-                            policy_id, resolution_type, signal_key_pattern, input_kind, producer_key_pattern,
-                            producer_key, primary_action_type, action_readiness_state, requirement_state,
-                            priority, active, updated_at
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?)
-                        on conflict (policy_id) do update
-                           set resolution_type = excluded.resolution_type,
-                               signal_key_pattern = excluded.signal_key_pattern,
-                               input_kind = excluded.input_kind,
-                               producer_key_pattern = excluded.producer_key_pattern,
-                               producer_key = excluded.producer_key,
-                               primary_action_type = excluded.primary_action_type,
-                               action_readiness_state = excluded.action_readiness_state,
-                               requirement_state = excluded.requirement_state,
-                               priority = excluded.priority,
-                               active = true,
-                                updated_at = excluded.updated_at
-                        """
-                : """
-                        merge into pqa_resolution_signal_action_policy (
-                            policy_id, resolution_type, signal_key_pattern, input_kind, producer_key_pattern,
-                            producer_key, primary_action_type, action_readiness_state, requirement_state,
-                            priority, active, updated_at
-                        ) key (policy_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?)
-                        """;
-        jdbcTemplate.update(sql,
-                fit(policyId, 256),
-                fit(resolutionType, 32),
-                fit(signalKeyPattern, 512),
-                fit(inputKind, 64),
-                fit(producerKeyPattern, 256),
-                fit(producerKey, 128),
-                fit(primaryActionType, 128),
-                fit(actionReadinessState, 64),
-                fit(requirementState, 64),
-                priority,
-                nowTimestamp());
-    }
-
-    private void upsertResolutionAction(
-            String actionType,
-            String resolutionType,
-            String label,
-            String description,
-            String targetPage,
-            String routeTemplate,
-            String executionMode,
-            String primaryButtonLabel,
-            String successMessage,
-            String failureMessage,
-            int expectedDurationSeconds,
-            String allowedStateFrom,
-            String allowedStateTo,
-            String completionEventType,
-            String completionQueryKey,
-            boolean requiresConfirmation,
-            String idempotencyPolicy) {
-        String sql = postgresqlDatabase() ? """
-                        insert into pqa_resolution_action_catalog (
-                            action_type, resolution_type, label, description, target_page, route_template,
-                            required_params_json, execution_mode, primary_button_label,
-                            success_message_template, failure_message_template, expected_duration_seconds,
-                            allowed_state_from, allowed_state_to, completion_event_type, completion_query_key,
-                            requires_confirmation, idempotency_policy, active, updated_at
-                        ) values (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?)
-                        on conflict (action_type) do update
-                           set resolution_type = excluded.resolution_type,
-                               label = excluded.label,
-                               description = excluded.description,
-                               target_page = excluded.target_page,
-                               route_template = excluded.route_template,
-                               required_params_json = excluded.required_params_json,
-                               execution_mode = excluded.execution_mode,
-                               primary_button_label = excluded.primary_button_label,
-                               success_message_template = excluded.success_message_template,
-                               failure_message_template = excluded.failure_message_template,
-                               expected_duration_seconds = excluded.expected_duration_seconds,
-                               allowed_state_from = excluded.allowed_state_from,
-                               allowed_state_to = excluded.allowed_state_to,
-                               completion_event_type = excluded.completion_event_type,
-                               completion_query_key = excluded.completion_query_key,
-                               requires_confirmation = excluded.requires_confirmation,
-                               idempotency_policy = excluded.idempotency_policy,
-                               active = true,
-                               updated_at = excluded.updated_at
-                        """
-                : """
-                        merge into pqa_resolution_action_catalog (
-                            action_type, resolution_type, label, description, target_page, route_template,
-                            required_params_json, execution_mode, primary_button_label,
-                            success_message_template, failure_message_template, expected_duration_seconds,
-                            allowed_state_from, allowed_state_to, completion_event_type, completion_query_key,
-                            requires_confirmation, idempotency_policy, active, updated_at
-                        ) key (action_type) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?)
-                        """;
-        jdbcTemplate.update(sql,
-                fit(actionType, 128),
-                fit(resolutionType, 32),
-                fit(label, 256),
-                description,
-                fit(targetPage, 512),
-                fit(routeTemplate, 1024),
-                "[]",
-                fit(executionMode, 64),
-                fit(primaryButtonLabel, 256),
-                successMessage,
-                failureMessage,
-                expectedDurationSeconds,
-                fit(allowedStateFrom, 128),
-                fit(allowedStateTo, 128),
-                fit(completionEventType, 128),
-                fit(completionQueryKey, 256),
-                requiresConfirmation,
-                fit(idempotencyPolicy, 128),
-                nowTimestamp());
     }
 
     private void deactivateNonCurrentContractVersions(String currentVersion) {
@@ -1711,146 +1079,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
         }
     }
 
-    private void upsertResolutionDisplayTextRow(
-            String textId,
-            String textKey,
-            String locale,
-            String resolutionType,
-            String metricCode,
-            String checkCode,
-            String signalKeyPattern,
-            String inputKind,
-            String titleTemplate,
-            String summaryTemplate,
-            String whyItMattersTemplate,
-            String actionTitleTemplate,
-            String actionDetailTemplate,
-            String completionCriterionTemplate,
-            String badgeLabel,
-            String severityLabel,
-            String emptyStateTitle,
-            String emptyStateDescription) {
-        Timestamp now = nowTimestamp();
-        int updated = jdbcTemplate.update("""
-                        update pqa_resolution_display_text_contract
-                           set text_key = ?,
-                               title_template = ?,
-                               summary_template = ?,
-                               why_it_matters_template = ?,
-                               action_title_template = ?,
-                               action_detail_template = ?,
-                               completion_criterion_template = ?,
-                               badge_label = ?,
-                               severity_label = ?,
-                               empty_state_title = ?,
-                               empty_state_description = ?,
-                               active = true,
-                               updated_at = ?
-                         where locale = ?
-                           and resolution_type = ?
-                           and coalesce(metric_code, '') = coalesce(?, '')
-                           and coalesce(check_code, '') = coalesce(?, '')
-                           and coalesce(signal_key_pattern, '') = coalesce(?, '')
-                           and coalesce(input_kind, '') = coalesce(?, '')
-                        """,
-                fit(textKey, 256),
-                titleTemplate,
-                summaryTemplate,
-                whyItMattersTemplate,
-                actionTitleTemplate,
-                actionDetailTemplate,
-                completionCriterionTemplate,
-                fit(badgeLabel, 128),
-                fit(severityLabel, 128),
-                emptyStateTitle,
-                emptyStateDescription,
-                now,
-                fit(locale, 32),
-                fit(resolutionType, 32),
-                fit(metricCode, 32),
-                fit(checkCode, 128),
-                fit(signalKeyPattern, 512),
-                fit(inputKind, 64));
-        if (updated > 0) {
-            return;
-        }
-
-        updated = jdbcTemplate.update("""
-                        update pqa_resolution_display_text_contract
-                           set text_key = ?,
-                               locale = ?,
-                               resolution_type = ?,
-                               metric_code = ?,
-                               check_code = ?,
-                               signal_key_pattern = ?,
-                               input_kind = ?,
-                               title_template = ?,
-                               summary_template = ?,
-                               why_it_matters_template = ?,
-                               action_title_template = ?,
-                               action_detail_template = ?,
-                               completion_criterion_template = ?,
-                               badge_label = ?,
-                               severity_label = ?,
-                               empty_state_title = ?,
-                               empty_state_description = ?,
-                               active = true,
-                               updated_at = ?
-                         where text_id = ?
-                        """,
-                fit(textKey, 256),
-                fit(locale, 32),
-                fit(resolutionType, 32),
-                fit(metricCode, 32),
-                fit(checkCode, 128),
-                fit(signalKeyPattern, 512),
-                fit(inputKind, 64),
-                titleTemplate,
-                summaryTemplate,
-                whyItMattersTemplate,
-                actionTitleTemplate,
-                actionDetailTemplate,
-                completionCriterionTemplate,
-                fit(badgeLabel, 128),
-                fit(severityLabel, 128),
-                emptyStateTitle,
-                emptyStateDescription,
-                now,
-                fit(textId, 256));
-        if (updated > 0) {
-            return;
-        }
-
-        jdbcTemplate.update("""
-                        insert into pqa_resolution_display_text_contract (
-                            text_id, text_key, locale, resolution_type, metric_code, check_code,
-                            signal_key_pattern, input_kind, title_template, summary_template,
-                            why_it_matters_template, action_title_template, action_detail_template,
-                            completion_criterion_template, badge_label, severity_label,
-                            empty_state_title, empty_state_description, active, updated_at
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?)
-                        """,
-                fit(textId, 256),
-                fit(textKey, 256),
-                fit(locale, 32),
-                fit(resolutionType, 32),
-                fit(metricCode, 32),
-                fit(checkCode, 128),
-                fit(signalKeyPattern, 512),
-                fit(inputKind, 64),
-                titleTemplate,
-                summaryTemplate,
-                whyItMattersTemplate,
-                actionTitleTemplate,
-                actionDetailTemplate,
-                completionCriterionTemplate,
-                fit(badgeLabel, 128),
-                fit(severityLabel, 128),
-                emptyStateTitle,
-                emptyStateDescription,
-                now);
-    }
-
     private FinalPromptMetricContractCatalog finalPromptMetricContractCatalog() {
         if (finalPromptMetricContractCatalog == null) {
             finalPromptMetricContractCatalog = FinalPromptMetricContractCatalog.load(objectMapper);
@@ -2102,16 +1330,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
 
     private Timestamp nowTimestamp() {
         return Timestamp.from(Instant.now());
-    }
-
-    private String sha256(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is required for PQA resolution contract identifiers.", e);
-        }
     }
 
     private record MetricInputRequirement(

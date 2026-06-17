@@ -386,11 +386,14 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         List<OfficialMetricPurposeEvidence> purposeEvidence = purposeEvidenceForMetric(operatorSnapshot, run.endpointKey());
         List<OfficialRunCheckDetail> checks = mergePurposeEvidenceChecks(
                 run.endpointKey(),
-                customerVisibleChecks(
-                run.endpointKey(),
                 checks(run),
-                        purposeEvidence),
                 purposeEvidence);
+        int totalChecks = detailTotalChecks(
+                checks,
+                storedMetric == null ? run.totalChecks() : storedMetric.totalChecks());
+        int passedChecks = detailPassedChecks(
+                checks,
+                storedMetric == null ? run.passedChecks() : storedMetric.passedChecks());
         List<OfficialRunFailureCause> operatorFailures = operatorFailureCauses(operatorSnapshot).stream()
                 .filter(cause -> same(cause.metricCode(), run.endpointKey()))
                 .toList();
@@ -412,8 +415,8 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 firstNonBlank(storedMetric == null ? null : storedMetric.state(), run.state()),
                 stateLabel(firstNonBlank(storedMetric == null ? null : storedMetric.state(), run.state())),
                 storedMetric == null ? run.score() : storedMetric.score(),
-                storedMetric == null ? run.passedChecks() : storedMetric.passedChecks(),
-                storedMetric == null ? run.totalChecks() : storedMetric.totalChecks(),
+                passedChecks,
+                totalChecks,
                 run.processingTimeMs(),
                 run.startedAt(),
                 run.completedAt(),
@@ -442,6 +445,8 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
             OperatorSnapshot operatorSnapshot) {
         String metricCode = normalize(storedMetric.metricCode());
         OfficialVerificationMetricDefinition metric = metric(metricCode);
+        List<OfficialMetricPurposeEvidence> purposeEvidence = purposeEvidenceForMetric(operatorSnapshot, metricCode);
+        List<OfficialRunCheckDetail> checks = mergePurposeEvidenceChecks(metricCode, List.of(), purposeEvidence);
         List<OfficialRunFailureCause> failures = operatorFailureCauses(operatorSnapshot).stream()
                 .filter(cause -> same(cause.metricCode(), metricCode))
                 .toList();
@@ -470,12 +475,12 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 storedMetric.state(),
                 stateLabel(storedMetric.state()),
                 storedMetric.score(),
-                storedMetric.passedChecks(),
-                storedMetric.totalChecks(),
+                detailPassedChecks(checks, storedMetric.passedChecks()),
+                detailTotalChecks(checks, storedMetric.totalChecks()),
                 null,
                 storedMetric.createdAt() == null ? null : storedMetric.createdAt().toString(),
                 storedMetric.createdAt() == null ? null : storedMetric.createdAt().toString(),
-                mergePurposeEvidenceChecks(metricCode, List.of(), purposeEvidenceForMetric(operatorSnapshot, metricCode)),
+                checks,
                 requestFacts,
                 Map.of(),
                 sealedEvidencePromptFacts(sealedEvidence, operatorSnapshot),
@@ -487,13 +492,30 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 comparisons(sealedEvidence, metricCode, operatorSnapshot),
                 actualPromptProblemsForMetric(operatorSnapshot, metricCode),
                 failures,
-                purposeEvidenceForMetric(operatorSnapshot, metricCode),
+                purposeEvidence,
                 valueOrEmpty(storedMetric.operatorTitle()),
                 valueOrEmpty(storedMetric.operatorSummary()),
                 valueOrEmpty(storedMetric.primaryFailureReason()),
                 valueOrEmpty(storedMetric.remediationOwner()),
                 valueOrEmpty(storedMetric.nextAction()),
                 valueOrEmpty(storedMetric.reverifyCriterion()));
+    }
+
+    private int detailTotalChecks(List<OfficialRunCheckDetail> checks, int fallback) {
+        if (checks != null && !checks.isEmpty()) {
+            return checks.size();
+        }
+        return Math.max(fallback, 0);
+    }
+
+    private int detailPassedChecks(List<OfficialRunCheckDetail> checks, int fallback) {
+        if (checks != null && !checks.isEmpty()) {
+            return (int) checks.stream()
+                    .filter(Objects::nonNull)
+                    .filter(OfficialRunCheckDetail::pass)
+                    .count();
+        }
+        return Math.max(fallback, 0);
     }
 
     private String metricPurpose(String metricCode) {
@@ -639,12 +661,12 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
             return null;
         }
         String path = null;
-        if (counts.actualProblems() > 0) {
-            path = "/contexa/admin/enterprise/prompt-quality/issues/prompt";
-        } else if (counts.inputReviewMetrics() > 0 || counts.inputReadinessChecks() > 0) {
-            path = "/contexa/admin/enterprise/prompt-quality/issues/pre-input";
-        } else if (counts.gateConditions() > 0 || counts.gateMetrics() > 0) {
-            path = "/contexa/admin/enterprise/prompt-quality/issues/post-check";
+        if (counts.actualProblems() > 0
+                || counts.inputReviewMetrics() > 0
+                || counts.inputReadinessChecks() > 0
+                || counts.gateConditions() > 0
+                || counts.gateMetrics() > 0) {
+            path = "/contexa/admin/prompt-quality/verification/metrics";
         }
         if (!StringUtils.hasText(path)) {
             return null;
@@ -666,11 +688,15 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         if (run == null || (metricNotApplicable(run) && actualProblemCount == 0)) {
             return MetricSummarySplit.empty();
         }
+        List<OfficialRunCheckDetail> allChecks = run.checks() == null
+                ? List.of()
+                : run.checks().stream()
+                        .filter(Objects::nonNull)
+                        .toList();
         List<OfficialRunCheckDetail> checks = evaluatedChecks(run);
-        int technicalTotal = checks.isEmpty() ? Math.max(run.totalChecks(), 0) : checks.size();
-        int technicalPassed = checks.isEmpty()
-                ? Math.max(run.passedChecks(), 0)
-                : (int) checks.stream().filter(OfficialRunCheckDetail::pass).count();
+        int technicalTotal = Math.max(Math.max(run.totalChecks(), 0), allChecks.size());
+        int allPassed = (int) allChecks.stream().filter(OfficialRunCheckDetail::pass).count();
+        int technicalPassed = Math.max(Math.max(run.passedChecks(), 0), allPassed);
         int failed = Math.max(technicalTotal - technicalPassed, 0);
         int inputFailed = 0;
         int gateFailed = 0;
@@ -807,7 +833,6 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         }
         return snapshot.purposeEvidence().stream()
                 .filter(evidence -> evidence != null
-                        && evidence.customerVisible()
                         && same(evidence.metricCode(), normalizedMetric))
                 .map(this::purposeEvidence)
                 .toList();
@@ -915,9 +940,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         List<OfficialRunCheckDetail> result = new ArrayList<>();
         for (int i = 0; i < source.size(); i++) {
             OfficialVerificationCheckResultView check = source.get(i);
-            if (check != null && ("NOT_APPLICABLE".equalsIgnoreCase(valueOrEmpty(check.purposeResult()))
-                    || !check.customerVisible()
-                    || "INTERNAL_REFERENCE".equals(normalize(check.readinessScope())))) {
+            if (check == null) {
                 continue;
             }
             String evidenceSource = StringUtils.hasText(check.source()) ? check.source().trim() : "MISSING_SOURCE";
@@ -995,9 +1018,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         int sequence = result.size() + 1;
         for (OfficialMetricPurposeEvidence evidence : purposeEvidence) {
-            if (evidence == null || !evidence.customerVisible()
-                    || "INTERNAL_REFERENCE".equals(normalize(evidence.readinessScope()))
-                    || "NOT_APPLICABLE".equals(normalize(evidence.purposeResult()))) {
+            if (evidence == null) {
                 continue;
             }
             String checkCode = normalize(stripMetricPrefix(metric, evidence.checkCode()));
@@ -1730,9 +1751,11 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         List<OfficialVerificationMetricTrace> safeRuns = runs == null ? List.of() : runs;
         int expectedMetricCount = metricCatalog.promptQualityMetrics().size();
         int actualRunCount = safeRuns.size();
-        int declaredCheckCount = safeRuns.stream().mapToInt(OfficialVerificationMetricTrace::totalChecks).sum();
         int storedCheckRowCount = safeRuns.stream()
                 .mapToInt(this::storedCheckRowCount)
+                .sum();
+        int declaredCheckCount = safeRuns.stream()
+                .mapToInt(run -> Math.max(run.totalChecks(), storedCheckRowCount(run)))
                 .sum();
         int totalCheckCount = storedCheckRowCount;
         int missingSourceCheckCount = (int) safeRuns.stream()
@@ -1819,7 +1842,6 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         }
         return (int) run.purposeEvidence().stream()
                 .filter(Objects::nonNull)
-                .filter(OfficialMetricPurposeEvidence::customerVisible)
                 .count();
     }
 
@@ -1864,11 +1886,11 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
     private String stateLabel(String state) {
         String normalized = normalize(state);
         if ("NOT_APPLICABLE".equals(normalized)) {
-            return message("enterprise.pqa.runtimeVerification.metric.state.notApplicable", "寃??????꾨떂");
+            return message("enterprise.pqa.runtimeVerification.metric.state.notApplicable", "해당 없음");
         }
         return PASS_STATES.contains(normalized)
-                ? message("enterprise.pqa.runtimeVerification.metric.state.passed", "?듦낵")
-                : message("enterprise.pqa.runtimeVerification.metric.state.blocked", "李⑤떒");
+                ? message("enterprise.pqa.runtimeVerification.metric.state.passed", "통과")
+                : message("enterprise.pqa.runtimeVerification.metric.state.blocked", "차단");
     }
 
     private String sourceMeaning(String source) {

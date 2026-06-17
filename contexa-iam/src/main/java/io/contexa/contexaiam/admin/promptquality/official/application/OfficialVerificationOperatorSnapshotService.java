@@ -195,78 +195,9 @@ public class OfficialVerificationOperatorSnapshotService {
         jdbcTemplate.update("delete from official_prompt_generation_lineage where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_prompt_projection_ledger where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_prompt_field_state_ledger where package_id = ?", normalizedPackageId);
-        deleteEnterpriseResolutionRows(normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_operator_finding where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_metric_snapshot where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_run_batch where package_id = ?", normalizedPackageId);
-    }
-
-    private void deleteEnterpriseResolutionRows(String packageId) {
-        if (!StringUtils.hasText(packageId)) {
-            return;
-        }
-        if (tableExists("pqa_resolution_action_event")) {
-            jdbcTemplate.update("delete from pqa_resolution_action_event where package_id = ?", packageId);
-        }
-        if (tableExists("pqa_resolution_work_item")) {
-            if (tableExists("pqa_resolution_action_execution_result")) {
-                jdbcTemplate.update("""
-                                delete from pqa_resolution_action_execution_result
-                                 where work_item_id in (
-                                       select work_item_id
-                                         from pqa_resolution_work_item
-                                        where package_id = ?
-                                    )
-                                """,
-                        packageId);
-            }
-            if (tableExists("pqa_resolution_action_plan")) {
-                jdbcTemplate.update("""
-                                delete from pqa_resolution_action_plan
-                                 where work_item_id in (
-                                       select work_item_id
-                                         from pqa_resolution_work_item
-                                        where package_id = ?
-                                    )
-                                """,
-                        packageId);
-            }
-            if (tableExists("pqa_resolution_input_requirement")) {
-                jdbcTemplate.update("""
-                                delete from pqa_resolution_input_requirement
-                                 where work_item_id in (
-                                       select work_item_id
-                                         from pqa_resolution_work_item
-                                        where package_id = ?
-                                    )
-                                """,
-                        packageId);
-            }
-            if (tableExists("pqa_resolution_work_item_dependency")) {
-                jdbcTemplate.update("""
-                                delete from pqa_resolution_work_item_dependency
-                                 where source_work_item_id in (
-                                       select work_item_id
-                                         from pqa_resolution_work_item
-                                        where package_id = ?
-                                    )
-                                    or blocked_work_item_id in (
-                                       select work_item_id
-                                         from pqa_resolution_work_item
-                                        where package_id = ?
-                                    )
-                                """,
-                        packageId,
-                        packageId);
-            }
-            jdbcTemplate.update("delete from pqa_resolution_work_item where package_id = ?", packageId);
-        }
-        if (tableExists("pqa_certificate_preissue_check")) {
-            jdbcTemplate.update("delete from pqa_certificate_preissue_check where package_id = ?", packageId);
-        }
-        if (tableExists("pqa_resolution_ui_payload_audit")) {
-            jdbcTemplate.update("delete from pqa_resolution_ui_payload_audit where package_id = ?", packageId);
-        }
     }
 
     private void deleteVerificationRunLedger(String runId) {
@@ -1253,7 +1184,6 @@ public class OfficialVerificationOperatorSnapshotService {
                                ), '[]') as context_items_json
                           from official_metric_purpose_evidence_ledger evidence
                          where aggregate_run_id = ?
-                           and evidence.customer_visible = true
                          order by metric_code asc, check_code asc, evidence.id asc
                         """,
                 this::purposeEvidenceRow,
@@ -1288,7 +1218,6 @@ public class OfficialVerificationOperatorSnapshotService {
                                ), '[]') as context_items_json
                           from official_metric_purpose_evidence_ledger evidence
                          where aggregate_run_id in (%s)
-                           and evidence.customer_visible = true
                          order by aggregate_run_id asc, metric_code asc, check_code asc, evidence.id asc
                         """.formatted(placeholders(aggregateRunIds)),
                 this::purposeEvidenceRow,
@@ -2077,6 +2006,7 @@ public class OfficialVerificationOperatorSnapshotService {
         }
         Map<String, ActualPromptProblem> problems = new LinkedHashMap<>();
         addActualPromptProblemsFromMetricChecks(problems, aggregateRunId, packageId, metrics);
+        addActualPromptProblemsFromPromptComparisons(problems, aggregateRunId, packageId, promptComparisons);
         return List.copyOf(problems.values());
     }
 
@@ -2127,6 +2057,132 @@ public class OfficialVerificationOperatorSnapshotService {
                         contract.reverifyCriterion());
             }
         }
+    }
+
+    private void addActualPromptProblemsFromPromptComparisons(
+            Map<String, ActualPromptProblem> problems,
+            String aggregateRunId,
+            String packageId,
+            List<OfficialVerificationPromptComparison> promptComparisons) {
+        if (promptComparisons == null || promptComparisons.isEmpty()) {
+            return;
+        }
+        for (OfficialVerificationPromptComparison comparison : promptComparisons) {
+            if (!blockingPromptComparison(comparison) || "OFFICIAL_FINDING".equalsIgnoreCase(safe(comparison.canonicalSource()))) {
+                continue;
+            }
+            if (!officialPromptIssueField(comparison.fieldKey())) {
+                continue;
+            }
+            List<String> metricCodes = promptComparisonMetricCodes(comparison);
+            if (metricCodes.isEmpty()) {
+                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Prompt comparison problem is not bound to any official metric. "
+                        + "fieldKey=" + safe(comparison.fieldKey())
+                        + ", state=" + safe(comparison.state()));
+            }
+            String problemType = normalize(firstNonBlank(comparison.state(), "CONTRACT_MISMATCH"));
+            String label = firstNonBlank(comparison.fieldLabel(), comparison.fieldKey(), "Prompt field");
+            String promptLocation = firstNonBlank(comparison.promptLocation(), comparison.fieldKey(), "finalUserPrompt");
+            addActualPromptProblem(
+                    problems,
+                    aggregateRunId,
+                    packageId,
+                    comparison.fieldKey(),
+                    problemType,
+                    promptLocation,
+                    label,
+                    firstNonBlank(comparison.promptValue(), comparison.meaning(), label),
+                    promptLocation,
+                    firstNonBlank(comparison.evidenceSource(), sealedEvidencePromptPath(comparison.fieldKey()), promptLocation),
+                    promptComparisonExpectedState(comparison),
+                    promptComparisonActualState(comparison),
+                    "BLOCKING",
+                    metricCodes,
+                    firstNonBlank(comparison.recommendedOwner(), "PROMPT_ASSEMBLER"),
+                    "PROMPT_COMPARISON",
+                    "Does the final prompt preserve the sealed evidence contract for this field?",
+                    firstNonBlank(comparison.meaning(), "A final prompt field is not synchronized with its sealed evidence contract."),
+                    "Fix the source that creates this prompt field, collect new sealed evidence, and rerun official inspection.",
+                    "The same prompt field must be recorded as matched or non-blocking in the next official inspection.");
+        }
+    }
+
+    private boolean blockingPromptComparison(OfficialVerificationPromptComparison comparison) {
+        if (comparison == null) {
+            return false;
+        }
+        String state = safe(comparison.state()).toUpperCase(Locale.ROOT);
+        if (state.startsWith("FINAL_PROMPT_")) {
+            return true;
+        }
+        return switch (state) {
+            case "PROMPT_MISSING",
+                    "FACT_MISSING",
+                    "VALUE_MISMATCH",
+                    "CONTRACT_MISMATCH",
+                    "REQUIRED_MISSING",
+                    "CONDITIONAL_REQUIRED_MISSING",
+                    "UNKNOWN_WITHOUT_REASON",
+                    "PROMPT_COMPACTED_SIGNAL",
+                    "PRODUCER_NOT_AVAILABLE",
+                    "PROVISIONAL_EVIDENCE",
+                    "NO_DIRECT_COMPARABLE",
+                    "BASELINE_MISMATCH_SIGNAL" -> true;
+            default -> false;
+        };
+    }
+
+    private List<String> promptComparisonMetricCodes(OfficialVerificationPromptComparison comparison) {
+        List<String> result = new ArrayList<>();
+        if (comparison != null && comparison.metricCodes() != null) {
+            for (String metricCode : comparison.metricCodes()) {
+                if (StringUtils.hasText(metricCode)) {
+                    appendUnique(result, normalize(metricCode));
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private String promptComparisonExpectedState(OfficialVerificationPromptComparison comparison) {
+        if (comparison == null) {
+            return "The actual prompt field must satisfy the sealed evidence contract.";
+        }
+        String state = safe(comparison.state()).toUpperCase(Locale.ROOT);
+        return switch (state) {
+            case "PROMPT_MISSING" -> "The sealed evidence value must be visible in the final LLM user prompt.";
+            case "FACT_MISSING" -> "The final LLM user prompt field must also be stored in the sealed evidence package.";
+            case "VALUE_MISMATCH", "CONTRACT_MISMATCH" -> "The final LLM user prompt value and the sealed evidence value must match.";
+            case "REQUIRED_MISSING", "CONDITIONAL_REQUIRED_MISSING" -> "The required prompt evidence field must be present or have an allowed absence policy.";
+            case "UNKNOWN_WITHOUT_REASON" -> "Unknown prompt evidence must include a recorded reason and remediation owner.";
+            case "PROMPT_COMPACTED_SIGNAL" -> "Prompt compaction must preserve full source lineage and field-level diff evidence.";
+            case "PRODUCER_NOT_AVAILABLE" -> "The required context producer must record its unavailable state and reason.";
+            case "PROVISIONAL_EVIDENCE" -> "Provisional evidence must be explicitly labeled and not represented as confirmed evidence.";
+            case "NO_DIRECT_COMPARABLE" -> "Comparable-history absence must be recorded as a bounded evidence limitation.";
+            case "BASELINE_MISMATCH_SIGNAL" -> "Baseline mismatch signals must be visible and linked to the final prompt evidence.";
+            default -> firstNonBlank(comparison.officialFactValue(), comparison.sealedEvidenceValue(), comparison.meaning(),
+                    "The actual prompt field must satisfy the sealed evidence contract.");
+        };
+    }
+
+    private String promptComparisonActualState(OfficialVerificationPromptComparison comparison) {
+        if (comparison == null) {
+            return "An actual prompt problem was recorded.";
+        }
+        String state = safe(comparison.state()).toUpperCase(Locale.ROOT);
+        return switch (state) {
+            case "PROMPT_MISSING" -> "The final user prompt does not contain the sealed evidence value for this field.";
+            case "FACT_MISSING" -> "The sealed evidence package does not contain the final prompt value for this field.";
+            case "VALUE_MISMATCH", "CONTRACT_MISMATCH" -> "The final prompt value and the sealed evidence value do not match for this field.";
+            case "REQUIRED_MISSING", "CONDITIONAL_REQUIRED_MISSING" -> "A required prompt evidence field was recorded as missing.";
+            case "UNKNOWN_WITHOUT_REASON" -> "The field is unknown and no reason was recorded.";
+            case "PROMPT_COMPACTED_SIGNAL" -> "The prompt was compacted or changed without complete field-level lineage.";
+            case "PRODUCER_NOT_AVAILABLE" -> "The context producer did not provide the required field.";
+            case "PROVISIONAL_EVIDENCE" -> "The field is provisional and must remain explicitly bounded.";
+            case "NO_DIRECT_COMPARABLE" -> "No direct comparable history was recorded for the field.";
+            case "BASELINE_MISMATCH_SIGNAL" -> "The field carries a baseline mismatch signal that requires explanation.";
+            default -> firstNonBlank(comparison.promptValue(), comparison.meaning(), "The actual prompt problem must be reviewed.");
+        };
     }
 
     private String concreteSourceFieldPath(
@@ -3100,7 +3156,7 @@ public class OfficialVerificationOperatorSnapshotService {
         if (!StringUtils.hasText(packageId) || !StringUtils.hasText(aggregateRunId)) {
             return;
         }
-        if (!tableExists("prompt_quality_issue") || !tableExists("pqa_resolution_work_item")) {
+        if (!tableExists("prompt_quality_issue")) {
             return;
         }
         if (!postgresqlDatabase()) {
@@ -3119,18 +3175,15 @@ public class OfficialVerificationOperatorSnapshotService {
                                package_id = p.package_id,
                                aggregate_run_id = p.aggregate_run_id,
                                failed_package_id = p.package_id,
-                               failed_check = coalesce(w.check_code, p.prompt_label),
+                               failed_check = p.prompt_label,
                                expected_value = p.expected_state,
                                 actual_value = p.actual_state,
                                evidence_source = p.sealed_evidence_path,
                                 prompt_location = p.source_field_path,
                                 root_cause_type = p.problem_type,
-                                production_target_type = case
-                                    when w.work_item_id is not null then 'PROTECTABLE_RESOURCE'
-                                    else i.production_target_type
-                                end,
-                                production_target_ref = coalesce(nullif(w.resource_url, ''), nullif(w.resource_id, ''), p.remediation_owner),
-                                http_method = coalesce(nullif(w.http_method, ''), i.http_method),
+                                production_target_type = i.production_target_type,
+                                production_target_ref = p.remediation_owner,
+                                http_method = i.http_method,
                                 reverify_criterion = p.reverify_criterion_detail,
                                 expected_prompt_delta_json = jsonb_build_object(
                                     'problem', p.prompt_label,
@@ -3143,12 +3196,6 @@ public class OfficialVerificationOperatorSnapshotService {
                                     'metric', p.affected_metric_codes
                                 )::text
                            from official_actual_prompt_problem_ledger p
-                      left join pqa_resolution_work_item w
-                             on w.package_id = p.package_id
-                            and w.aggregate_run_id = p.aggregate_run_id
-                            and w.current_result = true
-                            and w.prompt_location = p.source_field_path
-                            and w.metric_code = split_part(p.affected_metric_codes, ',', 1)
                           where p.package_id = ?
                             and p.aggregate_run_id = ?
                            and i.issue_id = p.problem_id
@@ -3162,19 +3209,8 @@ public class OfficialVerificationOperatorSnapshotService {
                         select p.problem_id, p.severity, p.prompt_label, p.prompt_value, p.why_it_matters,
                                p.remediation_owner, p.fix_action, p.affected_metric_codes, p.package_id,
                                p.aggregate_run_id, p.expected_state, p.actual_state, p.sealed_evidence_path,
-                               p.source_field_path, p.problem_type, p.reverify_criterion_detail,
-                               w.work_item_id as work_item_id,
-                               w.check_code as work_item_check_code,
-                               w.resource_url as work_item_resource_url,
-                               w.resource_id as work_item_resource_id,
-                               w.http_method as work_item_http_method
+                               p.source_field_path, p.problem_type, p.reverify_criterion_detail
                           from official_actual_prompt_problem_ledger p
-                     left join pqa_resolution_work_item w
-                            on w.package_id = p.package_id
-                           and w.aggregate_run_id = p.aggregate_run_id
-                           and w.current_result = true
-                           and w.prompt_location = p.source_field_path
-                           and w.metric_code = split_part(p.affected_metric_codes, ',', 1)
                          where p.package_id = ?
                            and p.aggregate_run_id = ?
                         """,
@@ -3216,20 +3252,15 @@ public class OfficialVerificationOperatorSnapshotService {
                     row.get("package_id"),
                     row.get("aggregate_run_id"),
                     row.get("package_id"),
-                    firstNonBlank(stringValue(row.get("work_item_check_code")), stringValue(row.get("prompt_label"))),
+                    row.get("prompt_label"),
                     row.get("expected_state"),
                     row.get("actual_state"),
                     row.get("sealed_evidence_path"),
                     row.get("source_field_path"),
                     row.get("problem_type"),
-                    StringUtils.hasText(stringValue(row.get("work_item_id")))
-                            ? "PROTECTABLE_RESOURCE"
-                            : stringValue(row.get("remediation_owner")),
-                    firstNonBlank(
-                            stringValue(row.get("work_item_resource_url")),
-                            stringValue(row.get("work_item_resource_id")),
-                            stringValue(row.get("remediation_owner"))),
-                    firstNonBlank(stringValue(row.get("work_item_http_method")), ""),
+                    stringValue(row.get("remediation_owner")),
+                    stringValue(row.get("remediation_owner")),
+                    "",
                     row.get("reverify_criterion_detail"),
                     promptIssueDeltaJson(row),
                     row.get("problem_id"));
@@ -6591,9 +6622,14 @@ public class OfficialVerificationOperatorSnapshotService {
         Integer comparisonWithoutProblem = jdbcTemplate.queryForObject("""
                         select count(*)
                           from (
-                                select field_key, state
+                                select distinct field_key
                                   from official_verification_prompt_comparison
                                  where aggregate_run_id = ?
+                                   and nullif(trim(field_key), '') is not null
+                                   and (
+                                       field_key like 'finalUserPrompt.%'
+                                       or field_key like 'finalSystemPrompt.%'
+                                   )
                                    and (
                                        state like 'FINAL_PROMPT_%'
                                        or state in (
@@ -6613,10 +6649,11 @@ public class OfficialVerificationOperatorSnapshotService {
                                    )
                                    and canonical_source <> 'OFFICIAL_FINDING'
                                 except
-                                 select field_key, problem_type as state
+                                 select distinct field_key
                                    from official_actual_prompt_problem_ledger
                                   where aggregate_run_id = ?
                                     and severity = 'BLOCKING'
+                                    and nullif(trim(field_key), '') is not null
                                 ) missing_actual_prompt_problem
                         """,
                 Integer.class,

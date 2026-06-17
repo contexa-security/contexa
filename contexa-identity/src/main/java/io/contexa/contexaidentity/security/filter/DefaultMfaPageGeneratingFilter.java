@@ -63,6 +63,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private final MfaSettings mfaSettings;
     private final String tokenPersistence;
     private final boolean mailConfigured;
+    private final boolean failOnEmailError;
     private MessageSource messageSource;
     private JdbcTemplate jdbcTemplate;
 
@@ -1077,6 +1078,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             MfaSettings mfaSettings,
             String tokenPersistence,
             boolean mailConfigured) {
+        this(mfaFlowConfig, stateMachineIntegrator, authUrlProvider, mfaSettings, tokenPersistence, mailConfigured, true);
+    }
+
+    public DefaultMfaPageGeneratingFilter(
+            AuthenticationFlowConfig mfaFlowConfig,
+            MfaStateMachineIntegrator stateMachineIntegrator,
+            AuthUrlProvider authUrlProvider,
+            MfaSettings mfaSettings,
+            String tokenPersistence,
+            boolean mailConfigured,
+            boolean failOnEmailError) {
         Assert.notNull(mfaFlowConfig, "AuthenticationFlowConfig cannot be null");
         Assert.isTrue(MfaFlowTypeUtils.isMfaFlow(mfaFlowConfig.getTypeName()),
                 "This filter only works with MFA flow config. Provided flow type: " + mfaFlowConfig.getTypeName());
@@ -1090,6 +1102,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.mfaSettings = mfaSettings;
         this.tokenPersistence = tokenPersistence != null ? tokenPersistence : "sessionStorage";
         this.mailConfigured = mailConfigured;
+        this.failOnEmailError = failOnEmailError;
     }
 
     public void setAuthUrlProvider(AuthUrlProvider authUrlProvider) {
@@ -1892,7 +1905,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             errorMessage = "<div class=\"warning-message\">"
                     + msg(request, "mfa.ott.error.mail.not.configured", "Email sending is not configured. Please contact the administrator or check the server properties.")
                     + "</div>";
-            submitButtonDisabled = "disabled";
+            if (this.failOnEmailError) {
+                submitButtonDisabled = "disabled";
+            }
         } else {
             String errorParam = request.getParameter("error");
             if ("user_not_found".equals(errorParam)) {

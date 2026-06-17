@@ -28,6 +28,12 @@ public class VerificationLedgerService {
         if (userId != null && !userId.isBlank()) {
             return runStore.find(userId, runId);
         }
+        if (runStore.ledgerBacked()) {
+            OfficialVerificationRunRecord record = runStore.find(null, runId);
+            if (record != null) {
+                return record;
+            }
+        }
         OfficialVerificationRunView detailed = runStore.findDetailedByRunId(runId);
         if (detailed == null) {
             return null;
@@ -51,6 +57,12 @@ public class VerificationLedgerService {
         }
         if (userId != null && !userId.isBlank()) {
             return runStore.findDetailed(userId, metricCode, runId);
+        }
+        if (runStore.ledgerBacked()) {
+            OfficialVerificationRunView detailed = runStore.findDetailed(null, metricCode, runId);
+            if (detailed != null) {
+                return detailed;
+            }
         }
         return runStore.findDetailedByRunId(runId);
     }

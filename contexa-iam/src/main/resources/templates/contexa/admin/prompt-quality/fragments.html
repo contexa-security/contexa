@@ -74,7 +74,10 @@
     </div>
 </section>
 
-<section th:fragment="apiStatus" class="pqa-status-panel" data-pqa-status>
+<section th:fragment="apiStatus"
+         class="pqa-status-panel"
+         data-pqa-status
+         th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
     <strong th:text="#{enterprise.pqa.common.status.loading}"></strong>
     <span th:text="#{enterprise.pqa.common.status.loadingDetail}"></span>
 </section>

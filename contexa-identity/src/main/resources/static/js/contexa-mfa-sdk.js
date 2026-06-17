@@ -19,7 +19,7 @@
  * Usage:
  *   const mfa = new ContexaMFA.Client();
  *   await mfa.init();
- *   await mfa.selectFactor('OTT');
+ *   await mfa.selectFactor('MFA_OTT');
  *   await mfa.verifyOtt('123456');
  *   await mfa.verifyPasskey();
  *
@@ -700,12 +700,13 @@
          */
         async selectFactor(factorType) {
             await this.init();
+            const normalizedFactorType = factorType === 'OTT' ? 'MFA_OTT' : factorType;
 
             const response = await fetch(this.endpoints.api.selectFactor, {
                 method: 'POST',
                 headers: ContexaMFAUtils.createHeaders(),
                 body: JSON.stringify({
-                    factorType: factorType,
+                    factorType: normalizedFactorType,
                     username: sessionStorage.getItem('mfaUsername')
                 })
             });
@@ -728,17 +729,26 @@
          */
         async requestOttCode() {
             await this.init();
+            const username = sessionStorage.getItem('mfaUsername');
+            const generationEndpoint = (this.endpoints.ott && this.endpoints.ott.codeGeneration)
+                || this.endpoints.api.requestOttCode;
+            const usesGenerationFilter = generationEndpoint !== this.endpoints.api.requestOttCode
+                || generationEndpoint.indexOf('/generate') >= 0;
+            const headers = ContexaMFAUtils.createHeaders({
+                contentType: usesGenerationFilter ? 'application/x-www-form-urlencoded' : 'application/json'
+            });
+            const body = usesGenerationFilter
+                ? new URLSearchParams({ username: username || '' }).toString()
+                : JSON.stringify({ username: username });
 
-            const response = await fetch(this.endpoints.api.requestOttCode, {
+            const response = await fetch(generationEndpoint, {
                 method: 'POST',
-                headers: ContexaMFAUtils.createHeaders(),
-                body: JSON.stringify({
-                    username: sessionStorage.getItem('mfaUsername')
-                })
+                headers: headers,
+                body: body
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 throw new MFAError(
                     errorData.message || `Failed to request OTT code: ${response.status}`,
                     errorData,
@@ -746,7 +756,15 @@
                 );
             }
 
-            return await response.json();
+            const contentType = response.headers.get('Content-Type') || '';
+            if (contentType.indexOf('application/json') >= 0) {
+                return await response.json();
+            }
+
+            return {
+                status: 'CODE_REQUESTED',
+                redirectUrl: response.url || null
+            };
         },
 
         /**
