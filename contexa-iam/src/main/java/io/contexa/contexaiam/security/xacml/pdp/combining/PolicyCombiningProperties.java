@@ -29,4 +29,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PolicyCombiningProperties {
 
     private CombiningAlgorithm combiningAlgorithm = CombiningAlgorithm.FIRST_APPLICABLE;
+
+    private NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.PERMIT;
+
+    private NoPolicyDecision missingMethodPolicyDecision = NoPolicyDecision.PERMIT;
+
+    public enum NoPolicyDecision {
+        PERMIT,
+        DENY;
+
+        public boolean isGranted() {
+            return this == PERMIT;
+        }
+    }
 }

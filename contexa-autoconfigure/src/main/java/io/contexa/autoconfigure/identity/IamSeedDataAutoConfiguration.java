@@ -18,8 +18,6 @@ package io.contexa.autoconfigure.identity;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -27,8 +25,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -52,7 +50,8 @@ import java.util.Set;
 public class IamSeedDataAutoConfiguration {
 
     static final String[] SCHEMA_LOCATIONS = {
-            "db/schema.sql"
+            "db/schema.sql",
+            "db/pqa-official-schema.sql"
     };
 
     static final String[] SCHEMA_MARKER_TABLES = {
@@ -61,7 +60,14 @@ public class IamSeedDataAutoConfiguration {
             "sealed_evidence_package",
             "official_metric_evaluation_contract",
             "official_prompt_signal_contract",
-            "verification_run_ledger"
+            "verification_run_ledger",
+            "official_verification_run_batch",
+            "official_verification_metric_snapshot",
+            "official_metric_purpose_contract",
+            "official_metric_purpose_evidence_ledger",
+            "official_actual_prompt_problem_ledger",
+            "official_verification_prompt_comparison",
+            "pqa_sealed_evidence_resource_status"
     };
 
     static final String[] SEED_LOCATIONS = {
@@ -70,44 +76,51 @@ public class IamSeedDataAutoConfiguration {
             "db/data-system-settings.sql"
     };
 
-    @Bean
-    @Order(10)
-    public ApplicationRunner iamSeedDataRunner(@Qualifier("contexaDataSource") DataSource dataSource) {
-        return (ApplicationArguments args) -> {
-            SchemaInstallState schemaInstallState = detectSchemaInstallState(dataSource);
-            if (schemaInstallState == SchemaInstallState.ABSENT) {
-                for (String location : SCHEMA_LOCATIONS) {
-                    Resource schema = new ClassPathResource(location);
-                    if (!schema.exists()) {
-                        log.warn("[IamSeedData] classpath:{} not found, skipping schema initialization", location);
-                        continue;
-                    }
-                    ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-                    populator.setContinueOnError(false);
-                    populator.addScript(sanitizedSchemaResource(location, schema));
-                    populator.execute(dataSource);
-                    log.info("[IamSeedData] {} executed", location);
-                }
-            } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
-                log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
-            } else {
-                throw new IllegalStateException(
-                        "Contexa schema is partially installed. Rebuild the Contexa database with contexa-cli initdb "
-                                + "or run the canonical db/schema.sql manually before starting the application.");
+    @Bean(name = "iamSeedDataInitializer")
+    public InitializingBean iamSeedDataInitializer(@Qualifier("contexaDataSource") DataSource dataSource) {
+        return () -> initializeSchemaAndSeedData(dataSource);
+    }
+
+    private void initializeSchemaAndSeedData(DataSource dataSource) throws SQLException, IOException {
+        SchemaInstallState schemaInstallState = detectSchemaInstallState(dataSource);
+        if (schemaInstallState == SchemaInstallState.ABSENT || schemaInstallState == SchemaInstallState.PARTIAL) {
+            if (schemaInstallState == SchemaInstallState.PARTIAL) {
+                log.warn("[IamSeedData] Contexa schema is partially installed; attempting idempotent completion");
             }
-            for (String location : SEED_LOCATIONS) {
-                Resource seed = new ClassPathResource(location);
-                if (!seed.exists()) {
-                    log.warn("[IamSeedData] classpath:{} not found, skipping", location);
+            for (String location : SCHEMA_LOCATIONS) {
+                Resource schema = new ClassPathResource(location);
+                if (!schema.exists()) {
+                    log.warn("[IamSeedData] classpath:{} not found, skipping schema initialization", location);
                     continue;
                 }
                 ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
                 populator.setContinueOnError(false);
-                populator.addScript(seed);
+                populator.addScript(sanitizedSchemaResource(location, schema));
                 populator.execute(dataSource);
                 log.info("[IamSeedData] {} executed", location);
             }
-        };
+            SchemaInstallState completedState = detectSchemaInstallState(dataSource);
+            if (completedState != SchemaInstallState.COMPLETE) {
+                throw new IllegalStateException(
+                        "Contexa schema is partially installed after canonical schema execution. "
+                                + "Rebuild the Contexa database with contexa-cli initdb or run the canonical "
+                                + "db/schema.sql and db/pqa-official-schema.sql manually before starting the application.");
+            }
+        } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
+            log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
+        }
+        for (String location : SEED_LOCATIONS) {
+            Resource seed = new ClassPathResource(location);
+            if (!seed.exists()) {
+                log.warn("[IamSeedData] classpath:{} not found, skipping", location);
+                continue;
+            }
+            ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
+            populator.setContinueOnError(false);
+            populator.addScript(seed);
+            populator.execute(dataSource);
+            log.info("[IamSeedData] {} executed", location);
+        }
     }
 
     private Resource sanitizedSchemaResource(String location, Resource schema) throws IOException {
@@ -120,7 +133,11 @@ public class IamSeedDataAutoConfiguration {
         if (sql == null || sql.isBlank()) {
             return "";
         }
-        return sql.replaceAll("(?is)\\balter\\s+(table|sequence|view|materialized\\s+view|index)\\s+[^;]+?\\s+owner\\s+to\\s+[^;]+;\\s*", "");
+        return sql
+                .replaceAll("(?is)\\balter\\s+(table|sequence|view|materialized\\s+view|index)\\s+[^;]+?\\s+owner\\s+to\\s+[^;]+;\\s*", "")
+                .replaceAll("(?im)^\\s*create\\s+table\\s+(?!if\\s+not\\s+exists\\b)", "create table if not exists ")
+                .replaceAll("(?im)^\\s*create\\s+sequence\\s+(?!if\\s+not\\s+exists\\b)", "create sequence if not exists ")
+                .replaceAll("(?im)^\\s*create\\s+(unique\\s+)?index\\s+(?!if\\s+not\\s+exists\\b)", "create $1index if not exists ");
     }
 
     private SchemaInstallState detectSchemaInstallState(@Qualifier("contexaDataSource") DataSource dataSource)

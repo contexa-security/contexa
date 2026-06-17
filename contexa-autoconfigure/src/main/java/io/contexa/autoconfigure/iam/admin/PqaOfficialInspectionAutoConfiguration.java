@@ -348,14 +348,16 @@ public class PqaOfficialInspectionAutoConfiguration {
             PromptQualityOfficialRunDetailService runDetailService,
             OfficialVerificationRunStore runStore,
             ObjectMapper objectMapper,
-            @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations) {
+            @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations,
+            RuntimeEvidencePromptConsistencyGate promptConsistencyGate) {
         return new PromptQualityOfficialConsoleApiController(
                 evidenceLookupService,
                 verificationService,
                 runDetailService,
                 runStore,
                 objectMapper,
-                jdbcOperations);
+                jdbcOperations,
+                promptConsistencyGate);
     }
 
     @Bean(name = "pqaPromptQualityAssurancePageController")

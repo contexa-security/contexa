@@ -9,6 +9,7 @@ import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialRunDetailService;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService;
+import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvidencePromptConsistencyGate;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialActualPromptProblem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunAuditSnapshot;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailureCause;
@@ -69,6 +70,7 @@ public class PromptQualityOfficialConsoleApiController {
     private final OfficialVerificationRunStore runStore;
     private final ObjectMapper objectMapper;
     private final JdbcOperations jdbcOperations;
+    private final RuntimeEvidencePromptConsistencyGate promptConsistencyGate;
 
     public PromptQualityOfficialConsoleApiController(
             SealedEvidencePackageLookupService evidenceLookupService,
@@ -76,13 +78,15 @@ public class PromptQualityOfficialConsoleApiController {
             PromptQualityOfficialRunDetailService officialRunDetailService,
             OfficialVerificationRunStore runStore,
             ObjectMapper objectMapper,
-            JdbcOperations jdbcOperations) {
+            JdbcOperations jdbcOperations,
+            RuntimeEvidencePromptConsistencyGate promptConsistencyGate) {
         this.evidenceLookupService = evidenceLookupService;
         this.verificationService = verificationService;
         this.officialRunDetailService = officialRunDetailService;
         this.runStore = runStore;
         this.objectMapper = objectMapper;
         this.jdbcOperations = jdbcOperations;
+        this.promptConsistencyGate = promptConsistencyGate;
     }
 
     @GetMapping("/i18n")
@@ -459,6 +463,9 @@ public class PromptQualityOfficialConsoleApiController {
     }
 
     private Map<String, Object> promptConsistency(SealedEvidencePackage pkg) {
+        if (promptConsistencyGate != null) {
+            return objectMapper.convertValue(promptConsistencyGate.evaluate(pkg), Map.class);
+        }
         List<Map<String, Object>> checks = List.of(
                 promptCheck("LLM system/user prompt captured",
                         StringUtils.hasText(pkg.getSystemPromptText()) && StringUtils.hasText(pkg.getUserPromptText()),

@@ -19,6 +19,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.time.Duration;
+
 @Data
 @ConfigurationProperties(prefix = "contexa.security.zerotrust")
 public class SecurityZeroTrustProperties {
@@ -66,6 +68,9 @@ public class SecurityZeroTrustProperties {
     @NestedConfigurationProperty
     private SessionSettings session = new SessionSettings();
 
+    @NestedConfigurationProperty
+    private ChallengeSettings challenge = new ChallengeSettings();
+
     @Data
     public static class ThreatSettings {
         private double initial = 0.3;
@@ -81,6 +86,13 @@ public class SecurityZeroTrustProperties {
     @Data
     public static class SessionSettings {
         private boolean trackingEnabled = true;
+    }
+
+    @Data
+    public static class ChallengeSettings {
+        private Duration lockWaitTime = Duration.ZERO;
+        private Duration lockLeaseTime = Duration.ofSeconds(30);
+        private int busyRetryAfterSeconds = 3;
     }
 
     @Data

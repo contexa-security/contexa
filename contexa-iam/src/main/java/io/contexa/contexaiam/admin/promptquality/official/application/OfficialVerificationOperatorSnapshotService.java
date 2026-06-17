@@ -161,16 +161,20 @@ public class OfficialVerificationOperatorSnapshotService {
                          where package_id = ?
                         """,
                 normalizedPackageId);
-        jdbcTemplate.update("""
-                        delete from prompt_quality_remediation_action
-                         where issue_id in (
-                               select issue_id
-                                 from prompt_quality_issue
-                                where package_id = ?
-                            )
-                        """,
-                normalizedPackageId);
-        jdbcTemplate.update("delete from prompt_quality_issue where package_id = ?", normalizedPackageId);
+        if (tableExists("prompt_quality_issue")) {
+            if (tableExists("prompt_quality_remediation_action")) {
+                jdbcTemplate.update("""
+                                delete from prompt_quality_remediation_action
+                                 where issue_id in (
+                                       select issue_id
+                                         from prompt_quality_issue
+                                        where package_id = ?
+                                    )
+                                """,
+                        normalizedPackageId);
+            }
+            jdbcTemplate.update("delete from prompt_quality_issue where package_id = ?", normalizedPackageId);
+        }
         jdbcTemplate.update("""
                         delete from official_verification_reverify_result
                          where source_package_id = ?
@@ -191,59 +195,78 @@ public class OfficialVerificationOperatorSnapshotService {
         jdbcTemplate.update("delete from official_prompt_generation_lineage where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_prompt_projection_ledger where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_prompt_field_state_ledger where package_id = ?", normalizedPackageId);
-        jdbcTemplate.update("""
-                        delete from pqa_resolution_action_event
-                         where package_id = ?
-                        """,
-                normalizedPackageId);
-        jdbcTemplate.update("""
-                        delete from pqa_resolution_action_execution_result
-                         where work_item_id in (
-                               select work_item_id
-                                 from pqa_resolution_work_item
-                                where package_id = ?
-                            )
-                        """,
-                normalizedPackageId);
-        jdbcTemplate.update("""
-                        delete from pqa_resolution_action_plan
-                         where work_item_id in (
-                               select work_item_id
-                                 from pqa_resolution_work_item
-                                where package_id = ?
-                            )
-                        """,
-                normalizedPackageId);
-        jdbcTemplate.update("""
-                        delete from pqa_resolution_input_requirement
-                         where work_item_id in (
-                               select work_item_id
-                                 from pqa_resolution_work_item
-                                where package_id = ?
-                            )
-                        """,
-                normalizedPackageId);
-        jdbcTemplate.update("""
-                        delete from pqa_resolution_work_item_dependency
-                         where source_work_item_id in (
-                               select work_item_id
-                                 from pqa_resolution_work_item
-                                where package_id = ?
-                            )
-                            or blocked_work_item_id in (
-                               select work_item_id
-                                 from pqa_resolution_work_item
-                                where package_id = ?
-                            )
-                        """,
-                normalizedPackageId,
-                normalizedPackageId);
-        jdbcTemplate.update("delete from pqa_resolution_work_item where package_id = ?", normalizedPackageId);
-        jdbcTemplate.update("delete from pqa_certificate_preissue_check where package_id = ?", normalizedPackageId);
-        jdbcTemplate.update("delete from pqa_resolution_ui_payload_audit where package_id = ?", normalizedPackageId);
+        deleteEnterpriseResolutionRows(normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_operator_finding where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_metric_snapshot where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_run_batch where package_id = ?", normalizedPackageId);
+    }
+
+    private void deleteEnterpriseResolutionRows(String packageId) {
+        if (!StringUtils.hasText(packageId)) {
+            return;
+        }
+        if (tableExists("pqa_resolution_action_event")) {
+            jdbcTemplate.update("delete from pqa_resolution_action_event where package_id = ?", packageId);
+        }
+        if (tableExists("pqa_resolution_work_item")) {
+            if (tableExists("pqa_resolution_action_execution_result")) {
+                jdbcTemplate.update("""
+                                delete from pqa_resolution_action_execution_result
+                                 where work_item_id in (
+                                       select work_item_id
+                                         from pqa_resolution_work_item
+                                        where package_id = ?
+                                    )
+                                """,
+                        packageId);
+            }
+            if (tableExists("pqa_resolution_action_plan")) {
+                jdbcTemplate.update("""
+                                delete from pqa_resolution_action_plan
+                                 where work_item_id in (
+                                       select work_item_id
+                                         from pqa_resolution_work_item
+                                        where package_id = ?
+                                    )
+                                """,
+                        packageId);
+            }
+            if (tableExists("pqa_resolution_input_requirement")) {
+                jdbcTemplate.update("""
+                                delete from pqa_resolution_input_requirement
+                                 where work_item_id in (
+                                       select work_item_id
+                                         from pqa_resolution_work_item
+                                        where package_id = ?
+                                    )
+                                """,
+                        packageId);
+            }
+            if (tableExists("pqa_resolution_work_item_dependency")) {
+                jdbcTemplate.update("""
+                                delete from pqa_resolution_work_item_dependency
+                                 where source_work_item_id in (
+                                       select work_item_id
+                                         from pqa_resolution_work_item
+                                        where package_id = ?
+                                    )
+                                    or blocked_work_item_id in (
+                                       select work_item_id
+                                         from pqa_resolution_work_item
+                                        where package_id = ?
+                                    )
+                                """,
+                        packageId,
+                        packageId);
+            }
+            jdbcTemplate.update("delete from pqa_resolution_work_item where package_id = ?", packageId);
+        }
+        if (tableExists("pqa_certificate_preissue_check")) {
+            jdbcTemplate.update("delete from pqa_certificate_preissue_check where package_id = ?", packageId);
+        }
+        if (tableExists("pqa_resolution_ui_payload_audit")) {
+            jdbcTemplate.update("delete from pqa_resolution_ui_payload_audit where package_id = ?", packageId);
+        }
     }
 
     private void deleteVerificationRunLedger(String runId) {
@@ -3077,6 +3100,9 @@ public class OfficialVerificationOperatorSnapshotService {
         if (!StringUtils.hasText(packageId) || !StringUtils.hasText(aggregateRunId)) {
             return;
         }
+        if (!tableExists("prompt_quality_issue") || !tableExists("pqa_resolution_work_item")) {
+            return;
+        }
         if (!postgresqlDatabase()) {
             synchronizePromptQualityIssuesWithActualPromptProblemsPortable(packageId, aggregateRunId);
             return;
@@ -5691,6 +5717,25 @@ public class OfficialVerificationOperatorSnapshotService {
         }
     }
 
+    private boolean tableExists(String tableName) {
+        if (!StringUtils.hasText(tableName)) {
+            return false;
+        }
+        try {
+            Integer count = jdbcTemplate.queryForObject("""
+                            select count(*)
+                              from information_schema.tables
+                             where lower(table_name) = lower(?)
+                               and lower(table_schema) in ('public', 'PUBLIC')
+                            """,
+                    Integer.class,
+                    tableName.trim());
+            return count != null && count > 0;
+        } catch (DataAccessException exception) {
+            return false;
+        }
+    }
+
     private void insertPromptFieldValueLedgers(
             String aggregateRunId,
             String packageId,
@@ -6212,22 +6257,24 @@ public class OfficialVerificationOperatorSnapshotService {
                         """,
                 Integer.class,
                 aggregateRunId);
-        Integer promptQualityIssueTechnicalText = jdbcTemplate.queryForObject("""
-                        /* prompt_quality_issue_customer_technical_text */
-                        select count(*)
-                          from prompt_quality_issue
-                         where aggregate_run_id = ?
-                           and (
-                                actual_value ilike '%Evidence:%'
-                                or actual_value ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                or next_action ilike '%Evidence:%'
-                                or next_action ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                or reverify_criterion ilike '%Evidence:%'
-                                or reverify_criterion ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                           )
-                        """,
-                Integer.class,
-                aggregateRunId);
+        Integer promptQualityIssueTechnicalText = tableExists("prompt_quality_issue")
+                ? jdbcTemplate.queryForObject("""
+                                /* prompt_quality_issue_customer_technical_text */
+                                select count(*)
+                                  from prompt_quality_issue
+                                 where aggregate_run_id = ?
+                                   and (
+                                        actual_value ilike '%Evidence:%'
+                                        or actual_value ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
+                                        or next_action ilike '%Evidence:%'
+                                        or next_action ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
+                                        or reverify_criterion ilike '%Evidence:%'
+                                        or reverify_criterion ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
+                                   )
+                                """,
+                        Integer.class,
+                        aggregateRunId)
+                : 0;
         Integer promptComparisonTechnicalText = jdbcTemplate.queryForObject("""
                         /* prompt_comparison_customer_technical_text */
                         select count(*)
@@ -6412,6 +6459,9 @@ public class OfficialVerificationOperatorSnapshotService {
     }
 
     private String firstCustomerVisiblePurposeLedgerTechnicalLocation(String aggregateRunId) {
+        if (!tableExists("prompt_quality_issue")) {
+            return "UNKNOWN";
+        }
         List<String> rows = jdbcTemplate.queryForList("""
                         select location
                           from (

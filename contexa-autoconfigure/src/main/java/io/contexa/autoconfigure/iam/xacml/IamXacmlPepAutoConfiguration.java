@@ -78,6 +78,7 @@ public class IamXacmlPepAutoConfiguration {
                 objectMapper, contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
                 policyCombiningEvaluator);
         manager.setCombiningAlgorithm(policyCombiningProperties.getCombiningAlgorithm());
+        manager.setNoMatchingUrlPolicyDecision(policyCombiningProperties.getNoMatchingUrlPolicyDecision());
         return manager;
     }
 

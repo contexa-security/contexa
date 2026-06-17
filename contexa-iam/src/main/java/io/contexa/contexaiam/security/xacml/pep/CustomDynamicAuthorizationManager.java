@@ -28,6 +28,7 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConverter;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
@@ -67,6 +68,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final PolicyCombiningEvaluator combiningEvaluator;
     @Setter
     private CombiningAlgorithm combiningAlgorithm;
+    private NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.PERMIT;
 
     private final PolicyExpressionConverter expressionConverter = new PolicyExpressionConverter();
 
@@ -133,7 +135,11 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         }
 
         if (matchedDecisions.isEmpty()) {
-            return new AuthorizationDecision(true);
+            AuthorizationDecision decision = new AuthorizationDecision(noMatchingUrlPolicyDecision.isGranted());
+            if (!decision.isGranted()) {
+                logAuthorizationAttempt(authentication, createAuthorizationContext(authentication, request), decision, request);
+            }
+            return decision;
         }
 
         AuthorizationDecision finalDecision = combiningEvaluator.evaluate(matchedDecisions, combiningAlgorithm);
@@ -210,5 +216,11 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         policyRetrievalPoint.clearUrlPoliciesCache();
         policyRetrievalPoint.clearMethodPoliciesCache();
         initialize();
+    }
+
+    public void setNoMatchingUrlPolicyDecision(NoPolicyDecision noMatchingUrlPolicyDecision) {
+        this.noMatchingUrlPolicyDecision = noMatchingUrlPolicyDecision != null
+                ? noMatchingUrlPolicyDecision
+                : NoPolicyDecision.PERMIT;
     }
 }

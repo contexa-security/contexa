@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -53,7 +54,9 @@ import java.util.UUID;
 public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
     private static final String LOCK_KEY_PREFIX = "mfa:challenge:init:";
-    private static final Duration LOCK_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_LOCK_WAIT_TIME = Duration.ZERO;
+    private static final Duration DEFAULT_LOCK_LEASE_TIME = Duration.ofSeconds(30);
+    private static final int DEFAULT_BUSY_RETRY_AFTER_SECONDS = 3;
 
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthResponseWriter responseWriter;
@@ -63,6 +66,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
     private final DistributedLockService lockService;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final ZeroTrustActionRepository actionRepository;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
@@ -73,6 +77,20 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             DistributedLockService lockService,
             MfaFlowUrlRegistry mfaFlowUrlRegistry,
             ZeroTrustActionRepository actionRepository) {
+        this(challengeMfaInitializer, responseWriter, authUrlProvider, sessionRepository,
+                stateMachineIntegrator, lockService, mfaFlowUrlRegistry, actionRepository, null);
+    }
+
+    public ZeroTrustChallengeFilter(
+            ChallengeMfaInitializer challengeMfaInitializer,
+            AuthResponseWriter responseWriter,
+            AuthUrlProvider authUrlProvider,
+            MfaSessionRepository sessionRepository,
+            MfaStateMachineIntegrator stateMachineIntegrator,
+            DistributedLockService lockService,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            ZeroTrustActionRepository actionRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.responseWriter = responseWriter;
         this.authUrlProvider = authUrlProvider;
@@ -81,6 +99,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         this.lockService = lockService;
         this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
         this.actionRepository = actionRepository;
+        this.securityZeroTrustProperties = securityZeroTrustProperties;
     }
 
     @Override
@@ -168,10 +187,12 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         String lockKey = LOCK_KEY_PREFIX + userId;
         String lockOwner = Thread.currentThread().getName() + ":" + UUID.randomUUID();
 
-        if (!lockService.tryLock(lockKey, lockOwner, LOCK_TIMEOUT)) {
-            log.error("Failed to acquire distributed lock for MFA challenge: {}", lockKey);
-            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-                    "MFA service temporarily unavailable");
+        Duration lockWaitTime = resolveLockWaitTime();
+        Duration lockLeaseTime = resolveLockLeaseTime();
+        if (!tryAcquireChallengeLock(lockKey, lockOwner, lockLeaseTime, lockWaitTime)) {
+            log.warn("MFA challenge initialization is already in progress: lockKey={}, lockWaitTime={}, lockLeaseTime={}, retryAfterSeconds={}",
+                    lockKey, lockWaitTime, lockLeaseTime, resolveBusyRetryAfterSeconds());
+            writeBusyRetryResponse(response, request);
             return;
         }
 
@@ -191,6 +212,62 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         } finally {
             lockService.unlock(lockKey, lockOwner);
         }
+    }
+
+    private boolean tryAcquireChallengeLock(
+            String lockKey,
+            String lockOwner,
+            Duration lockLeaseTime,
+            Duration lockWaitTime) {
+        if (lockWaitTime == null || lockWaitTime.isZero() || lockWaitTime.isNegative()) {
+            return lockService.tryLock(lockKey, lockOwner, lockLeaseTime);
+        }
+        return lockService.tryLockWithWait(lockKey, lockOwner, lockLeaseTime, lockWaitTime);
+    }
+
+    private Duration resolveLockWaitTime() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getChallenge() == null) {
+            return DEFAULT_LOCK_WAIT_TIME;
+        }
+        Duration configured = securityZeroTrustProperties.getChallenge().getLockWaitTime();
+        return configured != null && !configured.isNegative()
+                ? configured
+                : DEFAULT_LOCK_WAIT_TIME;
+    }
+
+    private Duration resolveLockLeaseTime() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getChallenge() == null) {
+            return DEFAULT_LOCK_LEASE_TIME;
+        }
+        Duration configured = securityZeroTrustProperties.getChallenge().getLockLeaseTime();
+        return configured != null && !configured.isZero() && !configured.isNegative()
+                ? configured
+                : DEFAULT_LOCK_LEASE_TIME;
+    }
+
+    private int resolveBusyRetryAfterSeconds() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getChallenge() == null) {
+            return DEFAULT_BUSY_RETRY_AFTER_SECONDS;
+        }
+        int configured = securityZeroTrustProperties.getChallenge().getBusyRetryAfterSeconds();
+        return configured > 0 ? configured : DEFAULT_BUSY_RETRY_AFTER_SECONDS;
+    }
+
+    private void writeBusyRetryResponse(HttpServletResponse response, HttpServletRequest request) throws IOException {
+        int retryAfterSeconds = resolveBusyRetryAfterSeconds();
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("retryAfterSeconds", retryAfterSeconds);
+
+        responseWriter.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                "MFA_BUSY_RETRY",
+                "MFA challenge is already being initialized. Retry shortly.",
+                request.getRequestURI(),
+                errorDetails
+        );
     }
 
     private boolean handleExistingSession(HttpServletRequest request,

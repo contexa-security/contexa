@@ -47,9 +47,12 @@ public class OfficialMetricPurposeContractCatalogWriter {
     public void upsertFullMetricContractCatalog() {
         FinalPromptMetricContractCatalog catalog = finalPromptMetricContractCatalog();
         String currentVersion = currentContractVersion(catalog);
+        boolean resolutionContractsAvailable = resolutionContractsAvailable();
         removeFallbackContractRows();
         removeCurrentContractRows(currentVersion);
-        upsertResolutionContractSeed();
+        if (resolutionContractsAvailable) {
+            upsertResolutionContractSeed();
+        }
         for (String metricCode : catalog.metricCodesInOrder()) {
             FinalPromptMetricContract metricContract = catalog.metric(metricCode);
             for (FinalPromptMetricCheckContract checkContract : metricContract.checks()) {
@@ -109,10 +112,12 @@ public class OfficialMetricPurposeContractCatalogWriter {
         assertCurrentContractRows("official_metric_customer_display_contract", currentVersion, expectedCustomerDisplayRows);
         assertCurrentContractRows("official_metric_customer_display_binding", currentVersion, expectedCustomerDisplayBindingRows);
         assertCurrentContractRows("official_metric_input_contract", currentVersion, expectedInputRows.size());
-        assertCurrentActionCatalogRows();
-        assertCurrentSignalActionPolicyRows();
+        if (resolutionContractsAvailable()) {
+            assertCurrentActionCatalogRows();
+            assertCurrentSignalActionPolicyRows();
+            assertCurrentDisplayTextContractRows(expectedCheckCount * 2 + 17);
+        }
         assertCurrentPromptRuntimeGovernanceActionPolicyRows(currentVersion, expectedCheckCount);
-        assertCurrentDisplayTextContractRows(expectedCheckCount * 2 + 17);
     }
 
     private void addExpectedInputRows(
@@ -169,15 +174,17 @@ public class OfficialMetricPurposeContractCatalogWriter {
                 fallbackVersion);
         jdbcTemplate.update("delete from official_metric_contract_version where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("""
-                        update pqa_resolution_display_text_contract
-                           set active = false,
-                               updated_at = ?
-                         where metric_code is not null
-                           and check_code is not null
-                           and check_code like metric_code || '\\_%' escape '\\'
-                        """,
-                nowTimestamp());
+        if (tableExists("pqa_resolution_display_text_contract")) {
+            jdbcTemplate.update("""
+                            update pqa_resolution_display_text_contract
+                               set active = false,
+                                   updated_at = ?
+                             where metric_code is not null
+                               and check_code is not null
+                               and check_code like metric_code || '\\_%' escape '\\'
+                            """,
+                    nowTimestamp());
+        }
     }
 
     private void removeCurrentContractRows(String contractVersion) {
@@ -306,6 +313,25 @@ public class OfficialMetricPurposeContractCatalogWriter {
         if (prefixedRows != null && prefixedRows > 0) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: PQA resolution display text contract contains prefixed check_code rows."
                     + " prefixedRows=" + prefixedRows);
+        }
+    }
+
+    private boolean resolutionContractTablesAvailable() {
+        return tableExists("pqa_resolution_action_catalog")
+                && tableExists("pqa_resolution_signal_action_policy")
+                && tableExists("pqa_resolution_display_text_contract");
+    }
+
+    private boolean resolutionContractsAvailable() {
+        return resolutionContractTablesAvailable() && resolutionContractSeedResourceAvailable();
+    }
+
+    private boolean resolutionContractSeedResourceAvailable() {
+        try (InputStream input = OfficialMetricPurposeContractCatalogWriter.class
+                .getResourceAsStream(RESOLUTION_CONTRACT_SEED_RESOURCE)) {
+            return input != null;
+        } catch (Exception exception) {
+            return false;
         }
     }
 

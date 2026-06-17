@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CompositePermissionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandler;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
@@ -26,6 +27,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -41,6 +43,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
  */
 @AutoConfiguration
 @EnableMethodSecurity
+@EnableConfigurationProperties(PolicyCombiningProperties.class)
 @AutoConfigureAfter(name = {
         "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration",
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
@@ -57,7 +60,8 @@ public class IamSecurityAutoConfiguration {
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
-            ZeroTrustActionRepository actionRedisRepository) {
+            ZeroTrustActionRepository actionRedisRepository,
+            PolicyCombiningProperties policyCombiningProperties) {
 
         return new CustomMethodSecurityExpressionHandler(
                 securityZeroTrustProperties,
@@ -66,7 +70,8 @@ public class IamSecurityAutoConfiguration {
                 policyRetrievalPoint,
                 contextHandler,
                 auditLogRepository,
-                actionRedisRepository);
+                actionRedisRepository,
+                policyCombiningProperties.getMissingMethodPolicyDecision());
     }
 }
 

@@ -55,18 +55,6 @@ public class IamAdminAuthAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public UserController userController(
-            UserRepository userRepository,
-            ModelMapper modelMapper,
-            PasswordEncoder passwordEncoder,
-            PasswordPolicyService passwordPolicyService,
-            MessageSource messageSource,
-            SystemSettingsService systemSettingsService) {
-        return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService, messageSource, systemSettingsService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public UserManagementController userManagementController(
             UserManagementService userManagementService,
             RoleService roleService,

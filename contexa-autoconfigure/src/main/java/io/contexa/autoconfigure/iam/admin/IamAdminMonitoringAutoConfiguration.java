@@ -36,11 +36,12 @@ import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.MessageSource;
-
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.DependsOn;
+
+
 @AutoConfiguration
 public class IamAdminMonitoringAutoConfiguration {
 
@@ -137,6 +138,7 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @DependsOn("iamSeedDataInitializer")
     public AdminMenuService adminMenuService(
             AdminMenuRepository adminMenuRepository,
             AdminMenuQueryCache adminMenuQueryCache,

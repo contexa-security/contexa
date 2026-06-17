@@ -108,7 +108,6 @@ public class RoleHierarchyController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public String roleHierarchyDetails(@PathVariable Long id, Model model) {
         try {
             RoleHierarchyEntity entity = roleHierarchyService.getRoleHierarchy(id)

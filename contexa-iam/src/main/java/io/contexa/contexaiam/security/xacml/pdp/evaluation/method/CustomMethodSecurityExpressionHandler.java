@@ -20,6 +20,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -50,6 +51,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final ContextHandler contextHandler;
     private final AuditLogRepository auditLogRepository;
     private final ZeroTrustActionRepository actionRedisRepository;
+    private final NoPolicyDecision missingMethodPolicyDecision;
 
     public CustomMethodSecurityExpressionHandler(
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -59,6 +61,25 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
             ZeroTrustActionRepository actionRedisRepository) {
+        this(securityZeroTrustProperties,
+                compositePermissionEvaluator,
+                roleHierarchy,
+                policyRetrievalPoint,
+                contextHandler,
+                auditLogRepository,
+                actionRedisRepository,
+                NoPolicyDecision.PERMIT);
+    }
+
+    public CustomMethodSecurityExpressionHandler(
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            CompositePermissionEvaluator compositePermissionEvaluator,
+            RoleHierarchy roleHierarchy,
+            PolicyRetrievalPoint policyRetrievalPoint,
+            ContextHandler contextHandler,
+            AuditLogRepository auditLogRepository,
+            ZeroTrustActionRepository actionRedisRepository,
+            NoPolicyDecision missingMethodPolicyDecision) {
 
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(securityZeroTrustProperties, "SecurityZeroTrustProperties cannot be null");
@@ -67,6 +88,9 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.contextHandler = contextHandler;
         this.auditLogRepository = auditLogRepository;
         this.actionRedisRepository = actionRedisRepository;
+        this.missingMethodPolicyDecision = missingMethodPolicyDecision != null
+                ? missingMethodPolicyDecision
+                : NoPolicyDecision.PERMIT;
         super.setPermissionEvaluator(compositePermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
 
@@ -135,8 +159,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
     private String buildExpressionFromPoliciesWithDefault(List<Policy> policies) {
         if (CollectionUtils.isEmpty(policies)) {
-//            log.error("No method policy found for @Protectable method. Defaulting to permitAll.");
-            return "permitAll";
+            return missingMethodPolicyDecision.isGranted() ? "permitAll" : "denyAll";
         }
         return buildExpressionFromPolicies(policies);
     }

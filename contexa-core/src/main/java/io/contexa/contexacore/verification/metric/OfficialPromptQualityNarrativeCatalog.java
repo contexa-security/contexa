@@ -576,7 +576,7 @@ public class OfficialPromptQualityNarrativeCatalog {
     }
 
     private String firstText(String value, String fallback) {
-        return StringUtils.hasText(value) ? value.trim() : fallback;
+        return hasPlainOperatorText(value) ? value.trim() : fallback;
     }
 
     private String safe(String value, String fallback) {
