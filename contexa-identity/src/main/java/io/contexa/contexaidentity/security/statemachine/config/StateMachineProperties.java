@@ -148,6 +148,12 @@ public class StateMachineProperties {
 
         private int timeoutSeconds = 10;
 
+        private int lockWaitTimeSeconds = 10;
+
+        private int lockLeaseTimeSeconds = 30;
+
+        private int userRequestLockWaitTimeMs = 750;
+
         private int maxRetryAttempts = 3;
 
         private int retryIntervalMs = 100;

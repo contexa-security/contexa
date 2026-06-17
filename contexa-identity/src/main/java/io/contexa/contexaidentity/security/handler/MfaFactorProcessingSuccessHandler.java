@@ -61,6 +61,8 @@ import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentia
 @Slf4j
 public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
+    private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
     private final AuthResponseWriter responseWriter;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
@@ -314,6 +316,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private void handleStateTransitionError(HttpServletResponse response, HttpServletRequest request,
                                             FactorContext ctx) throws IOException {
         log.error("State Machine transition error for session: {}", ctx.getMfaSessionId());
+        if (stateMachineIntegrator.isBusyRetry(request)) {
+            handleBusyRetry(response, request, ctx);
+            return;
+        }
+
         stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, ctx, request);
 
         if (!response.isCommitted()) {
@@ -322,6 +329,30 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     request.getRequestURI());
         } else {
             log.error("Response already committed, cannot write STATE_TRANSITION_ERROR for session: {}",
+                    ctx.getMfaSessionId());
+        }
+    }
+
+    private void handleBusyRetry(HttpServletResponse response, HttpServletRequest request,
+                                 FactorContext ctx) throws IOException {
+        long retryAfterMs = stateMachineIntegrator.getBusyRetryAfterMs(request);
+        long retryAfterSeconds = Math.max(1L, (retryAfterMs + 999L) / 1_000L);
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("status", "MFA_BUSY_RETRY");
+        errorResponse.put("message", "MFA session is busy. Please retry shortly.");
+        errorResponse.put("retryAfterMs", retryAfterMs);
+        errorResponse.put("reason", stateMachineIntegrator.getBusyRetryReason(request));
+        errorResponse.put("mfaSessionId", ctx.getMfaSessionId());
+        errorResponse.put("currentState", ctx.getCurrentState().name());
+
+        if (!response.isCommitted()) {
+            responseWriter.writeErrorResponse(response, HTTP_STATUS_TOO_MANY_REQUESTS,
+                    "MFA_BUSY_RETRY", "MFA session is busy. Please retry shortly.",
+                    request.getRequestURI(), errorResponse);
+        } else {
+            log.error("Response already committed, cannot write MFA_BUSY_RETRY for session: {}",
                     ctx.getMfaSessionId());
         }
     }

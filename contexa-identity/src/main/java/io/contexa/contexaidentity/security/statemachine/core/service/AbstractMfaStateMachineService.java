@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.statemachine.core.service;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -57,9 +58,13 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
     protected final StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister;
     protected final StateMachineProperties properties;
 
-    protected static final long LOCK_WAIT_TIME_SECONDS = 10;
-    protected static final long LOCK_LEASE_TIME_SECONDS = 30;
+    protected static final long DEFAULT_LOCK_WAIT_TIME_SECONDS = 10;
+    protected static final long DEFAULT_LOCK_LEASE_TIME_SECONDS = 30;
+    protected static final long DEFAULT_USER_REQUEST_LOCK_WAIT_TIME_MS = 750;
     protected static final MfaState FALLBACK_INITIAL_MFA_STATE = MfaState.NONE;
+    private static final String MFA_REQUEST_ID_HEADER = "X-MFA-Request-Id";
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
+    private static final String REQUEST_ID_PARAMETER = "requestId";
 
     protected AbstractMfaStateMachineService(
             StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
@@ -82,6 +87,39 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
     protected void afterSaveFactorContext(String sessionId) {
     }
 
+    protected long lockWaitTimeSeconds() {
+        StateMachineProperties.DistributedLockProperties lockProperties = properties.getDistributedLock();
+        if (lockProperties == null) {
+            return DEFAULT_LOCK_WAIT_TIME_SECONDS;
+        }
+
+        int configured = lockProperties.getLockWaitTimeSeconds();
+        if (configured <= 0) {
+            configured = lockProperties.getTimeoutSeconds();
+        }
+        return Math.max(1, configured);
+    }
+
+    protected long lockLeaseTimeSeconds() {
+        StateMachineProperties.DistributedLockProperties lockProperties = properties.getDistributedLock();
+        if (lockProperties == null || lockProperties.getLockLeaseTimeSeconds() <= 0) {
+            return DEFAULT_LOCK_LEASE_TIME_SECONDS;
+        }
+        return lockProperties.getLockLeaseTimeSeconds();
+    }
+
+    protected long userRequestLockWaitTimeMillis() {
+        StateMachineProperties.DistributedLockProperties lockProperties = properties.getDistributedLock();
+        if (lockProperties == null || lockProperties.getUserRequestLockWaitTimeMs() < 0) {
+            return DEFAULT_USER_REQUEST_LOCK_WAIT_TIME_MS;
+        }
+        return lockProperties.getUserRequestLockWaitTimeMs();
+    }
+
+    protected long busyRetryAfterMillis() {
+        return Math.max(1_000L, userRequestLockWaitTimeMillis());
+    }
+
     @Override
     public void initializeStateMachine(FactorContext context, HttpServletRequest request) {
         String sessionId = context.getMfaSessionId();
@@ -89,10 +127,10 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         StateMachine<MfaState, MfaEvent> stateMachine = null;
 
         try {
-            lockAcquired = tryAcquireLock(sessionId, LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = tryAcquireLock(sessionId, userRequestLockWaitTimeMillis(), TimeUnit.MILLISECONDS);
             if (!lockAcquired) {
-                log.error("[MFA SM Service] [{}] Failed to acquire lock for SM initialization.", sessionId);
-                throw new MfaStateMachineException("Failed to acquire lock for State Machine initialization: " + sessionId);
+                log.warn("[MFA SM Service] [{}] MFA session is busy during SM initialization.", sessionId);
+                throw new MfaStateMachineBusyException(sessionId, null, busyRetryAfterMillis());
             }
 
             stateMachine = acquireStateMachine(sessionId);
@@ -132,18 +170,38 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         Result eventProcessingResult;
 
         try {
-            lockAcquired = tryAcquireLock(sessionId, LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = tryAcquireLock(sessionId, userRequestLockWaitTimeMillis(), TimeUnit.MILLISECONDS);
             if (!lockAcquired) {
-                log.error("[MFA SM Service] [{}] Failed to acquire lock for event ({}) processing.", sessionId, event);
-                return false;
+                log.warn("[MFA SM Service] [{}] MFA session is busy during event ({}) processing.", sessionId, event);
+                throw new MfaStateMachineBusyException(sessionId, event, busyRetryAfterMillis());
             }
 
             stateMachine = getAndPrepareStateMachine(sessionId, context.getCurrentState(), context);
+            FactorContext persistedContext = StateContextHelper.getFactorContext(stateMachine);
+            String requestId = resolveRequestId(event, context, request, additionalHeaders);
+
+            if (isDuplicateRequest(event, persistedContext, requestId)) {
+                MfaState currentState = currentStateOf(stateMachine, context);
+                log.info("[MFA SM Service] [{}] Duplicate request ignored for event ({}) requestId={}.",
+                        sessionId, event, requestId);
+                synchronizeExternalContext(context, persistedContext, currentState);
+                return lastEventAccepted(persistedContext);
+            }
+
+            verifyOptimisticVersion(context, persistedContext, event);
 
             context.incrementVersion();
             StateContextHelper.setFactorContext(stateMachine, context);
 
-            Message<MfaEvent> message = createEventMessage(event, context, request, additionalHeaders);
+            Map<String, Object> eventHeaders = new HashMap<>();
+            if (additionalHeaders != null && !additionalHeaders.isEmpty()) {
+                eventHeaders.putAll(additionalHeaders);
+            }
+            if (hasText(requestId)) {
+                eventHeaders.putIfAbsent("requestId", requestId);
+            }
+
+            Message<MfaEvent> message = createEventMessage(event, context, request, eventHeaders);
             eventProcessingResult = sendEventInternal(stateMachine, message, context);
 
             if (!eventProcessingResult.eventAccepted()) {
@@ -152,6 +210,8 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
             }
 
             synchronizeExternalContext(context, eventProcessingResult.contextFromSmAfterEvent(), eventProcessingResult.smCurrentStateAfterEvent());
+            recordIdempotency(context, requestId, event, eventProcessingResult.eventAccepted(),
+                    eventProcessingResult.smCurrentStateAfterEvent());
             StateContextHelper.setFactorContext(stateMachine, context);
             persistStateMachine(stateMachine, sessionId);
 
@@ -176,21 +236,12 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
 
     @Override
     public FactorContext getFactorContext(String sessionId) {
-        boolean lockAcquired = false;
         StateMachine<MfaState, MfaEvent> stateMachine = null;
         try {
-            lockAcquired = tryAcquireLock(sessionId, LOCK_WAIT_TIME_SECONDS / 2, TimeUnit.SECONDS);
-            if (!lockAcquired) {
-                log.error("[MFA SM Service] [{}] Failed to acquire lock for FactorContext retrieval. Returning null.", sessionId);
-                return null;
-            }
-            stateMachine = getAndPrepareStateMachine(sessionId, FALLBACK_INITIAL_MFA_STATE, null);
+            stateMachine = acquireStateMachine(sessionId);
+            stateMachinePersister.restore(stateMachine, sessionId);
             return StateContextHelper.getFactorContext(stateMachine);
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("[MFA SM Service] [{}] Interrupt occurred during FactorContext retrieval.", sessionId, e);
-            throw new MfaStateMachineException("Get FactorContext interrupted: " + sessionId, e);
         } catch (MfaStateMachineException e) {
             throw e;
         } catch (Exception e) {
@@ -198,9 +249,6 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
             throw new MfaStateMachineException("Error during getFactorContext for " + sessionId + ": " + e.getMessage(), e);
         } finally {
             releaseStateMachineInstance(stateMachine, sessionId);
-            if (lockAcquired) {
-                releaseLock(sessionId);
-            }
         }
     }
 
@@ -211,7 +259,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         StateMachine<MfaState, MfaEvent> stateMachine = null;
 
         try {
-            lockAcquired = tryAcquireLock(sessionId, LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = tryAcquireLock(sessionId, lockWaitTimeSeconds(), TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.error("[MFA SM Service] [{}] Failed to acquire lock for FactorContext save.", sessionId);
                 throw new MfaStateMachineException("Failed to acquire lock for saving FactorContext: " + sessionId);
@@ -276,7 +324,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         StateMachine<MfaState, MfaEvent> stateMachine = null;
 
         try {
-            lockAcquired = tryAcquireLock(sessionId, LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = tryAcquireLock(sessionId, lockWaitTimeSeconds(), TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.error("[MFA SM Service] [{}] Failed to acquire lock for state-only update.", sessionId);
                 return false;
@@ -318,7 +366,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
     public void releaseStateMachine(String sessionId) {
         boolean lockAcquired = false;
         try {
-            lockAcquired = tryAcquireLock(sessionId, LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = tryAcquireLock(sessionId, lockWaitTimeSeconds(), TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.error("[MFA SM Service] [{}] Failed to acquire lock for SM release. Timeout.", sessionId);
                 return;
@@ -483,6 +531,98 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         stateMachinePersister.persist(stateMachine, sessionId);
     }
 
+    private void verifyOptimisticVersion(FactorContext externalContext, FactorContext persistedContext,
+                                         MfaEvent event) {
+        if (externalContext == null || persistedContext == null) {
+            return;
+        }
+
+        int expectedVersion = externalContext.getVersion();
+        int persistedVersion = persistedContext.getVersion();
+        if (expectedVersion != persistedVersion) {
+            throw new MfaStateMachineOptimisticLockException(
+                    externalContext.getMfaSessionId(), event, expectedVersion, persistedVersion);
+        }
+    }
+
+    private boolean isDuplicateRequest(MfaEvent event, FactorContext persistedContext, String requestId) {
+        if (!hasText(requestId) || persistedContext == null) {
+            return false;
+        }
+
+        Object lastRequestId = persistedContext.getAttribute(FactorContextAttributes.Idempotency.LAST_REQUEST_ID);
+        Object lastEvent = persistedContext.getAttribute(FactorContextAttributes.Idempotency.LAST_EVENT);
+        return requestId.equals(lastRequestId) && event.name().equals(String.valueOf(lastEvent));
+    }
+
+    private boolean lastEventAccepted(FactorContext persistedContext) {
+        if (persistedContext == null) {
+            return false;
+        }
+        Object accepted = persistedContext.getAttribute(FactorContextAttributes.Idempotency.LAST_EVENT_ACCEPTED);
+        return !(accepted instanceof Boolean) || (Boolean) accepted;
+    }
+
+    private void recordIdempotency(FactorContext context, String requestId, MfaEvent event,
+                                   boolean accepted, MfaState state) {
+        if (context == null || !hasText(requestId)) {
+            return;
+        }
+
+        context.setAttribute(FactorContextAttributes.Idempotency.LAST_REQUEST_ID, requestId);
+        context.setAttribute(FactorContextAttributes.Idempotency.LAST_EVENT, event.name());
+        context.setAttribute(FactorContextAttributes.Idempotency.LAST_EVENT_ACCEPTED, accepted);
+        context.setAttribute(FactorContextAttributes.Idempotency.LAST_EVENT_STATE,
+                state != null ? state.name() : null);
+        context.setAttribute(FactorContextAttributes.Idempotency.LAST_EVENT_VERSION, context.getVersion());
+    }
+
+    private MfaState currentStateOf(StateMachine<MfaState, MfaEvent> stateMachine, FactorContext fallbackContext) {
+        if (stateMachine != null && stateMachine.getState() != null && stateMachine.getState().getId() != null) {
+            return stateMachine.getState().getId();
+        }
+        return fallbackContext != null ? fallbackContext.getCurrentState() : FALLBACK_INITIAL_MFA_STATE;
+    }
+
+    private String resolveRequestId(MfaEvent event, FactorContext context, HttpServletRequest request,
+                                    Map<String, Object> additionalHeaders) {
+        if (additionalHeaders != null) {
+            Object headerValue = additionalHeaders.get("requestId");
+            if (headerValue == null) {
+                headerValue = additionalHeaders.get("request-id");
+            }
+            if (headerValue != null && hasText(headerValue.toString())) {
+                return headerValue.toString();
+            }
+        }
+
+        if (request != null) {
+            String requestId = firstText(request.getHeader(MFA_REQUEST_ID_HEADER), request.getHeader(REQUEST_ID_HEADER),
+                    request.getParameter(REQUEST_ID_PARAMETER), request.getParameter("mfaRequestId"));
+            if (hasText(requestId)) {
+                return requestId;
+            }
+        }
+
+        return null;
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
     private Message<MfaEvent> createEventMessage(MfaEvent event, FactorContext context,
                                                   HttpServletRequest request, Map<String, Object> additionalHeaders) {
         Map<String, Object> headers = new HashMap<>();
@@ -599,6 +739,66 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
 
         public MfaStateMachineException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    public static class MfaStateMachineBusyException extends MfaStateMachineException {
+        private final String sessionId;
+        private final MfaEvent event;
+        private final long retryAfterMs;
+
+        public MfaStateMachineBusyException(String sessionId, MfaEvent event, long retryAfterMs) {
+            super("MFA session is busy: " + sessionId);
+            this.sessionId = sessionId;
+            this.event = event;
+            this.retryAfterMs = retryAfterMs;
+        }
+
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public MfaEvent getEvent() {
+            return event;
+        }
+
+        public long getRetryAfterMs() {
+            return retryAfterMs;
+        }
+    }
+
+    public static class MfaStateMachineOptimisticLockException extends MfaStateMachineException {
+        private final String sessionId;
+        private final MfaEvent event;
+        private final int expectedVersion;
+        private final int actualVersion;
+
+        public MfaStateMachineOptimisticLockException(String sessionId, MfaEvent event,
+                                                      int expectedVersion, int actualVersion) {
+            super("Stale MFA FactorContext for session " + sessionId
+                    + " event " + event
+                    + " expectedVersion=" + expectedVersion
+                    + " actualVersion=" + actualVersion);
+            this.sessionId = sessionId;
+            this.event = event;
+            this.expectedVersion = expectedVersion;
+            this.actualVersion = actualVersion;
+        }
+
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public MfaEvent getEvent() {
+            return event;
+        }
+
+        public int getExpectedVersion() {
+            return expectedVersion;
+        }
+
+        public int getActualVersion() {
+            return actualVersion;
         }
     }
 }

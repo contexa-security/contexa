@@ -52,6 +52,8 @@ import org.springframework.context.ApplicationContext;
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
+    private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
     private final AuthContextProperties authContextProperties;
     private final AuthResponseWriter responseWriter;
     private final ApplicationContext applicationContext;
@@ -450,7 +452,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
             if (accepted) {
-                stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
+                return stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
             }
             return accepted;
         } catch (Exception e) {
@@ -478,6 +480,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleInvalidStateError(HttpServletRequest request, HttpServletResponse response,
                                          FactorContext context, String errorCode, String message) throws IOException {
+        if (stateMachineIntegrator.isBusyRetry(request)) {
+            writeBusyRetryResponse(request, response);
+            return;
+        }
+
         Map<String, Object> errorResponse = createErrorResponse(context, errorCode, message);
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                 errorCode, message, request.getRequestURI(), errorResponse);
@@ -516,6 +523,23 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         response.put("message", message);
         response.put("success", false);
         return response;
+    }
+
+    private void writeBusyRetryResponse(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        long retryAfterMs = stateMachineIntegrator.getBusyRetryAfterMs(request);
+        long retryAfterSeconds = Math.max(1L, (retryAfterMs + 999L) / 1_000L);
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("error", "MFA_BUSY_RETRY");
+        errorResponse.put("message", "MFA session is busy. Please retry shortly.");
+        errorResponse.put("retryAfterMs", retryAfterMs);
+        errorResponse.put("reason", stateMachineIntegrator.getBusyRetryReason(request));
+        errorResponse.put("success", false);
+
+        responseWriter.writeErrorResponse(response, HTTP_STATUS_TOO_MANY_REQUESTS,
+                "MFA_BUSY_RETRY", "MFA session is busy. Please retry shortly.",
+                request.getRequestURI(), errorResponse);
     }
 
     private String determineNextStepUrl(FactorContext context, HttpServletRequest request) {

@@ -139,4 +139,16 @@ public final class FactorContextAttributes {
             throw new AssertionError("Utility class cannot be instantiated");
         }
     }
+
+    public static final class Idempotency {
+        public static final String LAST_REQUEST_ID = "idempotency.lastRequestId";
+        public static final String LAST_EVENT = "idempotency.lastEvent";
+        public static final String LAST_EVENT_ACCEPTED = "idempotency.lastEventAccepted";
+        public static final String LAST_EVENT_STATE = "idempotency.lastEventState";
+        public static final String LAST_EVENT_VERSION = "idempotency.lastEventVersion";
+
+        private Idempotency() {
+            throw new AssertionError("Utility class cannot be instantiated");
+        }
+    }
 }

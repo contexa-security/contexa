@@ -42,6 +42,8 @@ import java.util.Objects;
 @Slf4j
 public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
+    private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
     private final ConfiguredFactorFilterProvider configuredFactorFilterProvider;
     private final RequestMatcher mfaFactorProcessingMatcher;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
@@ -144,6 +146,10 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             ensureMinimumDelay(startTime);
 
             if (!response.isCommitted()) {
+                if (stateMachineIntegrator.isBusyRetry(request)) {
+                    writeBusyRetryResponse(request, response);
+                    return;
+                }
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST,
                         "Invalid state for factor verification");
             }
@@ -192,5 +198,21 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private void writeBusyRetryResponse(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        long retryAfterMs = stateMachineIntegrator.getBusyRetryAfterMs(request);
+        long retryAfterSeconds = Math.max(1L, (retryAfterMs + 999L) / 1_000L);
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("error", "MFA_BUSY_RETRY");
+        errorResponse.put("message", "MFA session is busy. Please retry shortly.");
+        errorResponse.put("retryAfterMs", retryAfterMs);
+        errorResponse.put("reason", stateMachineIntegrator.getBusyRetryReason(request));
+
+        responseWriter.writeErrorResponse(response, HTTP_STATUS_TOO_MANY_REQUESTS,
+                "MFA_BUSY_RETRY", "MFA session is busy. Please retry shortly.",
+                request.getRequestURI(), errorResponse);
     }
 }

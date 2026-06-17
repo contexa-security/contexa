@@ -54,6 +54,8 @@ import org.springframework.util.StringUtils;
 
 public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
+    private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthResponseWriter responseWriter;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
@@ -127,6 +129,10 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
             if (!initialized) {
                 log.error("Failed to initialize MFA for session: {}", mfaSessionId);
+                if (stateMachineIntegrator.isBusyRetry(request)) {
+                    handleBusyRetry(response, request, factorContext);
+                    return;
+                }
                 handleConfigError(response, request, factorContext, "MFA initialization failed.");
                 return;
             }
@@ -164,6 +170,10 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         boolean nextEventSent = sendNextMfaEvent(decision, mfaSessionId, request);
         if (!nextEventSent) {
             log.error("Failed to send next MFA event for session: {}", mfaSessionId);
+            if (stateMachineIntegrator.isBusyRetry(request)) {
+                handleBusyRetry(response, request, factorContext);
+                return;
+            }
             handleConfigError(response, request, factorContext, "Failed to send MFA event.");
             return;
         }
@@ -357,6 +367,27 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     errorCode, message, request.getRequestURI());
         }
+    }
+
+    private void handleBusyRetry(HttpServletResponse response, HttpServletRequest request,
+                                 @Nullable FactorContext ctx) throws IOException {
+        long retryAfterMs = stateMachineIntegrator.getBusyRetryAfterMs(request);
+        long retryAfterSeconds = Math.max(1L, (retryAfterMs + 999L) / 1_000L);
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("status", "MFA_BUSY_RETRY");
+        errorDetails.put("message", "MFA session is busy. Please retry shortly.");
+        errorDetails.put("retryAfterMs", retryAfterMs);
+        errorDetails.put("reason", stateMachineIntegrator.getBusyRetryReason(request));
+        if (ctx != null) {
+            errorDetails.put("mfaSessionId", ctx.getMfaSessionId());
+            errorDetails.put("currentState", ctx.getCurrentState().name());
+        }
+
+        responseWriter.writeErrorResponse(response, HTTP_STATUS_TOO_MANY_REQUESTS,
+                "MFA_BUSY_RETRY", "MFA session is busy. Please retry shortly.",
+                request.getRequestURI(), errorDetails);
     }
 
     private boolean sendNextMfaEvent(MfaDecision decision, String mfaSessionId, HttpServletRequest request) {

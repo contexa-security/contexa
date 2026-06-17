@@ -53,7 +53,8 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
     @Override
     protected boolean tryAcquireLock(String sessionId, long waitTime, TimeUnit unit) throws InterruptedException {
         RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + sessionId);
-        return lock.tryLock(waitTime, LOCK_LEASE_TIME_SECONDS, unit);
+        long leaseTime = Math.max(1, unit.convert(lockLeaseTimeSeconds(), TimeUnit.SECONDS));
+        return lock.tryLock(waitTime, leaseTime, unit);
     }
 
     @Override

@@ -19,6 +19,8 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
+import io.contexa.contexaidentity.security.statemachine.core.service.AbstractMfaStateMachineService.MfaStateMachineBusyException;
+import io.contexa.contexaidentity.security.statemachine.core.service.AbstractMfaStateMachineService.MfaStateMachineOptimisticLockException;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -30,6 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class MfaStateMachineIntegrator {
+
+    public static final String MFA_BUSY_RETRY_ATTRIBUTE = "io.contexa.mfa.busyRetry";
+    public static final String MFA_BUSY_RETRY_AFTER_MS_ATTRIBUTE = "io.contexa.mfa.busyRetryAfterMs";
+    public static final String MFA_BUSY_RETRY_REASON_ATTRIBUTE = "io.contexa.mfa.busyRetryReason";
 
     private final MfaStateMachineService stateMachineService;
     private final MfaSessionRepository sessionRepository;
@@ -56,6 +62,10 @@ public class MfaStateMachineIntegrator {
             stateMachineService.initializeStateMachine(context, request);
             sessionRepository.storeSession(sessionId, request, response);
 
+        } catch (MfaStateMachineBusyException e) {
+            markBusyRetry(request, e.getRetryAfterMs(), "LOCK_BUSY");
+            log.warn("MFA State Machine initialization busy for session: {}", sessionId);
+            throw new StateMachineIntegrationException("MFA state machine is busy", e);
         } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for session: {}", sessionId, e);
             throw new StateMachineIntegrationException("State Machine initialization failed", e);
@@ -68,6 +78,7 @@ public class MfaStateMachineIntegrator {
 
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
+        clearBusyRetry(request);
 
         try {
             sessionRepository.refreshSession(sessionId);
@@ -79,10 +90,42 @@ public class MfaStateMachineIntegrator {
                 log.warn("Event {} rejected by State Machine for session: {} - Reason: {}", event, sessionId, rejectionReason);
             }
             return accepted;
+        } catch (MfaStateMachineBusyException e) {
+            markBusyRetry(request, e.getRetryAfterMs(), "LOCK_BUSY");
+            log.warn("MFA State Machine busy for event {} and session: {}", event, sessionId);
+            return false;
+        } catch (MfaStateMachineOptimisticLockException e) {
+            markBusyRetry(request, 1_000L, "STALE_FACTOR_CONTEXT");
+            log.warn("Stale MFA FactorContext for event {} and session: {} (expected={}, actual={})",
+                    event, sessionId, e.getExpectedVersion(), e.getActualVersion());
+            return false;
         } catch (Exception e) {
             log.error("Failed to send event {} to State Machine for session: {}", event, sessionId, e);
             return false;
         }
+    }
+
+    public boolean isBusyRetry(HttpServletRequest request) {
+        return request != null && Boolean.TRUE.equals(request.getAttribute(MFA_BUSY_RETRY_ATTRIBUTE));
+    }
+
+    public long getBusyRetryAfterMs(HttpServletRequest request) {
+        if (request == null) {
+            return 1_000L;
+        }
+        Object retryAfterMs = request.getAttribute(MFA_BUSY_RETRY_AFTER_MS_ATTRIBUTE);
+        if (retryAfterMs instanceof Number number) {
+            return Math.max(1L, number.longValue());
+        }
+        return 1_000L;
+    }
+
+    public String getBusyRetryReason(HttpServletRequest request) {
+        if (request == null) {
+            return "LOCK_BUSY";
+        }
+        Object reason = request.getAttribute(MFA_BUSY_RETRY_REASON_ATTRIBUTE);
+        return reason != null ? reason.toString() : "LOCK_BUSY";
     }
 
     public MfaState getCurrentState(String sessionId) {
@@ -143,6 +186,24 @@ public class MfaStateMachineIntegrator {
             sessionRepository.removeSession(mfaSessionId, request, response);
 
         }
+    }
+
+    private void markBusyRetry(HttpServletRequest request, long retryAfterMs, String reason) {
+        if (request == null) {
+            return;
+        }
+        request.setAttribute(MFA_BUSY_RETRY_ATTRIBUTE, true);
+        request.setAttribute(MFA_BUSY_RETRY_AFTER_MS_ATTRIBUTE, Math.max(1L, retryAfterMs));
+        request.setAttribute(MFA_BUSY_RETRY_REASON_ATTRIBUTE, reason);
+    }
+
+    private void clearBusyRetry(HttpServletRequest request) {
+        if (request == null) {
+            return;
+        }
+        request.removeAttribute(MFA_BUSY_RETRY_ATTRIBUTE);
+        request.removeAttribute(MFA_BUSY_RETRY_AFTER_MS_ATTRIBUTE);
+        request.removeAttribute(MFA_BUSY_RETRY_REASON_ATTRIBUTE);
     }
 
     private String analyzeEventRejectionReason(FactorContext context, MfaEvent event) {
