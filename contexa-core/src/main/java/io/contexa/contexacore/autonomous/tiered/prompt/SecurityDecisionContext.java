@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import lombok.Getter;
 import org.springframework.ai.document.Document;
 

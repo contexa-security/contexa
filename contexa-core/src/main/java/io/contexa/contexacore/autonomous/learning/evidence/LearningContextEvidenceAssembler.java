@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.learning.evidence;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import java.util.ArrayList;
 import java.util.Arrays;

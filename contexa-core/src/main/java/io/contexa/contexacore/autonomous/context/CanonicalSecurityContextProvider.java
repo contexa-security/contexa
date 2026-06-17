@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 
 import java.util.Optional;
 

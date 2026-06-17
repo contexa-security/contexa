@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.event.support;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 
 import java.time.LocalDateTime;

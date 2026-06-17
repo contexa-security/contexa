@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

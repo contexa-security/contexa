@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.telemetry;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 
 public final class SecurityEventTelemetryContext {
 

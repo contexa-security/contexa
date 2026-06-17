@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.client.SaasThreatIntelligenceHttpClient;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;

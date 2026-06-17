@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.service.impl;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;

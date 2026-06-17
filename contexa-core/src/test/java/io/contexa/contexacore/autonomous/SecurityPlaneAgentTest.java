@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;

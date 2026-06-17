@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Test;

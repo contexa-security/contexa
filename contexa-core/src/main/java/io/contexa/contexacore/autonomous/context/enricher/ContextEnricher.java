@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.enricher;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 
 /**

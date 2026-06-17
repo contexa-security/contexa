@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.threat;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.springframework.util.StringUtils;
 

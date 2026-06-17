@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.service.impl;
 
 import io.contexa.contexacore.autonomous.service.ISoarContextProvider;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;

@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.AdminOverride;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 
 public interface DecisionFeedbackForwardingService {
 

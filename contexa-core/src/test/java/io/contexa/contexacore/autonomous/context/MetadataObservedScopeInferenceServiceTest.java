@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.context;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

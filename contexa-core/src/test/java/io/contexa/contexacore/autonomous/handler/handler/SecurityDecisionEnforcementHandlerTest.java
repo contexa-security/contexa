@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.handler.handler;
 
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;

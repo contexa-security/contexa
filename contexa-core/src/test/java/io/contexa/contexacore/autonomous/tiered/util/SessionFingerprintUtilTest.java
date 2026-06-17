@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.util;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

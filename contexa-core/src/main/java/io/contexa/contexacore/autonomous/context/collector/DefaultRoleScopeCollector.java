@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 

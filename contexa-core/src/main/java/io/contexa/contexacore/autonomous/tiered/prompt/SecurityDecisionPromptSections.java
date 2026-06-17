@@ -30,7 +30,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceR
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.context.snapshot.CurrentRequestSnapshot;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentVsObservedDeltaSnapshot;

@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.util;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URLDecoder;

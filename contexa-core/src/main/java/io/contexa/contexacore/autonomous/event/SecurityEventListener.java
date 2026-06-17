@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.event;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

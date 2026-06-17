@@ -18,7 +18,7 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;

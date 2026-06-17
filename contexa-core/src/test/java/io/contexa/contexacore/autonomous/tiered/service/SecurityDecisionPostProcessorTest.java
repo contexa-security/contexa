@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;

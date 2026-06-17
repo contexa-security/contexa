@@ -18,7 +18,7 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;

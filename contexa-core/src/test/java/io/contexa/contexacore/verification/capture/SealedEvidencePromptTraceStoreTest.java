@@ -1,6 +1,6 @@
 package io.contexa.contexacore.verification.capture;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import org.springframework.ai.document.Document;

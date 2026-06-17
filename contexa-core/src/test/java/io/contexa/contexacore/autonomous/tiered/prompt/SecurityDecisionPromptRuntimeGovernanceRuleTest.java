@@ -23,7 +23,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceR
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;

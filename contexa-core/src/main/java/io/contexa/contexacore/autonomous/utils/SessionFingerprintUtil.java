@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.nio.charset.StandardCharsets;

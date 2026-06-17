@@ -19,6 +19,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+
+import io.contexa.contexacommon.domain.SecurityEvent;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

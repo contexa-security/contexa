@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.event.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;

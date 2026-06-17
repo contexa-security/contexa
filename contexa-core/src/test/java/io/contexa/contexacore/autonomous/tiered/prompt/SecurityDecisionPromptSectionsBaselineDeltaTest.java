@@ -22,7 +22,7 @@ import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEviden
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.learning.evidence.ObservedPatternSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.RetrievedBehaviorEvidence;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.junit.jupiter.api.DisplayName;

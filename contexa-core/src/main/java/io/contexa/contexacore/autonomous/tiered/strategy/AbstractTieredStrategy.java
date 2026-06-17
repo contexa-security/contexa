@@ -20,7 +20,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;

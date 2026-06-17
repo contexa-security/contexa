@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.properties.HcadProperties;

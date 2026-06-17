@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.saas;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.AdminOverride;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.DecisionFeedbackPayload;
 import io.contexa.contexacore.autonomous.saas.mapper.DecisionFeedbackPayloadMapper;
 import io.contexa.contexacore.domain.entity.DecisionFeedbackForwardingOutboxRecord;

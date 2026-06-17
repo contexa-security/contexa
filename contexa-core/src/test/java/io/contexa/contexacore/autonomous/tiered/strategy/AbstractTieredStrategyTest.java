@@ -21,7 +21,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;

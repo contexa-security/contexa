@@ -23,7 +23,7 @@ import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnaps
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.DetectionStrategyPackSnapshot;

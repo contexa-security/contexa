@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.inference;
 
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
 import org.springframework.util.StringUtils;
 

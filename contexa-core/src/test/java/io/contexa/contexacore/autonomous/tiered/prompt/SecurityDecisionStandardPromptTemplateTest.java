@@ -22,7 +22,7 @@ import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnaps
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;

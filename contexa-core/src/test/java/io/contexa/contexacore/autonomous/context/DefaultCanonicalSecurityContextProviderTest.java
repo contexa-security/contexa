@@ -36,7 +36,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
-import io.contexa.contexacore.SecurityEvent;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.LocalDateTime;
 import java.util.List;
