@@ -91,19 +91,13 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             requestUri = requestUri.substring(contextPath.length());
         }
 
-        if (authUrlProvider.getMfaPageUrls().contains(requestUri)) {
+        if (authUrlProvider != null && matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())) {
             return true;
         }
 
         if (mfaFlowUrlRegistry != null) {
-            Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
-            if (allFlowUrls.contains(requestUri)) {
+            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())) {
                 return true;
-            }
-            for (String mfaUrl : allFlowUrls) {
-                if (!"/".equals(mfaUrl) && requestUri.startsWith(mfaUrl)) {
-                    return true;
-                }
             }
         }
 
@@ -131,6 +125,18 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
+        return false;
+    }
+
+    private boolean matchesAnyMfaUrl(String requestUri, Set<String> mfaUrls) {
+        for (String mfaUrl : mfaUrls) {
+            if (!StringUtils.hasText(mfaUrl) || "/".equals(mfaUrl)) {
+                continue;
+            }
+            if (requestUri.equals(mfaUrl) || requestUri.startsWith(mfaUrl + "/")) {
+                return true;
+            }
+        }
         return false;
     }
 

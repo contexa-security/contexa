@@ -31,6 +31,7 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.jdbc.support.JdbcTransactionManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
 import org.springframework.security.authentication.ott.InvalidOneTimeTokenException;
 import org.springframework.security.authentication.ott.OneTimeToken;
@@ -148,6 +149,45 @@ class EmailOneTimeTokenServiceTest {
                 anyString(),
                 contains(token.getTokenValue())
         );
+    }
+
+    @Test
+    @DisplayName("generate should allow requested email only when it matches the registered user email")
+    void generateTokenAllowsMatchingRequestedEmail() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        jdbcTemplate.update("INSERT INTO users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
+
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+
+        OneTimeToken token = service.generate(new EmailGenerateOneTimeTokenRequest("testuser", "USER@CONTEXA.IO"));
+
+        assertThat(token).isNotNull();
+        verify(emailService).sendHtmlMessage(
+                eq("user@contexa.io"),
+                anyString(),
+                contains(token.getTokenValue())
+        );
+    }
+
+    @Test
+    @DisplayName("generate should reject requested email that differs from the registered user email")
+    void generateTokenRejectsMismatchedRequestedEmail() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        jdbcTemplate.update("INSERT INTO users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
+
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+
+        assertThatThrownBy(() -> service.generate(new EmailGenerateOneTimeTokenRequest("testuser", "attacker@example.com")))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("Invalid one-time token delivery request");
+
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM one_time_tokens", Integer.class);
+        assertThat(count).isZero();
+        verify(emailService, never()).sendHtmlMessage(anyString(), anyString(), anyString());
     }
 
     @Test

@@ -175,17 +175,28 @@ public class Users {
     @Transient
     @JsonIgnore
     public List<String> getRoleNames() {
-        if (userGroups == null || userGroups.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return this.userGroups.stream()
+        Set<String> roleNames = new LinkedHashSet<>();
+
+        Optional.ofNullable(userRoles)
+                .orElse(Collections.emptySet()).stream()
+                .map(UserRole::getRole)
+                .filter(Objects::nonNull)
+                .map(Role::getRoleName)
+                .filter(Objects::nonNull)
+                .forEach(roleNames::add);
+
+        Optional.ofNullable(userGroups)
+                .orElse(Collections.emptySet()).stream()
                 .map(UserGroup::getGroup)
                 .filter(Objects::nonNull)
                 .flatMap(group -> group.getGroupRoles().stream())
                 .map(GroupRole::getRole)
                 .filter(Objects::nonNull)
                 .map(Role::getRoleName)
-                .distinct()
+                .filter(Objects::nonNull)
+                .forEach(roleNames::add);
+
+        return roleNames.stream()
                 .sorted()
                 .collect(Collectors.toList());
     }
@@ -193,10 +204,21 @@ public class Users {
     @Transient
     @JsonIgnore
     public List<String> getPermissionNames() {
-        if (userGroups == null || userGroups.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return this.userGroups.stream()
+        Set<String> permissionNames = new LinkedHashSet<>();
+
+        Optional.ofNullable(userRoles)
+                .orElse(Collections.emptySet()).stream()
+                .map(UserRole::getRole)
+                .filter(Objects::nonNull)
+                .flatMap(role -> role.getRolePermissions().stream())
+                .map(RolePermission::getPermission)
+                .filter(Objects::nonNull)
+                .map(Permission::getName)
+                .filter(Objects::nonNull)
+                .forEach(permissionNames::add);
+
+        Optional.ofNullable(userGroups)
+                .orElse(Collections.emptySet()).stream()
                 .map(UserGroup::getGroup)
                 .filter(Objects::nonNull)
                 .flatMap(group -> group.getGroupRoles().stream())
@@ -206,7 +228,10 @@ public class Users {
                 .map(RolePermission::getPermission)
                 .filter(Objects::nonNull)
                 .map(Permission::getName)
-                .distinct()
+                .filter(Objects::nonNull)
+                .forEach(permissionNames::add);
+
+        return permissionNames.stream()
                 .sorted()
                 .collect(Collectors.toList());
     }

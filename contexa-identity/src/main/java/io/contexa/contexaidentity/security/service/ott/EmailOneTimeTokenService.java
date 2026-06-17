@@ -17,8 +17,8 @@ package io.contexa.contexaidentity.security.service.ott;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.ott.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
@@ -66,6 +66,8 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         Assert.hasText(username, "Username cannot be empty");
         Assert.hasText(emailPurpose, "Email purpose cannot be empty");
 
+        String to = resolveRecipientEmail(username, customEmail);
+
         GenerateOneTimeTokenRequest internalTokenRequest = new GenerateOneTimeTokenRequest(username);
         AtomicReference<OneTimeToken> internalOneTimeToken = new AtomicReference<>();
         transactionTemplate.executeWithoutResult(status -> {
@@ -83,19 +85,6 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                         "<p>Thank you.</p>",
                 username, emailPurpose, internalOneTimeToken.get().getTokenValue(), tokenValidityMinutes
         );
-
-        String to = customEmail;
-        if (to == null || to.isBlank()) {
-            try {
-                to = jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
-            } catch (Exception e) {
-                log.warn("Failed to find user email for username: {}", username, e);
-            }
-        }
-
-        if (to == null || to.isBlank()) {
-            to = username;
-        }
 
         if (!emailService.isMailSenderConfigured()) {
             IllegalStateException failure = new IllegalStateException(
@@ -119,6 +108,34 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         }
 
         return internalOneTimeToken.get();
+    }
+
+    private String resolveRecipientEmail(String username, String requestedEmail) {
+        String registeredEmail = lookupRegisteredEmail(username);
+        if (requestedEmail != null && !requestedEmail.isBlank()) {
+            String normalizedRequestedEmail = requestedEmail.trim();
+            if (registeredEmail == null || registeredEmail.isBlank()
+                    || !registeredEmail.trim().equalsIgnoreCase(normalizedRequestedEmail)) {
+                log.warn("Rejected OTT email override for username: {}", username);
+                throw new BadCredentialsException("Invalid one-time token delivery request");
+            }
+            return registeredEmail.trim();
+        }
+
+        if (registeredEmail != null && !registeredEmail.isBlank()) {
+            return registeredEmail.trim();
+        }
+
+        return username;
+    }
+
+    private String lookupRegisteredEmail(String username) {
+        try {
+            return jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
+        } catch (Exception e) {
+            log.warn("Failed to find user email for username: {}", username, e);
+            return null;
+        }
     }
 
     @Override

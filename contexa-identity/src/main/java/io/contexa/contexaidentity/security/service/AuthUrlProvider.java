@@ -394,6 +394,17 @@ public class AuthUrlProvider {
         );
     }
 
+    public Set<String> getAllMfaRelatedUrls() {
+        Set<String> urls = new LinkedHashSet<>(getMfaPageUrls());
+        urls.addAll(getAllMfaRequestUrls());
+        urls.addAll(getAllFactorProcessingUrls());
+        urls.add(getMfaCancel());
+        urls.add(getMfaStatus());
+        urls.add(getMfaRequestOttCode());
+        urls.add(getMfaConfig());
+        return urls;
+    }
+
     public Map<String, Object> getAllUiPageUrls() {
         Map<String, Object> urls = new LinkedHashMap<>();
 

@@ -60,7 +60,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         Optional<Users> userOptional = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
         if (userOptional.isEmpty()) {
             log.error("User not found for MFA evaluation: {}", username);
-            return MfaDecision.noMfaRequired();
+            return MfaDecision.blocked("MFA policy could not verify user");
         }
         Users user = userOptional.get();
         boolean mfaRequired = evaluateMfaRequirement(user, context);
@@ -72,7 +72,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
         if (CollectionUtils.isEmpty(availableFactors)) {
             log.error("MFA required but no factors defined in DSL for user: {}", username);
-            return MfaDecision.noMfaRequired();
+            return MfaDecision.blocked("MFA is required but no factors are configured");
         }
 
         int requiredFactorCount = determineFactorCount(user, context);

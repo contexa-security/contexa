@@ -102,4 +102,12 @@ public class MfaFlowUrlRegistry {
         }
         return allUrls;
     }
+
+    public Set<String> getAllMfaRelatedUrls() {
+        Set<String> allUrls = new HashSet<>();
+        for (AuthUrlProvider provider : flowProviders.values()) {
+            allUrls.addAll(provider.getAllMfaRelatedUrls());
+        }
+        return allUrls;
+    }
 }

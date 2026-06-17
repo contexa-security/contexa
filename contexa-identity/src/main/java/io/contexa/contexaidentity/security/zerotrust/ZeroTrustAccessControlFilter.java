@@ -191,19 +191,25 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return true;
         }
         if (mfaFlowUrlRegistry != null) {
-            Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
-            for (String mfaUrl : allFlowUrls) {
-                if (!"/".equals(mfaUrl) && requestUri.startsWith(mfaUrl)) {
-                    return true;
-                }
+            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())) {
+                return true;
             }
         }
         if (authUrlProvider != null) {
-            Set<String> mfaPageUrls = authUrlProvider.getMfaPageUrls();
-            for (String mfaUrl : mfaPageUrls) {
-                if (!"/".equals(mfaUrl) && requestUri.startsWith(mfaUrl)) {
-                    return true;
-                }
+            if (matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesAnyMfaUrl(String requestUri, Set<String> mfaUrls) {
+        for (String mfaUrl : mfaUrls) {
+            if (!StringUtils.hasText(mfaUrl) || "/".equals(mfaUrl)) {
+                continue;
+            }
+            if (requestUri.equals(mfaUrl) || requestUri.startsWith(mfaUrl + "/")) {
+                return true;
             }
         }
         return false;

@@ -92,7 +92,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
         if (userRepository == null) {
             log.error("UserRepository is not available for Zero Trust CHALLENGE");
-            return MfaDecision.challenged("Zero Trust CHALLENGE - no user repository");
+            return MfaDecision.blocked("Zero Trust CHALLENGE cannot verify user repository");
         }
 
         log.error("[ZeroTrustPolicyEvaluator] findByUsernameWithGroupsRolesAndPermissions username={}", context.getUsername());
@@ -101,7 +101,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
         if (userOptional.isEmpty()) {
             log.error("User not found for Zero Trust CHALLENGE: {}", context.getUsername());
-            return MfaDecision.challenged("Zero Trust CHALLENGE - user not found");
+            return MfaDecision.blocked("Zero Trust CHALLENGE cannot verify user");
         }
 
         Users user = userOptional.get();
@@ -109,7 +109,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
         if (CollectionUtils.isEmpty(availableFactors)) {
             log.error("No available factors for Zero Trust CHALLENGE: {}", context.getUsername());
-            return MfaDecision.challenged("Zero Trust CHALLENGE - no factors configured");
+            return MfaDecision.blocked("Zero Trust CHALLENGE cannot proceed because no MFA factors are configured");
         }
 
         int factorCount = determineFactorCount(user, context);
@@ -202,28 +202,28 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
     private ZeroTrustAnalysisData getZeroTrustAnalysis(FactorContext context) {
         String userId = context.getUsername();
         if (userId == null || userId.isBlank()) {
-            return ZeroTrustAnalysisData.pending();
+            return challengeAnalysis("Zero Trust analysis unavailable - missing user id");
         }
 
         if (actionRedisRepository == null) {
             log.error("ZeroTrustActionRepository is not available for Zero Trust action lookup");
-            return ZeroTrustAnalysisData.pending();
+            return challengeAnalysis("Zero Trust analysis unavailable - repository missing");
         }
 
         try {
             ZeroTrustAnalysisData data = actionRedisRepository.getAnalysisData(userId);
             if (data.action() == null) {
-                return ZeroTrustAnalysisData.pending();
+                return challengeAnalysis(data, "Zero Trust analysis unavailable - action missing");
             }
 
             if (isStaleAnalysis(data.updatedAt())) {
-                return ZeroTrustAnalysisData.pending();
+                return challengeAnalysis(data, "Zero Trust analysis stale or timestamp invalid");
             }
 
             return data;
         } catch (Exception e) {
             log.error("Failed to get Zero Trust analysis for user: {}", userId, e);
-            return ZeroTrustAnalysisData.pending();
+            return challengeAnalysis("Zero Trust analysis unavailable - lookup failed");
         }
     }
 
@@ -242,18 +242,44 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
     private boolean isStaleAnalysis(String updatedAt) {
         if (updatedAt == null || updatedAt.isBlank()) {
-            return false;
+            return true;
         }
 
         try {
             long maxAgeMs = hcadProperties != null
+                    && hcadProperties.getAnalysis() != null
                     ? hcadProperties.getAnalysis().getMaxAgeMs() : 3600000L;
             Instant updatedInstant = Instant.parse(updatedAt);
             return Instant.now().toEpochMilli() - updatedInstant.toEpochMilli() > maxAgeMs;
         } catch (Exception e) {
             log.error("Failed to parse updatedAt timestamp: {}", updatedAt, e);
-            return false;
+            return true;
         }
+    }
+
+    private ZeroTrustAnalysisData challengeAnalysis(String reason) {
+        return challengeAnalysis(null, reason);
+    }
+
+    private ZeroTrustAnalysisData challengeAnalysis(ZeroTrustAnalysisData source, String reason) {
+        String threatEvidence = reason;
+        if (source != null && source.threatEvidence() != null && !source.threatEvidence().isBlank()) {
+            threatEvidence = source.threatEvidence() + "; " + reason;
+        }
+
+        return new ZeroTrustAnalysisData(
+                ZeroTrustAction.CHALLENGE.name(),
+                source != null ? source.riskScore() : null,
+                source != null ? source.confidence() : null,
+                threatEvidence,
+                source != null ? source.analysisDepth() : null,
+                Instant.now().toString(),
+                source != null ? source.reasoning() : reason,
+                source != null ? source.reasoningSummary() : reason,
+                source != null ? source.requestId() : null,
+                source != null ? source.contextBindingHash() : null,
+                source != null ? source.llmProposedAction() : null
+        );
     }
 
     private Map<String, Object> buildAuditMetadata(String action, ZeroTrustAnalysisData analysis) {
