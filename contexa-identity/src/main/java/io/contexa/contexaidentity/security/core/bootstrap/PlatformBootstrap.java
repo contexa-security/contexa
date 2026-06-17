@@ -47,6 +47,7 @@ public class PlatformBootstrap implements InitializingBean {
         platform.initialize();
 
         try {
+            dslValidator.validate(config);
         } catch (DslConfigurationException e) {
             log.error("Server startup aborted due to DSL validation failure.", e);
             throw e;

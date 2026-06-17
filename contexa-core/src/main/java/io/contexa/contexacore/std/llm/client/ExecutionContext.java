@@ -164,6 +164,9 @@ public class ExecutionContext {
         if (analysisLevel != null) {
             return analysisLevel.getDefaultTier();
         }
+        if (securityTaskType != null) {
+            return securityTaskType.getDefaultTier();
+        }
         return tier;
     }
 }
