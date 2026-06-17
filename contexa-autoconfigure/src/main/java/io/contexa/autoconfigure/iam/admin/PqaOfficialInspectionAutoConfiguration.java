@@ -65,9 +65,10 @@ import java.util.List;
 import java.util.Optional;
 
 @AutoConfiguration
-@AutoConfigureAfter(IamAdminCenterAutoConfiguration.class)
+@AutoConfigureAfter(
+        value = IamAdminCenterAutoConfiguration.class,
+        name = "io.contexa.autoconfigure.enterprise.iam.IamEnterpriseAutoConfiguration")
 @ConditionalOnClass(OfficialSealedEvidenceVerificationRuntime.class)
-@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
 public class PqaOfficialInspectionAutoConfiguration {
 
     @Bean(name = "pqaOfficialVerificationMetricCatalog")

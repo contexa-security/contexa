@@ -642,9 +642,10 @@ async function runVerification(pageRoot, item) {
                     t('enterprise.pqa.verification.run.ledgerMissingAfterRun.detail'));
             return;
         }
+        const officialPassed = officialVerificationPassedForDisplay(displayRun, ledger);
         setStatus(pageRoot,
-                displayRun.certificateIssued ? 'success' : 'error',
-                displayRun.certificateIssued ? t('enterprise.pqa.verification.run.passed') : t('enterprise.pqa.verification.run.blocked'),
+                officialPassed ? 'success' : 'error',
+                officialPassed ? t('enterprise.pqa.verification.run.passed') : t('enterprise.pqa.verification.run.blocked'),
                 runResultOneLine(displayRun));
     }
     catch (error) {
@@ -1138,7 +1139,13 @@ function renderRunSummary(pageRoot, run) {
     const inputReviewMetrics = Number(totals.inputReviewMetrics || 0);
     const notApplicableMetrics = Number(totals.notApplicableMetrics || 0);
     const passed = Math.max(total - blockedMetrics - gateMetrics - inputReviewMetrics - notApplicableMetrics, 0);
-    const resultTone = run.certificateIssued
+    const officialPassed = officialVerificationPassedForDisplay(run, {
+        totalMetricCount: total,
+        passedMetricCount: passed,
+        failedMetricCount: blockedMetrics,
+        actualProblems
+    });
+    const resultTone = officialPassed || run.certificateIssued
             ? 'ready'
             : actualProblems > 0 || blockedMetrics > 0
                     ? 'blocked'
@@ -1146,8 +1153,10 @@ function renderRunSummary(pageRoot, run) {
                             ? 'warning'
                             : 'ready';
     const resultTitle = firstCleanText(
-            run?.certificateStateLabel,
+            run?.officialStateLabel,
+            officialDecisionLabel(run?.officialFinalDecision || run?.finalDecision || run?.state),
             run?.stateLabel,
+            run?.certificateStateLabel,
             run?.certificateState,
             run?.state,
             run?.certificateSummary,
@@ -2022,8 +2031,21 @@ function runFromOfficialLedger(pageRoot, detail, fallbackRun = {}) {
     const passedCount = totalCount > 0
             ? (rawPassedCount || Math.max(totalCount - failedCount - gateCount, 0))
             : rawPassedCount;
+    const finalDecision = firstCleanText(detail?.officialFinalDecision, detail?.finalDecision, fallbackRun.officialFinalDecision, fallbackRun.finalDecision);
+    const officialPassed = officialVerificationPassedForDisplay(detail, {
+        totalMetricCount: totalCount,
+        passedMetricCount: passedCount,
+        failedMetricCount: failedCount,
+        actualProblems: promptTotals.actualProblems,
+        blockedMetrics: promptTotals.blockedMetrics
+    });
+    const officialStateLabel = firstCleanText(
+            detail?.officialStateLabel,
+            officialDecisionLabel(finalDecision),
+            officialPassed ? '공식검사 통과' : '');
     const serverNextActions = ensureArray(detail?.nextActions).map(rawText).filter(Boolean);
     const certificateSummary = firstCleanText(
+            officialPassed ? '12개 공식검사 기준을 충족했습니다.' : '',
             detail?.certificateSummary,
             fallbackRun.certificateSummary,
             fallbackRun.plainSummary,
@@ -2040,6 +2062,12 @@ function runFromOfficialLedger(pageRoot, detail, fallbackRun = {}) {
         certificateState: rawText(detail?.certificateState) || rawText(fallbackRun.certificateState),
         certificateStateLabel: rawText(detail?.certificateStateLabel) || rawText(fallbackRun.certificateStateLabel),
         certificateIssued: Boolean(detail?.certificateIssued || fallbackRun.certificateIssued),
+        finalDecision,
+        officialFinalDecision: finalDecision,
+        officialStateLabel,
+        officialVerificationPassed: officialPassed,
+        state: finalDecision || rawText(fallbackRun.state),
+        stateLabel: officialStateLabel || rawText(fallbackRun.stateLabel),
         sealed: detail?.sealed ?? summary.sealed ?? fallbackRun.sealed,
         integrityValid: detail?.integrityValid ?? summary.integrityValid ?? fallbackRun.integrityValid,
         certificateSummary,
@@ -2142,7 +2170,17 @@ function renderOfficialLedgerSummary(target, detail) {
 function officialVerdict(detail, totalCount, passedCount, failedCount, promptTotals = {}) {
     const gateMetrics = Number(promptTotals.gateMetrics || 0);
     const inputReviewMetrics = Number(promptTotals.inputReviewMetrics || 0);
+    const officialPassed = officialVerificationPassedForDisplay(detail, {
+        totalMetricCount: totalCount,
+        passedMetricCount: passedCount,
+        failedMetricCount: failedCount,
+        actualProblems: promptTotals.actualProblems,
+        blockedMetrics: promptTotals.blockedMetrics
+    });
     const title = firstCleanText(
+            detail?.officialStateLabel,
+            officialDecisionLabel(detail?.officialFinalDecision || detail?.finalDecision),
+            detail?.stateLabel,
             detail?.certificateStateLabel,
             detail?.certificateState,
             detail?.certificateSummary,
@@ -2152,7 +2190,7 @@ function officialVerdict(detail, totalCount, passedCount, failedCount, promptTot
             detail?.certificateSummary,
             ...ensureArray(detail?.nextActions),
             ...ensureArray(detail?.blockingFindings));
-    if (detail?.certificateIssued || (totalCount > 0 && passedCount === totalCount && !gateMetrics && !inputReviewMetrics && !failedCount)) {
+    if (officialPassed || detail?.certificateIssued || (totalCount > 0 && passedCount === totalCount && !gateMetrics && !inputReviewMetrics && !failedCount)) {
         return {
             tone: 'ready',
             badge: title || '-',
@@ -5781,6 +5819,42 @@ function passState(state) {
     const normalized = upperText(state);
     return ['SUCCESS', 'PASS', 'PASSED', 'VERIFIED', 'COMPLETED'].includes(normalized)
             || normalized.includes('THRESHOLD PASSED');
+}
+
+function officialVerificationPassedForDisplay(source = {}, counts = {}) {
+    if (source?.officialVerificationPassed === true) {
+        return true;
+    }
+    const decision = upperText(source?.officialFinalDecision || source?.finalDecision || source?.state);
+    if (['CERTIFIABLE', 'CERTIFICATE_ISSUED', 'ISSUABLE', 'ISSUED'].includes(decision)) {
+        return true;
+    }
+    const total = Number(source?.totalMetricCount ?? source?.totalRunCount ?? counts?.totalMetricCount ?? counts?.totalRunCount ?? 0);
+    const passed = Number(source?.passedMetricCount ?? source?.passedRunCount ?? counts?.passedMetricCount ?? counts?.passedRunCount ?? 0);
+    const failed = Number(source?.failedMetricCount ?? source?.failedRunCount ?? counts?.failedMetricCount ?? counts?.failedRunCount ?? 0);
+    const actualProblems = Number(counts?.actualProblems ?? source?.summaryCounts?.actualProblems ?? 0);
+    const blockedMetrics = Number(counts?.blockedMetrics ?? source?.summaryCounts?.blockedMetrics ?? 0);
+    return total >= 12
+            && passed >= total
+            && failed === 0
+            && actualProblems === 0
+            && blockedMetrics === 0;
+}
+
+function officialDecisionLabel(decision) {
+    switch (upperText(decision)) {
+        case 'CERTIFIABLE':
+        case 'CERTIFICATE_ISSUED':
+        case 'ISSUABLE':
+        case 'ISSUED':
+            return '공식검사 통과';
+        case 'BLOCKED':
+            return '공식검사 차단';
+        case 'REVIEW_REQUIRED':
+            return '검토 필요';
+        default:
+            return '';
+    }
 }
 
 function displayValue(value) {

@@ -315,11 +315,21 @@ public record RuntimeEvidenceVerificationRun(
 
     @JsonProperty("state")
     public String state() {
-        return certificateState;
+        return officialVerificationPassed() ? "CERTIFIABLE" : certificateState;
     }
 
     @JsonProperty("stateLabel")
     public String stateLabel() {
-        return certificateStateLabel;
+        return officialVerificationPassed() ? "공식검사 통과" : certificateStateLabel;
+    }
+
+    @JsonProperty("officialFinalDecision")
+    public String officialFinalDecision() {
+        return officialVerificationPassed() ? "CERTIFIABLE" : "BLOCKED";
+    }
+
+    @JsonProperty("officialVerificationPassed")
+    public boolean officialVerificationPassed() {
+        return totalMetricCount >= 12 && passedMetricCount >= totalMetricCount && failedMetricCount == 0;
     }
 }

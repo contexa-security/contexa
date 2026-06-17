@@ -1520,10 +1520,30 @@ public class DefaultPromptQualityRuntimeVerificationService
             List<? extends OfficialVerificationRunView> runViews) {
         List<OfficialVerificationPromptComparison> finalPromptMetricComparisons =
                 finalPromptMetricComparisons(runViews);
-        if (!finalPromptMetricComparisons.isEmpty()) {
-            return finalPromptMetricComparisons;
+        List<OfficialVerificationPromptComparison> manifestComparisons =
+                promptEvidenceManifestComparisons(pkg);
+        if (finalPromptMetricComparisons.isEmpty() && manifestComparisons.isEmpty()) {
+            return List.of();
         }
-        return List.of();
+        Map<String, OfficialVerificationPromptComparison> comparisons = new LinkedHashMap<>();
+        for (OfficialVerificationPromptComparison comparison : manifestComparisons) {
+            if (comparison == null || !StringUtils.hasText(comparison.fieldKey())) {
+                continue;
+            }
+            comparisons.put(
+                    promptComparisonDedupeKey(comparison.fieldKey(), comparison.state()),
+                    comparison);
+        }
+        for (OfficialVerificationPromptComparison comparison : finalPromptMetricComparisons) {
+            if (comparison == null || !StringUtils.hasText(comparison.fieldKey())) {
+                continue;
+            }
+            comparisons.merge(
+                    promptComparisonDedupeKey(comparison.fieldKey(), comparison.state()),
+                    comparison,
+                    this::mergePromptMetricComparison);
+        }
+        return List.copyOf(comparisons.values());
     }
 
     private List<OfficialVerificationPromptComparison> finalPromptMetricComparisons(

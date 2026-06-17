@@ -24,9 +24,9 @@ spring:
   data:
     redis:
       host: ${CONTEXA_REDIS_HOST:localhost}
-      port: ${CONTEXA_REDIS_PORT:6379}
+      port: ${CONTEXA_REDIS_PORT:26379}
   kafka:
-    bootstrap-servers: ${CONTEXA_KAFKA_SERVERS:localhost:9092}
+    bootstrap-servers: ${CONTEXA_KAFKA_SERVERS:localhost:29092}
 contexa:
   llm:
     selection:
@@ -35,18 +35,18 @@ contexa:
         priority: ollama,openai,anthropic
     chat:
       ollama:
-        baseUrl: ${CONTEXA_CHAT_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+        base-url: ${CONTEXA_CHAT_OLLAMA_BASE_URL:http://127.0.0.1:31434}
         model: ${CONTEXA_CHAT_OLLAMA_MODEL:qwen2.5:7b}
-        keepAlive: ${CONTEXA_OLLAMA_CHAT_KEEP_ALIVE:30m}
+        keep-alive: ${CONTEXA_OLLAMA_CHAT_KEEP_ALIVE:30m}
     embedding:
       ollama:
-        dedicatedRuntimeEnabled: false
+        dedicated-runtime-enabled: false
         model: ${CONTEXA_EMBEDDING_OLLAMA_MODEL:mxbai-embed-large}
         dimensions: ${CONTEXA_EMBEDDING_OLLAMA_DIMENSIONS:1024}
   datasource:
-    url: ${CONTEXA_DB_URL:${DB_URL:jdbc:postgresql://localhost:5432/contexa}}
-    username: ${CONTEXA_DB_USERNAME:${DB_USERNAME:contexa}}
-    password: ${CONTEXA_DB_PASSWORD:${DB_PASSWORD:contexa1234!@#}}
+    url: ${CONTEXA_DB_URL:${DB_URL:jdbc:postgresql://localhost:25432/contexa_sim}}
+    username: ${CONTEXA_DB_USERNAME:${DB_USERNAME:contexa_sim}}
+    password: ${CONTEXA_DB_PASSWORD:${DB_PASSWORD:contexa_sim_pw}}
     driver-class-name: ${CONTEXA_DB_DRIVER:org.postgresql.Driver}
     isolation:
       contexa-owned-application: true

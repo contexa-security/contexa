@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.official.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessEventSnapshot;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessHistorySnapshot;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessStepSnapshot;
@@ -151,5 +152,49 @@ public record OfficialRunPackageDetail(
         processHistory = processHistory == null ? List.of() : List.copyOf(processHistory);
         processEvents = processEvents == null ? List.of() : List.copyOf(processEvents);
         auditSnapshots = auditSnapshots == null ? List.of() : List.copyOf(auditSnapshots);
+    }
+
+    @JsonProperty("finalDecision")
+    public String finalDecision() {
+        if (officialVerificationPassed()) {
+            return "CERTIFIABLE";
+        }
+        if (failedRunCount > 0 || totalRunCount < 12) {
+            return "BLOCKED";
+        }
+        return "REVIEW_REQUIRED";
+    }
+
+    @JsonProperty("blocked")
+    public boolean blocked() {
+        return !"CERTIFIABLE".equals(finalDecision());
+    }
+
+    @JsonProperty("blockReasonSummary")
+    public String blockReasonSummary() {
+        if (!blocked()) {
+            return "";
+        }
+        if (certificateSummary != null && !certificateSummary.isBlank()) {
+            return certificateSummary;
+        }
+        if (totalRunCount < 12) {
+            return "공식검사 지표 결과가 부족합니다.";
+        }
+        return "공식검사 기준을 충족하지 못했습니다.";
+    }
+
+    @JsonProperty("officialStateLabel")
+    public String officialStateLabel() {
+        return switch (finalDecision()) {
+            case "CERTIFIABLE" -> "공식검사 통과";
+            case "BLOCKED" -> "공식검사 차단";
+            default -> "검토 필요";
+        };
+    }
+
+    @JsonProperty("officialVerificationPassed")
+    public boolean officialVerificationPassed() {
+        return totalRunCount >= 12 && passedRunCount >= totalRunCount && failedRunCount == 0;
     }
 }

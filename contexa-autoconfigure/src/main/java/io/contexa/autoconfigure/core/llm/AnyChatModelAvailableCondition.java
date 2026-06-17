@@ -20,17 +20,22 @@ import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
+import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import org.springframework.util.ClassUtils;
+import org.springframework.util.StringUtils;
 
 public class AnyChatModelAvailableCondition implements Condition {
 
     private static final String CONTEXA_PRIMARY_CHAT_MODEL_BEAN = "primaryChatModel";
+    private static final String CONTEXA_OLLAMA_CHAT_BASE_URL_PROPERTY = "contexa.llm.chat.ollama.base-url";
+    private static final String OLLAMA_CHAT_MODEL_CLASS = "org.springframework.ai.ollama.OllamaChatModel";
 
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
         ListableBeanFactory beanFactory = context.getBeanFactory();
         if (beanFactory == null) {
-            return false;
+            return hasConfiguredContexaChatRuntime(context);
         }
         String[] beanNames = BeanFactoryUtils.beanNamesForTypeIncludingAncestors(beanFactory, ChatModel.class, false, false);
         for (String beanName : beanNames) {
@@ -38,6 +43,18 @@ public class AnyChatModelAvailableCondition implements Condition {
                 return true;
             }
         }
-        return false;
+        return hasConfiguredContexaChatRuntime(context);
+    }
+
+    private boolean hasConfiguredContexaChatRuntime(ConditionContext context) {
+        if (!ClassUtils.isPresent(OLLAMA_CHAT_MODEL_CLASS, context.getClassLoader())) {
+            return false;
+        }
+        Environment environment = context.getEnvironment();
+        if (environment == null) {
+            return false;
+        }
+        String ollamaBaseUrl = environment.getProperty(CONTEXA_OLLAMA_CHAT_BASE_URL_PROPERTY);
+        return StringUtils.hasText(ollamaBaseUrl);
     }
 }

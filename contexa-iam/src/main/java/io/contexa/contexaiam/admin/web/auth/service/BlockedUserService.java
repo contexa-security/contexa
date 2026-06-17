@@ -34,6 +34,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -135,32 +137,22 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
         applyResolution(blocked, adminId, resolvedAction, reason);
 
-        try {
-            SecurityEvent blockEvent = SecurityEvent.builder()
-                    .eventId(UUID.randomUUID().toString())
-                    .source(SecurityEvent.EventSource.IAM)
-                    .userId(blocked.getUserId())
-                    .userName(blocked.getUsername())
-                    .sourceIp(blocked.getSourceIp())
-                    .userAgent(blocked.getUserAgent())
-                    .timestamp(LocalDateTime.now())
-                    .description("Admin approved unblock - learning from block context")
-                    .build();
+        String requestId = blocked.getRequestId();
+        String blockedUserId = blocked.getUserId();
+        String username = blocked.getUsername();
+        String sourceIp = blocked.getSourceIp();
+        String userAgent = blocked.getUserAgent();
 
-            adminOverrideService.approve(
-                    blocked.getRequestId(),
-                    blocked.getUserId(),
-                    adminId,
-                    ZeroTrustAction.BLOCK.name(),
-                    resolvedAction,
-                    reason,
-                    blockEvent
-            );
-        } catch (Exception e) {
-            log.error("[BlockedUserService] Failed to sync AdminOverride: requestId={}",
-                    blocked.getRequestId(), e);
-            clearRedisBlockKeys(blocked.getUserId(), resolvedAction);
-        }
+        runAfterCommit(() -> syncAdminOverride(
+                requestId,
+                blockedUserId,
+                username,
+                sourceIp,
+                userAgent,
+                adminId,
+                resolvedAction,
+                reason
+        ));
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -321,6 +313,60 @@ public class BlockedUserService implements IBlockedUserRecorder {
         blocked.setResolveReason(reason);
         blocked.setStatus(BlockedUserStatus.RESOLVED);
         blockedUserJpaRepository.save(blocked);
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (action == null) {
+            return;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
+    }
+
+    private void syncAdminOverride(
+            String requestId,
+            String blockedUserId,
+            String username,
+            String sourceIp,
+            String userAgent,
+            String adminId,
+            String resolvedAction,
+            String reason
+    ) {
+        try {
+            SecurityEvent blockEvent = SecurityEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .source(SecurityEvent.EventSource.IAM)
+                    .userId(blockedUserId)
+                    .userName(username)
+                    .sourceIp(sourceIp)
+                    .userAgent(userAgent)
+                    .timestamp(LocalDateTime.now())
+                    .description("Admin approved unblock - learning from block context")
+                    .build();
+
+            adminOverrideService.approve(
+                    requestId,
+                    blockedUserId,
+                    adminId,
+                    ZeroTrustAction.BLOCK.name(),
+                    resolvedAction,
+                    reason,
+                    blockEvent
+            );
+        } catch (Exception e) {
+            log.error("[BlockedUserService] Failed to sync AdminOverride: requestId={}",
+                    requestId, e);
+            clearRedisBlockKeys(blockedUserId, resolvedAction);
+        }
     }
 
     private void clearRedisBlockKeys(String userId, String resolvedAction) {

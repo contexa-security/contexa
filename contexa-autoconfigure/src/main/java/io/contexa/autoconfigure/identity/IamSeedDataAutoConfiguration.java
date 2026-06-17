@@ -38,6 +38,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -49,9 +50,11 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "contexa.iam.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IamSeedDataAutoConfiguration {
 
+    private static final String PQA_OFFICIAL_SCHEMA_LOCATION = "db/pqa-official-schema.sql";
+
     static final String[] SCHEMA_LOCATIONS = {
             "db/schema.sql",
-            "db/pqa-official-schema.sql"
+            PQA_OFFICIAL_SCHEMA_LOCATION
     };
 
     static final String[] SCHEMA_MARKER_TABLES = {
@@ -109,6 +112,7 @@ public class IamSeedDataAutoConfiguration {
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
         }
+        completePqaOfficialSchemaIfNeeded(dataSource);
         for (String location : SEED_LOCATIONS) {
             Resource seed = new ClassPathResource(location);
             if (!seed.exists()) {
@@ -120,6 +124,67 @@ public class IamSeedDataAutoConfiguration {
             populator.addScript(seed);
             populator.execute(dataSource);
             log.info("[IamSeedData] {} executed", location);
+        }
+    }
+
+    private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
+        PqaOfficialSeedState seedState = detectPqaOfficialSeedState(dataSource);
+        if (seedState == PqaOfficialSeedState.COMPLETE) {
+            return;
+        }
+        Resource schema = new ClassPathResource(PQA_OFFICIAL_SCHEMA_LOCATION);
+        if (!schema.exists()) {
+            log.warn("[IamSeedData] classpath:{} not found, cannot complete PQA official schema seed",
+                    PQA_OFFICIAL_SCHEMA_LOCATION);
+            return;
+        }
+        log.warn("[IamSeedData] PQA official schema seed is {}; attempting idempotent completion", seedState);
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
+        populator.setContinueOnError(false);
+        populator.addScript(pqaSeedCompletionSchemaResource(schema));
+        populator.execute(dataSource);
+        PqaOfficialSeedState completedState = detectPqaOfficialSeedState(dataSource);
+        if (completedState != PqaOfficialSeedState.COMPLETE) {
+            throw new IllegalStateException(
+                    "PQA official schema seed is incomplete after canonical db/pqa-official-schema.sql execution. "
+                            + "Rebuild the Contexa database with contexa-cli initdb or run the canonical "
+                            + "db/pqa-official-schema.sql manually before starting the application.");
+        }
+        log.info("[IamSeedData] {} executed for PQA official seed completion", PQA_OFFICIAL_SCHEMA_LOCATION);
+    }
+
+    private Resource pqaSeedCompletionSchemaResource(Resource schema) throws IOException {
+        String sql = schema.getContentAsString(StandardCharsets.UTF_8);
+        String sanitizedSql = sanitizeSchemaSqlForInstalledDatabase(sql)
+                .replaceAll("(?is)\\balter\\s+table\\s+\\S+\\s+alter\\s+column\\s+\\S+\\s+set\\s+data\\s+type\\s+[^;]+;\\s*", "");
+        return new ByteArrayResource(sanitizedSql.getBytes(StandardCharsets.UTF_8), PQA_OFFICIAL_SCHEMA_LOCATION);
+    }
+
+    private PqaOfficialSeedState detectPqaOfficialSeedState(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection()) {
+            DatabaseMetaData metadata = connection.getMetaData();
+            if (!tableExists(connection, metadata, "official_metric_purpose_contract")
+                    || !tableExists(connection, metadata, "official_metric_evaluation_contract")
+                    || !tableExists(connection, metadata, "official_metric_customer_display_contract")
+                    || !tableExists(connection, metadata, "official_metric_check_display_evidence_contract")
+                    || !tableExists(connection, metadata, "official_prompt_signal_contract")
+                    || !tableExists(connection, metadata, "official_verification_metric_definition")
+                    || !tableExists(connection, metadata, "official_verification_metric_check_definition")) {
+                return PqaOfficialSeedState.ABSENT;
+            }
+            return countRows(connection, "official_metric_evaluation_contract") >= 66
+                    && countRows(connection, "official_prompt_signal_contract") >= 66
+                    && countRows(connection, "official_verification_metric_definition") >= 12
+                    && countRows(connection, "official_verification_metric_check_definition") >= 12
+                    ? PqaOfficialSeedState.COMPLETE
+                    : PqaOfficialSeedState.PARTIAL;
+        }
+    }
+
+    private int countRows(Connection connection, String tableName) throws SQLException {
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("select count(*) from " + tableName)) {
+            return resultSet.next() ? resultSet.getInt(1) : 0;
         }
     }
 
@@ -182,6 +247,12 @@ public class IamSeedDataAutoConfiguration {
     }
 
     enum SchemaInstallState {
+        ABSENT,
+        COMPLETE,
+        PARTIAL
+    }
+
+    enum PqaOfficialSeedState {
         ABSENT,
         COMPLETE,
         PARTIAL

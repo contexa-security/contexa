@@ -16,6 +16,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,12 +57,33 @@ public class OssOfficialSealedEvidenceCaptureService {
         String userId = currentUser();
         String tenantId = firstNonBlank(request.getHeader("X-Tenant-Id"), "oss");
         String userPrompt = userPrompt(packageId, correlationId, tenantId, userId, method, requestPath, actionFamily, request);
+        String promptHash = promptHash(SYSTEM_PROMPT, userPrompt);
+        String systemPromptHash = sha256(SYSTEM_PROMPT);
+        String userPromptHash = sha256(userPrompt);
         String requestFactsJson = writeMap(requestFacts(correlationId, tenantId, userId, method, requestPath, actionFamily, request));
         String authStateJson = writeMap(authState(userId));
         String baselineSnapshotJson = writeMap(baselineSnapshot());
         String ragResultsJson = writeMap(ragResults());
-        String promptMetadataJson = writeMap(promptMetadata(packageId, correlationId, method, requestPath));
-        String promptEvidenceManifestJson = writeMap(promptEvidenceManifest(packageId, correlationId, method, requestPath));
+        String promptMetadataJson = writeMap(promptMetadata(
+                packageId,
+                correlationId,
+                method,
+                requestPath,
+                promptHash,
+                systemPromptHash,
+                userPromptHash));
+        String promptEvidenceManifestJson = writeMap(promptEvidenceManifest(
+                packageId,
+                correlationId,
+                method,
+                requestPath,
+                promptHash,
+                systemPromptHash,
+                userPromptHash,
+                tenantId,
+                userId,
+                actionFamily,
+                request));
         String decisionJson = writeMap(decisionSnapshot());
         String canonicalContextJson = writeMap(canonicalContext(
                 correlationId,
@@ -86,11 +108,11 @@ public class OssOfficialSealedEvidenceCaptureService {
                 .rawUserPrompt(userPrompt)
                 .systemPromptText(SYSTEM_PROMPT)
                 .userPromptText(userPrompt)
-                .promptHash(sha256(SYSTEM_PROMPT + "\n" + userPrompt))
-                .systemPromptHash(sha256(SYSTEM_PROMPT))
-                .userPromptHash(sha256(userPrompt))
-                .rawSystemPromptHash(sha256(SYSTEM_PROMPT))
-                .rawUserPromptHash(sha256(userPrompt))
+                .promptHash(promptHash)
+                .systemPromptHash(systemPromptHash)
+                .userPromptHash(userPromptHash)
+                .rawSystemPromptHash(systemPromptHash)
+                .rawUserPromptHash(userPromptHash)
                 .promptExecutionMetadataJson(promptMetadataJson)
                 .promptEvidenceManifestJson(promptEvidenceManifestJson)
                 .sealState("SEALED")
@@ -188,7 +210,14 @@ public class OssOfficialSealedEvidenceCaptureService {
         return rag;
     }
 
-    private Map<String, Object> promptMetadata(String packageId, String correlationId, String method, String requestPath) {
+    private Map<String, Object> promptMetadata(
+            String packageId,
+            String correlationId,
+            String method,
+            String requestPath,
+            String promptHash,
+            String systemPromptHash,
+            String userPromptHash) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("packageId", packageId);
         metadata.put("requestId", correlationId);
@@ -198,6 +227,9 @@ public class OssOfficialSealedEvidenceCaptureService {
         metadata.put("promptVersion", "oss-official-inspection.v1");
         metadata.put("contextHashState", "OSS_SYNTHETIC_EVIDENCE");
         metadata.put("promptProjected", true);
+        metadata.put("promptHash", promptHash);
+        metadata.put("systemPromptHash", systemPromptHash);
+        metadata.put("userPromptHash", userPromptHash);
         return metadata;
     }
 
@@ -218,7 +250,18 @@ public class OssOfficialSealedEvidenceCaptureService {
         return context;
     }
 
-    private Map<String, Object> promptEvidenceManifest(String packageId, String correlationId, String method, String requestPath) {
+    private Map<String, Object> promptEvidenceManifest(
+            String packageId,
+            String correlationId,
+            String method,
+            String requestPath,
+            String promptHash,
+            String systemPromptHash,
+            String userPromptHash,
+            String tenantId,
+            String userId,
+            String actionFamily,
+            HttpServletRequest request) {
         Map<String, Object> manifest = new LinkedHashMap<>();
         manifest.put("packageId", packageId);
         manifest.put("requestId", correlationId);
@@ -228,7 +271,85 @@ public class OssOfficialSealedEvidenceCaptureService {
         manifest.put("requestPath", requestPath);
         manifest.put("source", "OSS_OFFICIAL_SEALED_EVIDENCE_CAPTURE");
         manifest.put("mappedPromptFacts", "contract-labels-only");
+        manifest.put("promptHash", promptHash);
+        manifest.put("systemPromptHash", systemPromptHash);
+        manifest.put("userPromptHash", userPromptHash);
+        manifest.put("fields", promptEvidenceFields(
+                tenantId,
+                userId,
+                method,
+                requestPath,
+                actionFamily,
+                request));
         return manifest;
+    }
+
+    private List<Map<String, Object>> promptEvidenceFields(
+            String tenantId,
+            String userId,
+            String method,
+            String requestPath,
+            String actionFamily,
+            HttpServletRequest request) {
+        String browser = browserName(request.getHeader("User-Agent"));
+        String language = firstNonBlank(request.getHeader("Accept-Language"), "unknown");
+        String clientIp = firstNonBlank(request.getRemoteAddr(), "127.0.0.1");
+        List<Map<String, Object>> fields = new ArrayList<>();
+        addManifestField(fields, "requestFacts.requestPath", "Request path", requestPath,
+                "REQUEST_FACTS", "requestPath", "userPrompt.requestContext", List.of("BSR", "CCR", "COR", "RAP"));
+        addManifestField(fields, "requestFacts.httpMethod", "HTTP method", method,
+                "REQUEST_FACTS", "httpMethod", "userPrompt.requestContext", List.of("BSR", "RAP"));
+        addManifestField(fields, "requestFacts.actionFamily", "Action family", actionFamily,
+                "REQUEST_FACTS", "actionFamily", "userPrompt.requestContext", List.of("BSR", "RAP"));
+        addManifestField(fields, "requestFacts.resourceId", "Resource id", requestPath,
+                "REQUEST_FACTS", "resourceId", "userPrompt.resourceContext", List.of("COR", "RAP"));
+        addManifestField(fields, "identity.userId", "User id", userId,
+                "REQUEST_FACTS", "userId", "userPrompt.identityContext", List.of("USNS", "RPI"));
+        addManifestField(fields, "identity.tenantId", "Tenant id", tenantId,
+                "REQUEST_FACTS", "tenantId", "userPrompt.identityContext", List.of("CCR"));
+        addManifestField(fields, "auth.authenticationMethod", "Authentication method", "FORM_LOGIN",
+                "AUTH_STATE", "authenticationMethod", "userPrompt.authContext", List.of("USNS", "RPI"));
+        addManifestField(fields, "auth.authorizationEffect", "Authorization effect", "ALLOW",
+                "AUTH_STATE", "authorizationEffect", "userPrompt.authContext", List.of("PFR", "PRE"));
+        addManifestField(fields, "auth.effectiveRoles", "Effective roles", "USER",
+                "AUTH_STATE", "effectiveRoles", "userPrompt.authContext", List.of("PFR", "RPI"));
+        addManifestField(fields, "device.browser", "Device browser", browser,
+                "REQUEST_FACTS", "deviceBrowser", "userPrompt.deviceContext", List.of("BSR", "USNS"));
+        addManifestField(fields, "device.language", "Device language", language,
+                "REQUEST_FACTS", "deviceLanguage", "userPrompt.deviceContext", List.of("BSR"));
+        addManifestField(fields, "network.clientIp", "Client IP", clientIp,
+                "REQUEST_FACTS", "clientIp", "userPrompt.locationContext", List.of("BSR", "USNS"));
+        addManifestField(fields, "baseline.profileStatus", "Baseline profile status", "OSS_SAMPLE",
+                "BASELINE_SNAPSHOT", "baselineProfileStatus", "userPrompt.baseline", List.of("BMA", "USNS"));
+        addManifestField(fields, "rag.retrievalState", "RAG retrieval state", "NOT_EXECUTED",
+                "RAG_RESULTS", "ragRetrievalState", "userPrompt.rag", List.of("CCR", "EIR"));
+        addManifestField(fields, "decision.effect", "Decision effect", "ALLOW",
+                "DECISION", "effect", "userPrompt.decision", List.of("PFR", "PRE"));
+        return List.copyOf(fields);
+    }
+
+    private void addManifestField(
+            List<Map<String, Object>> fields,
+            String fieldKey,
+            String displayName,
+            String value,
+            String evidenceSection,
+            String evidencePath,
+            String promptLocation,
+            List<String> metricCodes) {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("fieldKey", fieldKey);
+        field.put("displayName", displayName);
+        field.put("promptValue", firstNonBlank(value, "UNKNOWN"));
+        field.put("evidenceValue", firstNonBlank(value, "UNKNOWN"));
+        field.put("projectionState", "PRESENT");
+        field.put("requiredLevel", "P0_REQUIRED");
+        field.put("metricCodes", metricCodes == null ? List.of() : metricCodes);
+        field.put("evidenceSection", evidenceSection);
+        field.put("evidencePath", evidencePath);
+        field.put("promptLocation", promptLocation);
+        field.put("producer", "OSS_OFFICIAL_SEALED_EVIDENCE_CAPTURE");
+        fields.add(field);
     }
 
     private Map<String, Object> decisionSnapshot() {
@@ -502,5 +623,11 @@ public class OssOfficialSealedEvidenceCaptureService {
         catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 digest is not available.", exception);
         }
+    }
+
+    private String promptHash(String systemPrompt, String userPrompt) {
+        return sha256((systemPrompt == null ? "" : systemPrompt)
+                + "\n---\n"
+                + (userPrompt == null ? "" : userPrompt));
     }
 }

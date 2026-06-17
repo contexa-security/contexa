@@ -120,16 +120,6 @@ public class CoreLLMTieredAutoConfiguration {
         return new DynamicModelRegistry(applicationContext, tieredLLMProperties, llmRuntimeCatalog);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(ChatModel.class)
-    public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
-            DynamicModelRegistry dynamicModelRegistry,
-            TieredLLMProperties tieredLLMProperties,
-            ChatModel primaryChatModel) {
-        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
-    }
-
     @Bean(name = "primaryChatModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryChatModel")
@@ -150,6 +140,16 @@ public class CoreLLMTieredAutoConfiguration {
         return llmRuntimeCatalog.resolveSpringPrimaryChatModel()
                 .orElseThrow(() -> new IllegalStateException(
                         "No chat runtime binding is available for spring-primary selection. Register a Spring AI ChatModel bean first."));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ModelSelectionStrategy.class)
+    @ConditionalOnBean(name = "primaryChatModel")
+    public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
+            DynamicModelRegistry dynamicModelRegistry,
+            TieredLLMProperties tieredLLMProperties,
+            @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
+        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
     }
 
     @Bean
