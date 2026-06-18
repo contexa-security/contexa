@@ -6,14 +6,14 @@
                     <a th:href="${node.url()}" class="main-menu-link" th:data-group="${node.dataPage()}">
                         <div class="main-menu-icon" th:if="${node.icon() != null and node.icon().startsWith('<')}" th:utext="${node.icon()}"></div>
                         <div class="main-menu-icon" th:if="${node.icon() != null and !node.icon().isBlank() and !node.icon().startsWith('<')}"><i th:class="${node.icon()}"></i></div>
-                        <span class="main-menu-label" th:text="${#messages.msg(node.name())}">Menu</span>
+                        <span class="main-menu-label" th:classappend="${node.dataPage() == 'prompt-quality'} ? ' pqa-menu-label' : ''" th:text="${#messages.msg(node.name())}">Menu</span>
                     </a>
                 </li>
                 <li th:if="${node.hasChildren()}" class="main-menu-item has-submenu">
                     <div class="main-menu-link" th:data-group="${node.dataPage()}">
                         <div class="main-menu-icon" th:if="${node.icon() != null and node.icon().startsWith('<')}" th:utext="${node.icon()}"></div>
                         <div class="main-menu-icon" th:if="${node.icon() != null and !node.icon().isBlank() and !node.icon().startsWith('<')}"><i th:class="${node.icon()}"></i></div>
-                        <span class="main-menu-label" th:text="${#messages.msg(node.name())}">Menu Group</span>
+                        <span class="main-menu-label" th:classappend="${node.dataPage() == 'prompt-quality'} ? ' pqa-menu-label' : ''" th:text="${#messages.msg(node.name())}">Menu Group</span>
                     </div>
                     <div class="submenu-panel">
                         <ul>
@@ -78,7 +78,7 @@
                 <li class="main-menu-item has-submenu">
                     <div class="main-menu-link" data-group="prompt-quality">
                         <div class="main-menu-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 3h6m2.25 5.25h-10.5A2.25 2.25 0 014.5 18V6A2.25 2.25 0 016.75 3.75h6.879c.597 0 1.169.237 1.591.659l3.621 3.621c.422.422.659.994.659 1.591V18a2.25 2.25 0 01-2.25 2.25z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 3.75V8.25c0 .621.504 1.125 1.125 1.125H19.5"/></svg></div>
-                        <span class="main-menu-label" th:text="#{menu.nav.pqa}">Prompt Quality</span>
+                        <span class="main-menu-label pqa-menu-label" th:text="#{menu.nav.pqa}">Prompt Quality</span>
                     </div>
                     <div class="submenu-panel"><ul>
                         <li><a th:href="@{/contexa/admin/prompt-quality/resources}" class="submenu-link" data-page="prompt-quality-resources"><span th:text="#{menu.pqa.resources}">Protected Candidates</span></a></li>

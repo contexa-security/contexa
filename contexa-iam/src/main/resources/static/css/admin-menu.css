@@ -99,6 +99,12 @@ nav.admin-sidebar .main-menu-label {
     transition: color 0.25s ease;
 }
 
+nav.admin-sidebar .main-menu-label.pqa-menu-label {
+    line-height: 1.15;
+    white-space: pre-line;
+    letter-spacing: 0;
+}
+
 /* Hover */
 nav.admin-sidebar .main-menu-link:hover {
     color: #c7d2fe;
