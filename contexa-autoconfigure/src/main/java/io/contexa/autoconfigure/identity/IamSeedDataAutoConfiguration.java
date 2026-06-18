@@ -51,6 +51,10 @@ import java.util.Set;
 public class IamSeedDataAutoConfiguration {
 
     private static final String PQA_OFFICIAL_SCHEMA_LOCATION = "db/pqa-official-schema.sql";
+    private static final int EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS = 66;
+    private static final int EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS = 677;
+    private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS = 12;
+    private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS = 12;
 
     static final String[] SCHEMA_LOCATIONS = {
             "db/schema.sql",
@@ -106,13 +110,12 @@ public class IamSeedDataAutoConfiguration {
             if (completedState != SchemaInstallState.COMPLETE) {
                 throw new IllegalStateException(
                         "Contexa schema is partially installed after canonical schema execution. "
-                                + "Rebuild the Contexa database with contexa-cli initdb or run the canonical "
+                                + "Rebuild the Contexa database or run the canonical "
                                 + "db/schema.sql and db/pqa-official-schema.sql manually before starting the application.");
             }
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
         }
-        completePqaOfficialSchemaIfNeeded(dataSource);
         for (String location : SEED_LOCATIONS) {
             Resource seed = new ClassPathResource(location);
             if (!seed.exists()) {
@@ -125,6 +128,7 @@ public class IamSeedDataAutoConfiguration {
             populator.execute(dataSource);
             log.info("[IamSeedData] {} executed", location);
         }
+        completePqaOfficialSchemaIfNeeded(dataSource);
     }
 
     private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
@@ -147,7 +151,7 @@ public class IamSeedDataAutoConfiguration {
         if (completedState != PqaOfficialSeedState.COMPLETE) {
             throw new IllegalStateException(
                     "PQA official schema seed is incomplete after canonical db/pqa-official-schema.sql execution. "
-                            + "Rebuild the Contexa database with contexa-cli initdb or run the canonical "
+                            + "Rebuild the Contexa database or run the canonical "
                             + "db/pqa-official-schema.sql manually before starting the application.");
         }
         log.info("[IamSeedData] {} executed for PQA official seed completion", PQA_OFFICIAL_SCHEMA_LOCATION);
@@ -172,10 +176,14 @@ public class IamSeedDataAutoConfiguration {
                     || !tableExists(connection, metadata, "official_verification_metric_check_definition")) {
                 return PqaOfficialSeedState.ABSENT;
             }
-            return countRows(connection, "official_metric_evaluation_contract") >= 66
-                    && countRows(connection, "official_prompt_signal_contract") >= 66
-                    && countRows(connection, "official_verification_metric_definition") >= 12
-                    && countRows(connection, "official_verification_metric_check_definition") >= 12
+            return countRows(connection, "official_metric_evaluation_contract")
+                    >= EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS
+                    && countRows(connection, "official_prompt_signal_contract")
+                    >= EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS
+                    && countRows(connection, "official_verification_metric_definition")
+                    >= EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS
+                    && countRows(connection, "official_verification_metric_check_definition")
+                    >= EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS
                     ? PqaOfficialSeedState.COMPLETE
                     : PqaOfficialSeedState.PARTIAL;
         }

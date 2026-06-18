@@ -16,14 +16,17 @@
 package io.contexa.autoconfigure.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
+import org.springframework.beans.factory.InitializingBean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 
 class IamSeedDataAutoConfigurationTest {
@@ -37,15 +40,13 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM seed data should run before demo persona JPA provisioning")
-    void iamSeedDataRunsBeforePersonaProvisioning() throws NoSuchMethodException {
-        Method runner = IamSeedDataAutoConfiguration.class.getDeclaredMethod("iamSeedDataRunner", DataSource.class);
+    @DisplayName("IAM seed data should be exposed as an InitializingBean")
+    void iamSeedDataIsExposedAsInitializingBean() throws NoSuchMethodException {
+        Method initializer = IamSeedDataAutoConfiguration.class.getDeclaredMethod("iamSeedDataInitializer", DataSource.class);
 
-        assertThat(runner.getAnnotation(Order.class))
-                .as("IAM seed must run before demo persona runners so users_id_seq is synced first")
-                .isNotNull()
-                .extracting(Order::value)
-                .isEqualTo(10);
+        assertThat(initializer.getReturnType())
+                .as("IAM seed must run during bean initialization against contexaDataSource")
+                .isEqualTo(InitializingBean.class);
     }
 
     @Test
@@ -68,9 +69,29 @@ class IamSeedDataAutoConfigurationTest {
         String sanitized = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql);
 
         assertThat(sanitized)
-                .contains("create table one_time_tokens")
-                .contains("create index idx_one_time_tokens_username")
+                .contains("create table if not exists one_time_tokens")
+                .contains("create index if not exists idx_one_time_tokens_username")
                 .doesNotContain("owner to contexa_sim");
+    }
+
+    @Test
+    @DisplayName("IAM PQA official completeness check should run after seed SQL")
+    void pqaOfficialCompletenessCheckRunsAfterSeedSql() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/io/contexa/autoconfigure/identity/IamSeedDataAutoConfiguration.java"));
+
+        assertThat(source.indexOf("for (String location : SEED_LOCATIONS)"))
+                .isLessThan(source.indexOf("completePqaOfficialSchemaIfNeeded(dataSource);"));
+    }
+
+    @Test
+    @DisplayName("IAM PQA official completeness check should require every prompt signal contract")
+    void pqaOfficialCompletenessRequiresEveryPromptSignalContract() throws Exception {
+        Field expectedField = IamSeedDataAutoConfiguration.class
+                .getDeclaredField("EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS");
+        expectedField.setAccessible(true);
+
+        assertThat(expectedField.getInt(null)).isEqualTo(677);
     }
 
     @Test
