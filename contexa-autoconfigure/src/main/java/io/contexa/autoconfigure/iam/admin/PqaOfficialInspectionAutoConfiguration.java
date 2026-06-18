@@ -350,7 +350,8 @@ public class PqaOfficialInspectionAutoConfiguration {
             OfficialVerificationRunStore runStore,
             ObjectMapper objectMapper,
             @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations,
-            RuntimeEvidencePromptConsistencyGate promptConsistencyGate) {
+            RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
+            PromptQualityMessageResolver messageResolver) {
         return new PromptQualityOfficialConsoleApiController(
                 evidenceLookupService,
                 verificationService,
@@ -358,13 +359,15 @@ public class PqaOfficialInspectionAutoConfiguration {
                 runStore,
                 objectMapper,
                 jdbcOperations,
-                promptConsistencyGate);
+                promptConsistencyGate,
+                messageResolver);
     }
 
     @Bean(name = "pqaPromptQualityAssurancePageController")
     @ConditionalOnMissingBean(PromptQualityAssurancePageController.class)
-    public PromptQualityAssurancePageController pqaPromptQualityAssurancePageController() {
-        return new PromptQualityAssurancePageController();
+    public PromptQualityAssurancePageController pqaPromptQualityAssurancePageController(
+            PromptQualityMessageResolver messageResolver) {
+        return new PromptQualityAssurancePageController(messageResolver);
     }
 
     @Bean(name = "pqaOssOfficialSealedEvidenceCaptureService")
