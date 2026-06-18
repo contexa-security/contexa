@@ -1657,7 +1657,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                 && (source.startsWith("finalUserPrompt") || source.startsWith("finalSystemPrompt"))) {
             return source;
         }
-        throw new IllegalStateException("공식검사 지표 실패 항목이 final userPrompt 위치를 제공하지 않았습니다. "
+        throw new IllegalStateException(message("enterprise.pqa.diagnostic.finalPromptFailed", "공식검사 지표 실패 항목이 final userPrompt 위치를 제공하지 않았습니다. ")
                 + "metricCode=" + safe(metricCode)
                 + ", checkCode=" + safe(check == null ? null : check.checkCode())
                 + ", source=" + source);
@@ -1702,14 +1702,14 @@ public class DefaultPromptQualityRuntimeVerificationService
 
     private String remediationOwnerForMetric(String metricCode) {
         return switch (normalizedCode(metricCode)) {
-            case "BMA", "USNS" -> "학습 기준선 생산자";
-            case "BSR" -> "행동 컨텍스트 생산자";
-            case "COR", "RAP" -> "RAG 권한 필터";
-            case "PFR", "MTR" -> "프롬프트 캡처기";
-            case "PRE" -> "보호 리소스 등록기";
-            case "RPI" -> "재검증 공정";
-            case "EIR", "CCR", "CCSR" -> "컨텍스트 조립기";
-            default -> "PQA 공식검사";
+            case "BMA", "USNS" -> message("enterprise.pqa.diagnostic.learningBaselineProducer", "학습 Baseline 생산자");
+            case "BSR" -> message("enterprise.pqa.diagnostic.behavioralContextProducer", "행동 Context 생산자");
+            case "COR", "RAP" -> message("enterprise.pqa.diagnostic.ragPermissionFilter", "RAG 권한 필터");
+            case "PFR", "MTR" -> message("enterprise.pqa.diagnostic.promptCapturer", "Prompt 캡처기");
+            case "PRE" -> message("enterprise.pqa.diagnostic.protectedResourceRegistrar", "보호 리소스 등록기");
+            case "RPI" -> message("enterprise.pqa.diagnostic.reverificationProcess", "재검증 프로세스");
+            case "EIR", "CCR", "CCSR" -> message("enterprise.pqa.diagnostic.contextAssembler", "Context 조립기");
+            default -> message("enterprise.pqa.diagnostic.officialVerification", "PQA 공식 검사");
         };
     }
 
@@ -2796,7 +2796,7 @@ public class DefaultPromptQualityRuntimeVerificationService
         return customerVisibleRuntimeSentences(problems.stream()
                 .filter(problem -> problem != null && "BLOCKING".equalsIgnoreCase(firstNonBlank(problem.severity(), "")))
                 .map(problem -> {
-                    String title = firstNonBlank(problem.promptLabel(), "프롬프트 문제가 발견되었습니다.");
+                    String title = firstNonBlank(problem.promptLabel(), message("enterprise.pqa.diagnostic.promptProblemFound", "Prompt 문제가 발견되었습니다."));
                     String reason = firstNonBlank(problem.whyItMatters(), problem.actualState(), problem.problemType());
                     return StringUtils.hasText(reason) ? title + ". " + reason : title;
                 })
@@ -2836,8 +2836,8 @@ public class DefaultPromptQualityRuntimeVerificationService
         }
         String metricName = customerMetricName(candidate);
         String sanitized = blockingFinding
-                ? metricName + "에서 공식 기준을 충족하지 못한 항목이 발견되었습니다. 문제 해결 화면에서 실패 기준, 확인값, 담당 공정을 확인하십시오."
-                : metricName + "의 실패 기준을 확인하고 담당 데이터 생산자 또는 프롬프트 조립 경로를 보강한 뒤 같은 증거 흐름으로 다시 검사하십시오.";
+                ? message("enterprise.pqa.diagnostic.metricFailureDetail", metricName + "에서 공식 기준을 충족하지 못한 항목이 발견되었습니다. 문제 해결 화면에서 실패 기준, 확인값, 담당 공정을 확인하십시오.", metricName)
+                : message("enterprise.pqa.diagnostic.metricFailureGuide", metricName + "의 실패 기준을 확인하고 담당 데이터 생산자 또는 Prompt 조립 경로를 보강한 뒤 같은 증거 흐름으로 다시 검사하십시오.", metricName);
         return PromptQualityCustomerSentencePolicy.requireCustomerSentence(
                 blockingFinding ? "runtime.blockingFinding" : "runtime.nextAction",
                 sanitized);
@@ -2853,12 +2853,12 @@ public class DefaultPromptQualityRuntimeVerificationService
             }
         }
         if (value.toLowerCase(Locale.ROOT).contains("prompt")) {
-            return "증거와 프롬프트 일치성";
+            return message("enterprise.pqa.diagnostic.evidenceConsistency", "증거와 Prompt 일치성");
         }
         if (value.contains("@Protectable") || value.toLowerCase(Locale.ROOT).contains("protectable")) {
-            return "보호 리소스 적격성";
+            return message("enterprise.pqa.diagnostic.protectedResourceEligibility", "보호 리소스 적격성");
         }
-        return "공식 검사 지표";
+        return message("enterprise.pqa.diagnostic.officialMetricVerification", "공식 검사 지표");
     }
 
     private boolean containsMetricCode(String value, String metricCode) {

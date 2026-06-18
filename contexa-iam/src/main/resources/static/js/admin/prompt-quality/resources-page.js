@@ -195,8 +195,8 @@ function renderTicket(resource) {
                 <span style="color:#cbd5e1;font-size:0.82rem;font-weight:600;">${escapeHtml(resource.signatureChanged ? t('enterprise.pqa.resource.signature.changed') : t('enterprise.pqa.resource.signature.unchanged'))}</span>
             </span>
             <span style="display:inline-flex;align-items:center;gap:0.45rem;flex-shrink:0;white-space:nowrap;">
-                <a href="${evidenceHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(52,211,153,0.14);border:1px solid rgba(52,211,153,0.35);color:#6ee7b7;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;cursor:pointer;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}">요청증거</a>
-                <a href="${detailHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.detail'))}">상세보기</a>
+                <a href="${evidenceHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(52,211,153,0.14);border:1px solid rgba(52,211,153,0.35);color:#6ee7b7;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;cursor:pointer;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}">${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}</a>
+                <a href="${detailHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.detail'))}">${escapeHtml(t('enterprise.pqa.resource.table.action.detail'))}</a>
             </span>
         </article>
     `;

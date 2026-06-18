@@ -78,13 +78,13 @@ function installResourceStateSearch(root) {
         const resourceUrl = String(root.querySelector('[data-pqa-resource-state-url]')?.value || '').trim();
         const httpMethod = String(root.querySelector('[data-pqa-resource-state-method]')?.value || '').trim();
         if (!resourceId) {
-            result.innerHTML = `<div class="empty-state">Resource ID를 입력해 주세요.</div>`;
+            result.innerHTML = `<div class="empty-state">${escapeHtml(t('enterprise.pqa.dashboard.search.inputResourceId'))}</div>`;
             return;
         }
         const params = new URLSearchParams({ resourceId });
         if (resourceUrl) params.set('resourceUrl', resourceUrl);
         if (httpMethod) params.set('httpMethod', httpMethod);
-        result.innerHTML = `<div class="empty-state">공정 상태를 조회하는 중입니다.</div>`;
+        result.innerHTML = `<div class="empty-state">${escapeHtml(t('enterprise.pqa.dashboard.search.queryingStatus'))}</div>`;
         try {
             renderResourceStateSearchResult(result, await getJson(`${RESOURCE_STATE_SEARCH_API}?${params.toString()}`));
         }
@@ -124,7 +124,7 @@ function renderResourceStateSearchResult(target, payload) {
         </ol>
         <div class="pqa-resource-state-actions">
             <a class="pqa-link-button" href="${resourceDetailHref(resource)}">
-                상세 보기
+                ${escapeHtml(t('enterprise.pqa.common.action.viewDetail'))}
             </a>
         </div>`;
 }
@@ -159,7 +159,7 @@ function renderSearchStage(stage, route) {
                 ${badge(execution.label || stage?.executionState || '')}
                 ${badge(state.label || state.code || '')}
             </div>
-            <a class="pqa-inline-link" href="${escapeHtml(route?.route || stage?.route || '#')}">${escapeHtml(stage?.nextAction || route?.nextAction || '열기')}</a>
+            <a class="pqa-inline-link" href="${escapeHtml(route?.route || stage?.route || '#')}">${escapeHtml(stage?.nextAction || route?.nextAction || t('enterprise.pqa.common.action.open'))}</a>
         </li>`;
 }
 

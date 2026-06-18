@@ -206,26 +206,26 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
             String source) {
         checks.add(new RuntimeEvidenceCheckResult(ISSUE_METRIC_CODE, label, expected, actual, pass, source));
         if (!pass) {
-            findings.add("증거·프롬프트 일치성 문제: " + gateLabel(label)
-                    + " 항목이 기준을 충족하지 못했습니다. 확인 결과는 "
-                    + operatorValue(actual) + "입니다. 대상: " + gateTarget(label, source) + ".");
+            findings.add(message("enterprise.pqa.consistency.gate.dynamic.issue",
+                    "증거·프롬프트 일치성 문제: " + gateLabel(label) + " 항목이 기준을 충족하지 못했습니다. 확인 결과는 " + operatorValue(actual) + "입니다. 대상: " + gateTarget(label, source) + ".",
+                    gateLabel(label), operatorValue(actual), gateTarget(label, source)));
             nextActions.add(message(
-                    "enterprise.pqa.promptConsistency.nextAction.default",
+                    "enterprise.pqa.consistency.gate.dynamic.hint",
                     "증거 캡처 또는 프롬프트 조립 경로를 수정한 뒤 보호 리소스를 다시 호출하고 새 증거 번호로 재검증하십시오."));
         }
     }
 
     private String gateLabel(String label) {
         String normalized = label == null ? "" : label.trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("prompt hash")) return "프롬프트 해시 추적";
-        if (normalized.contains("system prompt")) return "시스템 프롬프트 캡처";
-        if (normalized.contains("user prompt")) return "사용자 프롬프트 캡처";
-        if (normalized.contains("resource")) return "보호 리소스 매핑";
-        if (normalized.contains("request")) return "요청 사실 추적";
-        if (normalized.contains("tenant")) return "테넌트 식별자";
-        if (normalized.contains("user")) return "사용자 식별자";
-        if (normalized.contains("governance")) return "프롬프트 통합관리 설명";
-        return "증거와 프롬프트 일치성";
+        if (normalized.contains("prompt hash")) return message("enterprise.pqa.consistency.gate.dynamic.label.promptHash", "Prompt Hash 추적");
+        if (normalized.contains("system prompt")) return message("enterprise.pqa.consistency.gate.dynamic.label.systemPrompt", "시스템 Prompt 캡처");
+        if (normalized.contains("user prompt")) return message("enterprise.pqa.consistency.gate.dynamic.label.userPrompt", "사용자 Prompt 캡처");
+        if (normalized.contains("resource")) return message("enterprise.pqa.consistency.gate.dynamic.label.resource", "보호 리소스 매핑");
+        if (normalized.contains("request")) return message("enterprise.pqa.consistency.gate.dynamic.label.request", "요청 사실 추적");
+        if (normalized.contains("tenant")) return message("enterprise.pqa.consistency.gate.dynamic.label.tenant", "테넌트 식별자");
+        if (normalized.contains("user")) return message("enterprise.pqa.consistency.gate.dynamic.label.user", "사용자 식별자");
+        if (normalized.contains("governance")) return message("enterprise.pqa.consistency.gate.dynamic.label.governance", "Prompt 통합관리 설명");
+        return message("enterprise.pqa.consistency.gate.dynamic.label.default", "증거와 Prompt 일치성");
     }
 
     private String gateTarget(String label, String source) {
@@ -236,17 +236,17 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
         }
         if (normalized.contains("governance")) return "promptGovernance.governanceDescriptor";
         if (StringUtils.hasText(source)) return source.trim();
-        return "봉인 증거와 최종 프롬프트";
+        return message("enterprise.pqa.consistency.gate.dynamic.target.evidencePrompt", "봉인 증거와 최종 Prompt");
     }
 
     private String operatorValue(String value) {
         if (!StringUtils.hasText(value)) {
-            return "확인 불가";
+            return message("enterprise.pqa.consistency.gate.notEvaluated", "확인 불가");
         }
         return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "present", "matched", "pass" -> "기준 충족";
-            case "missing" -> "값 없음";
-            case "mismatched" -> "불일치";
+            case "present", "matched", "pass" -> message("enterprise.pqa.consistency.gate.state.present", "기준 충족");
+            case "missing" -> message("enterprise.pqa.consistency.gate.state.missing", "값 없음");
+            case "mismatched" -> message("enterprise.pqa.consistency.gate.hashMismatch", "불일치");
             default -> value.trim();
         };
     }

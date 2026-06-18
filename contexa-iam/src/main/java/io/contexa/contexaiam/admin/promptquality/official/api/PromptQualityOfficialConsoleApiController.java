@@ -21,6 +21,7 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerifica
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRequest;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRun;
+import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.InputStreamReader;
+import java.text.MessageFormat;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -71,6 +73,7 @@ public class PromptQualityOfficialConsoleApiController {
     private final ObjectMapper objectMapper;
     private final JdbcOperations jdbcOperations;
     private final RuntimeEvidencePromptConsistencyGate promptConsistencyGate;
+    private final PromptQualityMessageResolver messageResolver;
 
     public PromptQualityOfficialConsoleApiController(
             SealedEvidencePackageLookupService evidenceLookupService,
@@ -79,7 +82,8 @@ public class PromptQualityOfficialConsoleApiController {
             OfficialVerificationRunStore runStore,
             ObjectMapper objectMapper,
             JdbcOperations jdbcOperations,
-            RuntimeEvidencePromptConsistencyGate promptConsistencyGate) {
+            RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
+            PromptQualityMessageResolver messageResolver) {
         this.evidenceLookupService = evidenceLookupService;
         this.verificationService = verificationService;
         this.officialRunDetailService = officialRunDetailService;
@@ -87,6 +91,7 @@ public class PromptQualityOfficialConsoleApiController {
         this.objectMapper = objectMapper;
         this.jdbcOperations = jdbcOperations;
         this.promptConsistencyGate = promptConsistencyGate;
+        this.messageResolver = messageResolver;
     }
 
     @GetMapping("/i18n")
@@ -175,17 +180,17 @@ public class PromptQualityOfficialConsoleApiController {
             @RequestParam(required = false) String httpMethod) {
         Map<String, Object> resource = resolveResource(resourceId, resourceUrl, httpMethod);
         List<Map<String, Object>> stages = List.of(
-                processStage("PROTECTABLE_RESOURCES", "보호 후보", "/contexa/admin/prompt-quality/resources"),
-                processStage("RUNTIME_EVIDENCE", "실제 요청 증거", runtimeEvidenceHref(resource)),
-                processStage("OFFICIAL_VERIFICATION", "공식 품질 검사", verificationHref(resource)));
+                processStage("PROTECTABLE_RESOURCES", message("enterprise.pqa.stage.protectableResources", "보호 대상 리소스"), "/contexa/admin/prompt-quality/resources"),
+                processStage("RUNTIME_EVIDENCE", message("enterprise.pqa.stage.runtimeEvidence", "요청 증거 자료"), runtimeEvidenceHref(resource)),
+                processStage("OFFICIAL_VERIFICATION", message("enterprise.pqa.stage.officialVerification", "공식 품질 검사"), verificationHref(resource)));
         return Map.of(
                 "resource", resource,
-                "currentStage", Map.of("code", "OFFICIAL_VERIFICATION", "label", "공식 품질 검사"),
+                "currentStage", Map.of("code", "OFFICIAL_VERIFICATION", "label", message("enterprise.pqa.stage.officialVerification", "공식 품질 검사")),
                 "currentExecutionState", "READY",
-                "currentExecutionStateDescriptor", Map.of("code", "READY", "label", "검사 가능", "tone", "ready"),
+                "currentExecutionStateDescriptor", Map.of("code", "READY", "label", message("enterprise.pqa.state.ready", "검사 대기"), "tone", "ready"),
                 "metrics", List.of(
-                        Map.of("code", "evidence", "label", "봉인 증거", "value", "확인", "tone", "ready", "route", runtimeEvidenceHref(resource)),
-                        Map.of("code", "inspection", "label", "공식 검사", "value", "실행", "tone", "info", "route", verificationHref(resource))),
+                        Map.of("code", "evidence", "label", message("enterprise.pqa.stage.runtimeEvidence", "요청 증거 자료"), "value", message("enterprise.pqa.state.actionCheck", "확인"), "tone", "ready", "route", runtimeEvidenceHref(resource)),
+                        Map.of("code", "inspection", "label", message("enterprise.pqa.stage.officialVerification", "공식 품질 검사"), "value", message("enterprise.pqa.state.actionRun", "실행"), "tone", "info", "route", verificationHref(resource))),
                 "processStages", stages,
                 "routes", stages);
     }
@@ -378,9 +383,9 @@ public class PromptQualityOfficialConsoleApiController {
         resource.put("httpMethod", httpMethod);
         resource.put("criticality", "NORMAL");
         resource.put("operationalState", "READY");
-        resource.put("operationalStateLabel", "검사 가능");
-        resource.put("operationalStateDescriptor", Map.of("code", "READY", "label", "검사 가능", "tone", "ready", "aggregateGroup", "READY"));
-        resource.put("runtimeRequestStateDescriptor", Map.of("code", "EVIDENCE_CAPTURED", "label", "증거 있음", "tone", "ready"));
+        resource.put("operationalStateLabel", message("enterprise.pqa.state.ready", "검사 대기"));
+        resource.put("operationalStateDescriptor", Map.of("code", "READY", "label", message("enterprise.pqa.state.ready", "검사 대기"), "tone", "ready", "aggregateGroup", "READY"));
+        resource.put("runtimeRequestStateDescriptor", Map.of("code", "EVIDENCE_CAPTURED", "label", message("enterprise.pqa.state.evidenceCaptured", "증거 수집됨"), "tone", "ready"));
         resource.put("signatureChanged", false);
         return resource;
     }
@@ -400,9 +405,9 @@ public class PromptQualityOfficialConsoleApiController {
                     resource.put("httpMethod", method);
                     resource.put("criticality", "NORMAL");
                     resource.put("operationalState", "READY");
-                    resource.put("operationalStateLabel", "검사 가능");
-                    resource.put("operationalStateDescriptor", Map.of("code", "READY", "label", "검사 가능", "tone", "ready", "aggregateGroup", "READY"));
-                    resource.put("runtimeRequestStateDescriptor", Map.of("code", "UNKNOWN", "label", "요청 증거 확인", "tone", "neutral"));
+                    resource.put("operationalStateLabel", message("enterprise.pqa.state.ready", "검사 대기"));
+                    resource.put("operationalStateDescriptor", Map.of("code", "READY", "label", message("enterprise.pqa.state.ready", "검사 대기"), "tone", "ready", "aggregateGroup", "READY"));
+                    resource.put("runtimeRequestStateDescriptor", Map.of("code", "UNKNOWN", "label", message("enterprise.pqa.state.unknown", "요청 증거 확인 필요"), "tone", "neutral"));
                     return resource;
                 });
     }
@@ -485,7 +490,7 @@ public class PromptQualityOfficialConsoleApiController {
         boolean blocking = checks.stream().anyMatch(check -> !Boolean.TRUE.equals(check.get("pass")));
         return Map.of(
                 "state", blocking ? "REVIEW" : "PASS",
-                "stateLabel", blocking ? "확인 필요" : "검사 가능",
+                "stateLabel", blocking ? message("enterprise.pqa.state.pending", "검토 필요") : message("enterprise.pqa.state.ready", "검사 대기"),
                 "blocking", blocking,
                 "checks", checks);
     }
@@ -520,8 +525,8 @@ public class PromptQualityOfficialConsoleApiController {
         detail.put("failedMetricCount", Math.max(total - passed, 0));
         detail.put("certificateIssued", total > 0 && total == passed);
         detail.put("certificateState", total > 0 && total == passed ? "ISSUABLE" : "BLOCKED");
-        detail.put("certificateStateLabel", total > 0 && total == passed ? "LLM 투입 가능" : "프롬프트 개선 필요");
-        detail.put("certificateSummary", total > 0 && total == passed ? "공식검사 기준을 충족했습니다." : "발견된 문제는 공식검사 결과에서 확인합니다.");
+        detail.put("certificateStateLabel", total > 0 && total == passed ? message("enterprise.pqa.certificate.llmReady", "LLM 투입 가능") : message("enterprise.pqa.certificate.needImprovement", "프롬프트 개선 필요"));
+        detail.put("certificateSummary", total > 0 && total == passed ? message("enterprise.pqa.certificate.descSuccess", "공식검사 기준을 충족했습니다.") : message("enterprise.pqa.certificate.descFailure", "발견된 문제는 공식검사 결과에서 확인합니다."));
         detail.put("runs", mappedRuns);
         detail.put("metrics", mappedRuns);
         detail.put("actualPromptProblems", problems);
@@ -553,7 +558,7 @@ public class PromptQualityOfficialConsoleApiController {
         mapped.put("totalChecks", run.totalChecks());
         mapped.put("processingTimeMs", run.processingTimeMs());
         mapped.put("state", run.state());
-        mapped.put("stateLabel", passState(run.state()) ? "통과" : "차단");
+        mapped.put("stateLabel", passState(run.state()) ? message("enterprise.pqa.state.passed", "통과") : message("enterprise.pqa.state.blocked", "차단"));
         mapped.put("stateTone", run.stateTone());
         mapped.put("message", run.message());
         mapped.put("startedAt", run.startedAt());
@@ -616,7 +621,7 @@ public class PromptQualityOfficialConsoleApiController {
         problem.put("actualState", check.actualValue());
         problem.put("expectedState", check.expectedValue());
         problem.put("whyItMatters", firstText(check.whyItMatters(), check.expectedValue()));
-        problem.put("fixAction", firstText(check.nextAction(), "공식검사 결과의 확인값을 기준으로 프롬프트 입력을 보강하십시오."));
+        problem.put("fixAction", firstText(check.nextAction(), message("enterprise.pqa.suggested.fix", "공식검사 결과의 확인값을 기준으로 프롬프트 입력을 보강하십시오.")));
         problem.put("reverifyCriterionDetail", check.reverifyCriterion());
         return problem;
     }
@@ -657,7 +662,7 @@ public class PromptQualityOfficialConsoleApiController {
         return counts.entrySet().stream()
                 .map(entry -> Map.<String, Object>of(
                         "metricCode", entry.getKey(),
-                        "title", entry.getKey() + " 확인",
+                        "title", entry.getKey() + " " + message("enterprise.pqa.state.actionCheck", "확인"),
                         "findingCount", entry.getValue()))
                 .toList();
     }
@@ -905,5 +910,15 @@ public class PromptQualityOfficialConsoleApiController {
 
     private String string(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+    private String message(String key, String fallback, Object... args) {
+        if (messageResolver == null) {
+            return args == null || args.length == 0 ? fallback : MessageFormat.format(fallback, args);
+        }
+        String resolved = messageResolver.resolve(key, args);
+        if (!StringUtils.hasText(resolved) || key.equals(resolved)) {
+            return args == null || args.length == 0 ? fallback : MessageFormat.format(fallback, args);
+        }
+        return resolved;
     }
 }
