@@ -10,8 +10,7 @@
 <div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
 
 <main class="page-body pqa-shell" data-pqa-page="dashboard" data-pqa-stage="QUALITY_PROCESS_HOME">
-    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
-    <section class="pqa-workspace">
+   <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.dashboard.title}, #{enterprise.pqa.dashboard.subtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 

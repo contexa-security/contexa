@@ -13,8 +13,7 @@
       data-pqa-page="resource-overlay-edit"
       data-pqa-stage="PROTECTABLE_RESOURCES"
       th:attr="data-resource-id=${resourceId},data-resource-url=${resourceUrl},data-http-method=${httpMethod},data-tenant-id=${tenantId}">
-    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
-    <section class="pqa-workspace">
+   <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.resourceOverlayEdit.pageTitle}, #{enterprise.pqa.resourceOverlayEdit.pageSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 

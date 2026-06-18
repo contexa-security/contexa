@@ -14,8 +14,7 @@
 <div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
 
 <main class="page-body pqa-shell" data-pqa-page="runtime-evidence" data-pqa-stage="RUNTIME_EVIDENCE">
-    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
-    <section class="pqa-workspace">
+   <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.runtimeEvidence}, #{enterprise.pqa.runtimeEvidence.pageSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 

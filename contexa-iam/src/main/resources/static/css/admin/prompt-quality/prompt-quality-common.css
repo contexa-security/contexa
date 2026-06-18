@@ -126,8 +126,8 @@
  */
 .pqa-shell {
     display: grid;
-    grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
-    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
     padding: 1.25rem 1.5rem 2.25rem;
     background: var(--pqa-bg-gradient);
     color: var(--pqa-text);

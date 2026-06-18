@@ -14,8 +14,7 @@
       data-pqa-page="resource-detail"
       data-pqa-stage="PROTECTABLE_RESOURCES"
       th:attr="data-resource-id=${resourceId},data-resource-url=${resourceUrl},data-http-method=${httpMethod}">
-    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
-    <section class="pqa-workspace">
+   <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.resourceDetail.pageTitle}, #{enterprise.pqa.resourceDetail.pageSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 

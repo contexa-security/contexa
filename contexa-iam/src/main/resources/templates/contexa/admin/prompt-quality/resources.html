@@ -9,8 +9,7 @@
 <div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
 
 <main class="page-body pqa-shell" data-pqa-page="resources" data-pqa-stage="PROTECTABLE_RESOURCES">
-    <div th:replace="~{contexa/admin/prompt-quality/fragments :: engineNav(${navigation})}"></div>
-    <section class="pqa-workspace">
+   <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.resource.pageTitle}, #{enterprise.pqa.resource.pageSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 

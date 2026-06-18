@@ -11,39 +11,9 @@
     <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/access-center.css}">
     <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-reference-aliases.css}">
     <script th:src="@{/js/admin/prompt-quality/prompt-quality-native-select.js}"></script>
-    <script th:src="@{/js/admin/prompt-quality/prompt-quality-nav-dropdown.js}"></script>
     <script type="module" th:src="@{/js/admin/prompt-quality/prompt-quality-debug.js}"></script>
 </th:block>
 <body>
-<nav th:fragment="engineNav(navigation)" class="pqa-engine-nav"
-     th:aria-label="#{enterprise.pqa.common.nav.aria}">
-    <div class="pqa-nav-head">
-        <span class="pqa-eyebrow" th:text="#{enterprise.pqa.common.nav.eyebrow}"></span>
-        <strong th:text="#{enterprise.pqa.common.nav.title}"></strong>
-        <p th:text="#{enterprise.pqa.common.nav.description}"></p>
-    </div>
-    <div class="pqa-nav-list">
-        <th:block th:each="item : ${navigation}">
-            <div class="pqa-nav-item"
-                 th:classappend="${!#lists.isEmpty(item.children)} ? ' has-submenu' : ''">
-                <a th:href="${item.href}"
-                   th:text="${item.label}"
-                   th:aria-label="${item.responsibility}"
-                   th:classappend="${item.active} ? ' active' : ''"
-                   class="pqa-nav-link"></a>
-                <div th:if="${!#lists.isEmpty(item.children)}" class="pqa-nav-submenu" role="menu">
-                    <a th:each="child : ${item.children}"
-                       th:href="${child.href}"
-                       th:text="${child.label}"
-                       th:classappend="${child.active} ? ' active' : ''"
-                       class="pqa-nav-sublink"
-                       role="menuitem"></a>
-                </div>
-            </div>
-        </th:block>
-    </div>
-</nav>
-
 <section th:fragment="pageHeader(title, subtitle)" class="pqa-page-header">
     <div class="pqa-page-header-content">
         <div class="pqa-page-header-icon-box">
