@@ -43,10 +43,13 @@ import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvi
 import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeIssueDiagnosticService;
 import io.contexa.contexaiam.admin.promptquality.official.application.SealedEvidencePackageQueryService;
 import io.contexa.contexaiam.admin.promptquality.official.common.DefaultPromptQualityMessageResolver;
+import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogBootstrap;
+import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogWriter;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.process.NoopPromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.web.PromptQualityAssurancePageController;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -56,6 +59,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -98,6 +102,30 @@ public class PqaOfficialInspectionAutoConfiguration {
     @ConditionalOnMissingBean(PromptQualityMessageResolver.class)
     public PromptQualityMessageResolver pqaPromptQualityMessageResolver(MessageSource messageSource) {
         return new DefaultPromptQualityMessageResolver(messageSource);
+    }
+
+    @Bean(name = "pqaOfficialMetricPurposeContractCatalogWriter")
+    @ConditionalOnMissingBean(value = OfficialMetricPurposeContractCatalogWriter.class,
+            name = "officialMetricPurposeContractCatalogWriter")
+    @ConditionalOnBean(name = "contexaJdbcTemplate")
+    public OfficialMetricPurposeContractCatalogWriter pqaOfficialMetricPurposeContractCatalogWriter(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            ObjectMapper objectMapper) {
+        return new OfficialMetricPurposeContractCatalogWriter(jdbcTemplate, objectMapper);
+    }
+
+    @Bean(name = "pqaOfficialMetricPurposeContractCatalogBootstrap")
+    @DependsOn("iamSeedDataInitializer")
+    @ConditionalOnMissingBean(name = {
+            "officialMetricPurposeContractCatalogBootstrap",
+            "pqaOfficialMetricPurposeContractCatalogBootstrap"
+    })
+    @ConditionalOnBean(name = "iamSeedDataInitializer")
+    @ConditionalOnProperty(prefix = "contexa.pqa.official.contract-seed",
+            name = "enabled", havingValue = "true", matchIfMissing = true)
+    public OfficialMetricPurposeContractCatalogBootstrap pqaOfficialMetricPurposeContractCatalogBootstrap(
+            OfficialMetricPurposeContractCatalogWriter writer) {
+        return new OfficialMetricPurposeContractCatalogBootstrap(writer);
     }
 
     @Bean(name = "pqaSealedEvidencePackageIntegrity")
@@ -265,8 +293,12 @@ public class PqaOfficialInspectionAutoConfiguration {
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationOperatorSnapshotService pqaOfficialVerificationOperatorSnapshotService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper) {
-        return new OfficialVerificationOperatorSnapshotService(jdbcTemplate, objectMapper);
+            ObjectMapper objectMapper,
+            ObjectProvider<OfficialMetricPurposeContractCatalogWriter> contractCatalogWriter) {
+        return new OfficialVerificationOperatorSnapshotService(
+                jdbcTemplate,
+                objectMapper,
+                contractCatalogWriter.getIfAvailable());
     }
 
     @Bean(name = "pqaPromptQualityOfficialRunDetailService")
