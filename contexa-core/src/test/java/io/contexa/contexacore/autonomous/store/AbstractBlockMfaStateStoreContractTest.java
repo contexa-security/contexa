@@ -57,6 +57,17 @@ abstract class AbstractBlockMfaStateStoreContractTest {
     }
 
     @Test
+    @DisplayName("verified timestamps are exposed when the store can provide freshness metadata")
+    void verified_exposesFreshnessMetadataWhenAvailable() {
+        store.setVerified("user1");
+
+        assertThat(store.isVerified("user1")).isTrue();
+        if (store.getVerifiedAt("user1") != null) {
+            assertThat(store.getVerifiedAt("user1")).isBeforeOrEqualTo(store.getVerifiedExpiresAt("user1"));
+        }
+    }
+
+    @Test
     @DisplayName("Verified state expires after the configured TTL")
     void verified_expiresAfterTtl() {
         BlockMfaStateStore ttlStore = createStoreWithVerifiedTtl(actionRepository, Duration.ofMillis(200));

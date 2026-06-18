@@ -54,8 +54,17 @@ public class HcadPreProtectablePromotionScorer {
         if (resolveFailedLoginAttempts(context) >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()) {
             anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST);
         }
-        if (isAuthContextInconsistent(context, isSensitiveSurface(context))) {
+        if (isAuthContextInconsistent(context)) {
             anchors.add(HcadPreProtectablePromotionSignal.AUTH_CONTEXT_INCONSISTENT);
+        }
+        if (hasRecentPermissionChanges(context)) {
+            anchors.add(HcadPreProtectablePromotionSignal.RECENT_PERMISSION_CHANGE);
+        }
+        if (isPrivilegedAuthorization(context)) {
+            anchors.add(HcadPreProtectablePromotionSignal.PRIVILEGED_AUTHORIZATION);
+        }
+        if (isFreshMfaRequiredButNotFresh(context)) {
+            anchors.add(HcadPreProtectablePromotionSignal.FRESH_MFA_REQUIRED);
         }
 
         if (resolveRecentRequestCount(context) >= hcadProperties.getPreTrigger().getRequestBurstThreshold()) {
@@ -68,8 +77,11 @@ public class HcadPreProtectablePromotionScorer {
         if (hasPathJump(context.getPreviousPath(), context.getRequestPath())) {
             corroborating.add(HcadPreProtectablePromotionSignal.PREVIOUS_PATH_JUMP);
         }
-        if (isSensitiveSurface(context)) {
-            corroborating.add(HcadPreProtectablePromotionSignal.SENSITIVE_SURFACE);
+        if (isStaleAuthentication(context)) {
+            corroborating.add(HcadPreProtectablePromotionSignal.STALE_AUTHENTICATION);
+        }
+        if (isLowAuthenticationAssurance(context)) {
+            corroborating.add(HcadPreProtectablePromotionSignal.LOW_AUTH_ASSURANCE);
         }
         if (isBaselineUncertain(context.getBaselineConfidence())) {
             corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_UNCERTAIN);
@@ -117,10 +129,17 @@ public class HcadPreProtectablePromotionScorer {
         snapshot.put("previousPath", context.getPreviousPath());
         snapshot.put("isNewDevice", context.getIsNewDevice());
         snapshot.put("impossibleTravel", resolveImpossibleTravel(context));
-        snapshot.put("resourceSensitivity", resolveResourceSensitivity(context));
-        snapshot.put("isSensitiveResource", context.getIsSensitiveResource());
+        snapshot.put("verificationRequired", attr(context, "verificationRequired"));
+        snapshot.put("freshMfaRequired", attr(context, "freshMfaRequired"));
         snapshot.put("authMethod", normalize(context.getAuthenticationMethod()));
         snapshot.put("mfaVerified", context.getHasValidMFA());
+        snapshot.put("mfaFresh", attr(context, "mfaFresh"));
+        snapshot.put("mfaFreshnessSeconds", attr(context, "mfaFreshnessSeconds"));
+        snapshot.put("authenticationAssurance", attr(context, "authenticationAssurance"));
+        snapshot.put("authenticationAgeSeconds", attr(context, "authenticationAgeSeconds"));
+        snapshot.put("authorizationPrivileged", attr(context, "authorizationPrivileged"));
+        snapshot.put("authorizationPolicyId", attr(context, "authorizationPolicyId"));
+        snapshot.put("recentPermissionChanges", attr(context, "recentPermissionChanges"));
         snapshot.put("baselineConfidence", context.getBaselineConfidence());
         return snapshot;
     }
@@ -173,34 +192,53 @@ public class HcadPreProtectablePromotionScorer {
                 corroborators);
     }
 
-    private boolean isAuthContextInconsistent(HCADContext context, boolean sensitiveSurface) {
+    private boolean isAuthContextInconsistent(HCADContext context) {
         String authMethod = normalize(context.getAuthenticationMethod());
         boolean mfaVerified = Boolean.TRUE.equals(context.getHasValidMFA());
-        if ("mfa".equals(authMethod) && !mfaVerified) {
-            return true;
-        }
-        return sensitiveSurface && !mfaVerified && (!StringUtils.hasText(authMethod) || "password".equals(authMethod));
+        return "mfa".equals(authMethod) && !mfaVerified;
     }
 
-    private boolean isSensitiveSurface(HCADContext context) {
-        String resourceSensitivity = resolveResourceSensitivity(context);
-        if ("high".equals(resourceSensitivity) || "critical".equals(resourceSensitivity)) {
-            return true;
+    private boolean hasRecentPermissionChanges(HCADContext context) {
+        Object changes = attr(context, "recentPermissionChanges");
+        if (changes instanceof List<?> list) {
+            return !list.isEmpty();
         }
-        if (Boolean.TRUE.equals(context.getIsSensitiveResource())) {
-            return true;
+        if (changes instanceof String text) {
+            return StringUtils.hasText(text);
         }
-        String requestPath = context.getRequestPath();
-        if (!StringUtils.hasText(requestPath)) {
+        return changes != null;
+    }
+
+    private boolean isPrivilegedAuthorization(HCADContext context) {
+        return asBoolean(attr(context, "authorizationPrivileged"));
+    }
+
+    private boolean isFreshMfaRequiredButNotFresh(HCADContext context) {
+        return asBoolean(attr(context, "freshMfaRequired")) && !asBoolean(attr(context, "mfaFresh"));
+    }
+
+    private boolean isStaleAuthentication(HCADContext context) {
+        Long authAgeSeconds = asLong(attr(context, "authenticationAgeSeconds"));
+        if (authAgeSeconds == null && context.getSessionAgeMinutes() != null) {
+            authAgeSeconds = context.getSessionAgeMinutes() * 60L;
+        }
+        return authAgeSeconds != null
+                && authAgeSeconds > hcadProperties.getPreTrigger().getStaleAuthenticationMaxAgeSeconds();
+    }
+
+    private boolean isLowAuthenticationAssurance(HCADContext context) {
+        String assurance = normalizeText(attr(context, "authenticationAssurance"));
+        if (!StringUtils.hasText(assurance)) {
+            return "password".equals(normalize(context.getAuthenticationMethod()));
+        }
+        List<String> lowValues = hcadProperties.getPreTrigger().getLowAuthenticationAssuranceValues();
+        if (lowValues == null || lowValues.isEmpty()) {
             return false;
         }
-        String normalizedPath = requestPath.toLowerCase(Locale.ROOT);
-        for (String indicator : hcadProperties.getPreTrigger().getSensitivePathIndicators()) {
-            if (indicator != null && !indicator.isBlank() && normalizedPath.contains(indicator.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
+        return lowValues.stream()
+                .filter(StringUtils::hasText)
+                .map(this::normalize)
+                .anyMatch(assurance::equals);
     }
 
     private boolean hasPathJump(String previousPath, String requestPath) {
@@ -231,21 +269,48 @@ public class HcadPreProtectablePromotionScorer {
         return impossibleTravel instanceof Boolean bool ? bool : false;
     }
 
-    private String resolveResourceSensitivity(HCADContext context) {
-        Map<String, Object> attrs = context.getAdditionalAttributes();
-        if (attrs == null) {
-            return null;
-        }
-        Object resourceSensitivity = attrs.get("resourceSensitivity");
-        return normalize(resourceSensitivity == null ? null : resourceSensitivity.toString());
-    }
-
     private int resolveRecentRequestCount(HCADContext context) {
         return context.getRecentRequestCount() == null ? 0 : context.getRecentRequestCount();
     }
 
     private int resolveFailedLoginAttempts(HCADContext context) {
         return context.getFailedLoginAttempts() == null ? 0 : context.getFailedLoginAttempts();
+    }
+
+    private Object attr(HCADContext context, String key) {
+        if (context == null || context.getAdditionalAttributes() == null) {
+            return null;
+        }
+        return context.getAdditionalAttributes().get(key);
+    }
+
+    private boolean asBoolean(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text) {
+            String normalized = normalize(text);
+            return "true".equals(normalized) || "1".equals(normalized) || "yes".equals(normalized);
+        }
+        return false;
+    }
+
+    private Long asLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return Long.parseLong(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeText(Object value) {
+        return value == null ? null : normalize(value.toString());
     }
 
     private String normalize(String value) {

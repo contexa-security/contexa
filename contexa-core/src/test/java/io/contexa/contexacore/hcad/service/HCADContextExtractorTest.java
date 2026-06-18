@@ -311,7 +311,6 @@ class HCADContextExtractorTest {
         request.addHeader("User-Agent", "Browser/1.0");
         request.setAttribute("resourceId", "self-sensitive-1");
         request.setAttribute("resourceType", "sensitive");
-        request.setAttribute("resourceSensitivity", "HIGH");
         request.setAttribute("resourceBusinessLabel", "Sensitive Security Test Resource self-sensitive-1");
 
         Authentication auth = new TestingAuthenticationToken("admin", "password", "ROLE_ADMIN");
@@ -319,11 +318,10 @@ class HCADContextExtractorTest {
         HCADContext context = extractor.extractContext(request, auth);
 
         assertThat(context.getResourceType()).isEqualTo("sensitive");
-        assertThat(context.getIsSensitiveResource()).isTrue();
+        assertThat(context.getIsSensitiveResource()).isFalse();
         assertThat(context.getAdditionalAttributes())
                 .containsEntry("resourceId", "self-sensitive-1")
                 .containsEntry("resourceType", "sensitive")
-                .containsEntry("resourceSensitivity", "HIGH")
                 .containsEntry("resourceBusinessLabel", "Sensitive Security Test Resource self-sensitive-1");
     }
 

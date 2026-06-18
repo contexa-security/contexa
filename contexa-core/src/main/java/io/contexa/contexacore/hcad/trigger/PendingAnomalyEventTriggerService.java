@@ -58,6 +58,7 @@ public class PendingAnomalyEventTriggerService {
 
         if (request != null) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED, true);
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_STATE_KEY, report.triggerStateKey());
             if (report.requestId() != null) {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_REQUEST_ID, report.requestId());
             }

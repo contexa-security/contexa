@@ -58,13 +58,6 @@ public class AuthenticatedPendingAnomalyTriggerFilter extends OncePerRequestFilt
             return true;
         }
 
-        String path = request.getRequestURI();
-        return path.startsWith("/static/")
-                || path.startsWith("/css/")
-                || path.startsWith("/js/")
-                || path.startsWith("/images/")
-                || path.equals("/health")
-                || path.startsWith("/actuator/")
-                || path.startsWith("/api/admin/test/vectorstore");
+        return HcadRequestPathUtils.isDefaultExcluded(request);
     }
 }

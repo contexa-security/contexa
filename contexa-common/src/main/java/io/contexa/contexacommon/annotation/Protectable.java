@@ -65,40 +65,21 @@ public @interface Protectable {
     /**
      * HTTP path of the protected resource. When blank the path is inferred
      * from Spring MVC annotations ({@code @RequestMapping}, {@code @GetMapping},
-     * and related). When explicit the value must match the actual MVC
-     * mapping; otherwise the runtime gate rejects the request with a scope
-     * mismatch.
+     * and related). When explicit the value must match the actual MVC mapping.
      * <p>
      * Owner: developer.
      */
     String resourceUrl() default "";
 
     /**
-     * HTTP method of the protected resource. When blank the method is
-     * inferred from MVC annotations. Allowed values: {@code GET},
-     * {@code POST}, {@code PUT}, {@code PATCH}, {@code DELETE}.
+     * HTTP method of the protected resource. When blank the method is inferred
+     * from MVC annotations. Allowed values: {@code GET}, {@code POST},
+     * {@code PUT}, {@code PATCH}, {@code DELETE}.
      * <p>
-     * The same {@code resourceId} declared under different HTTP methods
-     * yields separate registry records and separate certificates.
+     * The same {@code resourceId} declared under different HTTP methods yields
+     * separate registry records and separate certificates.
      */
     String httpMethod() default "";
-
-    /**
-     * Criticality level of the resource.
-     * <ul>
-     *   <li>{@code standard} — routine business resource (default)</li>
-     *   <li>{@code sensitive} — contains personal or sensitive data</li>
-     *   <li>{@code critical} — core resource whose disruption impacts the business</li>
-     *   <li>{@code delegated} — executed under agent delegation</li>
-     * </ul>
-     * <p>
-     * Criticality drives certificate issuance thresholds, re-verification
-     * cadence, and enforcement mode. Promotions (for example,
-     * {@code standard} to {@code sensitive}) require operator approval.
-     * <p>
-     * Owner: architect and operator, jointly.
-     */
-    String criticality() default "standard";
 
     /**
      * Whether prompt quality verification must be enforced for this resource.
@@ -116,16 +97,14 @@ public @interface Protectable {
      * <p>
      * {@code true}: at invocation time
      * {@code SynchronousProtectableDecisionService.analyze()} runs the full
-     * pipeline — {@code ZeroTrustSpringEvent} assembly,
-     * {@code SecurityPlaneAgent} processing, and decision resolution — before
-     * the call returns, guaranteeing decision finality in the response.
+     * pipeline before the call returns, guaranteeing decision finality in the
+     * response.
      * <p>
      * {@code false} (default): the event is published and the decision runs
      * asynchronously, favoring response latency.
      * <p>
      * Owner: architect and performance team, jointly. Recommended only for
-     * {@code criticality=critical} resources whose response can be delivered
-     * within the 3-second SLA.
+     * resources whose response can be delivered within the 3-second SLA.
      */
     boolean sync() default false;
 }

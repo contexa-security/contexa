@@ -15,11 +15,21 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import java.time.Instant;
+
 public interface BlockMfaStateStore {
 
     void setVerified(String userId);
 
     boolean isVerified(String userId);
+
+    default Instant getVerifiedAt(String userId) {
+        return null;
+    }
+
+    default Instant getVerifiedExpiresAt(String userId) {
+        return null;
+    }
 
     void setPending(String userId);
 

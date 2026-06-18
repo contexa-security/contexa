@@ -21,7 +21,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class RedisBlockMfaStateStore implements BlockMfaStateStore {
@@ -49,7 +51,7 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
     public void setVerified(String userId) {
         try {
             String key = ZeroTrustRedisKeys.blockMfaVerified(userId);
-            stringRedisTemplate.opsForValue().set(key, "true", verifiedTtl);
+            stringRedisTemplate.opsForValue().set(key, Instant.now().toString(), verifiedTtl);
         } catch (Exception e) {
             log.error("[BlockMfaStateStore] Failed to set verified: userId={}", userId, e);
         }
@@ -59,10 +61,39 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
     public boolean isVerified(String userId) {
         try {
             String key = ZeroTrustRedisKeys.blockMfaVerified(userId);
-            return Boolean.parseBoolean(stringRedisTemplate.opsForValue().get(key));
+            String value = stringRedisTemplate.opsForValue().get(key);
+            return value != null && !value.isBlank() && !"false".equalsIgnoreCase(value);
         } catch (Exception e) {
             log.error("[BlockMfaStateStore] Failed to check verified: userId={}", userId, e);
             return false;
+        }
+    }
+
+    @Override
+    public Instant getVerifiedAt(String userId) {
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaVerified(userId);
+            String value = stringRedisTemplate.opsForValue().get(key);
+            if (value == null || value.isBlank() || "true".equalsIgnoreCase(value)) {
+                return null;
+            }
+            return Instant.parse(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public Instant getVerifiedExpiresAt(String userId) {
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaVerified(userId);
+            Long ttlMs = stringRedisTemplate.getExpire(key, TimeUnit.MILLISECONDS);
+            if (ttlMs == null || ttlMs <= 0) {
+                return null;
+            }
+            return Instant.now().plusMillis(ttlMs);
+        } catch (Exception e) {
+            return null;
         }
     }
 

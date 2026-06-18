@@ -21,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,7 +38,6 @@ class HcadPreProtectablePromotionScorerTest {
         context.setIsNewDevice(true);
         context.setAdditionalAttributes(new LinkedHashMap<>());
         context.getAdditionalAttributes().put("impossibleTravel", true);
-        context.getAdditionalAttributes().put("resourceSensitivity", "CRITICAL");
 
         HcadPreProtectablePromotionAssessment assessment = scorer.score(context);
 
@@ -62,5 +62,50 @@ class HcadPreProtectablePromotionScorerTest {
 
         assertThat(assessment.eligible()).isFalse();
         assertThat(assessment.band()).isEqualTo(HcadPreProtectablePromotionBand.LOW);
+    }
+
+    @Test
+    @DisplayName("recent permission changes and privileged authorization should cross the redline")
+    void score_permissionChangeWithPrivilegedAuthorization_shouldBeEligible() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        HCADContext context = new HCADContext();
+        context.setRequestPath("/contexa/admin/users/roles");
+        context.setHttpMethod("POST");
+        context.setAdditionalAttributes(new LinkedHashMap<>());
+        context.getAdditionalAttributes().put("recentPermissionChanges", List.of("ROLE_ADMIN granted to user-a"));
+        context.getAdditionalAttributes().put("authorizationPrivileged", true);
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(context);
+
+        assertThat(assessment.eligible()).isTrue();
+        assertThat(assessment.anchorSignals()).contains("RECENT_PERMISSION_CHANGE", "PRIVILEGED_AUTHORIZATION");
+        assertThat(assessment.rawSignalSnapshot())
+                .containsEntry("authorizationPrivileged", true)
+                .containsKey("recentPermissionChanges");
+    }
+
+    @Test
+    @DisplayName("fresh MFA requirement without fresh verification should cross the redline with privileged authorization")
+    void score_freshMfaRequiredWithoutFreshMfaWithPrivilegedAuthorization_shouldBeEligible() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        HCADContext context = new HCADContext();
+        context.setRequestPath("/contexa/admin/export/claims");
+        context.setHttpMethod("GET");
+        context.setHasValidMFA(true);
+        context.setAuthenticationMethod("mfa");
+        context.setAdditionalAttributes(new LinkedHashMap<>());
+        context.getAdditionalAttributes().put("freshMfaRequired", true);
+        context.getAdditionalAttributes().put("mfaFresh", false);
+        context.getAdditionalAttributes().put("authorizationPrivileged", true);
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(context);
+
+        assertThat(assessment.eligible()).isTrue();
+        assertThat(assessment.anchorSignals()).contains("FRESH_MFA_REQUIRED", "PRIVILEGED_AUTHORIZATION");
+        assertThat(assessment.rawSignalSnapshot())
+                .containsEntry("freshMfaRequired", true)
+                .containsEntry("mfaFresh", false);
     }
 }

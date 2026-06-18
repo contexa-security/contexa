@@ -34,9 +34,12 @@ public class PendingAnomalyEvidenceCheckService {
     public PendingAnomalyEvidenceReport evaluate(HttpServletRequest request, PendingAnomalyEligibility eligibility) {
         HcadPreProtectablePromotionAssessment assessment = HcadPreProtectablePromotionRequestResolver.resolve(request);
         RequestInfo requestInfo = RequestInfoExtractor.extract(request, null);
-        String requestPath = requestInfo != null && requestInfo.getRequestUri() != null
-                ? requestInfo.getRequestUri()
-                : request.getRequestURI();
+        String normalizedRequestPath = HcadRequestPathUtils.normalizedPath(request);
+        String requestPath = StringUtils.hasText(normalizedRequestPath)
+                ? normalizedRequestPath
+                : (requestInfo != null && requestInfo.getRequestUri() != null
+                        ? HcadRequestPathUtils.normalizePathText(requestInfo.getRequestUri())
+                        : null);
         String httpMethod = requestInfo != null && requestInfo.getMethod() != null
                 ? requestInfo.getMethod()
                 : request.getMethod();

@@ -51,8 +51,8 @@ class PendingAnomalyEvidenceCheckServiceTest {
                         HcadPreProtectablePromotionBand.REDLINE,
                         true,
                         List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"),
-                        List.of("SENSITIVE_SURFACE"),
-                        List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "SENSITIVE_SURFACE"),
+                        List.of("REQUEST_BURST"),
+                        List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "REQUEST_BURST"),
                         "promotion triggered",
                         "hcad-promotion-v1",
                         Map.of("promotionScore", 70, "promotionEligible", true)));

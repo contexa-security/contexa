@@ -129,6 +129,19 @@ abstract class AbstractHCADDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("Multiple requests in the same millisecond are counted independently")
+    void request_sameMillisecond_countedIndependently() {
+        long now = System.currentTimeMillis();
+        store.recordRequest("user-same-ms", now);
+        store.recordRequest("user-same-ms", now);
+        store.recordRequest("user-same-ms", now);
+
+        int count = store.getRecentRequestCount("user-same-ms", now - 1, now);
+
+        assertThat(count).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("Requests outside 5-minute window are excluded")
     void request_outsideWindow_excluded() {
         long now = System.currentTimeMillis();

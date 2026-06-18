@@ -287,7 +287,6 @@ public class SealedEvidencePackageAssembler {
         putFromMetadata(facts, event, "protectableResourceUrl");
         putFromMetadata(facts, event, "protectableHttpMethod");
         putFromMetadata(facts, event, "protectableMethod");
-        putFromMetadata(facts, event, "protectableCriticality");
         putFromMetadata(facts, event, "protectableVerificationRequired");
         putFromMetadata(facts, event, "protectableSync");
         putFromMetadata(facts, event, "contextBindingHash");

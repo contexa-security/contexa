@@ -332,12 +332,14 @@ public class HcadProperties {
         private int failedLoginBurstThreshold = 3;
         private int requestBurstThreshold = 12;
         private long rapidRequestIntervalMs = 1000L;
-        private List<String> sensitivePathIndicators = new ArrayList<>(List.of(
-                "/admin/",
-                "/export",
-                "/download",
-                "/sensitive/",
-                "/critical/"
+        private long freshMfaMaxAgeSeconds = 300L;
+        private long staleAuthenticationMaxAgeSeconds = 3600L;
+        private int permissionChangeObservationLimit = 5;
+        private List<String> lowAuthenticationAssuranceValues = new ArrayList<>(List.of(
+                "low",
+                "loa1",
+                "basic",
+                "password"
         ));
     }
 }

@@ -68,40 +68,17 @@ public class PendingAnomalyEligibilityGate {
             return null;
         }
 
-        String triggerKey = PendingAnomalyKeyFactory.buildTriggerKey(
+        String baseKey = PendingAnomalyKeyFactory.buildBaseKey(
                 userId,
                 contextBindingHash,
                 request.getMethod(),
-                request.getRequestURI(),
-                buildStateSignature(assessment));
+                HcadRequestPathUtils.normalizedPath(request));
 
-        if (analysisTriggerStateRepository.isNegativeCached(triggerKey)
-                || analysisTriggerStateRepository.isCoolingDown(triggerKey)
-                || analysisTriggerStateRepository.isInFlight(triggerKey)) {
+        if (analysisTriggerStateRepository.isNegativeCached(baseKey)
+                || analysisTriggerStateRepository.isCoolingDown(baseKey)
+                || analysisTriggerStateRepository.isInFlight(baseKey)) {
             return null;
         }
-        return new PendingAnomalyEligibility(userId, contextBindingHash, triggerKey);
-    }
-
-    private String buildStateSignature(HcadPreProtectablePromotionAssessment assessment) {
-        return String.join("|",
-                Integer.toString(bucketize(assessment.score())),
-                assessment.band().serializedValue(),
-                Boolean.toString(assessment.eligible()),
-                String.join(",", assessment.anchorSignals()),
-                String.join(",", assessment.reasonCodes()));
-    }
-
-    private int bucketize(int score) {
-        if (score >= hcadProperties.getPreTrigger().getRedlineScore()) {
-            return 3;
-        }
-        if (score >= hcadProperties.getPreTrigger().getHighRiskScore()) {
-            return 2;
-        }
-        if (score >= hcadProperties.getPreTrigger().getMediumRiskScore()) {
-            return 1;
-        }
-        return 0;
+        return new PendingAnomalyEligibility(userId, contextBindingHash, baseKey);
     }
 }

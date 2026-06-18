@@ -20,15 +20,18 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemoryHCADDataStore implements HCADDataStore {
 
     private static final int MAX_DEVICES = 10;
     private static final Duration DEFAULT_MFA_VERIFIED_TTL = Duration.ofHours(1);
+    private static final long REQUEST_COUNTER_KEY_FACTOR = 1_000_000L;
 
     private final ConcurrentHashMap<String, Map<String, Object>> sessionMetadata = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<String>> userDevices = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> requestCounters = new ConcurrentHashMap<>();
+    private final AtomicLong requestSequence = new AtomicLong();
     private final Set<String> registeredUsers = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<Object, Object>> hcadAnalysis = new ConcurrentHashMap<>();
@@ -97,9 +100,10 @@ public class InMemoryHCADDataStore implements HCADDataStore {
             if (counter == null) {
                 counter = new ConcurrentSkipListMap<>();
             }
-            counter.put(currentTimeMs, Long.toString(currentTimeMs));
+            long uniqueKey = toCounterKey(currentTimeMs, requestSequence.incrementAndGet());
+            counter.put(uniqueKey, Long.toString(currentTimeMs));
             long fiveMinutesAgo = currentTimeMs - (5 * 60 * 1000);
-            counter.headMap(fiveMinutesAgo).clear();
+            counter.headMap(toCounterKey(fiveMinutesAgo, 0)).clear();
             return counter;
         });
     }
@@ -110,7 +114,11 @@ public class InMemoryHCADDataStore implements HCADDataStore {
         if (counter == null) {
             return 0;
         }
-        return counter.subMap(windowStartMs, true, currentTimeMs, true).size();
+        return counter.subMap(
+                toCounterKey(windowStartMs, 0),
+                true,
+                toCounterKey(currentTimeMs, REQUEST_COUNTER_KEY_FACTOR - 1),
+                true).size();
     }
 
     @Override
@@ -151,5 +159,10 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     public void saveHcadAnalysis(String userId, Map<String, Object> analysisData) {
         Map<Object, Object> converted = new HashMap<>(analysisData);
         hcadAnalysis.put(userId, converted);
+    }
+
+    private long toCounterKey(long timestampMs, long sequence) {
+        long sequenceSlot = Math.floorMod(sequence, REQUEST_COUNTER_KEY_FACTOR);
+        return Math.addExact(Math.multiplyExact(timestampMs, REQUEST_COUNTER_KEY_FACTOR), sequenceSlot);
     }
 }

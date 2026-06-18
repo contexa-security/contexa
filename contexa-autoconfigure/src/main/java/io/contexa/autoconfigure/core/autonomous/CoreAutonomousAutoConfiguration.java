@@ -56,6 +56,7 @@ import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
@@ -473,12 +474,14 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustEventListener zeroTrustEventListener,
             SecurityPlaneAgent securityPlaneAgent,
-            ZeroTrustActionRepository actionRepository) {
+            ZeroTrustActionRepository actionRepository,
+            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider) {
         return new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
                 securityPlaneAgent,
-                actionRepository);
+                actionRepository,
+                analysisTriggerStateRepositoryProvider.getIfAvailable());
     }
     @Bean
     @ConditionalOnMissingBean

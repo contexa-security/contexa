@@ -20,10 +20,14 @@ public enum HcadPreProtectablePromotionSignal {
     NEW_DEVICE(true, 25),
     FAILED_LOGIN_BURST(true, 30),
     AUTH_CONTEXT_INCONSISTENT(true, 40),
+    RECENT_PERMISSION_CHANGE(true, 35),
+    PRIVILEGED_AUTHORIZATION(true, 35),
+    FRESH_MFA_REQUIRED(true, 35),
     REQUEST_BURST(false, 10),
     RAPID_SEQUENCE(false, 10),
     PREVIOUS_PATH_JUMP(false, 10),
-    SENSITIVE_SURFACE(false, 20),
+    STALE_AUTHENTICATION(false, 15),
+    LOW_AUTH_ASSURANCE(false, 15),
     BASELINE_UNCERTAIN(false, 5);
 
     private final boolean anchor;

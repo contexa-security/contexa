@@ -30,6 +30,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
     private final ZeroTrustActionRepository actionRepository;
     private final Duration verifiedTtl;
     private final Clock clock;
+    private final ConcurrentHashMap<String, Instant> verifiedAt = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> verifiedExpiry = new ConcurrentHashMap<>();
 
     public InMemoryBlockMfaStateStore(ZeroTrustActionRepository actionRepository) {
@@ -48,7 +49,9 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
 
     @Override
     public void setVerified(String userId) {
-        verifiedExpiry.put(userId, clock.instant().plus(verifiedTtl));
+        Instant now = clock.instant();
+        verifiedAt.put(userId, now);
+        verifiedExpiry.put(userId, now.plus(verifiedTtl));
     }
 
     @Override
@@ -59,9 +62,20 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
         }
         if (clock.instant().isAfter(expiry)) {
             verifiedExpiry.remove(userId);
+            verifiedAt.remove(userId);
             return false;
         }
         return true;
+    }
+
+    @Override
+    public Instant getVerifiedAt(String userId) {
+        return isVerified(userId) ? verifiedAt.get(userId) : null;
+    }
+
+    @Override
+    public Instant getVerifiedExpiresAt(String userId) {
+        return isVerified(userId) ? verifiedExpiry.get(userId) : null;
     }
 
     @Override

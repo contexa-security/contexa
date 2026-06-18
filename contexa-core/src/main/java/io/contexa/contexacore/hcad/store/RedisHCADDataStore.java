@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 public class RedisHCADDataStore implements HCADDataStore {
@@ -32,8 +33,10 @@ public class RedisHCADDataStore implements HCADDataStore {
 
     private static final Duration SESSION_TTL = Duration.ofHours(24);
     private static final Duration DEVICE_TTL = Duration.ofDays(30);
+    private static final Duration REQUEST_COUNTER_TTL = Duration.ofMinutes(10);
     private static final Duration DEFAULT_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int MAX_DEVICES = 10;
+    private final AtomicLong requestSequence = new AtomicLong();
 
     public RedisHCADDataStore(RedisTemplate<String, Object> redisTemplate) {
         this(redisTemplate, DEFAULT_MFA_VERIFIED_TTL);
@@ -100,10 +103,12 @@ public class RedisHCADDataStore implements HCADDataStore {
     public void recordRequest(String userId, long currentTimeMs) {
         try {
             String key = ZeroTrustRedisKeys.userRequestCounter(userId);
-            redisTemplate.opsForZSet().add(key, Long.toString(currentTimeMs), currentTimeMs);
+            String member = currentTimeMs + ":" + requestSequence.incrementAndGet();
+            redisTemplate.opsForZSet().add(key, member, currentTimeMs);
 
             long fiveMinutesAgo = currentTimeMs - (5 * 60 * 1000);
             redisTemplate.opsForZSet().removeRangeByScore(key, 0, fiveMinutesAgo);
+            redisTemplate.expire(key, REQUEST_COUNTER_TTL);
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to record request: userId={}", userId, e);
         }

@@ -132,6 +132,20 @@ public class HCADAnalysisService {
         attributes.put(HcadPreProtectablePromotionAttributes.CONTEXT_SUMMARY, assessment.summary());
         attributes.put(HcadPreProtectablePromotionAttributes.CONTEXT_VERSION, assessment.evaluationVersion());
         attributes.put(HcadPreProtectablePromotionAttributes.CONTEXT_RAW_SIGNALS, assessment.rawSignalSnapshot());
+        if (assessment.eligible()) {
+            log.info("[HCAD-PRE-TRIGGER-SCORE] userId={}, method={}, path={}, score={}, band={}, eligible={}, anchors={}, corroborators={}, resourceId={}, freshMfaRequired={}, permissionChangeSignals={}",
+                    context.getUserId(),
+                    context.getHttpMethod(),
+                    context.getRequestPath(),
+                    assessment.score(),
+                    assessment.band().serializedValue(),
+                    assessment.eligible(),
+                    assessment.anchorSignals(),
+                    assessment.corroboratingSignals(),
+                    attributes.get("resourceId"),
+                    attributes.get("freshMfaRequired"),
+                    attributes.get("recentPermissionChanges"));
+        }
     }
 
     private Map<String, Object> getLLMAnalysis(String userId) {

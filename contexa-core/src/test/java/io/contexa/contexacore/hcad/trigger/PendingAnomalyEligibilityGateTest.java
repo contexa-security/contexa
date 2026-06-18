@@ -82,7 +82,7 @@ class PendingAnomalyEligibilityGateTest {
     @DisplayName("non-pending users should be ignored by the eligibility gate")
     void evaluate_nonPending_shouldReturnNull() {
         MockHttpServletRequest request = baseRequest("bob", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("SENSITIVE_SURFACE", "REQUEST_BURST")));
+        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
 
         when(actionRepository.getCurrentAction(eq("bob"), any())).thenReturn(ZeroTrustAction.ALLOW);
 
@@ -97,7 +97,7 @@ class PendingAnomalyEligibilityGateTest {
     @DisplayName("cooling-down pending users should be ignored before anomaly evaluation")
     void evaluate_coolingDown_shouldReturnNull() {
         MockHttpServletRequest request = baseRequest("carol", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("SENSITIVE_SURFACE", "REQUEST_BURST")));
+        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
         when(actionRepository.getCurrentAction(eq("carol"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
         when(analysisTriggerStateRepository.isCoolingDown(anyString())).thenReturn(true);
@@ -110,12 +110,12 @@ class PendingAnomalyEligibilityGateTest {
     }
 
     @Test
-    @DisplayName("promotion state changes should produce a different trigger key for the same path")
-    void evaluate_stateChange_shouldProduceDifferentTriggerKey() {
+    @DisplayName("promotion state changes should keep the same dedup key for the same request scope")
+    void evaluate_stateChange_shouldKeepSameDedupKey() {
         MockHttpServletRequest first = baseRequest("dave", "/admin/export/reports");
         MockHttpServletRequest second = baseRequest("dave", "/admin/export/reports");
         HcadPreProtectablePromotionRequestProjector.project(first, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"), List.of()));
-        HcadPreProtectablePromotionRequestProjector.project(second, eligibleAssessment(80, List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "FAILED_LOGIN_BURST"), List.of("SENSITIVE_SURFACE")));
+        HcadPreProtectablePromotionRequestProjector.project(second, eligibleAssessment(80, List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "FAILED_LOGIN_BURST"), List.of("REQUEST_BURST")));
 
         when(actionRepository.getCurrentAction(eq("dave"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
@@ -131,7 +131,7 @@ class PendingAnomalyEligibilityGateTest {
 
         assertThat(firstEligibility).isNotNull();
         assertThat(secondEligibility).isNotNull();
-        assertThat(firstEligibility.baseKey()).isNotEqualTo(secondEligibility.baseKey());
+        assertThat(firstEligibility.baseKey()).isEqualTo(secondEligibility.baseKey());
     }
 
     private MockHttpServletRequest baseRequest(String userId, String path) {

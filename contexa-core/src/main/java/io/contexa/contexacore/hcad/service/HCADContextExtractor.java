@@ -17,6 +17,10 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -25,6 +29,7 @@ import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -37,10 +42,13 @@ import org.springframework.util.StringUtils;
 import org.springframework.util.AntPathMatcher;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Array;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +88,7 @@ public class HCADContextExtractor {
             String userId = extractUserId(request, authentication);
             String username = extractUsername(request, authentication);
             String sessionId = OfficialVerificationRequestContext.resolveSessionId(request);
+            String requestPath = HcadRequestPathUtils.normalizedPath(request);
 
             if (userId.startsWith("anonymous:")) {
                 userId = "anonymous:" + clientIp;
@@ -90,7 +99,7 @@ public class HCADContextExtractor {
             context.setUserId(userId);
             context.setSessionId(sessionId != null ? sessionId : "unknown");
             context.setUsername(username);
-            context.setRequestPath(request.getRequestURI());
+            context.setRequestPath(requestPath);
             context.setHttpMethod(request.getMethod());
             context.setRemoteIp(clientIp);
 
@@ -113,7 +122,9 @@ public class HCADContextExtractor {
 
             enrichWithRequestPattern(context, userId, request, promptRelevantPath, observedAt);
 
-            enrichWithSecurityInfo(context, userId, authentication, promptRelevantPath);
+            enrichWithSecurityInfo(context, userId, request, authentication, promptRelevantPath, observedAt);
+
+            enrichAuthorizationContext(context, request, userId);
 
             enrichWithResourceInfo(context, request);
 
@@ -132,7 +143,7 @@ public class HCADContextExtractor {
             return HCADContext.builder()
                     .userId(authentication != null ? extractUserId(request, authentication) : "unknown")
                     .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
-                    .requestPath(request.getRequestURI())
+                    .requestPath(HcadRequestPathUtils.normalizedPath(request))
                     .httpMethod(request.getMethod())
                     .remoteIp(request.getRemoteAddr())
                     .timestamp(resolveObservedAt(request))
@@ -257,7 +268,7 @@ public class HCADContextExtractor {
         try {
             long currentTime = observedAt.toEpochMilli();
             long fiveMinutesAgo = currentTime - (5 * 60 * 1000);
-            String requestPath = request.getRequestURI();
+            String requestPath = HcadRequestPathUtils.normalizedPath(request);
 
             if (userId != null && userId.startsWith("anonymous:")) {
                 context.setRecentRequestCount(0);
@@ -307,8 +318,10 @@ public class HCADContextExtractor {
 
     private void enrichWithSecurityInfo(HCADContext context,
                                         String userId,
+                                        HttpServletRequest request,
                                         Authentication authentication,
-                                        boolean promptRelevantPath) {
+                                        boolean promptRelevantPath,
+                                        Instant observedAt) {
         try {
             if (userId != null && userId.startsWith("anonymous:")) {
                 context.setNewUser(false);
@@ -336,15 +349,21 @@ public class HCADContextExtractor {
 
             context.setFailedLoginAttempts(resolveFailedLoginAttempts(userId));
 
-            String authMethod = authentication.getAuthorities().stream()
-                    .anyMatch(auth -> auth.getAuthority().contains("MFA")) ? "mfa" : "password";
+            AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request);
+            boolean hasMfa = resolveMfaVerified(userId);
+            if (authenticationStamp != null && Boolean.TRUE.equals(authenticationStamp.mfaCompleted())) {
+                hasMfa = true;
+            }
+
+            String authMethod = resolveAuthenticationMethod(authentication, authenticationStamp, hasMfa);
             context.setAuthenticationMethod(authMethod);
             context.setAuthenticationType(authMethod);
 
-            boolean hasMfa = resolveMfaVerified(userId);
             context.setHasValidMFA(hasMfa);
 
-            Set<String> authorities = authentication.getAuthorities().stream()
+            Set<String> authorities = authentication == null
+                    ? Set.of()
+                    : authentication.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toSet());
             Set<String> roles = authorities.stream()
@@ -360,6 +379,8 @@ public class HCADContextExtractor {
             additionalAttrs.put("userRoles", roles);
             additionalAttrs.put("authorities", authorities);
             additionalAttrs.put("mfaVerified", hasMfa);
+            enrichAuthenticationStamp(additionalAttrs, authenticationStamp, observedAt);
+            enrichMfaFreshness(additionalAttrs, userId, hasMfa, observedAt);
 
         } catch (Exception e) {
 
@@ -396,6 +417,165 @@ public class HCADContextExtractor {
         return hcadDataStore.isMfaVerified(userId);
     }
 
+    private String resolveAuthenticationMethod(
+            Authentication authentication,
+            AuthenticationStamp authenticationStamp,
+            boolean hasMfa) {
+        String stampedMethod = authenticationStamp == null ? null : firstNonBlank(
+                authenticationStamp.authenticationType(),
+                authenticationStamp.authenticationSource());
+        if (StringUtils.hasText(stampedMethod)) {
+            return stampedMethod.trim().toLowerCase();
+        }
+        if (hasMfa) {
+            return "mfa";
+        }
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return "password";
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority() != null && auth.getAuthority().contains("MFA"))
+                ? "mfa"
+                : "password";
+    }
+
+    private void enrichAuthenticationStamp(
+            Map<String, Object> attrs,
+            AuthenticationStamp authenticationStamp,
+            Instant observedAt) {
+        if (attrs == null || authenticationStamp == null) {
+            return;
+        }
+        putIfText(attrs, "authenticationAssurance", authenticationStamp.authenticationAssurance());
+        putIfText(attrs, "authenticationType", authenticationStamp.authenticationType());
+        putIfText(attrs, "authenticationSource", authenticationStamp.authenticationSource());
+        if (authenticationStamp.mfaCompleted() != null) {
+            attrs.put("mfaCompleted", authenticationStamp.mfaCompleted());
+        }
+        if (authenticationStamp.authenticationTime() != null) {
+            attrs.put("authenticationTime", authenticationStamp.authenticationTime().toString());
+            if (observedAt != null) {
+                attrs.put("authenticationAgeSeconds",
+                        Math.max(0L, Duration.between(authenticationStamp.authenticationTime(), observedAt).toSeconds()));
+            }
+        }
+        if (!authenticationStamp.authorities().isEmpty()) {
+            attrs.put("bridgeAuthorities", authenticationStamp.authorities());
+        }
+    }
+
+    private void enrichMfaFreshness(
+            Map<String, Object> attrs,
+            String userId,
+            boolean hasMfa,
+            Instant observedAt) {
+        if (attrs == null) {
+            return;
+        }
+        if (!hasMfa || blockMfaStateStore == null || observedAt == null) {
+            attrs.put("mfaFresh", false);
+            return;
+        }
+        try {
+            Instant verifiedAt = blockMfaStateStore.getVerifiedAt(userId);
+            Instant expiresAt = blockMfaStateStore.getVerifiedExpiresAt(userId);
+            if (verifiedAt != null) {
+                long freshnessSeconds = Math.max(0L, Duration.between(verifiedAt, observedAt).toSeconds());
+                attrs.put("mfaVerifiedAt", verifiedAt.toString());
+                attrs.put("mfaFreshnessSeconds", freshnessSeconds);
+                attrs.put("mfaFresh", freshnessSeconds <= hcadProperties.getPreTrigger().getFreshMfaMaxAgeSeconds());
+            } else {
+                attrs.put("mfaFresh", false);
+            }
+            if (expiresAt != null) {
+                attrs.put("mfaVerifiedExpiresAt", expiresAt.toString());
+            }
+        } catch (Exception e) {
+            attrs.put("mfaFresh", false);
+            attrs.put("mfaFreshnessUnavailable", true);
+        }
+    }
+
+    private void enrichAuthorizationContext(HCADContext context, HttpServletRequest request, String userId) {
+        if (context == null || request == null) {
+            return;
+        }
+
+        AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request);
+        if (authorizationStamp != null) {
+            putAdditionalAttribute(context, "authorizationPrivileged", authorizationStamp.privileged());
+            putAdditionalAttribute(context, "authorizationResourceId", authorizationStamp.resourceId());
+            putAdditionalAttribute(context, "authorizationAction", authorizationStamp.action());
+            putAdditionalAttribute(context, "authorizationEffect", authorizationStamp.effect().name());
+            putAdditionalAttribute(context, "authorizationPolicyId", authorizationStamp.policyId());
+            putAdditionalAttribute(context, "authorizationPolicyVersion", authorizationStamp.policyVersion());
+            putAdditionalAttribute(context, "authorizationDecisionSource", authorizationStamp.decisionSource());
+            if (!authorizationStamp.effectiveRoles().isEmpty()) {
+                putAdditionalAttribute(context, "effectiveRoles", authorizationStamp.effectiveRoles());
+            }
+            if (!authorizationStamp.effectiveAuthorities().isEmpty()) {
+                putAdditionalAttribute(context, "effectiveAuthorities", authorizationStamp.effectiveAuthorities());
+            }
+        }
+
+        List<String> permissionChanges = new ArrayList<>();
+        permissionChanges.addAll(normalizeStringList(firstNonNullAttribute(request,
+                "hcad.recent_permission_changes",
+                "hcad.recentPermissionChanges",
+                "recentPermissionChanges",
+                "permissionChangeEvents")));
+        permissionChanges.addAll(normalizeStringList(firstHeader(request,
+                "X-Contexa-Recent-Permission-Changes",
+                "X-Contexa-Permission-Changes")));
+        String tenantId = firstNonBlank(
+                attrText(context, "tenantId"),
+                attrText(context, "organizationId"),
+                attrText(context, "orgId"));
+        if (StringUtils.hasText(tenantId) && StringUtils.hasText(userId) && !userId.startsWith("anonymous:")) {
+            try {
+                permissionChanges.addAll(securityContextDataStore.getRecentPermissionChangeObservations(
+                        tenantId,
+                        userId,
+                        hcadProperties.getPreTrigger().getPermissionChangeObservationLimit()));
+            } catch (Exception e) {
+                putAdditionalAttribute(context, "permissionChangeObservationUnavailable", true);
+            }
+        }
+        if (!permissionChanges.isEmpty()) {
+            putAdditionalAttribute(context, "recentPermissionChanges", List.copyOf(permissionChanges));
+        }
+    }
+
+    private AuthenticationStamp resolveAuthenticationStamp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP);
+        if (rawStamp instanceof AuthenticationStamp stamp) {
+            return stamp;
+        }
+        Object rawResult = request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        if (rawResult instanceof BridgeResolutionResult result) {
+            return result.authenticationStamp();
+        }
+        return null;
+    }
+
+    private AuthorizationStamp resolveAuthorizationStamp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP);
+        if (rawStamp instanceof AuthorizationStamp stamp) {
+            return stamp;
+        }
+        Object rawResult = request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        if (rawResult instanceof BridgeResolutionResult result) {
+            return result.authorizationStamp();
+        }
+        return null;
+    }
+
     private double calculateBaselineConfidence(String userId) {
         if (baselineLearningService == null) {
             return Double.NaN;
@@ -423,7 +603,7 @@ public class HCADContextExtractor {
     private void enrichWithResourceInfo(HCADContext context,
                                         HttpServletRequest request) {
         try {
-            String path = request.getRequestURI();
+            String path = HcadRequestPathUtils.normalizedPath(request);
             String explicitResourceId = firstNonBlankAttribute(request,
                     "hcad.resource_id",
                     "hcad.resourceId",
@@ -442,40 +622,24 @@ public class HCADContextExtractor {
                     "resourceBusinessLabel",
                     "resourceLabel",
                     "businessLabel");
-            String explicitSensitivity = firstNonBlankAttribute(request,
-                    "hcad.resource_sensitivity",
-                    "hcad.resourceSensitivity",
-                    "resourceSensitivity",
-                    "sensitivity");
 
             context.setResourceType(StringUtils.hasText(explicitResourceType)
                     ? explicitResourceType
                     : resolveResourceTypeFromPath(path));
 
             Boolean sensitiveResource = matchesSensitiveResource(path);
-            if (!StringUtils.hasText(explicitSensitivity) && Boolean.TRUE.equals(sensitiveResource)) {
-                explicitSensitivity = "HIGH";
-            }
-            context.setIsSensitiveResource(Boolean.TRUE.equals(sensitiveResource)
-                    || "HIGH".equalsIgnoreCase(explicitSensitivity)
-                    || "CRITICAL".equalsIgnoreCase(explicitSensitivity));
+            context.setIsSensitiveResource(Boolean.TRUE.equals(sensitiveResource));
 
             Map<String, Object> additionalAttrs = context.getAdditionalAttributes();
             if (additionalAttrs == null) {
                 additionalAttrs = new HashMap<>();
             }
-            String resourceSensitivity = StringUtils.hasText(explicitSensitivity)
-                    ? explicitSensitivity
-                    : resolveResourceSensitivity(path, context.getIsSensitiveResource());
             if (StringUtils.hasText(explicitResourceId)) {
                 additionalAttrs.put("resourceId", explicitResourceId);
             }
             if (StringUtils.hasText(context.getResourceType())) {
                 additionalAttrs.put("resourceType", context.getResourceType());
                 additionalAttrs.put("resourceCategory", context.getResourceType());
-            }
-            if (resourceSensitivity != null) {
-                additionalAttrs.put("resourceSensitivity", resourceSensitivity);
             }
             if (StringUtils.hasText(explicitBusinessLabel)) {
                 additionalAttrs.put("resourceBusinessLabel", explicitBusinessLabel);
@@ -498,22 +662,6 @@ public class HCADContextExtractor {
     private Instant resolveObservedAt(HttpServletRequest request) {
         Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
         return observedAt != null ? observedAt : Instant.now();
-    }
-
-    private String resolveResourceSensitivity(String path, Boolean sensitiveResource) {
-        if (path != null) {
-            String lowerPath = path.toLowerCase();
-            if (lowerPath.contains("/critical/")) {
-                return "CRITICAL";
-            }
-            if (lowerPath.contains("/sensitive/")) {
-                return "HIGH";
-            }
-        }
-        if (Boolean.TRUE.equals(sensitiveResource)) {
-            return "HIGH";
-        }
-        return null;
     }
 
     private void enrichWithGeoLocation(HCADContext context, String clientIp) {
@@ -698,6 +846,69 @@ public class HCADContextExtractor {
             }
         }
         return null;
+    }
+
+    private Object firstNonNullAttribute(HttpServletRequest request, String... names) {
+        if (request == null || names == null) {
+            return null;
+        }
+        for (String name : names) {
+            Object value = request.getAttribute(name);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private List<String> normalizeStringList(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        if (value instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                String text = text(item);
+                if (StringUtils.hasText(text)) {
+                    result.add(text);
+                }
+            }
+            return result;
+        }
+        if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                String text = text(Array.get(value, i));
+                if (StringUtils.hasText(text)) {
+                    result.add(text);
+                }
+            }
+            return result;
+        }
+        String text = text(value);
+        if (!StringUtils.hasText(text)) {
+            return List.of();
+        }
+        for (String token : text.split("[,;\\n]")) {
+            String normalized = token.trim();
+            if (StringUtils.hasText(normalized)) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private String attrText(HCADContext context, String key) {
+        if (context == null || context.getAdditionalAttributes() == null) {
+            return null;
+        }
+        return text(context.getAdditionalAttributes().get(key));
+    }
+
+    private void putIfText(Map<String, Object> attrs, String key, String value) {
+        if (attrs != null && StringUtils.hasText(value)) {
+            attrs.put(key, value);
+        }
     }
 
     private Boolean isBotUserAgent(String userAgent) {

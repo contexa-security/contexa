@@ -88,7 +88,6 @@ class HCADFilterTest {
         ctx.setLastRequestInterval(4_200L);
         Map<String, Object> attrs = new HashMap<>();
         attrs.put("userRoles", "[ROLE_USER]");
-        attrs.put("resourceSensitivity", "CRITICAL");
         ctx.setAdditionalAttributes(attrs);
 
         HCADAnalysisResult result = HCADAnalysisResult.builder()
@@ -123,7 +122,6 @@ class HCADFilterTest {
         assertThat(request.getAttribute("hcad.previous_path")).isEqualTo("/admin/api/security-test/sensitive/resource-previous");
         assertThat(request.getAttribute("hcad.last_request_interval_ms")).isEqualTo(4_200L);
         assertThat(request.getAttribute("hcad.auth_method")).isEqualTo("mfa");
-        assertThat(request.getAttribute("hcad.resource_sensitivity")).isEqualTo("CRITICAL");
         assertThat(request.getAttribute("hcad.user_roles")).isEqualTo("[ROLE_USER]");
     }
 
@@ -153,6 +151,16 @@ class HCADFilterTest {
         assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
 
         request.setRequestURI("/actuator/info");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+    }
+
+    @Test
+    @DisplayName("shouldNotFilter excludes infrastructure paths behind a servlet context path")
+    void shouldNotFilter_contextPathInfraPath_returnsTrue() {
+        request.setContextPath("/contexa");
+        request.setServletPath("/actuator/health");
+        request.setRequestURI("/contexa/actuator/health");
+
         assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
     }
 

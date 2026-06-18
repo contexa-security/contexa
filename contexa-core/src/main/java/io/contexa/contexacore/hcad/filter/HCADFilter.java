@@ -23,6 +23,7 @@ import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessme
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionContextResolver;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -112,15 +113,6 @@ public class HCADFilter extends OncePerRequestFilter {
 
         Map<String, Object> attrs = context.getAdditionalAttributes();
         if (attrs != null) {
-            Object resourceSensitivity = attrs.get("resourceSensitivity");
-            if (resourceSensitivity != null) {
-                request.setAttribute("hcad.resource_sensitivity", resourceSensitivity);
-            } else {
-                String inferredSensitivity = inferResourceSensitivity(request, context);
-                if (inferredSensitivity != null) {
-                    request.setAttribute("hcad.resource_sensitivity", inferredSensitivity);
-                }
-            }
             Object resourceBusinessLabel = attrs.get("resourceBusinessLabel");
             if (resourceBusinessLabel != null) {
                 request.setAttribute("hcad.resource_business_label", resourceBusinessLabel);
@@ -137,34 +129,11 @@ public class HCADFilter extends OncePerRequestFilter {
         }
     }
 
-    private String inferResourceSensitivity(HttpServletRequest request, HCADContext context) {
-        String path = request != null ? request.getRequestURI() : null;
-        if (path != null) {
-            String lowerPath = path.toLowerCase();
-            if (lowerPath.contains("/critical/")) {
-                return "CRITICAL";
-            }
-            if (lowerPath.contains("/sensitive/")) {
-                return "HIGH";
-            }
-        }
-        if (Boolean.TRUE.equals(context.getIsSensitiveResource())) {
-            return "HIGH";
-        }
-        return null;
-    }
-
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
+        String path = HcadRequestPathUtils.normalizedPath(request);
         return matchesExcludedPattern(path) ||
-               path.startsWith("/static/") ||
-               path.startsWith("/css/") ||
-               path.startsWith("/js/") ||
-               path.startsWith("/images/") ||
-               path.equals("/health") ||
-               path.startsWith("/actuator/") ||
-               path.startsWith("/api/admin/test/vectorstore");
+               HcadRequestPathUtils.isDefaultExcluded(path);
     }
 
     private boolean matchesExcludedPattern(String path) {

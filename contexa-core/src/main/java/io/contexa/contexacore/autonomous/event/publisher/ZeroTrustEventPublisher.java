@@ -199,7 +199,6 @@ public class ZeroTrustEventPublisher {
             payload.put("protectableResourceId", protectable.resourceId());
             payload.put("protectableResourceUrl", protectable.resourceUrl());
             payload.put("protectableHttpMethod", protectable.httpMethod());
-            payload.put("protectableCriticality", protectable.criticality());
             payload.put("protectableVerificationRequired", protectable.verificationRequired());
             payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
                     + "." + methodInvocation.getMethod().getName());
