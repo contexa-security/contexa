@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacore.hcad.store;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.util.*;
@@ -26,15 +29,20 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     private static final int MAX_DEVICES = 10;
     private static final Duration DEFAULT_MFA_VERIFIED_TTL = Duration.ofHours(1);
+    private static final Duration SESSION_METADATA_TTL = Duration.ofHours(24);
+    private static final Duration USER_DEVICE_TTL = Duration.ofDays(30);
+    private static final Duration REQUEST_COUNTER_TTL = Duration.ofMinutes(10);
+    private static final Duration HCAD_ANALYSIS_TTL = Duration.ofHours(24);
+    private static final long DEFAULT_MAX_ENTRIES = 100_000L;
     private static final long REQUEST_COUNTER_KEY_FACTOR = 1_000_000L;
 
-    private final ConcurrentHashMap<String, Map<String, Object>> sessionMetadata = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Set<String>> userDevices = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> requestCounters = new ConcurrentHashMap<>();
+    private final Cache<String, Map<String, Object>> sessionMetadata = ttlCache(SESSION_METADATA_TTL);
+    private final Cache<String, Set<String>> userDevices = ttlCache(USER_DEVICE_TTL);
+    private final Cache<String, ConcurrentSkipListMap<Long, String>> requestCounters = ttlCache(REQUEST_COUNTER_TTL);
     private final AtomicLong requestSequence = new AtomicLong();
     private final Set<String> registeredUsers = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Map<Object, Object>> hcadAnalysis = new ConcurrentHashMap<>();
+    private final Cache<String, Map<Object, Object>> hcadAnalysis = ttlCache(HCAD_ANALYSIS_TTL);
 
     private final Duration mfaVerifiedTtl;
     private final Clock clock;
@@ -54,7 +62,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public Map<Object, Object> getSessionMetadata(String sessionId) {
-        Map<String, Object> metadata = sessionMetadata.get(sessionId);
+        Map<String, Object> metadata = sessionMetadata.getIfPresent(sessionId);
         if (metadata == null) {
             return new HashMap<>();
         }
@@ -68,7 +76,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public boolean isDeviceRegistered(String userId, String device) {
-        Set<String> devices = userDevices.get(userId);
+        Set<String> devices = userDevices.getIfPresent(userId);
         if (devices == null) {
             return false;
         }
@@ -79,7 +87,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public void registerDevice(String userId, String device) {
-        userDevices.compute(userId, (key, devices) -> {
+        userDevices.asMap().compute(userId, (key, devices) -> {
             Set<String> orderedDevices = devices != null ? devices : new LinkedHashSet<>();
             synchronized (orderedDevices) {
                 orderedDevices.remove(device);
@@ -96,7 +104,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public void recordRequest(String userId, long currentTimeMs) {
-        requestCounters.compute(userId, (key, counter) -> {
+        requestCounters.asMap().compute(userId, (key, counter) -> {
             if (counter == null) {
                 counter = new ConcurrentSkipListMap<>();
             }
@@ -110,7 +118,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public int getRecentRequestCount(String userId, long windowStartMs, long currentTimeMs) {
-        ConcurrentSkipListMap<Long, String> counter = requestCounters.get(userId);
+        ConcurrentSkipListMap<Long, String> counter = requestCounters.getIfPresent(userId);
         if (counter == null) {
             return 0;
         }
@@ -151,7 +159,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
 
     @Override
     public Map<Object, Object> getHcadAnalysis(String userId) {
-        Map<Object, Object> analysis = hcadAnalysis.get(userId);
+        Map<Object, Object> analysis = hcadAnalysis.getIfPresent(userId);
         return analysis != null ? new HashMap<>(analysis) : new HashMap<>();
     }
 
@@ -159,6 +167,13 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     public void saveHcadAnalysis(String userId, Map<String, Object> analysisData) {
         Map<Object, Object> converted = new HashMap<>(analysisData);
         hcadAnalysis.put(userId, converted);
+    }
+
+    private static <T> Cache<String, T> ttlCache(Duration ttl) {
+        return Caffeine.newBuilder()
+                .expireAfterWrite(ttl)
+                .maximumSize(DEFAULT_MAX_ENTRIES)
+                .build();
     }
 
     private long toCounterKey(long timestampMs, long sequence) {

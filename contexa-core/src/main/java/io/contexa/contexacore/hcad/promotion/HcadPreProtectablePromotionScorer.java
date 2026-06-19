@@ -84,6 +84,9 @@ public class HcadPreProtectablePromotionScorer {
         if (isLowAuthenticationAssurance(projection)) {
             corroborating.add(HcadPreProtectablePromotionSignal.LOW_AUTH_ASSURANCE);
         }
+        if (hasMaterialBaselineMismatch(projection)) {
+            corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_MATERIAL_MISMATCH);
+        }
         if (isBaselineUncertain(projection.baselineConfidence())
                 && projection.hasTrustedSource("baselineConfidence", HcadTrustedSource.STORE_DERIVED)) {
             corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_UNCERTAIN);
@@ -146,6 +149,7 @@ public class HcadPreProtectablePromotionScorer {
         snapshot.put("recentPermissionChanges", projection.recentPermissionChanges());
         snapshot.put("baselineConfidence", projection.baselineConfidence());
         snapshot.put("baselineEstablished", projection.baselineEstablished());
+        snapshot.put("baselineComparison", projection.baselineComparison());
         snapshot.put("signalProvenance", projection.provenance());
         snapshot.put("ignoredInputs", projection.ignoredInputs());
         return snapshot;
@@ -279,6 +283,12 @@ public class HcadPreProtectablePromotionScorer {
             return true;
         }
         return baselineConfidence < hcadProperties.getPreTrigger().getLowBaselineConfidenceThreshold();
+    }
+
+    private boolean hasMaterialBaselineMismatch(TrustedHcadContextProjection projection) {
+        return projection.baselineComparison() != null
+                && projection.baselineComparison().materialMismatch()
+                && projection.hasTrustedSource("baselineComparison", HcadTrustedSource.STORE_DERIVED);
     }
 
     private String normalize(String value) {

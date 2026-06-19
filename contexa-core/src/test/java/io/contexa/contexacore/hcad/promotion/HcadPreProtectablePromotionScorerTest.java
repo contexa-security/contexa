@@ -16,6 +16,7 @@
 package io.contexa.contexacore.hcad.promotion;
 
 import io.contexa.contexacore.hcad.projection.HcadFieldProvenance;
+import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
 import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -265,6 +266,55 @@ class HcadPreProtectablePromotionScorerTest {
         assertThat(assessment.eligible()).isFalse();
     }
 
+    @Test
+    @DisplayName("trusted material baseline mismatch should corroborate but not anchor")
+    void score_materialBaselineMismatch_shouldOnlyCorroborate() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        Map<String, HcadFieldProvenance> provenance = Map.of(
+                "baselineComparison", HcadFieldProvenance.present(
+                        "baselineComparison",
+                        HcadTrustedSource.STORE_DERIVED,
+                        "test"),
+                "authorizationPrivileged", HcadFieldProvenance.present(
+                        "authorizationPrivileged",
+                        HcadTrustedSource.BRIDGE_VERIFIED,
+                        "test"));
+        HcadBaselineComparison comparison = new HcadBaselineComparison(
+                true,
+                true,
+                25L,
+                20,
+                5,
+                3,
+                0.40d,
+                true,
+                List.of("accessDay", "browser"),
+                List.of("ipRange", "pathFamily", "authenticationType"),
+                List.of(),
+                Map.of("pathFamily", "/admin/users"),
+                Map.of("frequentPaths", List.of("/dashboard")));
+        TrustedHcadContextProjection projection = trustedProjection(
+                true,
+                List.of(),
+                0,
+                0,
+                false,
+                false,
+                10L,
+                0.9,
+                provenance,
+                comparison);
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(assessment.anchorSignals()).contains("PRIVILEGED_AUTHORIZATION");
+        assertThat(assessment.anchorSignals()).doesNotContain("BASELINE_MATERIAL_MISMATCH");
+        assertThat(assessment.corroboratingSignals()).contains("BASELINE_MATERIAL_MISMATCH");
+        assertThat(assessment.eligible()).isFalse();
+        assertThat(assessment.rawSignalSnapshot()).containsKey("baselineComparison");
+    }
+
     private TrustedHcadContextProjection trustedProjection(
             Boolean authorizationPrivileged,
             List<String> recentPermissionChanges,
@@ -283,7 +333,8 @@ class HcadPreProtectablePromotionScorerTest {
                 verificationRequired,
                 10L,
                 baselineConfidence,
-                provenance);
+                provenance,
+                HcadBaselineComparison.unavailable(20));
     }
 
     private TrustedHcadContextProjection trustedProjection(
@@ -296,6 +347,30 @@ class HcadPreProtectablePromotionScorerTest {
             Long mfaFreshnessSeconds,
             double baselineConfidence,
             Map<String, HcadFieldProvenance> provenance) {
+        return trustedProjection(
+                authorizationPrivileged,
+                recentPermissionChanges,
+                failedLoginBurst,
+                requestBurst,
+                impossibleTravel,
+                verificationRequired,
+                mfaFreshnessSeconds,
+                baselineConfidence,
+                provenance,
+                HcadBaselineComparison.unavailable(20));
+    }
+
+    private TrustedHcadContextProjection trustedProjection(
+            Boolean authorizationPrivileged,
+            List<String> recentPermissionChanges,
+            int failedLoginBurst,
+            int requestBurst,
+            boolean impossibleTravel,
+            boolean verificationRequired,
+            Long mfaFreshnessSeconds,
+            double baselineConfidence,
+            Map<String, HcadFieldProvenance> provenance,
+            HcadBaselineComparison baselineComparison) {
         return new TrustedHcadContextProjection(
                 "alice",
                 "tenant-1",
@@ -320,6 +395,7 @@ class HcadPreProtectablePromotionScorerTest {
                 impossibleTravel,
                 baselineConfidence,
                 true,
+                baselineComparison,
                 provenance,
                 Map.of());
     }

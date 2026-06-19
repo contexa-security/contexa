@@ -26,6 +26,7 @@ public enum HcadPreProtectablePromotionSignal {
     RAPID_SEQUENCE(false, 10),
     PREVIOUS_PATH_JUMP(false, 10),
     LOW_AUTH_ASSURANCE(false, 15),
+    BASELINE_MATERIAL_MISMATCH(false, 20),
     BASELINE_UNCERTAIN(false, 5);
 
     private final boolean anchor;

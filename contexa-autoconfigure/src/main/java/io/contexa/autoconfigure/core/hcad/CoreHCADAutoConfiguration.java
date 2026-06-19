@@ -96,8 +96,13 @@ public class CoreHCADAutoConfiguration {
     public TrustedHcadContextProjectionFactory trustedHcadContextProjectionFactory(
             HCADDataStore hcadDataStore,
             SecurityContextDataStore securityContextDataStore,
+            BaselineDataStore baselineDataStore,
             HcadProperties hcadProperties) {
-        return new TrustedHcadContextProjectionFactory(hcadDataStore, securityContextDataStore, hcadProperties);
+        return new TrustedHcadContextProjectionFactory(
+                hcadDataStore,
+                securityContextDataStore,
+                baselineDataStore,
+                hcadProperties);
     }
 
     @Bean

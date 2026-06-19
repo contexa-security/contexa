@@ -15,12 +15,15 @@
  */
 package io.contexa.contexacore.hcad.projection;
 
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -32,7 +35,10 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,14 +52,24 @@ public class TrustedHcadContextProjectionFactory {
 
     private final HCADDataStore hcadDataStore;
     private final SecurityContextDataStore securityContextDataStore;
+    private final BaselineDataStore baselineDataStore;
     private final HcadProperties hcadProperties;
 
     public TrustedHcadContextProjectionFactory(
             HCADDataStore hcadDataStore,
             SecurityContextDataStore securityContextDataStore,
             HcadProperties hcadProperties) {
+        this(hcadDataStore, securityContextDataStore, null, hcadProperties);
+    }
+
+    public TrustedHcadContextProjectionFactory(
+            HCADDataStore hcadDataStore,
+            SecurityContextDataStore securityContextDataStore,
+            BaselineDataStore baselineDataStore,
+            HcadProperties hcadProperties) {
         this.hcadDataStore = hcadDataStore;
         this.securityContextDataStore = securityContextDataStore;
+        this.baselineDataStore = baselineDataStore;
         this.hcadProperties = hcadProperties;
     }
 
@@ -178,6 +194,19 @@ public class TrustedHcadContextProjectionFactory {
         putProvenance(provenance, "baselineEstablished", baselineEstablished, HcadTrustedSource.STORE_DERIVED,
                 "Derived from baseline confidence availability.");
 
+        HcadBaselineComparison baselineComparison = comparePersonalBaseline(
+                userId,
+                normalizedPath,
+                method,
+                clientIp,
+                request != null ? request.getHeader("User-Agent") : null,
+                authenticationMethod,
+                now);
+        putProvenance(provenance, "baselineComparison",
+                baselineComparison.available() ? baselineComparison : null,
+                HcadTrustedSource.STORE_DERIVED,
+                "Compared current trusted request context with the persisted user baseline.");
+
         updateStoresAfterProjection(request, sessionId, userId, normalizedPath, now);
 
         return new TrustedHcadContextProjection(
@@ -204,8 +233,176 @@ public class TrustedHcadContextProjectionFactory {
                 impossibleTravel,
                 baselineConfidence,
                 baselineEstablished,
+                baselineComparison,
                 provenance,
                 ignoredInputs);
+    }
+
+    private HcadBaselineComparison comparePersonalBaseline(
+            String userId,
+            String normalizedPath,
+            String method,
+            String clientIp,
+            String userAgent,
+            String authenticationMethod,
+            long now) {
+        int minSamples = hcadProperties.getBaseline().getStatistical().getMinSamples();
+        if (!StringUtils.hasText(userId) || baselineDataStore == null) {
+            return HcadBaselineComparison.unavailable(minSamples);
+        }
+        BaselineVector baseline = baselineDataStore.getUserBaseline(userId);
+        if (baseline == null) {
+            return HcadBaselineComparison.unavailable(minSamples);
+        }
+
+        long updateCount = baseline.getUpdateCount() == null ? 0L : baseline.getUpdateCount();
+        boolean established = updateCount >= minSamples;
+        ZonedDateTime observedAt = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault());
+
+        String currentIpRange = extractIpRange(clientIp);
+        String currentPathFamily = SecuritySemanticNormalizer.normalizePathFamily(normalizedPath);
+        String currentAuthType = SecuritySemanticNormalizer.normalizeAuthenticationType(authenticationMethod);
+        String currentUserAgentSignature = extractUASignature(userAgent);
+        String currentOs = extractOS(userAgent);
+        String currentBrowser = extractBrowserName(currentUserAgentSignature);
+
+        Map<String, Object> currentValues = new LinkedHashMap<>();
+        currentValues.put("ipRange", currentIpRange);
+        currentValues.put("accessHour", observedAt.getHour());
+        currentValues.put("accessDay", observedAt.getDayOfWeek().getValue());
+        currentValues.put("pathFamily", currentPathFamily);
+        currentValues.put("httpMethod", method);
+        currentValues.put("userAgent", currentUserAgentSignature);
+        currentValues.put("operatingSystem", currentOs);
+        currentValues.put("browser", currentBrowser);
+        currentValues.put("authenticationType", currentAuthType);
+
+        Map<String, Object> baselineValues = new LinkedHashMap<>();
+        baselineValues.put("updateCount", updateCount);
+        baselineValues.put("normalIpRanges", strings(baseline.getNormalIpRanges()));
+        baselineValues.put("normalAccessHours", integers(baseline.getNormalAccessHours()));
+        baselineValues.put("normalAccessDays", integers(baseline.getNormalAccessDays()));
+        baselineValues.put("frequentPaths", strings(baseline.getFrequentPaths()));
+        baselineValues.put("frequentResourceFamilies", strings(baseline.getFrequentResourceFamilies()));
+        baselineValues.put("normalUserAgents", strings(baseline.getNormalUserAgents()));
+        baselineValues.put("normalOperatingSystems", strings(baseline.getNormalOperatingSystems()));
+        baselineValues.put("normalBrowsers", strings(baseline.getNormalBrowsers()));
+        baselineValues.put("normalAuthenticationTypes", strings(baseline.getNormalAuthenticationTypes()));
+
+        List<String> matched = new ArrayList<>();
+        List<String> mismatched = new ArrayList<>();
+        List<String> missing = new ArrayList<>();
+        if (!established) {
+            missing.add("personalBaselineInsufficientSamples");
+            return new HcadBaselineComparison(
+                    true,
+                    false,
+                    updateCount,
+                    minSamples,
+                    0,
+                    0,
+                    0.0d,
+                    false,
+                    matched,
+                    mismatched,
+                    missing,
+                    currentValues,
+                    baselineValues);
+        }
+
+        compareStringDimension("ipRange", currentIpRange, baseline.getNormalIpRanges(), matched, mismatched, missing, false);
+        compareIntegerDimension("accessHour", observedAt.getHour(), baseline.getNormalAccessHours(), matched, mismatched, missing);
+        compareIntegerDimension("accessDay", observedAt.getDayOfWeek().getValue(), baseline.getNormalAccessDays(), matched, mismatched, missing);
+        comparePathDimension("pathFamily", currentPathFamily, baseline.getFrequentPaths(), baseline.getFrequentResourceFamilies(), matched, mismatched, missing);
+        compareStringDimension("userAgent", currentUserAgentSignature, baseline.getNormalUserAgents(), matched, mismatched, missing, false);
+        compareStringDimension("operatingSystem", currentOs, baseline.getNormalOperatingSystems(), matched, mismatched, missing, false);
+        compareStringDimension("browser", currentBrowser, baseline.getNormalBrowsers(), matched, mismatched, missing, false);
+        compareStringDimension("authenticationType", currentAuthType, baseline.getNormalAuthenticationTypes(), matched, mismatched, missing, false);
+
+        int compared = matched.size() + mismatched.size();
+        double matchRatio = compared == 0 ? 0.0d : (double) matched.size() / compared;
+        boolean materialMismatch = compared >= 3 && mismatched.size() >= 2 && matchRatio < 0.70d;
+
+        return new HcadBaselineComparison(
+                true,
+                true,
+                updateCount,
+                minSamples,
+                compared,
+                mismatched.size(),
+                matchRatio,
+                materialMismatch,
+                matched,
+                mismatched,
+                missing,
+                currentValues,
+                baselineValues);
+    }
+
+    private void compareStringDimension(
+            String dimension,
+            String currentValue,
+            String[] baselineValues,
+            List<String> matched,
+            List<String> mismatched,
+            List<String> missing,
+            boolean pathFamily) {
+        List<String> normalizedBaselineValues = normalizeStrings(baselineValues, pathFamily);
+        if (!StringUtils.hasText(currentValue) || normalizedBaselineValues.isEmpty()) {
+            missing.add(dimension);
+            return;
+        }
+        String normalizedCurrent = pathFamily
+                ? normalizePathValue(currentValue)
+                : normalizeComparable(currentValue);
+        if (normalizedBaselineValues.contains(normalizedCurrent)) {
+            matched.add(dimension);
+        } else {
+            mismatched.add(dimension);
+        }
+    }
+
+    private void comparePathDimension(
+            String dimension,
+            String currentPathFamily,
+            String[] frequentPaths,
+            String[] frequentResourceFamilies,
+            List<String> matched,
+            List<String> mismatched,
+            List<String> missing) {
+        List<String> baselineValues = new ArrayList<>();
+        baselineValues.addAll(normalizeStrings(frequentPaths, true));
+        baselineValues.addAll(normalizeStrings(frequentResourceFamilies, true));
+        if (!StringUtils.hasText(currentPathFamily) || baselineValues.isEmpty()) {
+            missing.add(dimension);
+            return;
+        }
+        if (baselineValues.contains(normalizePathValue(currentPathFamily))) {
+            matched.add(dimension);
+        } else {
+            mismatched.add(dimension);
+        }
+    }
+
+    private void compareIntegerDimension(
+            String dimension,
+            Integer currentValue,
+            Integer[] baselineValues,
+            List<String> matched,
+            List<String> mismatched,
+            List<String> missing) {
+        List<Integer> values = baselineValues == null
+                ? List.of()
+                : Arrays.stream(baselineValues).filter(value -> value != null).distinct().toList();
+        if (currentValue == null || values.isEmpty()) {
+            missing.add(dimension);
+            return;
+        }
+        if (values.contains(currentValue)) {
+            matched.add(dimension);
+        } else {
+            mismatched.add(dimension);
+        }
     }
 
     private AuthenticationStamp resolveAuthenticationStamp(HttpServletRequest request) {
@@ -458,6 +655,199 @@ public class TrustedHcadContextProjectionFactory {
             }
         }
         return null;
+    }
+
+    private List<String> strings(String[] values) {
+        if (values == null || values.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(values)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private List<Integer> integers(Integer[] values) {
+        if (values == null || values.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(values)
+                .filter(value -> value != null)
+                .distinct()
+                .toList();
+    }
+
+    private List<String> normalizeStrings(String[] values, boolean pathFamily) {
+        if (values == null || values.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(values)
+                .filter(StringUtils::hasText)
+                .map(value -> pathFamily ? normalizePathValue(value) : normalizeComparable(value))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private String normalizePathValue(String value) {
+        String pathFamily = SecuritySemanticNormalizer.normalizePathFamily(value);
+        return normalizeComparable(pathFamily != null ? pathFamily : value);
+    }
+
+    private String normalizeComparable(String value) {
+        return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String extractIpRange(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            return null;
+        }
+        String trimmed = ip.trim();
+        if (isLoopback(trimmed)) {
+            return "loopback";
+        }
+        if (trimmed.contains(":")) {
+            return normalizeIPv6Range(trimmed);
+        }
+        int lastDot = trimmed.lastIndexOf('.');
+        return lastDot > 0 ? trimmed.substring(0, lastDot) : trimmed;
+    }
+
+    private boolean isLoopback(String ip) {
+        return "127.0.0.1".equals(ip)
+                || ip.startsWith("127.")
+                || "::1".equals(ip)
+                || "0:0:0:0:0:0:0:1".equals(ip)
+                || "0000:0000:0000:0000:0000:0000:0000:0001".equals(ip);
+    }
+
+    private String normalizeIPv6Range(String ipv6) {
+        if (!StringUtils.hasText(ipv6)) {
+            return null;
+        }
+        String expanded = expandIPv6(ipv6);
+        String[] segments = expanded.split(":");
+        if (segments.length < 4) {
+            return ipv6;
+        }
+        return String.format("%s:%s:%s:%s",
+                normalizeIPv6Segment(segments[0]),
+                normalizeIPv6Segment(segments[1]),
+                normalizeIPv6Segment(segments[2]),
+                normalizeIPv6Segment(segments[3]));
+    }
+
+    private String expandIPv6(String ipv6) {
+        if (!ipv6.contains("::")) {
+            return ipv6;
+        }
+        String[] parts = ipv6.split("::", 2);
+        String[] leftSegments = parts[0].isEmpty() ? new String[0] : parts[0].split(":");
+        String[] rightSegments = parts.length > 1 && !parts[1].isEmpty() ? parts[1].split(":") : new String[0];
+        int missingSegments = 8 - leftSegments.length - rightSegments.length;
+        StringBuilder expanded = new StringBuilder();
+        for (String segment : leftSegments) {
+            if (!expanded.isEmpty()) {
+                expanded.append(':');
+            }
+            expanded.append(segment);
+        }
+        for (int i = 0; i < missingSegments; i++) {
+            if (!expanded.isEmpty()) {
+                expanded.append(':');
+            }
+            expanded.append('0');
+        }
+        for (String segment : rightSegments) {
+            if (!expanded.isEmpty()) {
+                expanded.append(':');
+            }
+            expanded.append(segment);
+        }
+        return expanded.toString();
+    }
+
+    private String normalizeIPv6Segment(String segment) {
+        if (!StringUtils.hasText(segment)) {
+            return "0";
+        }
+        String normalized = segment.replaceFirst("^0+", "");
+        return normalized.isEmpty() ? "0" : normalized;
+    }
+
+    private String extractOS(String userAgent) {
+        if (!StringUtils.hasText(userAgent)) {
+            return "Unknown";
+        }
+        if (userAgent.contains("Android")) {
+            return "Android";
+        }
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iPod")) {
+            return "iOS";
+        }
+        if (userAgent.contains("Windows")) {
+            return "Windows";
+        }
+        if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
+            return "Mac";
+        }
+        if (userAgent.contains("CrOS")) {
+            return "ChromeOS";
+        }
+        if (userAgent.contains("Linux")) {
+            return "Linux";
+        }
+        return "Unknown";
+    }
+
+    private String extractUASignature(String userAgent) {
+        if (!StringUtils.hasText(userAgent)) {
+            return "UNKNOWN_BROWSER_SIGNATURE";
+        }
+        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
+            return extractBrowserVersion(userAgent, "Chrome/");
+        }
+        if (userAgent.contains("Edg/")) {
+            return extractBrowserVersion(userAgent, "Edg/").replace("Edg", "Edge");
+        }
+        if (userAgent.contains("Firefox/")) {
+            return extractBrowserVersion(userAgent, "Firefox/");
+        }
+        if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
+            if (userAgent.contains("Version/")) {
+                return extractBrowserVersion(userAgent, "Version/").replace("Version", "Safari");
+            }
+            return extractBrowserVersion(userAgent, "Safari/");
+        }
+        return "UNKNOWN_BROWSER_SIGNATURE";
+    }
+
+    private String extractBrowserVersion(String userAgent, String prefix) {
+        int index = userAgent.indexOf(prefix);
+        if (index < 0) {
+            return "UNKNOWN_BROWSER_SIGNATURE";
+        }
+        int start = index + prefix.length();
+        int end = start;
+        while (end < userAgent.length()) {
+            char c = userAgent.charAt(end);
+            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
+                break;
+            }
+            end++;
+        }
+        if (end == start) {
+            return "UNKNOWN_BROWSER_SIGNATURE";
+        }
+        return prefix.replace("/", "") + "/" + userAgent.substring(start, end);
+    }
+
+    private String extractBrowserName(String userAgentSignature) {
+        if (!StringUtils.hasText(userAgentSignature)) {
+            return "Unknown";
+        }
+        int slash = userAgentSignature.indexOf('/');
+        return slash > 0 ? userAgentSignature.substring(0, slash) : userAgentSignature;
     }
 
     private String firstText(String... values) {

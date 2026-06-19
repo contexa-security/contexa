@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.projection;
 
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
@@ -22,6 +23,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +36,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +56,9 @@ class TrustedHcadContextProjectionFactoryTest {
     @Mock
     private SecurityContextDataStore securityContextDataStore;
 
+    @Mock
+    private BaselineDataStore baselineDataStore;
+
     private HcadProperties properties;
     private TrustedHcadContextProjectionFactory factory;
     private HcadPreProtectablePromotionScorer scorer;
@@ -59,10 +66,11 @@ class TrustedHcadContextProjectionFactoryTest {
     @BeforeEach
     void setUp() {
         properties = new HcadProperties();
-        factory = new TrustedHcadContextProjectionFactory(hcadDataStore, securityContextDataStore, properties);
+        factory = new TrustedHcadContextProjectionFactory(hcadDataStore, securityContextDataStore, baselineDataStore, properties);
         scorer = new HcadPreProtectablePromotionScorer(properties);
         when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong())).thenReturn(0);
         when(hcadDataStore.getSessionMetadata(anyString())).thenReturn(Map.of());
+        when(baselineDataStore.getUserBaseline(anyString())).thenReturn(null);
     }
 
     @Test
@@ -111,6 +119,39 @@ class TrustedHcadContextProjectionFactoryTest {
                 "FRESH_MFA_REQUIRED");
         assertThat(assessment.corroboratingSignals()).contains("REQUEST_BURST");
         assertThat(assessment.eligible()).isTrue();
+    }
+
+    @Test
+    @DisplayName("persisted personal baseline is compared against the trusted request context")
+    void project_persistedPersonalBaseline_shouldExposeMaterialMismatch() {
+        MockHttpServletRequest request = baseRequest();
+        request.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.systemDefault());
+        when(baselineDataStore.getUserBaseline("alice")).thenReturn(BaselineVector.builder()
+                .userId("alice")
+                .updateCount(25L)
+                .normalIpRanges(new String[]{"10.0.0"})
+                .normalAccessHours(new Integer[]{now.getHour()})
+                .normalAccessDays(new Integer[]{now.getDayOfWeek().getValue()})
+                .frequentPaths(new String[]{"/dashboard"})
+                .normalUserAgents(new String[]{"Chrome/120"})
+                .normalOperatingSystems(new String[]{"Windows"})
+                .normalBrowsers(new String[]{"Chrome"})
+                .normalAuthenticationTypes(new String[]{"TOKEN"})
+                .build());
+
+        TrustedHcadContextProjection projection = factory.project(request, authentication());
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(projection.sourceOf("baselineComparison")).isEqualTo(HcadTrustedSource.STORE_DERIVED);
+        assertThat(projection.baselineComparison().available()).isTrue();
+        assertThat(projection.baselineComparison().established()).isTrue();
+        assertThat(projection.baselineComparison().materialMismatch()).isTrue();
+        assertThat(projection.baselineComparison().mismatchedDimensions())
+                .contains("ipRange", "pathFamily", "authenticationType");
+        assertThat(assessment.corroboratingSignals()).contains("BASELINE_MATERIAL_MISMATCH");
+        assertThat(assessment.anchorSignals()).doesNotContain("BASELINE_MATERIAL_MISMATCH");
+        assertThat(assessment.eligible()).isFalse();
     }
 
     private MockHttpServletRequest baseRequest() {

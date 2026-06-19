@@ -44,12 +44,14 @@ public record TrustedHcadContextProjection(
         Boolean impossibleTravel,
         Double baselineConfidence,
         Boolean baselineEstablished,
+        HcadBaselineComparison baselineComparison,
         Map<String, HcadFieldProvenance> provenance,
         Map<String, Object> ignoredInputs
 ) {
 
     public TrustedHcadContextProjection {
         recentPermissionChanges = recentPermissionChanges == null ? List.of() : List.copyOf(recentPermissionChanges);
+        baselineComparison = baselineComparison == null ? HcadBaselineComparison.unavailable(0) : baselineComparison;
         provenance = provenance == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(provenance));
