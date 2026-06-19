@@ -229,6 +229,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:hcad:pretrigger:negative:%s", NAMESPACE, baseKey);
     }
 
+    public static String analysisTriggerRateLimit(String rateKey) {
+        validateTriggerKey(rateKey);
+        return String.format("%s:hcad:pretrigger:rate:%s", NAMESPACE, rateKey);
+    }
+
     private static void validateTriggerKey(String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Trigger key cannot be null or empty");

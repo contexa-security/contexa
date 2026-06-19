@@ -35,6 +35,7 @@ import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
@@ -198,6 +199,7 @@ public class CoreAutonomousEventAutoConfiguration {
             BlockingSignalBroadcaster blockingSignalBroadcaster,
             ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
             @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
+            ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository,
@@ -206,7 +208,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 blockingSignalBroadcaster,
                 analysisTriggerStateRepositoryProvider.getIfAvailable(),
                 securityZeroTrustProperties,
-                baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()));
+                baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()),
+                hcadEvaluationWriterProvider.getIfAvailable());
     }
 
     @Bean

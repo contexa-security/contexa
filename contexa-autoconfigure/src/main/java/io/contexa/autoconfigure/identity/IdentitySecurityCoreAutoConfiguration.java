@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.identity;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
@@ -26,8 +27,10 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.filter.HCADFilter;
-import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.trigger.AuthenticatedPendingAnomalyTriggerFilter;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -93,7 +96,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
+@AutoConfigureAfter({CoreInfrastructureAutoConfiguration.class, CoreHCADAutoConfiguration.class})
 @EnableConfigurationProperties({AuthContextProperties.class })
 @ConditionalOnProperty(prefix = "contexa.identity.security-core", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(PlatformConfig.class)
@@ -234,7 +237,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityPlatform securityPlatform(PlatformContext context,
-            List<SecurityConfigurer> allRegisteredConfigurers,
+            ObjectProvider<SecurityConfigurer> allRegisteredConfigurersProvider,
             AdapterRegistry adapterRegistry,
             PlatformContextInitializer platformContextInitializer,
             SecurityFilterChainRegistrar securityFilterChainRegistrar,
@@ -243,7 +246,7 @@ public class IdentitySecurityCoreAutoConfiguration {
         platformContextInitializer.initializeSharedObjects();
 
         DefaultSecurityConfigurerProvider configurerProvider = new DefaultSecurityConfigurerProvider(
-                allRegisteredConfigurers, adapterRegistry);
+                allRegisteredConfigurersProvider, adapterRegistry);
 
         return new SecurityPlatformInitializer(
                 context,
@@ -258,7 +261,14 @@ public class IdentitySecurityCoreAutoConfiguration {
     public PlatformBootstrap platformBootstrap(SecurityPlatform securityPlatform,
             PlatformConfig platformConfig,
             AdapterRegistry registry,
-            DslValidator dslValidator) {
+            DslValidator dslValidator,
+            ObjectProvider<SecurityConfigurer> securityConfigurerProvider) {
+        securityConfigurerProvider.orderedStream().forEach(configurer -> {
+            if (log.isDebugEnabled()) {
+                log.debug("Materialized security configurer before platform bootstrap: {}",
+                        configurer.getClass().getSimpleName());
+            }
+        });
         return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidator);
     }
 
@@ -422,11 +432,39 @@ public class IdentitySecurityCoreAutoConfiguration {
     }
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(HCADAnalysisService.class)
-    public HCADFilterConfigurer hcadFilterConfigurer(
-            HCADAnalysisService hcadAnalysisService,
-            HcadProperties hcadProperties) {
-        return new HCADFilterConfigurer(new HCADFilter(hcadAnalysisService, hcadProperties));
+    @ConditionalOnBean({
+            TrustedHcadContextProjectionFactory.class,
+            HcadPreProtectablePromotionScorer.class,
+            HcadEvaluationWriter.class
+    })
+    public HCADFilter hcadFilter(
+            TrustedHcadContextProjectionFactory trustedHcadContextProjectionFactory,
+            HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            ObjectProvider<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorProvider,
+            HcadEvaluationWriter hcadEvaluationWriter) {
+        return new HCADFilter(
+                trustedHcadContextProjectionFactory,
+                hcadPreProtectablePromotionScorer,
+                hcadProperties,
+                pendingAnomalyTriggerOrchestratorProvider::getIfAvailable,
+                () -> hcadEvaluationWriter);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(HCADFilter.class)
+    public HCADFilterConfigurer hcadFilterConfigurer(HCADFilter hcadFilter) {
+        return new HCADFilterConfigurer(hcadFilter);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "hcadFilterRegistrationBean")
+    @ConditionalOnBean(HCADFilter.class)
+    public FilterRegistrationBean<HCADFilter> hcadFilterRegistrationBean(HCADFilter hcadFilter) {
+        FilterRegistrationBean<HCADFilter> registration = new FilterRegistrationBean<>(hcadFilter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

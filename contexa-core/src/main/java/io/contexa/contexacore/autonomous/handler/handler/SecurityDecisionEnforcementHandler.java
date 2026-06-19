@@ -26,6 +26,9 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
+import io.contexa.contexacore.hcad.evaluation.HcadOutcomeClassifier;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +50,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final Executor baselineLearningExecutor;
+    private final HcadEvaluationWriter hcadEvaluationWriter;
+
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
@@ -76,7 +81,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 blockingDecisionRegistry,
                 analysisTriggerStateRepository,
                 securityZeroTrustProperties,
-                Runnable::run);
+                Runnable::run,
+                null);
     }
 
     public SecurityDecisionEnforcementHandler(
@@ -87,6 +93,26 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             Executor baselineLearningExecutor) {
+        this(
+                actionRedisRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingDecisionRegistry,
+                analysisTriggerStateRepository,
+                securityZeroTrustProperties,
+                baselineLearningExecutor,
+                null);
+    }
+
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Executor baselineLearningExecutor,
+            HcadEvaluationWriter hcadEvaluationWriter) {
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.blockedUserRecorder = blockedUserRecorder;
@@ -94,6 +120,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.analysisTriggerStateRepository = analysisTriggerStateRepository;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.baselineLearningExecutor = baselineLearningExecutor != null ? baselineLearningExecutor : Runnable::run;
+        this.hcadEvaluationWriter = hcadEvaluationWriter;
     }
 
     private boolean isEnforcementDisabled() {
@@ -104,6 +131,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     public boolean handle(SecurityEventContext context) {
         Object resultObj = context.getMetadata().get("processingResult");
         if (!(resultObj instanceof ProcessingResult result) || !result.isSuccess()) {
+            recordHcadUnknownDecision(context.getSecurityEvent(), resultObj instanceof ProcessingResult failedResult ? failedResult : null);
             releasePreTriggerInFlight(context.getSecurityEvent());
             return true;
         }
@@ -114,8 +142,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return true;
         }
 
+        boolean sideEffectsEnabled = !isEnforcementSuppressed(event);
+
         try {
-            enforceDecision(userId, event, result);
+            enforceDecision(userId, event, result, sideEffectsEnabled);
             releasePreTriggerInFlight(event);
         } catch (Exception e) {
             releasePreTriggerInFlight(event);
@@ -124,7 +154,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return false;
         }
 
-        if (ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
+        if (sideEffectsEnabled && ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
             CompletableFuture.runAsync(() -> learnFromResult(userId, event, result), baselineLearningExecutor)
                     .exceptionally(ex -> {
                         log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);
@@ -135,7 +165,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         return true;
     }
 
-    private void enforceDecision(String userId, SecurityEvent event, ProcessingResult result) {
+    private void enforceDecision(String userId, SecurityEvent event, ProcessingResult result, boolean sideEffectsEnabled) {
         String action = result.getAction();
         ZeroTrustAction ztAction;
         if (action == null || action.isBlank()) {
@@ -174,8 +204,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             additionalFields.put("contextBindingHash", contextBindingHash);
         }
 
-        if (isEnforcementDisabled()) {
+        recordHcadDecision(event, result, ztAction);
+
+        if (!sideEffectsEnabled) {
             additionalFields.put("shadowMode", true);
+            additionalFields.put("shadowReason", resolveSuppressionReason(event));
             log.info("[SecurityDecisionEnforcementHandler][SHADOW] Observation-only: decision not persisted and no runtime side-effects applied. userId={}, ztAction={}, proposedAction={}",
                     userId, ztAction, result.getProposedAction());
             return;
@@ -321,13 +354,129 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             fields.put(key, value);
         }
     }
+
+    private boolean isEnforcementSuppressed(SecurityEvent event) {
+        return isEnforcementDisabled() || isEventShadowBoundary(event);
+    }
+
+    private boolean isEventShadowBoundary(SecurityEvent event) {
+        String decisionBoundaryMode = metadataText(event, "decisionBoundaryMode");
+        if ("SHADOW".equalsIgnoreCase(decisionBoundaryMode)) {
+            return true;
+        }
+        String hcadMode = metadataText(event, "hcadMode");
+        return "SHADOW".equalsIgnoreCase(hcadMode);
+    }
+
+    private String resolveSuppressionReason(SecurityEvent event) {
+        if (isEventShadowBoundary(event)) {
+            return "EVENT_SHADOW";
+        }
+        if (isEnforcementDisabled()) {
+            return "GLOBAL_SHADOW";
+        }
+        return "NONE";
+    }
+
+    private void recordHcadDecision(SecurityEvent event, ProcessingResult result, ZeroTrustAction enforcedAction) {
+        if (hcadEvaluationWriter == null) {
+            return;
+        }
+        String evaluationId = metadataText(event, "hcadEvaluationId");
+        Long llmLatencyMs = result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null;
+        String outcomeClass = isHcadTriggeredEvent(event)
+                ? HcadOutcomeClassifier.classifyHcadTriggered(result, enforcedAction)
+                : HcadOutcomeClassifier.classifyHcadObservation(result, enforcedAction);
+        if (evaluationId != null) {
+            hcadEvaluationWriter.markDecided(
+                    evaluationId,
+                    event != null ? event.getEventId() : null,
+                    result.getAction(),
+                    result.getProposedAction(),
+                    result.resolveAuditRiskScore(),
+                    result.resolveAuditConfidence(),
+                    llmLatencyMs,
+                    outcomeClass);
+            return;
+        }
+        if (isHcadPreTriggerObservation(event)) {
+            hcadEvaluationWriter.recordObservedDecision(
+                    event,
+                    result.getAction(),
+                    result.getProposedAction(),
+                    result.resolveAuditRiskScore(),
+                    result.resolveAuditConfidence(),
+                    llmLatencyMs,
+                    outcomeClass);
+        }
+    }
+
+    private void recordHcadUnknownDecision(SecurityEvent event, ProcessingResult result) {
+        if (hcadEvaluationWriter == null || event == null) {
+            return;
+        }
+        Long llmLatencyMs = result != null && result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null;
+        String evaluationId = metadataText(event, "hcadEvaluationId");
+        if (evaluationId != null) {
+            hcadEvaluationWriter.markDecided(
+                    evaluationId,
+                    event.getEventId(),
+                    result != null ? result.getAction() : null,
+                    result != null ? result.getProposedAction() : null,
+                    result != null ? result.resolveAuditRiskScore() : null,
+                    result != null ? result.resolveAuditConfidence() : null,
+                    llmLatencyMs,
+                    HcadOutcomeClassifier.UNKNOWN);
+            return;
+        }
+        if (isHcadPreTriggerObservation(event)) {
+            hcadEvaluationWriter.recordObservedDecision(
+                    event,
+                    result != null ? result.getAction() : null,
+                    result != null ? result.getProposedAction() : null,
+                    result != null ? result.resolveAuditRiskScore() : null,
+                    result != null ? result.resolveAuditConfidence() : null,
+                    llmLatencyMs,
+                    HcadOutcomeClassifier.UNKNOWN);
+        }
+    }
+
+    private boolean isHcadTriggeredEvent(SecurityEvent event) {
+        String triggerSource = metadataText(event, "triggerSource");
+        return "HCAD_PRE_TRIGGER".equalsIgnoreCase(triggerSource)
+                || "PENDING_REDLINE".equalsIgnoreCase(triggerSource);
+    }
+
+    private boolean isHcadPreTriggerObservation(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return false;
+        }
+        Object evaluated = event.getMetadata().get(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED);
+        return Boolean.TRUE.equals(evaluated)
+                || event.getMetadata().containsKey(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE)
+                || event.getMetadata().containsKey(HcadPreProtectablePromotionAttributes.METADATA_SCORE);
+    }
+
+    private String metadataText(SecurityEvent event, String key) {
+        if (event == null || event.getMetadata() == null || key == null) {
+            return null;
+        }
+        Object value = event.getMetadata().get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isBlank() ? null : text;
+    }
+
     private void releasePreTriggerInFlight(SecurityEvent event) {
         if (analysisTriggerStateRepository == null || event == null || event.getMetadata() == null) {
             return;
         }
-        Object triggerSource = event.getMetadata().get("triggerSource");
+        String triggerSource = metadataText(event, "triggerSource");
         Object triggerStateKey = event.getMetadata().get("triggerStateKey");
-        if ("PENDING_REDLINE".equals(triggerSource) && triggerStateKey != null && !triggerStateKey.toString().isBlank()) {
+        if (("PENDING_REDLINE".equalsIgnoreCase(triggerSource) || "HCAD_PRE_TRIGGER".equalsIgnoreCase(triggerSource))
+                && triggerStateKey != null && !triggerStateKey.toString().isBlank()) {
             analysisTriggerStateRepository.releaseInFlight(triggerStateKey.toString());
         }
     }

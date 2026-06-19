@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -322,6 +323,7 @@ public class HcadProperties {
     @Data
     public static class PreTriggerSettings {
         private boolean enabled = true;
+        private HcadPreTriggerMode mode = HcadPreTriggerMode.SHADOW;
         private int cooldownSeconds = 15;
         private int inFlightTtlSeconds = 15;
         private int negativeCacheSeconds = 3;
@@ -341,6 +343,41 @@ public class HcadProperties {
                 "basic",
                 "password"
         ));
+
+        @NestedConfigurationProperty
+        private LlmRateLimitSettings llmRateLimit = new LlmRateLimitSettings();
+
+        @NestedConfigurationProperty
+        private QualificationSettings qualification = new QualificationSettings();
+
+        public HcadPreTriggerMode effectiveMode() {
+            return enabled ? HcadPreTriggerMode.from(mode) : HcadPreTriggerMode.DISABLED;
+        }
+
+        public boolean shouldEvaluate() {
+            return effectiveMode().evaluatesRequest();
+        }
+
+        public boolean shouldPublishLlmEvent() {
+            return effectiveMode().publishesLlmEvent();
+        }
+
+        @Data
+        public static class LlmRateLimitSettings {
+            private boolean enabled = true;
+            private int maxTriggersPerWindow = 120;
+            private int windowSeconds = 60;
+            private String scope = "GLOBAL";
+        }
+
+        @Data
+        public static class QualificationSettings {
+            private double shadowMinPrecision = 0.80;
+            private double limitedEnforceMinPrecision = 0.90;
+            private double defaultEnforceMinPrecision = 0.95;
+            private int minimumSampleSize = 100;
+            private double estimatedLlmCallCostUsd = 0.0d;
+        }
     }
 }
 

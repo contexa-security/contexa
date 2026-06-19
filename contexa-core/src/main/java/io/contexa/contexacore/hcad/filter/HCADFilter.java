@@ -15,14 +15,16 @@
  */
 package io.contexa.contexacore.hcad.filter;
 
-import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
-import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacommon.hcad.official.OfficialContextRequestAttributes;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionContextResolver;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
-import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.FilterChain;
@@ -38,19 +40,60 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.function.Supplier;
 
 @Slf4j
 public class HCADFilter extends OncePerRequestFilter {
 
-    private final HCADAnalysisService hcadAnalysisService;
+    private final TrustedHcadContextProjectionFactory trustedProjectionFactory;
+    private final HcadPreProtectablePromotionScorer preProtectablePromotionScorer;
+    private final Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier;
+    private final Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier;
     private final HcadProperties hcadProperties;
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    public HCADFilter(HCADAnalysisService hcadAnalysisService, HcadProperties hcadProperties) {
-        this.hcadAnalysisService = hcadAnalysisService;
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties) {
+        this(trustedProjectionFactory, preProtectablePromotionScorer, hcadProperties,
+                (Supplier<PendingAnomalyTriggerOrchestrator>) null);
+    }
+
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            PendingAnomalyTriggerOrchestrator pendingAnomalyTriggerOrchestrator) {
+        this(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> pendingAnomalyTriggerOrchestrator,
+                null);
+    }
+
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier) {
+        this(trustedProjectionFactory, preProtectablePromotionScorer, hcadProperties,
+                pendingAnomalyTriggerOrchestratorSupplier, null);
+    }
+
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier,
+            Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier) {
+        this.trustedProjectionFactory = trustedProjectionFactory;
+        this.preProtectablePromotionScorer = preProtectablePromotionScorer;
         this.hcadProperties = hcadProperties;
+        this.pendingAnomalyTriggerOrchestratorSupplier = pendingAnomalyTriggerOrchestratorSupplier;
+        this.hcadEvaluationWriterSupplier = hcadEvaluationWriterSupplier;
     }
 
     @Override
@@ -58,28 +101,46 @@ public class HCADFilter extends OncePerRequestFilter {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuthenticated = this.trustResolver.isAuthenticated(authentication);
 
-        if (!hcadProperties.isEnabled() || !isAuthenticated) {
+        if (!hcadProperties.isEnabled() || !hcadProperties.getPreTrigger().shouldEvaluate() || !isAuthenticated) {
+            if (log.isTraceEnabled()) {
+                log.trace("[HCADFilter] Skipped: path={}, enabled={}, preTrigger={}, authenticated={}",
+                        HcadRequestPathUtils.normalizedPath(request),
+                        hcadProperties.isEnabled(),
+                        hcadProperties.getPreTrigger().shouldEvaluate(),
+                        isAuthenticated);
+            }
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            HCADAnalysisResult result = hcadAnalysisService.analyze(request, authentication);
-            if (result.getContext() != null) {
-                HCADContext context = result.getContext();
-                projectHcadContext(request, context);
-                HcadPreProtectablePromotionAssessment assessment = HcadPreProtectablePromotionContextResolver.resolve(context);
-                HcadPreProtectablePromotionRequestProjector.project(request, assessment);
+            TrustedHcadContextProjection projection = trustedProjectionFactory.project(request, authentication);
+            HcadPreProtectablePromotionAssessment assessment = preProtectablePromotionScorer.score(projection);
+            if (log.isTraceEnabled()) {
+                log.trace("[HCADFilter] Evaluated: userId={}, method={}, path={}, previousPath={}, score={}, band={}, eligible={}",
+                        projection.userId(),
+                        projection.method(),
+                        projection.normalizedPath(),
+                        projection.previousPath(),
+                        assessment.score(),
+                        assessment.band().serializedValue(),
+                        assessment.eligible());
             }
+            HcadPreProtectablePromotionRequestProjector.project(
+                    request,
+                    assessment,
+                    hcadProperties.getPreTrigger().effectiveMode());
 
-            String action = result.getAction();
-            if (ZeroTrustAction.fromString(action).isBlocking()) {
-                log.info("[HCADFilter] Security action: {} - userId: {}, riskScore: {}, threatType: {}",
-                        action,
-                        result.getUserId(),
-                        String.format("%.3f", result.getAnomalyScore()),
-                        result.getThreatType());
+            if (assessment.eligible()) {
+                log.info("[HCADFilter] Trusted pre-trigger candidate: userId={}, method={}, path={}, score={}, band={}, anchors={}",
+                        projection.userId(),
+                        projection.method(),
+                        projection.normalizedPath(),
+                        assessment.score(),
+                        assessment.band().serializedValue(),
+                        assessment.anchorSignals());
             }
+            maybeTriggerPendingAnomaly(request, authentication, projection, assessment);
 
             filterChain.doFilter(request, response);
         } catch (Exception e) {
@@ -90,50 +151,83 @@ public class HCADFilter extends OncePerRequestFilter {
         }
     }
 
-    private void projectHcadContext(HttpServletRequest request, HCADContext context) {
-        request.setAttribute("hcad.is_new_session", context.getIsNewSession());
-        request.setAttribute("hcad.is_new_user", context.getIsNewUser());
-        request.setAttribute("hcad.is_new_device", context.getIsNewDevice());
-        request.setAttribute("hcad.baseline_confidence", context.getBaselineConfidence());
-        request.setAttribute("hcad.is_sensitive_resource", context.getIsSensitiveResource());
-        request.setAttribute("hcad.previous_path", context.getPreviousPath());
-        request.setAttribute("hcad.last_request_interval_ms", context.getLastRequestInterval());
-        request.setAttribute("hcad.observed_at", context.getTimestamp());
-        if (context.getLatitude() != null) {
-            request.setAttribute("hcad.latitude", context.getLatitude());
+    private void maybeTriggerPendingAnomaly(
+            HttpServletRequest request,
+            Authentication authentication,
+            TrustedHcadContextProjection projection,
+            HcadPreProtectablePromotionAssessment assessment) {
+        PendingAnomalyTriggerOrchestrator pendingAnomalyTriggerOrchestrator =
+                pendingAnomalyTriggerOrchestratorSupplier == null
+                        ? null
+                        : pendingAnomalyTriggerOrchestratorSupplier.get();
+        if (request == null) {
+            return;
         }
-        if (context.getLongitude() != null) {
-            request.setAttribute("hcad.longitude", context.getLongitude());
+        if (Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED))) {
+            return;
         }
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED, true);
+        if (pendingAnomalyTriggerOrchestrator != null) {
+            pendingAnomalyTriggerOrchestrator.maybeTrigger(request, authentication);
+            if (request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID) == null) {
+                recordCandidateWithoutPublisher(request, projection, assessment);
+            }
+            return;
+        }
+        recordCandidateWithoutPublisher(request, projection, assessment);
+    }
 
-        OfficialContextRequestAttributes.applySnapshot(
-                request,
-                OfficialContextRequestAttributes.snapshotFrom(context),
-                false);
-
-        Map<String, Object> attrs = context.getAdditionalAttributes();
-        if (attrs != null) {
-            Object resourceBusinessLabel = attrs.get("resourceBusinessLabel");
-            if (resourceBusinessLabel != null) {
-                request.setAttribute("hcad.resource_business_label", resourceBusinessLabel);
-            }
-            if (Boolean.TRUE.equals(attrs.get("impossibleTravel"))) {
-                request.setAttribute("hcad.impossibleTravel", true);
-                request.setAttribute("hcad.travelDistanceKm", attrs.get("travelDistanceKm"));
-                request.setAttribute("hcad.travelElapsedMinutes", attrs.get("travelElapsedMinutes"));
-                request.setAttribute("hcad.previousLocation", attrs.get("previousLocation"));
-            }
-            if (attrs.get("userRoles") != null) {
-                request.setAttribute("hcad.user_roles", attrs.get("userRoles").toString());
-            }
+    private void recordCandidateWithoutPublisher(
+            HttpServletRequest request,
+            TrustedHcadContextProjection projection,
+            HcadPreProtectablePromotionAssessment assessment) {
+        HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
+        if (writer == null || projection == null || assessment == null || !assessment.eligible()) {
+            return;
+        }
+        String requestPath = projection.normalizedPath();
+        String method = projection.method();
+        String riskSignature = PendingAnomalyKeyFactory.buildRiskSignature(
+                method,
+                requestPath,
+                assessment.reasonCodes());
+        String triggerStateKey = PendingAnomalyKeyFactory.buildTriggerKey(
+                projection.userId(),
+                projection.contextBindingHash(),
+                method,
+                requestPath,
+                riskSignature);
+        PendingAnomalyEvidenceReport report = new PendingAnomalyEvidenceReport(
+                true,
+                projection.userId(),
+                projection.contextBindingHash(),
+                triggerStateKey,
+                request != null ? request.getHeader("X-Request-Id") : null,
+                projection.sessionId(),
+                requestPath,
+                method,
+                projection.clientIp(),
+                assessment.score(),
+                assessment.band().serializedValue(),
+                true,
+                assessment.evaluationVersion(),
+                assessment.anchorSignals(),
+                assessment.corroboratingSignals(),
+                assessment.reasonCodes(),
+                assessment.summary(),
+                riskSignature,
+                assessment.rawSignalSnapshot());
+        String evaluationId = writer.recordCandidate(hcadProperties.getPreTrigger().effectiveMode(), report);
+        if (evaluationId != null && request != null) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
         }
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = HcadRequestPathUtils.normalizedPath(request);
-        return matchesExcludedPattern(path) ||
-               HcadRequestPathUtils.isDefaultExcluded(path);
+        return !hcadProperties.getPreTrigger().shouldEvaluate() ||
+               matchesExcludedPattern(path);
     }
 
     private boolean matchesExcludedPattern(String path) {

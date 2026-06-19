@@ -50,13 +50,15 @@ class PendingAnomalyEligibilityGateTest {
     private AnalysisTriggerStateRepository analysisTriggerStateRepository;
 
     private PendingAnomalyEligibilityGate eligibilityGate;
+    private HcadProperties hcadProperties;
 
     @BeforeEach
     void setUp() {
+        hcadProperties = new HcadProperties();
         eligibilityGate = new PendingAnomalyEligibilityGate(
                 actionRepository,
                 analysisTriggerStateRepository,
-                new HcadProperties());
+                hcadProperties);
     }
 
     @Test
@@ -67,8 +69,6 @@ class PendingAnomalyEligibilityGateTest {
 
         when(actionRepository.getCurrentAction(eq("alice"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-        when(analysisTriggerStateRepository.isCoolingDown(anyString())).thenReturn(false);
-        when(analysisTriggerStateRepository.isInFlight(anyString())).thenReturn(false);
 
         PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
                 request,
@@ -79,28 +79,65 @@ class PendingAnomalyEligibilityGateTest {
     }
 
     @Test
-    @DisplayName("non-pending users should be ignored by the eligibility gate")
-    void evaluate_nonPending_shouldReturnNull() {
+    @DisplayName("allowed users should remain eligible for shadow HCAD observation")
+    void evaluate_allowedAction_shouldReturnEligibility() {
         MockHttpServletRequest request = baseRequest("bob", "/api/reports");
         HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
 
         when(actionRepository.getCurrentAction(eq("bob"), any())).thenReturn(ZeroTrustAction.ALLOW);
+        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
 
         PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
                 request,
                 new UsernamePasswordAuthenticationToken("bob", "n/a", List.of()));
 
-        assertThat(eligibility).isNull();
+        assertThat(eligibility).isNotNull();
+        assertThat(eligibility.userId()).isEqualTo("bob");
     }
 
     @Test
-    @DisplayName("cooling-down pending users should be ignored before anomaly evaluation")
-    void evaluate_coolingDown_shouldReturnNull() {
+    @DisplayName("authentication principal should be used when request user context is absent")
+    void evaluate_missingRequestUserContext_usesAuthenticationPrincipal() {
+        MockHttpServletRequest request = baseRequest("ignored", "/api/reports");
+        request.removeAttribute("contexa.userId");
+        HcadPreProtectablePromotionRequestProjector.project(
+                request,
+                eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
+
+        when(actionRepository.getCurrentAction(eq("zoe"), any())).thenReturn(ZeroTrustAction.ALLOW);
+        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
+
+        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
+                request,
+                new UsernamePasswordAuthenticationToken("zoe", "n/a", List.of()));
+
+        assertThat(eligibility).isNotNull();
+        assertThat(eligibility.userId()).isEqualTo("zoe");
+    }
+
+    @Test
+    @DisplayName("active challenge users should be ignored by the eligibility gate")
+    void evaluate_activeChallenge_shouldReturnNull() {
+        MockHttpServletRequest challengeRequest = baseRequest("mallory", "/api/reports");
+        HcadPreProtectablePromotionRequestProjector.project(
+                challengeRequest,
+                eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
+        when(actionRepository.getCurrentAction(eq("mallory"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        PendingAnomalyEligibility challengeEligibility = eligibilityGate.evaluate(
+                challengeRequest,
+                new UsernamePasswordAuthenticationToken("mallory", "n/a", List.of()));
+
+        assertThat(challengeEligibility).isNull();
+    }
+
+    @Test
+    @DisplayName("negative-cached pending users should be ignored before anomaly evaluation")
+    void evaluate_negativeCached_shouldReturnNull() {
         MockHttpServletRequest request = baseRequest("carol", "/api/reports");
         HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
         when(actionRepository.getCurrentAction(eq("carol"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-        when(analysisTriggerStateRepository.isCoolingDown(anyString())).thenReturn(true);
+        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(true);
 
         PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
                 request,
@@ -119,8 +156,6 @@ class PendingAnomalyEligibilityGateTest {
 
         when(actionRepository.getCurrentAction(eq("dave"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-        when(analysisTriggerStateRepository.isCoolingDown(anyString())).thenReturn(false);
-        when(analysisTriggerStateRepository.isInFlight(anyString())).thenReturn(false);
 
         PendingAnomalyEligibility firstEligibility = eligibilityGate.evaluate(
                 first,
@@ -132,6 +167,20 @@ class PendingAnomalyEligibilityGateTest {
         assertThat(firstEligibility).isNotNull();
         assertThat(secondEligibility).isNotNull();
         assertThat(firstEligibility.baseKey()).isEqualTo(secondEligibility.baseKey());
+    }
+
+    @Test
+    @DisplayName("disabled pre-trigger mode should make requests ineligible")
+    void evaluate_disabledMode_shouldReturnNull() {
+        hcadProperties.getPreTrigger().setMode(HcadPreTriggerMode.DISABLED);
+        MockHttpServletRequest request = baseRequest("erin", "/api/reports");
+        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
+
+        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
+                request,
+                new UsernamePasswordAuthenticationToken("erin", "n/a", List.of()));
+
+        assertThat(eligibility).isNull();
     }
 
     private MockHttpServletRequest baseRequest(String userId, String path) {

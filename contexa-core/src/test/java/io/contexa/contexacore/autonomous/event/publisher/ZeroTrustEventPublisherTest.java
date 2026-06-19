@@ -26,6 +26,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
@@ -324,6 +325,49 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("maxTokens", 96)
                 .containsEntry("disableRetries", true)
                 .containsEntry("disableOllamaThinking", true);
+    }
+
+    @Test
+    @DisplayName("HCAD observation attributes should propagate without changing decision boundary")
+    void shouldPropagateHcadObservationMetadataIntoAuthorizationEventPayload() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/users");
+        request.setRequestedSessionId("session-hcad-observation");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("203.0.113.15");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED, true);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_MODE, "SHADOW");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE, 45);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_BAND, "HIGH");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, false);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES, List.of("REQUEST_BURST"));
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS, Map.of("requestBurst", 12));
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, "eval-rate-limited");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("approve");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        assertThat(event.getPayload())
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_MODE, "SHADOW")
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 45)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "HIGH")
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
+                .containsEntry("hcadEvaluationId", "eval-rate-limited");
+        assertThat(event.getPayload()).doesNotContainKey("decisionBoundaryMode");
+        assertThat((List<String>) event.getPayload().get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES))
+                .containsExactly("REQUEST_BURST");
+        assertThat((Map<String, Object>) event.getPayload().get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS))
+                .containsEntry("requestBurst", 12);
     }
 
     @Test

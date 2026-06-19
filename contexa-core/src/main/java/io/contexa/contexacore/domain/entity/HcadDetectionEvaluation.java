@@ -1,0 +1,160 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.contexa.contexacore.domain.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "hcad_detection_evaluation", indexes = {
+        @Index(name = "idx_hcad_eval_mode_created", columnList = "mode,created_at"),
+        @Index(name = "idx_hcad_eval_outcome_created", columnList = "outcome_class,created_at"),
+        @Index(name = "idx_hcad_eval_resource", columnList = "request_path,http_method"),
+        @Index(name = "idx_hcad_eval_request_id", columnList = "request_id"),
+        @Index(name = "idx_hcad_eval_event_id", columnList = "event_id")
+})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class HcadDetectionEvaluation {
+
+    @Id
+    @Column(name = "evaluation_id", nullable = false, length = 64)
+    private String evaluationId;
+
+    @Column(name = "event_id", length = 128)
+    private String eventId;
+
+    @Column(name = "request_id", length = 160)
+    private String requestId;
+
+    @Column(name = "correlation_id", length = 160)
+    private String correlationId;
+
+    @Column(name = "user_id", length = 160)
+    private String userId;
+
+    @Column(name = "context_binding_hash", length = 128)
+    private String contextBindingHash;
+
+    @Column(name = "http_method", length = 16)
+    private String httpMethod;
+
+    @Column(name = "request_path", length = 2048)
+    private String requestPath;
+
+    @Column(name = "client_ip", length = 64)
+    private String clientIp;
+
+    @Column(name = "mode", nullable = false, length = 32)
+    private String mode;
+
+    @Column(name = "early_analysis_score")
+    private Integer earlyAnalysisScore;
+
+    @Column(name = "band", length = 32)
+    private String band;
+
+    @Column(name = "eligible")
+    private Boolean eligible;
+
+    @Column(name = "triggered_llm", nullable = false)
+    @Builder.Default
+    private Boolean triggeredLlm = false;
+
+    @Column(name = "duplicate_suppressed", nullable = false)
+    @Builder.Default
+    private Boolean duplicateSuppressed = false;
+
+    @Column(name = "anchor_signals", columnDefinition = "TEXT")
+    private String anchorSignals;
+
+    @Column(name = "corroborating_signals", columnDefinition = "TEXT")
+    private String corroboratingSignals;
+
+    @Column(name = "reason_codes", columnDefinition = "TEXT")
+    private String reasonCodes;
+
+    @Column(name = "signal_snapshot_json", columnDefinition = "TEXT")
+    private String signalSnapshotJson;
+
+    @Column(name = "signal_provenance_json", columnDefinition = "TEXT")
+    private String signalProvenanceJson;
+
+    @Column(name = "llm_action", length = 64)
+    private String llmAction;
+
+    @Column(name = "llm_proposed_action", length = 64)
+    private String llmProposedAction;
+
+    @Column(name = "llm_risk_score")
+    private Double llmRiskScore;
+
+    @Column(name = "llm_confidence")
+    private Double llmConfidence;
+
+    @Column(name = "llm_latency_ms")
+    private Long llmLatencyMs;
+
+    @Column(name = "outcome_class", nullable = false, length = 32)
+    @Builder.Default
+    private String outcomeClass = "UNKNOWN";
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "triggered_at")
+    private LocalDateTime triggeredAt;
+
+    @Column(name = "decided_at")
+    private LocalDateTime decidedAt;
+
+    @PrePersist
+    void prePersist() {
+        if (evaluationId == null || evaluationId.isBlank()) {
+            evaluationId = UUID.randomUUID().toString();
+        }
+        if (mode == null || mode.isBlank()) {
+            mode = "SHADOW";
+        }
+        if (triggeredLlm == null) {
+            triggeredLlm = false;
+        }
+        if (duplicateSuppressed == null) {
+            duplicateSuppressed = false;
+        }
+        if (outcomeClass == null || outcomeClass.isBlank()) {
+            outcomeClass = "UNKNOWN";
+        }
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+}

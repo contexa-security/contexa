@@ -18,7 +18,49 @@ package io.contexa.contexacore.hcad.trigger;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+import java.util.Locale;
+
 public final class HcadRequestPathUtils {
+
+    private static final List<String> NON_INTERACTIVE_FETCH_DESTINATIONS = List.of(
+            "audio",
+            "audioworklet",
+            "embed",
+            "font",
+            "frame",
+            "iframe",
+            "image",
+            "manifest",
+            "object",
+            "paintworklet",
+            "report",
+            "script",
+            "serviceworker",
+            "sharedworker",
+            "style",
+            "track",
+            "video",
+            "worker",
+            "xslt");
+
+    private static final List<String> USER_ACTION_FETCH_DESTINATIONS = List.of(
+            "document",
+            "empty",
+            "nested-document");
+
+    private static final List<String> NON_INTERACTIVE_ACCEPT_TYPES = List.of(
+            "application/font",
+            "application/javascript",
+            "application/manifest+json",
+            "application/octet-stream",
+            "application/wasm",
+            "font/",
+            "image/",
+            "text/css",
+            "text/javascript",
+            "video/",
+            "audio/");
 
     private HcadRequestPathUtils() {
     }
@@ -50,20 +92,59 @@ public final class HcadRequestPathUtils {
         return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
-    public static boolean isDefaultExcluded(HttpServletRequest request) {
-        return isDefaultExcluded(normalizedPath(request));
-    }
-
-    public static boolean isDefaultExcluded(String path) {
-        if (!StringUtils.hasText(path)) {
+    public static boolean isNonUserInteractionRequest(HttpServletRequest request) {
+        if (request == null) {
             return false;
         }
-        return path.startsWith("/static/")
-                || path.startsWith("/css/")
-                || path.startsWith("/js/")
-                || path.startsWith("/images/")
-                || path.equals("/health")
-                || path.startsWith("/actuator/")
-                || path.startsWith("/api/admin/test/vectorstore");
+        if (isPreflight(request)) {
+            return true;
+        }
+        String fetchDestination = normalizedHeader(request, "Sec-Fetch-Dest");
+        if (StringUtils.hasText(fetchDestination)) {
+            if (NON_INTERACTIVE_FETCH_DESTINATIONS.contains(fetchDestination)) {
+                return true;
+            }
+            if (USER_ACTION_FETCH_DESTINATIONS.contains(fetchDestination)) {
+                return false;
+            }
+        }
+        return acceptsOnlyNonInteractiveRepresentations(request.getHeader("Accept"));
+    }
+
+    private static boolean isPreflight(HttpServletRequest request) {
+        return "OPTIONS".equalsIgnoreCase(request.getMethod())
+                && StringUtils.hasText(request.getHeader("Access-Control-Request-Method"));
+    }
+
+    private static String normalizedHeader(HttpServletRequest request, String name) {
+        String value = request.getHeader(name);
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
+    }
+
+    private static boolean acceptsOnlyNonInteractiveRepresentations(String acceptHeader) {
+        if (!StringUtils.hasText(acceptHeader)) {
+            return false;
+        }
+        boolean hasConcreteNonInteractiveType = false;
+        for (String rawPart : acceptHeader.split(",")) {
+            String mediaType = rawPart.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+            if (!StringUtils.hasText(mediaType) || "*/*".equals(mediaType)) {
+                continue;
+            }
+            if (!isNonInteractiveAcceptType(mediaType)) {
+                return false;
+            }
+            hasConcreteNonInteractiveType = true;
+        }
+        return hasConcreteNonInteractiveType;
+    }
+
+    private static boolean isNonInteractiveAcceptType(String mediaType) {
+        for (String nonInteractiveType : NON_INTERACTIVE_ACCEPT_TYPES) {
+            if (mediaType.equals(nonInteractiveType) || mediaType.startsWith(nonInteractiveType)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

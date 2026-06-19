@@ -74,4 +74,20 @@ public class RedisAnalysisTriggerStateRepository implements AnalysisTriggerState
             stringRedisTemplate.delete(ZeroTrustRedisKeys.analysisTriggerInflight(dedupKey));
         }
     }
+
+    @Override
+    public boolean tryAcquireRateLimit(String rateKey, Duration window, int maxTriggers) {
+        if (rateKey == null || window == null || window.isZero() || window.isNegative() || maxTriggers <= 0) {
+            return false;
+        }
+        String redisKey = ZeroTrustRedisKeys.analysisTriggerRateLimit(rateKey);
+        Long count = stringRedisTemplate.opsForValue().increment(redisKey);
+        if (count == null) {
+            return false;
+        }
+        if (count == 1L) {
+            stringRedisTemplate.expire(redisKey, window);
+        }
+        return count <= maxTriggers;
+    }
 }

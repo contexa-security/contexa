@@ -25,6 +25,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
@@ -304,6 +305,7 @@ public class ZeroTrustEventPublisher {
             }
             populateBridgePayload(requestInfo, payload);
             populateRequestContextHints(requestInfo, payload);
+            populateHcadPreTriggerObservationPayload(payload);
 
             if (requestInfo.getGeoCountry() != null) {
                 payload.put("geoCountry", requestInfo.getGeoCountry());
@@ -418,6 +420,75 @@ public class ZeroTrustEventPublisher {
         } catch (Exception e) {
             log.error("Failed to resolve pre-trigger suppression state", e);
             return false;
+        }
+    }
+
+    private void populateHcadPreTriggerObservationPayload(Map<String, Object> payload) {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            if (!Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))) {
+                return;
+            }
+            payload.put(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_MODE,
+                    HcadPreProtectablePromotionAttributes.METADATA_MODE);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_SCORE,
+                    HcadPreProtectablePromotionAttributes.METADATA_SCORE);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE,
+                    HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_BAND,
+                    HcadPreProtectablePromotionAttributes.METADATA_BAND);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE,
+                    HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS,
+                    HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_CORROBORATING_SIGNALS,
+                    HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES,
+                    HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY,
+                    HcadPreProtectablePromotionAttributes.METADATA_SUMMARY);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_VERSION,
+                    HcadPreProtectablePromotionAttributes.METADATA_VERSION);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS,
+                    HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_PROVENANCE,
+                    HcadPreProtectablePromotionAttributes.METADATA_PROVENANCE);
+            copyRequestAttribute(request, payload,
+                    HcadPreProtectablePromotionAttributes.REQUEST_IGNORED_INPUTS,
+                    HcadPreProtectablePromotionAttributes.METADATA_IGNORED_INPUTS);
+            copyRequestAttribute(request, payload,
+                    PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID,
+                    "hcadEvaluationId");
+        } catch (Exception e) {
+            log.error("Failed to copy HCAD pre-trigger observation metadata", e);
+        }
+    }
+
+    private void copyRequestAttribute(
+            HttpServletRequest request,
+            Map<String, Object> payload,
+            String requestAttributeName,
+            String metadataName) {
+        Object value = request.getAttribute(requestAttributeName);
+        if (value != null) {
+            payload.putIfAbsent(metadataName, value);
         }
     }
 

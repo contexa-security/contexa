@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.ai;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
+import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResolutionConfigurer;
@@ -70,10 +71,12 @@ public class AiSecurityConfiguration {
     @Bean
     @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(ApplicationContext applicationContext,
-                                            CustomDynamicAuthorizationManager customDynamicAuthorizationManager) throws Exception {
+                                            CustomDynamicAuthorizationManager customDynamicAuthorizationManager,
+                                            ObjectProvider<HCADFilter> hcadFilterProvider) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
         SecurityMode securityMode = resolveSecurityMode();
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
+            hcadFilterProvider.ifAvailable(hcadFilter -> http.addFilterBefore(hcadFilter, AuthorizationFilter.class));
             http
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
@@ -85,6 +88,7 @@ public class AiSecurityConfiguration {
         if (securityMode == SecurityMode.SANDBOX) {
             return registry
                     .global(http -> {
+                        hcadFilterProvider.ifAvailable(hcadFilter -> http.addFilterBefore(hcadFilter, AuthorizationFilter.class));
                         http.csrf(AbstractHttpConfigurer::disable);
                         http.cors(AbstractHttpConfigurer::disable);
                         http.headers(AbstractHttpConfigurer::disable);

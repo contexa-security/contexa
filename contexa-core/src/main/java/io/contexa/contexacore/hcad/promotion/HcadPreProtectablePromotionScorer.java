@@ -15,7 +15,8 @@
  */
 package io.contexa.contexacore.hcad.promotion;
 
-import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.springframework.util.StringUtils;
 
@@ -27,63 +28,64 @@ import java.util.Map;
 
 public class HcadPreProtectablePromotionScorer {
 
-    private static final String EVALUATION_VERSION = "hcad-promotion-v1";
-
     private final HcadProperties hcadProperties;
 
     public HcadPreProtectablePromotionScorer(HcadProperties hcadProperties) {
         this.hcadProperties = hcadProperties;
     }
 
-    public HcadPreProtectablePromotionAssessment score(HCADContext context) {
-        if (context == null) {
+    public HcadPreProtectablePromotionAssessment score(TrustedHcadContextProjection projection) {
+        if (projection == null) {
             return HcadPreProtectablePromotionAssessment.unavailable(
-                    "HCAD context was not available for pre-protectable promotion scoring.");
+                    "Trusted HCAD context projection was not available for pre-protectable promotion scoring.");
         }
 
         List<HcadPreProtectablePromotionSignal> anchors = new ArrayList<>();
         List<HcadPreProtectablePromotionSignal> corroborating = new ArrayList<>();
-        Map<String, Object> rawSignals = createRawSignalSnapshot(context);
+        Map<String, Object> rawSignals = createRawSignalSnapshot(projection);
 
-        if (Boolean.TRUE.equals(resolveImpossibleTravel(context))) {
+        if (Boolean.TRUE.equals(projection.impossibleTravel())
+                && projection.hasTrustedSource("impossibleTravel", HcadTrustedSource.STORE_DERIVED)) {
             anchors.add(HcadPreProtectablePromotionSignal.IMPOSSIBLE_TRAVEL);
         }
-        if (Boolean.TRUE.equals(context.getIsNewDevice())) {
-            anchors.add(HcadPreProtectablePromotionSignal.NEW_DEVICE);
-        }
-        if (resolveFailedLoginAttempts(context) >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()) {
+        if (projection.failedLoginBurst() != null
+                && projection.failedLoginBurst() >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()
+                && projection.hasTrustedSource("failedLoginBurst", HcadTrustedSource.STORE_DERIVED)) {
             anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST);
         }
-        if (isAuthContextInconsistent(context)) {
+        if (isAuthContextInconsistent(projection)) {
             anchors.add(HcadPreProtectablePromotionSignal.AUTH_CONTEXT_INCONSISTENT);
         }
-        if (hasRecentPermissionChanges(context)) {
+        if (hasRecentPermissionChanges(projection)) {
             anchors.add(HcadPreProtectablePromotionSignal.RECENT_PERMISSION_CHANGE);
         }
-        if (isPrivilegedAuthorization(context)) {
+        if (Boolean.TRUE.equals(projection.authorizationPrivileged())
+                && projection.hasTrustedSource("authorizationPrivileged", HcadTrustedSource.BRIDGE_VERIFIED)) {
             anchors.add(HcadPreProtectablePromotionSignal.PRIVILEGED_AUTHORIZATION);
         }
-        if (isFreshMfaRequiredButNotFresh(context)) {
+        if (isFreshMfaRequiredButNotFresh(projection)) {
             anchors.add(HcadPreProtectablePromotionSignal.FRESH_MFA_REQUIRED);
         }
 
-        if (resolveRecentRequestCount(context) >= hcadProperties.getPreTrigger().getRequestBurstThreshold()) {
+        if (projection.requestBurst() != null
+                && projection.requestBurst() >= hcadProperties.getPreTrigger().getRequestBurstThreshold()
+                && projection.hasTrustedSource("requestBurst", HcadTrustedSource.STORE_DERIVED)) {
             corroborating.add(HcadPreProtectablePromotionSignal.REQUEST_BURST);
         }
-        Long lastInterval = context.getLastRequestInterval();
-        if (lastInterval != null && lastInterval > 0 && lastInterval <= hcadProperties.getPreTrigger().getRapidRequestIntervalMs()) {
+        if (Boolean.TRUE.equals(projection.rapidSequence())
+                && projection.hasTrustedSource("rapidSequence", HcadTrustedSource.STORE_DERIVED)) {
             corroborating.add(HcadPreProtectablePromotionSignal.RAPID_SEQUENCE);
         }
-        if (hasPathJump(context.getPreviousPath(), context.getRequestPath())) {
+        if (hasPathJump(projection.previousPath(), projection.normalizedPath())
+                && projection.hasTrustedSource("previousPath", HcadTrustedSource.STORE_DERIVED)
+                && projection.hasTrustedSource("normalizedPath", HcadTrustedSource.TRUSTED_SERVER)) {
             corroborating.add(HcadPreProtectablePromotionSignal.PREVIOUS_PATH_JUMP);
         }
-        if (isStaleAuthentication(context)) {
-            corroborating.add(HcadPreProtectablePromotionSignal.STALE_AUTHENTICATION);
-        }
-        if (isLowAuthenticationAssurance(context)) {
+        if (isLowAuthenticationAssurance(projection)) {
             corroborating.add(HcadPreProtectablePromotionSignal.LOW_AUTH_ASSURANCE);
         }
-        if (isBaselineUncertain(context.getBaselineConfidence())) {
+        if (isBaselineUncertain(projection.baselineConfidence())
+                && projection.hasTrustedSource("baselineConfidence", HcadTrustedSource.STORE_DERIVED)) {
             corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_UNCERTAIN);
         }
 
@@ -97,13 +99,16 @@ public class HcadPreProtectablePromotionScorer {
             }
         }
         HcadPreProtectablePromotionBand band = resolveBand(score);
-        boolean eligible = !anchors.isEmpty() && score >= hcadProperties.getPreTrigger().getRedlineScore();
-        String summary = buildSummary(context, band, score, anchorSignals, corroboratingSignals, eligible);
+        boolean eligible = hasTriggerQuorum(anchors, corroborating, score);
+        String summary = buildSummary(projection, band, score, anchorSignals, corroboratingSignals, eligible);
 
+        rawSignals.put("earlyAnalysisScore", score);
+        rawSignals.put("preTriggerScore", score);
         rawSignals.put("promotionScore", score);
         rawSignals.put("promotionBand", band.serializedValue());
         rawSignals.put("promotionEligible", eligible);
-        rawSignals.put("promotionVersion", EVALUATION_VERSION);
+        rawSignals.put("promotionVersion", "hcad-promotion-v2-trusted-projection");
+        rawSignals.put("signalProvenanceSummary", summarizeProvenance(projection));
 
         return new HcadPreProtectablePromotionAssessment(
                 score,
@@ -113,34 +118,37 @@ public class HcadPreProtectablePromotionScorer {
                 corroboratingSignals,
                 reasonCodes,
                 summary,
-                EVALUATION_VERSION,
+                "hcad-promotion-v2-trusted-projection",
                 rawSignals);
     }
 
-    private Map<String, Object> createRawSignalSnapshot(HCADContext context) {
+    private Map<String, Object> createRawSignalSnapshot(TrustedHcadContextProjection projection) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("userId", context.getUserId());
-        snapshot.put("requestPath", context.getRequestPath());
-        snapshot.put("httpMethod", context.getHttpMethod());
-        snapshot.put("remoteIp", context.getRemoteIp());
-        snapshot.put("failedLoginAttempts", resolveFailedLoginAttempts(context));
-        snapshot.put("recentRequestCount", resolveRecentRequestCount(context));
-        snapshot.put("lastRequestIntervalMs", context.getLastRequestInterval());
-        snapshot.put("previousPath", context.getPreviousPath());
-        snapshot.put("isNewDevice", context.getIsNewDevice());
-        snapshot.put("impossibleTravel", resolveImpossibleTravel(context));
-        snapshot.put("verificationRequired", attr(context, "verificationRequired"));
-        snapshot.put("freshMfaRequired", attr(context, "freshMfaRequired"));
-        snapshot.put("authMethod", normalize(context.getAuthenticationMethod()));
-        snapshot.put("mfaVerified", context.getHasValidMFA());
-        snapshot.put("mfaFresh", attr(context, "mfaFresh"));
-        snapshot.put("mfaFreshnessSeconds", attr(context, "mfaFreshnessSeconds"));
-        snapshot.put("authenticationAssurance", attr(context, "authenticationAssurance"));
-        snapshot.put("authenticationAgeSeconds", attr(context, "authenticationAgeSeconds"));
-        snapshot.put("authorizationPrivileged", attr(context, "authorizationPrivileged"));
-        snapshot.put("authorizationPolicyId", attr(context, "authorizationPolicyId"));
-        snapshot.put("recentPermissionChanges", attr(context, "recentPermissionChanges"));
-        snapshot.put("baselineConfidence", context.getBaselineConfidence());
+        snapshot.put("userId", projection.userId());
+        snapshot.put("tenantId", projection.tenantId());
+        snapshot.put("organizationId", projection.organizationId());
+        snapshot.put("sessionId", projection.sessionId());
+        snapshot.put("contextBindingHash", projection.contextBindingHash());
+        snapshot.put("requestPath", projection.normalizedPath());
+        snapshot.put("httpMethod", projection.method());
+        snapshot.put("remoteIp", projection.clientIp());
+        snapshot.put("failedLoginAttempts", projection.failedLoginBurst());
+        snapshot.put("recentRequestCount", projection.requestBurst());
+        snapshot.put("rapidSequence", projection.rapidSequence());
+        snapshot.put("previousPath", projection.previousPath());
+        snapshot.put("impossibleTravel", projection.impossibleTravel());
+        snapshot.put("verificationRequired", projection.verificationRequired());
+        snapshot.put("authMethod", normalize(projection.authenticationMethod()));
+        snapshot.put("mfaVerified", projection.mfaVerified());
+        snapshot.put("mfaFreshnessSeconds", projection.mfaFreshnessSeconds());
+        snapshot.put("authenticationAssurance", projection.authenticationAssurance());
+        snapshot.put("authorizationPrivileged", projection.authorizationPrivileged());
+        snapshot.put("authorizationPolicyId", projection.authorizationPolicyId());
+        snapshot.put("recentPermissionChanges", projection.recentPermissionChanges());
+        snapshot.put("baselineConfidence", projection.baselineConfidence());
+        snapshot.put("baselineEstablished", projection.baselineEstablished());
+        snapshot.put("signalProvenance", projection.provenance());
+        snapshot.put("ignoredInputs", projection.ignoredInputs());
         return snapshot;
     }
 
@@ -157,6 +165,17 @@ public class HcadPreProtectablePromotionScorer {
         return Math.min(100, score);
     }
 
+    private boolean hasTriggerQuorum(
+            List<HcadPreProtectablePromotionSignal> anchors,
+            List<HcadPreProtectablePromotionSignal> corroborating,
+            int score) {
+        return anchors != null
+                && corroborating != null
+                && !anchors.isEmpty()
+                && !corroborating.isEmpty()
+                && score >= hcadProperties.getPreTrigger().getRedlineScore();
+    }
+
     private HcadPreProtectablePromotionBand resolveBand(int score) {
         if (score >= hcadProperties.getPreTrigger().getRedlineScore()) {
             return HcadPreProtectablePromotionBand.REDLINE;
@@ -171,18 +190,18 @@ public class HcadPreProtectablePromotionScorer {
     }
 
     private String buildSummary(
-            HCADContext context,
+            TrustedHcadContextProjection projection,
             HcadPreProtectablePromotionBand band,
             int score,
             List<String> anchorSignals,
             List<String> corroboratingSignals,
             boolean eligible) {
-        String requestPath = context.getRequestPath() == null ? "unknown" : context.getRequestPath();
-        String method = context.getHttpMethod() == null ? "UNKNOWN" : context.getHttpMethod();
+        String requestPath = projection.normalizedPath() == null ? "unknown" : projection.normalizedPath();
+        String method = projection.method() == null ? "UNKNOWN" : projection.method();
         String anchors = anchorSignals.isEmpty() ? "none" : String.join(", ", anchorSignals);
         String corroborators = corroboratingSignals.isEmpty() ? "none" : String.join(", ", corroboratingSignals);
         return String.format(
-                "HCAD pre-protectable promotion scored %d (%s, eligible=%s) for %s %s with anchor signals [%s] and corroborating signals [%s].",
+                "Trusted HCAD pre-trigger earlyAnalysisScore=%d (%s, eligible=%s) for %s %s with anchor signals [%s] and corroborating signals [%s].",
                 score,
                 band.serializedValue(),
                 eligible,
@@ -192,44 +211,47 @@ public class HcadPreProtectablePromotionScorer {
                 corroborators);
     }
 
-    private boolean isAuthContextInconsistent(HCADContext context) {
-        String authMethod = normalize(context.getAuthenticationMethod());
-        boolean mfaVerified = Boolean.TRUE.equals(context.getHasValidMFA());
+    private Map<String, Object> summarizeProvenance(TrustedHcadContextProjection projection) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        projection.provenance().forEach((field, provenance) -> summary.put(field, provenance.source().name()));
+        return summary;
+    }
+
+    private boolean isAuthContextInconsistent(TrustedHcadContextProjection projection) {
+        if (!projection.hasTrustedSource("authenticationMethod")
+                || !projection.hasTrustedSource("mfaVerified")) {
+            return false;
+        }
+        String authMethod = normalize(projection.authenticationMethod());
+        boolean mfaVerified = Boolean.TRUE.equals(projection.mfaVerified());
         return "mfa".equals(authMethod) && !mfaVerified;
     }
 
-    private boolean hasRecentPermissionChanges(HCADContext context) {
-        Object changes = attr(context, "recentPermissionChanges");
-        if (changes instanceof List<?> list) {
-            return !list.isEmpty();
+    private boolean hasRecentPermissionChanges(TrustedHcadContextProjection projection) {
+        return projection.hasTrustedSource("recentPermissionChanges", HcadTrustedSource.STORE_DERIVED)
+                && projection.recentPermissionChanges() != null
+                && !projection.recentPermissionChanges().isEmpty();
+    }
+
+    private boolean isFreshMfaRequiredButNotFresh(TrustedHcadContextProjection projection) {
+        if (!Boolean.TRUE.equals(projection.verificationRequired())
+                || !projection.hasTrustedSource("verificationRequired", HcadTrustedSource.BRIDGE_VERIFIED)) {
+            return false;
         }
-        if (changes instanceof String text) {
-            return StringUtils.hasText(text);
+        if (!Boolean.TRUE.equals(projection.mfaVerified())) {
+            return true;
         }
-        return changes != null;
+        Long freshness = projection.mfaFreshnessSeconds();
+        return freshness != null && freshness > hcadProperties.getPreTrigger().getFreshMfaMaxAgeSeconds();
     }
 
-    private boolean isPrivilegedAuthorization(HCADContext context) {
-        return asBoolean(attr(context, "authorizationPrivileged"));
-    }
-
-    private boolean isFreshMfaRequiredButNotFresh(HCADContext context) {
-        return asBoolean(attr(context, "freshMfaRequired")) && !asBoolean(attr(context, "mfaFresh"));
-    }
-
-    private boolean isStaleAuthentication(HCADContext context) {
-        Long authAgeSeconds = asLong(attr(context, "authenticationAgeSeconds"));
-        if (authAgeSeconds == null && context.getSessionAgeMinutes() != null) {
-            authAgeSeconds = context.getSessionAgeMinutes() * 60L;
+    private boolean isLowAuthenticationAssurance(TrustedHcadContextProjection projection) {
+        if (!projection.hasTrustedSource("authenticationAssurance", HcadTrustedSource.BRIDGE_VERIFIED)) {
+            return false;
         }
-        return authAgeSeconds != null
-                && authAgeSeconds > hcadProperties.getPreTrigger().getStaleAuthenticationMaxAgeSeconds();
-    }
-
-    private boolean isLowAuthenticationAssurance(HCADContext context) {
-        String assurance = normalizeText(attr(context, "authenticationAssurance"));
+        String assurance = normalize(projection.authenticationAssurance());
         if (!StringUtils.hasText(assurance)) {
-            return "password".equals(normalize(context.getAuthenticationMethod()));
+            return false;
         }
         List<String> lowValues = hcadProperties.getPreTrigger().getLowAuthenticationAssuranceValues();
         if (lowValues == null || lowValues.isEmpty()) {
@@ -258,59 +280,6 @@ public class HcadPreProtectablePromotionScorer {
             return true;
         }
         return baselineConfidence < hcadProperties.getPreTrigger().getLowBaselineConfidenceThreshold();
-    }
-
-    private Boolean resolveImpossibleTravel(HCADContext context) {
-        Map<String, Object> attrs = context.getAdditionalAttributes();
-        if (attrs == null) {
-            return false;
-        }
-        Object impossibleTravel = attrs.get("impossibleTravel");
-        return impossibleTravel instanceof Boolean bool ? bool : false;
-    }
-
-    private int resolveRecentRequestCount(HCADContext context) {
-        return context.getRecentRequestCount() == null ? 0 : context.getRecentRequestCount();
-    }
-
-    private int resolveFailedLoginAttempts(HCADContext context) {
-        return context.getFailedLoginAttempts() == null ? 0 : context.getFailedLoginAttempts();
-    }
-
-    private Object attr(HCADContext context, String key) {
-        if (context == null || context.getAdditionalAttributes() == null) {
-            return null;
-        }
-        return context.getAdditionalAttributes().get(key);
-    }
-
-    private boolean asBoolean(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value instanceof String text) {
-            String normalized = normalize(text);
-            return "true".equals(normalized) || "1".equals(normalized) || "yes".equals(normalized);
-        }
-        return false;
-    }
-
-    private Long asLong(Object value) {
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        if (value instanceof String text && StringUtils.hasText(text)) {
-            try {
-                return Long.parseLong(text.trim());
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private String normalizeText(Object value) {
-        return value == null ? null : normalize(value.toString());
     }
 
     private String normalize(String value) {

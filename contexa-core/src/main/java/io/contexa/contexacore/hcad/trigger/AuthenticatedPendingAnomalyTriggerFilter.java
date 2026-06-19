@@ -44,8 +44,11 @@ public class AuthenticatedPendingAnomalyTriggerFilter extends OncePerRequestFilt
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            pendingAnomalyTriggerOrchestrator.maybeTrigger(request, authentication);
+            if (!Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED))) {
+                request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED, true);
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                pendingAnomalyTriggerOrchestrator.maybeTrigger(request, authentication);
+            }
         } catch (Exception e) {
             log.error("[AuthenticatedPendingAnomalyTriggerFilter] Failed to evaluate pending anomaly trigger", e);
         }
@@ -54,10 +57,10 @@ public class AuthenticatedPendingAnomalyTriggerFilter extends OncePerRequestFilt
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        if (!hcadProperties.isEnabled() || !hcadProperties.getPreTrigger().isEnabled()) {
+        if (!hcadProperties.isEnabled() || !hcadProperties.getPreTrigger().shouldEvaluate()) {
             return true;
         }
 
-        return HcadRequestPathUtils.isDefaultExcluded(request);
+        return false;
     }
 }

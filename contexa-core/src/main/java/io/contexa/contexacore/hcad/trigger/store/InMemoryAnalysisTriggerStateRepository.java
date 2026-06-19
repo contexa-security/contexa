@@ -36,6 +36,9 @@ public class InMemoryAnalysisTriggerStateRepository implements AnalysisTriggerSt
     private final Cache<String, Long> negativeCache = buildExpiringCache();
     private final Cache<String, Long> cooldownCache = buildExpiringCache();
     private final Cache<String, Long> inFlightCache = buildExpiringCache();
+    private final Cache<String, RateWindow> rateLimitCache = Caffeine.newBuilder()
+            .maximumSize(MAX_ENTRIES)
+            .build();
 
     private static Cache<String, Long> buildExpiringCache() {
         return Caffeine.newBuilder()
@@ -88,6 +91,25 @@ public class InMemoryAnalysisTriggerStateRepository implements AnalysisTriggerSt
         }
     }
 
+    @Override
+    public synchronized boolean tryAcquireRateLimit(String rateKey, Duration window, int maxTriggers) {
+        if (rateKey == null || window == null || window.isZero() || window.isNegative() || maxTriggers <= 0) {
+            return false;
+        }
+        long now = System.nanoTime();
+        long windowNanos = Math.min(window.toNanos(), MAX_TTL_NANOS);
+        RateWindow current = rateLimitCache.getIfPresent(rateKey);
+        if (current == null || current.expiresAtNanos <= now) {
+            rateLimitCache.put(rateKey, new RateWindow(1, now + windowNanos));
+            return true;
+        }
+        if (current.count >= maxTriggers) {
+            return false;
+        }
+        rateLimitCache.put(rateKey, new RateWindow(current.count + 1, current.expiresAtNanos));
+        return true;
+    }
+
     private static void putWithTtl(Cache<String, Long> cache, String key, Duration ttl) {
         if (key == null || ttl == null || ttl.isZero() || ttl.isNegative()) {
             return;
@@ -115,4 +137,7 @@ public class InMemoryAnalysisTriggerStateRepository implements AnalysisTriggerSt
             return currentDurationNanos;
         }
     };
+
+    private record RateWindow(int count, long expiresAtNanos) {
+    }
 }

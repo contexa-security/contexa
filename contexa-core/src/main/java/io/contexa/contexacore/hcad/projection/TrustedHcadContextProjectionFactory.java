@@ -1,0 +1,471 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.contexa.contexacore.hcad.projection;
+
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
+import io.contexa.contexacore.properties.HcadProperties;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.util.StringUtils;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+public class TrustedHcadContextProjectionFactory {
+
+    private static final long REQUEST_BURST_WINDOW_MS = Duration.ofMinutes(5).toMillis();
+    private static final List<String> UNTRUSTED_HEADER_PREFIXES = List.of("x-contexa-");
+
+    private final HCADDataStore hcadDataStore;
+    private final SecurityContextDataStore securityContextDataStore;
+    private final HcadProperties hcadProperties;
+
+    public TrustedHcadContextProjectionFactory(
+            HCADDataStore hcadDataStore,
+            SecurityContextDataStore securityContextDataStore,
+            HcadProperties hcadProperties) {
+        this.hcadDataStore = hcadDataStore;
+        this.securityContextDataStore = securityContextDataStore;
+        this.hcadProperties = hcadProperties;
+    }
+
+    public TrustedHcadContextProjection project(HttpServletRequest request, Authentication authentication) {
+        Map<String, HcadFieldProvenance> provenance = new LinkedHashMap<>();
+        Map<String, Object> ignoredInputs = collectIgnoredInputs(request, provenance);
+        AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request);
+        AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request);
+        long now = System.currentTimeMillis();
+
+        String userId = firstText(
+                authenticationStamp != null ? authenticationStamp.principalId() : null,
+                authentication != null ? authentication.getName() : null);
+        putProvenance(provenance, "userId", userId,
+                authenticationStamp != null && StringUtils.hasText(authenticationStamp.principalId())
+                        ? HcadTrustedSource.BRIDGE_VERIFIED
+                        : HcadTrustedSource.TRUSTED_SERVER,
+                "Resolved from bridge authentication stamp or Spring Security authentication.");
+
+        String tenantId = textAttribute(authenticationStamp, "tenantId");
+        putProvenance(provenance, "tenantId", tenantId, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authentication stamp attributes.");
+
+        String organizationId = firstText(textAttribute(authenticationStamp, "organizationId"), textAttribute(authenticationStamp, "orgId"));
+        putProvenance(provenance, "organizationId", organizationId, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authentication stamp attributes.");
+
+        String sessionId = resolveServerSessionId(request, authenticationStamp);
+        putProvenance(provenance, "sessionId", sessionId,
+                hasServerSession(request) ? HcadTrustedSource.TRUSTED_SERVER : HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from existing server session or bridge authentication stamp.");
+
+        String method = request != null ? request.getMethod() : null;
+        putProvenance(provenance, "method", method, HcadTrustedSource.TRUSTED_SERVER,
+                "Resolved from HttpServletRequest method.");
+
+        String normalizedPath = request != null ? HcadRequestPathUtils.normalizedPath(request) : null;
+        putProvenance(provenance, "normalizedPath", normalizedPath, HcadTrustedSource.TRUSTED_SERVER,
+                "Resolved from server request URI normalization.");
+
+        String clientIp = request != null ? request.getRemoteAddr() : null;
+        putProvenance(provenance, "clientIp", clientIp, HcadTrustedSource.TRUSTED_SERVER,
+                "Resolved from servlet container remote address only.");
+
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(sessionId, clientIp, userId);
+        putProvenance(provenance, "contextBindingHash", contextBindingHash, HcadTrustedSource.TRUSTED_SERVER,
+                "Generated from trusted session, remote address, and principal.");
+
+        String authenticationMethod = firstText(
+                authenticationStamp != null ? authenticationStamp.authenticationType() : null,
+                authentication != null ? authentication.getClass().getSimpleName() : null);
+        putProvenance(provenance, "authenticationMethod", authenticationMethod,
+                authenticationStamp != null && StringUtils.hasText(authenticationStamp.authenticationType())
+                        ? HcadTrustedSource.BRIDGE_VERIFIED
+                        : HcadTrustedSource.TRUSTED_SERVER,
+                "Resolved from bridge authentication stamp or Spring Security authentication type.");
+
+        String authenticationAssurance = authenticationStamp != null ? authenticationStamp.authenticationAssurance() : null;
+        putProvenance(provenance, "authenticationAssurance", authenticationAssurance, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authentication stamp assurance.");
+
+        Boolean mfaVerified = authenticationStamp != null && authenticationStamp.mfaCompleted() != null
+                ? authenticationStamp.mfaCompleted()
+                : hasMfaAuthority(authentication);
+        putProvenance(provenance, "mfaVerified", mfaVerified,
+                authenticationStamp != null && authenticationStamp.mfaCompleted() != null
+                        ? HcadTrustedSource.BRIDGE_VERIFIED
+                        : HcadTrustedSource.TRUSTED_SERVER,
+                "Resolved from bridge MFA stamp or server authentication authorities.");
+
+        Long mfaFreshnessSeconds = authenticationStamp != null && authenticationStamp.authenticationTime() != null
+                ? Duration.between(authenticationStamp.authenticationTime(), Instant.now()).toSeconds()
+                : null;
+        putProvenance(provenance, "mfaFreshnessSeconds", mfaFreshnessSeconds, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authentication time.");
+
+        String authorizationPolicyId = authorizationStamp != null ? authorizationStamp.policyId() : null;
+        putProvenance(provenance, "authorizationPolicyId", authorizationPolicyId, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authorization stamp policy.");
+
+        Boolean authorizationPrivileged = authorizationStamp != null ? authorizationStamp.privileged() : null;
+        putProvenance(provenance, "authorizationPrivileged", authorizationPrivileged, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authorization stamp privilege flag.");
+
+        Boolean verificationRequired = booleanAttribute(authorizationStamp, "verificationRequired");
+        putProvenance(provenance, "verificationRequired", verificationRequired, HcadTrustedSource.BRIDGE_VERIFIED,
+                "Resolved from bridge authorization stamp attributes.");
+
+        List<String> recentPermissionChanges = recentPermissionChanges(tenantId, userId);
+        putProvenance(provenance, "recentPermissionChanges", recentPermissionChanges.isEmpty() ? null : recentPermissionChanges,
+                HcadTrustedSource.STORE_DERIVED,
+                "Resolved from server-side security context store.");
+
+        int failedLoginBurst = failedLoginBurst(sessionId);
+        putProvenance(provenance, "failedLoginBurst", failedLoginBurst, HcadTrustedSource.STORE_DERIVED,
+                "Resolved from server-side session action history.");
+
+        int requestBurst = requestBurst(userId, now);
+        putProvenance(provenance, "requestBurst", requestBurst, HcadTrustedSource.STORE_DERIVED,
+                "Resolved from HCAD request counter store.");
+
+        String previousPath = previousPath(sessionId, userId);
+        putProvenance(provenance, "previousPath", previousPath, HcadTrustedSource.STORE_DERIVED,
+                "Resolved from server-side previous path store.");
+
+        Boolean rapidSequence = rapidSequence(sessionId, userId, now);
+        putProvenance(provenance, "rapidSequence", rapidSequence, HcadTrustedSource.STORE_DERIVED,
+                "Resolved from server-side last request timestamp.");
+
+        Map<Object, Object> sessionMetadata = sessionMetadata(sessionId);
+        Boolean impossibleTravel = asBoolean(sessionMetadata.get("impossibleTravel"));
+        putProvenance(provenance, "impossibleTravel", impossibleTravel, HcadTrustedSource.STORE_DERIVED,
+                "Resolved from server-side session metadata.");
+
+        Double baselineConfidence = asDouble(sessionMetadata.get("baselineConfidence"));
+        putProvenance(provenance, "baselineConfidence", baselineConfidence, HcadTrustedSource.STORE_DERIVED,
+                "Resolved from server-side session metadata.");
+        Boolean baselineEstablished = baselineConfidence != null;
+        putProvenance(provenance, "baselineEstablished", baselineEstablished, HcadTrustedSource.STORE_DERIVED,
+                "Derived from baseline confidence availability.");
+
+        updateStoresAfterProjection(request, sessionId, userId, normalizedPath, now);
+
+        return new TrustedHcadContextProjection(
+                userId,
+                tenantId,
+                organizationId,
+                sessionId,
+                contextBindingHash,
+                method,
+                normalizedPath,
+                clientIp,
+                authenticationMethod,
+                authenticationAssurance,
+                mfaVerified,
+                mfaFreshnessSeconds,
+                authorizationPolicyId,
+                authorizationPrivileged,
+                verificationRequired,
+                recentPermissionChanges,
+                failedLoginBurst,
+                requestBurst,
+                rapidSequence,
+                previousPath,
+                impossibleTravel,
+                baselineConfidence,
+                baselineEstablished,
+                provenance,
+                ignoredInputs);
+    }
+
+    private AuthenticationStamp resolveAuthenticationStamp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP);
+        if (rawStamp instanceof AuthenticationStamp stamp) {
+            return stamp;
+        }
+        Object rawResolution = request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        if (rawResolution instanceof BridgeResolutionResult result) {
+            return result.authenticationStamp();
+        }
+        return null;
+    }
+
+    private AuthorizationStamp resolveAuthorizationStamp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP);
+        if (rawStamp instanceof AuthorizationStamp stamp) {
+            return stamp;
+        }
+        Object rawResolution = request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        if (rawResolution instanceof BridgeResolutionResult result) {
+            return result.authorizationStamp();
+        }
+        return null;
+    }
+
+    private Map<String, Object> collectIgnoredInputs(HttpServletRequest request, Map<String, HcadFieldProvenance> provenance) {
+        if (request == null) {
+            return Map.of();
+        }
+        Map<String, Object> ignoredInputs = new LinkedHashMap<>();
+        Enumeration<String> headerNames = request.getHeaderNames();
+        while (headerNames != null && headerNames.hasMoreElements()) {
+            String headerName = headerNames.nextElement();
+            String normalized = headerName == null ? "" : headerName.toLowerCase(Locale.ROOT);
+            boolean ignored = UNTRUSTED_HEADER_PREFIXES.stream().anyMatch(normalized::startsWith);
+            if (!ignored) {
+                continue;
+            }
+            ignoredInputs.put("header." + headerName, request.getHeader(headerName));
+            provenance.put("header." + headerName, HcadFieldProvenance.ignored(
+                    "header." + headerName,
+                    "Client-supplied Contexa header is excluded from HCAD pre-trigger scoring."));
+        }
+        return ignoredInputs;
+    }
+
+    private String resolveServerSessionId(HttpServletRequest request, AuthenticationStamp authenticationStamp) {
+        if (request != null) {
+            HttpSession session = request.getSession(false);
+            if (session != null && StringUtils.hasText(session.getId())) {
+                return session.getId();
+            }
+        }
+        return authenticationStamp != null ? authenticationStamp.sessionId() : null;
+    }
+
+    private boolean hasServerSession(HttpServletRequest request) {
+        return request != null && request.getSession(false) != null;
+    }
+
+    private List<String> recentPermissionChanges(String tenantId, String userId) {
+        if (!StringUtils.hasText(tenantId) || !StringUtils.hasText(userId) || securityContextDataStore == null) {
+            return List.of();
+        }
+        List<String> changes = securityContextDataStore.getRecentPermissionChangeObservations(
+                tenantId,
+                userId,
+                hcadProperties.getPreTrigger().getPermissionChangeObservationLimit());
+        return changes == null ? List.of() : List.copyOf(changes);
+    }
+
+    private int failedLoginBurst(String sessionId) {
+        if (!StringUtils.hasText(sessionId) || securityContextDataStore == null) {
+            return 0;
+        }
+        List<String> actions = securityContextDataStore.getRecentSessionActions(sessionId, 20);
+        if (actions == null || actions.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (String action : actions) {
+            String normalized = action == null ? "" : action.toUpperCase(Locale.ROOT);
+            if (normalized.contains("AUTHENTICATION_FAILURE") || normalized.contains("LOGIN_FAILURE")) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private int requestBurst(String userId, long now) {
+        if (!StringUtils.hasText(userId) || hcadDataStore == null) {
+            return 0;
+        }
+        return hcadDataStore.getRecentRequestCount(userId, now - REQUEST_BURST_WINDOW_MS, now);
+    }
+
+    private String previousPath(String sessionId, String userId) {
+        if (securityContextDataStore == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sessionId)) {
+            String previous = securityContextDataStore.getSessionPreviousPath(sessionId);
+            if (StringUtils.hasText(previous)) {
+                return previous;
+            }
+        }
+        if (!StringUtils.hasText(userId)) {
+            return null;
+        }
+        String previous = securityContextDataStore.getPreviousPath(userId);
+        return StringUtils.hasText(previous) ? previous : null;
+    }
+
+    private Boolean rapidSequence(String sessionId, String userId, long now) {
+        Long lastRequestTime = null;
+        if (securityContextDataStore != null && StringUtils.hasText(sessionId)) {
+            lastRequestTime = securityContextDataStore.getSessionLastRequestTime(sessionId);
+        }
+        if (lastRequestTime == null && securityContextDataStore != null && StringUtils.hasText(userId)) {
+            lastRequestTime = securityContextDataStore.getLastRequestTime(userId);
+        }
+        if (lastRequestTime == null) {
+            return false;
+        }
+        long elapsed = Math.max(0L, now - lastRequestTime);
+        return elapsed <= hcadProperties.getPreTrigger().getRapidRequestIntervalMs();
+    }
+
+    private Map<Object, Object> sessionMetadata(String sessionId) {
+        if (!StringUtils.hasText(sessionId) || hcadDataStore == null) {
+            return Map.of();
+        }
+        Map<Object, Object> metadata = hcadDataStore.getSessionMetadata(sessionId);
+        return metadata == null ? Map.of() : metadata;
+    }
+
+    private void updateStoresAfterProjection(
+            HttpServletRequest request,
+            String sessionId,
+            String userId,
+            String normalizedPath,
+            long now) {
+        if (HcadRequestPathUtils.isNonUserInteractionRequest(request)) {
+            return;
+        }
+        if (hcadDataStore != null && StringUtils.hasText(userId)) {
+            hcadDataStore.recordRequest(userId, now);
+        }
+        if (securityContextDataStore == null) {
+            return;
+        }
+        if (StringUtils.hasText(sessionId)) {
+            Long last = securityContextDataStore.getSessionLastRequestTime(sessionId);
+            if (last != null) {
+                securityContextDataStore.addSessionRequestInterval(sessionId, Math.max(0L, now - last));
+            }
+            securityContextDataStore.setSessionLastRequestTime(sessionId, now);
+            if (StringUtils.hasText(normalizedPath)) {
+                securityContextDataStore.setSessionPreviousPath(sessionId, normalizedPath);
+            }
+        }
+        if (StringUtils.hasText(userId)) {
+            securityContextDataStore.setLastRequestTime(userId, now);
+            if (StringUtils.hasText(normalizedPath)) {
+                securityContextDataStore.setPreviousPath(userId, normalizedPath);
+            }
+            if (StringUtils.hasText(sessionId)) {
+                securityContextDataStore.trackUserSession(userId, sessionId);
+            }
+        }
+    }
+
+    private void putProvenance(
+            Map<String, HcadFieldProvenance> provenance,
+            String field,
+            Object value,
+            HcadTrustedSource source,
+            String reason) {
+        if (value == null) {
+            provenance.put(field, HcadFieldProvenance.absent(field, reason));
+            return;
+        }
+        if (value instanceof String text && !StringUtils.hasText(text)) {
+            provenance.put(field, HcadFieldProvenance.absent(field, reason));
+            return;
+        }
+        provenance.put(field, HcadFieldProvenance.present(field, source, reason));
+    }
+
+    private boolean hasMfaAuthority(Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if (authority != null && authority.getAuthority() != null
+                    && authority.getAuthority().toUpperCase(Locale.ROOT).contains("MFA")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String textAttribute(AuthenticationStamp stamp, String key) {
+        if (stamp == null || stamp.attributes() == null) {
+            return null;
+        }
+        Object value = stamp.attributes().get(key);
+        return value == null ? null : value.toString();
+    }
+
+    private Boolean booleanAttribute(AuthorizationStamp stamp, String key) {
+        if (stamp == null || stamp.attributes() == null) {
+            return null;
+        }
+        return asBoolean(stamp.attributes().get(key));
+    }
+
+    private Boolean asBoolean(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            String normalized = text.trim().toLowerCase(Locale.ROOT);
+            if ("true".equals(normalized) || "1".equals(normalized) || "yes".equals(normalized)) {
+                return true;
+            }
+            if ("false".equals(normalized) || "0".equals(normalized) || "no".equals(normalized)) {
+                return false;
+            }
+        }
+        return null;
+    }
+
+    private Double asDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+}

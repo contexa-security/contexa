@@ -1,0 +1,159 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.contexa.contexacore.hcad.projection;
+
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.properties.HcadProperties;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class TrustedHcadContextProjectionFactoryTest {
+
+    @Mock
+    private HCADDataStore hcadDataStore;
+
+    @Mock
+    private SecurityContextDataStore securityContextDataStore;
+
+    private HcadProperties properties;
+    private TrustedHcadContextProjectionFactory factory;
+    private HcadPreProtectablePromotionScorer scorer;
+
+    @BeforeEach
+    void setUp() {
+        properties = new HcadProperties();
+        factory = new TrustedHcadContextProjectionFactory(hcadDataStore, securityContextDataStore, properties);
+        scorer = new HcadPreProtectablePromotionScorer(properties);
+        when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong())).thenReturn(0);
+        when(hcadDataStore.getSessionMetadata(anyString())).thenReturn(Map.of());
+    }
+
+    @Test
+    @DisplayName("client supplied Contexa headers are ignored by HCAD scoring")
+    void project_clientHeaders_shouldBeIgnoredByScoring() {
+        MockHttpServletRequest request = baseRequest();
+        request.addHeader("X-Contexa-Recent-Permission-Changes", "admin=true");
+        request.addHeader("X-Contexa-Resource-Sensitivity", "HIGH");
+        request.addHeader("X-Contexa-Business-Impact", "CRITICAL");
+
+        TrustedHcadContextProjection projection = factory.project(request, authentication());
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(projection.ignoredInputs()).containsKeys(
+                "header.X-Contexa-Recent-Permission-Changes",
+                "header.X-Contexa-Resource-Sensitivity",
+                "header.X-Contexa-Business-Impact");
+        assertThat(projection.sourceOf("header.X-Contexa-Recent-Permission-Changes"))
+                .isEqualTo(HcadTrustedSource.UNTRUSTED_IGNORED);
+        assertThat(assessment.anchorSignals()).doesNotContain("RECENT_PERMISSION_CHANGE", "PRIVILEGED_AUTHORIZATION");
+        assertThat(assessment.score()).isZero();
+    }
+
+    @Test
+    @DisplayName("bridge and store derived values are reflected with trusted provenance")
+    void project_bridgeAndStoreValues_shouldDriveScoring() {
+        MockHttpServletRequest request = baseRequest();
+        request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, authenticationStamp());
+        request.setAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP, authorizationStamp());
+        when(securityContextDataStore.getRecentPermissionChangeObservations("tenant-1", "alice", 5))
+                .thenReturn(List.of("ROLE_ADMIN granted"));
+        when(securityContextDataStore.getRecentSessionActions(anyString(), eq(20)))
+                .thenReturn(List.of("AUTHENTICATION_FAILURE", "LOGIN_FAILURE", "AUTHENTICATION_FAILURE"));
+        when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong())).thenReturn(12);
+
+        TrustedHcadContextProjection projection = factory.project(request, authentication());
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(projection.sourceOf("authorizationPrivileged")).isEqualTo(HcadTrustedSource.BRIDGE_VERIFIED);
+        assertThat(projection.sourceOf("recentPermissionChanges")).isEqualTo(HcadTrustedSource.STORE_DERIVED);
+        assertThat(projection.sourceOf("requestBurst")).isEqualTo(HcadTrustedSource.STORE_DERIVED);
+        assertThat(assessment.anchorSignals()).contains(
+                "FAILED_LOGIN_BURST",
+                "RECENT_PERMISSION_CHANGE",
+                "PRIVILEGED_AUTHORIZATION",
+                "FRESH_MFA_REQUIRED");
+        assertThat(assessment.corroboratingSignals()).contains("REQUEST_BURST");
+        assertThat(assessment.eligible()).isTrue();
+    }
+
+    private MockHttpServletRequest baseRequest() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
+        request.setRemoteAddr("203.0.113.10");
+        request.getSession(true);
+        return request;
+    }
+
+    private UsernamePasswordAuthenticationToken authentication() {
+        return new UsernamePasswordAuthenticationToken("alice", "n/a", List.of());
+    }
+
+    private AuthenticationStamp authenticationStamp() {
+        return new AuthenticationStamp(
+                "alice",
+                "Alice",
+                "USER",
+                true,
+                "mfa",
+                "BRIDGE",
+                "low",
+                false,
+                Instant.now().minusSeconds(600),
+                "session-bridge",
+                List.of("ROLE_USER"),
+                Map.of("tenantId", "tenant-1", "organizationId", "org-1"));
+    }
+
+    private AuthorizationStamp authorizationStamp() {
+        return new AuthorizationStamp(
+                "alice",
+                "reports",
+                "READ",
+                AuthorizationEffect.ALLOW,
+                true,
+                List.of(),
+                "policy-1",
+                "v1",
+                "DB_POLICY",
+                Instant.now(),
+                List.of("ADMIN"),
+                List.of("reports.read"),
+                Map.of("verificationRequired", true));
+    }
+}

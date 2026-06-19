@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.promotion;
 
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import jakarta.servlet.http.HttpServletRequest;
 
 public final class HcadPreProtectablePromotionRequestProjector {
@@ -23,10 +24,22 @@ public final class HcadPreProtectablePromotionRequestProjector {
     }
 
     public static void project(HttpServletRequest request, HcadPreProtectablePromotionAssessment assessment) {
+        project(request, assessment, null);
+    }
+
+    public static void project(
+            HttpServletRequest request,
+            HcadPreProtectablePromotionAssessment assessment,
+            HcadPreTriggerMode mode) {
         if (request == null || assessment == null) {
             return;
         }
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED, true);
+        if (mode != null) {
+            request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_MODE, mode.metadataValue());
+        }
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SCORE, assessment.score());
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE, assessment.earlyAnalysisScore());
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_BAND, assessment.band().serializedValue());
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, assessment.eligible());
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS, assessment.anchorSignals());
@@ -35,5 +48,13 @@ public final class HcadPreProtectablePromotionRequestProjector {
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY, assessment.summary());
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_VERSION, assessment.evaluationVersion());
         request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS, assessment.rawSignalSnapshot());
+        Object provenance = assessment.rawSignalSnapshot().get("signalProvenance");
+        if (provenance != null) {
+            request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_PROVENANCE, provenance);
+        }
+        Object ignoredInputs = assessment.rawSignalSnapshot().get("ignoredInputs");
+        if (ignoredInputs != null) {
+            request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_IGNORED_INPUTS, ignoredInputs);
+        }
     }
 }

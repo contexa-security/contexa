@@ -32,4 +32,6 @@ public interface AnalysisTriggerStateRepository {
     void markCooldown(String dedupKey, Duration ttl);
 
     void releaseInFlight(String dedupKey);
+
+    boolean tryAcquireRateLimit(String rateKey, Duration window, int maxTriggers);
 }

@@ -77,11 +77,17 @@ public class PendingAnomalyEvidenceCheckService {
         }
 
         String riskSignature = PendingAnomalyKeyFactory.buildRiskSignature(httpMethod, requestPath, assessment.reasonCodes());
+        String triggerStateKey = PendingAnomalyKeyFactory.buildTriggerKey(
+                eligibility.userId(),
+                eligibility.contextBindingHash(),
+                httpMethod,
+                requestPath,
+                StringUtils.hasText(riskSignature) ? riskSignature : requestId);
         return new PendingAnomalyEvidenceReport(
                 true,
                 eligibility.userId(),
                 eligibility.contextBindingHash(),
-                eligibility.baseKey(),
+                triggerStateKey,
                 requestId,
                 sessionId,
                 requestPath,

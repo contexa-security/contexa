@@ -72,11 +72,12 @@ public class AdminMenuService {
             createMenu("menu.iam.system.settings", "/contexa/admin/system-settings", "", iamId, 7, "CORE", "system-settings");
             createMenu("menu.iam.menu.management", "/contexa/admin/menu-management", "", iamId, 8, "CORE", "menu-management");
             createMenu("menu.zerotrust.monitor", "/contexa/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
-            createMenu("menu.zerotrust.blacklist", "/contexa/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
-            createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 3, "CORE", "session-management");
-            createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
-            createMenu("menu.enterprise.zerotrust", "/contexa/admin/enterprise/zerotrust", "", securityId, 5, "ENTERPRISE", "enterprise-zerotrust");
-            createMenu("menu.enterprise.incidents", "/contexa/admin/enterprise/incidents", "", securityId, 6, "ENTERPRISE", "enterprise-incidents");
+            createMenu("menu.zerotrust.hcad", "/contexa/admin/security-monitor/hcad", "", securityId, 2, "CORE", "security-monitor-hcad");
+            createMenu("menu.zerotrust.blacklist", "/contexa/admin/blacklist", "", securityId, 3, "CORE", "blacklist");
+            createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 4, "CORE", "session-management");
+            createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 5, "CORE", "ip-management");
+            createMenu("menu.enterprise.zerotrust", "/contexa/admin/enterprise/zerotrust", "", securityId, 6, "ENTERPRISE", "enterprise-zerotrust");
+            createMenu("menu.enterprise.incidents", "/contexa/admin/enterprise/incidents", "", securityId, 7, "ENTERPRISE", "enterprise-incidents");
             createMenu("menu.enterprise.home", "/contexa/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
             createMenu("menu.enterprise.approvals", "/contexa/admin/enterprise/approvals", "", enterpriseId, 2, "ENTERPRISE", "enterprise-approvals");
             createMenu("menu.enterprise.mcp", "/contexa/admin/enterprise/mcp", "", enterpriseId, 3, "ENTERPRISE", "enterprise-mcp");

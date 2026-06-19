@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='HCAD Monitor')}"></th:block>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+    <style>
+        .hcad-layout { display: grid; gap: 1rem; }
+        .hcad-toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+        .hcad-period { border: 1px solid rgba(71,85,105,.45); border-radius: .5rem; color: #94a3b8; padding: .45rem .8rem; text-decoration: none; font-size: .8rem; }
+        .hcad-period.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
+        .hcad-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .85rem; }
+        .hcad-kpi { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.48); }
+        .hcad-kpi-value { color: #e2e8f0; font-size: 1.7rem; font-weight: 800; line-height: 1; }
+        .hcad-kpi-label { color: #94a3b8; font-size: .75rem; margin-top: .45rem; }
+        .hcad-band { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.36); }
+        .hcad-band-title { color: #e2e8f0; font-size: .95rem; font-weight: 700; margin-bottom: .75rem; }
+        .hcad-table { width: 100%; border-collapse: collapse; }
+        .hcad-table th { color: #cbd5e1; font-size: .7rem; text-transform: uppercase; text-align: left; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.45); }
+        .hcad-table td { color: #94a3b8; font-size: .8rem; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.22); }
+        .hcad-status { border-radius: 999px; padding: .25rem .65rem; font-size: .72rem; font-weight: 700; display: inline-flex; }
+        .hcad-status.good { background: rgba(34,197,94,.18); color: #4ade80; }
+        .hcad-status.warn { background: rgba(245,158,11,.18); color: #fbbf24; }
+        .hcad-status.bad { background: rgba(239,68,68,.18); color: #f87171; }
+        .hcad-status.info { background: rgba(34,211,238,.16); color: #67e8f9; }
+        .hcad-two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+        @media (max-width: 1100px) { .hcad-two-col { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <div class="modern-card hcad-layout" id="hcad-monitor" th:data-period="${period}">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.security.hcad.title}">HCAD Shadow Monitor</h1>
+                    <p class="text-sm mt-1" style="color:#94a3b8;" th:text="#{admin.security.hcad.subtitle}">Early-detection precision and LLM trigger quality</p>
+                </div>
+                <a th:href="@{/contexa/admin/security-monitor}" class="hcad-period" th:text="#{admin.security.hcad.back}">Security Monitor</a>
+            </div>
+
+            <div class="hcad-toolbar">
+                <span class="text-sm" style="color:#94a3b8;" th:text="#{admin.security.hcad.period}">Period</span>
+                <a th:href="@{/contexa/admin/security-monitor/hcad(period='day')}" class="hcad-period" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
+                <a th:href="@{/contexa/admin/security-monitor/hcad(period='week')}" class="hcad-period" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
+                <a th:href="@{/contexa/admin/security-monitor/hcad(period='month')}" class="hcad-period" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
+                <a th:href="@{/contexa/admin/security-monitor/hcad(period='year')}" class="hcad-period" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
+                <span id="hcad-range" class="text-xs" style="color:#64748b;"></span>
+                <a id="hcad-export" th:href="@{/contexa/admin/api/security-monitor/hcad/summary.csv(period=${period})}" class="hcad-period">CSV</a>
+            </div>
+
+            <div id="hcad-status" class="hcad-band">
+                <div class="hcad-band-title" th:text="#{admin.security.hcad.status.loading}">Loading HCAD metrics</div>
+            </div>
+
+            <div class="hcad-kpis" id="hcad-kpis"></div>
+
+            <div class="hcad-two-col">
+                <section class="hcad-band">
+                    <div class="hcad-band-title" th:text="#{admin.security.hcad.signal.title}">Signal Performance</div>
+                    <table class="hcad-table">
+                        <thead><tr><th>Signal</th><th>Count</th><th>Precision</th><th>FP</th></tr></thead>
+                        <tbody id="hcad-signals"></tbody>
+                    </table>
+                </section>
+                <section class="hcad-band">
+                    <div class="hcad-band-title" th:text="#{admin.security.hcad.resource.title}">Resource Performance</div>
+                    <table class="hcad-table">
+                        <thead><tr><th>Resource</th><th>Count</th><th>Precision</th><th>Dup</th></tr></thead>
+                        <tbody id="hcad-resources"></tbody>
+                    </table>
+                </section>
+            </div>
+
+            <div class="hcad-two-col">
+                <section class="hcad-band">
+                    <div class="hcad-band-title" th:text="#{admin.security.hcad.userSession.title}">User / Session Repeats</div>
+                    <table class="hcad-table">
+                        <thead><tr><th>User</th><th>Context</th><th>Count</th><th>Dup</th><th>Precision</th></tr></thead>
+                        <tbody id="hcad-user-sessions"></tbody>
+                    </table>
+                </section>
+                <section class="hcad-band">
+                    <div class="hcad-band-title" th:text="#{admin.security.hcad.unknown.title}">Unknown / Fallback</div>
+                    <table class="hcad-table">
+                        <thead><tr><th>Created</th><th>User</th><th>Resource</th><th>LLM</th><th>Score</th></tr></thead>
+                        <tbody id="hcad-unknown"></tbody>
+                    </table>
+                </section>
+            </div>
+
+            <section class="hcad-band">
+                <div class="hcad-band-title" th:text="#{admin.security.hcad.recent.title}">Recent Evaluations</div>
+                <table class="hcad-table">
+                    <thead>
+                    <tr>
+                        <th>Created</th><th>User</th><th>Method</th><th>Path</th><th>Score</th><th>LLM</th><th>Outcome</th>
+                    </tr>
+                    </thead>
+                    <tbody id="hcad-recent"></tbody>
+                </table>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/js/admin/hcad-monitor.js?v=20260618a}"></script>
+</body>
+</html>

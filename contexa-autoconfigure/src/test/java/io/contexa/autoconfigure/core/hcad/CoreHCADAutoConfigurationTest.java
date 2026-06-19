@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.hcad;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.Arrays;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -67,6 +68,19 @@ class CoreHCADAutoConfigurationTest {
             assertInMemoryFallback("hcadDataStore");
             assertInMemoryFallback("baselineDataStore");
             assertInMemoryFallback("analysisTriggerStateRepository");
+        }
+
+        @Test
+        @DisplayName("Should not auto-register legacy request/header based HCAD analysis beans")
+        void shouldNotAutoRegisterLegacyAnalysisBeans() {
+            assertThat(Arrays.stream(CoreHCADAutoConfiguration.class.getDeclaredMethods())
+                    .map(Method::getName))
+                    .doesNotContain("hcadContextExtractor", "hcadAnalysisService");
+
+            assertThat(Arrays.stream(CoreHCADAutoConfiguration.class.getDeclaredMethods())
+                    .map(Method::getReturnType)
+                    .map(Class::getSimpleName))
+                    .doesNotContain("HCADContextExtractor", "HCADAnalysisService");
         }
 
         private void assertInMemoryFallback(String methodName) throws Exception {

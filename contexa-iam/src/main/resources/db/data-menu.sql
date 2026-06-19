@@ -100,9 +100,10 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.iam.system.settings',     '/contexa/admin/system-settings',        '',                'iam',        7,  TRUE, 'CORE',       'system-settings'),
     ('menu.iam.menu.management',     '/contexa/admin/menu-management',        '',                'iam',        8,  TRUE, 'CORE',       'menu-management'),
     ('menu.zerotrust.monitor',       '/contexa/admin/security-monitor',       '',                'security',   1,  TRUE, 'CORE',       'security-monitor'),
-    ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   2,  TRUE, 'CORE',       'blacklist'),
-    ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   3,  TRUE, 'CORE',       'session-management'),
-    ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   4,  TRUE, 'CORE',       'ip-management'),
+    ('menu.zerotrust.hcad',          '/contexa/admin/security-monitor/hcad',  '',                'security',   2,  TRUE, 'CORE',       'security-monitor-hcad'),
+    ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   3,  TRUE, 'CORE',       'blacklist'),
+    ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   4,  TRUE, 'CORE',       'session-management'),
+    ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   5,  TRUE, 'CORE',       'ip-management'),
     ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
     ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
     ('menu.pqa.official',            '/contexa/admin/prompt-quality/verification/readiness', '',  'prompt-quality', 3, TRUE, 'CORE',       'prompt-quality-official')

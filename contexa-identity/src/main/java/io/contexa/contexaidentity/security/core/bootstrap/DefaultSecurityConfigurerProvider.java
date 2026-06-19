@@ -22,7 +22,7 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import java.util.ArrayList;
@@ -34,18 +34,32 @@ import java.util.Objects;
 public final class DefaultSecurityConfigurerProvider implements SecurityConfigurerProvider {
 
     private final List<SecurityConfigurer> collectedBaseConfigurers;
+    private final ObjectProvider<SecurityConfigurer> baseConfigurerProvider;
     private final AdapterRegistry adapterRegistry;
 
     public DefaultSecurityConfigurerProvider(
             List<SecurityConfigurer> baseConfigurers,
             AdapterRegistry adapterRegistry) {
         this.collectedBaseConfigurers = (baseConfigurers != null) ? new ArrayList<>(baseConfigurers) : new ArrayList<>();
+        this.baseConfigurerProvider = null;
+        this.adapterRegistry = Objects.requireNonNull(adapterRegistry, "FeatureRegistry cannot be null");
+    }
+
+    public DefaultSecurityConfigurerProvider(
+            ObjectProvider<SecurityConfigurer> baseConfigurerProvider,
+            AdapterRegistry adapterRegistry) {
+        this.collectedBaseConfigurers = new ArrayList<>();
+        this.baseConfigurerProvider = baseConfigurerProvider;
         this.adapterRegistry = Objects.requireNonNull(adapterRegistry, "FeatureRegistry cannot be null");
     }
 
     @Override
     public List<SecurityConfigurer> getGlobalConfigurers(PlatformContext platformContext, PlatformConfig platformConfig) {
-
+        if (this.baseConfigurerProvider != null) {
+            return this.baseConfigurerProvider.orderedStream()
+                    .distinct()
+                    .toList();
+        }
         return List.copyOf(this.collectedBaseConfigurers);
     }
 

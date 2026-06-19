@@ -17,6 +17,8 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
+import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -26,6 +28,7 @@ import io.contexa.contexaiam.admin.web.menu.service.AdminMenuQueryCache;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
+import io.contexa.contexaiam.admin.web.monitoring.controller.HcadSecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -55,6 +58,20 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityMonitorController securityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
         return new SecurityMonitorController(auditLogRepository, csvExportService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HcadMonitoringService hcadMonitoringService(
+            HcadDetectionEvaluationRepository hcadDetectionEvaluationRepository,
+            HcadProperties hcadProperties) {
+        return new HcadMonitoringService(hcadDetectionEvaluationRepository, hcadProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HcadSecurityMonitorController hcadSecurityMonitorController(HcadMonitoringService hcadMonitoringService) {
+        return new HcadSecurityMonitorController(hcadMonitoringService);
     }
 
     @Bean

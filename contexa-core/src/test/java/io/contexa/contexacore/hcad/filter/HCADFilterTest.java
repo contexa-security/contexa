@@ -15,9 +15,16 @@
  */
 package io.contexa.contexacore.hcad.filter;
 
-import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
-import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,8 +32,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.quality.Strictness;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -34,11 +41,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,19 +56,31 @@ import static org.mockito.Mockito.when;
 class HCADFilterTest {
 
     @Mock
-    private HCADAnalysisService hcadAnalysisService;
+    private TrustedHcadContextProjectionFactory trustedProjectionFactory;
 
     @Mock
-    private HcadProperties hcadProperties;
+    private HcadPreProtectablePromotionScorer preProtectablePromotionScorer;
+
+    @Mock
+    private PendingAnomalyTriggerOrchestrator pendingAnomalyTriggerOrchestrator;
+
+    @Mock
+    private HcadEvaluationWriter hcadEvaluationWriter;
 
     private HCADFilter hcadFilter;
+    private HcadProperties hcadProperties;
     private MockHttpServletRequest request;
     private MockHttpServletResponse response;
     private MockFilterChain filterChain;
 
     @BeforeEach
     void setUp() {
-        hcadFilter = new HCADFilter(hcadAnalysisService, hcadProperties);
+        hcadProperties = new HcadProperties();
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                pendingAnomalyTriggerOrchestrator);
         request = new MockHttpServletRequest();
         request.setRequestURI("/api/test");
         response = new MockHttpServletResponse();
@@ -68,82 +89,122 @@ class HCADFilterTest {
     }
 
     @Test
-    @DisplayName("정상 HCAD 분석이면 previousPath와 interval까지 request attribute로 남겨야 한다")
-    void doFilterInternal_normalAnalysis_storesContextInRequest() throws Exception {
-        // given
-        when(hcadProperties.isEnabled()).thenReturn(true);
+    @DisplayName("trusted HCAD projection assessment should be projected onto request attributes")
+    void doFilterInternal_trustedProjection_storesAssessmentInRequest() throws Exception {
         setAuthenticated();
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                72,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("FAILED_LOGIN_BURST"),
+                List.of("REQUEST_BURST"),
+                List.of("FAILED_LOGIN_BURST", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("promotionScore", 72, "signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
 
-        HCADContext ctx = new HCADContext();
-        ctx.setIsNewSession(false);
-        ctx.setNewUser(false);
-        ctx.setIsNewDevice(false);
-        ctx.setRecentRequestCount(5);
-        ctx.setFailedLoginAttempts(0);
-        ctx.setBaselineConfidence(0.8);
-        ctx.setIsSensitiveResource(true);
-        ctx.setHasValidMFA(true);
-        ctx.setAuthenticationMethod("mfa");
-        ctx.setPreviousPath("/admin/api/security-test/sensitive/resource-previous");
-        ctx.setLastRequestInterval(4_200L);
-        Map<String, Object> attrs = new HashMap<>();
-        attrs.put("userRoles", "[ROLE_USER]");
-        ctx.setAdditionalAttributes(attrs);
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
 
-        HCADAnalysisResult result = HCADAnalysisResult.builder()
-                .userId("testUser")
-                .trustScore(0.9)
-                .threatType("NONE")
-                .threatEvidence("")
-                .isAnomaly(false)
-                .anomalyScore(0.1)
-                .action("ALLOW")
-                .confidence(0.95)
-                .processingTimeMs(10)
-                .context(ctx)
-                .build();
-
-        when(hcadAnalysisService.analyze(any(), any())).thenReturn(result);
-
-        // when
         hcadFilter.doFilterInternal(request, response, filterChain);
 
-        // then
-        assertThat(request.getAttribute("hcad.is_new_session")).isEqualTo(false);
-        assertThat(request.getAttribute("hcad.is_new_user")).isEqualTo(false);
-        assertThat(request.getAttribute("hcad.is_new_device")).isEqualTo(false);
-        assertThat(request.getAttribute("hcad.recent_request_count")).isEqualTo(5);
-        assertThat(request.getAttribute("hcad.failed_login_attempts")).isEqualTo(0);
-        assertThat(request.getAttribute("hcad.baseline_confidence")).isEqualTo(0.8);
-        assertThat(request.getAttribute("hcad.is_sensitive_resource")).isEqualTo(true);
-        assertThat(request.getAttribute("hcad.mfa_verified")).isEqualTo(true);
-        // previousPath / interval이 여기서 빠지면 round1/round2 userPrompt가 자기 자신 경로를 previousPath로 읽거나
-        // 시간 간격을 0초로 왜곡하는 구조 결함이 생긴다.
-        assertThat(request.getAttribute("hcad.previous_path")).isEqualTo("/admin/api/security-test/sensitive/resource-previous");
-        assertThat(request.getAttribute("hcad.last_request_interval_ms")).isEqualTo(4_200L);
-        assertThat(request.getAttribute("hcad.auth_method")).isEqualTo("mfa");
-        assertThat(request.getAttribute("hcad.user_roles")).isEqualTo("[ROLE_USER]");
+        assertThat(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SCORE)).isEqualTo(72);
+        assertThat(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_BAND)).isEqualTo("REDLINE");
+        assertThat(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE)).isEqualTo(true);
+        assertThat(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_PROVENANCE)).isNotNull();
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED)).isEqualTo(true);
+        verify(pendingAnomalyTriggerOrchestrator).maybeTrigger(eq(request), any());
+        assertThat(filterChain.getRequest()).isNotNull();
     }
 
     @Test
-    @DisplayName("shouldNotFilter returns true for static paths")
-    void shouldNotFilter_staticPaths_returnsTrue() {
-        request.setRequestURI("/static/css/main.css");
-        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+    @DisplayName("already evaluated request should not trigger pending anomaly twice")
+    void doFilterInternal_alreadyEvaluated_doesNotTriggerAgain() throws Exception {
+        setAuthenticated();
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED, true);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                72,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("FAILED_LOGIN_BURST"),
+                List.of("REQUEST_BURST"),
+                List.of("FAILED_LOGIN_BURST", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("promotionScore", 72));
 
-        request.setRequestURI("/css/style.css");
-        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
 
-        request.setRequestURI("/js/app.js");
-        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+        hcadFilter.doFilterInternal(request, response, filterChain);
 
-        request.setRequestURI("/images/logo.png");
-        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+        verify(pendingAnomalyTriggerOrchestrator, never()).maybeTrigger(any(), any());
+        assertThat(filterChain.getRequest()).isNotNull();
     }
 
     @Test
-    @DisplayName("shouldNotFilter returns true for health and actuator paths")
-    void shouldNotFilter_healthAndActuator_returnsTrue() {
+    @DisplayName("eligible assessment should be recorded when orchestrator is unavailable")
+    void doFilterInternal_missingOrchestrator_recordsCandidateWithWriter() throws Exception {
+        setAuthenticated();
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> null,
+                () -> hcadEvaluationWriter);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST", "RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST", "RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("promotionScore", 75));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+        when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-1");
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        verify(hcadEvaluationWriter).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any());
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-1");
+        assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("shouldNotFilter does not trust browser fetch destinations to bypass HCAD")
+    void shouldNotFilter_nonInteractiveFetchDestinations_returnsFalse() {
+        request.setRequestURI("/tenant-assets/logo");
+        request.addHeader("Sec-Fetch-Dest", "image");
+        assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/bundle/runtime");
+        request.addHeader("Sec-Fetch-Dest", "script");
+        assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/theme/main");
+        request.addHeader("Sec-Fetch-Dest", "style");
+        assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/font/primary");
+        request.addHeader("Sec-Fetch-Dest", "font");
+        assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
+    }
+
+    @Test
+    @DisplayName("shouldNotFilter uses configured excluded patterns for infrastructure paths")
+    void shouldNotFilter_configuredInfrastructurePatterns_returnsTrue() {
+        hcadProperties.getFilter().getExcludedPatterns().add("/health");
+        hcadProperties.getFilter().getExcludedPatterns().add("/actuator/**");
+
         request.setRequestURI("/health");
         assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
 
@@ -157,6 +218,7 @@ class HCADFilterTest {
     @Test
     @DisplayName("shouldNotFilter excludes infrastructure paths behind a servlet context path")
     void shouldNotFilter_contextPathInfraPath_returnsTrue() {
+        hcadProperties.getFilter().getExcludedPatterns().add("/actuator/**");
         request.setContextPath("/contexa");
         request.setServletPath("/actuator/health");
         request.setRequestURI("/contexa/actuator/health");
@@ -168,36 +230,35 @@ class HCADFilterTest {
     @DisplayName("shouldNotFilter returns false for API paths")
     void shouldNotFilter_apiPaths_returnsFalse() {
         request.setRequestURI("/api/users");
+        request.addHeader("Sec-Fetch-Dest", "empty");
+        assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
+    }
+
+    @Test
+    @DisplayName("shouldNotFilter does not hard-code URL path prefixes")
+    void shouldNotFilter_doesNotHardCodeUrlPathPrefixes() {
+        request.setRequestURI("/img/logo.png");
+
         assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
     }
 
     @Test
     @DisplayName("Unauthenticated request passes through without analysis")
     void doFilterInternal_unauthenticated_passesThrough() throws Exception {
-        // given
-        when(hcadProperties.isEnabled()).thenReturn(true);
-        // no authentication set in SecurityContextHolder
-
-        // when
         hcadFilter.doFilterInternal(request, response, filterChain);
 
-        // then - filterChain.doFilter was called (request passed through MockFilterChain)
         assertThat(filterChain.getRequest()).isNotNull();
     }
 
     @Test
-    @DisplayName("Exception during analysis results in graceful passthrough")
+    @DisplayName("Exception during trusted projection results in graceful passthrough")
     void doFilterInternal_exceptionDuringAnalysis_gracefulPassthrough() throws Exception {
-        // given
-        when(hcadProperties.isEnabled()).thenReturn(true);
         setAuthenticated();
-        when(hcadAnalysisService.analyze(any(), any()))
+        when(trustedProjectionFactory.project(any(), any()))
                 .thenThrow(new RuntimeException("Analysis failed"));
 
-        // when
         hcadFilter.doFilterInternal(request, response, filterChain);
 
-        // then - filter chain still called
         assertThat(filterChain.getRequest()).isNotNull();
         assertThat(request.getAttribute("hcad.analysisStatus")).isEqualTo("FAILED");
         assertThat(request.getAttribute("hcad.failReason")).isEqualTo("RuntimeException");
@@ -206,15 +267,41 @@ class HCADFilterTest {
     @Test
     @DisplayName("Disabled HCAD passes through without analysis")
     void doFilterInternal_disabled_passesThrough() throws Exception {
-        // given
-        when(hcadProperties.isEnabled()).thenReturn(false);
+        hcadProperties.setEnabled(false);
         setAuthenticated();
 
-        // when
         hcadFilter.doFilterInternal(request, response, filterChain);
 
-        // then
         assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    private TrustedHcadContextProjection projection() {
+        return new TrustedHcadContextProjection(
+                "testUser",
+                "tenant-1",
+                "org-1",
+                "session-1",
+                "ctx-1",
+                "GET",
+                "/api/test",
+                "127.0.0.1",
+                "mfa",
+                "high",
+                true,
+                10L,
+                "policy-1",
+                false,
+                false,
+                List.of(),
+                4,
+                12,
+                true,
+                "/api/previous",
+                false,
+                0.9,
+                true,
+                Map.of(),
+                Map.of());
     }
 
     private void setAuthenticated() {

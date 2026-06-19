@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.trigger;
 
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +32,8 @@ public class PendingAnomalyTriggerOrchestrator {
     private final PendingAnomalyEventTriggerService eventTriggerService;
     private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
     private final HcadProperties hcadProperties;
+    private final HcadEvaluationWriter hcadEvaluationWriter;
+    private final HcadLlmTriggerCoordinator triggerCoordinator;
 
     public PendingAnomalyTriggerOrchestrator(
             PendingAnomalyEligibilityGate eligibilityGate,
@@ -38,14 +41,31 @@ public class PendingAnomalyTriggerOrchestrator {
             PendingAnomalyEventTriggerService eventTriggerService,
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             HcadProperties hcadProperties) {
+        this(eligibilityGate, evidenceCheckService, eventTriggerService, analysisTriggerStateRepository, hcadProperties, null);
+    }
+
+    public PendingAnomalyTriggerOrchestrator(
+            PendingAnomalyEligibilityGate eligibilityGate,
+            PendingAnomalyEvidenceCheckService evidenceCheckService,
+            PendingAnomalyEventTriggerService eventTriggerService,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            HcadProperties hcadProperties,
+            HcadEvaluationWriter hcadEvaluationWriter) {
         this.eligibilityGate = eligibilityGate;
         this.evidenceCheckService = evidenceCheckService;
         this.eventTriggerService = eventTriggerService;
         this.analysisTriggerStateRepository = analysisTriggerStateRepository;
         this.hcadProperties = hcadProperties;
+        this.hcadEvaluationWriter = hcadEvaluationWriter;
+        this.triggerCoordinator = new HcadLlmTriggerCoordinator(analysisTriggerStateRepository, hcadProperties);
     }
 
     public void maybeTrigger(HttpServletRequest request, Authentication authentication) {
+        HcadPreTriggerMode mode = hcadProperties.getPreTrigger().effectiveMode();
+        if (!mode.evaluatesRequest()) {
+            return;
+        }
+
         PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(request, authentication);
         if (eligibility == null) {
             return;
@@ -59,28 +79,99 @@ public class PendingAnomalyTriggerOrchestrator {
             return;
         }
 
-        String dedupKey = eligibility.baseKey();
-        if (analysisTriggerStateRepository.isCoolingDown(dedupKey)) {
+        String evaluationId = recordCandidate(mode, report);
+        if (request != null && evaluationId != null) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+        }
+
+        if (!mode.publishesLlmEvent()) {
+            log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger observe mode matched but LLM publication is disabled");
+            return;
+        }
+        if (eventTriggerService == null) {
+            log.warn("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger candidate was recorded but no LLM event trigger service is configured");
             return;
         }
 
-        Duration inFlightTtl = Duration.ofSeconds(hcadProperties.getPreTrigger().getInFlightTtlSeconds());
-        if (!analysisTriggerStateRepository.tryAcquireInFlight(dedupKey, inFlightTtl)) {
+        HcadLlmTriggerCoordinator.TriggerLease triggerLease =
+                triggerCoordinator.tryAcquire(report, eligibility.baseKey());
+        if (!triggerLease.acquired()) {
+            if (triggerLease.duplicateSuppressed()) {
+                markDuplicateSuppressed(evaluationId);
+                markRequestSuppressed(request, report, triggerLease.dedupKey(), evaluationId);
+            }
             return;
         }
 
         boolean success = false;
         try {
-            eventTriggerService.publish(request, report);
-            analysisTriggerStateRepository.markCooldown(
-                    dedupKey,
-                    Duration.ofSeconds(hcadProperties.getPreTrigger().getCooldownSeconds()));
+            eventTriggerService.publish(request, report, evaluationId);
+            triggerCoordinator.markCooldown(triggerLease.dedupKey());
+            markTriggered(evaluationId);
             success = true;
         } catch (Exception ex) {
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to publish pre-protectable threat event", ex);
         } finally {
             if (!success) {
-                analysisTriggerStateRepository.releaseInFlight(dedupKey);
+                triggerCoordinator.releaseInFlight(triggerLease.dedupKey());
+            }
+        }
+    }
+
+    private String recordCandidate(HcadPreTriggerMode mode, PendingAnomalyEvidenceReport report) {
+        if (hcadEvaluationWriter == null) {
+            return null;
+        }
+        try {
+            return hcadEvaluationWriter.recordCandidate(mode, report);
+        } catch (Exception ex) {
+            log.error("[PendingAnomalyTriggerOrchestrator] Failed to record HCAD evaluation candidate", ex);
+            return null;
+        }
+    }
+
+    private void markTriggered(String evaluationId) {
+        if (hcadEvaluationWriter == null) {
+            return;
+        }
+        try {
+            hcadEvaluationWriter.markTriggered(evaluationId);
+        } catch (Exception ex) {
+            log.error("[PendingAnomalyTriggerOrchestrator] Failed to mark HCAD evaluation as triggered", ex);
+        }
+    }
+
+    private void markDuplicateSuppressed(String evaluationId) {
+        if (hcadEvaluationWriter == null) {
+            return;
+        }
+        try {
+            hcadEvaluationWriter.markDuplicateSuppressed(evaluationId);
+        } catch (Exception ex) {
+            log.error("[PendingAnomalyTriggerOrchestrator] Failed to mark duplicate HCAD evaluation", ex);
+        }
+    }
+
+    private void markRequestSuppressed(
+            HttpServletRequest request,
+            PendingAnomalyEvidenceReport report,
+            String dedupKey,
+            String evaluationId) {
+        if (request == null) {
+            return;
+        }
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED, true);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_STATE_KEY, dedupKey);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DUPLICATE_SUPPRESSED, true);
+        if (evaluationId != null && !evaluationId.isBlank()) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+        }
+        if (report != null) {
+            if (report.requestId() != null) {
+                request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_REQUEST_ID, report.requestId());
+            }
+            if (report.riskSignature() != null) {
+                request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_RISK_SIGNATURE, report.riskSignature());
             }
         }
     }

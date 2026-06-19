@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.lang.reflect.Field;
@@ -37,6 +38,29 @@ class IamSeedDataAutoConfigurationTest {
         assertThat(new ClassPathResource("data.sql").exists()).isFalse();
         assertThat(new ClassPathResource("schema.sql").exists()).isFalse();
         assertThat(new ClassPathResource("data-menu.sql").exists()).isFalse();
+    }
+
+    @Test
+    @DisplayName("IAM canonical schema should be a single db/schema.sql resource")
+    void iamCanonicalSchemaUsesSingleSchemaSqlResource() {
+        assertThat(IamSeedDataAutoConfiguration.SCHEMA_LOCATIONS)
+                .containsExactly("db/schema.sql");
+        assertThat(new ClassPathResource("db/pqa-official-schema.sql").exists())
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("IAM canonical schema should include PQA run ledger before child ledger tables")
+    void iamCanonicalSchemaCreatesPqaRunLedgerBeforeChildLedgers() throws Exception {
+        String schema = new ClassPathResource("db/schema.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(schema)
+                .contains("V20260414_01__verification_benchmark_publication_ledger.sql")
+                .contains("V20260501_02__official_verification_jsonb_evidence_shadows.sql")
+                .contains("V20260504_02__verification_ledger_jsonb_shadows.sql");
+        assertThat(schema.indexOf("CREATE TABLE IF NOT EXISTS verification_run_ledger"))
+                .isLessThan(schema.indexOf("CREATE TABLE IF NOT EXISTS verification_run_round_ledger"));
     }
 
     @Test
@@ -75,6 +99,41 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("IAM schema initialization should strip UTF-8 BOM before executing SQL")
+    void iamSchemaInitializationStripsUtf8Bom() {
+        String sanitized = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
+                "\uFEFFcreate extension if not exists vector;");
+
+        assertThat(sanitized)
+                .startsWith("create extension")
+                .doesNotContain("\uFEFF");
+    }
+
+    @Test
+    @DisplayName("IAM schema execution should keep dollar quoted functions as one statement")
+    void iamSchemaExecutionKeepsDollarQuotedFunctionsAsOneStatement() {
+        String sql = """
+                CREATE OR REPLACE FUNCTION contexa_test_notice()
+                RETURNS TEXT
+                LANGUAGE plpgsql
+                AS $function$
+                BEGIN
+                    RETURN 'a;b';
+                END;
+                $function$;
+
+                CREATE TABLE IF NOT EXISTS contexa_test_table (id BIGINT);
+                """;
+
+        assertThat(IamSeedDataAutoConfiguration.splitSqlStatements(sql))
+                .hasSize(2)
+                .first()
+                .asString()
+                .contains("RETURN 'a;b'")
+                .contains("$function$");
+    }
+
+    @Test
     @DisplayName("IAM PQA official completeness check should run after seed SQL")
     void pqaOfficialCompletenessCheckRunsAfterSeedSql() throws Exception {
         String source = Files.readString(Path.of(
@@ -91,7 +150,17 @@ class IamSeedDataAutoConfigurationTest {
                 .getDeclaredField("EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS");
         expectedField.setAccessible(true);
 
-        assertThat(expectedField.getInt(null)).isEqualTo(677);
+        assertThat(expectedField.getInt(null)).isEqualTo(688);
+    }
+
+    @Test
+    @DisplayName("IAM PQA official completeness check should require customer-facing metric contracts")
+    void pqaOfficialCompletenessRequiresCustomerFacingMetricContracts() throws Exception {
+        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS")).isEqualTo(12);
+        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS")).isEqualTo(396);
+        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS")).isEqualTo(66);
+        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS")).isEqualTo(390);
+        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS")).isEqualTo(212);
     }
 
     @Test
@@ -102,6 +171,13 @@ class IamSeedDataAutoConfigurationTest {
 
         assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(allMarkers))
                 .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE);
+    }
+
+    @Test
+    @DisplayName("IAM schema marker should include HCAD evaluation table in canonical schema")
+    void iamSchemaMarkerIncludesHcadEvaluationTable() {
+        assertThat(IamSeedDataAutoConfiguration.SCHEMA_MARKER_TABLES)
+                .contains("hcad_detection_evaluation");
     }
 
     @Test
@@ -116,5 +192,11 @@ class IamSeedDataAutoConfigurationTest {
     void iamSchemaInitializationRejectsPartialSchema() {
         assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(Set.of("users")))
                 .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.PARTIAL);
+    }
+
+    private int privateStaticInt(String fieldName) throws Exception {
+        Field field = IamSeedDataAutoConfiguration.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getInt(null);
     }
 }

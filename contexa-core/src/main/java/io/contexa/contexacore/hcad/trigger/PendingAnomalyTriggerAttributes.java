@@ -21,6 +21,13 @@ public final class PendingAnomalyTriggerAttributes {
     public static final String PRE_TRIGGER_REQUEST_ID = "ctxa.pretrigger.requestId";
     public static final String PRE_TRIGGER_RISK_SIGNATURE = "ctxa.pretrigger.riskSignature";
     public static final String PRE_TRIGGER_STATE_KEY = "ctxa.pretrigger.stateKey";
+    public static final String PRE_TRIGGER_EVALUATION_ID = "ctxa.pretrigger.evaluationId";
+    public static final String PRE_TRIGGER_DUPLICATE_SUPPRESSED = "ctxa.pretrigger.duplicateSuppressed";
+    public static final String PRE_TRIGGER_MODE = "ctxa.pretrigger.hcadMode";
+    public static final String PRE_TRIGGER_DECISION_BOUNDARY_MODE = "ctxa.pretrigger.decisionBoundaryMode";
+    public static final String PRE_TRIGGER_EARLY_ANALYSIS_SCORE = "ctxa.pretrigger.earlyAnalysisScore";
+    public static final String PRE_TRIGGER_BAND = "ctxa.pretrigger.band";
+    public static final String PRE_TRIGGER_EVALUATED = "ctxa.pretrigger.evaluated";
 
     private PendingAnomalyTriggerAttributes() {
     }

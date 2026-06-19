@@ -56,4 +56,8 @@ public record HcadPreProtectablePromotionAssessment(
                 "hcad-promotion-v1",
                 Map.of());
     }
+
+    public int earlyAnalysisScore() {
+        return score;
+    }
 }

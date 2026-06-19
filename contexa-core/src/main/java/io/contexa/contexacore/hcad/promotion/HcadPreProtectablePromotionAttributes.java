@@ -17,7 +17,10 @@ package io.contexa.contexacore.hcad.promotion;
 
 public final class HcadPreProtectablePromotionAttributes {
 
+    public static final String REQUEST_EVALUATED = "hcad.preprotectable.evaluated";
+    public static final String REQUEST_MODE = "hcad.preprotectable.mode";
     public static final String REQUEST_SCORE = "hcad.preprotectable.score";
+    public static final String REQUEST_EARLY_ANALYSIS_SCORE = "hcad.preprotectable.early_analysis_score";
     public static final String REQUEST_BAND = "hcad.preprotectable.band";
     public static final String REQUEST_ELIGIBLE = "hcad.preprotectable.eligible";
     public static final String REQUEST_ANCHOR_SIGNALS = "hcad.preprotectable.anchor_signals";
@@ -26,6 +29,23 @@ public final class HcadPreProtectablePromotionAttributes {
     public static final String REQUEST_SUMMARY = "hcad.preprotectable.summary";
     public static final String REQUEST_VERSION = "hcad.preprotectable.version";
     public static final String REQUEST_RAW_SIGNALS = "hcad.preprotectable.raw_signals";
+    public static final String REQUEST_PROVENANCE = "hcad.preprotectable.provenance";
+    public static final String REQUEST_IGNORED_INPUTS = "hcad.preprotectable.ignored_inputs";
+
+    public static final String METADATA_EVALUATED = "hcadPreTriggerEvaluated";
+    public static final String METADATA_MODE = "hcadPreTriggerMode";
+    public static final String METADATA_SCORE = "hcadPreTriggerScore";
+    public static final String METADATA_EARLY_ANALYSIS_SCORE = "hcadPreTriggerEarlyAnalysisScore";
+    public static final String METADATA_BAND = "hcadPreTriggerBand";
+    public static final String METADATA_ELIGIBLE = "hcadPreTriggerEligible";
+    public static final String METADATA_ANCHOR_SIGNALS = "hcadPreTriggerAnchorSignals";
+    public static final String METADATA_CORROBORATING_SIGNALS = "hcadPreTriggerCorroboratingSignals";
+    public static final String METADATA_REASON_CODES = "hcadPreTriggerReasonCodes";
+    public static final String METADATA_SUMMARY = "hcadPreTriggerSummary";
+    public static final String METADATA_VERSION = "hcadPreTriggerVersion";
+    public static final String METADATA_RAW_SIGNALS = "hcadPreTriggerRawSignals";
+    public static final String METADATA_PROVENANCE = "hcadPreTriggerProvenance";
+    public static final String METADATA_IGNORED_INPUTS = "hcadPreTriggerIgnoredInputs";
 
     public static final String CONTEXT_SCORE = "preProtectablePromotionScore";
     public static final String CONTEXT_BAND = "preProtectablePromotionBand";

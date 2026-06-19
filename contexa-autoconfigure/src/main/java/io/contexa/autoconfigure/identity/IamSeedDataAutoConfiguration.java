@@ -15,7 +15,9 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
+import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogWriter;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -27,9 +29,9 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 import javax.sql.DataSource;
@@ -40,7 +42,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -50,15 +54,19 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "contexa.iam.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IamSeedDataAutoConfiguration {
 
-    private static final String PQA_OFFICIAL_SCHEMA_LOCATION = "db/pqa-official-schema.sql";
+    private static final String CANONICAL_SCHEMA_LOCATION = "db/schema.sql";
     private static final int EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS = 66;
-    private static final int EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS = 677;
+    private static final int EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS = 688;
+    private static final int EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS = 12;
+    private static final int EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS = 396;
+    private static final int EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS = 66;
+    private static final int EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS = 390;
+    private static final int EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS = 212;
     private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS = 12;
-    private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS = 12;
+    private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS = 26;
 
     static final String[] SCHEMA_LOCATIONS = {
-            "db/schema.sql",
-            PQA_OFFICIAL_SCHEMA_LOCATION
+            CANONICAL_SCHEMA_LOCATION
     };
 
     static final String[] SCHEMA_MARKER_TABLES = {
@@ -74,7 +82,8 @@ public class IamSeedDataAutoConfiguration {
             "official_metric_purpose_evidence_ledger",
             "official_actual_prompt_problem_ledger",
             "official_verification_prompt_comparison",
-            "pqa_sealed_evidence_resource_status"
+            "pqa_sealed_evidence_resource_status",
+            "hcad_detection_evaluation"
     };
 
     static final String[] SEED_LOCATIONS = {
@@ -100,10 +109,9 @@ public class IamSeedDataAutoConfiguration {
                     log.warn("[IamSeedData] classpath:{} not found, skipping schema initialization", location);
                     continue;
                 }
-                ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-                populator.setContinueOnError(false);
-                populator.addScript(sanitizedSchemaResource(location, schema));
-                populator.execute(dataSource);
+                String sql = sanitizeSchemaSqlForInstalledDatabase(
+                        schema.getContentAsString(StandardCharsets.UTF_8));
+                executeSchemaSql(dataSource, location, sql);
                 log.info("[IamSeedData] {} executed", location);
             }
             SchemaInstallState completedState = detectSchemaInstallState(dataSource);
@@ -111,7 +119,7 @@ public class IamSeedDataAutoConfiguration {
                 throw new IllegalStateException(
                         "Contexa schema is partially installed after canonical schema execution. "
                                 + "Rebuild the Contexa database or run the canonical "
-                                + "db/schema.sql and db/pqa-official-schema.sql manually before starting the application.");
+                                + "db/schema.sql manually before starting the application.");
             }
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
@@ -133,35 +141,44 @@ public class IamSeedDataAutoConfiguration {
 
     private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
         PqaOfficialSeedState seedState = detectPqaOfficialSeedState(dataSource);
-        if (seedState == PqaOfficialSeedState.COMPLETE) {
-            return;
+        if (seedState == PqaOfficialSeedState.ABSENT) {
+            Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
+            if (!schema.exists()) {
+                log.warn("[IamSeedData] classpath:{} not found, cannot complete PQA official schema seed",
+                        CANONICAL_SCHEMA_LOCATION);
+                return;
+            }
+            log.warn("[IamSeedData] PQA official schema tables are absent; attempting idempotent schema completion");
+            executeSchemaSql(dataSource, CANONICAL_SCHEMA_LOCATION, pqaSeedCompletionSchemaSql(schema));
+            log.info("[IamSeedData] {} executed for PQA official schema completion", CANONICAL_SCHEMA_LOCATION);
+            seedState = detectPqaOfficialSeedState(dataSource);
         }
-        Resource schema = new ClassPathResource(PQA_OFFICIAL_SCHEMA_LOCATION);
-        if (!schema.exists()) {
-            log.warn("[IamSeedData] classpath:{} not found, cannot complete PQA official schema seed",
-                    PQA_OFFICIAL_SCHEMA_LOCATION);
-            return;
+        if (seedState != PqaOfficialSeedState.COMPLETE) {
+            log.warn("[IamSeedData] PQA official contract catalog seed is {}; attempting catalog completion",
+                    seedState);
+            completePqaOfficialContractCatalog(dataSource);
+            seedState = detectPqaOfficialSeedState(dataSource);
         }
-        log.warn("[IamSeedData] PQA official schema seed is {}; attempting idempotent completion", seedState);
-        ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-        populator.setContinueOnError(false);
-        populator.addScript(pqaSeedCompletionSchemaResource(schema));
-        populator.execute(dataSource);
-        PqaOfficialSeedState completedState = detectPqaOfficialSeedState(dataSource);
-        if (completedState != PqaOfficialSeedState.COMPLETE) {
+        if (seedState != PqaOfficialSeedState.COMPLETE) {
             throw new IllegalStateException(
-                    "PQA official schema seed is incomplete after canonical db/pqa-official-schema.sql execution. "
+                    "PQA official schema seed is incomplete after canonical db/schema.sql execution. "
                             + "Rebuild the Contexa database or run the canonical "
-                            + "db/pqa-official-schema.sql manually before starting the application.");
+                            + "db/schema.sql manually before starting the application.");
         }
-        log.info("[IamSeedData] {} executed for PQA official seed completion", PQA_OFFICIAL_SCHEMA_LOCATION);
     }
 
-    private Resource pqaSeedCompletionSchemaResource(Resource schema) throws IOException {
+    private void completePqaOfficialContractCatalog(DataSource dataSource) {
+        OfficialMetricPurposeContractCatalogWriter writer =
+                new OfficialMetricPurposeContractCatalogWriter(new JdbcTemplate(dataSource), new ObjectMapper());
+        writer.upsertFullMetricContractCatalog();
+        writer.assertFullMetricContractCatalogPersisted();
+        log.info("[IamSeedData] PQA official contract catalog completed from runtime catalog resources");
+    }
+
+    private String pqaSeedCompletionSchemaSql(Resource schema) throws IOException {
         String sql = schema.getContentAsString(StandardCharsets.UTF_8);
-        String sanitizedSql = sanitizeSchemaSqlForInstalledDatabase(sql)
+        return sanitizeSchemaSqlForInstalledDatabase(sql)
                 .replaceAll("(?is)\\balter\\s+table\\s+\\S+\\s+alter\\s+column\\s+\\S+\\s+set\\s+data\\s+type\\s+[^;]+;\\s*", "");
-        return new ByteArrayResource(sanitizedSql.getBytes(StandardCharsets.UTF_8), PQA_OFFICIAL_SCHEMA_LOCATION);
     }
 
     private PqaOfficialSeedState detectPqaOfficialSeedState(DataSource dataSource) throws SQLException {
@@ -170,6 +187,8 @@ public class IamSeedDataAutoConfiguration {
             if (!tableExists(connection, metadata, "official_metric_purpose_contract")
                     || !tableExists(connection, metadata, "official_metric_evaluation_contract")
                     || !tableExists(connection, metadata, "official_metric_customer_display_contract")
+                    || !tableExists(connection, metadata, "official_metric_customer_display_binding")
+                    || !tableExists(connection, metadata, "official_metric_input_contract")
                     || !tableExists(connection, metadata, "official_metric_check_display_evidence_contract")
                     || !tableExists(connection, metadata, "official_prompt_signal_contract")
                     || !tableExists(connection, metadata, "official_verification_metric_definition")
@@ -180,6 +199,16 @@ public class IamSeedDataAutoConfiguration {
                     >= EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS
                     && countRows(connection, "official_prompt_signal_contract")
                     >= EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS
+                    && countRows(connection, "official_metric_purpose_contract")
+                    >= EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS
+                    && countRows(connection, "official_metric_input_contract")
+                    >= EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS
+                    && countRows(connection, "official_metric_check_display_evidence_contract")
+                    >= EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS
+                    && countRows(connection, "official_metric_customer_display_contract")
+                    >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS
+                    && countRows(connection, "official_metric_customer_display_binding")
+                    >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS
                     && countRows(connection, "official_verification_metric_definition")
                     >= EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS
                     && countRows(connection, "official_verification_metric_check_definition")
@@ -196,17 +225,174 @@ public class IamSeedDataAutoConfiguration {
         }
     }
 
-    private Resource sanitizedSchemaResource(String location, Resource schema) throws IOException {
-        String sql = schema.getContentAsString(StandardCharsets.UTF_8);
-        String sanitizedSql = sanitizeSchemaSqlForInstalledDatabase(sql);
-        return new ByteArrayResource(sanitizedSql.getBytes(StandardCharsets.UTF_8), location);
+    private void executeSchemaSql(DataSource dataSource, String location, String sql) throws SQLException {
+        List<String> statements = splitSqlStatements(sql);
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            int statementNumber = 0;
+            for (String candidate : statements) {
+                String sqlStatement = candidate.trim();
+                if (isSqlStatementBlank(sqlStatement)) {
+                    continue;
+                }
+                statementNumber++;
+                try {
+                    statement.execute(sqlStatement);
+                } catch (SQLException ex) {
+                    throw new SQLException(
+                            "Failed to execute SQL script statement #" + statementNumber + " of " + location
+                                    + ": " + abbreviate(sqlStatement),
+                            ex);
+                }
+            }
+        }
+    }
+
+    static List<String> splitSqlStatements(String sql) {
+        List<String> statements = new ArrayList<>();
+        if (sql == null || sql.isBlank()) {
+            return statements;
+        }
+        StringBuilder current = new StringBuilder();
+        boolean singleQuoted = false;
+        boolean doubleQuoted = false;
+        boolean lineComment = false;
+        boolean blockComment = false;
+        String dollarQuote = null;
+        for (int i = 0; i < sql.length(); i++) {
+            char ch = sql.charAt(i);
+            char next = i + 1 < sql.length() ? sql.charAt(i + 1) : '\0';
+
+            if (lineComment) {
+                current.append(ch);
+                if (ch == '\n' || ch == '\r') {
+                    lineComment = false;
+                }
+                continue;
+            }
+            if (blockComment) {
+                current.append(ch);
+                if (ch == '*' && next == '/') {
+                    current.append(next);
+                    i++;
+                    blockComment = false;
+                }
+                continue;
+            }
+            if (dollarQuote != null) {
+                if (sql.startsWith(dollarQuote, i)) {
+                    current.append(dollarQuote);
+                    i += dollarQuote.length() - 1;
+                    dollarQuote = null;
+                } else {
+                    current.append(ch);
+                }
+                continue;
+            }
+            if (singleQuoted) {
+                current.append(ch);
+                if (ch == '\'' && next == '\'') {
+                    current.append(next);
+                    i++;
+                } else if (ch == '\'') {
+                    singleQuoted = false;
+                }
+                continue;
+            }
+            if (doubleQuoted) {
+                current.append(ch);
+                if (ch == '"' && next == '"') {
+                    current.append(next);
+                    i++;
+                } else if (ch == '"') {
+                    doubleQuoted = false;
+                }
+                continue;
+            }
+
+            if (ch == '-' && next == '-') {
+                current.append(ch).append(next);
+                i++;
+                lineComment = true;
+                continue;
+            }
+            if (ch == '/' && next == '*') {
+                current.append(ch).append(next);
+                i++;
+                blockComment = true;
+                continue;
+            }
+            if (ch == '\'') {
+                current.append(ch);
+                singleQuoted = true;
+                continue;
+            }
+            if (ch == '"') {
+                current.append(ch);
+                doubleQuoted = true;
+                continue;
+            }
+            if (ch == '$') {
+                String quoteTag = readDollarQuoteTag(sql, i);
+                if (quoteTag != null) {
+                    current.append(quoteTag);
+                    i += quoteTag.length() - 1;
+                    dollarQuote = quoteTag;
+                    continue;
+                }
+            }
+            if (ch == ';') {
+                addStatementIfNotBlank(statements, current.toString());
+                current.setLength(0);
+                continue;
+            }
+            current.append(ch);
+        }
+        if (!current.isEmpty()) {
+            addStatementIfNotBlank(statements, current.toString());
+        }
+        return statements;
+    }
+
+    private static void addStatementIfNotBlank(List<String> statements, String sqlStatement) {
+        if (!isSqlStatementBlank(sqlStatement)) {
+            statements.add(sqlStatement);
+        }
+    }
+
+    private static String readDollarQuoteTag(String sql, int offset) {
+        int end = sql.indexOf('$', offset + 1);
+        if (end < 0) {
+            return null;
+        }
+        for (int i = offset + 1; i < end; i++) {
+            char ch = sql.charAt(i);
+            if (!Character.isLetterOrDigit(ch) && ch != '_') {
+                return null;
+            }
+        }
+        return sql.substring(offset, end + 1);
+    }
+
+    private static boolean isSqlStatementBlank(String sqlStatement) {
+        return sqlStatement
+                .replaceAll("(?s)/\\*.*?\\*/", "")
+                .replaceAll("(?m)--.*$", "")
+                .trim()
+                .isEmpty();
+    }
+
+    private String abbreviate(String sqlStatement) {
+        String singleLine = sqlStatement.replaceAll("\\s+", " ").trim();
+        return singleLine.length() <= 500 ? singleLine : singleLine.substring(0, 500) + "...";
     }
 
     static String sanitizeSchemaSqlForInstalledDatabase(String sql) {
         if (sql == null || sql.isBlank()) {
             return "";
         }
-        return sql
+        String normalized = sql.startsWith("\uFEFF") ? sql.substring(1) : sql;
+        return normalized
                 .replaceAll("(?is)\\balter\\s+(table|sequence|view|materialized\\s+view|index)\\s+[^;]+?\\s+owner\\s+to\\s+[^;]+;\\s*", "")
                 .replaceAll("(?im)^\\s*create\\s+table\\s+(?!if\\s+not\\s+exists\\b)", "create table if not exists ")
                 .replaceAll("(?im)^\\s*create\\s+sequence\\s+(?!if\\s+not\\s+exists\\b)", "create sequence if not exists ")

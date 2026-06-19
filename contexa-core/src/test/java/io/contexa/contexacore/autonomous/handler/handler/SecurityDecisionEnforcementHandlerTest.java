@@ -22,6 +22,8 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -64,6 +66,8 @@ class SecurityDecisionEnforcementHandlerTest {
     private BlockingSignalBroadcaster blockingSignalBroadcaster;
     @Mock
     private AnalysisTriggerStateRepository analysisTriggerStateRepository;
+    @Mock
+    private HcadEvaluationWriter hcadEvaluationWriter;
     private SecurityDecisionEnforcementHandler handler;
 
     @BeforeEach
@@ -239,6 +243,33 @@ class SecurityDecisionEnforcementHandlerTest {
         assertThat(result).isTrue();
         verify(analysisTriggerStateRepository).releaseInFlight("trigger-key-1");
     }
+
+    @Test
+    @DisplayName("HCAD pre-trigger completion should release current in-flight source key")
+    void hcadPreTriggerCompletion_shouldReleaseInFlight() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-5b")
+                .metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "triggerStateKey", "trigger-key-hcad"))
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.ALLOW.name())
+                .riskScore(0.2)
+                .confidence(0.9)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        boolean result = handler.handle(context);
+
+        assertThat(result).isTrue();
+        verify(analysisTriggerStateRepository).releaseInFlight("trigger-key-hcad");
+    }
+
     @Test
     @DisplayName("getOrder should return 55")
     void getOrder_shouldReturn55() {
@@ -333,5 +364,163 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(actionRepository).saveAction(eq("user-enforce-block"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-enforce-block");
         verify(blockingSignalBroadcaster).registerBlock("user-enforce-block");
+    }
+
+    @Test
+    @DisplayName("HCAD event-level SHADOW should update evaluation and skip enforcement and learning")
+    void hcadEventShadow_shouldUpdateEvaluationAndSkipSideEffects() throws Exception {
+        SecurityZeroTrustProperties enforceProperties = new SecurityZeroTrustProperties();
+        enforceProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        List<Runnable> submittedTasks = new ArrayList<>();
+        SecurityDecisionEnforcementHandler hcadShadowHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository,
+                enforceProperties,
+                submittedTasks::add,
+                hcadEvaluationWriter);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-hcad-shadow")
+                .userId("user-hcad-shadow")
+                .sourceIp("10.0.0.30")
+                .userAgent("HcadShadowAgent")
+                .metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "decisionBoundaryMode", "SHADOW",
+                        "hcadMode", "SHADOW",
+                        "hcadEvaluationId", "eval-hcad-shadow"))
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.ALLOW.name())
+                .proposedAction(ZeroTrustAction.CHALLENGE.name())
+                .llmAuditRiskScore(0.12d)
+                .llmAuditConfidence(0.91d)
+                .processingTimeMs(88L)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        boolean result = hcadShadowHandler.handle(context);
+
+        assertThat(result).isTrue();
+        assertThat(submittedTasks).isEmpty();
+        verify(actionRepository, never()).saveAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).setBlockedFlag(anyString());
+        verify(blockingSignalBroadcaster, never()).registerBlock(anyString());
+        verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), any());
+        verify(hcadEvaluationWriter).markDecided(
+                eq("eval-hcad-shadow"),
+                eq("event-hcad-shadow"),
+                eq("ALLOW"),
+                eq("CHALLENGE"),
+                eq(0.12d),
+                eq(0.91d),
+                eq(88L),
+                eq("TP"));
+    }
+
+    @Test
+    @DisplayName("HCAD non-trigger observation should be recorded as observable false negative when Protectable LLM restricts access")
+    void hcadObservationWithoutEvaluationId_shouldRecordFalseNegative() {
+        SecurityDecisionEnforcementHandler observationHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository,
+                null,
+                Runnable::run,
+                hcadEvaluationWriter);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-hcad-fn")
+                .userId("user-hcad-fn")
+                .sourceIp("10.0.0.40")
+                .metadata(Map.of(
+                        HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true,
+                        HcadPreProtectablePromotionAttributes.METADATA_MODE, "SHADOW",
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 45,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "HIGH",
+                        HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false,
+                        "requestId", "request-hcad-fn",
+                        "httpMethod", "POST",
+                        "requestPath", "/admin/users"))
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .proposedAction(ZeroTrustAction.BLOCK.name())
+                .llmAuditRiskScore(0.91d)
+                .llmAuditConfidence(0.87d)
+                .processingTimeMs(140L)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        boolean result = observationHandler.handle(context);
+
+        assertThat(result).isTrue();
+        verify(hcadEvaluationWriter).recordObservedDecision(
+                eq(event),
+                eq("BLOCK"),
+                eq("BLOCK"),
+                eq(0.91d),
+                eq(0.87d),
+                eq(140L),
+                eq("FN"));
+    }
+
+    @Test
+    @DisplayName("HCAD fallback result should mark evaluation outcome as UNKNOWN")
+    void hcadFallbackResult_shouldMarkUnknown() {
+        SecurityDecisionEnforcementHandler hcadHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                analysisTriggerStateRepository,
+                null,
+                Runnable::run,
+                hcadEvaluationWriter);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-hcad-unknown")
+                .userId("user-hcad-unknown")
+                .metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "hcadEvaluationId", "eval-hcad-unknown"))
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .technicalFallbackApplied(true)
+                .llmDecisionPresent(false)
+                .processingTimeMs(17L)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+
+        boolean result = hcadHandler.handle(context);
+
+        assertThat(result).isTrue();
+        verify(hcadEvaluationWriter).markDecided(
+                eq("eval-hcad-unknown"),
+                eq("event-hcad-unknown"),
+                eq("BLOCK"),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(17L),
+                eq("UNKNOWN"));
     }
 }

@@ -45,11 +45,13 @@ public class PendingAnomalyEligibilityGate {
     }
 
     public PendingAnomalyEligibility evaluate(HttpServletRequest request, Authentication authentication) {
-        if (request == null || !trustResolver.isAuthenticated(authentication) || !hcadProperties.getPreTrigger().isEnabled()) {
+        if (request == null || !trustResolver.isAuthenticated(authentication) || !hcadProperties.getPreTrigger().shouldEvaluate()) {
             return null;
         }
 
-        String userId = OfficialVerificationRequestContext.resolveUserId(request);
+        String userId = firstText(
+                OfficialVerificationRequestContext.resolveUserId(request),
+                authentication.getName());
         if (!StringUtils.hasText(userId)) {
             return null;
         }
@@ -64,9 +66,6 @@ public class PendingAnomalyEligibilityGate {
         if (currentAction == ZeroTrustAction.CHALLENGE || currentAction == ZeroTrustAction.BLOCK) {
             return null;
         }
-        if (currentAction == ZeroTrustAction.ALLOW) {
-            return null;
-        }
 
         String baseKey = PendingAnomalyKeyFactory.buildBaseKey(
                 userId,
@@ -74,11 +73,21 @@ public class PendingAnomalyEligibilityGate {
                 request.getMethod(),
                 HcadRequestPathUtils.normalizedPath(request));
 
-        if (analysisTriggerStateRepository.isNegativeCached(baseKey)
-                || analysisTriggerStateRepository.isCoolingDown(baseKey)
-                || analysisTriggerStateRepository.isInFlight(baseKey)) {
+        if (analysisTriggerStateRepository.isNegativeCached(baseKey)) {
             return null;
         }
         return new PendingAnomalyEligibility(userId, contextBindingHash, baseKey);
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 }
