@@ -28,6 +28,7 @@ public final class HcadMonitorDtos {
             String to,
             String currentMode,
             long candidateCount,
+            long observedRequestCount,
             long triggeredLlmCount,
             long truePositiveCount,
             long falsePositiveCount,

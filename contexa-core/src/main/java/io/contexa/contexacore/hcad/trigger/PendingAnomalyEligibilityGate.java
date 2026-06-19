@@ -66,16 +66,22 @@ public class PendingAnomalyEligibilityGate {
             return null;
         }
 
-        String baseKey = PendingAnomalyKeyFactory.buildBaseKey(
-                userId,
-                contextBindingHash,
-                request.getMethod(),
-                HcadRequestPathUtils.normalizedPath(request));
+        String actorSessionKey = firstText(
+                assessment.rawSignalSnapshot().get("actorSessionKey"),
+                HcadActorSessionKeyFactory.fromParts(
+                        firstText(assessment.rawSignalSnapshot().get("tenantId")),
+                        firstText(assessment.rawSignalSnapshot().get("organizationId")),
+                        userId,
+                        contextBindingHash));
+        if (!StringUtils.hasText(actorSessionKey)) {
+            return null;
+        }
+        String baseKey = actorSessionKey;
 
         if (analysisTriggerStateRepository.isNegativeCached(baseKey)) {
             return null;
         }
-        return new PendingAnomalyEligibility(userId, contextBindingHash, baseKey);
+        return new PendingAnomalyEligibility(userId, contextBindingHash, actorSessionKey, baseKey);
     }
 
     private String firstText(Object... values) {

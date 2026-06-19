@@ -66,15 +66,11 @@ class PendingAnomalyEvidenceCheckServiceTest {
         assertThat(report.escalationScore()).isEqualTo(70);
         assertThat(report.escalationBand()).isEqualTo("REDLINE");
         assertThat(report.reasonSummary()).contains("promotion triggered");
-        String expectedRiskSignature = PendingAnomalyKeyFactory.buildRiskSignature(
-                "GET",
-                "/admin/export/reports",
-                List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "REQUEST_BURST"));
-        String expectedTriggerStateKey = PendingAnomalyKeyFactory.buildTriggerKey(
-                "alice",
-                "ctx-1",
-                "GET",
-                "/admin/export/reports",
+        String expectedRiskSignature = PendingAnomalyKeyFactory.buildTrustedSignalSignature(
+                List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"),
+                List.of("REQUEST_BURST"));
+        String expectedTriggerStateKey = PendingAnomalyKeyFactory.buildActorSessionDedupKey(
+                "base-1",
                 expectedRiskSignature);
         assertThat(report.riskSignature()).isEqualTo(expectedRiskSignature);
         assertThat(report.triggerStateKey()).isEqualTo(expectedTriggerStateKey);

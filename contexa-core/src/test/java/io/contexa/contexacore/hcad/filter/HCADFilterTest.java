@@ -25,12 +25,14 @@ import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactor
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -41,13 +43,20 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -174,6 +183,209 @@ class HCADFilterTest {
         verify(hcadEvaluationWriter).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any());
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-1");
         assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("missing orchestrator should record non-eligible window for shadow monitoring")
+    void doFilterInternal_missingOrchestrator_recordsLowRiskWindowWithWriter() throws Exception {
+        setAuthenticated();
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> null,
+                () -> hcadEvaluationWriter);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of("PREVIOUS_PATH_JUMP"),
+                List.of("PREVIOUS_PATH_JUMP"),
+                "trusted low-risk projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 10));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+        when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-low");
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        verify(hcadEvaluationWriter).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any());
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-low");
+        assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("observation-only request should update existing window evaluation summary without deep evaluation")
+    void doFilterInternal_observationOnlyRequest_updatesWindowEvaluationSummary() throws Exception {
+        setAuthenticated();
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> null,
+                () -> hcadEvaluationWriter);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of("PREVIOUS_PATH_JUMP"),
+                List.of("PREVIOUS_PATH_JUMP"),
+                "trusted low-risk projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 10));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+        when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-low");
+
+        MockHttpServletRequest first = hcadRequest("GET", "/api/dashboard", "session-1", "203.0.113.10", "JUnit");
+        MockHttpServletRequest second = hcadRequest("GET", "/api/menus", "session-1", "203.0.113.10", "JUnit");
+
+        hcadFilter.doFilterInternal(first, response, new MockFilterChain());
+        hcadFilter.doFilterInternal(second, new MockHttpServletResponse(), new MockFilterChain());
+
+        ArgumentCaptor<HcadObservationWindowLease> leaseCaptor =
+                ArgumentCaptor.forClass(HcadObservationWindowLease.class);
+        verify(hcadEvaluationWriter).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any());
+        verify(hcadEvaluationWriter).updateWindowObservation(
+                eq(first.getAttribute("hcad.actorSessionKey").toString()),
+                eq(first.getAttribute("hcad.windowId").toString()),
+                leaseCaptor.capture());
+        assertThat(leaseCaptor.getValue().requestCount()).isEqualTo(2);
+        assertThat(leaseCaptor.getValue().samplePaths()).containsExactly("/api/dashboard", "/api/menus");
+        verify(trustedProjectionFactory, times(1)).project(any(), any());
+        verify(preProtectablePromotionScorer, times(1)).score(any());
+    }
+
+    @Test
+    @DisplayName("parallel fan-out in same actor session should perform one deep HCAD evaluation and one trigger attempt")
+    void doFilterInternal_sameActorSessionTenParallelPaths_coalescesDeepEvaluationAndTrigger() throws Exception {
+        setAuthenticated();
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 75));
+
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+
+        int requestCount = 10;
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        List<Future<MockHttpServletRequest>> futures = new ArrayList<>();
+        for (int i = 0; i < requestCount; i++) {
+            int index = i;
+            futures.add(executor.submit(() -> {
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken("testUser", "password", Collections.emptyList());
+                SecurityContextHolder.getContext().setAuthentication(auth);
+                MockHttpServletRequest fanOutRequest = hcadRequest("GET", "/api/fanout/" + index,
+                        "session-1", "203.0.113.10", "JUnit");
+                fanOutRequest.setQueryString("refresh=" + index);
+                ready.countDown();
+                start.await(2, TimeUnit.SECONDS);
+                hcadFilter.doFilterInternal(fanOutRequest, new MockHttpServletResponse(), new MockFilterChain());
+                SecurityContextHolder.clearContext();
+                return fanOutRequest;
+            }));
+        }
+        assertThat(ready.await(2, TimeUnit.SECONDS)).isTrue();
+        start.countDown();
+        List<MockHttpServletRequest> completed = new ArrayList<>();
+        for (Future<MockHttpServletRequest> future : futures) {
+            completed.add(future.get(5, TimeUnit.SECONDS));
+        }
+        executor.shutdownNow();
+
+        verify(trustedProjectionFactory, times(1)).project(any(), any());
+        verify(preProtectablePromotionScorer, times(1)).score(any());
+        verify(pendingAnomalyTriggerOrchestrator, times(1)).maybeTrigger(any(), any());
+        assertThat(completed)
+                .extracting(request -> request.getAttribute("hcad.actorSessionKey"))
+                .containsOnly(completed.get(0).getAttribute("hcad.actorSessionKey"));
+        assertThat(completed)
+                .extracting(request -> request.getAttribute("hcad.windowId"))
+                .containsOnly(completed.get(0).getAttribute("hcad.windowId"));
+        List<Integer> observedCounts = completed.stream()
+                .map(request -> (Integer) request.getAttribute("hcad.windowRequestCount"))
+                .toList();
+        assertThat(observedCounts).allMatch(count -> count >= 1 && count <= requestCount);
+        assertThat(observedCounts).contains(requestCount);
+    }
+
+    @Test
+    @DisplayName("same resource refresh with query and path parameter changes should stay in one HCAD window")
+    void doFilterInternal_sameActorSessionQueryAndPathParameterChanges_coalescesWithinWindow() throws Exception {
+        setAuthenticated();
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 75));
+
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+
+        MockHttpServletRequest first = hcadRequest("GET", "/api/orders/1001", "session-1", "203.0.113.10", "JUnit");
+        first.setQueryString("refresh=1");
+        MockHttpServletRequest second = hcadRequest("GET", "/api/orders/1002", "session-1", "203.0.113.10", "JUnit");
+        second.setQueryString("refresh=2");
+
+        hcadFilter.doFilterInternal(first, response, new MockFilterChain());
+        hcadFilter.doFilterInternal(second, new MockHttpServletResponse(), new MockFilterChain());
+
+        verify(trustedProjectionFactory, times(1)).project(any(), any());
+        verify(preProtectablePromotionScorer, times(1)).score(any());
+        verify(pendingAnomalyTriggerOrchestrator, times(1)).maybeTrigger(any(), any());
+        assertThat(second.getAttribute("hcad.windowId")).isEqualTo(first.getAttribute("hcad.windowId"));
+        assertThat(second.getAttribute("hcad.windowRequestCount")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("different user, session, IP, and user-agent should acquire separate HCAD windows")
+    void doFilterInternal_differentActorContexts_shouldEvaluateIndependently() throws Exception {
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 75));
+
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+
+        runFilterAs("testUser", hcadRequest("GET", "/api/dashboard", "session-1", "203.0.113.10", "JUnit"));
+        runFilterAs("testUser", hcadRequest("GET", "/api/dashboard", "session-2", "203.0.113.10", "JUnit"));
+        runFilterAs("testUser", hcadRequest("GET", "/api/dashboard", "session-1", "203.0.113.11", "JUnit"));
+        runFilterAs("testUser", hcadRequest("GET", "/api/dashboard", "session-1", "203.0.113.10", "Different"));
+        runFilterAs("otherUser", hcadRequest("GET", "/api/dashboard", "session-1", "203.0.113.10", "JUnit"));
+
+        verify(trustedProjectionFactory, times(5)).project(any(), any());
+        verify(preProtectablePromotionScorer, times(5)).score(any());
+        verify(pendingAnomalyTriggerOrchestrator, times(5)).maybeTrigger(any(), any());
     }
 
     @Test
@@ -308,5 +520,28 @@ class HCADFilterTest {
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken("testUser", "password", Collections.emptyList());
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private void runFilterAs(String username, MockHttpServletRequest request) throws Exception {
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(username, "password", Collections.emptyList());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        hcadFilter.doFilterInternal(request, new MockHttpServletResponse(), new MockFilterChain());
+        SecurityContextHolder.clearContext();
+    }
+
+    private MockHttpServletRequest hcadRequest(
+            String method,
+            String path,
+            String sessionId,
+            String remoteAddr,
+            String userAgent) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.setRequestURI(path);
+        request.setServletPath(path);
+        request.setRequestedSessionId(sessionId);
+        request.setRemoteAddr(remoteAddr);
+        request.addHeader("User-Agent", userAgent);
+        return request;
     }
 }

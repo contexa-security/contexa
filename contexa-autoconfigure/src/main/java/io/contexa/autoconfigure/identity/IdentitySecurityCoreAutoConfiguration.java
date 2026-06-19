@@ -32,6 +32,7 @@ import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -441,13 +442,15 @@ public class IdentitySecurityCoreAutoConfiguration {
             HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer,
             HcadProperties hcadProperties,
             ObjectProvider<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorProvider,
-            HcadEvaluationWriter hcadEvaluationWriter) {
+            HcadEvaluationWriter hcadEvaluationWriter,
+            HcadObservationWindowRepository hcadObservationWindowRepository) {
         return new HCADFilter(
                 trustedHcadContextProjectionFactory,
                 hcadPreProtectablePromotionScorer,
                 hcadProperties,
                 pendingAnomalyTriggerOrchestratorProvider::getIfAvailable,
-                () -> hcadEvaluationWriter);
+                () -> hcadEvaluationWriter,
+                hcadObservationWindowRepository);
     }
 
     @Bean

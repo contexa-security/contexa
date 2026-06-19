@@ -92,6 +92,25 @@ public final class HcadRequestPathUtils {
         return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
+    public static String resourceFamily(String path) {
+        String normalized = normalizePathText(path);
+        if (!StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String segment : normalized.split("/")) {
+            if (!StringUtils.hasText(segment)) {
+                continue;
+            }
+            if (isVariablePathSegment(segment)) {
+                builder.append("/{id}");
+            } else {
+                builder.append('/').append(segment.toLowerCase(Locale.ROOT));
+            }
+        }
+        return builder.length() == 0 ? "/" : builder.toString();
+    }
+
     public static boolean isNonUserInteractionRequest(HttpServletRequest request) {
         if (request == null) {
             return false;
@@ -146,5 +165,16 @@ public final class HcadRequestPathUtils {
             }
         }
         return false;
+    }
+
+    private static boolean isVariablePathSegment(String segment) {
+        String value = segment == null ? "" : segment.trim();
+        if (value.isEmpty()) {
+            return false;
+        }
+        if (value.matches("\\d+")) {
+            return true;
+        }
+        return value.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     }
 }

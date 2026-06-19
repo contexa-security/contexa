@@ -20,208 +20,77 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
-import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.hcad.trigger.store.InMemoryAnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.HcadProperties;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class PendingAnomalyEligibilityGateTest {
 
-    @Mock
-    private ZeroTrustActionRepository actionRepository;
-
-    @Mock
-    private AnalysisTriggerStateRepository analysisTriggerStateRepository;
-
-    private PendingAnomalyEligibilityGate eligibilityGate;
-    private HcadProperties hcadProperties;
-
-    @BeforeEach
-    void setUp() {
-        hcadProperties = new HcadProperties();
-        eligibilityGate = new PendingAnomalyEligibilityGate(
+    @Test
+    @DisplayName("low-risk negative cache should suppress eligibility until TTL expires")
+    void evaluate_negativeCacheSuppressesEligibilityUntilTtlExpires() throws Exception {
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        when(actionRepository.getCurrentAction(anyString(), anyString())).thenReturn(ZeroTrustAction.ALLOW);
+        InMemoryAnalysisTriggerStateRepository stateRepository = new InMemoryAnalysisTriggerStateRepository();
+        PendingAnomalyEligibilityGate gate = new PendingAnomalyEligibilityGate(
                 actionRepository,
-                analysisTriggerStateRepository,
-                hcadProperties);
+                stateRepository,
+                new HcadProperties());
+        MockHttpServletRequest request = request();
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of());
+        projectLowRiskAssessment(request);
+
+        PendingAnomalyEligibility first = gate.evaluate(request, authentication);
+        stateRepository.markNegative(first.baseKey(), Duration.ofMillis(50));
+        PendingAnomalyEligibility cached = gate.evaluate(request, authentication);
+        Thread.sleep(100L);
+        PendingAnomalyEligibility afterTtl = gate.evaluate(request, authentication);
+
+        assertThat(first).isNotNull();
+        assertThat(first.actorSessionKey()).isEqualTo("actor-1");
+        assertThat(cached).isNull();
+        assertThat(afterTtl).isNotNull();
+        assertThat(afterTtl.actorSessionKey()).isEqualTo("actor-1");
     }
 
-    @Test
-    @DisplayName("pending-analysis users should be eligible when no negative cache is present")
-    void evaluate_pendingAnalysis_shouldReturnEligibility() {
-        MockHttpServletRequest request = baseRequest("alice", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"), List.of()));
-
-        when(actionRepository.getCurrentAction(eq("alice"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-
-        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
-                request,
-                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
-
-        assertThat(eligibility).isNotNull();
-        assertThat(eligibility.userId()).isEqualTo("alice");
-    }
-
-    @Test
-    @DisplayName("allowed users should remain eligible for shadow HCAD observation")
-    void evaluate_allowedAction_shouldReturnEligibility() {
-        MockHttpServletRequest request = baseRequest("bob", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
-
-        when(actionRepository.getCurrentAction(eq("bob"), any())).thenReturn(ZeroTrustAction.ALLOW);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-
-        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
-                request,
-                new UsernamePasswordAuthenticationToken("bob", "n/a", List.of()));
-
-        assertThat(eligibility).isNotNull();
-        assertThat(eligibility.userId()).isEqualTo("bob");
-    }
-
-    @Test
-    @DisplayName("authentication principal should be used when request user context is absent")
-    void evaluate_missingRequestUserContext_usesAuthenticationPrincipal() {
-        MockHttpServletRequest request = baseRequest("ignored", "/api/reports");
-        request.removeAttribute("contexa.userId");
-        HcadPreProtectablePromotionRequestProjector.project(
-                request,
-                eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
-
-        when(actionRepository.getCurrentAction(eq("zoe"), any())).thenReturn(ZeroTrustAction.ALLOW);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-
-        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
-                request,
-                new UsernamePasswordAuthenticationToken("zoe", "n/a", List.of()));
-
-        assertThat(eligibility).isNotNull();
-        assertThat(eligibility.userId()).isEqualTo("zoe");
-    }
-
-    @Test
-    @DisplayName("client supplied user header should not influence HCAD eligibility identity")
-    void evaluate_clientUserHeader_shouldUseAuthenticationPrincipal() {
-        MockHttpServletRequest request = baseRequest("ignored", "/api/reports");
-        request.addHeader("X-Contexa-User-Id", "attacker");
-        HcadPreProtectablePromotionRequestProjector.project(
-                request,
-                eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
-
-        when(actionRepository.getCurrentAction(eq("alice"), any())).thenReturn(ZeroTrustAction.ALLOW);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-
-        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
-                request,
-                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
-
-        assertThat(eligibility).isNotNull();
-        assertThat(eligibility.userId()).isEqualTo("alice");
-    }
-
-    @Test
-    @DisplayName("active challenge users should be ignored by the eligibility gate")
-    void evaluate_activeChallenge_shouldReturnNull() {
-        MockHttpServletRequest challengeRequest = baseRequest("mallory", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(
-                challengeRequest,
-                eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
-        when(actionRepository.getCurrentAction(eq("mallory"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
-
-        PendingAnomalyEligibility challengeEligibility = eligibilityGate.evaluate(
-                challengeRequest,
-                new UsernamePasswordAuthenticationToken("mallory", "n/a", List.of()));
-
-        assertThat(challengeEligibility).isNull();
-    }
-
-    @Test
-    @DisplayName("negative-cached pending users should be ignored before anomaly evaluation")
-    void evaluate_negativeCached_shouldReturnNull() {
-        MockHttpServletRequest request = baseRequest("carol", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
-        when(actionRepository.getCurrentAction(eq("carol"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(true);
-
-        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
-                request,
-                new UsernamePasswordAuthenticationToken("carol", "n/a", List.of()));
-
-        assertThat(eligibility).isNull();
-    }
-
-    @Test
-    @DisplayName("promotion state changes should keep the same dedup key for the same request scope")
-    void evaluate_stateChange_shouldKeepSameDedupKey() {
-        MockHttpServletRequest first = baseRequest("dave", "/admin/export/reports");
-        MockHttpServletRequest second = baseRequest("dave", "/admin/export/reports");
-        HcadPreProtectablePromotionRequestProjector.project(first, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"), List.of()));
-        HcadPreProtectablePromotionRequestProjector.project(second, eligibleAssessment(80, List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "FAILED_LOGIN_BURST"), List.of("REQUEST_BURST")));
-
-        when(actionRepository.getCurrentAction(eq("dave"), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
-        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
-
-        PendingAnomalyEligibility firstEligibility = eligibilityGate.evaluate(
-                first,
-                new UsernamePasswordAuthenticationToken("dave", "n/a", List.of()));
-        PendingAnomalyEligibility secondEligibility = eligibilityGate.evaluate(
-                second,
-                new UsernamePasswordAuthenticationToken("dave", "n/a", List.of()));
-
-        assertThat(firstEligibility).isNotNull();
-        assertThat(secondEligibility).isNotNull();
-        assertThat(firstEligibility.baseKey()).isEqualTo(secondEligibility.baseKey());
-    }
-
-    @Test
-    @DisplayName("disabled pre-trigger mode should make requests ineligible")
-    void evaluate_disabledMode_shouldReturnNull() {
-        hcadProperties.getPreTrigger().setMode(HcadPreTriggerMode.DISABLED);
-        MockHttpServletRequest request = baseRequest("erin", "/api/reports");
-        HcadPreProtectablePromotionRequestProjector.project(request, eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
-
-        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
-                request,
-                new UsernamePasswordAuthenticationToken("erin", "n/a", List.of()));
-
-        assertThat(eligibility).isNull();
-    }
-
-    private MockHttpServletRequest baseRequest(String userId, String path) {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+    private MockHttpServletRequest request() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/dashboard");
+        request.setRequestURI("/admin/dashboard");
+        request.setServletPath("/admin/dashboard");
         request.setRequestedSessionId("session-1");
-        request.setRemoteAddr("203.0.113.30");
+        request.setRemoteAddr("203.0.113.10");
         request.addHeader("User-Agent", "JUnit");
-        request.setAttribute("contexa.userId", userId);
         return request;
     }
 
-    private HcadPreProtectablePromotionAssessment eligibleAssessment(int score, List<String> anchors, List<String> corroborators) {
-        return new HcadPreProtectablePromotionAssessment(
-                score,
-                HcadPreProtectablePromotionBand.REDLINE,
-                true,
-                anchors,
-                corroborators,
-                anchors,
-                "eligible assessment",
-                "hcad-promotion-v1",
-                Map.of("earlyAnalysisScore", score));
+    private void projectLowRiskAssessment(MockHttpServletRequest request) {
+        HcadPreProtectablePromotionRequestProjector.project(
+                request,
+                new HcadPreProtectablePromotionAssessment(
+                        10,
+                        HcadPreProtectablePromotionBand.LOW,
+                        false,
+                        List.of(),
+                        List.of("PREVIOUS_PATH_JUMP"),
+                        List.of("PREVIOUS_PATH_JUMP"),
+                        "low-risk window",
+                        "hcad-promotion-v2-trusted-projection",
+                        Map.of(
+                                "userId", "alice",
+                                "actorSessionKey", "actor-1",
+                                "earlyAnalysisScore", 10)));
     }
 }

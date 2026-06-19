@@ -22,10 +22,15 @@ import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
+import io.contexa.contexacore.hcad.trigger.HcadActorSessionKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
+import io.contexa.contexacore.hcad.trigger.window.HcadRequestObservation;
+import io.contexa.contexacore.hcad.trigger.window.InMemoryHcadObservationWindowRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -40,6 +45,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -49,6 +58,7 @@ public class HCADFilter extends OncePerRequestFilter {
     private final HcadPreProtectablePromotionScorer preProtectablePromotionScorer;
     private final Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier;
     private final Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier;
+    private final HcadObservationWindowRepository observationWindowRepository;
     private final HcadProperties hcadProperties;
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
@@ -94,6 +104,24 @@ public class HCADFilter extends OncePerRequestFilter {
         this.hcadProperties = hcadProperties;
         this.pendingAnomalyTriggerOrchestratorSupplier = pendingAnomalyTriggerOrchestratorSupplier;
         this.hcadEvaluationWriterSupplier = hcadEvaluationWriterSupplier;
+        this.observationWindowRepository = new InMemoryHcadObservationWindowRepository();
+    }
+
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier,
+            Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier,
+            HcadObservationWindowRepository observationWindowRepository) {
+        this.trustedProjectionFactory = trustedProjectionFactory;
+        this.preProtectablePromotionScorer = preProtectablePromotionScorer;
+        this.hcadProperties = hcadProperties;
+        this.pendingAnomalyTriggerOrchestratorSupplier = pendingAnomalyTriggerOrchestratorSupplier;
+        this.hcadEvaluationWriterSupplier = hcadEvaluationWriterSupplier;
+        this.observationWindowRepository = observationWindowRepository == null
+                ? new InMemoryHcadObservationWindowRepository()
+                : observationWindowRepository;
     }
 
     @Override
@@ -114,8 +142,36 @@ public class HCADFilter extends OncePerRequestFilter {
         }
 
         try {
+            String actorSessionKey = HcadActorSessionKeyFactory.fromRequest(request, authentication);
+            HcadObservationWindowLease windowLease = observeRequest(actorSessionKey, request);
+            request.setAttribute("hcad.actorSessionKey", actorSessionKey);
+            request.setAttribute("hcad.windowId", windowLease.windowId());
+            request.setAttribute("hcad.windowRequestCount", windowLease.requestCount());
+            if (!windowLease.deepEvaluationOwner() || HcadRequestPathUtils.isNonUserInteractionRequest(request)) {
+                updateWindowObservation(actorSessionKey, windowLease);
+                if (log.isTraceEnabled()) {
+                    log.trace("[HCADFilter] Observation-only request: actorSessionKey={}, windowId={}, path={}, owner={}",
+                            actorSessionKey,
+                            windowLease.windowId(),
+                            HcadRequestPathUtils.normalizedPath(request),
+                            windowLease.deepEvaluationOwner());
+                }
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             TrustedHcadContextProjection projection = trustedProjectionFactory.project(request, authentication);
             HcadPreProtectablePromotionAssessment assessment = preProtectablePromotionScorer.score(projection);
+            String projectedActorSessionKey = HcadActorSessionKeyFactory.fromProjection(projection);
+            windowLease = observationWindowRepository
+                    .snapshot(actorSessionKey, windowLease.windowId())
+                    .orElse(windowLease);
+            request.setAttribute("hcad.windowRequestCount", windowLease.requestCount());
+            assessment = withWindowMetadata(
+                    projection,
+                    assessment,
+                    windowLease,
+                    firstText(projectedActorSessionKey, actorSessionKey));
             if (log.isTraceEnabled()) {
                 log.trace("[HCADFilter] Evaluated: userId={}, method={}, path={}, previousPath={}, score={}, band={}, eligible={}",
                         projection.userId(),
@@ -151,6 +207,63 @@ public class HCADFilter extends OncePerRequestFilter {
         }
     }
 
+    private HcadObservationWindowLease observeRequest(String actorSessionKey, HttpServletRequest request) {
+        HcadRequestObservation observation = new HcadRequestObservation(
+                request != null ? request.getHeader("X-Request-Id") : null,
+                request != null ? request.getMethod() : null,
+                HcadRequestPathUtils.normalizedPath(request),
+                HcadRequestPathUtils.resourceFamily(HcadRequestPathUtils.normalizedPath(request)),
+                Instant.now());
+        return observationWindowRepository.observe(
+                actorSessionKey,
+                observation,
+                Duration.ofMillis(Math.max(1L, hcadProperties.getPreTrigger().getCoalesceWindowMs())),
+                Duration.ofSeconds(Math.max(1, hcadProperties.getPreTrigger().getObservationTtlSeconds())));
+    }
+
+    private void updateWindowObservation(String actorSessionKey, HcadObservationWindowLease windowLease) {
+        HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
+        if (writer == null || windowLease == null) {
+            return;
+        }
+        HcadObservationWindowLease latest = observationWindowRepository
+                .snapshot(actorSessionKey, windowLease.windowId())
+                .orElse(windowLease);
+        writer.updateWindowObservation(actorSessionKey, windowLease.windowId(), latest);
+    }
+
+    private HcadPreProtectablePromotionAssessment withWindowMetadata(
+            TrustedHcadContextProjection projection,
+            HcadPreProtectablePromotionAssessment assessment,
+            HcadObservationWindowLease windowLease,
+            String actorSessionKey) {
+        if (assessment == null) {
+            return null;
+        }
+        Map<String, Object> rawSignals = new LinkedHashMap<>(assessment.rawSignalSnapshot());
+        rawSignals.put("actorSessionKey", actorSessionKey);
+        rawSignals.put("windowId", windowLease.windowId());
+        rawSignals.put("triggerScope", "SESSION_WINDOW");
+        rawSignals.put("requestCount", windowLease.requestCount());
+        rawSignals.put("duplicateSuppressedCount", windowLease.duplicateSuppressedCount());
+        rawSignals.put("resourceFamilies", windowLease.resourceFamilies());
+        rawSignals.put("samplePaths", windowLease.samplePaths());
+        if (projection != null) {
+            rawSignals.put("tenantId", projection.tenantId());
+            rawSignals.put("organizationId", projection.organizationId());
+        }
+        return new HcadPreProtectablePromotionAssessment(
+                assessment.score(),
+                assessment.band(),
+                assessment.eligible(),
+                assessment.anchorSignals(),
+                assessment.corroboratingSignals(),
+                assessment.reasonCodes(),
+                assessment.summary(),
+                assessment.evaluationVersion(),
+                rawSignals);
+    }
+
     private void maybeTriggerPendingAnomaly(
             HttpServletRequest request,
             Authentication authentication,
@@ -182,23 +295,20 @@ public class HCADFilter extends OncePerRequestFilter {
             TrustedHcadContextProjection projection,
             HcadPreProtectablePromotionAssessment assessment) {
         HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
-        if (writer == null || projection == null || assessment == null || !assessment.eligible()) {
+        if (writer == null || projection == null || assessment == null) {
             return;
         }
         String requestPath = projection.normalizedPath();
         String method = projection.method();
-        String riskSignature = PendingAnomalyKeyFactory.buildRiskSignature(
-                method,
-                requestPath,
-                assessment.reasonCodes());
-        String triggerStateKey = PendingAnomalyKeyFactory.buildTriggerKey(
-                projection.userId(),
-                projection.contextBindingHash(),
-                method,
-                requestPath,
-                riskSignature);
+        String riskSignature = PendingAnomalyKeyFactory.buildTrustedSignalSignature(
+                assessment.anchorSignals(),
+                assessment.corroboratingSignals());
+        String actorSessionKey = firstText(
+                valueAsText(assessment.rawSignalSnapshot().get("actorSessionKey")),
+                HcadActorSessionKeyFactory.fromProjection(projection));
+        String triggerStateKey = PendingAnomalyKeyFactory.buildActorSessionDedupKey(actorSessionKey, riskSignature);
         PendingAnomalyEvidenceReport report = new PendingAnomalyEvidenceReport(
-                true,
+                assessment.eligible(),
                 projection.userId(),
                 projection.contextBindingHash(),
                 triggerStateKey,
@@ -221,6 +331,26 @@ public class HCADFilter extends OncePerRequestFilter {
         if (evaluationId != null && request != null) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
         }
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String valueAsText(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString();
+        return text.isBlank() ? null : text.trim();
     }
 
     @Override

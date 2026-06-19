@@ -22,6 +22,7 @@ import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import org.springframework.jdbc.core.JdbcOperations;
 
@@ -65,12 +66,17 @@ public class HcadEvaluationWriter {
             return null;
         }
         String evaluationId = UUID.randomUUID().toString();
+        Map<String, Object> rawSnapshot = report.rawSignalSnapshot() == null ? Map.of() : report.rawSignalSnapshot();
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
                 .requestId(report.requestId())
                 .correlationId(report.requestId())
                 .userId(report.userId())
                 .contextBindingHash(report.contextBindingHash())
+                .actorSessionKey(text(rawSnapshot.get("actorSessionKey")))
+                .windowId(text(rawSnapshot.get("windowId")))
+                .triggerScope(blankToDefault(text(rawSnapshot.get("triggerScope")), "SESSION_WINDOW"))
+                .requestCount(integerDefault(rawSnapshot.get("requestCount"), 1))
                 .httpMethod(report.httpMethod())
                 .requestPath(report.requestPath())
                 .clientIp(report.clientIp())
@@ -80,18 +86,66 @@ public class HcadEvaluationWriter {
                 .eligible(report.escalationEligible())
                 .triggeredLlm(false)
                 .duplicateSuppressed(false)
+                .duplicateSuppressedCount(integerDefault(rawSnapshot.get("duplicateSuppressedCount"), 0))
+                .resourceFamilies(writeJson(rawSnapshot.get("resourceFamilies")))
+                .samplePaths(writeJson(rawSnapshot.get("samplePaths")))
                 .anchorSignals(writeJson(report.anchorSignals()))
                 .corroboratingSignals(writeJson(report.corroboratingSignals()))
                 .reasonCodes(writeJson(report.reasonCodes()))
-                .signalSnapshotJson(writeJson(report.rawSignalSnapshot()))
-                .signalProvenanceJson(writeJson(report.rawSignalSnapshot() == null
+                .signalSnapshotJson(writeJson(rawSnapshot))
+                .signalProvenanceJson(writeJson(rawSnapshot == null
                         ? Map.of()
-                        : report.rawSignalSnapshot().get("signalProvenance")))
+                        : rawSnapshot.get("signalProvenance")))
                 .outcomeClass("UNKNOWN")
                 .createdAt(LocalDateTime.now())
                 .build();
         save(evaluation);
         return evaluationId;
+    }
+
+    public void updateWindowObservation(String actorSessionKey, String windowId, HcadObservationWindowLease windowLease) {
+        if (actorSessionKey == null || actorSessionKey.isBlank()
+                || windowId == null || windowId.isBlank()
+                || windowLease == null) {
+            return;
+        }
+        int requestCount = Math.max(1, windowLease.requestCount());
+        int duplicateSuppressedCount = Math.max(0, windowLease.duplicateSuppressedCount());
+        String resourceFamilies = writeJson(windowLease.resourceFamilies());
+        String samplePaths = writeJson(windowLease.samplePaths());
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations != null) {
+            jdbcOperations.update("""
+                    UPDATE hcad_detection_evaluation
+                       SET request_count = GREATEST(COALESCE(request_count, 1), ?),
+                           duplicate_suppressed_count = GREATEST(COALESCE(duplicate_suppressed_count, 0), ?),
+                           resource_families = ?,
+                           sample_paths = ?
+                     WHERE actor_session_key = ?
+                       AND window_id = ?
+                    """,
+                    requestCount,
+                    duplicateSuppressedCount,
+                    resourceFamilies,
+                    samplePaths,
+                    actorSessionKey,
+                    windowId);
+            return;
+        }
+        HcadDetectionEvaluationRepository repository = repository();
+        if (repository != null) {
+            for (HcadDetectionEvaluation evaluation : repository.findByActorSessionKeyAndWindowId(actorSessionKey, windowId)) {
+                evaluation.setRequestCount(Math.max(
+                        evaluation.getRequestCount() == null ? 1 : evaluation.getRequestCount(),
+                        requestCount));
+                evaluation.setDuplicateSuppressedCount(Math.max(
+                        evaluation.getDuplicateSuppressedCount() == null ? 0 : evaluation.getDuplicateSuppressedCount(),
+                        duplicateSuppressedCount));
+                evaluation.setResourceFamilies(resourceFamilies);
+                evaluation.setSamplePaths(samplePaths);
+                repository.save(evaluation);
+            }
+        }
     }
 
     public void markTriggered(String evaluationId) {
@@ -127,6 +181,7 @@ public class HcadEvaluationWriter {
             jdbcOperations.update("""
                     UPDATE hcad_detection_evaluation
                        SET duplicate_suppressed = true
+                         , duplicate_suppressed_count = GREATEST(COALESCE(duplicate_suppressed_count, 0), 1)
                      WHERE evaluation_id = ?
                     """, evaluationId);
             return;
@@ -135,6 +190,9 @@ public class HcadEvaluationWriter {
         if (repository != null) {
             repository.findById(evaluationId).ifPresent(evaluation -> {
                 evaluation.setDuplicateSuppressed(true);
+                evaluation.setDuplicateSuppressedCount(Math.max(
+                        evaluation.getDuplicateSuppressedCount() == null ? 0 : evaluation.getDuplicateSuppressedCount(),
+                        1));
                 repository.save(evaluation);
             });
         }
@@ -298,6 +356,10 @@ public class HcadEvaluationWriter {
                 .correlationId(firstText(metadata, "correlationId", "requestId"))
                 .userId(event != null ? event.getUserId() : firstText(metadata, "userId"))
                 .contextBindingHash(text(metadata.get("contextBindingHash")))
+                .actorSessionKey(text(metadata.get("actorSessionKey")))
+                .windowId(text(metadata.get("windowId")))
+                .triggerScope(blankToDefault(text(metadata.get("triggerScope")), "SESSION_WINDOW"))
+                .requestCount(integerDefault(metadata.get("requestCount"), 1))
                 .httpMethod(firstText(metadata, "httpMethod", "protectableHttpMethod"))
                 .requestPath(firstText(metadata, "requestPath", "requestUri", "httpUri"))
                 .clientIp(event != null ? event.getSourceIp() : text(metadata.get("clientIp")))
@@ -307,6 +369,9 @@ public class HcadEvaluationWriter {
                 .eligible(bool(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE)))
                 .triggeredLlm(false)
                 .duplicateSuppressed(false)
+                .duplicateSuppressedCount(integerDefault(metadata.get("duplicateSuppressedCount"), 0))
+                .resourceFamilies(writeJson(metadata.get("resourceFamilies")))
+                .samplePaths(writeJson(metadata.get("samplePaths")))
                 .anchorSignals(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS)))
                 .corroboratingSignals(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS)))
                 .reasonCodes(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES)))
@@ -345,6 +410,10 @@ public class HcadEvaluationWriter {
                         correlation_id,
                         user_id,
                         context_binding_hash,
+                        actor_session_key,
+                        window_id,
+                        trigger_scope,
+                        request_count,
                         http_method,
                         request_path,
                         client_ip,
@@ -354,6 +423,9 @@ public class HcadEvaluationWriter {
                         eligible,
                         triggered_llm,
                         duplicate_suppressed,
+                        duplicate_suppressed_count,
+                        resource_families,
+                        sample_paths,
                         anchor_signals,
                         corroborating_signals,
                         reason_codes,
@@ -375,7 +447,7 @@ public class HcadEvaluationWriter {
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
@@ -384,6 +456,10 @@ public class HcadEvaluationWriter {
                     evaluation.getCorrelationId(),
                     evaluation.getUserId(),
                     evaluation.getContextBindingHash(),
+                    evaluation.getActorSessionKey(),
+                    evaluation.getWindowId(),
+                    blankToDefault(evaluation.getTriggerScope(), "SESSION_WINDOW"),
+                    evaluation.getRequestCount() == null ? 1 : evaluation.getRequestCount(),
                     evaluation.getHttpMethod(),
                     evaluation.getRequestPath(),
                     evaluation.getClientIp(),
@@ -393,6 +469,9 @@ public class HcadEvaluationWriter {
                     evaluation.getEligible(),
                     boolDefault(evaluation.getTriggeredLlm(), false),
                     boolDefault(evaluation.getDuplicateSuppressed(), false),
+                    evaluation.getDuplicateSuppressedCount() == null ? 0 : evaluation.getDuplicateSuppressedCount(),
+                    evaluation.getResourceFamilies(),
+                    evaluation.getSamplePaths(),
                     evaluation.getAnchorSignals(),
                     evaluation.getCorroboratingSignals(),
                     evaluation.getReasonCodes(),
@@ -469,6 +548,11 @@ public class HcadEvaluationWriter {
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private Integer integerDefault(Object value, int defaultValue) {
+        Integer resolved = integer(value);
+        return resolved == null ? defaultValue : resolved;
     }
 
     private Boolean bool(Object value) {

@@ -13,15 +13,20 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexacore.hcad.trigger;
+package io.contexa.contexacore.hcad.trigger.window;
 
-public record PendingAnomalyEligibility(
-        String userId,
-        String contextBindingHash,
-        String actorSessionKey,
-        String baseKey
-) {
-    public PendingAnomalyEligibility(String userId, String contextBindingHash, String baseKey) {
-        this(userId, contextBindingHash, baseKey, baseKey);
+import java.time.Duration;
+import java.util.Optional;
+
+public interface HcadObservationWindowRepository {
+
+    HcadObservationWindowLease observe(
+            String actorSessionKey,
+            HcadRequestObservation observation,
+            Duration coalesceWindow,
+            Duration observationTtl);
+
+    default Optional<HcadObservationWindowLease> snapshot(String actorSessionKey, String windowId) {
+        return Optional.empty();
     }
 }

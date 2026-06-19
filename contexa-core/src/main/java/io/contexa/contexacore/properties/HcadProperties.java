@@ -327,6 +327,9 @@ public class HcadProperties {
         private int cooldownSeconds = 15;
         private int inFlightTtlSeconds = 15;
         private int negativeCacheSeconds = 3;
+        private long coalesceWindowMs = 1000L;
+        private int observationTtlSeconds = 60;
+        private int escalationCooldownSeconds = 15;
         private int redlineScore = 70;
         private int highRiskScore = 50;
         private int mediumRiskScore = 30;

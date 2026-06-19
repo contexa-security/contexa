@@ -98,9 +98,12 @@ public class TrustedHcadContextProjectionFactory {
         putProvenance(provenance, "clientIp", clientIp, HcadTrustedSource.TRUSTED_SERVER,
                 "Resolved from servlet container remote address only.");
 
-        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(sessionId, clientIp, userId);
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
+                sessionId,
+                clientIp,
+                request != null ? request.getHeader("User-Agent") : null);
         putProvenance(provenance, "contextBindingHash", contextBindingHash, HcadTrustedSource.TRUSTED_SERVER,
-                "Generated from trusted session, remote address, and principal.");
+                "Generated from trusted session, remote address, and user agent.");
 
         String authenticationMethod = firstText(
                 authenticationStamp != null ? authenticationStamp.authenticationType() : null,

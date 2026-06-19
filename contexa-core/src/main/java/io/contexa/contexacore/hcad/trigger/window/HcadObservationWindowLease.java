@@ -13,15 +13,24 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexacore.hcad.trigger;
+package io.contexa.contexacore.hcad.trigger.window;
 
-public record PendingAnomalyEligibility(
-        String userId,
-        String contextBindingHash,
+import java.util.List;
+
+public record HcadObservationWindowLease(
+        boolean deepEvaluationOwner,
         String actorSessionKey,
-        String baseKey
+        String windowId,
+        int requestCount,
+        List<String> resourceFamilies,
+        List<String> samplePaths
 ) {
-    public PendingAnomalyEligibility(String userId, String contextBindingHash, String baseKey) {
-        this(userId, contextBindingHash, baseKey, baseKey);
+    public HcadObservationWindowLease {
+        resourceFamilies = resourceFamilies == null ? List.of() : List.copyOf(resourceFamilies);
+        samplePaths = samplePaths == null ? List.of() : List.copyOf(samplePaths);
+    }
+
+    public int duplicateSuppressedCount() {
+        return Math.max(0, requestCount - 1);
     }
 }

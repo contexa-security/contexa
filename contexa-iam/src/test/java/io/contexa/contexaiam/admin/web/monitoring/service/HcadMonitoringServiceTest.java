@@ -39,8 +39,9 @@ class HcadMonitoringServiceTest {
     void summarize_shouldCalculatePrecisionAndRecommendation() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
         when(repository.countByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(120L);
+        when(repository.sumRequestCountBetween(any(), any())).thenReturn(240L);
         when(repository.countByTriggeredLlmTrueAndCreatedAtBetween(any(), any())).thenReturn(100L);
-        when(repository.countByDuplicateSuppressedTrueAndCreatedAtBetween(any(), any())).thenReturn(7L);
+        when(repository.sumDuplicateSuppressedCountBetween(any(), any())).thenReturn(7L);
         when(repository.countByOutcomeClassAndCreatedAtBetween(eq("TP"), any(), any())).thenReturn(95L);
         when(repository.countByOutcomeClassAndCreatedAtBetween(eq("FP"), any(), any())).thenReturn(5L);
         when(repository.countByOutcomeClassAndCreatedAtBetween(eq("FN"), any(), any())).thenReturn(1L);
@@ -66,6 +67,7 @@ class HcadMonitoringServiceTest {
         assertThat(summary.period()).isEqualTo("week");
         assertThat(summary.currentMode()).isEqualTo("SHADOW");
         assertThat(summary.candidateCount()).isEqualTo(120L);
+        assertThat(summary.observedRequestCount()).isEqualTo(240L);
         assertThat(summary.precision()).isEqualTo(0.95d);
         assertThat(summary.estimatedWastedLlmCalls()).isEqualTo(5L);
         assertThat(summary.estimatedWasteCostUsd()).isCloseTo(0.10d, offset(0.0001d));

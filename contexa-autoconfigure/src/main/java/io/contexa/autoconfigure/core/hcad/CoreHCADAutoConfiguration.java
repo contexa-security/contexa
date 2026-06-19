@@ -39,6 +39,9 @@ import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.hcad.trigger.store.InMemoryAnalysisTriggerStateRepository;
 import io.contexa.contexacore.hcad.trigger.store.RedisAnalysisTriggerStateRepository;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
+import io.contexa.contexacore.hcad.trigger.window.InMemoryHcadObservationWindowRepository;
+import io.contexa.contexacore.hcad.trigger.window.RedisHcadObservationWindowRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
@@ -177,6 +180,12 @@ public class CoreHCADAutoConfiguration {
         public RedisAnalysisTriggerStateRepository analysisTriggerStateRepository(StringRedisTemplate stringRedisTemplate) {
             return new RedisAnalysisTriggerStateRepository(stringRedisTemplate);
         }
+
+        @Bean
+        @ConditionalOnMissingBean(HcadObservationWindowRepository.class)
+        public RedisHcadObservationWindowRepository hcadObservationWindowRepository(StringRedisTemplate stringRedisTemplate) {
+            return new RedisHcadObservationWindowRepository(stringRedisTemplate);
+        }
     }
 
     @Bean
@@ -195,5 +204,11 @@ public class CoreHCADAutoConfiguration {
     @ConditionalOnMissingBean(AnalysisTriggerStateRepository.class)
     public InMemoryAnalysisTriggerStateRepository analysisTriggerStateRepository() {
         return new InMemoryAnalysisTriggerStateRepository();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(HcadObservationWindowRepository.class)
+    public InMemoryHcadObservationWindowRepository hcadObservationWindowRepository() {
+        return new InMemoryHcadObservationWindowRepository();
     }
 }

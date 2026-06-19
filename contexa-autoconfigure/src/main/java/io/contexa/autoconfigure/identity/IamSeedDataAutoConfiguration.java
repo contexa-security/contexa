@@ -123,6 +123,7 @@ public class IamSeedDataAutoConfiguration {
             }
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
+            applyCanonicalSchemaMaintenance(dataSource);
         }
         for (String location : SEED_LOCATIONS) {
             Resource seed = new ClassPathResource(location);
@@ -137,6 +138,23 @@ public class IamSeedDataAutoConfiguration {
             log.info("[IamSeedData] {} executed", location);
         }
         completePqaOfficialSchemaIfNeeded(dataSource);
+    }
+
+    private void applyCanonicalSchemaMaintenance(DataSource dataSource) throws IOException, SQLException {
+        Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
+        if (!schema.exists()) {
+            log.warn("[IamSeedData] classpath:{} not found, skipping schema maintenance",
+                    CANONICAL_SCHEMA_LOCATION);
+            return;
+        }
+        String maintenanceSql = extractIdempotentSchemaMaintenanceSql(
+                sanitizeSchemaSqlForInstalledDatabase(schema.getContentAsString(StandardCharsets.UTF_8)));
+        if (maintenanceSql.isBlank()) {
+            log.info("[IamSeedData] No idempotent schema maintenance statements found");
+            return;
+        }
+        executeSchemaSql(dataSource, CANONICAL_SCHEMA_LOCATION + "#maintenance", maintenanceSql);
+        log.info("[IamSeedData] {} idempotent schema maintenance executed", CANONICAL_SCHEMA_LOCATION);
     }
 
     private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
@@ -397,6 +415,36 @@ public class IamSeedDataAutoConfiguration {
                 .replaceAll("(?im)^\\s*create\\s+table\\s+(?!if\\s+not\\s+exists\\b)", "create table if not exists ")
                 .replaceAll("(?im)^\\s*create\\s+sequence\\s+(?!if\\s+not\\s+exists\\b)", "create sequence if not exists ")
                 .replaceAll("(?im)^\\s*create\\s+(unique\\s+)?index\\s+(?!if\\s+not\\s+exists\\b)", "create $1index if not exists ");
+    }
+
+    static String extractIdempotentSchemaMaintenanceSql(String sql) {
+        if (sql == null || sql.isBlank()) {
+            return "";
+        }
+        List<String> statements = splitSqlStatements(sql);
+        StringBuilder maintenance = new StringBuilder();
+        for (String statement : statements) {
+            String candidate = statement.trim();
+            if (isIdempotentSchemaMaintenanceStatement(candidate)) {
+                maintenance.append(candidate).append(";\n");
+            }
+        }
+        return maintenance.toString();
+    }
+
+    private static boolean isIdempotentSchemaMaintenanceStatement(String sqlStatement) {
+        if (sqlStatement == null || sqlStatement.isBlank()) {
+            return false;
+        }
+        String normalized = sqlStatement
+                .replaceAll("(?s)/\\*.*?\\*/", " ")
+                .replaceAll("(?m)--.*$", " ")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase();
+        return normalized.matches("^alter table \\S+ .*\\badd column if not exists\\b.*")
+                || normalized.matches("^create (unique )?index if not exists\\b.*")
+                || normalized.matches("^create extension if not exists\\b.*");
     }
 
     private SchemaInstallState detectSchemaInstallState(@Qualifier("contexaDataSource") DataSource dataSource)

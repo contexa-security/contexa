@@ -13,15 +13,18 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexacore.hcad.trigger;
+package io.contexa.contexacore.hcad.trigger.window;
 
-public record PendingAnomalyEligibility(
-        String userId,
-        String contextBindingHash,
-        String actorSessionKey,
-        String baseKey
+import java.time.Instant;
+
+public record HcadRequestObservation(
+        String requestId,
+        String httpMethod,
+        String normalizedPath,
+        String resourceFamily,
+        Instant observedAt
 ) {
-    public PendingAnomalyEligibility(String userId, String contextBindingHash, String baseKey) {
-        this(userId, contextBindingHash, baseKey, baseKey);
+    public HcadRequestObservation {
+        observedAt = observedAt == null ? Instant.now() : observedAt;
     }
 }

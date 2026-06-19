@@ -36,7 +36,9 @@ import java.util.UUID;
         @Index(name = "idx_hcad_eval_outcome_created", columnList = "outcome_class,created_at"),
         @Index(name = "idx_hcad_eval_resource", columnList = "request_path,http_method"),
         @Index(name = "idx_hcad_eval_request_id", columnList = "request_id"),
-        @Index(name = "idx_hcad_eval_event_id", columnList = "event_id")
+        @Index(name = "idx_hcad_eval_event_id", columnList = "event_id"),
+        @Index(name = "idx_hcad_eval_actor_created", columnList = "actor_session_key,created_at"),
+        @Index(name = "idx_hcad_eval_window", columnList = "window_id")
 })
 @Getter
 @Setter
@@ -63,6 +65,19 @@ public class HcadDetectionEvaluation {
 
     @Column(name = "context_binding_hash", length = 128)
     private String contextBindingHash;
+
+    @Column(name = "actor_session_key", length = 128)
+    private String actorSessionKey;
+
+    @Column(name = "window_id", length = 64)
+    private String windowId;
+
+    @Column(name = "trigger_scope", length = 32)
+    private String triggerScope;
+
+    @Column(name = "request_count")
+    @Builder.Default
+    private Integer requestCount = 1;
 
     @Column(name = "http_method", length = 16)
     private String httpMethod;
@@ -92,6 +107,16 @@ public class HcadDetectionEvaluation {
     @Column(name = "duplicate_suppressed", nullable = false)
     @Builder.Default
     private Boolean duplicateSuppressed = false;
+
+    @Column(name = "duplicate_suppressed_count")
+    @Builder.Default
+    private Integer duplicateSuppressedCount = 0;
+
+    @Column(name = "resource_families", columnDefinition = "TEXT")
+    private String resourceFamilies;
+
+    @Column(name = "sample_paths", columnDefinition = "TEXT")
+    private String samplePaths;
 
     @Column(name = "anchor_signals", columnDefinition = "TEXT")
     private String anchorSignals;
@@ -169,6 +194,12 @@ public class HcadDetectionEvaluation {
         }
         if (duplicateSuppressed == null) {
             duplicateSuppressed = false;
+        }
+        if (duplicateSuppressedCount == null) {
+            duplicateSuppressedCount = 0;
+        }
+        if (requestCount == null) {
+            requestCount = 1;
         }
         if (llmParserFailure == null) {
             llmParserFailure = false;

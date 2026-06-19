@@ -72,16 +72,15 @@ public class PendingAnomalyTriggerOrchestrator {
         }
 
         PendingAnomalyEvidenceReport report = evidenceCheckService.evaluate(request, eligibility);
+        String evaluationId = recordCandidate(mode, report);
+        if (request != null && evaluationId != null) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+        }
         if (!report.shouldTrigger()) {
             analysisTriggerStateRepository.markNegative(
                     eligibility.baseKey(),
                     Duration.ofSeconds(hcadProperties.getPreTrigger().getNegativeCacheSeconds()));
             return;
-        }
-
-        String evaluationId = recordCandidate(mode, report);
-        if (request != null && evaluationId != null) {
-            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
         }
 
         if (protectableAnalysisAlreadyStarted(request)) {
@@ -112,14 +111,14 @@ public class PendingAnomalyTriggerOrchestrator {
         boolean success = false;
         try {
             eventTriggerService.publish(request, report, evaluationId);
-            triggerCoordinator.markCooldown(triggerLease.dedupKey());
+            triggerCoordinator.markCooldown(triggerLease);
             markTriggered(evaluationId);
             success = true;
         } catch (Exception ex) {
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to publish pre-protectable threat event", ex);
         } finally {
             if (!success) {
-                triggerCoordinator.releaseInFlight(triggerLease.dedupKey());
+                triggerCoordinator.releaseInFlight(triggerLease);
             }
         }
     }

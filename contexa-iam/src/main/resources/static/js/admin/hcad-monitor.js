@@ -79,7 +79,8 @@
 
     function renderKpis(summary) {
         const kpis = [
-            ['HCAD candidates', summary.candidateCount],
+            ['HCAD windows', summary.candidateCount],
+            ['Observed requests', summary.observedRequestCount],
             ['LLM calls', summary.triggeredLlmCount],
             ['Precision', percentFormatter.format(summary.precision || 0)],
             ['False positive', summary.falsePositiveCount],

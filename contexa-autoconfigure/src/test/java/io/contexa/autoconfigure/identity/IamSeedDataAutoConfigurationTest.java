@@ -110,6 +110,36 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("IAM schema maintenance should replay only idempotent schema evolution statements")
+    void iamSchemaMaintenanceExtractsOnlyIdempotentSchemaEvolutionStatements() {
+        String sql = """
+                create table users (id bigint primary key);
+
+                alter table hcad_detection_evaluation
+                    add column if not exists actor_session_key varchar(128),
+                    add column if not exists window_id varchar(64);
+
+                create index if not exists idx_hcad_eval_window
+                    on hcad_detection_evaluation (window_id);
+
+                insert into admin_menu (id, label) values (1, 'skip');
+
+                alter table users owner to contexa;
+                """;
+
+        String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql));
+
+        assertThat(maintenanceSql)
+                .contains("alter table hcad_detection_evaluation")
+                .contains("add column if not exists actor_session_key")
+                .contains("create index if not exists idx_hcad_eval_window")
+                .doesNotContain("create table users")
+                .doesNotContain("insert into admin_menu")
+                .doesNotContain("owner to");
+    }
+
+    @Test
     @DisplayName("IAM schema execution should keep dollar quoted functions as one statement")
     void iamSchemaExecutionKeepsDollarQuotedFunctionsAsOneStatement() {
         String sql = """

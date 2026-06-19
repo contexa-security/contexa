@@ -1405,6 +1405,10 @@ CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
     correlation_id VARCHAR(160),
     user_id VARCHAR(160),
     context_binding_hash VARCHAR(128),
+    actor_session_key VARCHAR(128),
+    window_id VARCHAR(64),
+    trigger_scope VARCHAR(32),
+    request_count INTEGER DEFAULT 1,
     http_method VARCHAR(16),
     request_path VARCHAR(2048),
     client_ip VARCHAR(64),
@@ -1414,6 +1418,9 @@ CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
     eligible BOOLEAN,
     triggered_llm BOOLEAN NOT NULL DEFAULT FALSE,
     duplicate_suppressed BOOLEAN NOT NULL DEFAULT FALSE,
+    duplicate_suppressed_count INTEGER DEFAULT 0,
+    resource_families TEXT,
+    sample_paths TEXT,
     anchor_signals TEXT,
     corroborating_signals TEXT,
     reason_codes TEXT,
@@ -1437,6 +1444,13 @@ CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
 );
 
 ALTER TABLE hcad_detection_evaluation
+    ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS trigger_scope VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS duplicate_suppressed_count INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS resource_families TEXT,
+    ADD COLUMN IF NOT EXISTS sample_paths TEXT,
     ADD COLUMN IF NOT EXISTS llm_reasoning_summary VARCHAR(1024),
     ADD COLUMN IF NOT EXISTS llm_reasoning_hash VARCHAR(64),
     ADD COLUMN IF NOT EXISTS llm_parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
@@ -1458,6 +1472,12 @@ CREATE INDEX IF NOT EXISTS idx_hcad_eval_request_id
 
 CREATE INDEX IF NOT EXISTS idx_hcad_eval_event_id
     ON hcad_detection_evaluation (event_id);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_eval_actor_created
+    ON hcad_detection_evaluation (actor_session_key, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_eval_window
+    ON hcad_detection_evaluation (window_id);
 
 create table shedlock
 (

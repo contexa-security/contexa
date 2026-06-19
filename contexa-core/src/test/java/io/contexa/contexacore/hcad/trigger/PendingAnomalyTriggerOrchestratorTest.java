@@ -97,9 +97,12 @@ class PendingAnomalyTriggerOrchestratorTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
         PendingAnomalyEvidenceReport report = triggerReport();
+        String escalationKey = escalationKey();
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(false);
+        when(analysisTriggerStateRepository.tryAcquireInFlight(eq(escalationKey), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.isCoolingDown("base-1")).thenReturn(false);
         when(analysisTriggerStateRepository.tryAcquireInFlight(eq("base-1"), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.tryAcquireRateLimit(eq("global"), any(Duration.class), anyInt())).thenReturn(true);
@@ -109,7 +112,54 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         verify(eventTriggerService).publish(request, report, null);
         verify(analysisTriggerStateRepository).markCooldown(eq("base-1"), any(Duration.class));
+        verify(analysisTriggerStateRepository).markCooldown(eq(escalationKey), any(Duration.class));
         verify(analysisTriggerStateRepository, never()).releaseInFlight("base-1");
+    }
+
+    @Test
+    @DisplayName("non-trigger HCAD window should still be recorded for shadow monitoring")
+    void maybeTrigger_nonTrigger_shouldRecordLowRiskWindow() {
+        HcadProperties properties = new HcadProperties();
+        PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/dashboard");
+        PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "actor-1", "actor-1");
+        PendingAnomalyEvidenceReport report = noTriggerReport();
+
+        when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
+        when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-low");
+
+        orchestrator.maybeTrigger(request,
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
+
+        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.SHADOW, report);
+        verify(analysisTriggerStateRepository).markNegative(eq("actor-1"), any(Duration.class));
+        verify(eventTriggerService, never()).publish(any(), any(), any());
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-low");
+    }
+
+    @Test
+    @DisplayName("path-only corroborating signal should be recorded but must not publish an LLM event")
+    void maybeTrigger_pathOnlyCorroboratingSignal_shouldNotPublishLlmEvent() {
+        HcadProperties properties = new HcadProperties();
+        PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports/1001");
+        PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "actor-1", "actor-1");
+        PendingAnomalyEvidenceReport report = noTriggerReport(
+                "/admin/reports/1001",
+                List.of("PREVIOUS_PATH_JUMP", "REQUEST_BURST"));
+
+        when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
+        when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-path-only");
+
+        orchestrator.maybeTrigger(request,
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
+
+        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.SHADOW, report);
+        verify(analysisTriggerStateRepository).markNegative(eq("actor-1"), any(Duration.class));
+        verify(eventTriggerService, never()).publish(any(), any(), any());
+        verify(analysisTriggerStateRepository, never()).tryAcquireInFlight(any(), any());
     }
 
     @Test
@@ -147,10 +197,13 @@ class PendingAnomalyTriggerOrchestratorTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
         PendingAnomalyEvidenceReport report = triggerReport();
+        String escalationKey = escalationKey();
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
         when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-rate");
+        when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(false);
+        when(analysisTriggerStateRepository.tryAcquireInFlight(eq(escalationKey), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.isCoolingDown("base-1")).thenReturn(false);
         when(analysisTriggerStateRepository.tryAcquireInFlight(eq("base-1"), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.tryAcquireRateLimit(eq("global"), any(Duration.class), anyInt())).thenReturn(false);
@@ -160,6 +213,7 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         verify(eventTriggerService, never()).publish(any(), any(), any());
         verify(analysisTriggerStateRepository).releaseInFlight("base-1");
+        verify(analysisTriggerStateRepository).releaseInFlight(escalationKey);
         verify(hcadEvaluationWriter, never()).markTriggered("eval-rate");
         verify(hcadEvaluationWriter, never()).markDuplicateSuppressed("eval-rate");
     }
@@ -172,10 +226,13 @@ class PendingAnomalyTriggerOrchestratorTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
         PendingAnomalyEvidenceReport report = triggerReport();
+        String escalationKey = escalationKey();
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
         when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-duplicate");
+        when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(false);
+        when(analysisTriggerStateRepository.tryAcquireInFlight(eq(escalationKey), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.isCoolingDown("base-1")).thenReturn(true);
 
         orchestrator.maybeTrigger(request,
@@ -187,6 +244,29 @@ class PendingAnomalyTriggerOrchestratorTest {
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DUPLICATE_SUPPRESSED)).isEqualTo(true);
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_STATE_KEY)).isEqualTo("base-1");
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-duplicate");
+    }
+
+    @Test
+    @DisplayName("same trusted anchor should be suppressed by escalation cooldown before LLM publication")
+    void maybeTrigger_sameAnchorEscalationCoolingDown_shouldSuppressDuplicate() {
+        HcadProperties properties = new HcadProperties();
+        PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
+        PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
+        PendingAnomalyEvidenceReport report = triggerReport();
+        String escalationKey = escalationKey();
+
+        when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
+        when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-anchor-duplicate");
+        when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(true);
+
+        orchestrator.maybeTrigger(request,
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
+
+        verify(eventTriggerService, never()).publish(any(), any(), any());
+        verify(analysisTriggerStateRepository, never()).tryAcquireInFlight(eq("base-1"), any(Duration.class));
+        verify(hcadEvaluationWriter).markDuplicateSuppressed("eval-anchor-duplicate");
     }
 
     private PendingAnomalyTriggerOrchestrator orchestrator(HcadProperties properties) {
@@ -223,6 +303,43 @@ class PendingAnomalyTriggerOrchestratorTest {
                 List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
                 "redline candidate",
                 "risk-1",
-                Map.of("earlyAnalysisScore", 72));
+                Map.of("earlyAnalysisScore", 72, "actorSessionKey", actorSessionKey()));
+    }
+
+    private PendingAnomalyEvidenceReport noTriggerReport() {
+        return noTriggerReport("/admin/dashboard", List.of("REQUEST_BURST"));
+    }
+
+    private PendingAnomalyEvidenceReport noTriggerReport(String path, List<String> corroboratingSignals) {
+        return new PendingAnomalyEvidenceReport(
+                false,
+                "alice",
+                "ctx-1",
+                "actor-1",
+                "request-2",
+                "session-1",
+                path,
+                "GET",
+                "203.0.113.10",
+                10,
+                "LOW",
+                false,
+                "hcad-promotion-v1",
+                List.of(),
+                corroboratingSignals,
+                corroboratingSignals,
+                "low-risk window",
+                PendingAnomalyKeyFactory.buildTrustedSignalSignature(List.of(), corroboratingSignals),
+                Map.of("earlyAnalysisScore", 10, "actorSessionKey", "actor-1"));
+    }
+
+    private String actorSessionKey() {
+        return PendingAnomalyKeyFactory.buildBaseKey("alice", "ctx-1");
+    }
+
+    private String escalationKey() {
+        return PendingAnomalyKeyFactory.buildEscalationKey(
+                actorSessionKey(),
+                PendingAnomalyKeyFactory.buildTrustedAnchorSignature(List.of("IMPOSSIBLE_TRAVEL")));
     }
 }

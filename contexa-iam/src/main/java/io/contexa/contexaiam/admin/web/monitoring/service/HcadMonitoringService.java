@@ -58,8 +58,9 @@ public class HcadMonitoringService {
         };
 
         long candidateCount = repository.countByCreatedAtBetween(from, to);
+        long observedRequestCount = longValue(repository.sumRequestCountBetween(from, to));
         long triggeredLlmCount = repository.countByTriggeredLlmTrueAndCreatedAtBetween(from, to);
-        long duplicateSuppressedCount = repository.countByDuplicateSuppressedTrueAndCreatedAtBetween(from, to);
+        long duplicateSuppressedCount = longValue(repository.sumDuplicateSuppressedCountBetween(from, to));
         long tp = repository.countByOutcomeClassAndCreatedAtBetween("TP", from, to);
         long fp = repository.countByOutcomeClassAndCreatedAtBetween("FP", from, to);
         long fn = repository.countByOutcomeClassAndCreatedAtBetween("FN", from, to);
@@ -79,6 +80,7 @@ public class HcadMonitoringService {
                 ISO.format(to),
                 hcadProperties.getPreTrigger().effectiveMode().metadataValue(),
                 candidateCount,
+                observedRequestCount,
                 triggeredLlmCount,
                 tp,
                 fp,
@@ -110,12 +112,13 @@ public class HcadMonitoringService {
     public String exportCsv(String period) {
         HcadSummary summary = summarize(period);
         StringBuilder csv = new StringBuilder();
-        csv.append("period,from,to,currentMode,candidates,llmCalls,precision,falsePositive,observableFalseNegative,unknown,duplicates,averageLatencyMs,wasteCostUsd,recommendation\n");
+        csv.append("period,from,to,currentMode,candidates,observedRequests,llmCalls,precision,falsePositive,observableFalseNegative,unknown,duplicates,averageLatencyMs,wasteCostUsd,recommendation\n");
         csv.append(csv(summary.period())).append(',')
                 .append(csv(summary.from())).append(',')
                 .append(csv(summary.to())).append(',')
                 .append(csv(summary.currentMode())).append(',')
                 .append(summary.candidateCount()).append(',')
+                .append(summary.observedRequestCount()).append(',')
                 .append(summary.triggeredLlmCount()).append(',')
                 .append(summary.precision()).append(',')
                 .append(summary.falsePositiveCount()).append(',')
@@ -292,6 +295,10 @@ public class HcadMonitoringService {
 
     private double doubleValue(Number value) {
         return value == null ? 0.0d : value.doubleValue();
+    }
+
+    private long longValue(Number value) {
+        return value == null ? 0L : value.longValue();
     }
 
     private String format(LocalDateTime value) {

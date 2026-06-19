@@ -49,6 +49,7 @@ public class PendingAnomalyEvidenceCheckService {
         Map<String, Object> rawSnapshot = new LinkedHashMap<>(assessment.rawSignalSnapshot());
         rawSnapshot.put("currentAction", "PENDING_ANALYSIS");
         rawSnapshot.put("contextBindingHash", eligibility.contextBindingHash());
+        rawSnapshot.put("actorSessionKey", eligibility.actorSessionKey());
 
         String reasonSummary = assessment.summary();
         boolean explanationReady = StringUtils.hasText(requestPath)
@@ -76,13 +77,12 @@ public class PendingAnomalyEvidenceCheckService {
                     rawSnapshot);
         }
 
-        String riskSignature = PendingAnomalyKeyFactory.buildRiskSignature(httpMethod, requestPath, assessment.reasonCodes());
-        String triggerStateKey = PendingAnomalyKeyFactory.buildTriggerKey(
-                eligibility.userId(),
-                eligibility.contextBindingHash(),
-                httpMethod,
-                requestPath,
-                StringUtils.hasText(riskSignature) ? riskSignature : requestId);
+        String riskSignature = PendingAnomalyKeyFactory.buildTrustedSignalSignature(
+                assessment.anchorSignals(),
+                assessment.corroboratingSignals());
+        String triggerStateKey = PendingAnomalyKeyFactory.buildActorSessionDedupKey(
+                eligibility.actorSessionKey(),
+                StringUtils.hasText(riskSignature) ? riskSignature : "eligible");
         return new PendingAnomalyEvidenceReport(
                 true,
                 eligibility.userId(),

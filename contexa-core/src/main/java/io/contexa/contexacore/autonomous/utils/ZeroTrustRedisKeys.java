@@ -234,6 +234,22 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:hcad:pretrigger:rate:%s", NAMESPACE, rateKey);
     }
 
+    public static String hcadObservationWindow(String actorSessionKey) {
+        validateTriggerKey(actorSessionKey);
+        return String.format("%s:hcad:pretrigger:window:%s", NAMESPACE, actorSessionKey);
+    }
+
+    public static String hcadObservationWindowObservations(String actorSessionKey, String windowId) {
+        validateTriggerKey(actorSessionKey);
+        validateTriggerKey(windowId);
+        return String.format("%s:hcad:pretrigger:observations:%s:%s", NAMESPACE, actorSessionKey, windowId);
+    }
+
+    public static String hcadObservationWindowObservationsPrefix(String actorSessionKey) {
+        validateTriggerKey(actorSessionKey);
+        return String.format("%s:hcad:pretrigger:observations:%s:", NAMESPACE, actorSessionKey);
+    }
+
     private static void validateTriggerKey(String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Trigger key cannot be null or empty");

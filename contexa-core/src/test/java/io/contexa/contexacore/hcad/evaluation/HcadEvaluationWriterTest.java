@@ -21,6 +21,7 @@ import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
+import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,12 @@ class HcadEvaluationWriterTest {
         assertThat(saved.getEvaluationId()).isEqualTo(evaluationId);
         assertThat(saved.getMode()).isEqualTo("SHADOW");
         assertThat(saved.getUserId()).isEqualTo("alice");
+        assertThat(saved.getActorSessionKey()).isEqualTo("actor-1");
+        assertThat(saved.getWindowId()).isEqualTo("window-1");
+        assertThat(saved.getTriggerScope()).isEqualTo("SESSION_WINDOW");
+        assertThat(saved.getRequestCount()).isEqualTo(3);
+        assertThat(saved.getDuplicateSuppressedCount()).isEqualTo(2);
+        assertThat(saved.getSamplePaths()).contains("/admin/reports");
         assertThat(saved.getHttpMethod()).isEqualTo("GET");
         assertThat(saved.getRequestPath()).isEqualTo("/admin/reports");
         assertThat(saved.getEarlyAnalysisScore()).isEqualTo(72);
@@ -82,6 +89,41 @@ class HcadEvaluationWriterTest {
 
         assertThat(evaluation.getTriggeredLlm()).isTrue();
         assertThat(evaluation.getTriggeredAt()).isNotNull();
+        verify(repository).save(evaluation);
+    }
+
+    @Test
+    @DisplayName("updateWindowObservation should refresh request count and sampled paths")
+    void updateWindowObservation_shouldRefreshWindowSummary() {
+        HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
+                .evaluationId("eval-window")
+                .actorSessionKey("actor-1")
+                .windowId("window-1")
+                .requestCount(1)
+                .duplicateSuppressedCount(0)
+                .mode("SHADOW")
+                .outcomeClass("UNKNOWN")
+                .build();
+        when(repository.findByActorSessionKeyAndWindowId("actor-1", "window-1"))
+                .thenReturn(List.of(evaluation));
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(repository, new ObjectMapper());
+
+        writer.updateWindowObservation(
+                "actor-1",
+                "window-1",
+                new HcadObservationWindowLease(
+                        false,
+                        "actor-1",
+                        "window-1",
+                        10,
+                        List.of("/api/fanout/{id}"),
+                        List.of("/api/fanout/1", "/api/fanout/2")));
+
+        assertThat(evaluation.getRequestCount()).isEqualTo(10);
+        assertThat(evaluation.getDuplicateSuppressedCount()).isEqualTo(9);
+        assertThat(evaluation.getResourceFamilies()).contains("/api/fanout/{id}");
+        assertThat(evaluation.getSamplePaths()).contains("/api/fanout/1", "/api/fanout/2");
         verify(repository).save(evaluation);
     }
 
@@ -190,6 +232,14 @@ class HcadEvaluationWriterTest {
                 List.of("FAILED_LOGIN_BURST", "REQUEST_BURST"),
                 "candidate",
                 "risk-1",
-                Map.of("signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
+                Map.of(
+                        "actorSessionKey", "actor-1",
+                        "windowId", "window-1",
+                        "triggerScope", "SESSION_WINDOW",
+                        "requestCount", 3,
+                        "duplicateSuppressedCount", 2,
+                        "resourceFamilies", List.of("/admin/reports"),
+                        "samplePaths", List.of("/admin/reports", "/admin/menu"),
+                        "signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
     }
 }

@@ -36,20 +36,32 @@ public class HcadLlmTriggerCoordinator {
     public TriggerLease tryAcquire(PendingAnomalyEvidenceReport report, String fallbackBaseKey) {
         String dedupKey = resolveDedupKey(report, fallbackBaseKey);
         if (!StringUtils.hasText(dedupKey)) {
-            return new TriggerLease(false, false, dedupKey);
+            return new TriggerLease(false, false, dedupKey, null);
+        }
+        String escalationKey = resolveEscalationKey(report);
+        Duration inFlightTtl = Duration.ofSeconds(hcadProperties.getPreTrigger().getInFlightTtlSeconds());
+        if (StringUtils.hasText(escalationKey)) {
+            if (stateRepository.isCoolingDown(escalationKey)) {
+                return new TriggerLease(false, true, dedupKey, escalationKey);
+            }
+            if (!stateRepository.tryAcquireInFlight(escalationKey, inFlightTtl)) {
+                return new TriggerLease(false, true, dedupKey, escalationKey);
+            }
         }
         if (stateRepository.isCoolingDown(dedupKey)) {
-            return new TriggerLease(false, true, dedupKey);
+            releaseEscalationInFlight(escalationKey);
+            return new TriggerLease(false, true, dedupKey, escalationKey);
         }
-        Duration inFlightTtl = Duration.ofSeconds(hcadProperties.getPreTrigger().getInFlightTtlSeconds());
         if (!stateRepository.tryAcquireInFlight(dedupKey, inFlightTtl)) {
-            return new TriggerLease(false, true, dedupKey);
+            releaseEscalationInFlight(escalationKey);
+            return new TriggerLease(false, true, dedupKey, escalationKey);
         }
         if (!tryAcquireRateLimit(report, dedupKey)) {
             stateRepository.releaseInFlight(dedupKey);
-            return new TriggerLease(false, false, dedupKey);
+            releaseEscalationInFlight(escalationKey);
+            return new TriggerLease(false, false, dedupKey, escalationKey);
         }
-        return new TriggerLease(true, false, dedupKey);
+        return new TriggerLease(true, false, dedupKey, escalationKey);
     }
 
     public void markCooldown(String dedupKey) {
@@ -60,10 +72,30 @@ public class HcadLlmTriggerCoordinator {
         }
     }
 
+    public void markCooldown(TriggerLease triggerLease) {
+        if (triggerLease == null) {
+            return;
+        }
+        markCooldown(triggerLease.dedupKey());
+        if (StringUtils.hasText(triggerLease.escalationKey())) {
+            stateRepository.markCooldown(
+                    triggerLease.escalationKey(),
+                    Duration.ofSeconds(hcadProperties.getPreTrigger().getEscalationCooldownSeconds()));
+        }
+    }
+
     public void releaseInFlight(String dedupKey) {
         if (StringUtils.hasText(dedupKey)) {
             stateRepository.releaseInFlight(dedupKey);
         }
+    }
+
+    public void releaseInFlight(TriggerLease triggerLease) {
+        if (triggerLease == null) {
+            return;
+        }
+        releaseInFlight(triggerLease.dedupKey());
+        releaseEscalationInFlight(triggerLease.escalationKey());
     }
 
     public String resolveDedupKey(PendingAnomalyEvidenceReport report, String fallbackBaseKey) {
@@ -79,12 +111,30 @@ public class HcadLlmTriggerCoordinator {
         if (!StringUtils.hasText(stateSignature)) {
             return fallbackBaseKey;
         }
-        return PendingAnomalyKeyFactory.buildTriggerKey(
-                report.userId(),
-                report.contextBindingHash(),
-                report.httpMethod(),
-                report.requestPath(),
-                stateSignature);
+        String actorSessionKey = report.rawSignalSnapshot() == null
+                ? null
+                : String.valueOf(report.rawSignalSnapshot().getOrDefault("actorSessionKey", ""));
+        if (StringUtils.hasText(actorSessionKey)) {
+            return PendingAnomalyKeyFactory.buildActorSessionDedupKey(actorSessionKey, stateSignature);
+        }
+        return PendingAnomalyKeyFactory.buildDedupKey(report.userId(), report.contextBindingHash(), stateSignature);
+    }
+
+    public String resolveEscalationKey(PendingAnomalyEvidenceReport report) {
+        if (report == null) {
+            return null;
+        }
+        String anchorSignature = PendingAnomalyKeyFactory.buildTrustedAnchorSignature(report.anchorSignals());
+        if (!StringUtils.hasText(anchorSignature)) {
+            return null;
+        }
+        String actorSessionKey = report.rawSignalSnapshot() == null
+                ? null
+                : String.valueOf(report.rawSignalSnapshot().getOrDefault("actorSessionKey", ""));
+        if (!StringUtils.hasText(actorSessionKey)) {
+            actorSessionKey = PendingAnomalyKeyFactory.buildBaseKey(report.userId(), report.contextBindingHash());
+        }
+        return PendingAnomalyKeyFactory.buildEscalationKey(actorSessionKey, anchorSignature);
     }
 
     private boolean tryAcquireRateLimit(PendingAnomalyEvidenceReport report, String dedupKey) {
@@ -118,10 +168,17 @@ public class HcadLlmTriggerCoordinator {
         return "global";
     }
 
+    private void releaseEscalationInFlight(String escalationKey) {
+        if (StringUtils.hasText(escalationKey)) {
+            stateRepository.releaseInFlight(escalationKey);
+        }
+    }
+
     public record TriggerLease(
             boolean acquired,
             boolean duplicateSuppressed,
-            String dedupKey
+            String dedupKey,
+            String escalationKey
     ) {
     }
 }

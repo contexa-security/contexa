@@ -42,6 +42,26 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
 
     long countByOutcomeClassAndCreatedAtBetween(String outcomeClass, LocalDateTime from, LocalDateTime to);
 
+    List<HcadDetectionEvaluation> findByActorSessionKeyAndWindowId(String actorSessionKey, String windowId);
+
+    @Query("""
+            select coalesce(sum(e.requestCount), 0)
+              from HcadDetectionEvaluation e
+             where e.createdAt between :from and :to
+            """)
+    Long sumRequestCountBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Query("""
+            select coalesce(sum(e.duplicateSuppressedCount), 0)
+              from HcadDetectionEvaluation e
+             where e.createdAt between :from and :to
+            """)
+    Long sumDuplicateSuppressedCountBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
     @Query("""
             select avg(e.llmLatencyMs)
               from HcadDetectionEvaluation e
@@ -87,16 +107,22 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
             @Param("limit") int limit);
 
     @Query(value = """
-            select coalesce(e.request_path, 'unknown') as request_path,
-                   coalesce(e.http_method, 'unknown') as http_method,
+            select resource.value as resource_family,
+                   'WINDOW' as http_method,
                    count(*) as candidate_count,
                    sum(case when e.outcome_class = 'TP' then 1 else 0 end) as tp_count,
                    sum(case when e.outcome_class = 'FP' then 1 else 0 end) as fp_count,
-                   sum(case when e.duplicate_suppressed = true then 1 else 0 end) as duplicate_count
+                   sum(coalesce(e.duplicate_suppressed_count, case when e.duplicate_suppressed = true then 1 else 0 end)) as duplicate_count
               from hcad_detection_evaluation e
+              join lateral jsonb_array_elements_text(
+                   case
+                     when e.resource_families is null or trim(e.resource_families) = '' or trim(e.resource_families) = 'null' then jsonb_build_array(coalesce(e.request_path, 'unknown'))
+                     else e.resource_families::jsonb
+                   end
+              ) as resource(value) on true
              where e.created_at between :from and :to
-             group by coalesce(e.request_path, 'unknown'), coalesce(e.http_method, 'unknown')
-             order by count(*) desc, coalesce(e.request_path, 'unknown') asc
+             group by resource.value
+             order by count(*) desc, resource.value asc
              limit :limit
             """, nativeQuery = true)
     List<Object[]> aggregateByResourceBetween(
@@ -106,16 +132,16 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
 
     @Query(value = """
             select coalesce(e.user_id, 'unknown') as user_id,
-                   coalesce(e.context_binding_hash, 'unknown') as context_binding_hash,
+                   coalesce(e.actor_session_key, e.context_binding_hash, 'unknown') as actor_session_key,
                    count(*) as candidate_count,
                    sum(case when e.triggered_llm = true then 1 else 0 end) as triggered_count,
-                   sum(case when e.duplicate_suppressed = true then 1 else 0 end) as duplicate_count,
+                   sum(coalesce(e.duplicate_suppressed_count, case when e.duplicate_suppressed = true then 1 else 0 end)) as duplicate_count,
                    sum(case when e.outcome_class = 'TP' then 1 else 0 end) as tp_count,
                    sum(case when e.outcome_class = 'FP' then 1 else 0 end) as fp_count,
                    sum(case when e.outcome_class = 'UNKNOWN' then 1 else 0 end) as unknown_count
               from hcad_detection_evaluation e
              where e.created_at between :from and :to
-             group by coalesce(e.user_id, 'unknown'), coalesce(e.context_binding_hash, 'unknown')
+             group by coalesce(e.user_id, 'unknown'), coalesce(e.actor_session_key, e.context_binding_hash, 'unknown')
              order by count(*) desc, coalesce(e.user_id, 'unknown') asc
              limit :limit
             """, nativeQuery = true)
