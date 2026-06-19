@@ -45,7 +45,7 @@
             value: formatter.format(item.candidateCount || 0)
         }));
         renderSimpleBreakdown(resourceEl, summary.resourceBreakdown || [], (item) => ({
-            title: `${item.method || ''} ${item.path || '-'}`.trim(),
+            title: formatResource(item.method, item.path),
             meta: `${label('labelPrecision')} ${percentFormatter.format(item.precision || 0)}`,
             value: formatter.format(item.candidateCount || 0)
         }));
@@ -134,6 +134,15 @@
             RECENT_PERMISSION_CHANGE: label('labelSignalRecentPermissionChange')
         };
         return known[normalized] || value || '-';
+    }
+
+    function formatResource(method, path) {
+        const normalizedMethod = String(method || '').trim().toUpperCase();
+        const safePath = path || '-';
+        if (normalizedMethod === 'WINDOW') {
+            return `${label('labelScreenOrApi')} ${safePath}`;
+        }
+        return `${method || ''} ${safePath}`.trim();
     }
 
     function friendlyMode(value) {

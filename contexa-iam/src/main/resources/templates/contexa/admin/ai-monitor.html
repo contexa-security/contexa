@@ -114,6 +114,7 @@
              th:data-label-enum-hcad-suppressed-by-protectable="#{admin.aiMonitor.enum.hcadSuppressedByProtectable}"
              th:data-label-enum-observed-only="#{admin.aiMonitor.enum.observedOnly}"
              th:data-label-enum-unmatched-llm="#{admin.aiMonitor.enum.unmatchedLlm}"
+             th:data-label-screen-or-api="#{admin.aiMonitor.label.screenOrApi}"
              th:data-label-screen-purpose="#{admin.aiMonitor.status.screenPurpose}"
              th:data-label-current-decision="#{admin.aiMonitor.status.currentDecision}"
              th:data-label-no-decision="#{admin.aiMonitor.status.noDecision}"
@@ -168,7 +169,11 @@
              th:data-label-enum-observable-fn-rate="#{admin.aiMonitor.enum.observableFnRate}"
              th:data-label-enum-unknown-rate="#{admin.aiMonitor.enum.unknownRate}"
              th:data-label-enum-failure-rate="#{admin.aiMonitor.enum.failureRate}"
-             th:data-label-enum-timeout-rate="#{admin.aiMonitor.enum.timeoutRate}">
+             th:data-label-enum-parser-failure-rate="#{admin.aiMonitor.enum.parserFailureRate}"
+             th:data-label-enum-technical-fallback-rate="#{admin.aiMonitor.enum.technicalFallbackRate}"
+             th:data-label-enum-timeout-rate="#{admin.aiMonitor.enum.timeoutRate}"
+             th:data-label-enum-model-unavailable-rate="#{admin.aiMonitor.enum.modelUnavailableRate}"
+             th:data-label-enum-p95-latency="#{admin.aiMonitor.enum.p95Latency}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                     <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
@@ -204,6 +209,6 @@
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<script th:src="@{/js/admin/ai-monitor.js?v=20260619b}"></script>
+<script th:src="@{/js/admin/ai-monitor.js?v=20260619c}"></script>
 </body>
 </html>

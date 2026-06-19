@@ -81,6 +81,10 @@
             [label('labelObservedRequests'), hcad.observedRequestCount],
             [label('labelHcadWindows'), hcad.candidateCount],
             [label('labelLlmCalls'), llm.totalDecisionCount],
+            [label('labelHcadPrecision'), formatPercent(hcad.precision)],
+            [label('labelFalsePositive'), hcad.falsePositiveCount],
+            [label('labelObservableFn'), correlation.observableFalseNegativeCount],
+            [label('labelTrueNegative'), correlation.trueNegativeCount],
             [label('labelUnknown'), correlation.unknownCount],
             [label('labelTimeouts'), operations.timeoutCount],
             [label('labelAverageLatency'), formatMs(operations.averageLatencyMs)]
@@ -99,13 +103,20 @@
             [label('labelProtectableDecisions'), summary.protectableDecisionCount],
             [label('labelHcadAndProtectable'), summary.hcadAndProtectableDecisionCount],
             [label('labelParserFailureRate'), formatPercent(summary.parserFailureRate)],
+            [label('labelFallbackRate'), formatPercent(summary.technicalFallbackRate)],
             [label('labelTimeoutRate'), formatPercent(summary.timeoutRate)],
             [label('labelModelUnavailableRate'), formatPercent(summary.modelUnavailableRate)],
-            [label('labelAverageLatency'), formatMs(summary.averageLatencyMs)]
+            [label('labelAverageLatency'), formatMs(summary.averageLatencyMs)],
+            [label('labelP95Latency'), formatMs(summary.p95LatencyMs)]
         ]);
         detailsEl.innerHTML = [
             tableBand(label('labelDecisionResult'), summary.finalActionBreakdown || []),
+            tableBand(label('labelActionBreakdown'), summary.actionBreakdown || []),
+            tableBand(label('labelProposedActionBreakdown'), summary.proposedActionBreakdown || []),
             tableBand(label('labelDecisionPath'), summary.triggerSourceBreakdown || []),
+            tableBand(label('labelProvider'), summary.providerBreakdown || []),
+            tableBand(label('labelModel'), summary.modelBreakdown || []),
+            tableBand(label('labelPromptTemplate'), summary.promptTemplateBreakdown || []),
             tableBand(label('labelRiskScoreDistribution'), summary.riskScoreDistribution || []),
             tableBand(label('labelConfidenceDistribution'), summary.confidenceDistribution || [])
         ].join('');
@@ -140,7 +151,10 @@
         detailsEl.innerHTML = [
             tableBand(label('labelMainFailureCause'), summary.explicitFailureBreakdown || []),
             tableBand(label('labelFailureType'), summary.failureTypeBreakdown || []),
-            tableBand(label('labelFallbackCategory'), summary.fallbackCategoryBreakdown || [])
+            tableBand(label('labelFallbackCategory'), summary.fallbackCategoryBreakdown || []),
+            tableBand(label('labelProvider'), summary.providerBreakdown || []),
+            tableBand(label('labelModel'), summary.modelBreakdown || []),
+            tableBand(label('labelPromptTemplate'), summary.promptTemplateBreakdown || [])
         ].join('');
     }
 
@@ -151,8 +165,12 @@
             [label('labelObservableFnRate'), formatPercent(summary.observableFalseNegativeRate)],
             [label('labelUnknownRate'), formatPercent(summary.unknownRate)],
             [label('labelFailureRate'), formatPercent(summary.failureRate)],
+            [label('labelParserFailureRate'), formatPercent(summary.parserFailureRate)],
+            [label('labelFallbackRate'), formatPercent(summary.technicalFallbackRate)],
             [label('labelTimeoutRate'), formatPercent(summary.timeoutRate)],
-            [label('labelAverageLatency'), formatMs(summary.averageLatencyMs)]
+            [label('labelModelUnavailableRate'), formatPercent(summary.modelUnavailableRate)],
+            [label('labelAverageLatency'), formatMs(summary.averageLatencyMs)],
+            [label('labelP95Latency'), formatMs(summary.p95LatencyMs)]
         ]);
         detailsEl.innerHTML = tableBand(label('labelReadinessCriteria'), [
             { key: 'MINIMUM_SAMPLE', count: `${formatNumber(summary.hcadCandidateCount || 0)} / ${formatNumber(summary.minimumSampleSize || 0)}` },
@@ -160,8 +178,12 @@
             { key: 'OBSERVABLE_FN_RATE', count: formatPercent(summary.observableFalseNegativeRate) },
             { key: 'UNKNOWN_RATE', count: formatPercent(summary.unknownRate) },
             { key: 'FAILURE_RATE', count: formatPercent(summary.failureRate) },
-            { key: 'TIMEOUT_RATE', count: formatPercent(summary.timeoutRate) }
-        ], 6);
+            { key: 'PARSER_FAILURE_RATE', count: formatPercent(summary.parserFailureRate) },
+            { key: 'TECHNICAL_FALLBACK_RATE', count: formatPercent(summary.technicalFallbackRate) },
+            { key: 'TIMEOUT_RATE', count: formatPercent(summary.timeoutRate) },
+            { key: 'MODEL_UNAVAILABLE_RATE', count: formatPercent(summary.modelUnavailableRate) },
+            { key: 'P95_LATENCY', count: formatMs(summary.p95LatencyMs) }
+        ], 10);
     }
 
     function renderKpis(items) {
@@ -263,6 +285,9 @@
     function displayKey(value) {
         const key = String(value || '').trim();
         if (!key) return '-';
+        if (key.startsWith('WINDOW ')) {
+            return `${label('labelScreenOrApi')} ${key.substring('WINDOW '.length)}`;
+        }
         const candidates = [
             key,
             key.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
