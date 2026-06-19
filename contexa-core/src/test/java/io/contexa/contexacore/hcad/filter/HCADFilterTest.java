@@ -439,6 +439,25 @@ class HCADFilterTest {
     }
 
     @Test
+    @DisplayName("shouldNotFilter excludes AI monitor paths by default to prevent self-observation")
+    void shouldNotFilter_defaultAiMonitorPatterns_returnsTrue() {
+        request.setRequestURI("/contexa/admin/ai-monitor/hcad");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/contexa/admin/api/ai-monitor/hcad");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/contexa/admin/security-monitor/hcad");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/contexa/admin/api/security-monitor/hcad/summary");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+    }
+
+    @Test
     @DisplayName("shouldNotFilter returns false for API paths")
     void shouldNotFilter_apiPaths_returnsFalse() {
         request.setRequestURI("/api/users");

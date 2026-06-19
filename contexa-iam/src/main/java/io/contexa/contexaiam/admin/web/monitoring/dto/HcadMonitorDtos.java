@@ -30,21 +30,31 @@ public final class HcadMonitorDtos {
             long candidateCount,
             long observedRequestCount,
             long triggeredLlmCount,
+            long eligibleCount,
+            long notEligibleCount,
+            double triggerRate,
             long truePositiveCount,
             long falsePositiveCount,
             long observableFalseNegativeCount,
             long trueNegativeCount,
             long unknownCount,
             long duplicateSuppressedCount,
+            long negativeCacheHitCount,
+            long escalationCount,
             double precision,
             double unknownRate,
             double averageLlmLatencyMs,
             long estimatedWastedLlmCalls,
             double estimatedWasteCostUsd,
+            double estimatedSavedCostUsd,
             Qualification qualification,
             String recommendation,
             List<Breakdown> modeBreakdown,
             List<Breakdown> signalBreakdown,
+            List<CountBreakdown> scoreDistribution,
+            List<CountBreakdown> bandDistribution,
+            List<Breakdown> anchorSignalBreakdown,
+            List<Breakdown> corroboratingSignalBreakdown,
             List<ResourceBreakdown> resourceBreakdown,
             List<UserSessionBreakdown> userSessionBreakdown,
             List<RecentEvaluation> recentEvaluations,
@@ -68,6 +78,12 @@ public final class HcadMonitorDtos {
             long falsePositiveCount,
             long unknownCount,
             double precision
+    ) {
+    }
+
+    public record CountBreakdown(
+            String key,
+            long count
     ) {
     }
 

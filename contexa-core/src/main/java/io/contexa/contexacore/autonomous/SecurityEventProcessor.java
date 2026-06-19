@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -37,6 +38,7 @@ public class SecurityEventProcessor {
     static final String PROCESSING_DEADLINE_EXCEEDED_BEFORE_HANDLER = "processingDeadlineExceededBeforeHandler";
 
     private final List<SecurityEventHandler> handlers;
+    private final AtomicBoolean handlerTopologyLogged = new AtomicBoolean(false);
 
     public SecurityEventContext process(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
@@ -52,6 +54,7 @@ public class SecurityEventProcessor {
         try {
 
             List<SecurityEventHandler> sortedHandlers = getSortedHandlers();
+            logHandlerTopologyOnce(sortedHandlers);
 
             for (SecurityEventHandler handler : sortedHandlers) {
                 if (markFailedIfProcessingDeadlineExceeded(context, handler.getName())) {
@@ -148,6 +151,13 @@ public class SecurityEventProcessor {
         List<SecurityEventHandler> sorted = new ArrayList<>(handlers);
         sorted.sort(Comparator.comparingInt(SecurityEventHandler::getOrder));
         return sorted;
+    }
+
+    private void logHandlerTopologyOnce(List<SecurityEventHandler> sortedHandlers) {
+        if (handlerTopologyLogged.compareAndSet(false, true)) {
+            log.info("[SecurityEventProcessor] Registered handlers: {}",
+                    sortedHandlers.stream().map(SecurityEventHandler::getName).toList());
+        }
     }
 
     private void recordProcessingMetrics(SecurityEventContext context, long startTime) {

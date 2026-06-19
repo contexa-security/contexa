@@ -42,6 +42,7 @@ import io.contexa.contexacore.hcad.trigger.store.RedisAnalysisTriggerStateReposi
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
 import io.contexa.contexacore.hcad.trigger.window.InMemoryHcadObservationWindowRepository;
 import io.contexa.contexacore.hcad.trigger.window.RedisHcadObservationWindowRepository;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
@@ -135,6 +136,14 @@ public class CoreHCADAutoConfiguration {
                 hcadDetectionEvaluationRepositoryProvider::getIfAvailable,
                 jdbcOperationsProvider::getIfAvailable,
                 objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            ObjectMapper objectMapper) {
+        return new AiSecurityDecisionObservationWriter(jdbcOperationsProvider::getIfAvailable, objectMapper);
     }
 
     @Bean

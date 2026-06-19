@@ -17,9 +17,12 @@ package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +71,9 @@ class SecurityPlaneAgentTest {
 
     @Mock
     private Executor llmAnalysisExecutor;
+
+    @Mock
+    private AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter;
 
     private SecurityPlaneAgent agent;
 
@@ -190,6 +196,7 @@ class SecurityPlaneAgentTest {
         SecurityPlaneAgent timedAgent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
                 securityEventProcessor, securityPlaneProperties, actualLlmExecutor);
+        timedAgent.setAiSecurityDecisionObservationWriterSupplier(() -> aiSecurityDecisionObservationWriter);
         timedAgent.initialize();
         timedAgent.start();
 
@@ -202,6 +209,9 @@ class SecurityPlaneAgentTest {
                 .userId("user-timeout")
                 .sessionId("session-timeout")
                 .build();
+        when(aiSecurityDecisionObservationWriter.recordDecision(
+                eq(event), any(ProcessingResult.class), eq(ZeroTrustAction.PENDING_ANALYSIS)))
+                .thenReturn("timeout-observation-1");
 
         when(securityEventProcessor.process(any(SecurityEvent.class))).thenAnswer(invocation -> {
             Thread.sleep(1500L);
@@ -218,6 +228,13 @@ class SecurityPlaneAgentTest {
         verify(dataStore, never()).markEventProcessed(eq("evt-timeout"));
         assertThat(event.getMetadata()).containsEntry("processingTimedOut", true);
         assertThat(event.getMetadata()).containsEntry("lateProcessingResultDiscarded", true);
+        ArgumentCaptor<ProcessingResult> timeoutResultCaptor = ArgumentCaptor.forClass(ProcessingResult.class);
+        verify(aiSecurityDecisionObservationWriter, timeout(4000)).recordDecision(
+                eq(event), timeoutResultCaptor.capture(), eq(ZeroTrustAction.PENDING_ANALYSIS));
+        assertThat(timeoutResultCaptor.getValue().getStatus()).isEqualTo(ProcessingResult.ProcessingStatus.TIMEOUT);
+        assertThat(timeoutResultCaptor.getValue().getErrorMessage()).contains("timeout");
+        assertThat(event.getMetadata()).containsEntry("timeoutObservationRecorded", true);
+        assertThat(event.getMetadata()).containsEntry("timeoutObservationId", "timeout-observation-1");
 
         timedAgent.shutdown();
         actualLlmExecutor.shutdownNow();

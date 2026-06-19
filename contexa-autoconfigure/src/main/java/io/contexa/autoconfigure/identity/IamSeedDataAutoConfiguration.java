@@ -83,7 +83,9 @@ public class IamSeedDataAutoConfiguration {
             "official_actual_prompt_problem_ledger",
             "official_verification_prompt_comparison",
             "pqa_sealed_evidence_resource_status",
-            "hcad_detection_evaluation"
+            "hcad_detection_evaluation",
+            "ai_security_decision_observation",
+            "hcad_llm_decision_correlation"
     };
 
     static final String[] SEED_LOCATIONS = {

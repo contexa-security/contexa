@@ -1419,6 +1419,8 @@ CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
     triggered_llm BOOLEAN NOT NULL DEFAULT FALSE,
     duplicate_suppressed BOOLEAN NOT NULL DEFAULT FALSE,
     duplicate_suppressed_count INTEGER DEFAULT 0,
+    negative_cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
+    negative_cache_hit_count INTEGER DEFAULT 0,
     resource_families TEXT,
     sample_paths TEXT,
     anchor_signals TEXT,
@@ -1449,6 +1451,8 @@ ALTER TABLE hcad_detection_evaluation
     ADD COLUMN IF NOT EXISTS trigger_scope VARCHAR(32),
     ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1,
     ADD COLUMN IF NOT EXISTS duplicate_suppressed_count INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS negative_cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS negative_cache_hit_count INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS resource_families TEXT,
     ADD COLUMN IF NOT EXISTS sample_paths TEXT,
     ADD COLUMN IF NOT EXISTS llm_reasoning_summary VARCHAR(1024),
@@ -1478,6 +1482,139 @@ CREATE INDEX IF NOT EXISTS idx_hcad_eval_actor_created
 
 CREATE INDEX IF NOT EXISTS idx_hcad_eval_window
     ON hcad_detection_evaluation (window_id);
+
+CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
+    observation_id VARCHAR(64) PRIMARY KEY,
+    event_id VARCHAR(128),
+    request_id VARCHAR(160),
+    correlation_id VARCHAR(160),
+    user_id VARCHAR(160),
+    session_id VARCHAR(160),
+    context_binding_hash VARCHAR(128),
+    actor_session_key VARCHAR(128),
+    window_id VARCHAR(64),
+    hcad_evaluation_id VARCHAR(64),
+    trigger_source VARCHAR(64) NOT NULL DEFAULT 'UNKNOWN',
+    trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
+    decision_boundary_mode VARCHAR(32),
+    hcad_mode VARCHAR(32),
+    hcad_score INTEGER,
+    hcad_band VARCHAR(32),
+    hcad_eligible BOOLEAN,
+    http_method VARCHAR(16),
+    request_path VARCHAR(2048),
+    resource_id VARCHAR(512),
+    model_provider VARCHAR(128),
+    model_id VARCHAR(160),
+    prompt_template_key VARCHAR(160),
+    final_action VARCHAR(64),
+    proposed_action VARCHAR(64),
+    llm_risk_score DOUBLE PRECISION,
+    llm_confidence DOUBLE PRECISION,
+    llm_latency_ms BIGINT,
+    llm_decision_present BOOLEAN,
+    parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
+    timeout_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    model_unavailable BOOLEAN NOT NULL DEFAULT FALSE,
+    failure_type VARCHAR(64),
+    fallback_category VARCHAR(128),
+    fallback_reason VARCHAR(1024),
+    outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
+    metadata_json TEXT,
+    success BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at TIMESTAMP(6)
+);
+
+ALTER TABLE ai_security_decision_observation
+    ADD COLUMN IF NOT EXISTS hcad_evaluation_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
+    ADD COLUMN IF NOT EXISTS decision_boundary_mode VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS hcad_mode VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS hcad_score INTEGER,
+    ADD COLUMN IF NOT EXISTS hcad_band VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS hcad_eligible BOOLEAN,
+    ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS prompt_template_key VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS timeout_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS model_unavailable BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS failure_type VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
+    ADD COLUMN IF NOT EXISTS metadata_json TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_created
+    ON ai_security_decision_observation (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_trigger_created
+    ON ai_security_decision_observation (trigger_source, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_relation_created
+    ON ai_security_decision_observation (trigger_relation, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_outcome_created
+    ON ai_security_decision_observation (outcome_class, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_hcad_eval
+    ON ai_security_decision_observation (hcad_evaluation_id);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_event
+    ON ai_security_decision_observation (event_id);
+
+CREATE TABLE IF NOT EXISTS hcad_llm_decision_correlation (
+    correlation_id VARCHAR(64) PRIMARY KEY,
+    hcad_evaluation_id VARCHAR(64),
+    llm_observation_id VARCHAR(64),
+    event_id VARCHAR(128),
+    request_id VARCHAR(160),
+    user_id VARCHAR(160),
+    actor_session_key VARCHAR(128),
+    window_id VARCHAR(64),
+    trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
+    outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
+    hcad_score INTEGER,
+    hcad_band VARCHAR(32),
+    hcad_eligible BOOLEAN,
+    llm_final_action VARCHAR(64),
+    llm_proposed_action VARCHAR(64),
+    llm_risk_score DOUBLE PRECISION,
+    llm_confidence DOUBLE PRECISION,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at TIMESTAMP(6)
+);
+
+ALTER TABLE hcad_llm_decision_correlation
+    ADD COLUMN IF NOT EXISTS hcad_evaluation_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS llm_observation_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
+    ADD COLUMN IF NOT EXISTS outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
+    ADD COLUMN IF NOT EXISTS hcad_score INTEGER,
+    ADD COLUMN IF NOT EXISTS hcad_band VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS hcad_eligible BOOLEAN,
+    ADD COLUMN IF NOT EXISTS llm_final_action VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS llm_proposed_action VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS llm_risk_score DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS llm_confidence DOUBLE PRECISION;
+
+CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_created
+    ON hcad_llm_decision_correlation (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_relation_created
+    ON hcad_llm_decision_correlation (trigger_relation, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_outcome_created
+    ON hcad_llm_decision_correlation (outcome_class, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_hcad_eval
+    ON hcad_llm_decision_correlation (hcad_evaluation_id);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_llm_obs
+    ON hcad_llm_decision_correlation (llm_observation_id);
 
 create table shedlock
 (

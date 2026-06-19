@@ -37,6 +37,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
@@ -56,6 +57,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -64,7 +66,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @AutoConfiguration
-@AutoConfigureAfter(name = "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration")
+@AutoConfigureAfter(name = {
+        "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration",
+        "io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration"
+})
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(SecurityPlaneProperties.class)
 public class CoreAutonomousEventAutoConfiguration {
@@ -191,6 +196,14 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            ObjectMapper objectMapper) {
+        return new AiSecurityDecisionObservationWriter(jdbcOperationsProvider::getIfAvailable, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
@@ -200,6 +213,7 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
             @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
             ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider,
+            ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository,
@@ -209,7 +223,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 analysisTriggerStateRepositoryProvider.getIfAvailable(),
                 securityZeroTrustProperties,
                 baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()),
-                hcadEvaluationWriterProvider.getIfAvailable());
+                hcadEvaluationWriterProvider.getIfAvailable(),
+                aiSecurityDecisionObservationWriterProvider::getIfAvailable);
     }
 
     @Bean

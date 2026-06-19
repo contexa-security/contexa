@@ -60,6 +60,7 @@ import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -461,11 +462,14 @@ public class CoreAutonomousAutoConfiguration {
             CentralAuditFacade centralAuditFacade,
             SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties,
-            @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor
+            @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor,
+            ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider
     ) {
-        return new SecurityPlaneAgent(
+        SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
+        agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
+        return agent;
     }
 
     @Bean

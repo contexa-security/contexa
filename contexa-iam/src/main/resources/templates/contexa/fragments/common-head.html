@@ -4,10 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${pageTitle ?: #messages.msg('app.title')}">Authentication Platform</title>
+    <link rel="icon" href="data:,">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
+        if (window.tailwind) {
+            tailwind.config = {
             theme: {
                 extend: {
                     colors: {
@@ -42,6 +44,7 @@
                     }
                 },
                 important: false
+            }
             }
         }
     </script>

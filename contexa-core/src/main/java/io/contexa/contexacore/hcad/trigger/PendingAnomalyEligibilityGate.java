@@ -79,6 +79,7 @@ public class PendingAnomalyEligibilityGate {
         String baseKey = actorSessionKey;
 
         if (analysisTriggerStateRepository.isNegativeCached(baseKey)) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT, true);
             return null;
         }
         return new PendingAnomalyEligibility(userId, contextBindingHash, actorSessionKey, baseKey);

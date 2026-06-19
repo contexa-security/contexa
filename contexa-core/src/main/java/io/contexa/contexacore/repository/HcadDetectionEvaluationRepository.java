@@ -40,6 +40,10 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
 
     long countByDuplicateSuppressedTrueAndCreatedAtBetween(LocalDateTime from, LocalDateTime to);
 
+    long countByEligibleTrueAndCreatedAtBetween(LocalDateTime from, LocalDateTime to);
+
+    long countByEligibleFalseAndCreatedAtBetween(LocalDateTime from, LocalDateTime to);
+
     long countByOutcomeClassAndCreatedAtBetween(String outcomeClass, LocalDateTime from, LocalDateTime to);
 
     List<HcadDetectionEvaluation> findByActorSessionKeyAndWindowId(String actorSessionKey, String windowId);
@@ -59,6 +63,15 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
              where e.createdAt between :from and :to
             """)
     Long sumDuplicateSuppressedCountBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Query("""
+            select coalesce(sum(e.negativeCacheHitCount), 0)
+              from HcadDetectionEvaluation e
+             where e.createdAt between :from and :to
+            """)
+    Long sumNegativeCacheHitCountBetween(
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
 
@@ -84,6 +97,41 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
             @Param("to") LocalDateTime to);
 
     @Query(value = """
+            select coalesce(e.early_analysis_score::text, 'UNKNOWN') as score,
+                   count(*) as count
+              from hcad_detection_evaluation e
+             where e.created_at between :from and :to
+             group by e.early_analysis_score
+             order by count(*) desc, score asc
+            """, nativeQuery = true)
+    List<Object[]> countByScoreBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Query(value = """
+            select coalesce(e.band, 'UNKNOWN') as band,
+                   count(*) as count
+              from hcad_detection_evaluation e
+             where e.created_at between :from and :to
+             group by e.band
+             order by count(*) desc, band asc
+            """, nativeQuery = true)
+    List<Object[]> countByBandBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Query(value = """
+            select count(*)
+              from hcad_detection_evaluation e
+             where e.created_at between :from and :to
+               and e.anchor_signals is not null
+               and trim(e.anchor_signals) not in ('', '[]', 'null')
+            """, nativeQuery = true)
+    long countEscalationBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Query(value = """
             select signal.value as signal,
                    count(*) as candidate_count,
                    sum(case when e.outcome_class = 'TP' then 1 else 0 end) as tp_count,
@@ -102,6 +150,52 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
              limit :limit
             """, nativeQuery = true)
     List<Object[]> aggregateBySignalBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("limit") int limit);
+
+    @Query(value = """
+            select signal.value as signal,
+                   count(*) as candidate_count,
+                   sum(case when e.outcome_class = 'TP' then 1 else 0 end) as tp_count,
+                   sum(case when e.outcome_class = 'FP' then 1 else 0 end) as fp_count,
+                   sum(case when e.outcome_class = 'UNKNOWN' then 1 else 0 end) as unknown_count
+              from hcad_detection_evaluation e
+              join lateral jsonb_array_elements_text(
+                   case
+                     when e.anchor_signals is null or trim(e.anchor_signals) = '' or trim(e.anchor_signals) = 'null' then '[]'::jsonb
+                     else e.anchor_signals::jsonb
+                   end
+              ) as signal(value) on true
+             where e.created_at between :from and :to
+             group by signal.value
+             order by count(*) desc, signal.value asc
+             limit :limit
+            """, nativeQuery = true)
+    List<Object[]> aggregateByAnchorSignalBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("limit") int limit);
+
+    @Query(value = """
+            select signal.value as signal,
+                   count(*) as candidate_count,
+                   sum(case when e.outcome_class = 'TP' then 1 else 0 end) as tp_count,
+                   sum(case when e.outcome_class = 'FP' then 1 else 0 end) as fp_count,
+                   sum(case when e.outcome_class = 'UNKNOWN' then 1 else 0 end) as unknown_count
+              from hcad_detection_evaluation e
+              join lateral jsonb_array_elements_text(
+                   case
+                     when e.corroborating_signals is null or trim(e.corroborating_signals) = '' or trim(e.corroborating_signals) = 'null' then '[]'::jsonb
+                     else e.corroborating_signals::jsonb
+                   end
+              ) as signal(value) on true
+             where e.created_at between :from and :to
+             group by signal.value
+             order by count(*) desc, signal.value asc
+             limit :limit
+            """, nativeQuery = true)
+    List<Object[]> aggregateByCorroboratingSignalBetween(
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
             @Param("limit") int limit);

@@ -301,7 +301,13 @@ public class HcadProperties {
 
     @Data
     public static class FilterSettings {
-        private List<String> excludedPatterns = new ArrayList<>();
+        private List<String> excludedPatterns = new ArrayList<>(List.of(
+                "/contexa/admin/ai-monitor/**",
+                "/contexa/admin/api/ai-monitor/**",
+                "/contexa/admin/security-monitor/hcad",
+                "/contexa/admin/security-monitor/hcad/**",
+                "/contexa/admin/api/security-monitor/hcad/**"
+        ));
     }
 
     @Data

@@ -30,6 +30,7 @@ import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.evaluation.HcadOutcomeClassifier;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 @Slf4j
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
@@ -51,6 +53,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final Executor baselineLearningExecutor;
     private final HcadEvaluationWriter hcadEvaluationWriter;
+    private final Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -113,6 +116,50 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             SecurityZeroTrustProperties securityZeroTrustProperties,
             Executor baselineLearningExecutor,
             HcadEvaluationWriter hcadEvaluationWriter) {
+        this(
+                actionRedisRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingDecisionRegistry,
+                analysisTriggerStateRepository,
+                securityZeroTrustProperties,
+                baselineLearningExecutor,
+                hcadEvaluationWriter,
+                (AiSecurityDecisionObservationWriter) null);
+    }
+
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Executor baselineLearningExecutor,
+            HcadEvaluationWriter hcadEvaluationWriter,
+            AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter) {
+        this(
+                actionRedisRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingDecisionRegistry,
+                analysisTriggerStateRepository,
+                securityZeroTrustProperties,
+                baselineLearningExecutor,
+                hcadEvaluationWriter,
+                fixedWriterSupplier(aiSecurityDecisionObservationWriter));
+    }
+
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Executor baselineLearningExecutor,
+            HcadEvaluationWriter hcadEvaluationWriter,
+            Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.blockedUserRecorder = blockedUserRecorder;
@@ -121,6 +168,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.baselineLearningExecutor = baselineLearningExecutor != null ? baselineLearningExecutor : Runnable::run;
         this.hcadEvaluationWriter = hcadEvaluationWriter;
+        this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier != null
+                ? aiSecurityDecisionObservationWriterSupplier
+                : () -> null;
+    }
+
+    private static Supplier<AiSecurityDecisionObservationWriter> fixedWriterSupplier(
+            AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter) {
+        return () -> aiSecurityDecisionObservationWriter;
     }
 
     private boolean isEnforcementDisabled() {
@@ -131,7 +186,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     public boolean handle(SecurityEventContext context) {
         Object resultObj = context.getMetadata().get("processingResult");
         if (!(resultObj instanceof ProcessingResult result) || !result.isSuccess()) {
-            recordHcadUnknownDecision(context.getSecurityEvent(), resultObj instanceof ProcessingResult failedResult ? failedResult : null);
+            ProcessingResult failedResult = resultObj instanceof ProcessingResult value ? value : null;
+            recordAiSecurityDecisionObservation(context.getSecurityEvent(), failedResult, ZeroTrustAction.PENDING_ANALYSIS);
+            recordHcadUnknownDecision(context.getSecurityEvent(), failedResult);
             releasePreTriggerInFlight(context.getSecurityEvent());
             return true;
         }
@@ -139,6 +196,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         SecurityEvent event = context.getSecurityEvent();
         String userId = event.getUserId();
         if (userId == null || userId.isBlank()) {
+            recordAiSecurityDecisionObservation(event, result, ZeroTrustAction.fromString(result.getAction()));
             return true;
         }
 
@@ -205,6 +263,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         recordHcadDecision(event, result, ztAction);
+        recordAiSecurityDecisionObservation(event, result, ztAction);
 
         if (!sideEffectsEnabled) {
             additionalFields.put("shadowMode", true);
@@ -421,6 +480,25 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
     }
 
+    private void recordAiSecurityDecisionObservation(
+            SecurityEvent event,
+            ProcessingResult result,
+            ZeroTrustAction enforcedAction) {
+        if (event == null) {
+            return;
+        }
+        try {
+            AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
+            if (writer == null) {
+                return;
+            }
+            writer.recordDecision(event, result, enforcedAction);
+        } catch (Exception ex) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to record AI security decision observation: eventId={}",
+                    event.getEventId(), ex);
+        }
+    }
+
     private void recordHcadUnknownDecision(SecurityEvent event, ProcessingResult result) {
         if (hcadEvaluationWriter == null || event == null) {
             return;
@@ -517,6 +595,16 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 && triggerStateKey != null && !triggerStateKey.toString().isBlank()) {
             analysisTriggerStateRepository.releaseInFlight(triggerStateKey.toString());
         }
+    }
+
+    @Override
+    public boolean canHandle(SecurityEventContext context) {
+        if (context == null || context.getSecurityEvent() == null) {
+            return false;
+        }
+        return context.getMetadata() != null
+                && context.getMetadata().get("processingResult") instanceof ProcessingResult
+                || SecurityEventHandler.super.canHandle(context);
     }
 
     @Override

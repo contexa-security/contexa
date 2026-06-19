@@ -23,6 +23,7 @@ public final class PendingAnomalyTriggerAttributes {
     public static final String PRE_TRIGGER_STATE_KEY = "ctxa.pretrigger.stateKey";
     public static final String PRE_TRIGGER_EVALUATION_ID = "ctxa.pretrigger.evaluationId";
     public static final String PRE_TRIGGER_DUPLICATE_SUPPRESSED = "ctxa.pretrigger.duplicateSuppressed";
+    public static final String PRE_TRIGGER_NEGATIVE_CACHE_HIT = "ctxa.pretrigger.negativeCacheHit";
     public static final String PRE_TRIGGER_MODE = "ctxa.pretrigger.hcadMode";
     public static final String PRE_TRIGGER_DECISION_BOUNDARY_MODE = "ctxa.pretrigger.decisionBoundaryMode";
     public static final String PRE_TRIGGER_EARLY_ANALYSIS_SCORE = "ctxa.pretrigger.earlyAnalysisScore";

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='HCAD Monitor')}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.aiMonitor.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
     <style>
@@ -9,14 +9,16 @@
         .hcad-toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
         .hcad-period { border: 1px solid rgba(71,85,105,.45); border-radius: .5rem; color: #94a3b8; padding: .45rem .8rem; text-decoration: none; font-size: .8rem; }
         .hcad-period.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
-        .hcad-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .85rem; }
+        .hcad-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .85rem; }
         .hcad-kpi { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.48); }
         .hcad-kpi-value { color: #e2e8f0; font-size: 1.7rem; font-weight: 800; line-height: 1; }
         .hcad-kpi-label { color: #94a3b8; font-size: .75rem; margin-top: .45rem; }
+        .hcad-kpi-help { color: #64748b; font-size: .7rem; margin-top: .35rem; line-height: 1.45; }
         .hcad-band { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.36); }
         .hcad-band-title { color: #e2e8f0; font-size: .95rem; font-weight: 700; margin-bottom: .75rem; }
+        .hcad-band-help { color: #94a3b8; font-size: .78rem; line-height: 1.55; margin: -.35rem 0 .85rem; }
         .hcad-table { width: 100%; border-collapse: collapse; }
-        .hcad-table th { color: #cbd5e1; font-size: .7rem; text-transform: uppercase; text-align: left; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.45); }
+        .hcad-table th { color: #cbd5e1; font-size: .72rem; text-align: left; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.45); }
         .hcad-table td { color: #94a3b8; font-size: .8rem; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.22); }
         .hcad-status { border-radius: 999px; padding: .25rem .65rem; font-size: .72rem; font-weight: 700; display: inline-flex; }
         .hcad-status.good { background: rgba(34,197,94,.18); color: #4ade80; }
@@ -24,6 +26,13 @@
         .hcad-status.bad { background: rgba(239,68,68,.18); color: #f87171; }
         .hcad-status.info { background: rgba(34,211,238,.16); color: #67e8f9; }
         .hcad-two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+        .hcad-simple-list { display: grid; gap: .65rem; }
+        .hcad-simple-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: center; border-bottom: 1px solid rgba(71,85,105,.22); padding: .7rem 0; }
+        .hcad-simple-row:last-child { border-bottom: 0; }
+        .hcad-simple-title { color: #dbeafe; font-weight: 700; font-size: .86rem; overflow-wrap: anywhere; }
+        .hcad-simple-meta { color: #94a3b8; font-size: .75rem; margin-top: .2rem; overflow-wrap: anywhere; }
+        .hcad-simple-value { color: #e2e8f0; font-weight: 800; text-align: right; white-space: nowrap; }
+        .hcad-page-note { color: #64748b; font-size: .74rem; }
         @media (max-width: 1100px) { .hcad-two-col { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -35,7 +44,66 @@
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
-        <div class="modern-card hcad-layout" id="hcad-monitor" th:data-period="${period}">
+        <div class="modern-card hcad-layout" id="hcad-monitor" th:data-period="${period}"
+             th:data-label-promotion-readiness="#{admin.security.hcad.status.promotionReadiness}"
+             th:data-label-mode="#{admin.security.hcad.status.mode}"
+             th:data-label-sample="#{admin.security.hcad.status.sample}"
+             th:data-label-precision="#{admin.security.hcad.kpi.precision}"
+             th:data-label-hcad-windows="#{admin.security.hcad.kpi.hcadWindows}"
+             th:data-label-observed-requests="#{admin.security.hcad.kpi.observedRequests}"
+             th:data-label-llm-calls="#{admin.security.hcad.kpi.llmCalls}"
+             th:data-label-eligible="#{admin.security.hcad.kpi.eligible}"
+             th:data-label-not-eligible="#{admin.security.hcad.kpi.notEligible}"
+             th:data-label-trigger-rate="#{admin.security.hcad.kpi.triggerRate}"
+             th:data-label-false-positive="#{admin.security.hcad.kpi.falsePositive}"
+             th:data-label-observable-fn="#{admin.security.hcad.kpi.observableFn}"
+             th:data-label-true-negative="#{admin.security.hcad.kpi.trueNegative}"
+             th:data-label-unknown="#{admin.security.hcad.kpi.unknown}"
+             th:data-label-avg-latency="#{admin.security.hcad.kpi.avgLatency}"
+             th:data-label-duplicates="#{admin.security.hcad.kpi.duplicates}"
+             th:data-label-negative-cache-hit="#{admin.security.hcad.kpi.negativeCacheHit}"
+             th:data-label-escalation="#{admin.security.hcad.kpi.escalation}"
+             th:data-label-score-distribution="#{admin.security.hcad.score.title}"
+             th:data-label-band-distribution="#{admin.security.hcad.band.title}"
+             th:data-label-anchor-signal="#{admin.security.hcad.anchorSignal.title}"
+             th:data-label-corroborating-signal="#{admin.security.hcad.corroboratingSignal.title}"
+             th:data-label-no-data="#{admin.security.hcad.table.noData}"
+             th:data-label-no-unknown="#{admin.security.hcad.table.noUnknown}"
+             th:data-label-no-recent="#{admin.security.hcad.table.noRecent}"
+             th:data-label-unavailable="#{admin.security.hcad.status.unavailable}"
+             th:data-label-pending="#{admin.security.hcad.decision.pending}"
+             th:data-label-parser="#{admin.security.hcad.decision.parser}"
+             th:data-label-fallback="#{admin.security.hcad.decision.fallback}"
+             th:data-label-insufficient-sample="#{admin.security.hcad.recommendation.insufficientSample}"
+             th:data-label-keep-shadow="#{admin.security.hcad.recommendation.keepShadow}"
+             th:data-label-shadow-stable="#{admin.security.hcad.recommendation.shadowStable}"
+             th:data-label-limited-enforce="#{admin.security.hcad.recommendation.limitedEnforce}"
+             th:data-label-default-enforce="#{admin.security.hcad.recommendation.defaultEnforce}"
+             th:data-label-unknown-recommendation="#{admin.security.hcad.recommendation.unknown}"
+             th:data-label-summary-help="#{admin.security.hcad.help.summary}"
+             th:data-label-evaluated-help="#{admin.security.hcad.help.evaluated}"
+             th:data-label-llm-help="#{admin.security.hcad.help.llmCalls}"
+             th:data-label-duplicate-help="#{admin.security.hcad.help.duplicates}"
+             th:data-label-unknown-help="#{admin.security.hcad.help.unknown}"
+             th:data-label-false-positive-help="#{admin.security.hcad.help.falsePositive}"
+             th:data-label-observable-fn-help="#{admin.security.hcad.help.observableFn}"
+             th:data-label-avg-latency-help="#{admin.security.hcad.help.avgLatency}"
+             th:data-label-request="#{admin.security.hcad.table.request}"
+             th:data-label-result="#{admin.security.hcad.table.result}"
+             th:data-label-signal-previous-path-jump="#{admin.security.hcad.signal.previousPathJump}"
+             th:data-label-signal-request-burst="#{admin.security.hcad.signal.requestBurst}"
+             th:data-label-signal-rapid-sequence="#{admin.security.hcad.signal.rapidSequence}"
+             th:data-label-signal-impossible-travel="#{admin.security.hcad.signal.impossibleTravel}"
+             th:data-label-signal-recent-permission-change="#{admin.security.hcad.signal.recentPermissionChange}"
+             th:data-label-outcome-tp="#{admin.security.hcad.outcome.tp}"
+             th:data-label-outcome-fp="#{admin.security.hcad.outcome.fp}"
+             th:data-label-outcome-fn="#{admin.security.hcad.outcome.fn}"
+             th:data-label-outcome-tn="#{admin.security.hcad.outcome.tn}"
+             th:data-label-outcome-unknown="#{admin.security.hcad.outcome.unknown}"
+             th:data-label-mode-shadow="#{admin.security.hcad.mode.shadow}"
+             th:data-label-mode-observe="#{admin.security.hcad.mode.observe}"
+             th:data-label-mode-enforce="#{admin.security.hcad.mode.enforce}"
+             th:data-label-mode-disabled="#{admin.security.hcad.mode.disabled}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                     <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.security.hcad.title}">HCAD Shadow Monitor</h1>
@@ -46,10 +114,10 @@
 
             <div class="hcad-toolbar">
                 <span class="text-sm" style="color:#94a3b8;" th:text="#{admin.security.hcad.period}">Period</span>
-                <a th:href="@{/contexa/admin/security-monitor/hcad(period='day')}" class="hcad-period" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
-                <a th:href="@{/contexa/admin/security-monitor/hcad(period='week')}" class="hcad-period" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
-                <a th:href="@{/contexa/admin/security-monitor/hcad(period='month')}" class="hcad-period" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
-                <a th:href="@{/contexa/admin/security-monitor/hcad(period='year')}" class="hcad-period" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='day')}" class="hcad-period" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='week')}" class="hcad-period" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='month')}" class="hcad-period" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='year')}" class="hcad-period" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
                 <span id="hcad-range" class="text-xs" style="color:#64748b;"></span>
                 <a id="hcad-export" th:href="@{/contexa/admin/api/security-monitor/hcad/summary.csv(period=${period})}" class="hcad-period">CSV</a>
             </div>
@@ -58,39 +126,20 @@
                 <div class="hcad-band-title" th:text="#{admin.security.hcad.status.loading}">Loading HCAD metrics</div>
             </div>
 
-            <div class="hcad-kpis" id="hcad-kpis"></div>
+            <section class="hcad-band">
+                <div class="hcad-band-title" th:text="#{admin.security.hcad.section.summary}">Key Status</div>
+                <p class="hcad-band-help" th:text="#{admin.security.hcad.help.summary}">Confirm whether early detection is useful and stable before switching operation mode.</p>
+                <div class="hcad-kpis" id="hcad-kpis"></div>
+            </section>
 
             <div class="hcad-two-col">
                 <section class="hcad-band">
                     <div class="hcad-band-title" th:text="#{admin.security.hcad.signal.title}">Signal Performance</div>
-                    <table class="hcad-table">
-                        <thead><tr><th>Signal</th><th>Count</th><th>Precision</th><th>FP</th></tr></thead>
-                        <tbody id="hcad-signals"></tbody>
-                    </table>
+                    <div class="hcad-simple-list" id="hcad-signals"></div>
                 </section>
                 <section class="hcad-band">
                     <div class="hcad-band-title" th:text="#{admin.security.hcad.resource.title}">Resource Performance</div>
-                    <table class="hcad-table">
-                        <thead><tr><th>Resource</th><th>Count</th><th>Precision</th><th>Dup</th></tr></thead>
-                        <tbody id="hcad-resources"></tbody>
-                    </table>
-                </section>
-            </div>
-
-            <div class="hcad-two-col">
-                <section class="hcad-band">
-                    <div class="hcad-band-title" th:text="#{admin.security.hcad.userSession.title}">User / Session Repeats</div>
-                    <table class="hcad-table">
-                        <thead><tr><th>User</th><th>Context</th><th>Count</th><th>Dup</th><th>Precision</th></tr></thead>
-                        <tbody id="hcad-user-sessions"></tbody>
-                    </table>
-                </section>
-                <section class="hcad-band">
-                    <div class="hcad-band-title" th:text="#{admin.security.hcad.unknown.title}">Unknown / Fallback</div>
-                    <table class="hcad-table">
-                        <thead><tr><th>Created</th><th>User</th><th>Resource</th><th>LLM</th><th>Score</th></tr></thead>
-                        <tbody id="hcad-unknown"></tbody>
-                    </table>
+                    <div class="hcad-simple-list" id="hcad-resources"></div>
                 </section>
             </div>
 
@@ -99,7 +148,10 @@
                 <table class="hcad-table">
                     <thead>
                     <tr>
-                        <th>Created</th><th>User</th><th>Method</th><th>Path</th><th>Score</th><th>LLM</th><th>Outcome</th>
+                        <th th:text="#{admin.security.hcad.table.created}">Created</th>
+                        <th th:text="#{admin.security.hcad.table.user}">User</th>
+                        <th th:text="#{admin.security.hcad.table.request}">Request</th>
+                        <th th:text="#{admin.security.hcad.table.result}">Result</th>
                     </tr>
                     </thead>
                     <tbody id="hcad-recent"></tbody>

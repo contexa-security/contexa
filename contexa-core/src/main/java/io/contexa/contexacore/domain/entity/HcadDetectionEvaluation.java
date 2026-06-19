@@ -112,6 +112,14 @@ public class HcadDetectionEvaluation {
     @Builder.Default
     private Integer duplicateSuppressedCount = 0;
 
+    @Column(name = "negative_cache_hit", nullable = false)
+    @Builder.Default
+    private Boolean negativeCacheHit = false;
+
+    @Column(name = "negative_cache_hit_count")
+    @Builder.Default
+    private Integer negativeCacheHitCount = 0;
+
     @Column(name = "resource_families", columnDefinition = "TEXT")
     private String resourceFamilies;
 
@@ -197,6 +205,12 @@ public class HcadDetectionEvaluation {
         }
         if (duplicateSuppressedCount == null) {
             duplicateSuppressedCount = 0;
+        }
+        if (negativeCacheHit == null) {
+            negativeCacheHit = false;
+        }
+        if (negativeCacheHitCount == null) {
+            negativeCacheHitCount = 0;
         }
         if (requestCount == null) {
             requestCount = 1;

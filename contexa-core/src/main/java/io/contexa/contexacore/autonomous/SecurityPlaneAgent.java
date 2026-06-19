@@ -16,16 +16,20 @@
 package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
@@ -39,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
@@ -54,6 +59,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityEventProcessor securityEventProcessor;
     private final SecurityPlaneProperties securityPlaneProperties;
     private final Executor llmAnalysisExecutor;
+    private Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier = () -> null;
 
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -65,6 +71,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private static final String PROCESSING_TIMEOUT_CANCELLATION_REQUESTED = "processingTimeoutCancellationRequested";
     private static final String LATE_PROCESSING_RESULT_DISCARDED = "lateProcessingResultDiscarded";
     private static final String LATE_PROCESSING_RESULT_DISCARDED_AT = "lateProcessingResultDiscardedAt";
+    private static final String TIMEOUT_OBSERVATION_RECORDED = "timeoutObservationRecorded";
+    private static final String TIMEOUT_OBSERVATION_ID = "timeoutObservationId";
+
+    public void setAiSecurityDecisionObservationWriterSupplier(
+            Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
+        this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier != null
+                ? aiSecurityDecisionObservationWriterSupplier
+                : () -> null;
+    }
 
     @PostConstruct
     public void initialize() {
@@ -199,6 +214,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             if (SecurityEventProcessor.hasProcessingDeadlineExceeded(event)) {
                 event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED, true);
                 event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED_AT, System.currentTimeMillis());
+                recordTimeoutObservation(event, "Event processing timeout: deadline exceeded after result completion");
                 throw new EventProcessingDeadlineExceededException(event.getEventId());
             }
             markEventProcessed(event.getEventId());
@@ -366,7 +382,42 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata(PROCESSING_TIMEOUT_MS, timeoutMs);
             event.addMetadata(PROCESSING_TIMEOUT_AT, System.currentTimeMillis());
             event.addMetadata(PROCESSING_TIMEOUT_CANCELLATION_REQUESTED, true);
+            recordTimeoutObservation(event, "Event processing timeout: budget exceeded");
             throw timeoutException;
+        }
+    }
+
+    private void recordTimeoutObservation(SecurityEvent event, String message) {
+        if (event == null) {
+            return;
+        }
+        synchronized (event) {
+            if (Boolean.TRUE.equals(event.getMetadata().get(TIMEOUT_OBSERVATION_RECORDED))) {
+                return;
+            }
+            event.addMetadata(TIMEOUT_OBSERVATION_RECORDED, true);
+        }
+
+        AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
+        if (writer == null) {
+            return;
+        }
+
+        ProcessingResult result = ProcessingResult.builder()
+                .success(false)
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
+                .status(ProcessingResult.ProcessingStatus.TIMEOUT)
+                .message(message)
+                .errorMessage(message)
+                .processedAt(LocalDateTime.now())
+                .build();
+        try {
+            String observationId = writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
+            if (observationId != null && !observationId.isBlank()) {
+                event.addMetadata(TIMEOUT_OBSERVATION_ID, observationId);
+            }
+        } catch (Exception ex) {
+            log.error("[SecurityPlaneAgent] Failed to record timeout observation: eventId={}", event.getEventId(), ex);
         }
     }
 

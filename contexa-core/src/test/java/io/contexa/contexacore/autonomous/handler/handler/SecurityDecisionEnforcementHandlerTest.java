@@ -201,6 +201,26 @@ class SecurityDecisionEnforcementHandlerTest {
     }
 
     @Test
+    @DisplayName("Failed context with processingResult should still be handled for observation")
+    void canHandle_failedContextWithProcessingResult_shouldAcceptForObservation() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-failed-result")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(false)
+                .message("LLM execution failed")
+                .build());
+        context.markAsFailed("LLM execution failed");
+
+        boolean canHandle = handler.canHandle(context);
+
+        assertThat(canHandle).isTrue();
+    }
+
+    @Test
     @DisplayName("Null processingResult should pass through")
     void nullProcessingResult_shouldPassThrough() {
         // given

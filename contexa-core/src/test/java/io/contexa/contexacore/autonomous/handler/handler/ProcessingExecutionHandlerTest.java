@@ -105,6 +105,61 @@ class ProcessingExecutionHandlerTest {
     }
 
     @Test
+    @DisplayName("Failed processing result should continue to decision observation handlers")
+    void failedProcessingResult_shouldContinueToDecisionObservationHandlers() {
+        // given
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-failure")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+
+        ProcessingResult failedResult = ProcessingResult.builder()
+                .success(false)
+                .message("LLM execution failed")
+                .build();
+        when(aiAnalysisStrategy.process(any(SecurityEventContext.class))).thenReturn(failedResult);
+
+        // when
+        boolean result = handler.handle(context);
+
+        // then
+        assertThat(result).isTrue();
+        assertThat(context.getMetadata().get("processingResult")).isEqualTo(failedResult);
+        assertThat(context.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("Processing exception should continue to decision observation handlers with failed result")
+    void processingException_shouldContinueToDecisionObservationHandlersWithFailedResult() {
+        // given
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-exception")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        when(aiAnalysisStrategy.process(any(SecurityEventContext.class)))
+                .thenThrow(new IllegalStateException("No runtime LLM client is configured"));
+
+        // when
+        boolean result = handler.handle(context);
+
+        // then
+        assertThat(result).isTrue();
+        assertThat(context.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
+        assertThat(context.getMetadata().get("processingExceptionType"))
+                .isEqualTo(IllegalStateException.class.getName());
+        assertThat(context.getMetadata().get("processingResult"))
+                .isInstanceOfSatisfying(ProcessingResult.class, failedResult -> {
+                    assertThat(failedResult.isSuccess()).isFalse();
+                    assertThat(failedResult.getErrorMessage()).contains("No runtime LLM client");
+                    assertThat(failedResult.getStatus()).isEqualTo(ProcessingResult.ProcessingStatus.FAILED);
+                });
+    }
+
+    @Test
     @DisplayName("No matching strategy should mark context as failed")
     void noMatchingStrategy_shouldFail() {
         // given

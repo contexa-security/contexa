@@ -3,16 +3,16 @@
     if (!root) return;
 
     const period = root.dataset.period || 'day';
-    const formatter = new Intl.NumberFormat('en-US');
-    const percentFormatter = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
-    const decimalFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+    const locale = document.documentElement.lang || navigator.language || 'ko-KR';
+    const formatter = new Intl.NumberFormat(locale);
+    const percentFormatter = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 });
+    const decimalFormatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+    const labels = root.dataset;
 
     const statusEl = document.getElementById('hcad-status');
     const kpiEl = document.getElementById('hcad-kpis');
     const signalEl = document.getElementById('hcad-signals');
     const resourceEl = document.getElementById('hcad-resources');
-    const userSessionEl = document.getElementById('hcad-user-sessions');
-    const unknownEl = document.getElementById('hcad-unknown');
     const recentEl = document.getElementById('hcad-recent');
     const rangeEl = document.getElementById('hcad-range');
     const exportEl = document.getElementById('hcad-export');
@@ -30,7 +30,7 @@
         })
         .then(render)
         .catch((error) => {
-            statusEl.innerHTML = `<div class="hcad-band-title">HCAD metrics unavailable</div><div class="text-sm" style="color:#f87171;">${escapeHtml(error.message)}</div>`;
+            statusEl.innerHTML = `<div class="hcad-band-title">${escapeHtml(label('labelUnavailable'))}</div><div class="text-sm" style="color:#f87171;">${escapeHtml(error.message)}</div>`;
         });
 
     function render(summary) {
@@ -39,26 +39,16 @@
         }
         renderStatus(summary);
         renderKpis(summary);
-        renderBreakdown(signalEl, summary.signalBreakdown || [], 4, (item) => [
-            item.key || '-',
-            formatter.format(item.candidateCount || 0),
-            percentFormatter.format(item.precision || 0),
-            formatter.format(item.falsePositiveCount || 0)
-        ]);
-        renderBreakdown(resourceEl, summary.resourceBreakdown || [], 4, (item) => [
-            `${item.method || ''} ${item.path || '-'}`.trim(),
-            formatter.format(item.candidateCount || 0),
-            percentFormatter.format(item.precision || 0),
-            formatter.format(item.duplicateSuppressedCount || 0)
-        ]);
-        renderBreakdown(userSessionEl, summary.userSessionBreakdown || [], 5, (item) => [
-            item.userId || '-',
-            shortHash(item.contextBindingHash || '-'),
-            formatter.format(item.candidateCount || 0),
-            formatter.format(item.duplicateSuppressedCount || 0),
-            percentFormatter.format(item.precision || 0)
-        ]);
-        renderUnknown(summary.unknownEvaluations || []);
+        renderSimpleBreakdown(signalEl, summary.signalBreakdown || [], (item) => ({
+            title: friendlySignal(item.key || '-'),
+            meta: `${label('labelPrecision')} ${percentFormatter.format(item.precision || 0)} / ${label('labelFalsePositive')} ${formatter.format(item.falsePositiveCount || 0)}`,
+            value: formatter.format(item.candidateCount || 0)
+        }));
+        renderSimpleBreakdown(resourceEl, summary.resourceBreakdown || [], (item) => ({
+            title: `${item.method || ''} ${item.path || '-'}`.trim(),
+            meta: `${label('labelPrecision')} ${percentFormatter.format(item.precision || 0)}`,
+            value: formatter.format(item.candidateCount || 0)
+        }));
         renderRecent(summary.recentEvaluations || []);
     }
 
@@ -70,78 +60,89 @@
         statusEl.innerHTML = `
             <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                    <div class="hcad-band-title">Promotion Readiness</div>
-                    <div class="text-sm" style="color:#94a3b8;">mode ${escapeHtml(summary.currentMode || 'UNKNOWN')}, sample ${formatter.format(sample)} / ${formatter.format(minSample)}, precision ${percentFormatter.format(summary.precision || 0)}</div>
+                    <div class="hcad-band-title">${escapeHtml(label('labelPromotionReadiness'))}</div>
+                    <div class="text-sm" style="color:#94a3b8;">
+                        ${escapeHtml(label('labelMode'))} ${escapeHtml(friendlyMode(summary.currentMode || 'UNKNOWN'))},
+                        ${escapeHtml(label('labelSample'))} ${formatter.format(sample)} / ${formatter.format(minSample)},
+                        ${escapeHtml(label('labelPrecision'))} ${percentFormatter.format(summary.precision || 0)}
+                    </div>
                 </div>
-                <span class="hcad-status ${tone}">${escapeHtml(recommendation.replaceAll('_', ' '))}</span>
+                <span class="hcad-status ${tone}">${escapeHtml(recommendationLabel(recommendation))}</span>
             </div>`;
     }
 
     function renderKpis(summary) {
         const kpis = [
-            ['HCAD windows', summary.candidateCount],
-            ['Observed requests', summary.observedRequestCount],
-            ['LLM calls', summary.triggeredLlmCount],
-            ['Precision', percentFormatter.format(summary.precision || 0)],
-            ['False positive', summary.falsePositiveCount],
-            ['Observable FN', summary.observableFalseNegativeCount],
-            ['True negative', summary.trueNegativeCount],
-            ['Unknown', percentFormatter.format(summary.unknownRate || 0)],
-            ['Avg latency', `${decimalFormatter.format(summary.averageLlmLatencyMs || 0)} ms`],
-            ['Duplicates', summary.duplicateSuppressedCount],
-            ['Waste cost', `$${decimalFormatter.format(summary.estimatedWasteCostUsd || 0)}`]
+            [label('labelHcadWindows'), summary.candidateCount, label('labelEvaluatedHelp')],
+            [label('labelLlmCalls'), summary.triggeredLlmCount, label('labelLlmHelp')],
+            [label('labelUnknown'), percentFormatter.format(summary.unknownRate || 0), label('labelUnknownHelp')],
+            [label('labelFalsePositive'), summary.falsePositiveCount, label('labelFalsePositiveHelp')],
+            [label('labelObservableFn'), summary.observableFalseNegativeCount, label('labelObservableFnHelp')],
+            [label('labelAvgLatency'), `${decimalFormatter.format(summary.averageLlmLatencyMs || 0)} ms`, label('labelAvgLatencyHelp')]
         ];
-        kpiEl.innerHTML = kpis.map(([label, value]) => `
+        kpiEl.innerHTML = kpis.map(([text, value, help]) => `
             <div class="hcad-kpi">
                 <div class="hcad-kpi-value">${escapeHtml(formatValue(value))}</div>
-                <div class="hcad-kpi-label">${escapeHtml(label)}</div>
+                <div class="hcad-kpi-label">${escapeHtml(text)}</div>
+                <div class="hcad-kpi-help">${escapeHtml(help)}</div>
             </div>`).join('');
     }
 
-    function renderBreakdown(tbody, items, colspan, rowFactory) {
-        if (!tbody) return;
-        if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="${colspan || 4}">No data</td></tr>`;
+    function renderSimpleBreakdown(container, items, rowFactory) {
+        if (!container) return;
+        const visible = items.slice(0, 5);
+        if (!visible.length) {
+            container.innerHTML = `<div class="hcad-simple-meta">${escapeHtml(label('labelNoData'))}</div>`;
             return;
         }
-        tbody.innerHTML = items.map((item) => {
-            const cells = rowFactory(item).map((value) => `<td>${escapeHtml(formatValue(value))}</td>`).join('');
-            return `<tr>${cells}</tr>`;
+        container.innerHTML = visible.map((item) => {
+            const row = rowFactory(item);
+            return `
+                <div class="hcad-simple-row">
+                    <div>
+                        <div class="hcad-simple-title">${escapeHtml(row.title)}</div>
+                        <div class="hcad-simple-meta">${escapeHtml(row.meta)}</div>
+                    </div>
+                    <div class="hcad-simple-value">${escapeHtml(row.value)}</div>
+                </div>`;
         }).join('');
-    }
-
-    function renderUnknown(items) {
-        if (!unknownEl) return;
-        if (!items.length) {
-            unknownEl.innerHTML = '<tr><td colspan="5">No unknown evaluations</td></tr>';
-            return;
-        }
-        unknownEl.innerHTML = items.map((item) => `
-            <tr>
-                <td>${escapeHtml(formatDate(item.createdAt))}</td>
-                <td>${escapeHtml(item.userId || '-')}</td>
-                <td>${escapeHtml(`${item.method || ''} ${item.path || '-'}`.trim())}</td>
-                <td>${escapeHtml(unknownCause(item))}</td>
-                <td>${escapeHtml(item.earlyAnalysisScore == null ? '-' : `${item.earlyAnalysisScore} / ${item.band || '-'}`)}</td>
-            </tr>`).join('');
     }
 
     function renderRecent(items) {
         if (!recentEl) return;
-        if (!items.length) {
-            recentEl.innerHTML = '<tr><td colspan="7">No recent evaluations</td></tr>';
+        const visible = items.slice(0, 10);
+        if (!visible.length) {
+            recentEl.innerHTML = `<tr><td colspan="4">${escapeHtml(label('labelNoRecent'))}</td></tr>`;
             return;
         }
-        recentEl.innerHTML = items.map((item) => `
+        recentEl.innerHTML = visible.map((item) => `
             <tr>
                 <td>${escapeHtml(formatDate(item.createdAt))}</td>
                 <td>${escapeHtml(item.userId || '-')}</td>
-                <td>${escapeHtml(item.method || '-')}</td>
-                <td>${escapeHtml(item.path || '-')}</td>
-                <td>${escapeHtml(item.earlyAnalysisScore == null ? '-' : `${item.earlyAnalysisScore} / ${item.band || '-'}`)}</td>
-                <td>${escapeHtml(decisionSummary(item))}</td>
-                <td><span class="hcad-status ${outcomeTone(item.outcomeClass)}">${escapeHtml(item.outcomeClass || 'UNKNOWN')}</span></td>
+                <td>${escapeHtml(`${item.method || ''} ${item.path || '-'}`.trim())}</td>
+                <td><span class="hcad-status ${outcomeTone(item.outcomeClass)}">${escapeHtml(outcomeLabel(item.outcomeClass))}</span></td>
             </tr>`).join('');
+    }
+
+    function friendlySignal(value) {
+        const normalized = String(value || '').trim().toUpperCase();
+        const known = {
+            PREVIOUS_PATH_JUMP: label('labelSignalPreviousPathJump'),
+            REQUEST_BURST: label('labelSignalRequestBurst'),
+            RAPID_SEQUENCE: label('labelSignalRapidSequence'),
+            IMPOSSIBLE_TRAVEL: label('labelSignalImpossibleTravel'),
+            RECENT_PERMISSION_CHANGE: label('labelSignalRecentPermissionChange')
+        };
+        return known[normalized] || value || '-';
+    }
+
+    function friendlyMode(value) {
+        const normalized = String(value || '').toUpperCase();
+        if (normalized === 'SHADOW') return label('labelModeShadow');
+        if (normalized === 'OBSERVE') return label('labelModeObserve');
+        if (normalized === 'ENFORCE') return label('labelModeEnforce');
+        if (normalized === 'DISABLED') return label('labelModeDisabled');
+        return value;
     }
 
     function recommendationTone(value) {
@@ -151,22 +152,42 @@
         return 'info';
     }
 
-    function decisionSummary(item) {
-        if (item.llmParserFailure) return `${item.llmAction || 'UNKNOWN'} / parser`;
-        if (item.llmTechnicalFallback) return `${item.llmAction || 'UNKNOWN'} / fallback`;
-        return item.llmAction || (item.triggeredLlm ? 'pending' : '-');
-    }
-
-    function unknownCause(item) {
-        if (item.llmParserFailure) return `parser ${item.llmFallbackCategory || ''}`.trim();
-        if (item.llmTechnicalFallback) return `fallback ${item.llmFallbackCategory || ''}`.trim();
-        return item.llmAction || (item.triggeredLlm ? 'pending' : '-');
-    }
-
     function outcomeTone(value) {
         if (value === 'TP' || value === 'TN') return 'good';
         if (value === 'FP' || value === 'FN') return 'bad';
         return 'info';
+    }
+
+    function outcomeLabel(value) {
+        switch (value) {
+            case 'TP':
+                return label('labelOutcomeTp');
+            case 'FP':
+                return label('labelOutcomeFp');
+            case 'FN':
+                return label('labelOutcomeFn');
+            case 'TN':
+                return label('labelOutcomeTn');
+            default:
+                return label('labelOutcomeUnknown');
+        }
+    }
+
+    function recommendationLabel(value) {
+        switch (value) {
+            case 'INSUFFICIENT_SAMPLE':
+                return label('labelInsufficientSample');
+            case 'KEEP_SHADOW':
+                return label('labelKeepShadow');
+            case 'SHADOW_STABLE':
+                return label('labelShadowStable');
+            case 'LIMITED_ENFORCE_CANDIDATE':
+                return label('labelLimitedEnforce');
+            case 'DEFAULT_ENFORCE_CANDIDATE':
+                return label('labelDefaultEnforce');
+            default:
+                return value || label('labelUnknownRecommendation');
+        }
     }
 
     function formatDate(value) {
@@ -181,10 +202,8 @@
         return value == null ? '-' : String(value);
     }
 
-    function shortHash(value) {
-        if (!value || value === '-') return '-';
-        const text = String(value);
-        return text.length > 12 ? `${text.slice(0, 12)}...` : text;
+    function label(key) {
+        return labels[key] || key;
     }
 
     function escapeHtml(value) {

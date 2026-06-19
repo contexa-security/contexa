@@ -330,6 +330,9 @@ public class HCADFilter extends OncePerRequestFilter {
         String evaluationId = writer.recordCandidate(hcadProperties.getPreTrigger().effectiveMode(), report);
         if (evaluationId != null && request != null) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+            if (Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT))) {
+                writer.markNegativeCacheHit(evaluationId);
+            }
         }
     }
 

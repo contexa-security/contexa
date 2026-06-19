@@ -27,6 +27,7 @@ import io.contexa.contexaiam.admin.web.menu.service.AdminMenuManagementService;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuQueryCache;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
+import io.contexa.contexaiam.admin.web.monitoring.controller.AiMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.HcadSecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
@@ -43,6 +44,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcOperations;
 
 
 @AutoConfiguration
@@ -66,6 +69,25 @@ public class IamAdminMonitoringAutoConfiguration {
             HcadDetectionEvaluationRepository hcadDetectionEvaluationRepository,
             HcadProperties hcadProperties) {
         return new HcadMonitoringService(hcadDetectionEvaluationRepository, hcadProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService(
+            HcadMonitoringService hcadMonitoringService,
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            HcadProperties hcadProperties) {
+        return new AiSecurityDecisionMonitoringService(
+                hcadMonitoringService,
+                jdbcOperationsProvider::getIfAvailable,
+                hcadProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AiMonitorController aiMonitorController(
+            AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService) {
+        return new AiMonitorController(aiSecurityDecisionMonitoringService);
     }
 
     @Bean

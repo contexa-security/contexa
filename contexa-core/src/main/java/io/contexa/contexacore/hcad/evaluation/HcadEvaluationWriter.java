@@ -87,6 +87,8 @@ public class HcadEvaluationWriter {
                 .triggeredLlm(false)
                 .duplicateSuppressed(false)
                 .duplicateSuppressedCount(integerDefault(rawSnapshot.get("duplicateSuppressedCount"), 0))
+                .negativeCacheHit(false)
+                .negativeCacheHitCount(integerDefault(rawSnapshot.get("negativeCacheHitCount"), 0))
                 .resourceFamilies(writeJson(rawSnapshot.get("resourceFamilies")))
                 .samplePaths(writeJson(rawSnapshot.get("samplePaths")))
                 .anchorSignals(writeJson(report.anchorSignals()))
@@ -192,6 +194,32 @@ public class HcadEvaluationWriter {
                 evaluation.setDuplicateSuppressed(true);
                 evaluation.setDuplicateSuppressedCount(Math.max(
                         evaluation.getDuplicateSuppressedCount() == null ? 0 : evaluation.getDuplicateSuppressedCount(),
+                        1));
+                repository.save(evaluation);
+            });
+        }
+    }
+
+    public void markNegativeCacheHit(String evaluationId) {
+        if (evaluationId == null || evaluationId.isBlank()) {
+            return;
+        }
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations != null) {
+            jdbcOperations.update("""
+                    UPDATE hcad_detection_evaluation
+                       SET negative_cache_hit = true,
+                           negative_cache_hit_count = GREATEST(COALESCE(negative_cache_hit_count, 0), 1)
+                     WHERE evaluation_id = ?
+                    """, evaluationId);
+            return;
+        }
+        HcadDetectionEvaluationRepository repository = repository();
+        if (repository != null) {
+            repository.findById(evaluationId).ifPresent(evaluation -> {
+                evaluation.setNegativeCacheHit(true);
+                evaluation.setNegativeCacheHitCount(Math.max(
+                        evaluation.getNegativeCacheHitCount() == null ? 0 : evaluation.getNegativeCacheHitCount(),
                         1));
                 repository.save(evaluation);
             });
@@ -370,6 +398,8 @@ public class HcadEvaluationWriter {
                 .triggeredLlm(false)
                 .duplicateSuppressed(false)
                 .duplicateSuppressedCount(integerDefault(metadata.get("duplicateSuppressedCount"), 0))
+                .negativeCacheHit(bool(metadata.get("negativeCacheHit")))
+                .negativeCacheHitCount(integerDefault(metadata.get("negativeCacheHitCount"), 0))
                 .resourceFamilies(writeJson(metadata.get("resourceFamilies")))
                 .samplePaths(writeJson(metadata.get("samplePaths")))
                 .anchorSignals(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS)))
@@ -424,6 +454,8 @@ public class HcadEvaluationWriter {
                         triggered_llm,
                         duplicate_suppressed,
                         duplicate_suppressed_count,
+                        negative_cache_hit,
+                        negative_cache_hit_count,
                         resource_families,
                         sample_paths,
                         anchor_signals,
@@ -447,7 +479,7 @@ public class HcadEvaluationWriter {
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
@@ -470,6 +502,8 @@ public class HcadEvaluationWriter {
                     boolDefault(evaluation.getTriggeredLlm(), false),
                     boolDefault(evaluation.getDuplicateSuppressed(), false),
                     evaluation.getDuplicateSuppressedCount() == null ? 0 : evaluation.getDuplicateSuppressedCount(),
+                    boolDefault(evaluation.getNegativeCacheHit(), false),
+                    evaluation.getNegativeCacheHitCount() == null ? 0 : evaluation.getNegativeCacheHitCount(),
                     evaluation.getResourceFamilies(),
                     evaluation.getSamplePaths(),
                     evaluation.getAnchorSignals(),

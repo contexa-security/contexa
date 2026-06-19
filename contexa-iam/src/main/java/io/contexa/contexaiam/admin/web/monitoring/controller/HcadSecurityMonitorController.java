@@ -24,8 +24,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+
+import java.util.Locale;
 
 @Controller
 @RequiredArgsConstructor
@@ -33,7 +36,10 @@ public class HcadSecurityMonitorController {
 
     private final HcadMonitoringService hcadMonitoringService;
 
-    @GetMapping("/contexa/admin/security-monitor/hcad")
+    @GetMapping({
+            "/contexa/admin/ai-monitor/hcad",
+            "/contexa/admin/security-monitor/hcad"
+    })
     public String page(
             @RequestParam(required = false, defaultValue = "day") String period,
             Model model) {
@@ -43,16 +49,29 @@ public class HcadSecurityMonitorController {
     }
 
     @ResponseBody
-    @GetMapping("/contexa/admin/api/security-monitor/hcad/summary")
+    @GetMapping({
+            "/contexa/admin/api/security-monitor/hcad/summary",
+            "/contexa/admin/api/ai-monitor/hcad"
+    })
     public HcadSummary summary(@RequestParam(required = false, defaultValue = "day") String period) {
         return hcadMonitoringService.summarize(period);
     }
 
     @GetMapping(value = "/contexa/admin/api/security-monitor/hcad/summary.csv", produces = "text/csv")
-    public ResponseEntity<String> csv(@RequestParam(required = false, defaultValue = "day") String period) {
+    public ResponseEntity<String> csv(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false) String acceptLanguage,
+            Locale locale) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"hcad-monitor-" + period + ".csv\"")
-                .body(hcadMonitoringService.exportCsv(period));
+                .body(hcadMonitoringService.exportCsv(period, resolveLocale(locale, acceptLanguage)));
+    }
+
+    private Locale resolveLocale(Locale locale, String acceptLanguage) {
+        if (acceptLanguage != null && acceptLanguage.toLowerCase(Locale.ROOT).contains("ko")) {
+            return Locale.KOREAN;
+        }
+        return locale;
     }
 }

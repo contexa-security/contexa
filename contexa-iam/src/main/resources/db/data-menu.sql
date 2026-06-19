@@ -49,6 +49,14 @@ DELETE FROM admin_menu m
  WHERE m.id = d.id
    AND d.id <> d.keep_id;
 
+DELETE FROM admin_menu_role r
+ USING admin_menu m
+ WHERE r.menu_id = m.id
+   AND m.data_page = 'ai-monitor-operations';
+
+DELETE FROM admin_menu
+ WHERE data_page = 'ai-monitor-operations';
+
 CREATE UNIQUE INDEX IF NOT EXISTS ux_admin_menu_data_page
     ON admin_menu (data_page)
  WHERE data_page IS NOT NULL;
@@ -63,7 +71,8 @@ WITH seed(name, url, icon, parent_id, menu_order, enabled, menu_type, data_page)
     ('menu.nav.access',     NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>',                                                                                                                                                                                                                                                                              NULL::BIGINT, 3, TRUE, 'CORE',       'access'),
     ('menu.nav.iam',        NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>',                                                                                                  NULL::BIGINT, 4, TRUE, 'CORE',       'iam'),
     ('menu.nav.security',   NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',                                                                                                                                                                              NULL::BIGINT, 5, TRUE, 'CORE',       'security'),
-    ('menu.nav.pqa',        NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 3h6m2.25 5.25h-10.5A2.25 2.25 0 014.5 18V6A2.25 2.25 0 016.75 3.75h6.879c.597 0 1.169.237 1.591.659l3.621 3.621c.422.422.659.994.659 1.591V18a2.25 2.25 0 01-2.25 2.25z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 3.75V8.25c0 .621.504 1.125 1.125 1.125H19.5"/></svg>',                                                                                                                                                                          NULL::BIGINT, 6, TRUE, 'CORE',       'prompt-quality')
+    ('menu.nav.aiMonitor',  NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3.75V6m6-2.25V6M9 18v2.25M15 18v2.25M3.75 9H6m-2.25 6H6M18 9h2.25M18 15h2.25M8.25 6h7.5A2.25 2.25 0 0118 8.25v7.5A2.25 2.25 0 0115.75 18h-7.5A2.25 2.25 0 016 15.75v-7.5A2.25 2.25 0 018.25 6z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 9.75h4.5v4.5h-4.5z"/></svg>',                                                                                                                                                                                                             NULL::BIGINT, 6, TRUE, 'CORE',       'ai-monitor'),
+    ('menu.nav.pqa',        NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 3h6m2.25 5.25h-10.5A2.25 2.25 0 014.5 18V6A2.25 2.25 0 016.75 3.75h6.879c.597 0 1.169.237 1.591.659l3.621 3.621c.422.422.659.994.659 1.591V18a2.25 2.25 0 01-2.25 2.25z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 3.75V8.25c0 .621.504 1.125 1.125 1.125H19.5"/></svg>',                                                                                                                                                                          NULL::BIGINT, 7, TRUE, 'CORE',       'prompt-quality')
 ),
 updated AS (
     UPDATE admin_menu m
@@ -100,10 +109,15 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.iam.system.settings',     '/contexa/admin/system-settings',        '',                'iam',        7,  TRUE, 'CORE',       'system-settings'),
     ('menu.iam.menu.management',     '/contexa/admin/menu-management',        '',                'iam',        8,  TRUE, 'CORE',       'menu-management'),
     ('menu.zerotrust.monitor',       '/contexa/admin/security-monitor',       '',                'security',   1,  TRUE, 'CORE',       'security-monitor'),
-    ('menu.zerotrust.hcad',          '/contexa/admin/security-monitor/hcad',  '',                'security',   2,  TRUE, 'CORE',       'security-monitor-hcad'),
-    ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   3,  TRUE, 'CORE',       'blacklist'),
-    ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   4,  TRUE, 'CORE',       'session-management'),
-    ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   5,  TRUE, 'CORE',       'ip-management'),
+    ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   2,  TRUE, 'CORE',       'blacklist'),
+    ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   3,  TRUE, 'CORE',       'session-management'),
+    ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   4,  TRUE, 'CORE',       'ip-management'),
+    ('menu.aiMonitor.overview',      '/contexa/admin/ai-monitor',             '',                'ai-monitor', 1,  TRUE, 'CORE',       'ai-monitor-overview'),
+    ('menu.aiMonitor.hcad',          '/contexa/admin/ai-monitor/hcad',        '',                'ai-monitor', 2,  TRUE, 'CORE',       'security-monitor-hcad'),
+    ('menu.aiMonitor.llm',           '/contexa/admin/ai-monitor/llm',         '',                'ai-monitor', 3,  TRUE, 'CORE',       'ai-monitor-llm'),
+    ('menu.aiMonitor.correlation',   '/contexa/admin/ai-monitor/correlation', '',                'ai-monitor', 4,  TRUE, 'CORE',       'ai-monitor-correlation'),
+    ('menu.aiMonitor.failures',      '/contexa/admin/ai-monitor/failures',    '',                'ai-monitor', 5,  TRUE, 'CORE',       'ai-monitor-failures'),
+    ('menu.aiMonitor.readiness',     '/contexa/admin/ai-monitor/readiness',   '',                'ai-monitor', 6,  TRUE, 'CORE',       'ai-monitor-readiness'),
     ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
     ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
     ('menu.pqa.official',            '/contexa/admin/prompt-quality/verification/readiness', '',  'prompt-quality', 3, TRUE, 'CORE',       'prompt-quality-official')

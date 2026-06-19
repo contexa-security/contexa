@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.aiMonitor.title})}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+    <style>
+        .ai-monitor-layout { display: grid; gap: 1rem; }
+        .ai-monitor-tabs { display: flex; gap: .5rem; flex-wrap: wrap; border-bottom: 1px solid rgba(71,85,105,.45); padding-bottom: .75rem; }
+        .ai-monitor-tab { border: 1px solid rgba(71,85,105,.45); border-radius: .5rem; color: #94a3b8; padding: .45rem .75rem; text-decoration: none; font-size: .8rem; }
+        .ai-monitor-tab.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
+        .ai-monitor-toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+        .ai-monitor-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .85rem; }
+        .ai-monitor-kpi { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.48); }
+        .ai-monitor-kpi-value { color: #e2e8f0; font-size: 1.6rem; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+        .ai-monitor-kpi-label { color: #94a3b8; font-size: .76rem; margin-top: .45rem; }
+        .ai-monitor-kpi-help { color: #64748b; font-size: .7rem; line-height: 1.45; margin-top: .35rem; }
+        .ai-monitor-band { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.36); }
+        .ai-monitor-band-title { color: #e2e8f0; font-size: .95rem; font-weight: 700; margin-bottom: .75rem; }
+        .ai-monitor-band-help { color: #94a3b8; font-size: .78rem; line-height: 1.55; margin: -.35rem 0 .85rem; }
+        .ai-monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+        .ai-monitor-table { width: 100%; border-collapse: collapse; }
+        .ai-monitor-table th { color: #cbd5e1; font-size: .72rem; text-align: left; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.45); }
+        .ai-monitor-table td { color: #94a3b8; font-size: .8rem; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.22); }
+        .ai-monitor-status { border-radius: 999px; padding: .25rem .65rem; font-size: .72rem; font-weight: 700; display: inline-flex; background: rgba(34,211,238,.16); color: #67e8f9; }
+        .ai-monitor-status.good { background: rgba(34,197,94,.18); color: #4ade80; }
+        .ai-monitor-status.warn { background: rgba(245,158,11,.18); color: #fbbf24; }
+        .ai-monitor-status.bad { background: rgba(239,68,68,.18); color: #f87171; }
+        .ai-monitor-status.info { background: rgba(34,211,238,.16); color: #67e8f9; }
+        .ai-monitor-details-note { color: #64748b; font-size: .74rem; margin-top: .7rem; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <div class="modern-card ai-monitor-layout" id="ai-monitor"
+             th:data-section="${section}"
+             th:data-period="${period}"
+             th:data-label-loading="#{admin.aiMonitor.status.loading}"
+             th:data-label-unavailable="#{admin.aiMonitor.status.unavailable}"
+             th:data-label-observed-requests="#{admin.aiMonitor.kpi.observedRequests}"
+             th:data-label-hcad-windows="#{admin.aiMonitor.kpi.hcadWindows}"
+             th:data-label-llm-calls="#{admin.aiMonitor.kpi.llmCalls}"
+             th:data-label-hcad-candidates="#{admin.aiMonitor.kpi.hcadCandidates}"
+             th:data-label-llm-decisions="#{admin.aiMonitor.kpi.llmDecisions}"
+             th:data-label-protectable-decisions="#{admin.aiMonitor.kpi.protectableDecisions}"
+             th:data-label-hcad-pretrigger-decisions="#{admin.aiMonitor.kpi.hcadPreTriggerDecisions}"
+             th:data-label-hcad-and-protectable="#{admin.aiMonitor.kpi.hcadAndProtectable}"
+             th:data-label-correlation-unknown="#{admin.aiMonitor.kpi.correlationUnknown}"
+             th:data-label-timeouts="#{admin.aiMonitor.kpi.timeouts}"
+             th:data-label-parser-failures="#{admin.aiMonitor.kpi.parserFailures}"
+             th:data-label-fallbacks="#{admin.aiMonitor.kpi.fallbacks}"
+             th:data-label-model-unavailable="#{admin.aiMonitor.kpi.modelUnavailable}"
+             th:data-label-parser-failure-rate="#{admin.aiMonitor.kpi.parserFailureRate}"
+             th:data-label-fallback-rate="#{admin.aiMonitor.kpi.fallbackRate}"
+             th:data-label-timeout-rate="#{admin.aiMonitor.kpi.timeoutRate}"
+             th:data-label-model-unavailable-rate="#{admin.aiMonitor.kpi.modelUnavailableRate}"
+             th:data-label-average-latency="#{admin.aiMonitor.kpi.averageLatency}"
+             th:data-label-p95-latency="#{admin.aiMonitor.kpi.p95Latency}"
+             th:data-label-recommendation="#{admin.aiMonitor.kpi.recommendation}"
+             th:data-label-minimum-sample="#{admin.aiMonitor.kpi.minimumSample}"
+             th:data-label-hcad-precision="#{admin.aiMonitor.kpi.hcadPrecision}"
+             th:data-label-false-positive="#{admin.aiMonitor.kpi.falsePositive}"
+             th:data-label-observable-fn="#{admin.aiMonitor.kpi.observableFn}"
+             th:data-label-observable-fn-rate="#{admin.aiMonitor.kpi.observableFnRate}"
+             th:data-label-true-negative="#{admin.aiMonitor.kpi.trueNegative}"
+             th:data-label-unknown="#{admin.aiMonitor.kpi.unknown}"
+             th:data-label-unobserved="#{admin.aiMonitor.kpi.unobserved}"
+             th:data-label-unknown-rate="#{admin.aiMonitor.kpi.unknownRate}"
+             th:data-label-failure-rate="#{admin.aiMonitor.kpi.failureRate}"
+             th:data-label-action-breakdown="#{admin.aiMonitor.section.actionBreakdown}"
+             th:data-label-proposed-action-breakdown="#{admin.aiMonitor.section.proposedActionBreakdown}"
+             th:data-label-final-action-breakdown="#{admin.aiMonitor.section.finalActionBreakdown}"
+             th:data-label-trigger-source="#{admin.aiMonitor.section.triggerSource}"
+             th:data-label-correlation-outcome="#{admin.aiMonitor.section.correlationOutcome}"
+             th:data-label-trigger-relation="#{admin.aiMonitor.section.triggerRelation}"
+             th:data-label-provider="#{admin.aiMonitor.section.provider}"
+             th:data-label-model="#{admin.aiMonitor.section.model}"
+             th:data-label-prompt-template="#{admin.aiMonitor.section.promptTemplate}"
+             th:data-label-risk-score-distribution="#{admin.aiMonitor.section.riskScoreDistribution}"
+             th:data-label-confidence-distribution="#{admin.aiMonitor.section.confidenceDistribution}"
+             th:data-label-correlation-matrix="#{admin.aiMonitor.section.correlationMatrix}"
+             th:data-label-recent-correlations="#{admin.aiMonitor.section.recentCorrelations}"
+             th:data-label-explicit-failure="#{admin.aiMonitor.section.explicitFailure}"
+             th:data-label-readiness-criteria="#{admin.aiMonitor.section.readinessCriteria}"
+             th:data-label-failure-type="#{admin.aiMonitor.section.failureType}"
+             th:data-label-fallback-category="#{admin.aiMonitor.section.fallbackCategory}"
+             th:data-label-category="#{admin.aiMonitor.table.category}"
+             th:data-label-llm-risk="#{admin.aiMonitor.table.llmRisk}"
+             th:data-label-llm-allow="#{admin.aiMonitor.table.llmAllow}"
+             th:data-label-llm-unknown="#{admin.aiMonitor.table.llmUnknown}"
+             th:data-label-llm-not-called="#{admin.aiMonitor.table.llmNotCalled}"
+             th:data-label-created-at="#{admin.aiMonitor.table.createdAt}"
+             th:data-label-user="#{admin.aiMonitor.table.user}"
+             th:data-label-outcome="#{admin.aiMonitor.table.outcome}"
+             th:data-label-hcad-score="#{admin.aiMonitor.table.hcadScore}"
+             th:data-label-llm-risk-score="#{admin.aiMonitor.table.llmRiskScore}"
+             th:data-label-final-action="#{admin.aiMonitor.table.finalAction}"
+             th:data-label-no-data="#{admin.aiMonitor.table.noData}"
+             th:data-label-key="#{admin.aiMonitor.table.key}"
+             th:data-label-count="#{admin.aiMonitor.table.count}"
+             th:data-label-enum-hcad-early-trigger="#{admin.aiMonitor.enum.hcadEarlyTrigger}"
+             th:data-label-enum-hcad-missed-observed="#{admin.aiMonitor.enum.hcadMissedObserved}"
+             th:data-label-enum-hcad-duplicate-suppressed="#{admin.aiMonitor.enum.hcadDuplicateSuppressed}"
+             th:data-label-enum-hcad-unevaluated="#{admin.aiMonitor.enum.hcadUnevaluated}"
+             th:data-label-enum-hcad-only="#{admin.aiMonitor.enum.hcadOnly}"
+             th:data-label-enum-protectable-only="#{admin.aiMonitor.enum.protectableOnly}"
+             th:data-label-enum-hcad-and-protectable="#{admin.aiMonitor.enum.hcadAndProtectable}"
+             th:data-label-enum-protectable-suppressed-by-hcad="#{admin.aiMonitor.enum.protectableSuppressedByHcad}"
+             th:data-label-enum-hcad-suppressed-by-protectable="#{admin.aiMonitor.enum.hcadSuppressedByProtectable}"
+             th:data-label-enum-observed-only="#{admin.aiMonitor.enum.observedOnly}"
+             th:data-label-enum-unmatched-llm="#{admin.aiMonitor.enum.unmatchedLlm}"
+             th:data-label-screen-purpose="#{admin.aiMonitor.status.screenPurpose}"
+             th:data-label-current-decision="#{admin.aiMonitor.status.currentDecision}"
+             th:data-label-no-decision="#{admin.aiMonitor.status.noDecision}"
+             th:data-label-section-overview-title="#{admin.aiMonitor.section.overviewTitle}"
+             th:data-label-section-overview-desc="#{admin.aiMonitor.section.overviewDesc}"
+             th:data-label-section-llm-title="#{admin.aiMonitor.section.llmTitle}"
+             th:data-label-section-llm-desc="#{admin.aiMonitor.section.llmDesc}"
+             th:data-label-section-correlation-title="#{admin.aiMonitor.section.correlationTitle}"
+             th:data-label-section-correlation-desc="#{admin.aiMonitor.section.correlationDesc}"
+             th:data-label-section-failures-title="#{admin.aiMonitor.section.failuresTitle}"
+             th:data-label-section-failures-desc="#{admin.aiMonitor.section.failuresDesc}"
+             th:data-label-section-readiness-title="#{admin.aiMonitor.section.readinessTitle}"
+             th:data-label-section-readiness-desc="#{admin.aiMonitor.section.readinessDesc}"
+             th:data-label-key-metrics="#{admin.aiMonitor.section.keyMetrics}"
+             th:data-label-decision-path="#{admin.aiMonitor.section.decisionPath}"
+             th:data-label-decision-result="#{admin.aiMonitor.section.decisionResult}"
+             th:data-label-response-quality="#{admin.aiMonitor.section.responseQuality}"
+             th:data-label-comparison-result="#{admin.aiMonitor.section.comparisonResult}"
+             th:data-label-main-failure-cause="#{admin.aiMonitor.section.mainFailureCause}"
+             th:data-label-enum-insufficient-sample="#{admin.aiMonitor.enum.insufficientSample}"
+             th:data-label-enum-do-not-enforce="#{admin.aiMonitor.enum.doNotEnforce}"
+             th:data-label-enum-default-enforce-candidate="#{admin.aiMonitor.enum.defaultEnforceCandidate}"
+             th:data-label-enum-limited-enforce-candidate="#{admin.aiMonitor.enum.limitedEnforceCandidate}"
+             th:data-label-enum-shadow-stable="#{admin.aiMonitor.enum.shadowStable}"
+             th:data-label-enum-keep-shadow="#{admin.aiMonitor.enum.keepShadow}"
+             th:data-label-enum-protectable="#{admin.aiMonitor.enum.protectable}"
+             th:data-label-enum-hcad-pre-trigger="#{admin.aiMonitor.enum.hcadPreTrigger}"
+             th:data-label-enum-pending-redline="#{admin.aiMonitor.enum.pendingRedline}"
+             th:data-label-enum-pending-analysis="#{admin.aiMonitor.enum.pendingAnalysis}"
+             th:data-label-enum-allow="#{admin.aiMonitor.enum.allow}"
+             th:data-label-enum-deny="#{admin.aiMonitor.enum.deny}"
+             th:data-label-enum-challenge="#{admin.aiMonitor.enum.challenge}"
+             th:data-label-enum-unknown="#{admin.aiMonitor.enum.unknown}"
+             th:data-label-enum-none="#{admin.aiMonitor.enum.none}"
+             th:data-label-enum-tp="#{admin.aiMonitor.enum.tp}"
+             th:data-label-enum-fp="#{admin.aiMonitor.enum.fp}"
+             th:data-label-enum-fn="#{admin.aiMonitor.enum.fn}"
+             th:data-label-enum-tn="#{admin.aiMonitor.enum.tn}"
+             th:data-label-enum-unobserved="#{admin.aiMonitor.enum.unobserved}"
+             th:data-label-enum-parser-failure="#{admin.aiMonitor.enum.parserFailure}"
+             th:data-label-enum-technical-fallback="#{admin.aiMonitor.enum.technicalFallback}"
+             th:data-label-enum-model-unavailable="#{admin.aiMonitor.enum.modelUnavailable}"
+             th:data-label-enum-timeout="#{admin.aiMonitor.enum.timeout}"
+             th:data-label-enum-prompt-contract-violation="#{admin.aiMonitor.enum.promptContractViolation}"
+             th:data-label-enum-malformed-json="#{admin.aiMonitor.enum.malformedJson}"
+             th:data-label-enum-empty-response="#{admin.aiMonitor.enum.emptyResponse}"
+             th:data-label-enum-no-runtime-llm-client="#{admin.aiMonitor.enum.noRuntimeLlmClient}"
+             th:data-label-enum-no-pipeline-executor="#{admin.aiMonitor.enum.noPipelineExecutor}"
+             th:data-label-enum-securitydecisionstandard="#{admin.aiMonitor.enum.securityDecisionStandard}"
+             th:data-label-enum-minimum-sample="#{admin.aiMonitor.enum.minimumSample}"
+             th:data-label-enum-hcad-precision="#{admin.aiMonitor.enum.hcadPrecision}"
+             th:data-label-enum-observable-fn-rate="#{admin.aiMonitor.enum.observableFnRate}"
+             th:data-label-enum-unknown-rate="#{admin.aiMonitor.enum.unknownRate}"
+             th:data-label-enum-failure-rate="#{admin.aiMonitor.enum.failureRate}"
+             th:data-label-enum-timeout-rate="#{admin.aiMonitor.enum.timeoutRate}">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
+                    <p class="text-sm mt-1" style="color:#94a3b8;" th:text="#{admin.aiMonitor.subtitle}">AI security decision quality overview</p>
+                </div>
+                <span id="ai-monitor-range" class="text-xs" style="color:#64748b;"></span>
+            </div>
+
+            <nav class="ai-monitor-tabs">
+                <a th:href="@{/contexa/admin/ai-monitor(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'overview'} ? ' active' : ''" th:text="#{menu.aiMonitor.overview}">Overview</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.hcad}">HCAD</a>
+                <a th:href="@{/contexa/admin/ai-monitor/llm(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'llm'} ? ' active' : ''" th:text="#{menu.aiMonitor.llm}">LLM</a>
+                <a th:href="@{/contexa/admin/ai-monitor/correlation(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'correlation'} ? ' active' : ''" th:text="#{menu.aiMonitor.correlation}">Correlation</a>
+                <a th:href="@{/contexa/admin/ai-monitor/failures(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'failures'} ? ' active' : ''" th:text="#{menu.aiMonitor.failures}">Failures</a>
+                <a th:href="@{/contexa/admin/ai-monitor/readiness(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'readiness'} ? ' active' : ''" th:text="#{menu.aiMonitor.readiness}">Readiness</a>
+            </nav>
+
+            <div class="ai-monitor-toolbar">
+                <span class="text-sm" style="color:#94a3b8;" th:text="#{admin.security.hcad.period}">Period</span>
+                <a th:href="${pagePath + '?period=day'}" class="ai-monitor-tab" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
+                <a th:href="${pagePath + '?period=week'}" class="ai-monitor-tab" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
+                <a th:href="${pagePath + '?period=month'}" class="ai-monitor-tab" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
+                <a th:href="${pagePath + '?period=year'}" class="ai-monitor-tab" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
+            </div>
+
+            <div id="ai-monitor-status" class="ai-monitor-band">
+                <div class="ai-monitor-band-title" th:text="#{admin.aiMonitor.status.loading}">Loading AI security monitor metrics</div>
+            </div>
+            <div class="ai-monitor-kpis" id="ai-monitor-kpis"></div>
+            <div class="ai-monitor-grid" id="ai-monitor-details"></div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/js/admin/ai-monitor.js?v=20260619b}"></script>
+</body>
+</html>

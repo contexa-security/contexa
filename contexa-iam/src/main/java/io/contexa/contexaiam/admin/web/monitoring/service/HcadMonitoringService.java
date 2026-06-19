@@ -19,6 +19,7 @@ import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Breakdown;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.CountBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualification;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.RecentEvaluation;
@@ -33,7 +34,8 @@ import java.util.Locale;
 
 public class HcadMonitoringService {
 
-    private static final int BREAKDOWN_LIMIT = 12;
+    private static final int BREAKDOWN_LIMIT = 5;
+    private static final int RECENT_LIMIT = 10;
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final HcadDetectionEvaluationRepository repository;
@@ -61,6 +63,10 @@ public class HcadMonitoringService {
         long observedRequestCount = longValue(repository.sumRequestCountBetween(from, to));
         long triggeredLlmCount = repository.countByTriggeredLlmTrueAndCreatedAtBetween(from, to);
         long duplicateSuppressedCount = longValue(repository.sumDuplicateSuppressedCountBetween(from, to));
+        long eligibleCount = repository.countByEligibleTrueAndCreatedAtBetween(from, to);
+        long notEligibleCount = repository.countByEligibleFalseAndCreatedAtBetween(from, to);
+        long negativeCacheHitCount = longValue(repository.sumNegativeCacheHitCountBetween(from, to));
+        long escalationCount = repository.countEscalationBetween(from, to);
         long tp = repository.countByOutcomeClassAndCreatedAtBetween("TP", from, to);
         long fp = repository.countByOutcomeClassAndCreatedAtBetween("FP", from, to);
         long fn = repository.countByOutcomeClassAndCreatedAtBetween("FN", from, to);
@@ -68,11 +74,13 @@ public class HcadMonitoringService {
         long unknown = repository.countByOutcomeClassAndCreatedAtBetween("UNKNOWN", from, to);
         double precision = precision(tp, fp);
         double unknownRate = ratio(unknown, candidateCount);
+        double triggerRate = ratio(triggeredLlmCount, candidateCount);
         double averageLatency = doubleValue(repository.averageLlmLatencyMsBetween(from, to));
 
         HcadProperties.PreTriggerSettings.QualificationSettings q =
                 hcadProperties.getPreTrigger().getQualification();
         double estimatedWasteCost = fp * q.getEstimatedLlmCallCostUsd();
+        double estimatedSavedCost = duplicateSuppressedCount * q.getEstimatedLlmCallCostUsd();
 
         return new HcadSummary(
                 normalizedPeriod,
@@ -82,17 +90,23 @@ public class HcadMonitoringService {
                 candidateCount,
                 observedRequestCount,
                 triggeredLlmCount,
+                eligibleCount,
+                notEligibleCount,
+                triggerRate,
                 tp,
                 fp,
                 fn,
                 tn,
                 unknown,
                 duplicateSuppressedCount,
+                negativeCacheHitCount,
+                escalationCount,
                 precision,
                 unknownRate,
                 averageLatency,
                 fp,
                 estimatedWasteCost,
+                estimatedSavedCost,
                 new Qualification(
                         q.getShadowMinPrecision(),
                         q.getLimitedEnforceMinPrecision(),
@@ -102,6 +116,10 @@ public class HcadMonitoringService {
                 recommendation(candidateCount, precision, q),
                 modeBreakdown(from, to),
                 signalBreakdown(from, to),
+                countBreakdown(repository.countByScoreBetween(from, to)),
+                countBreakdown(repository.countByBandBetween(from, to)),
+                anchorSignalBreakdown(from, to),
+                corroboratingSignalBreakdown(from, to),
                 resourceBreakdown(from, to),
                 userSessionBreakdown(from, to),
                 recentEvaluations(from, to),
@@ -110,9 +128,36 @@ public class HcadMonitoringService {
 
     @Transactional(readOnly = true)
     public String exportCsv(String period) {
+        return exportCsv(period, Locale.ENGLISH);
+    }
+
+    @Transactional(readOnly = true)
+    public String exportCsv(String period, Locale locale) {
         HcadSummary summary = summarize(period);
+        boolean korean = locale != null && "ko".equalsIgnoreCase(locale.getLanguage());
         StringBuilder csv = new StringBuilder();
-        csv.append("period,from,to,currentMode,candidates,observedRequests,llmCalls,precision,falsePositive,observableFalseNegative,unknown,duplicates,averageLatencyMs,wasteCostUsd,recommendation\n");
+        csv.append(String.join(",",
+                csv(label(korean, "\uAE30\uAC04", "period")),
+                csv(label(korean, "\uC2DC\uC791", "from")),
+                csv(label(korean, "\uC885\uB8CC", "to")),
+                csv(label(korean, "\uD604\uC7AC \uBAA8\uB4DC", "currentMode")),
+                csv(label(korean, "HCAD \uC708\uB3C4\uC6B0", "hcadWindows")),
+                csv(label(korean, "\uAD00\uCE21 \uC694\uCCAD", "observedRequests")),
+                csv(label(korean, "LLM \uD638\uCD9C", "llmCalls")),
+                csv(label(korean, "HCAD \uD3C9\uAC00 \uB300\uC0C1", "hcadEligible")),
+                csv(label(korean, "HCAD \uD3C9\uAC00 \uC81C\uC678", "hcadNotEligible")),
+                csv(label(korean, "\uC870\uAE30\uD0D0\uC9C0 \uBC1C\uC0DD\uB960", "triggerRate")),
+                csv(label(korean, "\uC815\uBC00\uB3C4", "precision")),
+                csv(label(korean, "\uC624\uD0D0", "falsePositive")),
+                csv(label(korean, "\uAD00\uCE21 \uAC00\uB2A5 \uBBF8\uD0D0", "observableFalseNegative")),
+                csv(label(korean, "\uBD88\uBA85\uD655", "unknown")),
+                csv(label(korean, "\uC911\uBCF5 \uC5B5\uC81C", "duplicates")),
+                csv(label(korean, "Negative cache \uC801\uC911", "negativeCacheHit")),
+                csv(label(korean, "\uC2B9\uACA9", "escalation")),
+                csv(label(korean, "\uD3C9\uADE0 \uC9C0\uC5F0(ms)", "averageLatencyMs")),
+                csv(label(korean, "\uB0AD\uBE44 \uBE44\uC6A9", "wasteCostUsd")),
+                csv(label(korean, "\uC808\uAC10 \uBE44\uC6A9", "savedCostUsd")),
+                csv(label(korean, "\uAD8C\uC7A5 \uC0C1\uD0DC", "recommendation")))).append('\n');
         csv.append(csv(summary.period())).append(',')
                 .append(csv(summary.from())).append(',')
                 .append(csv(summary.to())).append(',')
@@ -120,16 +165,37 @@ public class HcadMonitoringService {
                 .append(summary.candidateCount()).append(',')
                 .append(summary.observedRequestCount()).append(',')
                 .append(summary.triggeredLlmCount()).append(',')
+                .append(summary.eligibleCount()).append(',')
+                .append(summary.notEligibleCount()).append(',')
+                .append(summary.triggerRate()).append(',')
                 .append(summary.precision()).append(',')
                 .append(summary.falsePositiveCount()).append(',')
                 .append(summary.observableFalseNegativeCount()).append(',')
                 .append(summary.unknownCount()).append(',')
                 .append(summary.duplicateSuppressedCount()).append(',')
+                .append(summary.negativeCacheHitCount()).append(',')
+                .append(summary.escalationCount()).append(',')
                 .append(summary.averageLlmLatencyMs()).append(',')
                 .append(summary.estimatedWasteCostUsd()).append(',')
+                .append(summary.estimatedSavedCostUsd()).append(',')
                 .append(csv(summary.recommendation())).append('\n');
         csv.append('\n');
-        csv.append("createdAt,userId,method,path,score,band,triggeredLlm,duplicateSuppressed,llmAction,llmRiskScore,llmConfidence,parserFailure,technicalFallback,fallbackCategory,outcome\n");
+        csv.append(String.join(",",
+                csv(label(korean, "\uC0DD\uC131 \uC2DC\uAC01", "createdAt")),
+                csv(label(korean, "\uC0AC\uC6A9\uC790", "userId")),
+                csv(label(korean, "\uBA54\uC11C\uB4DC", "method")),
+                csv(label(korean, "\uACBD\uB85C", "path")),
+                csv(label(korean, "\uC810\uC218", "score")),
+                csv("band"),
+                csv(label(korean, "LLM \uD638\uCD9C", "triggeredLlm")),
+                csv(label(korean, "\uC911\uBCF5 \uC5B5\uC81C", "duplicateSuppressed")),
+                csv(label(korean, "LLM \uC561\uC158", "llmAction")),
+                csv(label(korean, "LLM \uC704\uD5D8 \uC810\uC218", "llmRiskScore")),
+                csv(label(korean, "LLM \uC2E0\uB8B0\uB3C4", "llmConfidence")),
+                csv(label(korean, "\uD30C\uC11C \uC2E4\uD328", "parserFailure")),
+                csv(label(korean, "\uAE30\uC220\uC801 \uB300\uCCB4 \uCC98\uB9AC", "technicalFallback")),
+                csv(label(korean, "\uB300\uCCB4 \uCC98\uB9AC \uBD84\uB958", "fallbackCategory")),
+                csv(label(korean, "\uACB0\uACFC", "outcome")))).append('\n');
         for (RecentEvaluation evaluation : summary.recentEvaluations()) {
             csv.append(csv(evaluation.createdAt())).append(',')
                     .append(csv(evaluation.userId())).append(',')
@@ -158,6 +224,32 @@ public class HcadMonitoringService {
 
     private List<Breakdown> signalBreakdown(LocalDateTime from, LocalDateTime to) {
         return repository.aggregateBySignalBetween(from, to, BREAKDOWN_LIMIT).stream()
+                .map(row -> {
+                    long tp = number(row, 2);
+                    long fp = number(row, 3);
+                    return new Breakdown(text(row, 0), number(row, 1), tp, fp, number(row, 4), precision(tp, fp));
+                })
+                .toList();
+    }
+
+    private List<CountBreakdown> countBreakdown(List<Object[]> rows) {
+        return rows.stream()
+                .map(row -> new CountBreakdown(text(row, 0), number(row, 1)))
+                .toList();
+    }
+
+    private List<Breakdown> anchorSignalBreakdown(LocalDateTime from, LocalDateTime to) {
+        return repository.aggregateByAnchorSignalBetween(from, to, BREAKDOWN_LIMIT).stream()
+                .map(row -> {
+                    long tp = number(row, 2);
+                    long fp = number(row, 3);
+                    return new Breakdown(text(row, 0), number(row, 1), tp, fp, number(row, 4), precision(tp, fp));
+                })
+                .toList();
+    }
+
+    private List<Breakdown> corroboratingSignalBreakdown(LocalDateTime from, LocalDateTime to) {
+        return repository.aggregateByCorroboratingSignalBetween(from, to, BREAKDOWN_LIMIT).stream()
                 .map(row -> {
                     long tp = number(row, 2);
                     long fp = number(row, 3);
@@ -204,12 +296,14 @@ public class HcadMonitoringService {
 
     private List<RecentEvaluation> recentEvaluations(LocalDateTime from, LocalDateTime to) {
         return repository.findTop50ByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
+                .limit(RECENT_LIMIT)
                 .map(this::toRecentEvaluation)
                 .toList();
     }
 
     private List<RecentEvaluation> unknownEvaluations(LocalDateTime from, LocalDateTime to) {
         return repository.findTop25ByOutcomeClassAndCreatedAtBetweenOrderByCreatedAtDesc("UNKNOWN", from, to).stream()
+                .limit(BREAKDOWN_LIMIT)
                 .map(this::toRecentEvaluation)
                 .toList();
     }
@@ -314,5 +408,9 @@ public class HcadMonitoringService {
             return "\"" + text.replace("\"", "\"\"") + "\"";
         }
         return text;
+    }
+
+    private String label(boolean korean, String ko, String en) {
+        return korean ? ko : en;
     }
 }

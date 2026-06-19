@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,20 +46,39 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             context.addMetadata("processingMode", mode);
         }
 
+        ProcessingStrategy strategy;
         try {
-            ProcessingStrategy strategy = selectStrategy(mode);
-            long startTime = System.currentTimeMillis();
+            strategy = selectStrategy(mode);
+        } catch (Exception e) {
+            log.error("[ProcessingExecutionHandler] Error selecting processing strategy for event: {}", event.getEventId(), e);
+            context.markAsFailed("Processing strategy selection error: " + e.getMessage());
+            return false;
+        }
+
+        long startTime = System.currentTimeMillis();
+        try {
             ProcessingResult result = strategy.process(context);
             long executionTime = System.currentTimeMillis() - startTime;
 
             handleProcessingResult(context, result, executionTime);
 
-            return result.isSuccess();
+            return true;
 
         } catch (Exception e) {
+            long executionTime = System.currentTimeMillis() - startTime;
             log.error("[ProcessingExecutionHandler] Error executing processing for event: {}", event.getEventId(), e);
-            context.markAsFailed("Processing execution error: " + e.getMessage());
-            return false;
+            ProcessingResult failedResult = ProcessingResult.builder()
+                    .success(false)
+                    .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
+                    .status(ProcessingResult.ProcessingStatus.FAILED)
+                    .message("Processing execution error: " + e.getMessage())
+                    .errorMessage(e.getMessage())
+                    .processingTimeMs(executionTime)
+                    .processedAt(LocalDateTime.now())
+                    .build();
+            context.addMetadata("processingExceptionType", e.getClass().getName());
+            handleProcessingResult(context, failedResult, executionTime);
+            return true;
         }
     }
 
