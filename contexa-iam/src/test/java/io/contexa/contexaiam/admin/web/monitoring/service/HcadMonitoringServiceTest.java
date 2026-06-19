@@ -69,11 +69,11 @@ class HcadMonitoringServiceTest {
         assertThat(summary.precision()).isEqualTo(0.95d);
         assertThat(summary.estimatedWastedLlmCalls()).isEqualTo(5L);
         assertThat(summary.estimatedWasteCostUsd()).isCloseTo(0.10d, offset(0.0001d));
-        assertThat(summary.recommendation()).isEqualTo("ENFORCE_RECOMMENDED");
+        assertThat(summary.recommendation()).isEqualTo("DEFAULT_ENFORCE_CANDIDATE");
         assertThat(summary.signalBreakdown()).hasSize(1);
         assertThat(summary.resourceBreakdown()).hasSize(1);
         assertThat(summary.userSessionBreakdown()).hasSize(1);
         assertThat(summary.unknownEvaluations()).isEmpty();
-        assertThat(service.exportCsv("week")).contains("currentMode").contains("ENFORCE_RECOMMENDED");
+        assertThat(service.exportCsv("week")).contains("currentMode").contains("DEFAULT_ENFORCE_CANDIDATE");
     }
 }

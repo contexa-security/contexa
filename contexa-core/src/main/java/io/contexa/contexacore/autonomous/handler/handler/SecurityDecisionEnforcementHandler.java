@@ -396,6 +396,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                     result.resolveAuditRiskScore(),
                     result.resolveAuditConfidence(),
                     llmLatencyMs,
+                    result.getReasoning(),
+                    isParserFailure(result),
+                    Boolean.TRUE.equals(result.getTechnicalFallbackApplied()),
+                    result.getTechnicalFallbackCategory(),
+                    result.getTechnicalFallbackReason(),
                     outcomeClass);
             return;
         }
@@ -407,6 +412,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                     result.resolveAuditRiskScore(),
                     result.resolveAuditConfidence(),
                     llmLatencyMs,
+                    result.getReasoning(),
+                    isParserFailure(result),
+                    Boolean.TRUE.equals(result.getTechnicalFallbackApplied()),
+                    result.getTechnicalFallbackCategory(),
+                    result.getTechnicalFallbackReason(),
                     outcomeClass);
         }
     }
@@ -426,6 +436,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                     result != null ? result.resolveAuditRiskScore() : null,
                     result != null ? result.resolveAuditConfidence() : null,
                     llmLatencyMs,
+                    result != null ? result.getReasoning() : null,
+                    isParserFailure(result),
+                    result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()),
+                    result != null ? result.getTechnicalFallbackCategory() : null,
+                    result != null ? result.getTechnicalFallbackReason() : null,
                     HcadOutcomeClassifier.UNKNOWN);
             return;
         }
@@ -437,8 +452,31 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                     result != null ? result.resolveAuditRiskScore() : null,
                     result != null ? result.resolveAuditConfidence() : null,
                     llmLatencyMs,
+                    result != null ? result.getReasoning() : null,
+                    isParserFailure(result),
+                    result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()),
+                    result != null ? result.getTechnicalFallbackCategory() : null,
+                    result != null ? result.getTechnicalFallbackReason() : null,
                     HcadOutcomeClassifier.UNKNOWN);
         }
+    }
+
+    private boolean isParserFailure(ProcessingResult result) {
+        if (result == null) {
+            return false;
+        }
+        return containsParserFailure(result.getTechnicalFallbackCategory())
+                || containsParserFailure(result.getTechnicalFallbackReason())
+                || (Boolean.FALSE.equals(result.getLlmDecisionPresent())
+                        && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()));
+    }
+
+    private boolean containsParserFailure(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase();
+        return normalized.contains("parser") || normalized.contains("parse");
     }
 
     private boolean isHcadTriggeredEvent(SecurityEvent event) {

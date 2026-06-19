@@ -102,7 +102,7 @@ class HCADFilterTest {
                 List.of("FAILED_LOGIN_BURST", "REQUEST_BURST"),
                 "trusted projection",
                 "hcad-promotion-v2-trusted-projection",
-                Map.of("promotionScore", 72, "signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
+                Map.of("earlyAnalysisScore", 72, "signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
 
         when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
         when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
@@ -133,7 +133,7 @@ class HCADFilterTest {
                 List.of("FAILED_LOGIN_BURST", "REQUEST_BURST"),
                 "trusted projection",
                 "hcad-promotion-v2-trusted-projection",
-                Map.of("promotionScore", 72));
+                Map.of("earlyAnalysisScore", 72));
 
         when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
         when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
@@ -164,7 +164,7 @@ class HCADFilterTest {
                 List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST", "RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
                 "trusted projection",
                 "hcad-promotion-v2-trusted-projection",
-                Map.of("promotionScore", 75));
+                Map.of("earlyAnalysisScore", 75));
         when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
         when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
         when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-1");

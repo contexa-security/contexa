@@ -108,6 +108,9 @@ public final class HcadMonitorDtos {
             String llmAction,
             Double llmRiskScore,
             Double llmConfidence,
+            Boolean llmParserFailure,
+            Boolean llmTechnicalFallback,
+            String llmFallbackCategory,
             String outcomeClass,
             String createdAt,
             String decidedAt

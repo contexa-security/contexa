@@ -55,7 +55,7 @@ class PendingAnomalyEvidenceCheckServiceTest {
                         List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE", "REQUEST_BURST"),
                         "promotion triggered",
                         "hcad-promotion-v1",
-                        Map.of("promotionScore", 70, "promotionEligible", true)));
+                        Map.of("earlyAnalysisScore", 70, "earlyAnalysisEligible", true)));
 
         PendingAnomalyEvidenceReport report = service.evaluate(
                 request,
@@ -98,7 +98,7 @@ class PendingAnomalyEvidenceCheckServiceTest {
                         List.of("REQUEST_BURST"),
                         "not eligible",
                         "hcad-promotion-v1",
-                        Map.of("promotionScore", 25, "promotionEligible", false)));
+                        Map.of("earlyAnalysisScore", 25, "earlyAnalysisEligible", false)));
 
         PendingAnomalyEvidenceReport report = service.evaluate(
                 request,

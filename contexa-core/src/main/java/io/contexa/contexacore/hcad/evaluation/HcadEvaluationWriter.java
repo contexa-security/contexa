@@ -25,6 +25,9 @@ import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import org.springframework.jdbc.core.JdbcOperations;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -146,10 +149,42 @@ public class HcadEvaluationWriter {
             Double llmConfidence,
             Long llmLatencyMs,
             String outcomeClass) {
+        markDecided(
+                evaluationId,
+                eventId,
+                llmAction,
+                llmProposedAction,
+                llmRiskScore,
+                llmConfidence,
+                llmLatencyMs,
+                null,
+                false,
+                false,
+                null,
+                null,
+                outcomeClass);
+    }
+
+    public void markDecided(
+            String evaluationId,
+            String eventId,
+            String llmAction,
+            String llmProposedAction,
+            Double llmRiskScore,
+            Double llmConfidence,
+            Long llmLatencyMs,
+            String llmReasoning,
+            boolean llmParserFailure,
+            boolean llmTechnicalFallback,
+            String llmFallbackCategory,
+            String llmFallbackReason,
+            String outcomeClass) {
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
         String resolvedOutcomeClass = outcomeClass == null || outcomeClass.isBlank() ? "UNKNOWN" : outcomeClass;
+        String reasoningSummary = summarize(llmReasoning, 1024);
+        String reasoningHash = sha256(llmReasoning);
         JdbcOperations jdbcOperations = jdbcOperations();
         if (jdbcOperations != null) {
             jdbcOperations.update("""
@@ -160,6 +195,12 @@ public class HcadEvaluationWriter {
                            llm_risk_score = ?,
                            llm_confidence = ?,
                            llm_latency_ms = ?,
+                           llm_reasoning_summary = ?,
+                           llm_reasoning_hash = ?,
+                           llm_parser_failure = ?,
+                           llm_technical_fallback = ?,
+                           llm_fallback_category = ?,
+                           llm_fallback_reason = ?,
                            outcome_class = ?,
                            decided_at = ?
                      WHERE evaluation_id = ?
@@ -170,6 +211,12 @@ public class HcadEvaluationWriter {
                     llmRiskScore,
                     llmConfidence,
                     llmLatencyMs,
+                    reasoningSummary,
+                    reasoningHash,
+                    llmParserFailure,
+                    llmTechnicalFallback,
+                    truncate(llmFallbackCategory, 128),
+                    summarize(llmFallbackReason, 1024),
                     resolvedOutcomeClass,
                     LocalDateTime.now(),
                     evaluationId);
@@ -186,6 +233,12 @@ public class HcadEvaluationWriter {
                 evaluation.setLlmRiskScore(llmRiskScore);
                 evaluation.setLlmConfidence(llmConfidence);
                 evaluation.setLlmLatencyMs(llmLatencyMs);
+                evaluation.setLlmReasoningSummary(reasoningSummary);
+                evaluation.setLlmReasoningHash(reasoningHash);
+                evaluation.setLlmParserFailure(llmParserFailure);
+                evaluation.setLlmTechnicalFallback(llmTechnicalFallback);
+                evaluation.setLlmFallbackCategory(truncate(llmFallbackCategory, 128));
+                evaluation.setLlmFallbackReason(summarize(llmFallbackReason, 1024));
                 evaluation.setOutcomeClass(resolvedOutcomeClass);
                 evaluation.setDecidedAt(LocalDateTime.now());
                 repository.save(evaluation);
@@ -200,6 +253,34 @@ public class HcadEvaluationWriter {
             Double llmRiskScore,
             Double llmConfidence,
             Long llmLatencyMs,
+            String outcomeClass) {
+        return recordObservedDecision(
+                event,
+                llmAction,
+                llmProposedAction,
+                llmRiskScore,
+                llmConfidence,
+                llmLatencyMs,
+                null,
+                false,
+                false,
+                null,
+                null,
+                outcomeClass);
+    }
+
+    public String recordObservedDecision(
+            SecurityEvent event,
+            String llmAction,
+            String llmProposedAction,
+            Double llmRiskScore,
+            Double llmConfidence,
+            Long llmLatencyMs,
+            String llmReasoning,
+            boolean llmParserFailure,
+            boolean llmTechnicalFallback,
+            String llmFallbackCategory,
+            String llmFallbackReason,
             String outcomeClass) {
         Map<String, Object> metadata = event != null && event.getMetadata() != null
                 ? event.getMetadata()
@@ -236,6 +317,12 @@ public class HcadEvaluationWriter {
                 .llmRiskScore(llmRiskScore)
                 .llmConfidence(llmConfidence)
                 .llmLatencyMs(llmLatencyMs)
+                .llmReasoningSummary(summarize(llmReasoning, 1024))
+                .llmReasoningHash(sha256(llmReasoning))
+                .llmParserFailure(llmParserFailure)
+                .llmTechnicalFallback(llmTechnicalFallback)
+                .llmFallbackCategory(truncate(llmFallbackCategory, 128))
+                .llmFallbackReason(summarize(llmFallbackReason, 1024))
                 .outcomeClass(outcomeClass == null || outcomeClass.isBlank() ? HcadOutcomeClassifier.UNKNOWN : outcomeClass)
                 .createdAt(now)
                 .decidedAt(now)
@@ -277,12 +364,18 @@ public class HcadEvaluationWriter {
                         llm_risk_score,
                         llm_confidence,
                         llm_latency_ms,
+                        llm_reasoning_summary,
+                        llm_reasoning_hash,
+                        llm_parser_failure,
+                        llm_technical_fallback,
+                        llm_fallback_category,
+                        llm_fallback_reason,
                         outcome_class,
                         created_at,
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
@@ -310,6 +403,12 @@ public class HcadEvaluationWriter {
                     evaluation.getLlmRiskScore(),
                     evaluation.getLlmConfidence(),
                     evaluation.getLlmLatencyMs(),
+                    evaluation.getLlmReasoningSummary(),
+                    evaluation.getLlmReasoningHash(),
+                    boolDefault(evaluation.getLlmParserFailure(), false),
+                    boolDefault(evaluation.getLlmTechnicalFallback(), false),
+                    evaluation.getLlmFallbackCategory(),
+                    evaluation.getLlmFallbackReason(),
                     blankToDefault(evaluation.getOutcomeClass(), "UNKNOWN"),
                     evaluation.getCreatedAt() == null ? LocalDateTime.now() : evaluation.getCreatedAt(),
                     evaluation.getTriggeredAt(),
@@ -405,5 +504,40 @@ public class HcadEvaluationWriter {
 
     private String sanitize(String value) {
         return value == null ? "" : value.replace("\"", "");
+    }
+
+    private String summarize(String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return truncate(value.trim(), maxLength);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.trim();
+        if (maxLength <= 0 || text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength);
+    }
+
+    private String sha256(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            return null;
+        }
     }
 }

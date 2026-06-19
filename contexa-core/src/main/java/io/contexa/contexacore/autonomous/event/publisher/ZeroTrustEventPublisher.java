@@ -164,6 +164,7 @@ public class ZeroTrustEventPublisher {
             log.debug("[ZeroTrustEventPublisher] Suppressing same-request METHOD authorization event after pre-trigger analysis start");
             return;
         }
+        markProtectableAnalysisStarted();
         ZeroTrustSpringEvent event = buildMethodAuthorizationEvent(
                 methodInvocation,
                 authentication,
@@ -420,6 +421,17 @@ public class ZeroTrustEventPublisher {
         } catch (Exception e) {
             log.error("Failed to resolve pre-trigger suppression state", e);
             return false;
+        }
+    }
+
+    private void markProtectableAnalysisStarted() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                attrs.getRequest().setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED, true);
+            }
+        } catch (Exception e) {
+            log.error("Failed to mark Protectable analysis lifecycle state", e);
         }
     }
 

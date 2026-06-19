@@ -116,6 +116,26 @@ class PendingAnomalyEligibilityGateTest {
     }
 
     @Test
+    @DisplayName("client supplied user header should not influence HCAD eligibility identity")
+    void evaluate_clientUserHeader_shouldUseAuthenticationPrincipal() {
+        MockHttpServletRequest request = baseRequest("ignored", "/api/reports");
+        request.addHeader("X-Contexa-User-Id", "attacker");
+        HcadPreProtectablePromotionRequestProjector.project(
+                request,
+                eligibleAssessment(70, List.of("IMPOSSIBLE_TRAVEL"), List.of("REQUEST_BURST")));
+
+        when(actionRepository.getCurrentAction(eq("alice"), any())).thenReturn(ZeroTrustAction.ALLOW);
+        when(analysisTriggerStateRepository.isNegativeCached(anyString())).thenReturn(false);
+
+        PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(
+                request,
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
+
+        assertThat(eligibility).isNotNull();
+        assertThat(eligibility.userId()).isEqualTo("alice");
+    }
+
+    @Test
     @DisplayName("active challenge users should be ignored by the eligibility gate")
     void evaluate_activeChallenge_shouldReturnNull() {
         MockHttpServletRequest challengeRequest = baseRequest("mallory", "/api/reports");
@@ -202,6 +222,6 @@ class PendingAnomalyEligibilityGateTest {
                 anchors,
                 "eligible assessment",
                 "hcad-promotion-v1",
-                Map.of("promotionScore", score));
+                Map.of("earlyAnalysisScore", score));
     }
 }

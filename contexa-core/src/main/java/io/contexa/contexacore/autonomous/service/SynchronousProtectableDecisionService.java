@@ -71,6 +71,7 @@ public class SynchronousProtectableDecisionService {
                 true,
                 null
         );
+        markProtectableAnalysisStarted();
 
         String userId = event.getUserId();
         String contextBindingHash = zeroTrustEventListener.generateAuthorizationContextBindingHash(event);
@@ -128,6 +129,17 @@ public class SynchronousProtectableDecisionService {
             return Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED));
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private void markProtectableAnalysisStarted() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                attrs.getRequest().setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED, true);
+            }
+        } catch (Exception e) {
+            // Best effort only. Distributed suppression still uses the shared state repository.
         }
     }
 

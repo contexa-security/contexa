@@ -84,6 +84,12 @@ public class PendingAnomalyTriggerOrchestrator {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
         }
 
+        if (protectableAnalysisAlreadyStarted(request)) {
+            markDuplicateSuppressed(evaluationId);
+            markRequestSuppressed(request, report, report.triggerStateKey(), evaluationId);
+            return;
+        }
+
         if (!mode.publishesLlmEvent()) {
             log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger observe mode matched but LLM publication is disabled");
             return;
@@ -174,5 +180,10 @@ public class PendingAnomalyTriggerOrchestrator {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_RISK_SIGNATURE, report.riskSignature());
             }
         }
+    }
+
+    private boolean protectableAnalysisAlreadyStarted(HttpServletRequest request) {
+        return request != null
+                && Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED));
     }
 }

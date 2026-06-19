@@ -123,6 +123,26 @@ public class HcadDetectionEvaluation {
     @Column(name = "llm_latency_ms")
     private Long llmLatencyMs;
 
+    @Column(name = "llm_reasoning_summary", length = 1024)
+    private String llmReasoningSummary;
+
+    @Column(name = "llm_reasoning_hash", length = 64)
+    private String llmReasoningHash;
+
+    @Column(name = "llm_parser_failure", nullable = false)
+    @Builder.Default
+    private Boolean llmParserFailure = false;
+
+    @Column(name = "llm_technical_fallback", nullable = false)
+    @Builder.Default
+    private Boolean llmTechnicalFallback = false;
+
+    @Column(name = "llm_fallback_category", length = 128)
+    private String llmFallbackCategory;
+
+    @Column(name = "llm_fallback_reason", length = 1024)
+    private String llmFallbackReason;
+
     @Column(name = "outcome_class", nullable = false, length = 32)
     @Builder.Default
     private String outcomeClass = "UNKNOWN";
@@ -149,6 +169,12 @@ public class HcadDetectionEvaluation {
         }
         if (duplicateSuppressed == null) {
             duplicateSuppressed = false;
+        }
+        if (llmParserFailure == null) {
+            llmParserFailure = false;
+        }
+        if (llmTechnicalFallback == null) {
+            llmTechnicalFallback = false;
         }
         if (outcomeClass == null || outcomeClass.isBlank()) {
             outcomeClass = "UNKNOWN";

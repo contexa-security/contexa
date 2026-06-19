@@ -223,6 +223,6 @@ class PendingAnomalyTriggerOrchestratorTest {
                 List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
                 "redline candidate",
                 "risk-1",
-                Map.of("promotionScore", 72));
+                Map.of("earlyAnalysisScore", 72));
     }
 }

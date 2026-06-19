@@ -17,7 +17,6 @@ package io.contexa.contexacore.hcad.trigger;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
-import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestResolver;
@@ -49,15 +48,15 @@ public class PendingAnomalyEligibilityGate {
             return null;
         }
 
-        String userId = firstText(
-                OfficialVerificationRequestContext.resolveUserId(request),
-                authentication.getName());
-        if (!StringUtils.hasText(userId)) {
+        HcadPreProtectablePromotionAssessment assessment = HcadPreProtectablePromotionRequestResolver.resolve(request);
+        if (assessment.rawSignalSnapshot().isEmpty()) {
             return null;
         }
 
-        HcadPreProtectablePromotionAssessment assessment = HcadPreProtectablePromotionRequestResolver.resolve(request);
-        if (assessment.rawSignalSnapshot().isEmpty()) {
+        String userId = firstText(
+                assessment.rawSignalSnapshot().get("userId"),
+                authentication.getName());
+        if (!StringUtils.hasText(userId)) {
             return null;
         }
 
@@ -79,13 +78,17 @@ public class PendingAnomalyEligibilityGate {
         return new PendingAnomalyEligibility(userId, contextBindingHash, baseKey);
     }
 
-    private String firstText(String... values) {
+    private String firstText(Object... values) {
         if (values == null) {
             return null;
         }
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value;
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            String text = value.toString();
+            if (StringUtils.hasText(text)) {
+                return text.trim();
             }
         }
         return null;

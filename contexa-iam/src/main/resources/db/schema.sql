@@ -1,4 +1,4 @@
-﻿create extension if not exists vector;
+create extension if not exists vector;
 
 create table users
 (
@@ -42,8 +42,6 @@ create table users
     external_auth_only    boolean      default false             not null
 );
 
-alter table users
-    owner to contexa_sim;
 
 create index idx_users_email
     on users (email);
@@ -67,8 +65,6 @@ create table app_group
     created_by  varchar(100)
 );
 
-alter table app_group
-    owner to contexa_sim;
 
 create table role
 (
@@ -85,8 +81,6 @@ create table role
     is_expression varchar(255)
 );
 
-alter table role
-    owner to contexa_sim;
 
 create table managed_resource
 (
@@ -109,8 +103,6 @@ create table managed_resource
     available_context_variables varchar(1024)
 );
 
-alter table managed_resource
-    owner to contexa_sim;
 
 create table permission
 (
@@ -132,8 +124,6 @@ create table permission
     updated_at           timestamp(6)
 );
 
-alter table permission
-    owner to contexa_sim;
 
 create table user_groups
 (
@@ -148,8 +138,6 @@ create table user_groups
     primary key (user_id, group_id)
 );
 
-alter table user_groups
-    owner to contexa_sim;
 
 create table group_roles
 (
@@ -164,8 +152,6 @@ create table group_roles
     primary key (group_id, role_id)
 );
 
-alter table group_roles
-    owner to contexa_sim;
 
 create table role_permissions
 (
@@ -180,8 +166,6 @@ create table role_permissions
     primary key (role_id, permission_id)
 );
 
-alter table role_permissions
-    owner to contexa_sim;
 
 create table policy
 (
@@ -211,8 +195,6 @@ create table policy
     reasoning            varchar(4096)
 );
 
-alter table policy
-    owner to contexa_sim;
 
 create table policy_target
 (
@@ -228,8 +210,6 @@ create table policy_target
     source_type       varchar(20) default 'RESOURCE'::character varying
 );
 
-alter table policy_target
-    owner to contexa_sim;
 
 create table policy_rule
 (
@@ -241,8 +221,6 @@ create table policy_rule
     description varchar(255)
 );
 
-alter table policy_rule
-    owner to contexa_sim;
 
 create table policy_condition
 (
@@ -256,8 +234,6 @@ create table policy_condition
     description          varchar(255)
 );
 
-alter table policy_condition
-    owner to contexa_sim;
 
 create table role_hierarchy_config
 (
@@ -269,8 +245,6 @@ create table role_hierarchy_config
     is_active        boolean default false not null
 );
 
-alter table role_hierarchy_config
-    owner to contexa_sim;
 
 create table audit_log
 (
@@ -298,8 +272,6 @@ create table audit_log
     status              varchar(255)
 );
 
-alter table audit_log
-    owner to contexa_sim;
 
 create table business_resource
 (
@@ -311,8 +283,6 @@ create table business_resource
     description   varchar(1024)
 );
 
-alter table business_resource
-    owner to contexa_sim;
 
 create table business_action
 (
@@ -324,8 +294,6 @@ create table business_action
     description varchar(1024)
 );
 
-alter table business_action
-    owner to contexa_sim;
 
 create table business_resource_action
 (
@@ -339,8 +307,6 @@ create table business_resource_action
     primary key (business_resource_id, business_action_id)
 );
 
-alter table business_resource_action
-    owner to contexa_sim;
 
 create table condition_template
 (
@@ -368,8 +334,6 @@ create table condition_template
     context_dependent    boolean
 );
 
-alter table condition_template
-    owner to contexa_sim;
 
 create table wizard_session
 (
@@ -381,8 +345,6 @@ create table wizard_session
     expires_at    timestamp(6) not null
 );
 
-alter table wizard_session
-    owner to contexa_sim;
 
 create table function_group
 (
@@ -392,8 +354,6 @@ create table function_group
         unique
 );
 
-alter table function_group
-    owner to contexa_sim;
 
 create table function_catalog
 (
@@ -412,8 +372,6 @@ create table function_catalog
         references managed_resource
 );
 
-alter table function_catalog
-    owner to contexa_sim;
 
 create table policy_template
 (
@@ -427,8 +385,6 @@ create table policy_template
         unique
 );
 
-alter table policy_template
-    owner to contexa_sim;
 
 create table vector_store
 (
@@ -439,8 +395,6 @@ create table vector_store
     embedding vector(1024)
 );
 
-alter table vector_store
-    owner to contexa_sim;
 
 create index vector_store_embedding_idx
     on vector_store using hnsw (embedding vector_cosine_ops);
@@ -465,8 +419,6 @@ create table user_behavior_profiles
     vector_cluster_id       varchar(100)
 );
 
-alter table user_behavior_profiles
-    owner to contexa_sim;
 
 create table soar_incidents
 (
@@ -487,8 +439,6 @@ create table soar_incidents
     type        varchar(50)
 );
 
-alter table soar_incidents
-    owner to contexa_sim;
 
 create table soar_approval_policies
 (
@@ -504,8 +454,6 @@ create table soar_approval_policies
     timeout_minutes         integer      not null
 );
 
-alter table soar_approval_policies
-    owner to contexa_sim;
 
 create table soar_approval_requests
 (
@@ -547,8 +495,6 @@ create table soar_approval_requests
     break_glass_reason       text
 );
 
-alter table soar_approval_requests
-    owner to contexa_sim;
 
 create table soar_approval_steps
 (
@@ -571,8 +517,6 @@ create table soar_approval_steps
         unique (request_id, step_number)
 );
 
-alter table soar_approval_steps
-    owner to contexa_sim;
 
 create index idx_soar_approval_step_request_id
     on soar_approval_steps (request_id);
@@ -598,8 +542,6 @@ create table soar_approval_assignments
     updated_at        timestamp(6) not null
 );
 
-alter table soar_approval_assignments
-    owner to contexa_sim;
 
 create index idx_soar_approval_assignment_request_id
     on soar_approval_assignments (request_id);
@@ -627,8 +569,6 @@ create table soar_approval_votes
         unique (request_id, approver_id, step_number)
 );
 
-alter table soar_approval_votes
-    owner to contexa_sim;
 
 create index idx_soar_approval_vote_request_id
     on soar_approval_votes (request_id);
@@ -662,8 +602,6 @@ create table approval_notifications
     user_id           varchar(100)
 );
 
-alter table approval_notifications
-    owner to contexa_sim;
 
 create index idx_notification_request_id
     on approval_notifications (request_id);
@@ -719,8 +657,6 @@ create table threat_indicators
     indicator_value      varchar(1024) not null
 );
 
-alter table threat_indicators
-    owner to contexa_sim;
 
 create table indicator_metadata
 (
@@ -731,8 +667,6 @@ create table indicator_metadata
     primary key (indicator_id, meta_key)
 );
 
-alter table indicator_metadata
-    owner to contexa_sim;
 
 create table indicator_tags
 (
@@ -741,8 +675,6 @@ create table indicator_tags
     tag          varchar(255)
 );
 
-alter table indicator_tags
-    owner to contexa_sim;
 
 create table related_indicators
 (
@@ -753,8 +685,6 @@ create table related_indicators
     primary key (indicator_id, related_indicator_id)
 );
 
-alter table related_indicators
-    owner to contexa_sim;
 
 create table blocked_user
 (
@@ -785,8 +715,6 @@ create table blocked_user
     mfa_verified_at      timestamp(6)
 );
 
-alter table blocked_user
-    owner to contexa_sim;
 
 create table oauth2_authorization
 (
@@ -826,8 +754,6 @@ create table oauth2_authorization
     device_code_metadata          text
 );
 
-alter table oauth2_authorization
-    owner to contexa_sim;
 
 create index idx_oauth2_authorization_registered_client_id
     on oauth2_authorization (registered_client_id);
@@ -853,8 +779,6 @@ create table oauth2_registered_client
     token_settings                varchar(2000)                       not null
 );
 
-alter table oauth2_registered_client
-    owner to contexa_sim;
 
 create unique index idx_oauth2_registered_client_client_id
     on oauth2_registered_client (client_id);
@@ -878,8 +802,6 @@ create table user_credentials
     label                        varchar(1000) not null
 );
 
-alter table user_credentials
-    owner to contexa_sim;
 
 create table user_entities
 (
@@ -889,8 +811,6 @@ create table user_entities
     display_name varchar(200)
 );
 
-alter table user_entities
-    owner to contexa_sim;
 
 create table one_time_tokens
 (
@@ -900,8 +820,6 @@ create table one_time_tokens
     expires_at  timestamp   not null
 );
 
-alter table one_time_tokens
-    owner to contexa_sim;
 
 create table oauth2_authorization_consent
 (
@@ -912,8 +830,6 @@ create table oauth2_authorization_consent
     primary key (registered_client_id, principal_name)
 );
 
-alter table oauth2_authorization_consent
-    owner to contexa_sim;
 
 create table baseline_signal_outbox
 (
@@ -939,8 +855,6 @@ create table baseline_signal_outbox
     user_baseline_count                bigint       not null
 );
 
-alter table baseline_signal_outbox
-    owner to contexa_sim;
 
 create index idx_baseline_signal_outbox_dispatch
     on baseline_signal_outbox (status, next_attempt_at, period_start);
@@ -964,8 +878,6 @@ create table decision_feedback_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table decision_feedback_forwarding_outbox
-    owner to contexa_sim;
 
 create index idx_decision_feedback_forwarding_outbox_dispatch
     on decision_feedback_forwarding_outbox (status, next_attempt_at, created_at);
@@ -996,8 +908,6 @@ create table model_performance_telemetry_outbox
     updated_at                    timestamp(6) not null
 );
 
-alter table model_performance_telemetry_outbox
-    owner to contexa_sim;
 
 create index idx_model_performance_telemetry_outbox_dispatch
     on model_performance_telemetry_outbox (status, next_attempt_at, period);
@@ -1021,8 +931,6 @@ create table prompt_context_audit_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table prompt_context_audit_forwarding_outbox
-    owner to contexa_sim;
 
 create index idx_prompt_context_audit_forwarding_outbox_dispatch
     on prompt_context_audit_forwarding_outbox (status, next_attempt_at, created_at);
@@ -1045,8 +953,6 @@ create table security_decision_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table security_decision_forwarding_outbox
-    owner to contexa_sim;
 
 create index idx_security_decision_forwarding_outbox_dispatch
     on security_decision_forwarding_outbox (status, next_attempt_at, created_at);
@@ -1070,8 +976,6 @@ create table threat_outcome_forwarding_outbox
     updated_at          timestamp(6) not null
 );
 
-alter table threat_outcome_forwarding_outbox
-    owner to contexa_sim;
 
 create index idx_threat_outcome_forwarding_outbox_dispatch
     on threat_outcome_forwarding_outbox (status, next_attempt_at, created_at);
@@ -1089,8 +993,6 @@ create table user_roles
     primary key (role_id, user_id)
 );
 
-alter table user_roles
-    owner to contexa_sim;
 
 create table password_policy
 (
@@ -1112,8 +1014,6 @@ create table password_policy
     ip_window_minutes        integer default 15 not null
 );
 
-alter table password_policy
-    owner to contexa_sim;
 
 create table behavior_anomaly_events
 (
@@ -1137,8 +1037,6 @@ create table behavior_anomaly_events
     user_id            varchar(255)     not null
 );
 
-alter table behavior_anomaly_events
-    owner to contexa_sim;
 
 create table behavior_based_permissions
 (
@@ -1154,8 +1052,6 @@ create table behavior_based_permissions
     priority              integer
 );
 
-alter table behavior_based_permissions
-    owner to contexa_sim;
 
 create table behavior_realtime_cache
 (
@@ -1171,8 +1067,6 @@ create table behavior_realtime_cache
     session_start_time      timestamp(6)
 );
 
-alter table behavior_realtime_cache
-    owner to contexa_sim;
 
 create table bridge_user_profile
 (
@@ -1193,8 +1087,6 @@ create table bridge_user_profile
     updated_at                  timestamp(6)
 );
 
-alter table bridge_user_profile
-    owner to contexa_sim;
 
 create table active_sessions
 (
@@ -1209,8 +1101,6 @@ create table active_sessions
     username         varchar(255)
 );
 
-alter table active_sessions
-    owner to contexa_sim;
 
 create index idx_session_user_id
     on active_sessions (user_id);
@@ -1234,8 +1124,6 @@ create table ip_access_rules
                    (ARRAY [('ALLOW'::character varying)::text, ('DENY'::character varying)::text]))
 );
 
-alter table ip_access_rules
-    owner to contexa_sim;
 
 create index idx_ip_rule_type
     on ip_access_rules (rule_type);
@@ -1258,8 +1146,6 @@ create table security_spel
     created_at  timestamp default now()
 );
 
-alter table security_spel
-    owner to contexa_sim;
 
 create table admin_menu
 (
@@ -1275,8 +1161,6 @@ create table admin_menu
     url        varchar(255)
 );
 
-alter table admin_menu
-    owner to contexa_sim;
 
 create unique index ux_admin_menu_data_page
     on admin_menu (data_page)
@@ -1292,8 +1176,6 @@ create table admin_menu_role
     unique (menu_id, role_name)
 );
 
-alter table admin_menu_role
-    owner to contexa_sim;
 
 create table group_role_permissions
 (
@@ -1308,8 +1190,6 @@ create table group_role_permissions
     primary key (group_id, role_id, permission_id)
 );
 
-alter table group_role_permissions
-    owner to contexa_sim;
 
 create table user_role_permissions
 (
@@ -1324,8 +1204,6 @@ create table user_role_permissions
     primary key (user_id, role_id, permission_id)
 );
 
-alter table user_role_permissions
-    owner to contexa_sim;
 
 create table password_history
 (
@@ -1336,8 +1214,6 @@ create table password_history
     changed_at    timestamp(6) not null
 );
 
-alter table password_history
-    owner to contexa_sim;
 
 create table policy_version
 (
@@ -1355,8 +1231,6 @@ create table policy_version
     snapshot_json  text         not null
 );
 
-alter table policy_version
-    owner to contexa_sim;
 
 create index idx_policy_version_changed_at
     on policy_version (changed_at);
@@ -1376,8 +1250,6 @@ create table system_settings
     updated_at                 timestamp(6)
 );
 
-alter table system_settings
-    owner to contexa_sim;
 
 create table learning_artifact_registry
 (
@@ -1406,8 +1278,6 @@ create table learning_artifact_registry
         unique (tenant_id, artifact_type, artifact_key)
 );
 
-alter table learning_artifact_registry
-    owner to contexa_sim;
 
 create index idx_learning_artifact_registry_tenant_updated
     on learning_artifact_registry (tenant_id, updated_at);
@@ -1438,8 +1308,6 @@ create table learning_artifact_release_ledger
     facts_json            text
 );
 
-alter table learning_artifact_release_ledger
-    owner to contexa_sim;
 
 create index idx_learning_artifact_ledger_identity
     on learning_artifact_release_ledger (tenant_id, artifact_type, artifact_key, created_at);
@@ -1461,8 +1329,6 @@ create table learning_governance_snapshot
         unique (tenant_id, artifact_type)
 );
 
-alter table learning_governance_snapshot
-    owner to contexa_sim;
 
 create index idx_learning_governance_snapshot_tenant_updated
     on learning_governance_snapshot (tenant_id, updated_at);
@@ -1501,8 +1367,6 @@ CREATE TABLE IF NOT EXISTS sealed_evidence_package (
     CONSTRAINT uq_sealed_evidence_package_package_id UNIQUE (package_id)
 );
 
-alter table sealed_evidence_package
-    owner to contexa_sim;
 
 create unique index if not exists idx_sep_correlation_id
     on sealed_evidence_package (correlation_id);
@@ -1530,8 +1394,6 @@ create table login_attempt_ip
     window_start_at timestamp(6) not null
 );
 
-alter table login_attempt_ip
-    owner to contexa_sim;
 
 create index idx_login_attempt_ip_window
     on login_attempt_ip (window_start_at);
@@ -1562,11 +1424,25 @@ CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
     llm_risk_score DOUBLE PRECISION,
     llm_confidence DOUBLE PRECISION,
     llm_latency_ms BIGINT,
+    llm_reasoning_summary VARCHAR(1024),
+    llm_reasoning_hash VARCHAR(64),
+    llm_parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    llm_technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
+    llm_fallback_category VARCHAR(128),
+    llm_fallback_reason VARCHAR(1024),
     outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     triggered_at TIMESTAMP(6),
     decided_at TIMESTAMP(6)
 );
+
+ALTER TABLE hcad_detection_evaluation
+    ADD COLUMN IF NOT EXISTS llm_reasoning_summary VARCHAR(1024),
+    ADD COLUMN IF NOT EXISTS llm_reasoning_hash VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS llm_parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS llm_technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS llm_fallback_category VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS llm_fallback_reason VARCHAR(1024);
 
 CREATE INDEX IF NOT EXISTS idx_hcad_eval_mode_created
     ON hcad_detection_evaluation (mode, created_at);
@@ -1592,8 +1468,6 @@ create table shedlock
     locked_by  varchar(255) not null
 );
 
-alter table shedlock
-    owner to contexa_sim;
 
 -- ----------------------------------------------------------------
 

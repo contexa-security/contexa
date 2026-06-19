@@ -422,6 +422,11 @@ class SecurityDecisionEnforcementHandlerTest {
                 eq(0.12d),
                 eq(0.91d),
                 eq(88L),
+                eq(null),
+                eq(false),
+                eq(false),
+                eq(null),
+                eq(null),
                 eq("TP"));
     }
 
@@ -475,6 +480,11 @@ class SecurityDecisionEnforcementHandlerTest {
                 eq(0.91d),
                 eq(0.87d),
                 eq(140L),
+                eq(null),
+                eq(false),
+                eq(false),
+                eq(null),
+                eq(null),
                 eq("FN"));
     }
 
@@ -521,6 +531,11 @@ class SecurityDecisionEnforcementHandlerTest {
                 eq(null),
                 eq(null),
                 eq(17L),
+                eq(null),
+                eq(true),
+                eq(true),
+                eq(null),
+                eq(null),
                 eq("UNKNOWN"));
     }
 }

@@ -120,7 +120,7 @@
                 <td>${escapeHtml(formatDate(item.createdAt))}</td>
                 <td>${escapeHtml(item.userId || '-')}</td>
                 <td>${escapeHtml(`${item.method || ''} ${item.path || '-'}`.trim())}</td>
-                <td>${escapeHtml(item.llmAction || (item.triggeredLlm ? 'pending' : '-'))}</td>
+                <td>${escapeHtml(unknownCause(item))}</td>
                 <td>${escapeHtml(item.earlyAnalysisScore == null ? '-' : `${item.earlyAnalysisScore} / ${item.band || '-'}`)}</td>
             </tr>`).join('');
     }
@@ -138,16 +138,28 @@
                 <td>${escapeHtml(item.method || '-')}</td>
                 <td>${escapeHtml(item.path || '-')}</td>
                 <td>${escapeHtml(item.earlyAnalysisScore == null ? '-' : `${item.earlyAnalysisScore} / ${item.band || '-'}`)}</td>
-                <td>${escapeHtml(item.llmAction || (item.triggeredLlm ? 'pending' : '-'))}</td>
+                <td>${escapeHtml(decisionSummary(item))}</td>
                 <td><span class="hcad-status ${outcomeTone(item.outcomeClass)}">${escapeHtml(item.outcomeClass || 'UNKNOWN')}</span></td>
             </tr>`).join('');
     }
 
     function recommendationTone(value) {
-        if (value === 'ENFORCE_RECOMMENDED') return 'good';
-        if (value === 'LIMITED_ENFORCE_REVIEW' || value === 'KEEP_SHADOW_AND_OBSERVE') return 'warn';
-        if (value === 'KEEP_SHADOW_REQUIRED') return 'bad';
+        if (value === 'DEFAULT_ENFORCE_CANDIDATE') return 'good';
+        if (value === 'LIMITED_ENFORCE_CANDIDATE' || value === 'SHADOW_STABLE') return 'warn';
+        if (value === 'KEEP_SHADOW') return 'bad';
         return 'info';
+    }
+
+    function decisionSummary(item) {
+        if (item.llmParserFailure) return `${item.llmAction || 'UNKNOWN'} / parser`;
+        if (item.llmTechnicalFallback) return `${item.llmAction || 'UNKNOWN'} / fallback`;
+        return item.llmAction || (item.triggeredLlm ? 'pending' : '-');
+    }
+
+    function unknownCause(item) {
+        if (item.llmParserFailure) return `parser ${item.llmFallbackCategory || ''}`.trim();
+        if (item.llmTechnicalFallback) return `fallback ${item.llmFallbackCategory || ''}`.trim();
+        return item.llmAction || (item.triggeredLlm ? 'pending' : '-');
     }
 
     function outcomeTone(value) {

@@ -104,10 +104,9 @@ public class HcadPreProtectablePromotionScorer {
 
         rawSignals.put("earlyAnalysisScore", score);
         rawSignals.put("preTriggerScore", score);
-        rawSignals.put("promotionScore", score);
-        rawSignals.put("promotionBand", band.serializedValue());
-        rawSignals.put("promotionEligible", eligible);
-        rawSignals.put("promotionVersion", "hcad-promotion-v2-trusted-projection");
+        rawSignals.put("earlyAnalysisBand", band.serializedValue());
+        rawSignals.put("earlyAnalysisEligible", eligible);
+        rawSignals.put("earlyAnalysisVersion", "hcad-early-analysis-v2-trusted-projection");
         rawSignals.put("signalProvenanceSummary", summarizeProvenance(projection));
 
         return new HcadPreProtectablePromotionAssessment(
@@ -118,7 +117,7 @@ public class HcadPreProtectablePromotionScorer {
                 corroboratingSignals,
                 reasonCodes,
                 summary,
-                "hcad-promotion-v2-trusted-projection",
+                "hcad-early-analysis-v2-trusted-projection",
                 rawSignals);
     }
 

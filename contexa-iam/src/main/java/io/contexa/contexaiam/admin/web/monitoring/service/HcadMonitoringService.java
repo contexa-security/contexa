@@ -126,7 +126,7 @@ public class HcadMonitoringService {
                 .append(summary.estimatedWasteCostUsd()).append(',')
                 .append(csv(summary.recommendation())).append('\n');
         csv.append('\n');
-        csv.append("createdAt,userId,method,path,score,band,triggeredLlm,duplicateSuppressed,llmAction,llmRiskScore,llmConfidence,outcome\n");
+        csv.append("createdAt,userId,method,path,score,band,triggeredLlm,duplicateSuppressed,llmAction,llmRiskScore,llmConfidence,parserFailure,technicalFallback,fallbackCategory,outcome\n");
         for (RecentEvaluation evaluation : summary.recentEvaluations()) {
             csv.append(csv(evaluation.createdAt())).append(',')
                     .append(csv(evaluation.userId())).append(',')
@@ -139,6 +139,9 @@ public class HcadMonitoringService {
                     .append(csv(evaluation.llmAction())).append(',')
                     .append(evaluation.llmRiskScore() == null ? "" : evaluation.llmRiskScore()).append(',')
                     .append(evaluation.llmConfidence() == null ? "" : evaluation.llmConfidence()).append(',')
+                    .append(evaluation.llmParserFailure() == null ? "" : evaluation.llmParserFailure()).append(',')
+                    .append(evaluation.llmTechnicalFallback() == null ? "" : evaluation.llmTechnicalFallback()).append(',')
+                    .append(csv(evaluation.llmFallbackCategory())).append(',')
                     .append(csv(evaluation.outcomeClass())).append('\n');
         }
         return csv.toString();
@@ -223,6 +226,9 @@ public class HcadMonitoringService {
                 evaluation.getLlmAction(),
                 evaluation.getLlmRiskScore(),
                 evaluation.getLlmConfidence(),
+                evaluation.getLlmParserFailure(),
+                evaluation.getLlmTechnicalFallback(),
+                evaluation.getLlmFallbackCategory(),
                 evaluation.getOutcomeClass(),
                 format(evaluation.getCreatedAt()),
                 format(evaluation.getDecidedAt()));
@@ -236,15 +242,15 @@ public class HcadMonitoringService {
             return "INSUFFICIENT_SAMPLE";
         }
         if (precision >= qualification.getDefaultEnforceMinPrecision()) {
-            return "ENFORCE_RECOMMENDED";
+            return "DEFAULT_ENFORCE_CANDIDATE";
         }
         if (precision >= qualification.getLimitedEnforceMinPrecision()) {
-            return "LIMITED_ENFORCE_REVIEW";
+            return "LIMITED_ENFORCE_CANDIDATE";
         }
         if (precision >= qualification.getShadowMinPrecision()) {
-            return "KEEP_SHADOW_AND_OBSERVE";
+            return "SHADOW_STABLE";
         }
-        return "KEEP_SHADOW_REQUIRED";
+        return "KEEP_SHADOW";
     }
 
     private String normalizePeriod(String period) {
