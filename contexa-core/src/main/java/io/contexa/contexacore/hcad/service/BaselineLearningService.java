@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatu
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
@@ -102,7 +103,7 @@ public class BaselineLearningService {
             return current;
         }
         String uaSignatureForValidation = extractUASignature(currentUserAgent);
-        if ("Browser".equals(uaSignatureForValidation) || "unknown".equals(uaSignatureForValidation)) {
+        if (!StringUtils.hasText(uaSignatureForValidation)) {
             log.error("[Baseline] UA parsing failed - learning blocked: userId={}, ua={}",
                     userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
             return current;
@@ -118,11 +119,10 @@ public class BaselineLearningService {
                     .updateCount(1L)
                     .lastUpdated(Instant.now());
 
-            if (currentIp != null) {
-                String ipRange = extractIpRange(currentIp);
-                builder.normalIpRanges(new String[]{ipRange});
-                if (ipRange != null) {
-                    frequencies.put(FREQ_PREFIX_IP + ipRange, 1L);
+            if (currentIpBand != null) {
+                builder.normalIpRanges(new String[]{currentIpBand});
+                if (currentIpBand != null) {
+                    frequencies.put(FREQ_PREFIX_IP + currentIpBand, 1L);
                 }
             }
             if (currentHour != null) {
@@ -159,8 +159,7 @@ public class BaselineLearningService {
             }
 
             String uaSignature = extractUASignature(currentUserAgent);
-            if (uaSignature != null && !uaSignature.equals("unknown") &&
-                    !uaSignature.equals("unknown (unknown)")) {
+            if (StringUtils.hasText(uaSignature)) {
                 builder.normalUserAgents(new String[]{uaSignature});
                 frequencies.put(FREQ_PREFIX_UA + uaSignature, 1L);
             } else {
@@ -173,7 +172,7 @@ public class BaselineLearningService {
             }
 
             String os = extractOS(currentUserAgent);
-            if (!os.equals("Unknown")) {
+            if (StringUtils.hasText(os)) {
                 builder.normalOperatingSystems(new String[]{os});
                 frequencies.put(FREQ_PREFIX_OS + os, 1L);
             }
@@ -193,7 +192,7 @@ public class BaselineLearningService {
                 ? new HashMap<>(current.getElementFrequencies())
                 : new HashMap<>();
 
-        String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp, frequencies);
+        String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIpBand, frequencies);
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour, frequencies);
         Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay, frequencies);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
@@ -204,8 +203,7 @@ public class BaselineLearningService {
         String[] frequentResourceFamilies = updateFrequentResourceFamilies(current.getFrequentResourceFamilies(), currentResourceFamily, frequencies);
 
         String normalizedUA = extractUASignature(currentUserAgent);
-        String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
-                !normalizedUA.equals("unknown (unknown)"))
+        String uaForUpdate = StringUtils.hasText(normalizedUA)
                 ? normalizedUA : currentUserAgent;
         String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate, frequencies);
 
@@ -262,100 +260,22 @@ public class BaselineLearningService {
     }
 
     private String extractIpRange(String ip) {
-        if (ip == null || ip.isEmpty()) {
+        if (!StringUtils.hasText(ip)) {
             return null;
         }
-
-        if (isLoopback(ip)) {
-            return "loopback";
+        String trimmed = ip.trim();
+        long dots = trimmed.chars().filter(ch -> ch == '.').count();
+        if (dots >= 3) {
+            return SecuritySemanticNormalizer.normalizeNetwork(trimmed, null);
         }
-
-        if (ip.contains(":")) {
-            return normalizeIPv6Range(ip);
-        }
-
-        int lastDot = ip.lastIndexOf('.');
-        if (lastDot > 0) {
-            return ip.substring(0, lastDot);
-        }
-        return ip;
+        return SecuritySemanticNormalizer.normalizeNetwork(null, trimmed);
     }
 
-    private boolean isLoopback(String ip) {
-        if (ip == null) {
-            return false;
-        }
-
-        if ("127.0.0.1".equals(ip) || ip.startsWith("127.")) {
-            return true;
-        }
-
-        if ("::1".equals(ip) ||
-                "0:0:0:0:0:0:0:1".equals(ip) ||
-                "0000:0000:0000:0000:0000:0000:0000:0001".equals(ip)) {
-            return true;
-        }
-        return false;
-    }
-
-    private String normalizeIPv6Range(String ipv6) {
-        if (ipv6 == null || ipv6.isEmpty()) {
-            return null;
-        }
-
-        String expanded = expandIPv6(ipv6);
-        String[] segments = expanded.split(":");
-
-        if (segments.length >= 4) {
-            return String.format("%s:%s:%s:%s",
-                    normalizeIPv6Segment(segments[0]),
-                    normalizeIPv6Segment(segments[1]),
-                    normalizeIPv6Segment(segments[2]),
-                    normalizeIPv6Segment(segments[3]));
-        }
-        return ipv6;
-    }
-
-    private String expandIPv6(String ipv6) {
-        if (!ipv6.contains("::")) {
-            return ipv6;
-        }
-        String[] parts = ipv6.split("::", 2);
-        String[] leftSegments = parts[0].isEmpty() ? new String[0] : parts[0].split(":");
-        String[] rightSegments = parts.length > 1 && !parts[1].isEmpty() ? parts[1].split(":") : new String[0];
-
-        int missingSegments = 8 - leftSegments.length - rightSegments.length;
-        StringBuilder expanded = new StringBuilder();
-
-        for (String seg : leftSegments) {
-            if (!expanded.isEmpty()) expanded.append(":");
-            expanded.append(seg);
-        }
-        for (int i = 0; i < missingSegments; i++) {
-            if (!expanded.isEmpty()) expanded.append(":");
-            expanded.append("0");
-        }
-        for (String seg : rightSegments) {
-            if (!expanded.isEmpty()) expanded.append(":");
-            expanded.append(seg);
-        }
-        return expanded.toString();
-    }
-
-    private String normalizeIPv6Segment(String segment) {
-        if (segment == null || segment.isEmpty()) {
-            return "0";
-        }
-
-        String normalized = segment.replaceFirst("^0+", "");
-        return normalized.isEmpty() ? "0" : normalized;
-    }
-
-    private String[] updateNormalIpRanges(String[] current, String newIp, Map<String, Long> frequencies) {
-        if (newIp == null) {
+    private String[] updateNormalIpRanges(String[] current, String newIpBand, Map<String, Long> frequencies) {
+        if (newIpBand == null) {
             return current;
         }
-        String ipRange = extractIpRange(newIp);
+        String ipRange = extractIpRange(newIpBand);
         if (ipRange == null) {
             return current;
         }
@@ -1245,97 +1165,11 @@ public class BaselineLearningService {
     }
 
     private String extractOS(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return "Unknown";
-        }
-
-        if (userAgent.contains("Android")) {
-            return "Android";
-        }
-
-        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iPod")) {
-            return "iOS";
-        }
-
-        if (userAgent.contains("Windows")) {
-            return "Windows";
-        }
-
-        if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
-            return "Mac";
-        }
-
-        if (userAgent.contains("CrOS")) {
-            return "ChromeOS";
-        }
-
-        if (userAgent.contains("Linux") && !userAgent.contains("Android")) {
-            return "Linux";
-        }
-
-        return "Unknown";
+        return SecurityEventEnricher.extractOSFromUserAgent(userAgent);
     }
 
     private String extractUASignature(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return "UNKNOWN_BROWSER_SIGNATURE";
-        }
-
-        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
-            String sig = extractBrowserVersion(userAgent, "Chrome/");
-            if (!"unknown".equals(sig)) return sig;
-        } else if (userAgent.contains("Edg/")) {
-            String sig = extractBrowserVersion(userAgent, "Edg/");
-            if (!"unknown".equals(sig)) return sig.replace("Edg", "Edge");
-        } else if (userAgent.contains("Firefox/")) {
-            String sig = extractBrowserVersion(userAgent, "Firefox/");
-            if (!"unknown".equals(sig)) return sig;
-        } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
-            if (userAgent.contains("Version/")) {
-                String sig = extractBrowserVersion(userAgent, "Version/");
-                if (!"unknown".equals(sig)) return sig.replace("Version", "Safari");
-            }
-            String sig = extractBrowserVersion(userAgent, "Safari/");
-            if (!"unknown".equals(sig)) return sig;
-        }
-
-        String[] tokens = userAgent.split("\\s+");
-        for (int i = tokens.length - 1; i >= 0; i--) {
-            String token = tokens[i];
-            int slashIdx = token.indexOf('/');
-            if (slashIdx > 0 && slashIdx < token.length() - 1) {
-                String name = token.substring(0, slashIdx).replaceAll("[^A-Za-z0-9._-]", "");
-                String version = token.substring(slashIdx + 1).replaceAll("[^A-Za-z0-9._-]", "");
-                if (!name.isEmpty() && !version.isEmpty()) {
-                    return name + "/" + version;
-                }
-            }
-        }
-
-        return "UNKNOWN_BROWSER_SIGNATURE";
-    }
-
-    private String extractBrowserVersion(String userAgent, String prefix) {
-        int idx = userAgent.indexOf(prefix);
-        if (idx == -1) return "unknown";
-
-        int start = idx + prefix.length();
-        if (start >= userAgent.length()) return "unknown";
-
-        int end = start;
-        while (end < userAgent.length()) {
-            char c = userAgent.charAt(end);
-            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
-                break;
-            }
-            end++;
-        }
-
-        if (end == start) return "unknown";
-
-        String version = userAgent.substring(start, end);
-        String browserName = prefix.replace("/", "");
-        return browserName + "/" + version;
+        return SecurityEventEnricher.extractBrowserSignature(userAgent);
     }
 
     private String[] firstNonEmpty(String[] primary, String[] fallback) {

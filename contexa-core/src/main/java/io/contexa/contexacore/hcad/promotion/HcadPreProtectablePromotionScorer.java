@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.promotion;
 
+import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -45,12 +46,12 @@ public class HcadPreProtectablePromotionScorer {
         Map<String, Object> rawSignals = createRawSignalSnapshot(projection);
 
         if (Boolean.TRUE.equals(projection.impossibleTravel())
-                && projection.hasTrustedSource("impossibleTravel", HcadTrustedSource.STORE_DERIVED)) {
+                && projection.hasScorableTrustedSource("impossibleTravel", HcadTrustedSource.STORE_DERIVED)) {
             anchors.add(HcadPreProtectablePromotionSignal.IMPOSSIBLE_TRAVEL);
         }
         if (projection.failedLoginBurst() != null
                 && projection.failedLoginBurst() >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()
-                && projection.hasTrustedSource("failedLoginBurst", HcadTrustedSource.STORE_DERIVED)) {
+                && projection.hasScorableTrustedSource("failedLoginBurst", HcadTrustedSource.STORE_DERIVED)) {
             anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST);
         }
         if (isAuthContextInconsistent(projection)) {
@@ -60,7 +61,7 @@ public class HcadPreProtectablePromotionScorer {
             anchors.add(HcadPreProtectablePromotionSignal.RECENT_PERMISSION_CHANGE);
         }
         if (Boolean.TRUE.equals(projection.authorizationPrivileged())
-                && projection.hasTrustedSource("authorizationPrivileged", HcadTrustedSource.BRIDGE_VERIFIED)) {
+                && projection.hasScorableTrustedSource("authorizationPrivileged", HcadTrustedSource.BRIDGE_VERIFIED)) {
             anchors.add(HcadPreProtectablePromotionSignal.PRIVILEGED_AUTHORIZATION);
         }
         if (isFreshMfaRequiredButNotFresh(projection)) {
@@ -69,16 +70,16 @@ public class HcadPreProtectablePromotionScorer {
 
         if (projection.requestBurst() != null
                 && projection.requestBurst() >= hcadProperties.getPreTrigger().getRequestBurstThreshold()
-                && projection.hasTrustedSource("requestBurst", HcadTrustedSource.STORE_DERIVED)) {
+                && projection.hasScorableTrustedSource("requestBurst", HcadTrustedSource.STORE_DERIVED)) {
             corroborating.add(HcadPreProtectablePromotionSignal.REQUEST_BURST);
         }
         if (Boolean.TRUE.equals(projection.rapidSequence())
-                && projection.hasTrustedSource("rapidSequence", HcadTrustedSource.STORE_DERIVED)) {
+                && projection.hasScorableTrustedSource("rapidSequence", HcadTrustedSource.STORE_DERIVED)) {
             corroborating.add(HcadPreProtectablePromotionSignal.RAPID_SEQUENCE);
         }
         if (hasPathJump(projection.previousPath(), projection.normalizedPath())
-                && projection.hasTrustedSource("previousPath", HcadTrustedSource.STORE_DERIVED)
-                && projection.hasTrustedSource("normalizedPath", HcadTrustedSource.TRUSTED_SERVER)) {
+                && projection.hasScorableTrustedSource("previousPath", HcadTrustedSource.STORE_DERIVED)
+                && projection.hasScorableTrustedSource("normalizedPath", HcadTrustedSource.TRUSTED_SERVER)) {
             corroborating.add(HcadPreProtectablePromotionSignal.PREVIOUS_PATH_JUMP);
         }
         if (isLowAuthenticationAssurance(projection)) {
@@ -86,10 +87,6 @@ public class HcadPreProtectablePromotionScorer {
         }
         if (hasMaterialBaselineMismatch(projection)) {
             corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_MATERIAL_MISMATCH);
-        }
-        if (isBaselineUncertain(projection.baselineConfidence())
-                && projection.hasTrustedSource("baselineConfidence", HcadTrustedSource.STORE_DERIVED)) {
-            corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_UNCERTAIN);
         }
 
         int score = calculateScore(anchors, corroborating);
@@ -150,6 +147,10 @@ public class HcadPreProtectablePromotionScorer {
         snapshot.put("baselineConfidence", projection.baselineConfidence());
         snapshot.put("baselineEstablished", projection.baselineEstablished());
         snapshot.put("baselineComparison", projection.baselineComparison());
+        snapshot.put("promptContextContractVersion", projection.promptContextContractVersion());
+        snapshot.put("promptContextFieldContracts", projection.promptContextFieldContracts());
+        snapshot.put("scoringContractSnapshot",
+                HcadPromptSecurityContextFieldRegistry.scoringSnapshot(projection.provenance()));
         snapshot.put("signalProvenance", projection.provenance());
         snapshot.put("ignoredInputs", projection.ignoredInputs());
         return snapshot;
@@ -221,24 +222,24 @@ public class HcadPreProtectablePromotionScorer {
     }
 
     private boolean isAuthContextInconsistent(TrustedHcadContextProjection projection) {
-        if (!projection.hasTrustedSource("authenticationMethod")
-                || !projection.hasTrustedSource("mfaVerified")) {
+        if (!projection.hasScorableTrustedSource("authenticationMethod")
+                || !projection.hasScorableTrustedSource("mfaVerified")) {
             return false;
         }
         String authMethod = normalize(projection.authenticationMethod());
         boolean mfaVerified = Boolean.TRUE.equals(projection.mfaVerified());
-        return "mfa".equals(authMethod) && !mfaVerified;
+        return ("mfa".equals(authMethod) || "mfa_only".equals(authMethod)) && !mfaVerified;
     }
 
     private boolean hasRecentPermissionChanges(TrustedHcadContextProjection projection) {
-        return projection.hasTrustedSource("recentPermissionChanges", HcadTrustedSource.STORE_DERIVED)
+        return projection.hasScorableTrustedSource("recentPermissionChanges", HcadTrustedSource.STORE_DERIVED)
                 && projection.recentPermissionChanges() != null
                 && !projection.recentPermissionChanges().isEmpty();
     }
 
     private boolean isFreshMfaRequiredButNotFresh(TrustedHcadContextProjection projection) {
         if (!Boolean.TRUE.equals(projection.verificationRequired())
-                || !projection.hasTrustedSource("verificationRequired", HcadTrustedSource.BRIDGE_VERIFIED)) {
+                || !projection.hasScorableTrustedSource("verificationRequired", HcadTrustedSource.BRIDGE_VERIFIED)) {
             return false;
         }
         if (!Boolean.TRUE.equals(projection.mfaVerified())) {
@@ -249,7 +250,7 @@ public class HcadPreProtectablePromotionScorer {
     }
 
     private boolean isLowAuthenticationAssurance(TrustedHcadContextProjection projection) {
-        if (!projection.hasTrustedSource("authenticationAssurance", HcadTrustedSource.BRIDGE_VERIFIED)) {
+        if (!projection.hasScorableTrustedSource("authenticationAssurance", HcadTrustedSource.BRIDGE_VERIFIED)) {
             return false;
         }
         String assurance = normalize(projection.authenticationAssurance());
@@ -278,17 +279,10 @@ public class HcadPreProtectablePromotionScorer {
         return !current.startsWith(previous) && !previous.startsWith(current);
     }
 
-    private boolean isBaselineUncertain(Double baselineConfidence) {
-        if (baselineConfidence == null || baselineConfidence.isNaN()) {
-            return true;
-        }
-        return baselineConfidence < hcadProperties.getPreTrigger().getLowBaselineConfidenceThreshold();
-    }
-
     private boolean hasMaterialBaselineMismatch(TrustedHcadContextProjection projection) {
         return projection.baselineComparison() != null
                 && projection.baselineComparison().materialMismatch()
-                && projection.hasTrustedSource("baselineComparison", HcadTrustedSource.STORE_DERIVED);
+                && projection.hasScorableTrustedSource("baselineComparison", HcadTrustedSource.STORE_DERIVED);
     }
 
     private String normalize(String value) {

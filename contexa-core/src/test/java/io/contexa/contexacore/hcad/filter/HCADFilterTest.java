@@ -21,6 +21,7 @@ import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttribut
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
+import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
@@ -533,6 +534,8 @@ class HCADFilterTest {
                 0.9,
                 true,
                 HcadBaselineComparison.unavailable(20),
+                HcadPromptSecurityContextFieldRegistry.version(),
+                HcadPromptSecurityContextFieldRegistry.snapshot(Map.of()),
                 Map.of(),
                 Map.of());
     }

@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -67,8 +68,9 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public HcadMonitoringService hcadMonitoringService(
             HcadDetectionEvaluationRepository hcadDetectionEvaluationRepository,
-            HcadProperties hcadProperties) {
-        return new HcadMonitoringService(hcadDetectionEvaluationRepository, hcadProperties);
+            HcadProperties hcadProperties,
+            ObjectMapper objectMapper) {
+        return new HcadMonitoringService(hcadDetectionEvaluationRepository, hcadProperties, objectMapper);
     }
 
     @Bean

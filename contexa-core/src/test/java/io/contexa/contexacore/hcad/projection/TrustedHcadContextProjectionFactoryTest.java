@@ -20,6 +20,9 @@ import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
@@ -88,6 +91,12 @@ class TrustedHcadContextProjectionFactoryTest {
                 "header.X-Contexa-Recent-Permission-Changes",
                 "header.X-Contexa-Resource-Sensitivity",
                 "header.X-Contexa-Business-Impact");
+        assertThat(projection.promptContextContractVersion())
+                .isEqualTo(HcadPromptSecurityContextFieldRegistry.version());
+        assertThat(projection.promptContextFieldContracts())
+                .containsKey("header.X-Contexa-Recent-Permission-Changes");
+        assertThat(projection.promptContextFieldContracts().get("header.X-Contexa-Recent-Permission-Changes"))
+                .containsEntry("scoringAllowed", false);
         assertThat(projection.sourceOf("header.X-Contexa-Recent-Permission-Changes"))
                 .isEqualTo(HcadTrustedSource.UNTRUSTED_IGNORED);
         assertThat(assessment.anchorSignals()).doesNotContain("RECENT_PERMISSION_CHANGE", "PRIVILEGED_AUTHORIZATION");
@@ -148,10 +157,75 @@ class TrustedHcadContextProjectionFactoryTest {
         assertThat(projection.baselineComparison().established()).isTrue();
         assertThat(projection.baselineComparison().materialMismatch()).isTrue();
         assertThat(projection.baselineComparison().mismatchedDimensions())
-                .contains("ipRange", "pathFamily", "authenticationType");
+                .contains("ipBand", "pathFamily", "authenticationType");
         assertThat(assessment.corroboratingSignals()).contains("BASELINE_MATERIAL_MISMATCH");
         assertThat(assessment.anchorSignals()).doesNotContain("BASELINE_MATERIAL_MISMATCH");
         assertThat(assessment.eligible()).isFalse();
+    }
+
+    @Test
+    @DisplayName("HCAD fast-safe projection values match the prompt context composer values")
+    void project_fastSafeProjection_shouldMatchPromptContextComposerValues() {
+        MockHttpServletRequest request = baseRequest();
+        request.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
+        request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, authenticationStamp());
+        request.setAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP, authorizationStamp());
+        when(securityContextDataStore.getSessionPreviousPath(anyString())).thenReturn("/admin");
+        when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong())).thenReturn(7);
+
+        TrustedHcadContextProjection projection = factory.project(request, authentication());
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder()
+                        .userId(projection.userId())
+                        .tenantId(projection.tenantId())
+                        .organizationId(projection.organizationId())
+                        .build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId(projection.sessionId())
+                        .clientIp(projection.clientIp())
+                        .userAgent(request.getHeader("User-Agent"))
+                        .authenticationType(projection.authenticationMethod())
+                        .authenticationAssurance(projection.authenticationAssurance())
+                        .mfaVerified(projection.mfaVerified())
+                        .failedLoginAttempts(projection.failedLoginBurst())
+                        .recentRequestCount(projection.requestBurst())
+                        .build())
+                .location(CanonicalSecurityContext.Location.builder()
+                        .ipBand(SecuritySemanticNormalizer.normalizeNetwork(projection.clientIp(), null))
+                        .build())
+                .intent(CanonicalSecurityContext.Intent.builder()
+                        .impossibleTravel(projection.impossibleTravel())
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .requestPath(projection.normalizedPath())
+                        .httpMethod(projection.method())
+                        .actionFamily(SecuritySemanticNormalizer.normalizeActionFamily(projection.method()))
+                        .build())
+                .sessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile.builder()
+                        .previousPath(projection.previousPath())
+                        .burstPattern(projection.rapidSequence())
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .policyId(projection.authorizationPolicyId())
+                        .privileged(projection.authorizationPrivileged())
+                        .build())
+                .build();
+
+        String promptContext = new PromptContextComposer().compose(context);
+
+        assertThat(projection.authenticationMethod()).isEqualTo("MFA_ONLY");
+        assertThat(promptContext)
+                .contains("AuthenticationType: MFA_ONLY")
+                .contains("MfaVerified: false")
+                .contains("RecentRequestCount: 7")
+                .contains("IpBand: 203.0.113")
+                .contains("RequestPath: /admin/reports")
+                .contains("CurrentPathFamily: /admin/reports")
+                .contains("HttpMethod: GET")
+                .contains("ActionFamily: READ")
+                .contains("PreviousPath: /admin")
+                .contains("PolicyId: policy-1")
+                .contains("PrivilegedFlow: true");
     }
 
     private MockHttpServletRequest baseRequest() {

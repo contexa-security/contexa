@@ -45,6 +45,8 @@ public record TrustedHcadContextProjection(
         Double baselineConfidence,
         Boolean baselineEstablished,
         HcadBaselineComparison baselineComparison,
+        String promptContextContractVersion,
+        Map<String, Map<String, Object>> promptContextFieldContracts,
         Map<String, HcadFieldProvenance> provenance,
         Map<String, Object> ignoredInputs
 ) {
@@ -52,6 +54,12 @@ public record TrustedHcadContextProjection(
     public TrustedHcadContextProjection {
         recentPermissionChanges = recentPermissionChanges == null ? List.of() : List.copyOf(recentPermissionChanges);
         baselineComparison = baselineComparison == null ? HcadBaselineComparison.unavailable(0) : baselineComparison;
+        promptContextContractVersion = promptContextContractVersion == null
+                ? HcadPromptSecurityContextFieldRegistry.version()
+                : promptContextContractVersion;
+        promptContextFieldContracts = promptContextFieldContracts == null
+                ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(promptContextFieldContracts));
         provenance = provenance == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(provenance));
@@ -71,6 +79,22 @@ public record TrustedHcadContextProjection(
             return actual == HcadTrustedSource.TRUSTED_SERVER
                     || actual == HcadTrustedSource.BRIDGE_VERIFIED
                     || actual == HcadTrustedSource.STORE_DERIVED;
+        }
+        for (HcadTrustedSource allowedSource : allowedSources) {
+            if (actual == allowedSource) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean hasScorableTrustedSource(String fieldName, HcadTrustedSource... allowedSources) {
+        HcadTrustedSource actual = sourceOf(fieldName);
+        if (!HcadPromptSecurityContextFieldRegistry.isScoringAllowed(fieldName, actual)) {
+            return false;
+        }
+        if (allowedSources == null || allowedSources.length == 0) {
+            return true;
         }
         for (HcadTrustedSource allowedSource : allowedSources) {
             if (actual == allowedSource) {

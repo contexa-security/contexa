@@ -112,7 +112,7 @@
         if (!recentEl) return;
         const visible = items.slice(0, 10);
         if (!visible.length) {
-            recentEl.innerHTML = `<tr><td colspan="4">${escapeHtml(label('labelNoRecent'))}</td></tr>`;
+            recentEl.innerHTML = `<tr><td colspan="6">${escapeHtml(label('labelNoRecent'))}</td></tr>`;
             return;
         }
         recentEl.innerHTML = visible.map((item) => `
@@ -120,8 +120,18 @@
                 <td>${escapeHtml(formatDate(item.createdAt))}</td>
                 <td>${escapeHtml(item.userId || '-')}</td>
                 <td>${escapeHtml(`${item.method || ''} ${item.path || '-'}`.trim())}</td>
+                <td>${renderReason(item)}</td>
+                <td>${escapeHtml(item.promptContextContractVersion || '-')}</td>
                 <td><span class="hcad-status ${outcomeTone(item.outcomeClass)}">${escapeHtml(outcomeLabel(item.outcomeClass))}</span></td>
             </tr>`).join('');
+    }
+
+    function renderReason(item) {
+        const codes = Array.isArray(item.reasonCodes) ? item.reasonCodes : [];
+        const labels = codes.map(friendlySignal).filter(Boolean);
+        const reason = labels.length ? labels.join(', ') : '-';
+        const baseline = item.baselineComparisonSummary ? `<div class="hcad-simple-meta">${escapeHtml(item.baselineComparisonSummary)}</div>` : '';
+        return `<div class="hcad-simple-title">${escapeHtml(reason)}</div>${baseline}`;
     }
 
     function friendlySignal(value) {
@@ -131,7 +141,13 @@
             REQUEST_BURST: label('labelSignalRequestBurst'),
             RAPID_SEQUENCE: label('labelSignalRapidSequence'),
             IMPOSSIBLE_TRAVEL: label('labelSignalImpossibleTravel'),
-            RECENT_PERMISSION_CHANGE: label('labelSignalRecentPermissionChange')
+            RECENT_PERMISSION_CHANGE: label('labelSignalRecentPermissionChange'),
+            FAILED_LOGIN_BURST: label('labelSignalFailedLoginBurst'),
+            AUTH_CONTEXT_INCONSISTENT: label('labelSignalAuthContextInconsistent'),
+            PRIVILEGED_AUTHORIZATION: label('labelSignalPrivilegedAuthorization'),
+            FRESH_MFA_REQUIRED: label('labelSignalFreshMfaRequired'),
+            LOW_AUTH_ASSURANCE: label('labelSignalLowAuthAssurance'),
+            BASELINE_MATERIAL_MISMATCH: label('labelSignalBaselineMismatch')
         };
         return known[normalized] || value || '-';
     }

@@ -129,6 +129,9 @@ public final class HcadMonitorDtos {
             Boolean llmTechnicalFallback,
             String llmFallbackCategory,
             String outcomeClass,
+            List<String> reasonCodes,
+            String promptContextContractVersion,
+            String baselineComparisonSummary,
             String createdAt,
             String decidedAt
     ) {

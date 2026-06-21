@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
@@ -29,8 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class HcadMonitoringService {
 
@@ -40,12 +44,15 @@ public class HcadMonitoringService {
 
     private final HcadDetectionEvaluationRepository repository;
     private final HcadProperties hcadProperties;
+    private final ObjectMapper objectMapper;
 
     public HcadMonitoringService(
             HcadDetectionEvaluationRepository repository,
-            HcadProperties hcadProperties) {
+            HcadProperties hcadProperties,
+            ObjectMapper objectMapper) {
         this.repository = repository;
         this.hcadProperties = hcadProperties;
+        this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -327,8 +334,60 @@ public class HcadMonitoringService {
                 evaluation.getLlmTechnicalFallback(),
                 evaluation.getLlmFallbackCategory(),
                 evaluation.getOutcomeClass(),
+                readStringList(evaluation.getReasonCodes()),
+                readSnapshotText(evaluation.getSignalSnapshotJson(), "promptContextContractVersion"),
+                baselineComparisonSummary(evaluation.getSignalSnapshotJson()),
                 format(evaluation.getCreatedAt()),
                 format(evaluation.getDecidedAt()));
+    }
+
+    private List<String> readStringList(String json) {
+        if (json == null || json.isBlank() || "null".equalsIgnoreCase(json.trim())) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {
+            });
+        } catch (Exception ignored) {
+            return Arrays.stream(json.replace("[", "").replace("]", "").split(","))
+                    .map(String::trim)
+                    .filter(value -> !value.isBlank())
+                    .toList();
+        }
+    }
+
+    private String readSnapshotText(String json, String key) {
+        MapSnapshot snapshot = readSnapshot(json);
+        Object value = snapshot.values().get(key);
+        return value == null ? null : value.toString();
+    }
+
+    private String baselineComparisonSummary(String json) {
+        MapSnapshot snapshot = readSnapshot(json);
+        Object raw = snapshot.values().get("baselineComparison");
+        if (!(raw instanceof Map<?, ?> baseline)) {
+            return null;
+        }
+        Object materialMismatch = baseline.get("materialMismatch");
+        Object mismatchCount = baseline.get("mismatchCount");
+        Object matchRatio = baseline.get("matchRatio");
+        Object mismatchedDimensions = baseline.get("mismatchedDimensions");
+        return "materialMismatch=" + materialMismatch
+                + ", mismatchCount=" + mismatchCount
+                + ", matchRatio=" + matchRatio
+                + ", fields=" + mismatchedDimensions;
+    }
+
+    private MapSnapshot readSnapshot(String json) {
+        if (json == null || json.isBlank() || "null".equalsIgnoreCase(json.trim())) {
+            return new MapSnapshot(Map.of());
+        }
+        try {
+            return new MapSnapshot(objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+            }));
+        } catch (Exception ignored) {
+            return new MapSnapshot(Map.of());
+        }
     }
 
     private String recommendation(
@@ -412,5 +471,8 @@ public class HcadMonitoringService {
 
     private String label(boolean korean, String ko, String en) {
         return korean ? ko : en;
+    }
+
+    private record MapSnapshot(Map<String, Object> values) {
     }
 }

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
@@ -121,9 +122,12 @@ public class TrustedHcadContextProjectionFactory {
         putProvenance(provenance, "contextBindingHash", contextBindingHash, HcadTrustedSource.TRUSTED_SERVER,
                 "Generated from trusted session, remote address, and user agent.");
 
-        String authenticationMethod = firstText(
+        String authenticationMethodRaw = firstText(
                 authenticationStamp != null ? authenticationStamp.authenticationType() : null,
                 authentication != null ? authentication.getClass().getSimpleName() : null);
+        String authenticationMethod = firstText(
+                SecuritySemanticNormalizer.normalizeAuthenticationType(authenticationMethodRaw),
+                authenticationMethodRaw);
         putProvenance(provenance, "authenticationMethod", authenticationMethod,
                 authenticationStamp != null && StringUtils.hasText(authenticationStamp.authenticationType())
                         ? HcadTrustedSource.BRIDGE_VERIFIED
@@ -234,6 +238,8 @@ public class TrustedHcadContextProjectionFactory {
                 baselineConfidence,
                 baselineEstablished,
                 baselineComparison,
+                HcadPromptSecurityContextFieldRegistry.version(),
+                HcadPromptSecurityContextFieldRegistry.snapshot(provenance),
                 provenance,
                 ignoredInputs);
     }
@@ -259,15 +265,15 @@ public class TrustedHcadContextProjectionFactory {
         boolean established = updateCount >= minSamples;
         ZonedDateTime observedAt = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault());
 
-        String currentIpRange = extractIpRange(clientIp);
+        String currentIpBand = SecuritySemanticNormalizer.normalizeNetwork(clientIp, null);
         String currentPathFamily = SecuritySemanticNormalizer.normalizePathFamily(normalizedPath);
         String currentAuthType = SecuritySemanticNormalizer.normalizeAuthenticationType(authenticationMethod);
-        String currentUserAgentSignature = extractUASignature(userAgent);
-        String currentOs = extractOS(userAgent);
+        String currentUserAgentSignature = SecurityEventEnricher.extractBrowserSignature(userAgent);
+        String currentOs = SecurityEventEnricher.extractOSFromUserAgent(userAgent);
         String currentBrowser = extractBrowserName(currentUserAgentSignature);
 
         Map<String, Object> currentValues = new LinkedHashMap<>();
-        currentValues.put("ipRange", currentIpRange);
+        currentValues.put("ipBand", currentIpBand);
         currentValues.put("accessHour", observedAt.getHour());
         currentValues.put("accessDay", observedAt.getDayOfWeek().getValue());
         currentValues.put("pathFamily", currentPathFamily);
@@ -279,7 +285,8 @@ public class TrustedHcadContextProjectionFactory {
 
         Map<String, Object> baselineValues = new LinkedHashMap<>();
         baselineValues.put("updateCount", updateCount);
-        baselineValues.put("normalIpRanges", strings(baseline.getNormalIpRanges()));
+        List<String> baselineIpBands = normalizeNetworks(baseline.getNormalIpRanges(), baseline.getNormalIpBands());
+        baselineValues.put("normalIpBands", baselineIpBands);
         baselineValues.put("normalAccessHours", integers(baseline.getNormalAccessHours()));
         baselineValues.put("normalAccessDays", integers(baseline.getNormalAccessDays()));
         baselineValues.put("frequentPaths", strings(baseline.getFrequentPaths()));
@@ -310,7 +317,7 @@ public class TrustedHcadContextProjectionFactory {
                     baselineValues);
         }
 
-        compareStringDimension("ipRange", currentIpRange, baseline.getNormalIpRanges(), matched, mismatched, missing, false);
+        compareStringDimension("ipBand", currentIpBand, baselineIpBands, matched, mismatched, missing, false);
         compareIntegerDimension("accessHour", observedAt.getHour(), baseline.getNormalAccessHours(), matched, mismatched, missing);
         compareIntegerDimension("accessDay", observedAt.getDayOfWeek().getValue(), baseline.getNormalAccessDays(), matched, mismatched, missing);
         comparePathDimension("pathFamily", currentPathFamily, baseline.getFrequentPaths(), baseline.getFrequentResourceFamilies(), matched, mismatched, missing);
@@ -348,6 +355,17 @@ public class TrustedHcadContextProjectionFactory {
             List<String> missing,
             boolean pathFamily) {
         List<String> normalizedBaselineValues = normalizeStrings(baselineValues, pathFamily);
+        compareStringDimension(dimension, currentValue, normalizedBaselineValues, matched, mismatched, missing, pathFamily);
+    }
+
+    private void compareStringDimension(
+            String dimension,
+            String currentValue,
+            List<String> normalizedBaselineValues,
+            List<String> matched,
+            List<String> mismatched,
+            List<String> missing,
+            boolean pathFamily) {
         if (!StringUtils.hasText(currentValue) || normalizedBaselineValues.isEmpty()) {
             missing.add(dimension);
             return;
@@ -667,6 +685,21 @@ public class TrustedHcadContextProjectionFactory {
                 .toList();
     }
 
+    private List<String> normalizeNetworks(String[]... valueGroups) {
+        if (valueGroups == null || valueGroups.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(valueGroups)
+                .filter(values -> values != null && values.length > 0)
+                .flatMap(Arrays::stream)
+                .filter(StringUtils::hasText)
+                .map(value -> SecuritySemanticNormalizer.normalizeNetwork(value, value))
+                .map(this::normalizeComparable)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
     private List<Integer> integers(Integer[] values) {
         if (values == null || values.length == 0) {
             return List.of();
@@ -696,150 +729,6 @@ public class TrustedHcadContextProjectionFactory {
 
     private String normalizeComparable(String value) {
         return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String extractIpRange(String ip) {
-        if (!StringUtils.hasText(ip)) {
-            return null;
-        }
-        String trimmed = ip.trim();
-        if (isLoopback(trimmed)) {
-            return "loopback";
-        }
-        if (trimmed.contains(":")) {
-            return normalizeIPv6Range(trimmed);
-        }
-        int lastDot = trimmed.lastIndexOf('.');
-        return lastDot > 0 ? trimmed.substring(0, lastDot) : trimmed;
-    }
-
-    private boolean isLoopback(String ip) {
-        return "127.0.0.1".equals(ip)
-                || ip.startsWith("127.")
-                || "::1".equals(ip)
-                || "0:0:0:0:0:0:0:1".equals(ip)
-                || "0000:0000:0000:0000:0000:0000:0000:0001".equals(ip);
-    }
-
-    private String normalizeIPv6Range(String ipv6) {
-        if (!StringUtils.hasText(ipv6)) {
-            return null;
-        }
-        String expanded = expandIPv6(ipv6);
-        String[] segments = expanded.split(":");
-        if (segments.length < 4) {
-            return ipv6;
-        }
-        return String.format("%s:%s:%s:%s",
-                normalizeIPv6Segment(segments[0]),
-                normalizeIPv6Segment(segments[1]),
-                normalizeIPv6Segment(segments[2]),
-                normalizeIPv6Segment(segments[3]));
-    }
-
-    private String expandIPv6(String ipv6) {
-        if (!ipv6.contains("::")) {
-            return ipv6;
-        }
-        String[] parts = ipv6.split("::", 2);
-        String[] leftSegments = parts[0].isEmpty() ? new String[0] : parts[0].split(":");
-        String[] rightSegments = parts.length > 1 && !parts[1].isEmpty() ? parts[1].split(":") : new String[0];
-        int missingSegments = 8 - leftSegments.length - rightSegments.length;
-        StringBuilder expanded = new StringBuilder();
-        for (String segment : leftSegments) {
-            if (!expanded.isEmpty()) {
-                expanded.append(':');
-            }
-            expanded.append(segment);
-        }
-        for (int i = 0; i < missingSegments; i++) {
-            if (!expanded.isEmpty()) {
-                expanded.append(':');
-            }
-            expanded.append('0');
-        }
-        for (String segment : rightSegments) {
-            if (!expanded.isEmpty()) {
-                expanded.append(':');
-            }
-            expanded.append(segment);
-        }
-        return expanded.toString();
-    }
-
-    private String normalizeIPv6Segment(String segment) {
-        if (!StringUtils.hasText(segment)) {
-            return "0";
-        }
-        String normalized = segment.replaceFirst("^0+", "");
-        return normalized.isEmpty() ? "0" : normalized;
-    }
-
-    private String extractOS(String userAgent) {
-        if (!StringUtils.hasText(userAgent)) {
-            return "Unknown";
-        }
-        if (userAgent.contains("Android")) {
-            return "Android";
-        }
-        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iPod")) {
-            return "iOS";
-        }
-        if (userAgent.contains("Windows")) {
-            return "Windows";
-        }
-        if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
-            return "Mac";
-        }
-        if (userAgent.contains("CrOS")) {
-            return "ChromeOS";
-        }
-        if (userAgent.contains("Linux")) {
-            return "Linux";
-        }
-        return "Unknown";
-    }
-
-    private String extractUASignature(String userAgent) {
-        if (!StringUtils.hasText(userAgent)) {
-            return "UNKNOWN_BROWSER_SIGNATURE";
-        }
-        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
-            return extractBrowserVersion(userAgent, "Chrome/");
-        }
-        if (userAgent.contains("Edg/")) {
-            return extractBrowserVersion(userAgent, "Edg/").replace("Edg", "Edge");
-        }
-        if (userAgent.contains("Firefox/")) {
-            return extractBrowserVersion(userAgent, "Firefox/");
-        }
-        if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
-            if (userAgent.contains("Version/")) {
-                return extractBrowserVersion(userAgent, "Version/").replace("Version", "Safari");
-            }
-            return extractBrowserVersion(userAgent, "Safari/");
-        }
-        return "UNKNOWN_BROWSER_SIGNATURE";
-    }
-
-    private String extractBrowserVersion(String userAgent, String prefix) {
-        int index = userAgent.indexOf(prefix);
-        if (index < 0) {
-            return "UNKNOWN_BROWSER_SIGNATURE";
-        }
-        int start = index + prefix.length();
-        int end = start;
-        while (end < userAgent.length()) {
-            char c = userAgent.charAt(end);
-            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
-                break;
-            }
-            end++;
-        }
-        if (end == start) {
-            return "UNKNOWN_BROWSER_SIGNATURE";
-        }
-        return prefix.replace("/", "") + "/" + userAgent.substring(start, end);
     }
 
     private String extractBrowserName(String userAgentSignature) {

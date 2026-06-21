@@ -17,6 +17,7 @@ package io.contexa.contexacore.hcad.promotion;
 
 import io.contexa.contexacore.hcad.projection.HcadFieldProvenance;
 import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
+import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -315,6 +316,34 @@ class HcadPreProtectablePromotionScorerTest {
         assertThat(assessment.rawSignalSnapshot()).containsKey("baselineComparison");
     }
 
+    @Test
+    @DisplayName("baseline confidence must remain monitor-only and never become a scoring signal")
+    void score_baselineConfidenceOnly_shouldRemainMonitorOnly() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        TrustedHcadContextProjection projection = trustedProjection(
+                false,
+                List.of(),
+                0,
+                0,
+                false,
+                false,
+                0.01d,
+                Map.of("baselineConfidence", HcadFieldProvenance.present(
+                        "baselineConfidence",
+                        HcadTrustedSource.STORE_DERIVED,
+                        "monitor only")));
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(assessment.anchorSignals()).isEmpty();
+        assertThat(assessment.corroboratingSignals()).isEmpty();
+        assertThat(assessment.eligible()).isFalse();
+        assertThat(assessment.rawSignalSnapshot())
+                .containsEntry("promptContextContractVersion", HcadPromptSecurityContextFieldRegistry.version())
+                .containsKey("scoringContractSnapshot");
+    }
+
     private TrustedHcadContextProjection trustedProjection(
             Boolean authorizationPrivileged,
             List<String> recentPermissionChanges,
@@ -396,6 +425,8 @@ class HcadPreProtectablePromotionScorerTest {
                 baselineConfidence,
                 true,
                 baselineComparison,
+                HcadPromptSecurityContextFieldRegistry.version(),
+                HcadPromptSecurityContextFieldRegistry.snapshot(provenance),
                 provenance,
                 Map.of());
     }
