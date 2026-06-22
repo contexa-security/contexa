@@ -59,10 +59,14 @@ public class AiSecurityDecisionObservationWriter {
         boolean hcadTriggered = isHcadTriggered(metadata);
         boolean hcadObserved = isHcadObserved(metadata, hcadEvaluationId);
         boolean protectable = isProtectable(metadata);
-        boolean parserFailure = isParserFailure(result);
-        boolean technicalFallback = result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied());
-        String failureReason = failureReason(result);
-        String failureType = failureType(result, parserFailure, technicalFallback, failureReason);
+        Boolean llmDecisionPresent = firstBoolean(
+                result != null ? result.getLlmDecisionPresent() : null,
+                metadata.get("llmDecisionPresent"));
+        boolean parserFailure = isParserFailure(result) || isParserFailure(metadata);
+        boolean technicalFallback = (result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()))
+                || Boolean.TRUE.equals(bool(metadata.get("technicalFallbackApplied")));
+        String failureReason = failureReason(result, metadata);
+        String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent);
         String triggerSource = triggerSource(metadata, hcadTriggered, hcadObserved, protectable);
         String triggerRelation = triggerRelation(hcadTriggered, hcadObserved, protectable);
         String outcomeClass = outcomeClass(result, finalAction, hcadTriggered, hcadObserved, failureType);
@@ -148,11 +152,11 @@ public class AiSecurityDecisionObservationWriter {
                     result != null ? result.resolveAuditRiskScore() : null,
                     result != null ? result.resolveAuditConfidence() : null,
                     result != null && result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null,
-                    result != null ? result.getLlmDecisionPresent() : null,
+                    llmDecisionPresent,
                     parserFailure,
                     technicalFallback,
-                    containsTimeout(failureReason),
-                    containsModelUnavailable(failureReason),
+                    containsTimeout(failureReason) || "TIMEOUT".equals(failureType),
+                    containsModelUnavailable(failureReason) || "MODEL_UNAVAILABLE".equals(failureType),
                     failureType,
                     result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
                     result != null ? summarize(result.getTechnicalFallbackReason(), 1024) : null,
@@ -179,6 +183,41 @@ public class AiSecurityDecisionObservationWriter {
                     event.getEventId(), ex);
             return null;
         }
+    }
+
+    public boolean markProtectableMerged(
+            String hcadEvaluationId,
+            String resourceId,
+            String resourceUrl,
+            String httpMethod) {
+        if (hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
+            return false;
+        }
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return false;
+        }
+        int observations = jdbcOperations.update("""
+                UPDATE ai_security_decision_observation
+                   SET trigger_relation = 'HCAD_AND_PROTECTABLE',
+                       resource_id = COALESCE(NULLIF(resource_id, ''), NULLIF(?, '')),
+                       request_path = COALESCE(NULLIF(request_path, ''), NULLIF(?, ''), request_path),
+                       http_method = COALESCE(NULLIF(http_method, ''), NULLIF(?, ''), http_method)
+                 WHERE hcad_evaluation_id = ?
+                   AND trigger_relation = 'HCAD_ONLY'
+                """,
+                blankToEmpty(resourceId),
+                blankToEmpty(resourceUrl),
+                blankToEmpty(httpMethod),
+                hcadEvaluationId);
+        jdbcOperations.update("""
+                UPDATE hcad_llm_decision_correlation
+                   SET trigger_relation = 'HCAD_AND_PROTECTABLE'
+                 WHERE hcad_evaluation_id = ?
+                   AND trigger_relation = 'HCAD_ONLY'
+                """,
+                hcadEvaluationId);
+        return observations > 0;
     }
 
     private void recordCorrelation(
@@ -319,16 +358,24 @@ public class AiSecurityDecisionObservationWriter {
             return false;
         }
         return containsParserFailure(result.getTechnicalFallbackCategory())
-                || containsParserFailure(result.getTechnicalFallbackReason())
-                || (Boolean.FALSE.equals(result.getLlmDecisionPresent())
-                        && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()));
+                || containsParserFailure(result.getTechnicalFallbackReason());
     }
 
     private String failureType(
             ProcessingResult result,
+            Map<String, Object> metadata,
             boolean parserFailure,
             boolean technicalFallback,
-            String failureReason) {
+            String failureReason,
+            Boolean llmDecisionPresent) {
+        String structuredFailure = firstText(
+                metadata,
+                "structuredOutputFailureCategory",
+                "securityDecisionParseFailureCategory",
+                "decisionFailureCategory");
+        if (containsTimeout(structuredFailure) || containsTimeout(failureReason)) {
+            return "TIMEOUT";
+        }
         if (containsNoRuntimeLlmClient(failureReason)) {
             return "NO_RUNTIME_LLM_CLIENT";
         }
@@ -338,20 +385,20 @@ public class AiSecurityDecisionObservationWriter {
         if (containsPromptContractViolation(failureReason)) {
             return "PROMPT_CONTRACT_VIOLATION";
         }
-        if (containsMalformedJson(failureReason)) {
+        if (containsMalformedJson(structuredFailure) || containsMalformedJson(failureReason)) {
             return "MALFORMED_JSON";
         }
-        if (containsEmptyResponse(failureReason)) {
+        if (containsEmptyResponse(structuredFailure) || containsEmptyResponse(failureReason)) {
             return "EMPTY_RESPONSE";
         }
         if (parserFailure) {
             return "PARSER_FAILURE";
         }
-        if (containsTimeout(failureReason)) {
-            return "TIMEOUT";
-        }
-        if (containsModelUnavailable(failureReason)) {
+        if (containsModelUnavailable(structuredFailure) || containsModelUnavailable(failureReason)) {
             return "MODEL_UNAVAILABLE";
+        }
+        if (Boolean.FALSE.equals(llmDecisionPresent)) {
+            return "LLM_DECISION_MISSING";
         }
         if (technicalFallback) {
             return "TECHNICAL_FALLBACK";
@@ -362,20 +409,36 @@ public class AiSecurityDecisionObservationWriter {
         return null;
     }
 
-    private String failureReason(ProcessingResult result) {
-        if (result == null) {
-            return null;
-        }
+    private String failureReason(ProcessingResult result, Map<String, Object> metadata) {
         return firstText(
-                result.getErrorMessage(),
-                result.getMessage(),
-                result.getTechnicalFallbackReason(),
-                result.getTechnicalFallbackCategory());
+                result != null ? result.getErrorMessage() : null,
+                result != null ? result.getMessage() : null,
+                result != null ? result.getTechnicalFallbackReason() : null,
+                result != null ? result.getTechnicalFallbackCategory() : null,
+                firstText(metadata, "securityDecisionRawExecutionFailureMessage"),
+                firstText(metadata, "securityDecisionFallbackReason"),
+                firstText(metadata, "decisionFailureMessage"),
+                firstText(metadata, "structuredOutputFailureCategory"),
+                firstText(metadata, "securityDecisionParseFailureCategory"));
     }
 
     private boolean containsParserFailure(String value) {
         String normalized = normalize(value);
         return normalized != null && (normalized.contains("parser") || normalized.contains("parse"));
+    }
+
+    private boolean isParserFailure(Map<String, Object> metadata) {
+        String category = firstText(
+                metadata,
+                "structuredOutputFailureCategory",
+                "securityDecisionParseFailureCategory");
+        String normalized = normalize(category);
+        return normalized != null && !"none".equals(normalized)
+                && (normalized.contains("json")
+                || normalized.contains("parser")
+                || normalized.contains("parse")
+                || normalized.contains("missing_action")
+                || normalized.contains("empty_response"));
     }
 
     private boolean containsTimeout(String value) {
@@ -504,6 +567,19 @@ public class AiSecurityDecisionObservationWriter {
         return null;
     }
 
+    private Boolean firstBoolean(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            Boolean resolved = bool(value);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+        return null;
+    }
+
     private String writeJson(Object value) {
         if (value == null || objectMapper == null) {
             return null;
@@ -520,6 +596,10 @@ public class AiSecurityDecisionObservationWriter {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null || value.isBlank() ? "" : value;
     }
 
     private String summarize(String value, int maxLength) {

@@ -35,6 +35,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class LLMExecutionStep implements PipelineStep {
@@ -129,9 +130,10 @@ public class LLMExecutionStep implements PipelineStep {
                     .onErrorResume(error -> {
                         log.error("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}",
                                 request.getRequestId(), error);
+                        String failureCategory = isTimeout(error) ? "TIMEOUT" : "MODEL_UNAVAILABLE";
                         context.addMetadata("rawExecutionSucceeded", false);
-                        context.addMetadata("structuredOutputFailureCategory", "MODEL_UNAVAILABLE");
-                        context.addMetadata("securityDecisionParseFailureCategory", "MODEL_UNAVAILABLE");
+                        context.addMetadata("structuredOutputFailureCategory", failureCategory);
+                        context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
                         context.addMetadata("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
                         context.addMetadata("securityDecisionRawExecutionFailureClass", error.getClass().getName());
                         context.addMetadata("securityDecisionRawExecutionFailureMessage", error.getMessage());
@@ -191,6 +193,24 @@ public class LLMExecutionStep implements PipelineStep {
                     log.error("[PIPELINE-STEP] LLM execution failed. Request: {}", request.getRequestId());
                     return Mono.error(error);
                 });
+    }
+
+    private boolean isTimeout(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof TimeoutException) {
+                return true;
+            }
+            String name = current.getClass().getName();
+            String message = current.getMessage();
+            if ((name != null && name.toLowerCase().contains("timeout"))
+                    || (message != null && message.toLowerCase().contains("timeout"))
+                    || (message != null && message.toLowerCase().contains("timed out"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     public <T extends DomainContext> Flux<String> executeStreaming(AIRequest<T> request, PipelineExecutionContext context) {

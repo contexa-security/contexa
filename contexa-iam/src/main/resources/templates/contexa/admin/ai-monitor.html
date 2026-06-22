@@ -60,13 +60,89 @@
         .ai-monitor-status.bad { background: rgba(239,68,68,.18); color: #f87171; }
         .ai-monitor-status.info { background: rgba(34,211,238,.16); color: #67e8f9; }
         .ai-monitor-details-note { color: #64748b; font-size: .74rem; margin-top: .7rem; }
+        .ai-monitor-hero-grid { display: grid; grid-template-columns: minmax(320px, 1.15fr) minmax(280px, .85fr); gap: 1rem; }
+        .ai-monitor-decision-card { border-color: rgba(34,211,238,.25); padding: 1.2rem; }
+        .ai-monitor-decision-card.good { border-color: rgba(34,197,94,.45); }
+        .ai-monitor-decision-card.warn { border-color: rgba(245,158,11,.55); }
+        .ai-monitor-decision-card.bad { border-color: rgba(239,68,68,.6); }
+        .ai-monitor-decision-head { display: grid; grid-template-columns: minmax(240px, auto) minmax(280px, 1fr); gap: 1.25rem; align-items: end; border-bottom: 1px solid rgba(71,85,105,.35); padding-bottom: 1rem; margin-bottom: 1rem; }
+        .ai-monitor-decision-value { color: #f8fafc; font-size: 2.35rem; line-height: 1.05; font-weight: 900; margin: .15rem 0 0; overflow-wrap: anywhere; letter-spacing: 0; }
+        .ai-monitor-decision-caption { color: #cbd5e1; font-size: .86rem; line-height: 1.55; justify-self: end; max-width: 32rem; text-align: right; }
+        .ai-monitor-blocker-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-top: .2rem; }
+        .ai-monitor-blocker { display: grid; gap: .55rem; border-left: .26rem solid #38bdf8; padding: .8rem .9rem; background: rgba(15,23,42,.76); border-radius: .45rem; min-height: 92px; box-shadow: inset 0 0 0 1px rgba(148,163,184,.05); }
+        .ai-monitor-blocker-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .8rem; align-items: baseline; }
+        .ai-monitor-blocker strong { color: #f8fafc; font-size: .9rem; line-height: 1.35; }
+        .ai-monitor-blocker-value { color: #f8fafc; font-size: 1.55rem; line-height: 1; font-weight: 900; white-space: nowrap; }
+        .ai-monitor-blocker-criteria { color: #cbd5e1; font-size: .8rem; line-height: 1.45; }
+        .ai-monitor-blocker.good { border-left-color: #22c55e; }
+        .ai-monitor-blocker.warn { border-left-color: #f59e0b; }
+        .ai-monitor-blocker.bad { border-left-color: #ef4444; }
+        .ai-monitor-funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+        .ai-monitor-funnel-step { position: relative; min-height: 136px; padding: .95rem; border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; background: rgba(15,23,42,.48); overflow: hidden; }
+        .ai-monitor-flow-index { width: 1.4rem; height: 1.4rem; display: grid; place-items: center; border-radius: 999px; color: #0f172a; background: var(--flow-color, #22d3ee); font-size: .72rem; font-weight: 900; margin-bottom: .5rem; }
+        .ai-monitor-simple-list { display: grid; gap: .55rem; }
+        .ai-monitor-simple-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: center; border-bottom: 1px solid rgba(71,85,105,.22); padding: .55rem 0; color: #94a3b8; font-size: .8rem; }
+        .ai-monitor-simple-row:last-child { border-bottom: 0; }
+        .ai-monitor-simple-row strong { color: #e2e8f0; }
+        .ai-monitor-empty-note { color: #94a3b8; line-height: 1.55; font-size: .82rem; padding: .85rem; border: 1px dashed rgba(71,85,105,.4); border-radius: .45rem; background: rgba(15,23,42,.3); }
+        .ai-monitor-two-stack { display: grid; gap: .85rem; }
+        .ai-monitor-mini-bars { display: grid; gap: .65rem; }
+        .ai-monitor-mini-bar { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) 3rem; gap: .65rem; align-items: center; color: #94a3b8; font-size: .74rem; }
+        .ai-monitor-mini-bar div { height: .55rem; border-radius: 999px; overflow: hidden; background: rgba(30,41,59,.85); }
+        .ai-monitor-mini-bar i { display: block; height: 100%; border-radius: inherit; background: #38bdf8; }
+        .ai-monitor-mini-bar strong { color: #e2e8f0; text-align: right; }
+        .ai-monitor-confusion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+        .ai-monitor-confusion-cell { min-height: 118px; border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .9rem; background: rgba(15,23,42,.45); display: grid; gap: .35rem; }
+        .ai-monitor-confusion-cell.good { border-color: rgba(34,197,94,.38); }
+        .ai-monitor-confusion-cell.bad { border-color: rgba(239,68,68,.38); }
+        .ai-monitor-confusion-cell strong { color: #e2e8f0; font-size: .9rem; }
+        .ai-monitor-confusion-cell span { color: #94a3b8; font-size: .74rem; line-height: 1.45; }
+        .ai-monitor-confusion-cell b { color: #f8fafc; font-size: 1.5rem; }
+        .ai-monitor-cause-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+        .ai-monitor-cause { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .85rem; background: rgba(15,23,42,.48); display: grid; gap: .35rem; }
+        .ai-monitor-cause strong { color: #dbeafe; font-size: .82rem; }
+        .ai-monitor-cause span { color: #f8fafc; font-size: 1.45rem; font-weight: 800; }
+        .ai-monitor-cause i { color: #94a3b8; font-style: normal; font-size: .72rem; }
+        .ai-monitor-trend { height: 170px; display: flex; gap: .5rem; align-items: end; border: 1px solid rgba(71,85,105,.22); border-radius: .5rem; padding: .8rem; background: rgba(15,23,42,.32); }
+        .ai-monitor-trend-bar { flex: 1; min-width: 0; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: .45rem; align-items: end; }
+        .ai-monitor-trend-bar i { display: block; width: 100%; min-height: 4px; border-radius: .3rem .3rem 0 0; background: linear-gradient(180deg, #67e8f9, #0e7490); }
+        .ai-monitor-trend-bar span { color: #94a3b8; font-size: .62rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+        .ai-monitor-readiness-visual-grid { display: grid; grid-template-columns: minmax(260px, .52fr) minmax(420px, 1.48fr); gap: 1rem; align-items: stretch; }
+        .ai-monitor-readiness-gauge-card { display: grid; align-content: start; justify-items: center; gap: .9rem; }
+        .ai-monitor-readiness-gauge { width: 184px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(#22c55e var(--readiness-angle), rgba(30,41,59,.9) 0deg); box-shadow: inset 0 0 0 1px rgba(148,163,184,.2), 0 18px 45px rgba(15,23,42,.38); }
+        .ai-monitor-readiness-gauge-core { width: 128px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; gap: .35rem; background: #0f172a; box-shadow: inset 0 0 0 1px rgba(71,85,105,.5); text-align: center; }
+        .ai-monitor-readiness-gauge-core strong { color: #f8fafc; font-size: 2rem; line-height: 1; font-weight: 900; }
+        .ai-monitor-readiness-gauge-core span { color: #94a3b8; font-size: .72rem; line-height: 1.35; max-width: 96px; }
+        .ai-monitor-readiness-bars { display: grid; gap: .85rem; }
+        .ai-monitor-readiness-bar-row { display: grid; gap: .4rem; }
+        .ai-monitor-readiness-bar-head { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; color: #cbd5e1; font-size: .8rem; }
+        .ai-monitor-readiness-bar-head strong { color: #e2e8f0; font-size: .82rem; }
+        .ai-monitor-readiness-bar-head span { color: #94a3b8; font-size: .76rem; text-align: right; }
+        .ai-monitor-readiness-track { height: .72rem; border-radius: 999px; overflow: hidden; background: rgba(30,41,59,.85); border: 1px solid rgba(71,85,105,.35); }
+        .ai-monitor-readiness-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #06b6d4, #22c55e); }
+        .ai-monitor-readiness-bar-row.bad .ai-monitor-readiness-track > span { background: linear-gradient(90deg, #f97316, #ef4444); }
+        .ai-monitor-criteria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; }
+        .ai-monitor-criterion { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .85rem; display: grid; gap: .35rem; background: rgba(15,23,42,.45); }
+        .ai-monitor-criterion.good { border-color: rgba(34,197,94,.42); }
+        .ai-monitor-criterion.bad { border-color: rgba(239,68,68,.42); }
+        .ai-monitor-criterion strong { color: #e2e8f0; font-size: .86rem; }
+        .ai-monitor-criterion span { color: #94a3b8; font-size: .76rem; }
+        .ai-monitor-criterion em { color: #cbd5e1; font-style: normal; font-size: .76rem; }
         @media (max-width: 1180px) {
             .ai-monitor-overview-top,
-            .ai-monitor-overview-grid { grid-template-columns: 1fr; }
-            .ai-monitor-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .ai-monitor-overview-grid,
+            .ai-monitor-readiness-visual-grid,
+            .ai-monitor-hero-grid { grid-template-columns: 1fr; }
+            .ai-monitor-decision-head { grid-template-columns: 1fr; }
+            .ai-monitor-decision-caption { justify-self: start; text-align: left; }
+            .ai-monitor-blocker-list { grid-template-columns: 1fr; }
+            .ai-monitor-flow,
+            .ai-monitor-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         @media (max-width: 700px) {
             .ai-monitor-flow,
+            .ai-monitor-funnel,
+            .ai-monitor-confusion,
             .ai-monitor-chart-shell { grid-template-columns: 1fr; }
             .ai-monitor-donut { width: 136px; }
         }
@@ -161,6 +237,7 @@
              th:data-label-screen-purpose="#{admin.aiMonitor.status.screenPurpose}"
              th:data-label-current-decision="#{admin.aiMonitor.status.currentDecision}"
              th:data-label-no-decision="#{admin.aiMonitor.status.noDecision}"
+             th:data-label-no-decision-data="#{admin.aiMonitor.status.noDecisionData}"
              th:data-label-section-overview-title="#{admin.aiMonitor.section.overviewTitle}"
              th:data-label-section-overview-desc="#{admin.aiMonitor.section.overviewDesc}"
              th:data-label-section-llm-title="#{admin.aiMonitor.section.llmTitle}"
@@ -191,6 +268,47 @@
              th:data-label-timeout-pressure="#{admin.aiMonitor.dashboard.timeoutPressure}"
              th:data-label-stable-signal="#{admin.aiMonitor.dashboard.stableSignal}"
              th:data-label-attention-signal="#{admin.aiMonitor.dashboard.attentionSignal}"
+             th:data-label-decision-reason-intro="#{admin.aiMonitor.dashboard.decisionReasonIntro}"
+             th:data-label-no-major-blocker="#{admin.aiMonitor.dashboard.noMajorBlocker}"
+             th:data-label-no-major-blocker-desc="#{admin.aiMonitor.dashboard.noMajorBlockerDesc}"
+             th:data-label-matched="#{admin.aiMonitor.dashboard.matched}"
+             th:data-label-mismatched="#{admin.aiMonitor.dashboard.mismatched}"
+             th:data-label-match-rate="#{admin.aiMonitor.kpi.matchRate}"
+             th:data-label-mismatch-rate="#{admin.aiMonitor.kpi.mismatchRate}"
+             th:data-label-false-positive-rate="#{admin.aiMonitor.kpi.falsePositiveRate}"
+             th:data-label-blocker-sample="#{admin.aiMonitor.blocker.sample}"
+             th:data-label-blocker-precision="#{admin.aiMonitor.blocker.precision}"
+             th:data-label-blocker-fn="#{admin.aiMonitor.blocker.fn}"
+             th:data-label-blocker-unknown="#{admin.aiMonitor.blocker.unknown}"
+             th:data-label-blocker-failure="#{admin.aiMonitor.blocker.failure}"
+             th:data-label-action-collect-more="#{admin.aiMonitor.action.collectMore}"
+             th:data-label-action-review-mismatch="#{admin.aiMonitor.action.reviewMismatch}"
+             th:data-label-action-review-missed="#{admin.aiMonitor.action.reviewMissed}"
+             th:data-label-action-fix-unknown="#{admin.aiMonitor.action.fixUnknown}"
+             th:data-label-action-fix-failures="#{admin.aiMonitor.action.fixFailures}"
+             th:data-label-quality-failure-link="#{admin.aiMonitor.llm.qualityFailureLink}"
+             th:data-label-hcad-found-ai-risk="#{admin.aiMonitor.correlation.hcadFoundAiRisk}"
+             th:data-label-true-positive-meaning="#{admin.aiMonitor.correlation.truePositiveMeaning}"
+             th:data-label-hcad-found-ai-allow="#{admin.aiMonitor.correlation.hcadFoundAiAllow}"
+             th:data-label-false-positive-meaning="#{admin.aiMonitor.correlation.falsePositiveMeaning}"
+             th:data-label-hcad-missed-ai-risk="#{admin.aiMonitor.correlation.hcadMissedAiRisk}"
+             th:data-label-false-negative-meaning="#{admin.aiMonitor.correlation.falseNegativeMeaning}"
+             th:data-label-hcad-missed-ai-allow="#{admin.aiMonitor.correlation.hcadMissedAiAllow}"
+             th:data-label-true-negative-meaning="#{admin.aiMonitor.correlation.trueNegativeMeaning}"
+             th:data-label-confusion-matrix-help="#{admin.aiMonitor.correlation.confusionMatrixHelp}"
+             th:data-label-not-called-reason="#{admin.aiMonitor.correlation.notCalledReason}"
+             th:data-label-not-called-reason-help="#{admin.aiMonitor.correlation.notCalledReasonHelp}"
+             th:data-label-investigation-queue="#{admin.aiMonitor.correlation.investigationQueue}"
+             th:data-label-failure-trend="#{admin.aiMonitor.failures.trend}"
+             th:data-label-recent-failures="#{admin.aiMonitor.failures.recent}"
+             th:data-label-affected-requests="#{admin.aiMonitor.failures.affectedRequests}"
+             th:data-label-provider-unknown-help="#{admin.aiMonitor.failures.providerUnknownHelp}"
+             th:data-label-request="#{admin.aiMonitor.table.request}"
+             th:data-label-passed="#{admin.aiMonitor.readiness.passed}"
+             th:data-label-need-more-samples="#{admin.aiMonitor.readiness.needMoreSamples}"
+             th:data-label-or-more="#{admin.aiMonitor.readiness.orMore}"
+             th:data-label-or-less="#{admin.aiMonitor.readiness.orLess}"
+             th:data-label-gap="#{admin.aiMonitor.readiness.gap}"
              th:data-label-key-metrics="#{admin.aiMonitor.section.keyMetrics}"
              th:data-label-decision-path="#{admin.aiMonitor.section.decisionPath}"
              th:data-label-decision-result="#{admin.aiMonitor.section.decisionResult}"
@@ -208,6 +326,7 @@
              th:data-label-enum-pending-redline="#{admin.aiMonitor.enum.pendingRedline}"
              th:data-label-enum-pending-analysis="#{admin.aiMonitor.enum.pendingAnalysis}"
              th:data-label-enum-allow="#{admin.aiMonitor.enum.allow}"
+             th:data-label-enum-block="#{admin.aiMonitor.enum.block}"
              th:data-label-enum-deny="#{admin.aiMonitor.enum.deny}"
              th:data-label-enum-challenge="#{admin.aiMonitor.enum.challenge}"
              th:data-label-enum-unknown="#{admin.aiMonitor.enum.unknown}"
@@ -236,7 +355,12 @@
              th:data-label-enum-technical-fallback-rate="#{admin.aiMonitor.enum.technicalFallbackRate}"
              th:data-label-enum-timeout-rate="#{admin.aiMonitor.enum.timeoutRate}"
              th:data-label-enum-model-unavailable-rate="#{admin.aiMonitor.enum.modelUnavailableRate}"
-             th:data-label-enum-p95-latency="#{admin.aiMonitor.enum.p95Latency}">
+             th:data-label-enum-p95-latency="#{admin.aiMonitor.enum.p95Latency}"
+             th:data-label-enum-duplicate-suppressed="#{admin.aiMonitor.enum.duplicateSuppressed}"
+             th:data-label-enum-low-risk="#{admin.aiMonitor.enum.lowRisk}"
+             th:data-label-enum-rate-limited="#{admin.aiMonitor.enum.rateLimited}"
+             th:data-label-enum-policy-observe-only="#{admin.aiMonitor.enum.policyObserveOnly}"
+             th:data-label-enum-not-triggered="#{admin.aiMonitor.enum.notTriggered}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                     <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
@@ -272,6 +396,6 @@
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<script th:src="@{/js/admin/ai-monitor.js?v=20260619d}"></script>
+<script th:src="@{/js/admin/ai-monitor.js?v=20260622f}"></script>
 </body>
 </html>

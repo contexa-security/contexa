@@ -135,6 +135,27 @@ public class HcadDetectionEvaluation {
     @Column(name = "reason_codes", columnDefinition = "TEXT")
     private String reasonCodes;
 
+    @Column(name = "non_trigger_reason", length = 64)
+    private String nonTriggerReason;
+
+    @Column(name = "evidence_gap_codes", columnDefinition = "TEXT")
+    private String evidenceGapCodes;
+
+    @Column(name = "baseline_available")
+    private Boolean baselineAvailable;
+
+    @Column(name = "baseline_update_count")
+    private Long baselineUpdateCount;
+
+    @Column(name = "baseline_mismatch_count")
+    private Integer baselineMismatchCount;
+
+    @Column(name = "baseline_mismatched_dimensions", columnDefinition = "TEXT")
+    private String baselineMismatchedDimensions;
+
+    @Column(name = "trigger_decision_reason", length = 128)
+    private String triggerDecisionReason;
+
     @Column(name = "signal_snapshot_json", columnDefinition = "TEXT")
     private String signalSnapshotJson;
 

@@ -19,6 +19,7 @@ import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.projection.HcadTrustedAnchorSignalProbe;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
@@ -147,7 +148,28 @@ public class HCADFilter extends OncePerRequestFilter {
             request.setAttribute("hcad.actorSessionKey", actorSessionKey);
             request.setAttribute("hcad.windowId", windowLease.windowId());
             request.setAttribute("hcad.windowRequestCount", windowLease.requestCount());
-            if (!windowLease.deepEvaluationOwner() || HcadRequestPathUtils.isNonUserInteractionRequest(request)) {
+            boolean nonUserInteraction = HcadRequestPathUtils.isNonUserInteractionRequest(request);
+            boolean deepEvaluationOwner = windowLease.deepEvaluationOwner();
+            if (!deepEvaluationOwner && !nonUserInteraction) {
+                HcadTrustedAnchorSignalProbe anchorProbe = trustedProjectionFactory.probeAnchorSignals(request, authentication);
+                if (anchorProbe != null
+                        && anchorProbe.hasAnchorSignature()
+                        && observationWindowRepository.tryAcquireEscalation(
+                        actorSessionKey,
+                        windowLease.windowId(),
+                        anchorProbe.anchorSignature())) {
+                    deepEvaluationOwner = true;
+                    request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_ESCALATION_EVALUATION, true);
+                    windowLease = new HcadObservationWindowLease(
+                            true,
+                            windowLease.actorSessionKey(),
+                            windowLease.windowId(),
+                            windowLease.requestCount(),
+                            windowLease.resourceFamilies(),
+                            windowLease.samplePaths());
+                }
+            }
+            if (!deepEvaluationOwner || nonUserInteraction) {
                 updateWindowObservation(actorSessionKey, windowLease);
                 if (log.isTraceEnabled()) {
                     log.trace("[HCADFilter] Observation-only request: actorSessionKey={}, windowId={}, path={}, owner={}",
@@ -172,6 +194,10 @@ public class HCADFilter extends OncePerRequestFilter {
                     assessment,
                     windowLease,
                     firstText(projectedActorSessionKey, actorSessionKey));
+            observationWindowRepository.markDeepEvaluationCompleted(
+                    actorSessionKey,
+                    windowLease.windowId(),
+                    PendingAnomalyKeyFactory.buildTrustedAnchorSignature(assessment.anchorSignals()));
             if (log.isTraceEnabled()) {
                 log.trace("[HCADFilter] Evaluated: userId={}, method={}, path={}, previousPath={}, score={}, band={}, eligible={}",
                         projection.userId(),
@@ -319,7 +345,7 @@ public class HCADFilter extends OncePerRequestFilter {
                 projection.clientIp(),
                 assessment.score(),
                 assessment.band().serializedValue(),
-                true,
+                assessment.eligible(),
                 assessment.evaluationVersion(),
                 assessment.anchorSignals(),
                 assessment.corroboratingSignals(),
@@ -360,6 +386,7 @@ public class HCADFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = HcadRequestPathUtils.normalizedPath(request);
         return !hcadProperties.getPreTrigger().shouldEvaluate() ||
+               HcadRequestPathUtils.isNonActionableMonitoringPath(path) ||
                matchesExcludedPattern(path);
     }
 

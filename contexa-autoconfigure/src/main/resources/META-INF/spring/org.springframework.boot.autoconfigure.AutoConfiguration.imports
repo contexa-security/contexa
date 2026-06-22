@@ -16,6 +16,7 @@ io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 
 # Core LLM
 io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration
+io.contexa.autoconfigure.core.hcad.HcadExtremeTestAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
 
 # Core Advisor

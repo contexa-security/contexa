@@ -479,13 +479,15 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustEventListener zeroTrustEventListener,
             SecurityPlaneAgent securityPlaneAgent,
             ZeroTrustActionRepository actionRepository,
-            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider) {
+            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
+            ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider) {
         return new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
                 securityPlaneAgent,
                 actionRepository,
-                analysisTriggerStateRepositoryProvider.getIfAvailable());
+                analysisTriggerStateRepositoryProvider.getIfAvailable(),
+                aiSecurityDecisionObservationWriterProvider::getIfAvailable);
     }
     @Bean
     @ConditionalOnMissingBean

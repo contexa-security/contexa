@@ -70,28 +70,15 @@ public class SessionManagementService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void trackSession(String sessionId, String userId, String username,
                              String clientIp, String userAgent) {
-        activeSessionRepository.findById(sessionId).ifPresentOrElse(
-                existing -> {
-                    if (!existing.isExpired() && shouldUpdateLastAccess(existing.getLastAccessedAt())) {
-                        existing.setLastAccessedAt(LocalDateTime.now());
-                        activeSessionRepository.save(existing);
-                    }
-                },
-                () -> {
-                    LocalDateTime now = LocalDateTime.now();
-                    ActiveSession session = ActiveSession.builder()
-                            .sessionId(sessionId)
-                            .userId(userId)
-                            .username(username)
-                            .clientIp(clientIp)
-                            .userAgent(truncate(userAgent, 512))
-                            .createdAt(now)
-                            .lastAccessedAt(now)
-                            .expired(false)
-                            .build();
-                    activeSessionRepository.save(session);
-                }
-        );
+        LocalDateTime now = LocalDateTime.now();
+        activeSessionRepository.upsertSession(
+                sessionId,
+                userId,
+                username,
+                clientIp,
+                truncate(userAgent, 512),
+                now,
+                now.minusSeconds(UPDATE_THRESHOLD_SECONDS));
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")

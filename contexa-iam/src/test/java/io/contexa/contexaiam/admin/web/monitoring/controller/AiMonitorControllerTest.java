@@ -82,6 +82,9 @@ class AiMonitorControllerTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of()));
         when(service.readiness("day")).thenReturn(new ReadinessSummary(
                 "day",
@@ -163,6 +166,9 @@ class AiMonitorControllerTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of());
         return new OverviewSummary(
                 "day",
@@ -203,6 +209,7 @@ class AiMonitorControllerTest {
                         List.of(),
                         List.of(),
                         List.of(new CorrelationMatrixRow("HCAD_EARLY_TRIGGER", 3L, 1L, 0L, 0L)),
+                        List.of(),
                         List.of(new RecentCorrelation(
                                 "corr-1",
                                 "eval-1",

@@ -112,6 +112,174 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[36]).isEqualTo("TN");
     }
 
+    @Test
+    @DisplayName("HCAD pre-triggered LLM allow should be stored as HCAD_ONLY FP")
+    void recordDecision_hcadTriggeredAllow_shouldStoreFalsePositive() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-fp")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "hcadEvaluationId", "eval-fp",
+                        "requestId", "req-fp",
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 80,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "HIGH",
+                        HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, true
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("ALLOW")
+                .proposedAction("ALLOW")
+                .llmAuditRiskScore(0.05d)
+                .llmAuditConfidence(0.95d)
+                .llmDecisionPresent(true)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[10]).isEqualTo("HCAD_PRE_TRIGGER");
+        assertThat(args[11]).isEqualTo("HCAD_ONLY");
+        assertThat(args[36]).isEqualTo("FP");
+    }
+
+    @Test
+    @DisplayName("Protectable LLM decision with same request HCAD trigger should be stored as HCAD_AND_PROTECTABLE FP when allowed")
+    void recordDecision_hcadAndProtectableAllow_shouldStoreCombinedFalsePositive() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-combined-fp")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "protectableDeclared", true,
+                        "protectableResourceId", "hcad.extreme.allow",
+                        "protectableResourceUrl", "/contexa/test/hcad/protectable/allow",
+                        "hcadEvaluationId", "eval-combined-fp",
+                        "requestId", "req-combined-fp",
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 78,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "HIGH",
+                        HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, true
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("ALLOW")
+                .proposedAction("ALLOW")
+                .llmAuditRiskScore(0.04d)
+                .llmAuditConfidence(0.94d)
+                .llmDecisionPresent(true)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[10]).isEqualTo("HCAD_PRE_TRIGGER");
+        assertThat(args[11]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(args[19]).isEqualTo("hcad.extreme.allow");
+        assertThat(args[36]).isEqualTo("FP");
+        Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
+        assertThat(correlationArgs[8]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(correlationArgs[9]).isEqualTo("FP");
+    }
+
+    @Test
+    @DisplayName("Protectable LLM risk with HCAD observation but no trigger should be stored as FN")
+    void recordDecision_protectableObservedRisk_shouldStoreFalseNegative() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-fn")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "protectableDeclared", true,
+                        "protectableResourceId", "hcad.extreme.challenge",
+                        "hcadEvaluationId", "eval-fn",
+                        "requestId", "req-fn",
+                        HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true,
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 20,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW",
+                        HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("CHALLENGE")
+                .proposedAction("CHALLENGE")
+                .llmAuditRiskScore(0.84d)
+                .llmAuditConfidence(0.91d)
+                .llmDecisionPresent(true)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[10]).isEqualTo("PROTECTABLE");
+        assertThat(args[11]).isEqualTo("PROTECTABLE_ONLY");
+        assertThat(args[36]).isEqualTo("FN");
+    }
+
+    @Test
+    @DisplayName("Parser failure should be stored as UNKNOWN and excluded from precision")
+    void recordDecision_parserFailure_shouldStoreUnknown() {
+        assertFailureType("parser failure: could not parse response", "PARSER_FAILURE", "UNKNOWN");
+    }
+
+    @Test
+    @DisplayName("Timeout should be stored as UNKNOWN and excluded from precision")
+    void recordDecision_timeout_shouldStoreUnknown() {
+        assertFailureType("LLM request timeout", "TIMEOUT", "UNKNOWN");
+    }
+
+    @Test
+    @DisplayName("Model unavailable should be stored as UNKNOWN and excluded from precision")
+    void recordDecision_modelUnavailable_shouldStoreUnknown() {
+        assertFailureType("model unavailable", "MODEL_UNAVAILABLE", "UNKNOWN");
+    }
+
+    private void assertFailureType(String failureReason, String expectedFailureType, String expectedOutcome) {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-" + expectedFailureType)
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "hcadEvaluationId", "eval-" + expectedFailureType,
+                        "requestId", "req-" + expectedFailureType,
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 75,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "HIGH",
+                        HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, true
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(false)
+                .errorMessage(failureReason)
+                .message(failureReason)
+                .llmDecisionPresent(false)
+                .technicalFallbackApplied(true)
+                .technicalFallbackReason(failureReason)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[33]).isEqualTo(expectedFailureType);
+        assertThat(args[36]).isEqualTo(expectedOutcome);
+    }
+
     private Map<String, Object> metadata(Map<String, Object> source) {
         return new HashMap<>(source);
     }

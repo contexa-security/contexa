@@ -103,6 +103,9 @@ class HcadSecurityMonitorControllerTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of()
         );
     }

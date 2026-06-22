@@ -38,25 +38,29 @@ class HcadMonitoringServiceTest {
     @DisplayName("summary should calculate precision and enforce recommendation from qualification settings")
     void summarize_shouldCalculatePrecisionAndRecommendation() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
-        when(repository.countByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(120L);
-        when(repository.sumRequestCountBetween(any(), any())).thenReturn(240L);
-        when(repository.countByTriggeredLlmTrueAndCreatedAtBetween(any(), any())).thenReturn(100L);
-        when(repository.sumDuplicateSuppressedCountBetween(any(), any())).thenReturn(7L);
-        when(repository.countByEligibleTrueAndCreatedAtBetween(any(), any())).thenReturn(100L);
-        when(repository.countByEligibleFalseAndCreatedAtBetween(any(), any())).thenReturn(20L);
-        when(repository.sumNegativeCacheHitCountBetween(any(), any())).thenReturn(3L);
-        when(repository.countEscalationBetween(any(), any())).thenReturn(9L);
-        when(repository.countByOutcomeClassAndCreatedAtBetween(eq("TP"), any(), any())).thenReturn(95L);
-        when(repository.countByOutcomeClassAndCreatedAtBetween(eq("FP"), any(), any())).thenReturn(5L);
-        when(repository.countByOutcomeClassAndCreatedAtBetween(eq("FN"), any(), any())).thenReturn(1L);
-        when(repository.countByOutcomeClassAndCreatedAtBetween(eq("TN"), any(), any())).thenReturn(2L);
-        when(repository.countByOutcomeClassAndCreatedAtBetween(eq("UNKNOWN"), any(), any())).thenReturn(17L);
-        when(repository.averageLlmLatencyMsBetween(any(), any())).thenReturn(42.5d);
-        when(repository.countByModeBetween(any(), any())).thenReturn(List.<Object[]>of(new Object[]{"SHADOW", 120L}));
+        when(repository.countMonitorableByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(120L);
+        when(repository.sumMonitorableRequestCountBetween(any(), any())).thenReturn(240L);
+        when(repository.countMonitorableByTriggeredLlmTrueAndCreatedAtBetween(any(), any())).thenReturn(100L);
+        when(repository.sumMonitorableDuplicateSuppressedCountBetween(any(), any())).thenReturn(7L);
+        when(repository.countMonitorableByEligibleTrueAndCreatedAtBetween(any(), any())).thenReturn(100L);
+        when(repository.countMonitorableByEligibleFalseAndCreatedAtBetween(any(), any())).thenReturn(20L);
+        when(repository.sumMonitorableNegativeCacheHitCountBetween(any(), any())).thenReturn(3L);
+        when(repository.countMonitorableEscalationBetween(any(), any())).thenReturn(9L);
+        when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("TP"), any(), any())).thenReturn(95L);
+        when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("FP"), any(), any())).thenReturn(5L);
+        when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("FN"), any(), any())).thenReturn(1L);
+        when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("TN"), any(), any())).thenReturn(2L);
+        when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("UNKNOWN"), any(), any())).thenReturn(17L);
+        when(repository.averageMonitorableLlmLatencyMsBetween(any(), any())).thenReturn(42.5d);
+        when(repository.countMonitorableByModeBetween(any(), any())).thenReturn(List.<Object[]>of(new Object[]{"SHADOW", 120L}));
         when(repository.countByScoreBetween(any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[]{"80", 70L}, new Object[]{"20", 50L}));
         when(repository.countByBandBetween(any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[]{"HIGH", 70L}, new Object[]{"LOW", 50L}));
+        when(repository.countByScoreBandBetween(any(), any()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{"20-39", 50L, 0L, 0L, 0L, 0L, 50L},
+                        new Object[]{"80-100", 0L, 0L, 70L, 0L, 0L, 70L}));
         when(repository.aggregateBySignalBetween(any(), any(), anyInt()))
                 .thenReturn(List.<Object[]>of(new Object[]{"REQUEST_BURST", 100L, 95L, 5L, 0L}));
         when(repository.aggregateByAnchorSignalBetween(any(), any(), anyInt()))
@@ -67,8 +71,8 @@ class HcadMonitoringServiceTest {
                 .thenReturn(List.<Object[]>of(new Object[]{"/admin/reports", "GET", 100L, 95L, 5L, 7L}));
         when(repository.aggregateByUserSessionBetween(any(), any(), anyInt()))
                 .thenReturn(List.<Object[]>of(new Object[]{"alice", "ctx-1", 12L, 10L, 2L, 9L, 1L, 2L}));
-        when(repository.findTop50ByCreatedAtBetweenOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
-        when(repository.findTop25ByOutcomeClassAndCreatedAtBetweenOrderByCreatedAtDesc(eq("UNKNOWN"), any(), any())).thenReturn(List.of());
+        when(repository.findTop50MonitorableByCreatedAtBetweenOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+        when(repository.findTop25MonitorableByOutcomeClassAndCreatedAtBetweenOrderByCreatedAtDesc(eq("UNKNOWN"), any(), any())).thenReturn(List.of());
 
         HcadProperties properties = new HcadProperties();
         properties.getPreTrigger().getQualification().setEstimatedLlmCallCostUsd(0.02d);
@@ -92,6 +96,7 @@ class HcadMonitoringServiceTest {
         assertThat(summary.recommendation()).isEqualTo("DEFAULT_ENFORCE_CANDIDATE");
         assertThat(summary.scoreDistribution()).extracting("key").containsExactly("80", "20");
         assertThat(summary.bandDistribution()).extracting("key").containsExactly("HIGH", "LOW");
+        assertThat(summary.scoreBandDistribution()).extracting("scoreBucket").containsExactly("20-39", "80-100");
         assertThat(summary.anchorSignalBreakdown()).hasSize(1);
         assertThat(summary.corroboratingSignalBreakdown()).hasSize(1);
         assertThat(summary.signalBreakdown()).hasSize(1);

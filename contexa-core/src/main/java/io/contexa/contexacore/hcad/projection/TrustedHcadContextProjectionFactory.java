@@ -24,9 +24,11 @@ import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormali
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionSignal;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
 import io.contexa.contexacore.properties.HcadProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -242,6 +244,55 @@ public class TrustedHcadContextProjectionFactory {
                 HcadPromptSecurityContextFieldRegistry.snapshot(provenance),
                 provenance,
                 ignoredInputs);
+    }
+
+    public HcadTrustedAnchorSignalProbe probeAnchorSignals(HttpServletRequest request, Authentication authentication) {
+        AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request);
+        AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request);
+        String userId = firstText(
+                authenticationStamp != null ? authenticationStamp.principalId() : null,
+                authentication != null ? authentication.getName() : null);
+        String tenantId = textAttribute(authenticationStamp, "tenantId");
+        String organizationId = firstText(textAttribute(authenticationStamp, "organizationId"), textAttribute(authenticationStamp, "orgId"));
+        String sessionId = resolveServerSessionId(request, authenticationStamp);
+        String authenticationMethodRaw = firstText(
+                authenticationStamp != null ? authenticationStamp.authenticationType() : null,
+                authentication != null ? authentication.getClass().getSimpleName() : null);
+        String authenticationMethod = firstText(
+                SecuritySemanticNormalizer.normalizeAuthenticationType(authenticationMethodRaw),
+                authenticationMethodRaw);
+        Boolean mfaVerified = authenticationStamp != null && authenticationStamp.mfaCompleted() != null
+                ? authenticationStamp.mfaCompleted()
+                : hasMfaAuthority(authentication);
+        Long mfaFreshnessSeconds = authenticationStamp != null && authenticationStamp.authenticationTime() != null
+                ? Duration.between(authenticationStamp.authenticationTime(), Instant.now()).toSeconds()
+                : null;
+        Boolean authorizationPrivileged = authorizationStamp != null ? authorizationStamp.privileged() : null;
+        Boolean verificationRequired = booleanAttribute(authorizationStamp, "verificationRequired");
+
+        List<String> anchors = new ArrayList<>();
+        Map<Object, Object> metadata = sessionMetadata(sessionId);
+        if (Boolean.TRUE.equals(asBoolean(metadata.get("impossibleTravel")))) {
+            anchors.add(HcadPreProtectablePromotionSignal.IMPOSSIBLE_TRAVEL.name());
+        }
+        if (failedLoginBurst(sessionId) >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()) {
+            anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST.name());
+        }
+        if (isAuthContextInconsistent(authenticationMethod, mfaVerified)) {
+            anchors.add(HcadPreProtectablePromotionSignal.AUTH_CONTEXT_INCONSISTENT.name());
+        }
+        if (!recentPermissionChanges(tenantId, userId).isEmpty()) {
+            anchors.add(HcadPreProtectablePromotionSignal.RECENT_PERMISSION_CHANGE.name());
+        }
+        if (Boolean.TRUE.equals(authorizationPrivileged)) {
+            anchors.add(HcadPreProtectablePromotionSignal.PRIVILEGED_AUTHORIZATION.name());
+        }
+        if (isFreshMfaRequiredButNotFresh(verificationRequired, mfaVerified, mfaFreshnessSeconds)) {
+            anchors.add(HcadPreProtectablePromotionSignal.FRESH_MFA_REQUIRED.name());
+        }
+        return new HcadTrustedAnchorSignalProbe(
+                anchors,
+                PendingAnomalyKeyFactory.buildTrustedAnchorSignature(anchors));
     }
 
     private HcadBaselineComparison comparePersonalBaseline(
@@ -737,6 +788,25 @@ public class TrustedHcadContextProjectionFactory {
         }
         int slash = userAgentSignature.indexOf('/');
         return slash > 0 ? userAgentSignature.substring(0, slash) : userAgentSignature;
+    }
+
+    private boolean isAuthContextInconsistent(String authenticationMethod, Boolean mfaVerified) {
+        String authMethod = normalizeComparable(authenticationMethod);
+        return ("mfa".equals(authMethod) || "mfa_only".equals(authMethod)) && !Boolean.TRUE.equals(mfaVerified);
+    }
+
+    private boolean isFreshMfaRequiredButNotFresh(
+            Boolean verificationRequired,
+            Boolean mfaVerified,
+            Long mfaFreshnessSeconds) {
+        if (!Boolean.TRUE.equals(verificationRequired)) {
+            return false;
+        }
+        if (!Boolean.TRUE.equals(mfaVerified)) {
+            return true;
+        }
+        return mfaFreshnessSeconds != null
+                && mfaFreshnessSeconds > hcadProperties.getPreTrigger().getFreshMfaMaxAgeSeconds();
     }
 
     private String firstText(String... values) {

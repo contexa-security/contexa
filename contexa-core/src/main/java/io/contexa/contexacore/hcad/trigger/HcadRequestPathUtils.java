@@ -62,6 +62,41 @@ public final class HcadRequestPathUtils {
             "video/",
             "audio/");
 
+    private static final List<String> NON_ACTIONABLE_PATH_PREFIXES = List.of(
+            "/assets/",
+            "/css/",
+            "/fonts/",
+            "/img/",
+            "/images/",
+            "/static/",
+            "/webjars/",
+            "/.well-known/appspecific/");
+
+    private static final List<String> NON_ACTIONABLE_EXACT_PATHS = List.of(
+            "/favicon.ico",
+            "/manifest.json",
+            "/manifest.webmanifest",
+            "/robots.txt");
+
+    private static final List<String> NON_ACTIONABLE_STATIC_SUFFIXES = List.of(
+            ".avif",
+            ".css",
+            ".eot",
+            ".gif",
+            ".ico",
+            ".jpeg",
+            ".jpg",
+            ".js",
+            ".map",
+            ".mjs",
+            ".otf",
+            ".png",
+            ".svg",
+            ".ttf",
+            ".webp",
+            ".woff",
+            ".woff2");
+
     private HcadRequestPathUtils() {
     }
 
@@ -128,6 +163,28 @@ public final class HcadRequestPathUtils {
             }
         }
         return acceptsOnlyNonInteractiveRepresentations(request.getHeader("Accept"));
+    }
+
+    public static boolean isNonActionableMonitoringPath(String path) {
+        String normalized = normalizePathText(path);
+        if (!StringUtils.hasText(normalized)) {
+            return false;
+        }
+        String lowerPath = normalized.toLowerCase(Locale.ROOT);
+        if (NON_ACTIONABLE_EXACT_PATHS.contains(lowerPath)) {
+            return true;
+        }
+        for (String prefix : NON_ACTIONABLE_PATH_PREFIXES) {
+            if (lowerPath.startsWith(prefix)) {
+                return true;
+            }
+        }
+        for (String suffix : NON_ACTIONABLE_STATIC_SUFFIXES) {
+            if (lowerPath.endsWith(suffix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isPreflight(HttpServletRequest request) {

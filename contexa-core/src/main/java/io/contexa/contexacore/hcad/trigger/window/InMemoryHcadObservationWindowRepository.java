@@ -23,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -66,6 +67,40 @@ public class InMemoryHcadObservationWindowRepository implements HcadObservationW
         return Optional.of(state.lease(actorSessionKey, false));
     }
 
+    @Override
+    public synchronized boolean tryAcquireEscalation(String actorSessionKey, String windowId, String anchorSignature) {
+        if (!StringUtils.hasText(actorSessionKey)
+                || !StringUtils.hasText(windowId)
+                || !StringUtils.hasText(anchorSignature)) {
+            return false;
+        }
+        WindowState state = windows.get(actorSessionKey);
+        long now = System.currentTimeMillis();
+        if (state == null || state.expiresAt <= now || !windowId.equals(state.windowId)) {
+            return false;
+        }
+        if (!state.deepEvaluationCompleted) {
+            return false;
+        }
+        return state.evaluatedAnchorSignatures.add(anchorSignature);
+    }
+
+    @Override
+    public synchronized void markDeepEvaluationCompleted(String actorSessionKey, String windowId, String anchorSignature) {
+        if (!StringUtils.hasText(actorSessionKey) || !StringUtils.hasText(windowId)) {
+            return;
+        }
+        WindowState state = windows.get(actorSessionKey);
+        long now = System.currentTimeMillis();
+        if (state == null || state.expiresAt <= now || !windowId.equals(state.windowId)) {
+            return;
+        }
+        state.deepEvaluationCompleted = true;
+        if (StringUtils.hasText(anchorSignature)) {
+            state.evaluatedAnchorSignatures.add(anchorSignature);
+        }
+    }
+
     private long positiveMillis(Duration duration, long defaultValue) {
         if (duration == null || duration.isZero() || duration.isNegative()) {
             return defaultValue;
@@ -91,6 +126,8 @@ public class InMemoryHcadObservationWindowRepository implements HcadObservationW
         private final String windowId;
         private final long expiresAt;
         private final List<HcadRequestObservation> observations = new ArrayList<>();
+        private final Set<String> evaluatedAnchorSignatures = new LinkedHashSet<>();
+        private boolean deepEvaluationCompleted;
 
         private WindowState(String windowId, long expiresAt) {
             this.windowId = windowId;

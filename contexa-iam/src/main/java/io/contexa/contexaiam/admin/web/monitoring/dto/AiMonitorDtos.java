@@ -73,6 +73,7 @@ public final class AiMonitorDtos {
             List<NamedCount> triggerRelationBreakdown,
             List<NamedCount> outcomeBreakdown,
             List<CorrelationMatrixRow> matrixRows,
+            List<NamedCount> notCalledReasonBreakdown,
             List<RecentCorrelation> recentCorrelations
     ) {
     }
@@ -105,7 +106,10 @@ public final class AiMonitorDtos {
             List<NamedCount> fallbackCategoryBreakdown,
             List<NamedCount> providerBreakdown,
             List<NamedCount> modelBreakdown,
-            List<NamedCount> promptTemplateBreakdown
+            List<NamedCount> promptTemplateBreakdown,
+            List<NamedCount> failureTrend,
+            List<AffectedRequest> affectedRequests,
+            List<RecentFailure> recentFailures
     ) {
     }
 
@@ -159,6 +163,26 @@ public final class AiMonitorDtos {
             Double llmConfidence,
             String createdAt,
             String decidedAt
+    ) {
+    }
+
+    public record AffectedRequest(
+            String method,
+            String path,
+            long count
+    ) {
+    }
+
+    public record RecentFailure(
+            String observationId,
+            String requestId,
+            String userId,
+            String method,
+            String path,
+            String failureType,
+            String finalAction,
+            Double latencyMs,
+            String createdAt
     ) {
     }
 }

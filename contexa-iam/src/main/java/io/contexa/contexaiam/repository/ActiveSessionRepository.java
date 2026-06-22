@@ -52,4 +52,48 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, St
 
     @Query("SELECT s FROM ActiveSession s WHERE s.expired = false AND (lower(s.username) LIKE :keyword OR lower(s.clientIp) LIKE :keyword) ORDER BY s.lastAccessedAt DESC")
     Page<ActiveSession> searchActiveSessions(@Param("keyword") String keyword, Pageable pageable);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO active_sessions (
+                session_id,
+                user_id,
+                username,
+                client_ip,
+                user_agent,
+                created_at,
+                last_accessed_at,
+                expired
+            ) VALUES (
+                :sessionId,
+                :userId,
+                :username,
+                :clientIp,
+                :userAgent,
+                :now,
+                :now,
+                false
+            )
+            ON CONFLICT (session_id) DO UPDATE SET
+                user_id = EXCLUDED.user_id,
+                username = EXCLUDED.username,
+                client_ip = EXCLUDED.client_ip,
+                user_agent = EXCLUDED.user_agent,
+                expired = false,
+                last_accessed_at = CASE
+                    WHEN active_sessions.expired = true
+                      OR active_sessions.last_accessed_at IS NULL
+                      OR active_sessions.last_accessed_at < :updateThreshold
+                    THEN EXCLUDED.last_accessed_at
+                    ELSE active_sessions.last_accessed_at
+                END
+            """, nativeQuery = true)
+    void upsertSession(
+            @Param("sessionId") String sessionId,
+            @Param("userId") String userId,
+            @Param("username") String username,
+            @Param("clientIp") String clientIp,
+            @Param("userAgent") String userAgent,
+            @Param("now") LocalDateTime now,
+            @Param("updateThreshold") LocalDateTime updateThreshold);
 }

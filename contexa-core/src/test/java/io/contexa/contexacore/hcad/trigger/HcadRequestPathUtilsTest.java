@@ -78,6 +78,16 @@ class HcadRequestPathUtilsTest {
         assertThat(HcadRequestPathUtils.isNonUserInteractionRequest(request)).isTrue();
     }
 
+    @Test
+    @DisplayName("non-actionable monitoring path classification excludes assets and browser probes without dropping API JSON")
+    void isNonActionableMonitoringPath_staticAssetsAndBrowserProbes_returnsTrue() {
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/img/logo.png")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/.well-known/appspecific/com.chrome.devtools.json")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/favicon.ico")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/api/report.json")).isFalse();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/api/orders/1001")).isFalse();
+    }
+
     private boolean requestWithFetchDest(String fetchDest) {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/any/generated/path");
         request.addHeader("Sec-Fetch-Dest", fetchDest);

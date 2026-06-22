@@ -29,4 +29,11 @@ public interface HcadObservationWindowRepository {
     default Optional<HcadObservationWindowLease> snapshot(String actorSessionKey, String windowId) {
         return Optional.empty();
     }
+
+    default boolean tryAcquireEscalation(String actorSessionKey, String windowId, String anchorSignature) {
+        return false;
+    }
+
+    default void markDeepEvaluationCompleted(String actorSessionKey, String windowId, String anchorSignature) {
+    }
 }

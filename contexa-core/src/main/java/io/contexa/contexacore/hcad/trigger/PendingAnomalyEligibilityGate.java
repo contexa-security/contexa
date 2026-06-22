@@ -78,7 +78,9 @@ public class PendingAnomalyEligibilityGate {
         }
         String baseKey = actorSessionKey;
 
-        if (analysisTriggerStateRepository.isNegativeCached(baseKey)) {
+        boolean escalationEvaluation = Boolean.TRUE.equals(
+                request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_ESCALATION_EVALUATION));
+        if (!escalationEvaluation && analysisTriggerStateRepository.isNegativeCached(baseKey)) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT, true);
             return null;
         }

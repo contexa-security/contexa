@@ -31,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -52,6 +53,8 @@ class AiSecurityDecisionMonitoringServiceTest {
 
         HcadMonitoringService hcadMonitoringService = mock(HcadMonitoringService.class);
         when(hcadMonitoringService.summarize(eq("day"))).thenReturn(hcadSummary());
+        when(hcadMonitoringService.summarize(eq("day"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(hcadSummary());
         HcadProperties properties = new HcadProperties();
         properties.getPreTrigger().getQualification().setEstimatedLlmCallCostUsd(0.02d);
         service = new AiSecurityDecisionMonitoringService(hcadMonitoringService, () -> jdbcTemplate, properties);
@@ -95,11 +98,11 @@ class AiSecurityDecisionMonitoringServiceTest {
         FailureSummary summary = service.failures("day");
 
         assertThat(summary.explicitFailureBreakdown()).extracting("key")
-                .containsExactlyInAnyOrder("TIMEOUT", "NO_RUNTIME_LLM_CLIENT");
+                .containsExactlyInAnyOrder("TIMEOUT", "MODEL_UNAVAILABLE");
         assertThat(summary.explicitFailureBreakdown()).extracting("count")
                 .doesNotContain(0L);
         assertThat(summary.failureTypeBreakdown()).extracting("key")
-                .contains("TIMEOUT", "NO_RUNTIME_LLM_CLIENT");
+                .contains("TIMEOUT", "MODEL_UNAVAILABLE");
     }
 
     private void createTables() {
@@ -107,8 +110,12 @@ class AiSecurityDecisionMonitoringServiceTest {
                 create table ai_security_decision_observation (
                     observation_id varchar(64),
                     created_at timestamp,
+                    request_id varchar(128),
+                    user_id varchar(128),
                     trigger_source varchar(64),
                     trigger_relation varchar(64),
+                    http_method varchar(16),
+                    request_path varchar(256),
                     final_action varchar(64),
                     proposed_action varchar(64),
                     model_provider varchar(64),
@@ -148,12 +155,16 @@ class AiSecurityDecisionMonitoringServiceTest {
                 """);
         jdbcTemplate.execute("""
                 create table hcad_detection_evaluation (
+                    evaluation_id varchar(64),
                     created_at timestamp,
+                    request_path varchar(256),
                     eligible boolean,
                     triggered_llm boolean,
                     decided_at timestamp,
                     duplicate_suppressed boolean,
-                    duplicate_suppressed_count integer
+                    duplicate_suppressed_count integer,
+                    mode varchar(64),
+                    reason_codes varchar(512)
                 )
                 """);
     }
@@ -162,22 +173,32 @@ class AiSecurityDecisionMonitoringServiceTest {
         LocalDateTime now = LocalDateTime.now().minusMinutes(10);
         jdbcTemplate.update("""
                 insert into ai_security_decision_observation
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "obs-1", now, "HCAD_PRE_TRIGGER", "HCAD_ONLY", "BLOCK", "BLOCK",
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "obs-1", now, "req-1", "admin", "HCAD_PRE_TRIGGER", "HCAD_ONLY",
+                "GET", "/admin/risk", "BLOCK", "BLOCK",
                 "ollama", "llama3", "security-decision-v1", false, false, false, false,
                 null, null, 100L, 0.92d, 0.88d);
         jdbcTemplate.update("""
                 insert into ai_security_decision_observation
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "obs-2", now, "PROTECTABLE", "PROTECTABLE_ONLY", "ALLOW", "ALLOW",
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "obs-2", now, "req-2", "admin", "PROTECTABLE", "PROTECTABLE_ONLY",
+                "POST", "/admin/protected", "ALLOW", "ALLOW",
                 "ollama", "llama3", "security-decision-v1", true, true, true, false,
                 "TIMEOUT", "PARSER", 200L, null, null);
         jdbcTemplate.update("""
                 insert into ai_security_decision_observation
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "obs-3", now, "PROTECTABLE", "UNMATCHED_LLM", "ALLOW", "ALLOW",
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "obs-3", now, "req-3", "admin", "PROTECTABLE", "UNMATCHED_LLM",
+                "GET", "/admin/model", "ALLOW", "ALLOW",
                 "ollama", "llama3", "security-decision-v1", false, false, false, true,
                 "NO_RUNTIME_LLM_CLIENT", "MODEL", null, null, null);
+        jdbcTemplate.update("""
+                insert into ai_security_decision_observation
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "static-obs-1", now, "static-req-1", "admin", "HCAD_PRE_TRIGGER", "HCAD_ONLY",
+                "GET", "/img/logo.png", "ALLOW", "ALLOW",
+                "ollama", "llama3", "security-decision-v1", false, false, false, false,
+                null, null, 50L, 0.01d, 0.95d);
 
         jdbcTemplate.update("""
                 insert into hcad_llm_decision_correlation
@@ -194,13 +215,21 @@ class AiSecurityDecisionMonitoringServiceTest {
                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, "corr-3", null, "obs-3", "event-3", "req-3", "admin",
                 "UNMATCHED_LLM", "UNKNOWN", null, null, null, "ALLOW", "ALLOW", null, null, now, now);
+        jdbcTemplate.update("""
+                insert into hcad_llm_decision_correlation
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "static-corr-1", "static-1", "static-obs-1", "static-event-1", "static-req-1", "admin",
+                "HCAD_ONLY", "FP", 5, "LOW", false, "ALLOW", "ALLOW", 0.01d, 0.95d, now, now);
 
         jdbcTemplate.update("""
-                insert into hcad_detection_evaluation values (?, ?, ?, ?, ?, ?)
-                """, now, true, false, null, false, 0);
+                insert into hcad_detection_evaluation values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "eval-1", now, "/admin/risk", true, false, null, false, 0, "SHADOW", null);
         jdbcTemplate.update("""
-                insert into hcad_detection_evaluation values (?, ?, ?, ?, ?, ?)
-                """, now, false, false, null, false, 0);
+                insert into hcad_detection_evaluation values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "eval-2", now, "/admin/protected", false, false, null, false, 0, "SHADOW", null);
+        jdbcTemplate.update("""
+                insert into hcad_detection_evaluation values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "static-1", now, "/img/logo.png", false, false, null, false, 0, "SHADOW", null);
     }
 
     private HcadSummary hcadSummary() {
@@ -231,6 +260,9 @@ class AiSecurityDecisionMonitoringServiceTest {
                 0.20d,
                 new Qualification(0.8d, 0.9d, 0.95d, 100, 0.02d),
                 "SHADOW_STABLE",
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),

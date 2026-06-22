@@ -29,6 +29,7 @@ public final class PendingAnomalyTriggerAttributes {
     public static final String PRE_TRIGGER_EARLY_ANALYSIS_SCORE = "ctxa.pretrigger.earlyAnalysisScore";
     public static final String PRE_TRIGGER_BAND = "ctxa.pretrigger.band";
     public static final String PRE_TRIGGER_EVALUATED = "ctxa.pretrigger.evaluated";
+    public static final String PRE_TRIGGER_ESCALATION_EVALUATION = "ctxa.pretrigger.escalationEvaluation";
     public static final String PROTECTABLE_TRIGGER_STARTED = "ctxa.protectable.trigger.started";
 
     private PendingAnomalyTriggerAttributes() {

@@ -26,11 +26,13 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummar
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualification;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.RecentEvaluation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ResourceBreakdown;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ScoreBandBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.UserSessionBreakdown;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -39,12 +41,18 @@ import java.util.Map;
 public class HcadMonitoringService {
 
     private static final int BREAKDOWN_LIMIT = 5;
-    private static final int RECENT_LIMIT = 10;
+    private static final int RECENT_LIMIT = 50;
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final HcadDetectionEvaluationRepository repository;
     private final HcadProperties hcadProperties;
     private final ObjectMapper objectMapper;
+
+    public HcadMonitoringService(
+            HcadDetectionEvaluationRepository repository,
+            HcadProperties hcadProperties) {
+        this(repository, hcadProperties, null);
+    }
 
     public HcadMonitoringService(
             HcadDetectionEvaluationRepository repository,
@@ -65,24 +73,30 @@ public class HcadMonitoringService {
             case "year" -> to.minusYears(1);
             default -> to.minusDays(1);
         };
+        return summarize(normalizedPeriod, from, to);
+    }
 
-        long candidateCount = repository.countByCreatedAtBetween(from, to);
-        long observedRequestCount = longValue(repository.sumRequestCountBetween(from, to));
-        long triggeredLlmCount = repository.countByTriggeredLlmTrueAndCreatedAtBetween(from, to);
-        long duplicateSuppressedCount = longValue(repository.sumDuplicateSuppressedCountBetween(from, to));
-        long eligibleCount = repository.countByEligibleTrueAndCreatedAtBetween(from, to);
-        long notEligibleCount = repository.countByEligibleFalseAndCreatedAtBetween(from, to);
-        long negativeCacheHitCount = longValue(repository.sumNegativeCacheHitCountBetween(from, to));
-        long escalationCount = repository.countEscalationBetween(from, to);
-        long tp = repository.countByOutcomeClassAndCreatedAtBetween("TP", from, to);
-        long fp = repository.countByOutcomeClassAndCreatedAtBetween("FP", from, to);
-        long fn = repository.countByOutcomeClassAndCreatedAtBetween("FN", from, to);
-        long tn = repository.countByOutcomeClassAndCreatedAtBetween("TN", from, to);
-        long unknown = repository.countByOutcomeClassAndCreatedAtBetween("UNKNOWN", from, to);
+    @Transactional(readOnly = true)
+    public HcadSummary summarize(String period, LocalDateTime from, LocalDateTime to) {
+        String normalizedPeriod = normalizePeriod(period);
+
+        long candidateCount = repository.countMonitorableByCreatedAtBetween(from, to);
+        long observedRequestCount = longValue(repository.sumMonitorableRequestCountBetween(from, to));
+        long triggeredLlmCount = repository.countMonitorableByTriggeredLlmTrueAndCreatedAtBetween(from, to);
+        long duplicateSuppressedCount = longValue(repository.sumMonitorableDuplicateSuppressedCountBetween(from, to));
+        long eligibleCount = repository.countMonitorableByEligibleTrueAndCreatedAtBetween(from, to);
+        long notEligibleCount = repository.countMonitorableByEligibleFalseAndCreatedAtBetween(from, to);
+        long negativeCacheHitCount = longValue(repository.sumMonitorableNegativeCacheHitCountBetween(from, to));
+        long escalationCount = repository.countMonitorableEscalationBetween(from, to);
+        long tp = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("TP", from, to);
+        long fp = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("FP", from, to);
+        long fn = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("FN", from, to);
+        long tn = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("TN", from, to);
+        long unknown = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("UNKNOWN", from, to);
         double precision = precision(tp, fp);
-        double unknownRate = ratio(unknown, candidateCount);
+        double unknownRate = ratio(unknown, tp + fp + fn + tn + unknown);
         double triggerRate = ratio(triggeredLlmCount, candidateCount);
-        double averageLatency = doubleValue(repository.averageLlmLatencyMsBetween(from, to));
+        double averageLatency = doubleValue(repository.averageMonitorableLlmLatencyMsBetween(from, to));
 
         HcadProperties.PreTriggerSettings.QualificationSettings q =
                 hcadProperties.getPreTrigger().getQualification();
@@ -125,10 +139,13 @@ public class HcadMonitoringService {
                 signalBreakdown(from, to),
                 countBreakdown(repository.countByScoreBetween(from, to)),
                 countBreakdown(repository.countByBandBetween(from, to)),
+                scoreBandBreakdown(from, to),
                 anchorSignalBreakdown(from, to),
                 corroboratingSignalBreakdown(from, to),
                 resourceBreakdown(from, to),
                 userSessionBreakdown(from, to),
+                nonTriggerReasonBreakdown(from, to),
+                evidenceCoverageBreakdown(from, to),
                 recentEvaluations(from, to),
                 unknownEvaluations(from, to));
     }
@@ -224,7 +241,7 @@ public class HcadMonitoringService {
     }
 
     private List<Breakdown> modeBreakdown(LocalDateTime from, LocalDateTime to) {
-        return repository.countByModeBetween(from, to).stream()
+        return repository.countMonitorableByModeBetween(from, to).stream()
                 .map(row -> new Breakdown(text(row, 0), number(row, 1), 0, 0, 0, 0.0d))
                 .toList();
     }
@@ -242,6 +259,19 @@ public class HcadMonitoringService {
     private List<CountBreakdown> countBreakdown(List<Object[]> rows) {
         return rows.stream()
                 .map(row -> new CountBreakdown(text(row, 0), number(row, 1)))
+                .toList();
+    }
+
+    private List<ScoreBandBreakdown> scoreBandBreakdown(LocalDateTime from, LocalDateTime to) {
+        return repository.countByScoreBandBetween(from, to).stream()
+                .map(row -> new ScoreBandBreakdown(
+                        text(row, 0),
+                        number(row, 1),
+                        number(row, 2),
+                        number(row, 3),
+                        number(row, 4),
+                        number(row, 5),
+                        number(row, 6)))
                 .toList();
     }
 
@@ -301,21 +331,35 @@ public class HcadMonitoringService {
                 .toList();
     }
 
+    private List<CountBreakdown> nonTriggerReasonBreakdown(LocalDateTime from, LocalDateTime to) {
+        return repository.countMonitorableNonTriggerReasonsBetween(from, to).stream()
+                .map(row -> new CountBreakdown(text(row, 0), number(row, 1)))
+                .toList();
+    }
+
+    private List<CountBreakdown> evidenceCoverageBreakdown(LocalDateTime from, LocalDateTime to) {
+        return repository.countMonitorableEvidenceCoverageBetween(from, to).stream()
+                .map(row -> new CountBreakdown(text(row, 0), number(row, 1)))
+                .toList();
+    }
+
     private List<RecentEvaluation> recentEvaluations(LocalDateTime from, LocalDateTime to) {
-        return repository.findTop50ByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
+        return repository.findTop50MonitorableByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
                 .limit(RECENT_LIMIT)
                 .map(this::toRecentEvaluation)
                 .toList();
     }
 
     private List<RecentEvaluation> unknownEvaluations(LocalDateTime from, LocalDateTime to) {
-        return repository.findTop25ByOutcomeClassAndCreatedAtBetweenOrderByCreatedAtDesc("UNKNOWN", from, to).stream()
+        return repository.findTop25MonitorableByOutcomeClassAndCreatedAtBetweenOrderByCreatedAtDesc("UNKNOWN", from, to).stream()
                 .limit(BREAKDOWN_LIMIT)
                 .map(this::toRecentEvaluation)
                 .toList();
     }
 
     private RecentEvaluation toRecentEvaluation(HcadDetectionEvaluation evaluation) {
+        List<String> anchorSignals = readStringList(evaluation.getAnchorSignals());
+        List<String> corroboratingSignals = readStringList(evaluation.getCorroboratingSignals());
         return new RecentEvaluation(
                 evaluation.getEvaluationId(),
                 evaluation.getRequestId(),
@@ -334,9 +378,13 @@ public class HcadMonitoringService {
                 evaluation.getLlmTechnicalFallback(),
                 evaluation.getLlmFallbackCategory(),
                 evaluation.getOutcomeClass(),
+                anchorSignals,
+                corroboratingSignals,
                 readStringList(evaluation.getReasonCodes()),
+                firstText(evaluation.getNonTriggerReason(), inferredNonTriggerReason(evaluation, anchorSignals, corroboratingSignals)),
+                evidenceGaps(evaluation, anchorSignals, corroboratingSignals),
                 readSnapshotText(evaluation.getSignalSnapshotJson(), "promptContextContractVersion"),
-                baselineComparisonSummary(evaluation.getSignalSnapshotJson()),
+                baselineComparisonSummaryV2(evaluation.getSignalSnapshotJson()),
                 format(evaluation.getCreatedAt()),
                 format(evaluation.getDecidedAt()));
     }
@@ -362,6 +410,90 @@ public class HcadMonitoringService {
         return value == null ? null : value.toString();
     }
 
+    private String inferredNonTriggerReason(
+            HcadDetectionEvaluation evaluation,
+            List<String> anchorSignals,
+            List<String> corroboratingSignals) {
+        if (Boolean.TRUE.equals(evaluation.getTriggeredLlm())) {
+            return "TRIGGERED_LLM";
+        }
+        if (Boolean.TRUE.equals(evaluation.getDuplicateSuppressed())
+                || (evaluation.getDuplicateSuppressedCount() != null && evaluation.getDuplicateSuppressedCount() > 0)) {
+            return "DUPLICATE_SUPPRESSED";
+        }
+        if (Boolean.TRUE.equals(evaluation.getNegativeCacheHit())
+                || (evaluation.getNegativeCacheHitCount() != null && evaluation.getNegativeCacheHitCount() > 0)) {
+            return "NEGATIVE_CACHE_HIT";
+        }
+        if (anchorSignals.isEmpty() && !corroboratingSignals.isEmpty()) {
+            return "SUPPORTING_SIGNAL_ONLY";
+        }
+        if (anchorSignals.isEmpty()) {
+            return "NO_TRUSTED_RISK_SIGNAL";
+        }
+        if (Boolean.TRUE.equals(evaluation.getEligible())) {
+            return "ELIGIBLE_BUT_NOT_PUBLISHED";
+        }
+        return "BELOW_TRIGGER_THRESHOLD";
+    }
+
+    private List<String> evidenceGaps(
+            HcadDetectionEvaluation evaluation,
+            List<String> anchorSignals,
+            List<String> corroboratingSignals) {
+        List<String> persisted = readStringList(evaluation.getEvidenceGapCodes());
+        if (!persisted.isEmpty()) {
+            return persisted;
+        }
+        List<String> gaps = new ArrayList<>();
+        MapSnapshot snapshot = readSnapshot(evaluation.getSignalSnapshotJson());
+        Object raw = snapshot.values().get("baselineComparison");
+        if (raw instanceof Map<?, ?> baseline) {
+            Object available = baseline.get("available");
+            Object missing = baseline.get("missingDimensions");
+            if (!Boolean.TRUE.equals(available) && !"true".equalsIgnoreCase(String.valueOf(available))) {
+                if (missing != null && missing.toString().contains("personalBaselineInsufficientSamples")) {
+                    gaps.add("PERSONAL_BASELINE_INSUFFICIENT");
+                } else {
+                    gaps.add("PERSONAL_BASELINE_UNAVAILABLE");
+                }
+            }
+        } else if (evaluation.getBaselineAvailable() == null || !evaluation.getBaselineAvailable()) {
+            gaps.add("PERSONAL_BASELINE_UNAVAILABLE");
+        }
+        if (anchorSignals.isEmpty()) {
+            gaps.add("TRUSTED_ANCHOR_ABSENT");
+        }
+        if (corroboratingSignals.isEmpty()) {
+            gaps.add("SUPPORTING_SIGNAL_ABSENT");
+        }
+        return gaps.stream().distinct().toList();
+    }
+
+    private String baselineComparisonSummaryV2(String json) {
+        MapSnapshot snapshot = readSnapshot(json);
+        Object raw = snapshot.values().get("baselineComparison");
+        if (!(raw instanceof Map<?, ?> baseline)) {
+            return null;
+        }
+        Object available = baseline.get("available");
+        Object missingDimensions = baseline.get("missingDimensions");
+        if (!Boolean.TRUE.equals(available) && !"true".equalsIgnoreCase(String.valueOf(available))) {
+            if (missingDimensions != null && missingDimensions.toString().contains("personalBaselineInsufficientSamples")) {
+                return "개인 기준선 표본이 아직 부족함";
+            }
+            return "개인 기준선 없음";
+        }
+        boolean mismatch = Boolean.TRUE.equals(baseline.get("materialMismatch"));
+        String ratioText = baseline.get("matchRatio") == null ? "-" : baseline.get("matchRatio").toString();
+        String countText = baseline.get("mismatchCount") == null ? "0" : baseline.get("mismatchCount").toString();
+        if (!mismatch) {
+            return "평소 패턴과 큰 차이 없음";
+        }
+        return "평소 패턴과 다른 항목 " + countText + "건, 일치율 " + ratioText
+                + ", 항목 " + baseline.get("mismatchedDimensions");
+    }
+
     private String baselineComparisonSummary(String json) {
         MapSnapshot snapshot = readSnapshot(json);
         Object raw = snapshot.values().get("baselineComparison");
@@ -372,10 +504,14 @@ public class HcadMonitoringService {
         Object mismatchCount = baseline.get("mismatchCount");
         Object matchRatio = baseline.get("matchRatio");
         Object mismatchedDimensions = baseline.get("mismatchedDimensions");
-        return "materialMismatch=" + materialMismatch
-                + ", mismatchCount=" + mismatchCount
-                + ", matchRatio=" + matchRatio
-                + ", fields=" + mismatchedDimensions;
+        boolean mismatch = Boolean.TRUE.equals(materialMismatch);
+        String ratioText = matchRatio == null ? "-" : matchRatio.toString();
+        String countText = mismatchCount == null ? "0" : mismatchCount.toString();
+        if (!mismatch) {
+            return "평소 패턴과 큰 차이 없음";
+        }
+        return "평소 패턴과 다른 항목 " + countText + "건, 일치율 " + ratioText
+                + ", 항목 " + mismatchedDimensions;
     }
 
     private MapSnapshot readSnapshot(String json) {
@@ -434,6 +570,18 @@ public class HcadMonitoringService {
             return "";
         }
         return row[index].toString();
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private long number(Object[] row, int index) {

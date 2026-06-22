@@ -468,10 +468,25 @@ class HCADFilterTest {
     }
 
     @Test
-    @DisplayName("shouldNotFilter does not hard-code URL path prefixes")
-    void shouldNotFilter_doesNotHardCodeUrlPathPrefixes() {
+    @DisplayName("shouldNotFilter excludes non-actionable static resources and browser probe paths")
+    void shouldNotFilter_nonActionableMonitoringPaths_returnsTrue() {
         request.setRequestURI("/img/logo.png");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
 
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/.well-known/appspecific/com.chrome.devtools.json");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/favicon.ico");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/api/report.json");
+        assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
+
+        request = new MockHttpServletRequest();
+        request.setRequestURI("/api/users");
         assertThat(hcadFilter.shouldNotFilter(request)).isFalse();
     }
 

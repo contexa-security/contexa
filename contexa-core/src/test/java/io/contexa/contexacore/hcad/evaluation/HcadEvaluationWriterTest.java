@@ -68,7 +68,50 @@ class HcadEvaluationWriterTest {
         assertThat(saved.getTriggeredLlm()).isFalse();
         assertThat(saved.getOutcomeClass()).isEqualTo("UNKNOWN");
         assertThat(saved.getAnchorSignals()).contains("FAILED_LOGIN_BURST");
+        assertThat(saved.getNonTriggerReason()).isNull();
+        assertThat(saved.getEvidenceGapCodes()).contains("PERSONAL_BASELINE_UNAVAILABLE");
+        assertThat(saved.getBaselineAvailable()).isFalse();
+        assertThat(saved.getBaselineUpdateCount()).isZero();
+        assertThat(saved.getTriggerDecisionReason()).isEqualTo("TRIGGER_CANDIDATE");
         assertThat(saved.getSignalSnapshotJson()).contains("signalProvenance");
+    }
+
+    @Test
+    @DisplayName("recordCandidate should persist non trigger reason and evidence gaps")
+    void recordCandidate_shouldPersistNonTriggerReasonAndEvidenceGaps() {
+        HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        when(repository.save(any(HcadDetectionEvaluation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(repository, new ObjectMapper());
+
+        writer.recordCandidate(HcadPreTriggerMode.SHADOW, PendingAnomalyEvidenceReport.noTrigger(
+                "alice",
+                "ctx-1",
+                "base-1",
+                "request-2",
+                "session-1",
+                "/admin/dashboard",
+                "GET",
+                "203.0.113.10",
+                10,
+                "LOW",
+                false,
+                "hcad-promotion-v2-trusted-projection",
+                List.of(),
+                List.of("PREVIOUS_PATH_JUMP"),
+                List.of("PREVIOUS_PATH_JUMP"),
+                "supporting signal only",
+                Map.of(
+                        "actorSessionKey", "actor-1",
+                        "windowId", "window-1")));
+
+        ArgumentCaptor<HcadDetectionEvaluation> captor = ArgumentCaptor.forClass(HcadDetectionEvaluation.class);
+        verify(repository).save(captor.capture());
+        HcadDetectionEvaluation saved = captor.getValue();
+        assertThat(saved.getTriggeredLlm()).isFalse();
+        assertThat(saved.getNonTriggerReason()).isEqualTo("SUPPORTING_SIGNAL_ONLY");
+        assertThat(saved.getEvidenceGapCodes())
+                .contains("PERSONAL_BASELINE_UNAVAILABLE", "TRUSTED_ANCHOR_ABSENT");
+        assertThat(saved.getTriggerDecisionReason()).isEqualTo("SUPPORTING_SIGNAL_ONLY");
     }
 
     @Test
@@ -88,6 +131,8 @@ class HcadEvaluationWriterTest {
         writer.markTriggered("eval-1");
 
         assertThat(evaluation.getTriggeredLlm()).isTrue();
+        assertThat(evaluation.getNonTriggerReason()).isNull();
+        assertThat(evaluation.getTriggerDecisionReason()).isEqualTo("TRIGGER_PUBLISHED");
         assertThat(evaluation.getTriggeredAt()).isNotNull();
         verify(repository).save(evaluation);
     }
@@ -209,6 +254,9 @@ class HcadEvaluationWriterTest {
         assertThat(saved.getLlmAction()).isEqualTo("BLOCK");
         assertThat(saved.getDecidedAt()).isNotNull();
         assertThat(saved.getReasonCodes()).contains("REQUEST_BURST");
+        assertThat(saved.getNonTriggerReason()).isEqualTo("NO_TRUSTED_RISK_SIGNAL");
+        assertThat(saved.getEvidenceGapCodes()).contains("TRUSTED_ANCHOR_ABSENT");
+        assertThat(saved.getTriggerDecisionReason()).isEqualTo("OBSERVED_WITH_LLM_DECISION");
         assertThat(saved.getSignalSnapshotJson()).contains("requestBurst");
     }
 

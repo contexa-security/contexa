@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
@@ -30,6 +31,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -67,6 +71,9 @@ public class HcadEvaluationWriter {
         }
         String evaluationId = UUID.randomUUID().toString();
         Map<String, Object> rawSnapshot = report.rawSignalSnapshot() == null ? Map.of() : report.rawSignalSnapshot();
+        HcadBaselineComparison baselineComparison = baselineComparison(rawSnapshot);
+        List<String> evidenceGaps = evidenceGapCodes(report, baselineComparison);
+        String nonTriggerReason = report.shouldTrigger() ? null : nonTriggerReason(report, baselineComparison, evidenceGaps);
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
                 .requestId(report.requestId())
@@ -94,6 +101,13 @@ public class HcadEvaluationWriter {
                 .anchorSignals(writeJson(report.anchorSignals()))
                 .corroboratingSignals(writeJson(report.corroboratingSignals()))
                 .reasonCodes(writeJson(report.reasonCodes()))
+                .nonTriggerReason(nonTriggerReason)
+                .evidenceGapCodes(writeJson(evidenceGaps))
+                .baselineAvailable(baselineComparison.available())
+                .baselineUpdateCount(baselineComparison.updateCount())
+                .baselineMismatchCount(baselineComparison.mismatchCount())
+                .baselineMismatchedDimensions(writeJson(baselineComparison.mismatchedDimensions()))
+                .triggerDecisionReason(report.shouldTrigger() ? "TRIGGER_CANDIDATE" : nonTriggerReason)
                 .signalSnapshotJson(writeJson(rawSnapshot))
                 .signalProvenanceJson(writeJson(rawSnapshot == null
                         ? Map.of()
@@ -159,6 +173,8 @@ public class HcadEvaluationWriter {
             jdbcOperations.update("""
                     UPDATE hcad_detection_evaluation
                        SET triggered_llm = true,
+                           non_trigger_reason = NULL,
+                           trigger_decision_reason = 'TRIGGER_PUBLISHED',
                            triggered_at = ?
                      WHERE evaluation_id = ?
                     """, LocalDateTime.now(), evaluationId);
@@ -168,6 +184,8 @@ public class HcadEvaluationWriter {
         if (repository != null) {
             repository.findById(evaluationId).ifPresent(evaluation -> {
                 evaluation.setTriggeredLlm(true);
+                evaluation.setNonTriggerReason(null);
+                evaluation.setTriggerDecisionReason("TRIGGER_PUBLISHED");
                 evaluation.setTriggeredAt(LocalDateTime.now());
                 repository.save(evaluation);
             });
@@ -184,6 +202,8 @@ public class HcadEvaluationWriter {
                     UPDATE hcad_detection_evaluation
                        SET duplicate_suppressed = true
                          , duplicate_suppressed_count = GREATEST(COALESCE(duplicate_suppressed_count, 0), 1)
+                         , non_trigger_reason = COALESCE(non_trigger_reason, 'DUPLICATE_SUPPRESSED')
+                         , trigger_decision_reason = 'DUPLICATE_SUPPRESSED'
                      WHERE evaluation_id = ?
                     """, evaluationId);
             return;
@@ -195,6 +215,10 @@ public class HcadEvaluationWriter {
                 evaluation.setDuplicateSuppressedCount(Math.max(
                         evaluation.getDuplicateSuppressedCount() == null ? 0 : evaluation.getDuplicateSuppressedCount(),
                         1));
+                if (evaluation.getNonTriggerReason() == null || evaluation.getNonTriggerReason().isBlank()) {
+                    evaluation.setNonTriggerReason("DUPLICATE_SUPPRESSED");
+                }
+                evaluation.setTriggerDecisionReason("DUPLICATE_SUPPRESSED");
                 repository.save(evaluation);
             });
         }
@@ -209,7 +233,9 @@ public class HcadEvaluationWriter {
             jdbcOperations.update("""
                     UPDATE hcad_detection_evaluation
                        SET negative_cache_hit = true,
-                           negative_cache_hit_count = GREATEST(COALESCE(negative_cache_hit_count, 0), 1)
+                           negative_cache_hit_count = GREATEST(COALESCE(negative_cache_hit_count, 0), 1),
+                           non_trigger_reason = COALESCE(non_trigger_reason, 'NEGATIVE_CACHE_HIT'),
+                           trigger_decision_reason = 'NEGATIVE_CACHE_HIT'
                      WHERE evaluation_id = ?
                     """, evaluationId);
             return;
@@ -221,6 +247,10 @@ public class HcadEvaluationWriter {
                 evaluation.setNegativeCacheHitCount(Math.max(
                         evaluation.getNegativeCacheHitCount() == null ? 0 : evaluation.getNegativeCacheHitCount(),
                         1));
+                if (evaluation.getNonTriggerReason() == null || evaluation.getNonTriggerReason().isBlank()) {
+                    evaluation.setNonTriggerReason("NEGATIVE_CACHE_HIT");
+                }
+                evaluation.setTriggerDecisionReason("NEGATIVE_CACHE_HIT");
                 repository.save(evaluation);
             });
         }
@@ -375,6 +405,11 @@ public class HcadEvaluationWriter {
             return null;
         }
 
+        Object rawSignals = metadata.get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS);
+        HcadBaselineComparison baselineComparison = baselineComparison(rawSignals);
+        List<String> anchorSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS));
+        List<String> corroboratingSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS));
+        List<String> evidenceGaps = evidenceGapCodes(anchorSignals, corroboratingSignals, baselineComparison);
         String evaluationId = UUID.randomUUID().toString();
         LocalDateTime now = LocalDateTime.now();
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
@@ -402,10 +437,17 @@ public class HcadEvaluationWriter {
                 .negativeCacheHitCount(integerDefault(metadata.get("negativeCacheHitCount"), 0))
                 .resourceFamilies(writeJson(metadata.get("resourceFamilies")))
                 .samplePaths(writeJson(metadata.get("samplePaths")))
-                .anchorSignals(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS)))
-                .corroboratingSignals(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS)))
+                .anchorSignals(writeJson(anchorSignals))
+                .corroboratingSignals(writeJson(corroboratingSignals))
                 .reasonCodes(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES)))
-                .signalSnapshotJson(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS)))
+                .nonTriggerReason(nonTriggerReason(anchorSignals, corroboratingSignals, baselineComparison, evidenceGaps))
+                .evidenceGapCodes(writeJson(evidenceGaps))
+                .baselineAvailable(baselineComparison.available())
+                .baselineUpdateCount(baselineComparison.updateCount())
+                .baselineMismatchCount(baselineComparison.mismatchCount())
+                .baselineMismatchedDimensions(writeJson(baselineComparison.mismatchedDimensions()))
+                .triggerDecisionReason("OBSERVED_WITH_LLM_DECISION")
+                .signalSnapshotJson(writeJson(rawSignals))
                 .signalProvenanceJson(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_PROVENANCE)))
                 .llmAction(llmAction)
                 .llmProposedAction(llmProposedAction)
@@ -424,6 +466,119 @@ public class HcadEvaluationWriter {
                 .build();
         save(evaluation);
         return evaluationId;
+    }
+
+    private HcadBaselineComparison baselineComparison(Map<String, Object> rawSnapshot) {
+        return baselineComparison(rawSnapshot == null ? null : rawSnapshot.get("baselineComparison"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private HcadBaselineComparison baselineComparison(Object raw) {
+        Object baseline = raw;
+        if (raw instanceof HcadBaselineComparison comparison) {
+            return comparison;
+        }
+        if (raw instanceof Map<?, ?> map && map.containsKey("baselineComparison")) {
+            baseline = map.get("baselineComparison");
+        }
+        if (baseline instanceof HcadBaselineComparison comparison) {
+            return comparison;
+        }
+        if (baseline == null) {
+            return HcadBaselineComparison.unavailable(0);
+        }
+        try {
+            return objectMapper.convertValue(baseline, HcadBaselineComparison.class);
+        } catch (IllegalArgumentException ex) {
+            if (baseline instanceof Map<?, ?> map) {
+                Map<String, Object> typed = (Map<String, Object>) map;
+                return new HcadBaselineComparison(
+                        boolDefault(bool(typed.get("available")), false),
+                        boolDefault(bool(typed.get("established")), false),
+                        longDefault(typed.get("updateCount"), 0L),
+                        integerDefault(typed.get("minSamples"), 0),
+                        integerDefault(typed.get("comparedDimensions"), 0),
+                        integerDefault(typed.get("mismatchCount"), 0),
+                        doubleDefault(typed.get("matchRatio"), 0.0d),
+                        boolDefault(bool(typed.get("materialMismatch")), false),
+                        stringList(typed.get("matchedDimensions")),
+                        stringList(typed.get("mismatchedDimensions")),
+                        stringList(typed.get("missingDimensions")),
+                        Map.of(),
+                        Map.of());
+            }
+            return HcadBaselineComparison.unavailable(0);
+        }
+    }
+
+    private List<String> evidenceGapCodes(
+            PendingAnomalyEvidenceReport report,
+            HcadBaselineComparison baselineComparison) {
+        return evidenceGapCodes(
+                report == null ? List.of() : report.anchorSignals(),
+                report == null ? List.of() : report.corroboratingSignals(),
+                baselineComparison);
+    }
+
+    private List<String> evidenceGapCodes(
+            Collection<String> anchorSignals,
+            Collection<String> corroboratingSignals,
+            HcadBaselineComparison baselineComparison) {
+        List<String> gaps = new ArrayList<>();
+        HcadBaselineComparison baseline = baselineComparison == null
+                ? HcadBaselineComparison.unavailable(0)
+                : baselineComparison;
+        if (!baseline.available()) {
+            if (baseline.missingDimensions().contains("personalBaselineInsufficientSamples")) {
+                gaps.add("PERSONAL_BASELINE_INSUFFICIENT");
+            } else {
+                gaps.add("PERSONAL_BASELINE_UNAVAILABLE");
+            }
+        }
+        if (isEmpty(anchorSignals)) {
+            gaps.add("TRUSTED_ANCHOR_ABSENT");
+        }
+        if (isEmpty(corroboratingSignals)) {
+            gaps.add("SUPPORTING_SIGNAL_ABSENT");
+        }
+        return List.copyOf(gaps);
+    }
+
+    private String nonTriggerReason(
+            PendingAnomalyEvidenceReport report,
+            HcadBaselineComparison baselineComparison,
+            List<String> evidenceGaps) {
+        if (report == null || report.shouldTrigger()) {
+            return null;
+        }
+        return nonTriggerReason(
+                report.anchorSignals(),
+                report.corroboratingSignals(),
+                baselineComparison,
+                evidenceGaps);
+    }
+
+    private String nonTriggerReason(
+            Collection<String> anchorSignals,
+            Collection<String> corroboratingSignals,
+            HcadBaselineComparison baselineComparison,
+            List<String> evidenceGaps) {
+        if (isEmpty(anchorSignals) && !isEmpty(corroboratingSignals)) {
+            return "SUPPORTING_SIGNAL_ONLY";
+        }
+        if (isEmpty(anchorSignals)) {
+            return "NO_TRUSTED_RISK_SIGNAL";
+        }
+        if (evidenceGaps != null && evidenceGaps.contains("PERSONAL_BASELINE_INSUFFICIENT")) {
+            return "BASELINE_INSUFFICIENT";
+        }
+        HcadBaselineComparison baseline = baselineComparison == null
+                ? HcadBaselineComparison.unavailable(0)
+                : baselineComparison;
+        if (!baseline.available()) {
+            return "BASELINE_UNAVAILABLE";
+        }
+        return "BELOW_TRIGGER_THRESHOLD";
     }
 
     private void save(HcadDetectionEvaluation evaluation) {
@@ -461,6 +616,13 @@ public class HcadEvaluationWriter {
                         anchor_signals,
                         corroborating_signals,
                         reason_codes,
+                        non_trigger_reason,
+                        evidence_gap_codes,
+                        baseline_available,
+                        baseline_update_count,
+                        baseline_mismatch_count,
+                        baseline_mismatched_dimensions,
+                        trigger_decision_reason,
                         signal_snapshot_json,
                         signal_provenance_json,
                         llm_action,
@@ -479,7 +641,7 @@ public class HcadEvaluationWriter {
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
@@ -509,6 +671,13 @@ public class HcadEvaluationWriter {
                     evaluation.getAnchorSignals(),
                     evaluation.getCorroboratingSignals(),
                     evaluation.getReasonCodes(),
+                    evaluation.getNonTriggerReason(),
+                    evaluation.getEvidenceGapCodes(),
+                    evaluation.getBaselineAvailable(),
+                    evaluation.getBaselineUpdateCount(),
+                    evaluation.getBaselineMismatchCount(),
+                    evaluation.getBaselineMismatchedDimensions(),
+                    evaluation.getTriggerDecisionReason(),
                     evaluation.getSignalSnapshotJson(),
                     evaluation.getSignalProvenanceJson(),
                     evaluation.getLlmAction(),
@@ -589,6 +758,46 @@ public class HcadEvaluationWriter {
         return resolved == null ? defaultValue : resolved;
     }
 
+    private Long longValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        String text = text(value);
+        if (text == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Long longDefault(Object value, long defaultValue) {
+        Long resolved = longValue(value);
+        return resolved == null ? defaultValue : resolved;
+    }
+
+    private Double doubleValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        String text = text(value);
+        if (text == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Double doubleDefault(Object value, double defaultValue) {
+        Double resolved = doubleValue(value);
+        return resolved == null ? defaultValue : resolved;
+    }
+
     private Boolean bool(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
@@ -599,6 +808,45 @@ public class HcadEvaluationWriter {
 
     private Boolean boolDefault(Boolean value, boolean defaultValue) {
         return value == null ? defaultValue : value;
+    }
+
+    private List<String> stringList(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof Collection<?> collection) {
+            return collection.stream()
+                    .map(this::text)
+                    .filter(item -> item != null && !item.isBlank())
+                    .toList();
+        }
+        String text = text(value);
+        if (text == null || "null".equalsIgnoreCase(text) || "[]".equals(text)) {
+            return List.of();
+        }
+        if (text.startsWith("[") && text.endsWith("]")) {
+            try {
+                Object parsed = objectMapper.readValue(text, Object.class);
+                if (parsed instanceof Collection<?> collection) {
+                    return stringList(collection);
+                }
+            } catch (Exception ignored) {
+                String inner = text.substring(1, text.length() - 1);
+                if (inner.isBlank()) {
+                    return List.of();
+                }
+                return List.of(inner.split(",")).stream()
+                        .map(String::trim)
+                        .map(item -> item.replace("\"", ""))
+                        .filter(item -> !item.isBlank())
+                        .toList();
+            }
+        }
+        return List.of(text);
+    }
+
+    private boolean isEmpty(Collection<String> values) {
+        return values == null || values.stream().noneMatch(value -> value != null && !value.isBlank());
     }
 
     private String blankToDefault(String value, String defaultValue) {

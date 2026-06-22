@@ -23,17 +23,23 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 public class SynchronousProtectableDecisionService {
 
@@ -42,6 +48,7 @@ public class SynchronousProtectableDecisionService {
     private final SecurityPlaneAgent securityPlaneAgent;
     private final ZeroTrustActionRepository actionRepository;
     private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
+    private final Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -57,11 +64,25 @@ public class SynchronousProtectableDecisionService {
             SecurityPlaneAgent securityPlaneAgent,
             ZeroTrustActionRepository actionRepository,
             AnalysisTriggerStateRepository analysisTriggerStateRepository) {
+        this(zeroTrustEventPublisher, zeroTrustEventListener, securityPlaneAgent, actionRepository,
+                analysisTriggerStateRepository, null);
+    }
+
+    public SynchronousProtectableDecisionService(
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ZeroTrustEventListener zeroTrustEventListener,
+            SecurityPlaneAgent securityPlaneAgent,
+            ZeroTrustActionRepository actionRepository,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.zeroTrustEventListener = zeroTrustEventListener;
         this.securityPlaneAgent = securityPlaneAgent;
         this.actionRepository = actionRepository;
         this.analysisTriggerStateRepository = analysisTriggerStateRepository;
+        this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier == null
+                ? () -> null
+                : aiSecurityDecisionObservationWriterSupplier;
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
@@ -78,6 +99,7 @@ public class SynchronousProtectableDecisionService {
 
         if (zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
             if (isPreProtectableAnalysisAlreadyStarted(event, contextBindingHash)) {
+                scheduleProtectableMerge(event);
                 return currentResult(event, userId, contextBindingHash, null);
             }
             SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
@@ -96,10 +118,57 @@ public class SynchronousProtectableDecisionService {
         return new SyncDecisionResult(
                 event,
                 contextBindingHash,
-                actionRepository.getCurrentAction(userId, contextBindingHash),
+                resolveSynchronousAction(event, userId, contextBindingHash, processingContext),
                 actionRepository.getAnalysisData(userId),
                 processingContext
         );
+    }
+
+    private ZeroTrustAction resolveSynchronousAction(
+            ZeroTrustSpringEvent event,
+            String userId,
+            String contextBindingHash,
+            SecurityEventContext processingContext) {
+        ProcessingResult processingResult = processingResult(processingContext);
+        if (processingResult != null && isEventShadowBoundary(event)) {
+            return ZeroTrustAction.ALLOW;
+        }
+        if (processingResult == null && isCurrentRequestPreTriggerShadow()) {
+            return ZeroTrustAction.ALLOW;
+        }
+        ZeroTrustAction processingAction = processingAction(processingResult);
+        if (processingAction != null) {
+            return processingAction;
+        }
+        return actionRepository.getCurrentAction(userId, contextBindingHash);
+    }
+
+    private ProcessingResult processingResult(SecurityEventContext processingContext) {
+        if (processingContext == null || processingContext.getMetadata() == null) {
+            return null;
+        }
+        Object result = processingContext.getMetadata().get("processingResult");
+        return result instanceof ProcessingResult processingResult ? processingResult : null;
+    }
+
+    private ZeroTrustAction processingAction(ProcessingResult processingResult) {
+        if (processingResult == null) {
+            return null;
+        }
+        ZeroTrustAction proposedAction = ZeroTrustAction.fromString(processingResult.getProposedAction());
+        if (proposedAction != null) {
+            return proposedAction;
+        }
+        return ZeroTrustAction.fromString(processingResult.getAction());
+    }
+
+    private boolean isEventShadowBoundary(ZeroTrustSpringEvent event) {
+        if (event == null || event.getPayload() == null) {
+            return false;
+        }
+        return "SHADOW".equalsIgnoreCase(firstText(
+                event.getPayload().get("decisionBoundaryMode"),
+                event.getPayload().get("hcadMode")));
     }
 
     private boolean isPreProtectableAnalysisAlreadyStarted(
@@ -130,6 +199,64 @@ public class SynchronousProtectableDecisionService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private boolean isCurrentRequestPreTriggerShadow() {
+        Object mode = currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE);
+        if (mode == null) {
+            mode = currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MODE);
+        }
+        return "SHADOW".equalsIgnoreCase(firstText(mode));
+    }
+
+    private Object currentRequestAttribute(String attributeName) {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return null;
+            }
+            return attrs.getRequest().getAttribute(attributeName);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void scheduleProtectableMerge(ZeroTrustSpringEvent event) {
+        String evaluationId = firstText(currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID));
+        AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
+        if (!StringUtils.hasText(evaluationId) || writer == null) {
+            return;
+        }
+        Map<String, Object> payload = event != null && event.getPayload() != null ? event.getPayload() : Map.of();
+        String resourceId = firstText(
+                payload.get("protectableResourceId"),
+                payload.get("resourceId"),
+                payload.get("requestedResourceId"),
+                payload.get("protectedResourceId"));
+        String resourceUrl = firstText(
+                payload.get("protectableResourceUrl"),
+                payload.get("requestPath"),
+                payload.get("requestUri"),
+                event != null ? event.getResource() : null,
+                currentRequestNormalizedPath());
+        String httpMethod = firstText(
+                payload.get("protectableHttpMethod"),
+                payload.get("httpMethod"),
+                payload.get("method"));
+
+        CompletableFuture.runAsync(() -> {
+            for (int attempt = 0; attempt < 60; attempt++) {
+                if (writer.markProtectableMerged(evaluationId, resourceId, resourceUrl, httpMethod)) {
+                    return;
+                }
+                try {
+                    Thread.sleep(100L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
     }
 
     private void markProtectableAnalysisStarted() {

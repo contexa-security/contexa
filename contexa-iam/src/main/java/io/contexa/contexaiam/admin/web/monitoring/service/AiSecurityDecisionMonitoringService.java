@@ -18,11 +18,13 @@ package io.contexa.contexaiam.admin.web.monitoring.service;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationMatrixRow;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.AffectedRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.NamedCount;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OperationsSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentFailure;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentCorrelation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
@@ -33,8 +35,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -42,6 +46,36 @@ public class AiSecurityDecisionMonitoringService {
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final int BREAKDOWN_LIMIT = 12;
+    private static final String MONITORABLE_PATH_CONDITION = """
+            not (
+                lower(coalesce(@PATH@, '')) in ('/favicon.ico', '/manifest.json', '/manifest.webmanifest', '/robots.txt')
+                or lower(coalesce(@PATH@, '')) like '/assets/%'
+                or lower(coalesce(@PATH@, '')) like '/css/%'
+                or lower(coalesce(@PATH@, '')) like '/fonts/%'
+                or lower(coalesce(@PATH@, '')) like '/img/%'
+                or lower(coalesce(@PATH@, '')) like '/images/%'
+                or lower(coalesce(@PATH@, '')) like '/static/%'
+                or lower(coalesce(@PATH@, '')) like '/webjars/%'
+                or lower(coalesce(@PATH@, '')) like '/.well-known/appspecific/%'
+                or lower(coalesce(@PATH@, '')) like '%.avif'
+                or lower(coalesce(@PATH@, '')) like '%.css'
+                or lower(coalesce(@PATH@, '')) like '%.eot'
+                or lower(coalesce(@PATH@, '')) like '%.gif'
+                or lower(coalesce(@PATH@, '')) like '%.ico'
+                or lower(coalesce(@PATH@, '')) like '%.jpeg'
+                or lower(coalesce(@PATH@, '')) like '%.jpg'
+                or lower(coalesce(@PATH@, '')) like '%.js'
+                or lower(coalesce(@PATH@, '')) like '%.map'
+                or lower(coalesce(@PATH@, '')) like '%.mjs'
+                or lower(coalesce(@PATH@, '')) like '%.otf'
+                or lower(coalesce(@PATH@, '')) like '%.png'
+                or lower(coalesce(@PATH@, '')) like '%.svg'
+                or lower(coalesce(@PATH@, '')) like '%.ttf'
+                or lower(coalesce(@PATH@, '')) like '%.webp'
+                or lower(coalesce(@PATH@, '')) like '%.woff'
+                or lower(coalesce(@PATH@, '')) like '%.woff2'
+            )
+            """;
 
     private final HcadMonitoringService hcadMonitoringService;
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
@@ -61,7 +95,7 @@ public class AiSecurityDecisionMonitoringService {
         String normalizedPeriod = normalizePeriod(period);
         LocalDateTime to = LocalDateTime.now();
         LocalDateTime from = from(normalizedPeriod, to);
-        HcadSummary hcad = hcadMonitoringService.summarize(normalizedPeriod);
+        HcadSummary hcad = hcadMonitoringService.summarize(normalizedPeriod, from, to);
         LlmDecisionSummary llm = llmSummary(from, to);
         CorrelationSummary correlation = correlationSummary(from, to);
         OperationsSummary operations = operationsSummary(from, to, hcad);
@@ -91,19 +125,23 @@ public class AiSecurityDecisionMonitoringService {
     @Transactional(readOnly = true)
     public FailureSummary failures(String period) {
         TimeWindow window = window(period);
-        HcadSummary hcad = hcadMonitoringService.summarize(window.period());
+        HcadSummary hcad = hcadMonitoringService.summarize(window.period(), window.from(), window.to());
         OperationsSummary operations = operationsSummary(window.from(), window.to(), hcad);
+        List<NamedCount> canonicalFailures = explicitFailureBreakdown(window.from(), window.to());
         return new FailureSummary(
                 window.period(),
                 ISO.format(window.from()),
                 ISO.format(window.to()),
                 operations,
-                explicitFailureBreakdown(window.from(), window.to()),
-                breakdown("ai_security_decision_observation", "coalesce(failure_type, 'NONE')", window.from(), window.to()),
-                breakdown("ai_security_decision_observation", "coalesce(fallback_category, 'NONE')", window.from(), window.to()),
+                canonicalFailures,
+                canonicalFailures,
+                nonEmptyBreakdown("fallback_category", window.from(), window.to()),
                 breakdown("ai_security_decision_observation", "coalesce(model_provider, 'UNKNOWN')", window.from(), window.to()),
                 breakdown("ai_security_decision_observation", "coalesce(model_id, 'UNKNOWN')", window.from(), window.to()),
-                breakdown("ai_security_decision_observation", "coalesce(prompt_template_key, 'UNKNOWN')", window.from(), window.to()));
+                breakdown("ai_security_decision_observation", "coalesce(prompt_template_key, 'UNKNOWN')", window.from(), window.to()),
+                failureTrend(window.period(), window.from(), window.to()),
+                affectedRequests(window.from(), window.to()),
+                recentFailures(window.from(), window.to()));
     }
 
     @Transactional(readOnly = true)
@@ -218,36 +256,36 @@ public class AiSecurityDecisionMonitoringService {
     }
 
     private LlmDecisionSummary llmSummary(LocalDateTime from, LocalDateTime to) {
-        long total = count("ai_security_decision_observation", "created_at between ? and ?", from, to);
-        long parserFailures = count("ai_security_decision_observation",
+        long total = countAi("created_at between ? and ?", from, to);
+        long parserFailures = countAi(
                 "parser_failure = true and created_at between ? and ?", from, to);
-        long technicalFallbacks = count("ai_security_decision_observation",
+        long technicalFallbacks = countAi(
                 "technical_fallback = true and created_at between ? and ?", from, to);
-        long timeouts = count("ai_security_decision_observation",
+        long timeouts = countAi(
                 "timeout_failure = true and created_at between ? and ?", from, to);
-        long modelUnavailable = count("ai_security_decision_observation",
+        long modelUnavailable = countAi(
                 "model_unavailable = true and created_at between ? and ?", from, to);
         return new LlmDecisionSummary(
                 total,
-                count("ai_security_decision_observation",
+                countAi(
                         "trigger_source in ('HCAD_PRE_TRIGGER', 'PENDING_REDLINE') and created_at between ? and ?",
                         from,
                         to),
-                count("ai_security_decision_observation",
+                countAi(
                         "trigger_relation in ('PROTECTABLE_ONLY', 'HCAD_AND_PROTECTABLE', 'PROTECTABLE_SUPPRESSED_BY_HCAD') and created_at between ? and ?",
                         from,
                         to),
-                count("ai_security_decision_observation",
+                countAi(
                         "trigger_relation = 'HCAD_AND_PROTECTABLE' and created_at between ? and ?",
                         from,
                         to),
-                breakdown("ai_security_decision_observation", "trigger_source", from, to),
-                breakdown("ai_security_decision_observation", "coalesce(final_action, 'UNKNOWN')", from, to),
-                breakdown("ai_security_decision_observation", "coalesce(proposed_action, 'UNKNOWN')", from, to),
-                breakdown("ai_security_decision_observation", "coalesce(final_action, 'UNKNOWN')", from, to),
-                breakdown("ai_security_decision_observation", "coalesce(model_provider, 'UNKNOWN')", from, to),
-                breakdown("ai_security_decision_observation", "coalesce(model_id, 'UNKNOWN')", from, to),
-                breakdown("ai_security_decision_observation", "coalesce(prompt_template_key, 'UNKNOWN')", from, to),
+                breakdownAi("trigger_source", from, to),
+                breakdownAi("coalesce(final_action, 'UNKNOWN')", from, to),
+                breakdownAi("coalesce(proposed_action, 'UNKNOWN')", from, to),
+                breakdownAi("coalesce(final_action, 'UNKNOWN')", from, to),
+                breakdownAi("coalesce(model_provider, 'UNKNOWN')", from, to),
+                breakdownAi("coalesce(model_id, 'UNKNOWN')", from, to),
+                breakdownAi("coalesce(prompt_template_key, 'UNKNOWN')", from, to),
                 parserFailures,
                 technicalFallbacks,
                 timeouts,
@@ -256,38 +294,39 @@ public class AiSecurityDecisionMonitoringService {
                 ratio(technicalFallbacks, total),
                 ratio(timeouts, total),
                 ratio(modelUnavailable, total),
-                average("ai_security_decision_observation", "llm_latency_ms", from, to),
+                averageAi("llm_latency_ms", from, to),
                 p95Latency(from, to),
-                numericBucketBreakdown("ai_security_decision_observation", "llm_risk_score", from, to),
-                numericBucketBreakdown("ai_security_decision_observation", "llm_confidence", from, to));
+                numericBucketBreakdownAi("llm_risk_score", from, to),
+                numericBucketBreakdownAi("llm_confidence", from, to));
     }
 
     private CorrelationSummary correlationSummary(LocalDateTime from, LocalDateTime to) {
         return new CorrelationSummary(
-                countOutcome("TP", from, to),
-                countOutcome("FP", from, to),
-                countOutcome("FN", from, to),
-                countOutcome("TN", from, to),
-                countOutcome("UNKNOWN", from, to),
-                countOutcome("UNOBSERVED", from, to),
-                breakdown("hcad_llm_decision_correlation", "trigger_relation", from, to),
-                breakdown("hcad_llm_decision_correlation", "outcome_class", from, to),
+                countCorrelationOutcome("TP", from, to),
+                countCorrelationOutcome("FP", from, to),
+                countCorrelationOutcome("FN", from, to),
+                countCorrelationOutcome("TN", from, to),
+                countCorrelationOutcome("UNKNOWN", from, to),
+                countCorrelationOutcome("UNOBSERVED", from, to),
+                breakdownCorrelation("c.trigger_relation", from, to),
+                breakdownCorrelation("c.outcome_class", from, to),
                 correlationMatrix(from, to),
+                notCalledReasonBreakdown(from, to),
                 recentCorrelations(from, to));
     }
 
     private OperationsSummary operationsSummary(LocalDateTime from, LocalDateTime to, HcadSummary hcad) {
         double cost = hcadProperties.getPreTrigger().getQualification().getEstimatedLlmCallCostUsd();
-        long parserFailures = count("ai_security_decision_observation",
+        long parserFailures = countAi(
                 "parser_failure = true and created_at between ? and ?", from, to);
-        long technicalFallbacks = count("ai_security_decision_observation",
+        long technicalFallbacks = countAi(
                 "technical_fallback = true and created_at between ? and ?", from, to);
-        long timeouts = count("ai_security_decision_observation",
+        long timeouts = countAi(
                 "timeout_failure = true and created_at between ? and ?", from, to);
-        long modelUnavailable = count("ai_security_decision_observation",
+        long modelUnavailable = countAi(
                 "model_unavailable = true and created_at between ? and ?", from, to);
         return new OperationsSummary(
-                average("ai_security_decision_observation", "llm_latency_ms", from, to),
+                averageAi("llm_latency_ms", from, to),
                 parserFailures,
                 technicalFallbacks,
                 timeouts,
@@ -302,29 +341,19 @@ public class AiSecurityDecisionMonitoringService {
         if (jdbcOperations == null) {
             return List.of();
         }
-        String failureCauseExpression = """
-                case
-                  when failure_type is not null and failure_type <> '' and failure_type <> 'NONE' then failure_type
-                  when parser_failure = true then 'PARSER_FAILURE'
-                  when timeout_failure = true then 'TIMEOUT'
-                  when model_unavailable = true then 'MODEL_UNAVAILABLE'
-                  when technical_fallback = true then 'TECHNICAL_FALLBACK'
-                  when fallback_category is not null and fallback_category <> '' and fallback_category <> 'NONE' then 'TECHNICAL_FALLBACK'
-                  else null
-                end
-                """;
         String sql = """
                 select metric_key, count(*) as failure_count
                   from (
                         select %s as metric_key
                           from ai_security_decision_observation
                          where created_at between ? and ?
+                           and %s
                        ) failure_causes
                  where metric_key is not null
                  group by metric_key
                  order by failure_count desc, metric_key asc
                  limit ?
-                """.formatted(failureCauseExpression);
+                """.formatted(canonicalFailureTypeExpression(), monitorablePath("request_path"));
         return jdbcOperations.query(
                 sql,
                 (rs, rowNum) -> new NamedCount(rs.getString("metric_key"), rs.getLong("failure_count")),
@@ -333,27 +362,190 @@ public class AiSecurityDecisionMonitoringService {
                 BREAKDOWN_LIMIT);
     }
 
+    private List<NamedCount> nonEmptyBreakdown(String columnName, LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        String expression = "coalesce(" + columnName + ", '')";
+        String sql = """
+                select %1$s as metric_key, count(*) as count
+                 from ai_security_decision_observation
+                 where created_at between ? and ?
+                   and (%2$s)
+                   and %1$s <> ''
+                   and upper(%1$s) not in ('NONE', 'UNKNOWN')
+                   and %3$s
+                 group by %1$s
+                 order by count(*) desc, %1$s asc
+                 limit ?
+                """.formatted(expression, failurePredicate(), monitorablePath("request_path"));
+        return jdbcOperations.query(
+                sql,
+                (rs, rowNum) -> new NamedCount(rs.getString("metric_key"), rs.getLong("count")),
+                from,
+                to,
+                BREAKDOWN_LIMIT);
+    }
+
+    private List<NamedCount> failureTrend(String period, LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        List<LocalDateTime> createdTimes = jdbcOperations.query("""
+                        select created_at
+                         from ai_security_decision_observation
+                         where created_at between ? and ?
+                           and (%s)
+                           and %s
+                         order by created_at asc
+                        """.formatted(failurePredicate(), monitorablePath("request_path")),
+                (rs, rowNum) -> rs.getObject("created_at", LocalDateTime.class),
+                from,
+                to);
+        if (createdTimes.isEmpty()) {
+            return List.of();
+        }
+        boolean hourly = "day".equalsIgnoreCase(period);
+        DateTimeFormatter bucketFormatter = hourly
+                ? DateTimeFormatter.ofPattern("MM-dd HH:00")
+                : DateTimeFormatter.ofPattern("MM-dd");
+        Map<String, Long> buckets = new LinkedHashMap<>();
+        for (LocalDateTime createdTime : createdTimes) {
+            LocalDateTime normalized = hourly
+                    ? createdTime.withMinute(0).withSecond(0).withNano(0)
+                    : createdTime.toLocalDate().atStartOfDay();
+            String key = bucketFormatter.format(normalized);
+            buckets.put(key, buckets.getOrDefault(key, 0L) + 1L);
+        }
+        return buckets.entrySet().stream()
+                .map(entry -> new NamedCount(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private List<AffectedRequest> affectedRequests(LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        return jdbcOperations.query("""
+                        select coalesce(http_method, '') as method,
+                               coalesce(request_path, '-') as path,
+                               count(*) as count
+                          from ai_security_decision_observation
+                         where created_at between ? and ?
+                           and (%s)
+                           and %s
+                         group by coalesce(http_method, ''), coalesce(request_path, '-')
+                         order by count(*) desc, path asc
+                         limit 10
+                        """.formatted(failurePredicate(), monitorablePath("request_path")),
+                (rs, rowNum) -> new AffectedRequest(
+                        rs.getString("method"),
+                        rs.getString("path"),
+                        rs.getLong("count")),
+                from,
+                to);
+    }
+
+    private List<RecentFailure> recentFailures(LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        return jdbcOperations.query("""
+                        select observation_id,
+                               request_id,
+                               user_id,
+                               http_method,
+                               request_path,
+                               case
+                                 when (%1$s) is not null then (%1$s)
+                                 else 'UNKNOWN'
+                               end as failure_type,
+                               final_action,
+                               llm_latency_ms,
+                               created_at
+                         from ai_security_decision_observation
+                         where created_at between ? and ?
+                           and (%2$s)
+                           and %3$s
+                         order by created_at desc
+                         limit 10
+                        """.formatted(canonicalFailureTypeExpression(), failurePredicate(), monitorablePath("request_path")),
+                (rs, rowNum) -> {
+                    Number latency = (Number) rs.getObject("llm_latency_ms");
+                    return new RecentFailure(
+                            rs.getString("observation_id"),
+                            rs.getString("request_id"),
+                            rs.getString("user_id"),
+                            rs.getString("http_method"),
+                            rs.getString("request_path"),
+                            rs.getString("failure_type"),
+                            rs.getString("final_action"),
+                            latency == null ? null : latency.doubleValue(),
+                            format(rs.getObject("created_at", LocalDateTime.class)));
+                },
+                from,
+                to);
+    }
+
+    private String failurePredicate() {
+        return """
+                parser_failure = true
+                or technical_fallback = true
+                or timeout_failure = true
+                or model_unavailable = true
+                or (failure_type is not null and failure_type <> '' and upper(failure_type) <> 'NONE')
+                """;
+    }
+
+    private String canonicalFailureTypeExpression() {
+        return """
+                case
+                  when timeout_failure = true or upper(coalesce(failure_type, '')) = 'TIMEOUT' then 'TIMEOUT'
+                  when model_unavailable = true
+                       or upper(coalesce(failure_type, '')) in ('MODEL_UNAVAILABLE', 'NO_RUNTIME_LLM_CLIENT', 'NO_PIPELINE_EXECUTOR')
+                    then 'MODEL_UNAVAILABLE'
+                  when parser_failure = true
+                       or upper(coalesce(failure_type, '')) in (
+                            'PARSER_FAILURE',
+                            'PROMPT_CONTRACT_VIOLATION',
+                            'MALFORMED_JSON',
+                            'EMPTY_RESPONSE'
+                       )
+                    then 'PARSER_FAILURE'
+                  when technical_fallback = true
+                       or upper(coalesce(failure_type, '')) = 'TECHNICAL_FALLBACK'
+                       or (fallback_category is not null and fallback_category <> '' and upper(fallback_category) <> 'NONE')
+                    then 'TECHNICAL_FALLBACK'
+                  else null
+                end
+                """;
+    }
+
     private List<CorrelationMatrixRow> correlationMatrix(LocalDateTime from, LocalDateTime to) {
         MatrixCounts early = matrixCounts("""
-                trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE')
+                c.trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE')
                 """, from, to);
         MatrixCounts missed = matrixCounts("""
-                trigger_relation in ('PROTECTABLE_ONLY', 'OBSERVED_ONLY')
+                c.trigger_relation in ('PROTECTABLE_ONLY', 'OBSERVED_ONLY')
                 """, from, to);
         MatrixCounts suppressed = matrixCounts("""
-                trigger_relation in ('PROTECTABLE_SUPPRESSED_BY_HCAD', 'HCAD_SUPPRESSED_BY_PROTECTABLE')
+                c.trigger_relation in ('PROTECTABLE_SUPPRESSED_BY_HCAD', 'HCAD_SUPPRESSED_BY_PROTECTABLE')
                 """, from, to);
         MatrixCounts unevaluated = matrixCounts("""
-                trigger_relation = 'UNMATCHED_LLM'
+                c.trigger_relation = 'UNMATCHED_LLM'
                 """, from, to);
 
-        early = early.withNotCalled(count("hcad_detection_evaluation",
+        early = early.withNotCalled(countHcad(
                 "eligible = true and triggered_llm = false and decided_at is null and created_at between ? and ?",
                 from, to));
-        missed = missed.withNotCalled(count("hcad_detection_evaluation",
+        missed = missed.withNotCalled(countHcad(
                 "(eligible = false or eligible is null) and triggered_llm = false and duplicate_suppressed = false and decided_at is null and created_at between ? and ?",
                 from, to));
-        suppressed = suppressed.withNotCalled(count("hcad_detection_evaluation",
+        suppressed = suppressed.withNotCalled(countHcad(
                 "(duplicate_suppressed = true or coalesce(duplicate_suppressed_count, 0) > 0) and decided_at is null and created_at between ? and ?",
                 from, to));
 
@@ -364,19 +556,58 @@ public class AiSecurityDecisionMonitoringService {
                 new CorrelationMatrixRow("HCAD_UNEVALUATED", unevaluated.risk(), unevaluated.allow(), unevaluated.unknown(), unevaluated.notCalled()));
     }
 
+    private List<NamedCount> notCalledReasonBreakdown(LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        String sql = """
+                        select reason_key, count(*) as reason_count
+                          from (
+                                select case
+                                         when duplicate_suppressed = true
+                                           or coalesce(duplicate_suppressed_count, 0) > 0
+                                           then 'DUPLICATE_SUPPRESSED'
+                                         when upper(coalesce(mode, '')) in ('OBSERVE', 'DISABLED')
+                                           then 'POLICY_OBSERVE_ONLY'
+                                         when reason_codes is not null
+                                           and upper(reason_codes) like '%RATE_LIMIT%'
+                                           then 'RATE_LIMITED'
+                                         when eligible = false or eligible is null
+                                           then 'LOW_RISK'
+                                         else 'NOT_TRIGGERED'
+                                       end as reason_key
+                                 from hcad_detection_evaluation
+                                 where created_at between ? and ?
+                                   and triggered_llm = false
+                                   and decided_at is null
+                                   and @MONITORABLE@
+                               ) reasons
+                         group by reason_key
+                         order by reason_count desc, reason_key asc
+                         limit ?
+                        """.replace("@MONITORABLE@", monitorablePath("request_path"));
+        return jdbcOperations.query(
+                sql,
+                (rs, rowNum) -> new NamedCount(rs.getString("reason_key"), rs.getLong("reason_count")),
+                from,
+                to,
+                BREAKDOWN_LIMIT);
+    }
+
     private MatrixCounts matrixCounts(String relationClause, LocalDateTime from, LocalDateTime to) {
         return new MatrixCounts(
-                count("hcad_llm_decision_correlation",
-                        relationClause + " and outcome_class in ('TP', 'FN') and created_at between ? and ?",
+                countCorrelation(
+                        relationClause + " and c.outcome_class in ('TP', 'FN') and c.created_at between ? and ?",
                         from, to),
-                count("hcad_llm_decision_correlation",
-                        relationClause + " and outcome_class in ('FP', 'TN') and created_at between ? and ?",
+                countCorrelation(
+                        relationClause + " and c.outcome_class in ('FP', 'TN') and c.created_at between ? and ?",
                         from, to),
-                count("hcad_llm_decision_correlation",
-                        relationClause + " and outcome_class = 'UNKNOWN' and created_at between ? and ?",
+                countCorrelation(
+                        relationClause + " and c.outcome_class = 'UNKNOWN' and c.created_at between ? and ?",
                         from, to),
-                count("hcad_llm_decision_correlation",
-                        relationClause + " and outcome_class = 'UNOBSERVED' and created_at between ? and ?",
+                countCorrelation(
+                        relationClause + " and c.outcome_class = 'UNOBSERVED' and c.created_at between ? and ?",
                         from, to));
     }
 
@@ -386,28 +617,29 @@ public class AiSecurityDecisionMonitoringService {
             return List.of();
         }
         return jdbcOperations.query("""
-                        select correlation_id,
-                               hcad_evaluation_id,
-                               llm_observation_id,
-                               event_id,
-                               request_id,
-                               user_id,
-                               trigger_relation,
-                               outcome_class,
-                               hcad_score,
-                               hcad_band,
-                               hcad_eligible,
-                               llm_final_action,
-                               llm_proposed_action,
-                               llm_risk_score,
-                               llm_confidence,
-                               created_at,
-                               decided_at
-                          from hcad_llm_decision_correlation
-                         where created_at between ? and ?
-                         order by created_at desc
+                        select c.correlation_id,
+                               c.hcad_evaluation_id,
+                               c.llm_observation_id,
+                               c.event_id,
+                               c.request_id,
+                               c.user_id,
+                               c.trigger_relation,
+                               c.outcome_class,
+                               c.hcad_score,
+                               c.hcad_band,
+                               c.hcad_eligible,
+                               c.llm_final_action,
+                               c.llm_proposed_action,
+                               c.llm_risk_score,
+                               c.llm_confidence,
+                               c.created_at,
+                               c.decided_at
+                          from hcad_llm_decision_correlation c
+                         where c.created_at between ? and ?
+                           and %s
+                         order by c.created_at desc
                          limit 50
-                        """,
+                        """.formatted(correlationMonitorableCondition()),
                 (rs, rowNum) -> new RecentCorrelation(
                         rs.getString("correlation_id"),
                         rs.getString("hcad_evaluation_id"),
@@ -464,12 +696,89 @@ public class AiSecurityDecisionMonitoringService {
         return "KEEP_SHADOW";
     }
 
-    private long countOutcome(String outcome, LocalDateTime from, LocalDateTime to) {
-        return count("hcad_llm_decision_correlation",
-                "outcome_class = ? and created_at between ? and ?",
-                outcome,
+    private long countCorrelationOutcome(String outcome, LocalDateTime from, LocalDateTime to) {
+        return countCorrelation("c.outcome_class = ? and c.created_at between ? and ?", outcome, from, to);
+    }
+
+    private long countAi(String whereClause, Object... args) {
+        return count("ai_security_decision_observation", whereClause + " and " + monitorablePath("request_path"), args);
+    }
+
+    private long countHcad(String whereClause, Object... args) {
+        return count("hcad_detection_evaluation", whereClause + " and " + monitorablePath("request_path"), args);
+    }
+
+    private long countCorrelation(String whereClause, Object... args) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return 0L;
+        }
+        Long value = jdbcOperations.queryForObject(
+                """
+                        select count(*)
+                          from hcad_llm_decision_correlation c
+                         where %s
+                           and %s
+                        """.formatted(whereClause, correlationMonitorableCondition()),
+                Long.class,
+                args);
+        return value == null ? 0L : value;
+    }
+
+    private List<NamedCount> breakdownAi(String expression, LocalDateTime from, LocalDateTime to) {
+        return breakdownWhere(
+                "ai_security_decision_observation",
+                expression,
+                "created_at between ? and ? and " + monitorablePath("request_path"),
                 from,
                 to);
+    }
+
+    private List<NamedCount> breakdownCorrelation(String expression, LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        String sql = """
+                select %s as metric_key, count(*) as count
+                  from hcad_llm_decision_correlation c
+                 where c.created_at between ? and ?
+                   and %s
+                 group by %s
+                 order by count(*) desc, %s asc
+                 limit ?
+                """.formatted(expression, correlationMonitorableCondition(), expression, expression);
+        return jdbcOperations.query(
+                sql,
+                (rs, rowNum) -> new NamedCount(rs.getString("metric_key"), rs.getLong("count")),
+                from,
+                to,
+                BREAKDOWN_LIMIT);
+    }
+
+    private List<NamedCount> breakdownWhere(
+            String tableName,
+            String expression,
+            String whereClause,
+            Object... args) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        String sql = """
+                select %s as metric_key, count(*) as count
+                  from %s
+                 where %s
+                 group by %s
+                 order by count(*) desc, %s asc
+                 limit ?
+                """.formatted(expression, tableName, whereClause, expression, expression);
+        Object[] queryArgs = Arrays.copyOf(args, args.length + 1);
+        queryArgs[args.length] = BREAKDOWN_LIMIT;
+        return jdbcOperations.query(
+                sql,
+                (rs, rowNum) -> new NamedCount(rs.getString("metric_key"), rs.getLong("count")),
+                queryArgs);
     }
 
     private List<NamedCount> breakdown(String tableName, String expression, LocalDateTime from, LocalDateTime to) {
@@ -526,6 +835,39 @@ public class AiSecurityDecisionMonitoringService {
                 to);
     }
 
+    private List<NamedCount> numericBucketBreakdownAi(
+            String columnName,
+            LocalDateTime from,
+            LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        String bucketExpression = """
+                case
+                  when %1$s is null then 'UNKNOWN'
+                  when %1$s < 0.2 then '0.00-0.19'
+                  when %1$s < 0.4 then '0.20-0.39'
+                  when %1$s < 0.6 then '0.40-0.59'
+                  when %1$s < 0.8 then '0.60-0.79'
+                  else '0.80-1.00'
+                end
+                """.formatted(columnName);
+        String sql = """
+                select %s as metric_key, count(*) as count
+                  from ai_security_decision_observation
+                 where created_at between ? and ?
+                   and %s
+                 group by %s
+                 order by metric_key asc
+                """.formatted(bucketExpression, monitorablePath("request_path"), bucketExpression);
+        return jdbcOperations.query(
+                sql,
+                (rs, rowNum) -> new NamedCount(rs.getString("metric_key"), rs.getLong("count")),
+                from,
+                to);
+    }
+
     private long count(String tableName, String whereClause, Object... args) {
         JdbcOperations jdbcOperations = jdbcOperations();
         if (jdbcOperations == null) {
@@ -552,6 +894,21 @@ public class AiSecurityDecisionMonitoringService {
         return value == null ? 0.0d : value;
     }
 
+    private double averageAi(String columnName, LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return 0.0d;
+        }
+        Double value = jdbcOperations.queryForObject(
+                "select avg(" + columnName + ") from ai_security_decision_observation"
+                        + " where created_at between ? and ? and " + columnName + " is not null"
+                        + " and " + monitorablePath("request_path"),
+                Double.class,
+                from,
+                to);
+        return value == null ? 0.0d : value;
+    }
+
     private double p95Latency(String from, String to) {
         return p95Latency(LocalDateTime.parse(from, ISO), LocalDateTime.parse(to, ISO));
     }
@@ -567,11 +924,35 @@ public class AiSecurityDecisionMonitoringService {
                           from ai_security_decision_observation
                          where created_at between ? and ?
                            and llm_latency_ms is not null
-                        """,
+                           and %s
+                        """.formatted(monitorablePath("request_path")),
                 Double.class,
                 from,
                 to);
         return value == null ? 0.0d : value;
+    }
+
+    private String monitorablePath(String pathExpression) {
+        return MONITORABLE_PATH_CONDITION.replace("@PATH@", pathExpression);
+    }
+
+    private String correlationMonitorableCondition() {
+        return """
+                (
+                    exists (
+                        select 1
+                          from ai_security_decision_observation a
+                         where a.observation_id = c.llm_observation_id
+                           and %1$s
+                    )
+                    or exists (
+                        select 1
+                          from hcad_detection_evaluation h
+                         where h.evaluation_id = c.hcad_evaluation_id
+                           and %2$s
+                    )
+                )
+                """.formatted(monitorablePath("a.request_path"), monitorablePath("h.request_path"));
     }
 
     private String format(LocalDateTime value) {

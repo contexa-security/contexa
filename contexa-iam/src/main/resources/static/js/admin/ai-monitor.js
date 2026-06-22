@@ -55,7 +55,7 @@
     function renderStatus(summary) {
         const profile = sectionProfile();
         const recommendation = summary.readinessRecommendation || summary.recommendation;
-        const hasRecommendation = section === 'overview' || section === 'readiness';
+        const hasRecommendation = section === 'readiness';
         const statusTitle = hasRecommendation ? label('labelCurrentDecision') : label('labelScreenPurpose');
         const statusText = hasRecommendation ? friendlyRecommendation(recommendation) : profile.description;
         const tone = hasRecommendation ? recommendationTone(recommendation) : 'info';
@@ -77,204 +77,178 @@
         const llm = summary.llm || {};
         const operations = summary.operations || {};
         const correlation = summary.correlation || {};
-        const classifiedCount = (correlation.truePositiveCount || 0)
-            + (correlation.falsePositiveCount || 0)
-            + (correlation.observableFalseNegativeCount || 0)
-            + (correlation.trueNegativeCount || 0);
-        const failureCount = (operations.parserFailureCount || 0)
-            + (operations.technicalFallbackCount || 0)
-            + (operations.timeoutCount || 0)
-            + (operations.modelUnavailableCount || 0);
-        const failureRate = ratioValue(failureCount, llm.totalDecisionCount || 0);
-        const minSample = hcad.qualification && hcad.qualification.minimumSampleSize
-            ? hcad.qualification.minimumSampleSize
-            : 100;
-        const sampleCoverage = ratioValue(hcad.candidateCount || 0, minSample);
+        const metrics = correlationMetrics(correlation, hcad, llm, operations);
         detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
-            [label('labelObservedRequests'), hcad.observedRequestCount],
-            [label('labelHcadWindows'), hcad.candidateCount],
-            [label('labelLlmCalls'), llm.totalDecisionCount],
-            [label('labelHcadPrecision'), formatPercent(hcad.precision)],
-            [label('labelUnknown'), correlation.unknownCount],
-            [label('labelTimeouts'), operations.timeoutCount],
-            [label('labelAverageLatency'), formatMs(operations.averageLatencyMs)]
+            [label('labelObservedRequests'), hcad.observedRequestCount || 0],
+            [label('labelHcadWindows'), hcad.candidateCount || 0],
+            [label('labelLlmCalls'), llm.totalDecisionCount || 0],
+            [label('labelHcadPrecision'), formatPercentOrNoData(hcad.precision || 0, hasHcadComparison(hcad))],
+            [label('labelUnknownRate'), formatPercentOrNoData(hcad.unknownRate || 0, hasHcadComparison(hcad))],
+            [label('labelAverageLatency'), formatMsOrNoData(operations.averageLatencyMs, (llm.totalDecisionCount || 0) > 0)]
         ]);
         detailsEl.innerHTML = [
-            `<div class="ai-monitor-overview-top">
-                ${readinessPanel(summary.readinessRecommendation, sampleCoverage, hcad.precision || 0, hcad.unknownRate || 0, failureRate)}
-                ${flowPanel([
-                    {
-                        label: label('labelObservedRequests'),
-                        value: hcad.observedRequestCount || 0,
-                        rateLabel: label('labelFlowBase'),
-                        rate: 1,
-                        color: '#22d3ee'
-                    },
-                    {
-                        label: label('labelHcadWindows'),
-                        value: hcad.candidateCount || 0,
-                        rateLabel: label('labelFlowObservedToHcad'),
-                        rate: ratioValue(hcad.candidateCount || 0, hcad.observedRequestCount || 0),
-                        color: '#38bdf8'
-                    },
-                    {
-                        label: label('labelLlmCalls'),
-                        value: llm.totalDecisionCount || 0,
-                        rateLabel: label('labelFlowHcadToLlm'),
-                        rate: ratioValue(llm.totalDecisionCount || 0, hcad.candidateCount || 0),
-                        color: '#a78bfa'
-                    },
-                    {
-                        label: label('labelClearOutcome'),
-                        value: classifiedCount,
-                        rateLabel: label('labelFlowLlmToClear'),
-                        rate: ratioValue(classifiedCount, llm.totalDecisionCount || 0),
-                        color: '#22c55e'
-                    }
-                ])}
-            </div>`,
+            flowPanel([
+                flowItem(label('labelObservedRequests'), hcad.observedRequestCount || 0, label('labelFlowBase'), 1, '#22d3ee'),
+                flowItem(label('labelHcadWindows'), hcad.candidateCount || 0, label('labelFlowObservedToHcad'), ratioValue(hcad.candidateCount || 0, hcad.observedRequestCount || 0), '#38bdf8'),
+                flowItem(label('labelLlmCalls'), llm.totalDecisionCount || 0, label('labelFlowHcadToLlm'), ratioValue(llm.totalDecisionCount || 0, hcad.candidateCount || 0), '#a78bfa'),
+                flowItem(label('labelClearOutcome'), metrics.classified, label('labelFlowLlmToClear'), ratioValue(metrics.classified, llm.totalDecisionCount || 0), '#22c55e')
+            ]),
             `<div class="ai-monitor-overview-grid">
-                ${outcomePanel(correlation)}
-                ${reliabilityPanel([
-                    {
-                        label: label('labelHcadPrecision'),
-                        value: hcad.precision || 0,
-                        tone: (hcad.precision || 0) >= 0.95 ? 'good' : ((hcad.precision || 0) >= 0.80 ? 'warn' : 'bad')
-                    },
-                    {
-                        label: label('labelUnknownPressure'),
-                        value: hcad.unknownRate || 0,
-                        tone: (hcad.unknownRate || 0) >= 0.40 ? 'bad' : ((hcad.unknownRate || 0) > 0 ? 'warn' : 'good')
-                    },
-                    {
-                        label: label('labelFailurePressure'),
-                        value: failureRate,
-                        tone: failureRate >= 0.10 ? 'bad' : (failureRate > 0 ? 'warn' : 'good')
-                    },
-                    {
-                        label: label('labelTimeoutPressure'),
-                        value: llm.timeoutRate || 0,
-                        tone: (llm.timeoutRate || 0) >= 0.10 ? 'bad' : ((llm.timeoutRate || 0) > 0 ? 'warn' : 'good')
-                    }
-                ], operations, llm)}
+                ${agreementPanel(metrics)}
+                ${qualitySignalPanel(hcad, llm, operations, metrics)}
             </div>`
         ].join('');
     }
 
     function renderLlm(summary) {
-        detailsEl.className = 'ai-monitor-grid';
+        detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
             [label('labelLlmDecisions'), summary.totalDecisionCount],
             [label('labelHcadPretriggerDecisions'), summary.hcadPreTriggerDecisionCount],
             [label('labelProtectableDecisions'), summary.protectableDecisionCount],
             [label('labelHcadAndProtectable'), summary.hcadAndProtectableDecisionCount],
-            [label('labelParserFailureRate'), formatPercent(summary.parserFailureRate)],
-            [label('labelFallbackRate'), formatPercent(summary.technicalFallbackRate)],
-            [label('labelTimeoutRate'), formatPercent(summary.timeoutRate)],
-            [label('labelModelUnavailableRate'), formatPercent(summary.modelUnavailableRate)],
-            [label('labelAverageLatency'), formatMs(summary.averageLatencyMs)],
-            [label('labelP95Latency'), formatMs(summary.p95LatencyMs)]
+            [label('labelAverageLatency'), formatMsOrNoData(summary.averageLatencyMs, (summary.totalDecisionCount || 0) > 0)]
         ]);
         detailsEl.innerHTML = [
-            tableBand(label('labelDecisionResult'), summary.finalActionBreakdown || []),
-            tableBand(label('labelActionBreakdown'), summary.actionBreakdown || []),
-            tableBand(label('labelProposedActionBreakdown'), summary.proposedActionBreakdown || []),
-            tableBand(label('labelDecisionPath'), summary.triggerSourceBreakdown || []),
-            tableBand(label('labelProvider'), summary.providerBreakdown || []),
-            tableBand(label('labelModel'), summary.modelBreakdown || []),
-            tableBand(label('labelPromptTemplate'), summary.promptTemplateBreakdown || []),
-            tableBand(label('labelRiskScoreDistribution'), summary.riskScoreDistribution || []),
-            tableBand(label('labelConfidenceDistribution'), summary.confidenceDistribution || [])
+            `<div class="ai-monitor-overview-grid">
+                ${distributionPanel(label('labelDecisionResult'), normalizeActionRows(summary.finalActionBreakdown || []), 'action')}
+                ${distributionPanel(label('labelDecisionPath'), normalizeRows(summary.triggerSourceBreakdown || []), 'path')}
+            </div>`,
+            `<div class="ai-monitor-overview-grid">
+                ${bucketChart(label('labelRiskScoreDistribution'), summary.riskScoreDistribution || [])}
+                ${bucketChart(label('labelConfidenceDistribution'), summary.confidenceDistribution || [])}
+            </div>`,
+            `<div class="ai-monitor-overview-grid">
+                ${providerPanel(summary)}
+                ${llmQualityPanel(summary)}
+            </div>`
         ].join('');
     }
 
     function renderCorrelation(summary) {
-        detailsEl.className = 'ai-monitor-grid';
+        const metrics = correlationMetrics(summary || {}, {}, {}, {});
+        detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
-            [displayKey('TP'), summary.truePositiveCount],
-            [displayKey('FP'), summary.falsePositiveCount],
-            [displayKey('FN'), summary.observableFalseNegativeCount],
-            [displayKey('TN'), summary.trueNegativeCount],
-            [label('labelUnknown'), summary.unknownCount],
-            [label('labelUnobserved'), summary.unobservedCount]
+            [label('labelMatchRate'), formatPercentOrNoData(metrics.matchRate, metrics.classified > 0)],
+            [label('labelMismatchRate'), formatPercentOrNoData(metrics.mismatchRate, metrics.classified > 0)],
+            [label('labelFalsePositiveRate'), formatPercentOrNoData(metrics.fpTriggerRate, (metrics.tp + metrics.fp) > 0)],
+            [label('labelObservableFnRate'), formatPercentOrNoData(metrics.fnRiskRate, (metrics.tp + metrics.fn) > 0)],
+            [label('labelUnknownRate'), formatPercentOrNoData(metrics.unknownRate, (metrics.classified + metrics.unknown) > 0)]
         ]);
         detailsEl.innerHTML = [
-            matrixBand(summary.matrixRows || []),
-            tableBand(label('labelTriggerRelation'), summary.triggerRelationBreakdown || []),
-            tableBand(label('labelComparisonResult'), summary.outcomeBreakdown || []),
-            recentCorrelationBand(summary.recentCorrelations || [])
+            confusionMatrixPanel(summary || {}),
+            `<div class="ai-monitor-overview-grid">
+                ${notCalledPanel(summary.notCalledReasonBreakdown || [])}
+                ${attentionListPanel(summary.recentCorrelations || [])}
+            </div>`
         ].join('');
     }
 
     function renderFailures(summary) {
         const operations = summary.operations || {};
-        detailsEl.className = 'ai-monitor-grid';
+        const failureTotal = failureCount(operations);
+        detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
             [label('labelTimeouts'), operations.timeoutCount],
             [label('labelParserFailures'), operations.parserFailureCount],
-            [label('labelFallbacks'), operations.technicalFallbackCount],
             [label('labelModelUnavailable'), operations.modelUnavailableCount],
             [label('labelAverageLatency'), formatMs(operations.averageLatencyMs)]
         ]);
         detailsEl.innerHTML = [
-            tableBand(label('labelMainFailureCause'), summary.explicitFailureBreakdown || []),
-            tableBand(label('labelFailureType'), summary.failureTypeBreakdown || []),
-            tableBand(label('labelFallbackCategory'), summary.fallbackCategoryBreakdown || []),
-            tableBand(label('labelProvider'), summary.providerBreakdown || []),
-            tableBand(label('labelModel'), summary.modelBreakdown || []),
-            tableBand(label('labelPromptTemplate'), summary.promptTemplateBreakdown || [])
+            `<div class="ai-monitor-overview-grid">
+                ${failureCausePanel(summary.explicitFailureBreakdown || [], failureTotal)}
+                ${trendPanel(label('labelFailureTrend'), summary.failureTrend || [])}
+            </div>`,
+            `<div class="ai-monitor-overview-grid">
+                ${recentFailurePanel(summary.recentFailures || [])}
+                ${affectedRequestPanel(summary.affectedRequests || [])}
+            </div>`,
+            `<div class="ai-monitor-overview-grid">
+                ${optionalBreakdownPanel(label('labelProvider'), summary.providerBreakdown || [], label('labelProviderUnknownHelp'))}
+                ${optionalBreakdownPanel(label('labelModel'), summary.modelBreakdown || [], label('labelProviderUnknownHelp'))}
+            </div>`
         ].join('');
     }
 
     function renderReadiness(summary) {
-        detailsEl.className = 'ai-monitor-grid';
+        const blockers = readinessBlockers({
+            recommendation: summary.recommendation,
+            hcad: {
+                candidateCount: summary.hcadCandidateCount,
+                precision: summary.hcadPrecision,
+                unknownRate: summary.unknownRate,
+                qualification: { minimumSampleSize: summary.minimumSampleSize }
+            },
+            llm: { totalDecisionCount: summary.llmDecisionCount, timeoutRate: summary.timeoutRate },
+            operations: {
+                parserFailureCount: Math.round((summary.parserFailureRate || 0) * (summary.llmDecisionCount || 0)),
+                technicalFallbackCount: Math.round((summary.technicalFallbackRate || 0) * (summary.llmDecisionCount || 0)),
+                timeoutCount: Math.round((summary.timeoutRate || 0) * (summary.llmDecisionCount || 0)),
+                modelUnavailableCount: Math.round((summary.modelUnavailableRate || 0) * (summary.llmDecisionCount || 0)),
+                averageLatencyMs: summary.averageLatencyMs
+            },
+            correlation: { observableFalseNegativeCount: Math.round((summary.observableFalseNegativeRate || 0) * (summary.llmDecisionCount || 0)) }
+        });
+        const criteria = readinessCriteria(summary);
+
+        detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
+            [label('labelRecommendation'), friendlyRecommendation(summary.recommendation)],
             [label('labelMinimumSample'), `${formatNumber(summary.hcadCandidateCount || 0)} / ${formatNumber(summary.minimumSampleSize || 0)}`],
-            [label('labelHcadPrecision'), formatPercent(summary.hcadPrecision)],
-            [label('labelObservableFnRate'), formatPercent(summary.observableFalseNegativeRate)],
-            [label('labelUnknownRate'), formatPercent(summary.unknownRate)],
-            [label('labelFailureRate'), formatPercent(summary.failureRate)],
-            [label('labelParserFailureRate'), formatPercent(summary.parserFailureRate)],
-            [label('labelFallbackRate'), formatPercent(summary.technicalFallbackRate)],
-            [label('labelTimeoutRate'), formatPercent(summary.timeoutRate)],
-            [label('labelModelUnavailableRate'), formatPercent(summary.modelUnavailableRate)],
-            [label('labelAverageLatency'), formatMs(summary.averageLatencyMs)],
-            [label('labelP95Latency'), formatMs(summary.p95LatencyMs)]
+            [label('labelHcadPrecision'), formatPercentOrNoData(summary.hcadPrecision, (summary.llmDecisionCount || 0) > 0)],
+            [label('labelObservableFnRate'), formatPercentOrNoData(summary.observableFalseNegativeRate, (summary.llmDecisionCount || 0) > 0)],
+            [label('labelUnknownRate'), formatPercentOrNoData(summary.unknownRate, (summary.llmDecisionCount || 0) > 0)],
+            [label('labelFailureRate'), formatPercentOrNoData(summary.failureRate, (summary.llmDecisionCount || 0) > 0)]
         ]);
-        detailsEl.innerHTML = tableBand(label('labelReadinessCriteria'), [
-            { key: 'MINIMUM_SAMPLE', count: `${formatNumber(summary.hcadCandidateCount || 0)} / ${formatNumber(summary.minimumSampleSize || 0)}` },
-            { key: 'HCAD_PRECISION', count: formatPercent(summary.hcadPrecision) },
-            { key: 'OBSERVABLE_FN_RATE', count: formatPercent(summary.observableFalseNegativeRate) },
-            { key: 'UNKNOWN_RATE', count: formatPercent(summary.unknownRate) },
-            { key: 'FAILURE_RATE', count: formatPercent(summary.failureRate) },
-            { key: 'PARSER_FAILURE_RATE', count: formatPercent(summary.parserFailureRate) },
-            { key: 'TECHNICAL_FALLBACK_RATE', count: formatPercent(summary.technicalFallbackRate) },
-            { key: 'TIMEOUT_RATE', count: formatPercent(summary.timeoutRate) },
-            { key: 'MODEL_UNAVAILABLE_RATE', count: formatPercent(summary.modelUnavailableRate) },
-            { key: 'P95_LATENCY', count: formatMs(summary.p95LatencyMs) }
-        ], 10);
+        detailsEl.innerHTML = [
+            executiveDecisionPanel(summary.recommendation, blockers),
+            readinessVisualizationPanel(summary, criteria),
+            criteriaChecklistPanel(criteria)
+        ].join('');
     }
 
-    function readinessPanel(recommendation, sampleCoverage, precision, unknownRate, failureRate) {
+    function executiveDecisionPanel(recommendation, blockers) {
         const tone = recommendationTone(recommendation);
+        const top = blockers.slice(0, 3);
         return `
-            <section class="ai-monitor-band ai-monitor-judgement">
-                <div>
-                    <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewReadiness'))}</div>
-                    <div class="ai-monitor-judgement-value">${escapeHtml(friendlyRecommendation(recommendation))}</div>
-                    <div class="ai-monitor-judgement-sub">${escapeHtml(label('labelOverviewReadinessDesc'))}</div>
+            <section class="ai-monitor-band ai-monitor-decision-card ${tone}">
+                <div class="ai-monitor-decision-head">
+                    <div>
+                        <div class="ai-monitor-band-title">${escapeHtml(label('labelCurrentDecision'))}</div>
+                        <div class="ai-monitor-decision-value">${escapeHtml(friendlyRecommendation(recommendation))}</div>
+                    </div>
+                    <div class="ai-monitor-decision-caption">${escapeHtml(label('labelDecisionReasonIntro'))}</div>
                 </div>
-                <div class="ai-monitor-bars">
-                    ${metricBar(label('labelSampleCoverage'), sampleCoverage, sampleCoverage >= 1 ? 'good' : 'warn')}
-                    ${metricBar(label('labelHcadPrecision'), precision, precision >= 0.95 ? 'good' : (precision >= 0.80 ? 'warn' : 'bad'))}
-                    ${metricBar(label('labelUnknownPressure'), unknownRate, unknownRate >= 0.40 ? 'bad' : (unknownRate > 0 ? 'warn' : 'good'))}
-                    ${metricBar(label('labelFailurePressure'), failureRate, failureRate >= 0.10 ? 'bad' : (failureRate > 0 ? 'warn' : 'good'))}
-                </div>
-                <div class="ai-monitor-dashboard-note">
-                    <span class="ai-monitor-status ${tone}">${escapeHtml(friendlyRecommendation(recommendation))}</span>
+                <div class="ai-monitor-blocker-list">
+                    ${(top.length ? top : [{ title: label('labelNoMajorBlocker'), detail: label('labelNoMajorBlockerDesc'), tone: 'good' }]).map(blocker => {
+                        const measurement = blockerMeasurement(blocker.detail);
+                        return `
+                        <div class="ai-monitor-blocker ${blocker.tone || 'warn'}">
+                            <div class="ai-monitor-blocker-main">
+                                <strong>${escapeHtml(blocker.title)}</strong>
+                                <span class="ai-monitor-blocker-value">${escapeHtml(measurement.value)}</span>
+                            </div>
+                            <span class="ai-monitor-blocker-criteria">${escapeHtml(measurement.criteria)}</span>
+                        </div>`;
+                    }).join('')}
                 </div>
             </section>`;
+    }
+
+    function blockerMeasurement(detail) {
+        const text = String(detail || '-').trim();
+        let parts = text.match(/^(.+?)\s*<\s*(.+)$/);
+        if (parts) return { value: parts[1], criteria: `${parts[2]} ${label('labelOrMore')}` };
+        parts = text.match(/^(.+?)\s*>=\s*(.+)$/);
+        if (parts) return { value: parts[1], criteria: `${parts[2]} ${label('labelOrLess')}` };
+        parts = text.match(/^(.+?)\s*\/\s*(.+)$/);
+        if (parts) return { value: parts[1], criteria: `${parts[2]} ${label('labelOrMore')}` };
+        return { value: text, criteria: '-' };
+    }
+
+    function flowItem(labelText, value, rateLabel, rate, color) {
+        return { label: labelText, value, rateLabel, rate, color };
     }
 
     function flowPanel(items) {
@@ -282,9 +256,10 @@
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewFlow'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelOverviewFlowDesc'))}</div>
-                <div class="ai-monitor-flow">
-                    ${items.map((item) => `
-                        <div class="ai-monitor-flow-step" style="--flow-color:${item.color};">
+                <div class="ai-monitor-funnel">
+                    ${items.map((item, index) => `
+                        <div class="ai-monitor-funnel-step" style="--flow-color:${item.color};">
+                            <div class="ai-monitor-flow-index">${index + 1}</div>
                             <div class="ai-monitor-flow-label">${escapeHtml(item.label)}</div>
                             <div class="ai-monitor-flow-value">${escapeHtml(formatNumber(item.value))}</div>
                             <div class="ai-monitor-flow-rate">${escapeHtml(item.rateLabel)} ${escapeHtml(formatPercent(item.rate))}</div>
@@ -294,25 +269,22 @@
             </section>`;
     }
 
-    function outcomePanel(correlation) {
+    function agreementPanel(metrics) {
         const rows = [
-            { label: displayKey('TP'), value: correlation.truePositiveCount || 0, color: '#22c55e' },
-            { label: displayKey('FP'), value: correlation.falsePositiveCount || 0, color: '#f59e0b' },
-            { label: displayKey('FN'), value: correlation.observableFalseNegativeCount || 0, color: '#ef4444' },
-            { label: displayKey('TN'), value: correlation.trueNegativeCount || 0, color: '#38bdf8' },
-            { label: label('labelUnknown'), value: correlation.unknownCount || 0, color: '#94a3b8' }
+            { label: label('labelMatched'), value: metrics.match, color: '#22c55e' },
+            { label: label('labelMismatched'), value: metrics.mismatch, color: '#ef4444' },
+            { label: label('labelUnknown'), value: metrics.unknown, color: '#94a3b8' }
         ];
-        const total = rows.reduce((sum, row) => sum + row.value, 0);
         return `
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewOutcome'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelOverviewOutcomeDesc'))}</div>
                 <div class="ai-monitor-chart-shell">
                     <div class="ai-monitor-donut" style="background:${escapeHtml(donutGradient(rows))};">
-                        <div class="ai-monitor-donut-center">${escapeHtml(formatNumber(total))}</div>
+                        <div class="ai-monitor-donut-center">${escapeHtml(formatPercent(metrics.matchRate))}</div>
                     </div>
                     <div class="ai-monitor-legend">
-                        ${rows.map((row) => `
+                        ${rows.map(row => `
                             <div class="ai-monitor-legend-row" style="--legend-color:${row.color};">
                                 <span class="ai-monitor-legend-dot"></span>
                                 <span>${escapeHtml(row.label)}</span>
@@ -323,30 +295,455 @@
             </section>`;
     }
 
-    function reliabilityPanel(items, operations, llm) {
+    function qualitySignalPanel(hcad, llm, operations, metrics) {
+        const hcadComparisonAvailable = hasHcadComparison(hcad);
+        const llmAvailable = (llm.totalDecisionCount || 0) > 0;
         return `
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewReliability'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelOverviewReliabilityDesc'))}</div>
                 <div class="ai-monitor-bars">
-                    ${items.map((item) => metricBar(item.label, item.value, item.tone)).join('')}
-                    ${valueRow(label('labelAverageLatency'), formatMs(operations.averageLatencyMs || 0), (operations.averageLatencyMs || 0) > 0 ? 'warn' : 'good')}
-                    ${valueRow(label('labelP95Latency'), formatMs(llm.p95LatencyMs || 0), (llm.p95LatencyMs || 0) > 0 ? 'warn' : 'good')}
+                    ${metricBarOptional(label('labelHcadPrecision'), hcad.precision || 0, hcadComparisonAvailable, (hcad.precision || 0) >= 0.80 ? 'warn' : 'bad')}
+                    ${metricBarOptional(label('labelMismatchRate'), metrics.mismatchRate, metrics.classified > 0, metrics.mismatchRate >= 0.20 ? 'bad' : (metrics.mismatchRate > 0 ? 'warn' : 'good'))}
+                    ${metricBarOptional(label('labelUnknownPressure'), hcad.unknownRate || 0, hcadComparisonAvailable, (hcad.unknownRate || 0) >= 0.40 ? 'bad' : ((hcad.unknownRate || 0) > 0 ? 'warn' : 'good'))}
+                    ${metricBarOptional(label('labelTimeoutPressure'), llm.timeoutRate || 0, llmAvailable, (llm.timeoutRate || 0) >= 0.10 ? 'bad' : ((llm.timeoutRate || 0) > 0 ? 'warn' : 'good'))}
+                    ${valueRow(label('labelAverageLatency'), formatMsOrNoData(operations.averageLatencyMs || 0, llmAvailable), (operations.averageLatencyMs || 0) > 0 ? 'warn' : 'good')}
                 </div>
             </section>`;
     }
 
-    function metricBar(labelText, value, tone) {
+    function distributionPanel(title, rows, variant) {
+        const safeRows = rows.filter(row => row.count > 0).slice(0, 6);
+        const total = safeRows.reduce((sum, row) => sum + row.count, 0);
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(title)}</div>
+                <div class="ai-monitor-bars">
+                    ${(safeRows.length ? safeRows : [{ key: label('labelNoData'), count: 0 }]).map((row, index) => {
+                        const ratio = ratioValue(row.count, total);
+                        return metricBar(displayKey(row.key), ratio, toneForRow(row.key, variant, index), formatNumber(row.count));
+                    }).join('')}
+                </div>
+            </section>`;
+    }
+
+    function bucketChart(title, rows) {
+        const safeRows = (rows || []).filter(row => row.key !== 'UNKNOWN').slice(0, 8);
+        const total = safeRows.reduce((sum, row) => sum + (row.count || 0), 0);
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(title)}</div>
+                <div class="ai-monitor-mini-bars">
+                    ${(safeRows.length ? safeRows : [{ key: label('labelNoData'), count: 0 }]).map(row => `
+                        <div class="ai-monitor-mini-bar">
+                            <span>${escapeHtml(displayKey(row.key))}</span>
+                            <div><i style="width:${percentWidth(ratioValue(row.count || 0, total))}%;"></i></div>
+                            <strong>${escapeHtml(formatNumber(row.count || 0))}</strong>
+                        </div>`).join('')}
+                </div>
+            </section>`;
+    }
+
+    function providerPanel(summary) {
+        const providerRows = meaningfulRows(summary.providerBreakdown || []);
+        const modelRows = meaningfulRows(summary.modelBreakdown || []);
+        if (!providerRows.length && !modelRows.length) {
+            return `
+                <section class="ai-monitor-band">
+                    <div class="ai-monitor-band-title">${escapeHtml(label('labelProvider'))}</div>
+                    <div class="ai-monitor-empty-note">${escapeHtml(label('labelProviderUnknownHelp'))}</div>
+                </section>`;
+        }
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelProvider'))}</div>
+                <div class="ai-monitor-two-stack">
+                    ${simpleNamedRows(providerRows, 5)}
+                    ${simpleNamedRows(modelRows, 5)}
+                </div>
+            </section>`;
+    }
+
+    function llmQualityPanel(summary) {
+        const failures = [
+            { label: label('labelParserFailureRate'), value: summary.parserFailureRate || 0 },
+            { label: label('labelTimeoutRate'), value: summary.timeoutRate || 0 },
+            { label: label('labelModelUnavailableRate'), value: summary.modelUnavailableRate || 0 }
+        ];
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelResponseQuality'))}</div>
+                <div class="ai-monitor-band-help">${escapeHtml(label('labelQualityFailureLink'))}</div>
+                <div class="ai-monitor-bars">
+                    ${failures.map(item => metricBar(item.label, item.value, item.value > 0 ? 'warn' : 'good')).join('')}
+                </div>
+            </section>`;
+    }
+
+    function confusionMatrixPanel(summary) {
+        const tp = summary.truePositiveCount || 0;
+        const fp = summary.falsePositiveCount || 0;
+        const fn = summary.observableFalseNegativeCount || 0;
+        const tn = summary.trueNegativeCount || 0;
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelCorrelationMatrix'))}</div>
+                <div class="ai-monitor-band-help">${escapeHtml(label('labelConfusionMatrixHelp'))}</div>
+                <div class="ai-monitor-confusion">
+                    ${confusionCell(label('labelHcadFoundAiRisk'), label('labelTruePositiveMeaning'), tp, 'good')}
+                    ${confusionCell(label('labelHcadFoundAiAllow'), label('labelFalsePositiveMeaning'), fp, 'bad')}
+                    ${confusionCell(label('labelHcadMissedAiRisk'), label('labelFalseNegativeMeaning'), fn, 'bad')}
+                    ${confusionCell(label('labelHcadMissedAiAllow'), label('labelTrueNegativeMeaning'), tn, 'good')}
+                </div>
+            </section>`;
+    }
+
+    function confusionCell(title, detail, value, tone) {
+        return `
+            <div class="ai-monitor-confusion-cell ${tone}">
+                <strong>${escapeHtml(title)}</strong>
+                <span>${escapeHtml(detail)}</span>
+                <b>${escapeHtml(formatNumber(value))}</b>
+            </div>`;
+    }
+
+    function notCalledPanel(rows) {
+        const notCalled = (rows || [])
+            .filter(row => (row.count || 0) > 0)
+            .map(row => ({ key: row.key, count: row.count }));
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelNotCalledReason'))}</div>
+                <div class="ai-monitor-band-help">${escapeHtml(label('labelNotCalledReasonHelp'))}</div>
+                ${simpleNamedRows(notCalled, 5)}
+            </section>`;
+    }
+
+    function attentionListPanel(rows) {
+        const attention = (rows || [])
+            .filter(row => ['FP', 'FN', 'UNKNOWN'].includes(row.outcomeClass))
+            .slice(0, 10);
+        const body = attention.length
+            ? attention.map(row => `
+                <tr>
+                    <td>${escapeHtml(formatDate(row.createdAt))}</td>
+                    <td>${escapeHtml(row.userId || '-')}</td>
+                    <td>${escapeHtml(displayKey(row.outcomeClass || '-'))}</td>
+                    <td>${escapeHtml(formatNumber(row.hcadScore || 0))}</td>
+                    <td>${escapeHtml(displayKey(row.llmFinalAction || '-'))}</td>
+                </tr>`).join('')
+            : `<tr><td colspan="5">${escapeHtml(label('labelNoData'))}</td></tr>`;
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelInvestigationQueue'))}</div>
+                <table class="ai-monitor-table">
+                    <thead><tr><th>${escapeHtml(label('labelCreatedAt'))}</th><th>${escapeHtml(label('labelUser'))}</th><th>${escapeHtml(label('labelOutcome'))}</th><th>${escapeHtml(label('labelHcadScore'))}</th><th>${escapeHtml(label('labelFinalAction'))}</th></tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </section>`;
+    }
+
+    function failureCausePanel(rows, failureTotal) {
+        const safeRows = meaningfulRows(rows).slice(0, 4);
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelMainFailureCause'))}</div>
+                <div class="ai-monitor-cause-grid">
+                    ${(safeRows.length ? safeRows : [{ key: label('labelNoData'), count: 0 }]).map(row => `
+                        <div class="ai-monitor-cause">
+                            <strong>${escapeHtml(displayKey(row.key))}</strong>
+                            <span>${escapeHtml(formatNumber(row.count))}</span>
+                            <i>${escapeHtml(formatPercent(ratioValue(row.count, failureTotal)))}</i>
+                        </div>`).join('')}
+                </div>
+            </section>`;
+    }
+
+    function trendPanel(title, rows) {
+        const safeRows = (rows || []).slice(-12);
+        const max = Math.max(1, ...safeRows.map(row => row.count || 0));
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(title)}</div>
+                <div class="ai-monitor-trend">
+                    ${(safeRows.length ? safeRows : [{ key: label('labelNoData'), count: 0 }]).map(row => `
+                        <div class="ai-monitor-trend-bar">
+                            <i style="height:${Math.max(4, Math.round(((row.count || 0) / max) * 100))}%;"></i>
+                            <span>${escapeHtml(row.key)}</span>
+                        </div>`).join('')}
+                </div>
+            </section>`;
+    }
+
+    function recentFailurePanel(rows) {
+        const body = (rows || []).length
+            ? rows.slice(0, 10).map(row => `
+                <tr>
+                    <td>${escapeHtml(formatDate(row.createdAt))}</td>
+                    <td>${escapeHtml(displayKey(row.failureType || '-'))}</td>
+                    <td>${escapeHtml(`${row.method || ''} ${row.path || '-'}`.trim())}</td>
+                    <td>${escapeHtml(formatMs(row.latencyMs || 0))}</td>
+                </tr>`).join('')
+            : `<tr><td colspan="4">${escapeHtml(label('labelNoData'))}</td></tr>`;
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelRecentFailures'))}</div>
+                <table class="ai-monitor-table">
+                    <thead><tr><th>${escapeHtml(label('labelCreatedAt'))}</th><th>${escapeHtml(label('labelFailureType'))}</th><th>${escapeHtml(label('labelRequest'))}</th><th>${escapeHtml(label('labelAverageLatency'))}</th></tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </section>`;
+    }
+
+    function affectedRequestPanel(rows) {
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelAffectedRequests'))}</div>
+                ${simpleNamedRows((rows || []).map(row => ({ key: `${row.method || ''} ${row.path || '-'}`.trim(), count: row.count })), 10)}
+            </section>`;
+    }
+
+    function optionalBreakdownPanel(title, rows, emptyMessage) {
+        const safeRows = meaningfulRows(rows);
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(title)}</div>
+                ${safeRows.length ? simpleNamedRows(safeRows, 5) : `<div class="ai-monitor-empty-note">${escapeHtml(emptyMessage)}</div>`}
+            </section>`;
+    }
+
+    function criteriaChecklistPanel(criteria) {
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelReadinessCriteria'))}</div>
+                <div class="ai-monitor-criteria-grid">
+                    ${criteria.map(item => `
+                        <div class="ai-monitor-criterion ${item.pass ? 'good' : 'bad'}">
+                            <strong>${escapeHtml(item.label)}</strong>
+                            <span>${escapeHtml(item.current)} / ${escapeHtml(item.required)}</span>
+                            <em>${escapeHtml(item.pass ? label('labelPassed') : item.gap)}</em>
+                        </div>`).join('')}
+                </div>
+            </section>`;
+    }
+
+    function readinessVisualizationPanel(summary, criteria) {
+        const score = readinessScore(criteria);
+        const angle = Math.round(score * 3.6);
+        return `
+            <div class="ai-monitor-readiness-visual-grid">
+                <section class="ai-monitor-band ai-monitor-readiness-gauge-card">
+                    <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewReadiness'))}</div>
+                    <div class="ai-monitor-readiness-gauge" style="--readiness-angle:${angle}deg;">
+                        <div class="ai-monitor-readiness-gauge-core">
+                            <strong>${escapeHtml(formatNumber(score))}%</strong>
+                            <span>${escapeHtml(friendlyRecommendation(summary.recommendation))}</span>
+                        </div>
+                    </div>
+                </section>
+                <section class="ai-monitor-band">
+                    <div class="ai-monitor-band-title">${escapeHtml(label('labelReadinessCriteria'))}</div>
+                    <div class="ai-monitor-readiness-bars">
+                        ${criteria.map(item => `
+                            <div class="ai-monitor-readiness-bar-row ${item.pass ? 'good' : 'bad'}">
+                                <div class="ai-monitor-readiness-bar-head">
+                                    <strong>${escapeHtml(item.label)}</strong>
+                                    <span>${escapeHtml(item.current)} / ${escapeHtml(item.required)}</span>
+                                </div>
+                                <div class="ai-monitor-readiness-track">
+                                    <span style="width:${percentWidth(item.score || 0)}%;"></span>
+                                </div>
+                            </div>`).join('')}
+                    </div>
+                </section>
+            </div>`;
+    }
+
+    function readinessScore(criteria) {
+        if (!criteria || !criteria.length) return 0;
+        const total = criteria.reduce((sum, item) => sum + Math.max(0, Math.min(1, item.score || 0)), 0);
+        return Math.round((total / criteria.length) * 100);
+    }
+
+    function readinessCriteria(summary) {
+        const minSample = summary.minimumSampleSize || 100;
+        const sample = summary.hcadCandidateCount || 0;
+        const precisionTarget = 0.80;
+        const fnTarget = 0.10;
+        const unknownTarget = 0.40;
+        const failureTarget = 0.10;
+        const decisionAvailable = (summary.llmDecisionCount || 0) > 0;
+        return [
+            {
+                label: label('labelMinimumSample'),
+                current: formatNumber(sample),
+                required: formatNumber(minSample),
+                pass: sample >= minSample,
+                score: Math.min(1, ratioValue(sample, minSample)),
+                gap: label('labelNeedMoreSamples').replace('{0}', formatNumber(Math.max(0, minSample - sample)))
+            },
+            percentCriterion(label('labelHcadPrecision'), summary.hcadPrecision || 0, precisionTarget, true, decisionAvailable),
+            percentCriterion(label('labelObservableFnRate'), summary.observableFalseNegativeRate || 0, fnTarget, false, decisionAvailable),
+            percentCriterion(label('labelUnknownRate'), summary.unknownRate || 0, unknownTarget, false, decisionAvailable),
+            percentCriterion(label('labelFailureRate'), summary.failureRate || 0, failureTarget, false, decisionAvailable)
+        ];
+    }
+
+    function percentCriterion(labelText, current, required, higherIsBetter, available = true) {
+        if (!available) {
+            return {
+                label: labelText,
+                current: label('labelNoDecisionData'),
+                required: higherIsBetter ? `${formatPercent(required)} ${label('labelOrMore')}` : `${formatPercent(required)} ${label('labelOrLess')}`,
+                pass: false,
+                score: 0,
+                gap: label('labelNoDecisionData')
+            };
+        }
+        const pass = higherIsBetter ? current >= required : current <= required;
+        const gapValue = higherIsBetter ? Math.max(0, required - current) : Math.max(0, current - required);
+        return {
+            label: labelText,
+            current: formatPercent(current),
+            required: higherIsBetter ? `${formatPercent(required)} ${label('labelOrMore')}` : `${formatPercent(required)} ${label('labelOrLess')}`,
+            pass,
+            score: higherIsBetter ? Math.min(1, ratioValue(current, required)) : (current <= required ? 1 : Math.min(1, ratioValue(required, current))),
+            gap: label('labelGap').replace('{0}', formatPercent(gapValue))
+        };
+    }
+
+    function readinessBlockers(context) {
+        const hcad = context.hcad || {};
+        const llm = context.llm || {};
+        const operations = context.operations || {};
+        const correlation = context.correlation || {};
+        const minSample = hcad.qualification && hcad.qualification.minimumSampleSize ? hcad.qualification.minimumSampleSize : 100;
+        const classified = (correlation.truePositiveCount || 0)
+            + (correlation.falsePositiveCount || 0)
+            + (correlation.observableFalseNegativeCount || 0)
+            + (correlation.trueNegativeCount || 0);
+        const fnRate = ratioValue(correlation.observableFalseNegativeCount || 0, classified);
+        const failureRate = ratioValue(failureCount(operations), llm.totalDecisionCount || context.llmDecisionCount || 0);
+        const blockers = [];
+        if ((hcad.candidateCount || 0) < minSample) {
+            blockers.push({
+                title: label('labelBlockerSample'),
+                detail: `${formatNumber(hcad.candidateCount || 0)} / ${formatNumber(minSample)}`,
+                action: label('labelActionCollectMore'),
+                tone: 'warn'
+            });
+        }
+        if ((hcad.precision || 0) < 0.80) {
+            blockers.push({
+                title: label('labelBlockerPrecision'),
+                detail: `${formatPercent(hcad.precision || 0)} < ${formatPercent(0.80)}`,
+                action: label('labelActionReviewMismatch'),
+                tone: 'bad'
+            });
+        }
+        if (fnRate >= 0.10) {
+            blockers.push({
+                title: label('labelBlockerFn'),
+                detail: `${formatPercent(fnRate)} >= ${formatPercent(0.10)}`,
+                action: label('labelActionReviewMissed'),
+                tone: 'bad'
+            });
+        }
+        if ((hcad.unknownRate || 0) >= 0.40) {
+            blockers.push({
+                title: label('labelBlockerUnknown'),
+                detail: `${formatPercent(hcad.unknownRate || 0)} >= ${formatPercent(0.40)}`,
+                action: label('labelActionFixUnknown'),
+                tone: 'bad'
+            });
+        }
+        if (failureRate >= 0.10) {
+            blockers.push({
+                title: label('labelBlockerFailure'),
+                detail: `${formatPercent(failureRate)} >= ${formatPercent(0.10)}`,
+                action: label('labelActionFixFailures'),
+                tone: 'bad'
+            });
+        }
+        return blockers;
+    }
+
+    function correlationMetrics(correlation, hcad, llm, operations) {
+        const tp = correlation.truePositiveCount || 0;
+        const fp = correlation.falsePositiveCount || 0;
+        const fn = correlation.observableFalseNegativeCount || 0;
+        const tn = correlation.trueNegativeCount || 0;
+        const unknown = correlation.unknownCount || 0;
+        const classified = tp + fp + fn + tn;
+        const match = tp + tn;
+        const mismatch = fp + fn;
+        return {
+            tp,
+            fp,
+            fn,
+            tn,
+            unknown,
+            classified,
+            match,
+            mismatch,
+            matchRate: ratioValue(match, classified),
+            mismatchRate: ratioValue(mismatch, classified),
+            fpTriggerRate: ratioValue(fp, tp + fp),
+            fnRiskRate: ratioValue(fn, tp + fn),
+            unknownRate: ratioValue(unknown, classified + unknown),
+            failureRate: ratioValue(failureCount(operations || {}), (llm || {}).totalDecisionCount || 0)
+        };
+    }
+
+    function normalizeRows(rows) {
+        return (rows || []).map(row => ({ key: row.key, count: row.count || 0 }));
+    }
+
+    function normalizeActionRows(rows) {
+        return normalizeRows(rows).map(row => ({
+            key: row.key === 'BLOCK' ? 'DENY' : row.key,
+            count: row.count
+        }));
+    }
+
+    function meaningfulRows(rows) {
+        return (rows || []).filter(row => {
+            const key = String(row.key || '').toUpperCase();
+            return row.count > 0 && key !== 'NONE' && key !== 'UNKNOWN' && key !== '-';
+        });
+    }
+
+    function simpleNamedRows(rows, limit) {
+        const visible = (rows || []).slice(0, limit);
+        if (!visible.length) {
+            return `<div class="ai-monitor-empty-note">${escapeHtml(label('labelNoData'))}</div>`;
+        }
+        return `
+            <div class="ai-monitor-simple-list">
+                ${visible.map(row => `
+                    <div class="ai-monitor-simple-row">
+                        <span>${escapeHtml(displayKey(row.key || '-'))}</span>
+                        <strong>${escapeHtml(formatNumber(row.count || 0))}</strong>
+                    </div>`).join('')}
+            </div>`;
+    }
+
+    function metricBar(labelText, value, tone, valueText) {
         return `
             <div class="ai-monitor-bar-row">
                 <div class="ai-monitor-bar-head">
                     <span>${escapeHtml(labelText)}</span>
-                    <strong>${escapeHtml(formatPercent(value))}</strong>
+                    <strong>${escapeHtml(valueText || formatPercent(value))}</strong>
                 </div>
                 <div class="ai-monitor-bar-track">
                     <span class="ai-monitor-bar-fill ${tone === 'bad' ? 'bad' : tone === 'warn' ? 'warn' : ''}" style="width:${percentWidth(value)}%;"></span>
                 </div>
             </div>`;
+    }
+
+    function metricBarOptional(labelText, value, available, tone) {
+        return metricBar(labelText, available ? value : 0, available ? tone : 'warn',
+                available ? formatPercent(value) : label('labelNoDecisionData'));
     }
 
     function valueRow(labelText, value, tone) {
@@ -371,64 +768,20 @@
             </div>`).join('');
     }
 
-    function tableBand(title, rows, limit = 5) {
-        const safeRows = Array.isArray(rows) ? rows.slice(0, limit) : [];
-        const body = safeRows.length
-            ? safeRows.map((row) => `<tr><td>${escapeHtml(displayKey(row.key || '-'))}</td><td>${escapeHtml(formatValue(row.count ?? row.candidateCount ?? 0))}</td></tr>`).join('')
-            : `<tr><td colspan="2">${escapeHtml(label('labelNoData'))}</td></tr>`;
-        return `
-            <section class="ai-monitor-band">
-                <div class="ai-monitor-band-title">${escapeHtml(title)}</div>
-                <table class="ai-monitor-table">
-                    <thead><tr><th>${escapeHtml(label('labelKey'))}</th><th>${escapeHtml(label('labelCount'))}</th></tr></thead>
-                    <tbody>${body}</tbody>
-                </table>
-            </section>`;
+    function failureCount(operations) {
+        return (operations.parserFailureCount || 0)
+            + (operations.technicalFallbackCount || 0)
+            + (operations.timeoutCount || 0)
+            + (operations.modelUnavailableCount || 0);
     }
 
-    function matrixBand(rows) {
-        const body = rows.length
-            ? rows.map((row) => `
-                <tr>
-                    <td>${escapeHtml(displayKey(row.key))}</td>
-                    <td>${formatNumber(row.llmRiskCount || 0)}</td>
-                    <td>${formatNumber(row.llmAllowCount || 0)}</td>
-                    <td>${formatNumber(row.llmUnknownCount || 0)}</td>
-                    <td>${formatNumber(row.llmNotCalledCount || 0)}</td>
-                </tr>`).join('')
-            : `<tr><td colspan="5">${escapeHtml(label('labelNoData'))}</td></tr>`;
-        return `
-            <section class="ai-monitor-band">
-                <div class="ai-monitor-band-title">${escapeHtml(label('labelCorrelationMatrix'))}</div>
-                <table class="ai-monitor-table">
-                    <thead><tr><th>${escapeHtml(label('labelCategory'))}</th><th>${escapeHtml(label('labelLlmRisk'))}</th><th>${escapeHtml(label('labelLlmAllow'))}</th><th>${escapeHtml(label('labelLlmUnknown'))}</th><th>${escapeHtml(label('labelLlmNotCalled'))}</th></tr></thead>
-                    <tbody>${body}</tbody>
-                </table>
-            </section>`;
-    }
-
-    function recentCorrelationBand(rows) {
-        const visibleRows = rows.slice(0, 10);
-        const body = visibleRows.length
-            ? visibleRows.map((row) => `
-                <tr>
-                    <td>${escapeHtml(formatDate(row.createdAt))}</td>
-                    <td>${escapeHtml(row.userId || '-')}</td>
-                    <td>${escapeHtml(displayKey(row.triggerRelation || '-'))}</td>
-                    <td>${escapeHtml(displayKey(row.outcomeClass || '-'))}</td>
-                    <td>${escapeHtml(formatValue(row.hcadScore == null ? '-' : row.hcadScore))}</td>
-                    <td>${escapeHtml(formatValue(row.llmRiskScore == null ? '-' : row.llmRiskScore))}</td>
-                    <td>${escapeHtml(displayKey(row.llmFinalAction || '-'))}</td>
-                </tr>`).join('')
-            : `<tr><td colspan="7">${escapeHtml(label('labelNoData'))}</td></tr>`;
-        return `
-            <section class="ai-monitor-band">
-                <div class="ai-monitor-band-title">${escapeHtml(label('labelRecentCorrelations'))}</div>
-                <table class="ai-monitor-table">
-                    <thead><tr><th>${escapeHtml(label('labelCreatedAt'))}</th><th>${escapeHtml(label('labelUser'))}</th><th>${escapeHtml(label('labelTriggerRelation'))}</th><th>${escapeHtml(label('labelOutcome'))}</th><th>${escapeHtml(label('labelHcadScore'))}</th><th>${escapeHtml(label('labelLlmRiskScore'))}</th><th>${escapeHtml(label('labelFinalAction'))}</th></tr></thead>
-                    <tbody>${body}</tbody>
-                </table>
-            </section>`;
+    function toneForRow(key, variant, index) {
+        const normalized = String(key || '').toUpperCase();
+        if (['DENY', 'BLOCK', 'CHALLENGE', 'PENDING_ANALYSIS'].includes(normalized)) return 'warn';
+        if (['ALLOW'].includes(normalized)) return 'good';
+        if (['UNKNOWN'].includes(normalized)) return 'bad';
+        if (variant === 'path' && index === 0) return 'warn';
+        return 'good';
     }
 
     function sectionProfile() {
@@ -503,9 +856,25 @@
         return `${decimalFormatter.format(value || 0)} ms`;
     }
 
+    function formatMsOrNoData(value, available) {
+        return available ? formatMs(value) : label('labelNoDecisionData');
+    }
+
     function formatPercent(value) {
         if (typeof value !== 'number' || Number.isNaN(value)) return '0%';
         return percentFormatter.format(value);
+    }
+
+    function formatPercentOrNoData(value, available) {
+        return available ? formatPercent(value) : label('labelNoDecisionData');
+    }
+
+    function hasHcadComparison(hcad) {
+        return ((hcad || {}).truePositiveCount || 0)
+            + ((hcad || {}).falsePositiveCount || 0)
+            + ((hcad || {}).observableFalseNegativeCount || 0)
+            + ((hcad || {}).trueNegativeCount || 0)
+            + ((hcad || {}).unknownCount || 0) > 0;
     }
 
     function ratioValue(numerator, denominator) {

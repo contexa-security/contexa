@@ -32,7 +32,46 @@
         .hcad-simple-title { color: #dbeafe; font-weight: 700; font-size: .86rem; overflow-wrap: anywhere; }
         .hcad-simple-meta { color: #94a3b8; font-size: .75rem; margin-top: .2rem; overflow-wrap: anywhere; }
         .hcad-simple-value { color: #e2e8f0; font-weight: 800; text-align: right; white-space: nowrap; }
+        .hcad-mini-section { padding: .7rem 0; border-bottom: 1px solid rgba(71,85,105,.22); }
+        .hcad-mini-section:last-child { border-bottom: 0; }
+        .hcad-mini-title { color: #67e8f9; font-size: .76rem; font-weight: 800; letter-spacing: 0; margin-bottom: .25rem; }
         .hcad-page-note { color: #64748b; font-size: .74rem; }
+        .hcad-bar-list { display: grid; gap: .75rem; }
+        .hcad-bar-row { display: grid; gap: .35rem; }
+        .hcad-bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; color: #cbd5e1; font-size: .78rem; }
+        .hcad-bar-track { height: .55rem; border-radius: 999px; overflow: hidden; background: rgba(30,41,59,.82); }
+        .hcad-bar-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #22d3ee, #38bdf8); }
+        .hcad-score-band-list { display: grid; gap: .8rem; }
+        .hcad-score-band-row { display: grid; grid-template-columns: minmax(5.5rem, .18fr) minmax(0, 1fr) minmax(3rem, auto); gap: .8rem; align-items: center; }
+        .hcad-score-band-bucket { color: #dbeafe; font-weight: 800; font-size: .82rem; white-space: nowrap; }
+        .hcad-score-band-total { color: #e2e8f0; font-weight: 800; text-align: right; white-space: nowrap; }
+        .hcad-score-band-track { height: 1rem; border-radius: 999px; overflow: hidden; display: flex; background: rgba(30,41,59,.82); box-shadow: inset 0 0 0 1px rgba(148,163,184,.08); }
+        .hcad-score-band-segment { min-width: .18rem; height: 100%; }
+        .hcad-score-band-segment.low { background: #22d3ee; }
+        .hcad-score-band-segment.medium { background: #a78bfa; }
+        .hcad-score-band-segment.high { background: #f59e0b; }
+        .hcad-score-band-segment.redline { background: #ef4444; }
+        .hcad-score-band-segment.unknown { background: #94a3b8; }
+        .hcad-score-band-legend { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: .9rem; color: #94a3b8; font-size: .74rem; }
+        .hcad-score-band-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+        .hcad-score-band-legend i { width: .55rem; height: .55rem; border-radius: 999px; display: inline-block; }
+        .hcad-score-band-legend i.low { background: #22d3ee; }
+        .hcad-score-band-legend i.medium { background: #a78bfa; }
+        .hcad-score-band-legend i.high { background: #f59e0b; }
+        .hcad-score-band-legend i.redline { background: #ef4444; }
+        .hcad-score-band-legend i.unknown { background: #94a3b8; }
+        .hcad-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: .18rem .5rem; margin-left: .35rem; background: rgba(245,158,11,.14); color: #fbbf24; font-size: .68rem; font-weight: 700; }
+        .hcad-request-line { color: #dbeafe; font-weight: 700; overflow-wrap: anywhere; }
+        .hcad-detail-button { border: 1px solid rgba(34,211,238,.45); border-radius: .45rem; padding: .35rem .6rem; color: #67e8f9; background: rgba(34,211,238,.1); font-size: .72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .hcad-detail-button:hover { background: rgba(34,211,238,.16); }
+        .hcad-detail-row td { padding-top: 0; background: rgba(15,23,42,.28); }
+        .hcad-detail-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .7rem; padding: .9rem; border: 1px solid rgba(71,85,105,.3); border-radius: .5rem; background: rgba(15,23,42,.48); }
+        .hcad-detail-item { display: grid; gap: .25rem; min-width: 0; }
+        .hcad-detail-item span { color: #64748b; font-size: .68rem; }
+        .hcad-detail-item strong { color: #cbd5e1; font-size: .76rem; overflow-wrap: anywhere; }
+        .hcad-pagination { display: flex; align-items: center; justify-content: flex-end; gap: .6rem; padding-top: .75rem; }
+        .hcad-page-button { border: 1px solid rgba(71,85,105,.45); border-radius: .45rem; color: #94a3b8; padding: .35rem .65rem; background: rgba(15,23,42,.45); font-size: .78rem; }
+        .hcad-page-button:disabled { opacity: .45; cursor: not-allowed; }
         @media (max-width: 1100px) { .hcad-two-col { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -73,13 +112,13 @@
              th:data-label-unavailable="#{admin.security.hcad.status.unavailable}"
              th:data-label-pending="#{admin.security.hcad.decision.pending}"
              th:data-label-parser="#{admin.security.hcad.decision.parser}"
-             th:data-label-fallback="#{admin.security.hcad.decision.fallback}"
              th:data-label-insufficient-sample="#{admin.security.hcad.recommendation.insufficientSample}"
              th:data-label-keep-shadow="#{admin.security.hcad.recommendation.keepShadow}"
              th:data-label-shadow-stable="#{admin.security.hcad.recommendation.shadowStable}"
              th:data-label-limited-enforce="#{admin.security.hcad.recommendation.limitedEnforce}"
              th:data-label-default-enforce="#{admin.security.hcad.recommendation.defaultEnforce}"
              th:data-label-unknown-recommendation="#{admin.security.hcad.recommendation.unknown}"
+             th:data-label-no-decision-data="#{admin.security.hcad.status.noDecisionData}"
              th:data-label-summary-help="#{admin.security.hcad.help.summary}"
              th:data-label-evaluated-help="#{admin.security.hcad.help.evaluated}"
              th:data-label-llm-help="#{admin.security.hcad.help.llmCalls}"
@@ -97,6 +136,71 @@
              th:data-label-signal-rapid-sequence="#{admin.security.hcad.signal.rapidSequence}"
              th:data-label-signal-impossible-travel="#{admin.security.hcad.signal.impossibleTravel}"
              th:data-label-signal-recent-permission-change="#{admin.security.hcad.signal.recentPermissionChange}"
+             th:data-label-signal-failed-login-burst="#{admin.security.hcad.signal.failedLoginBurst}"
+             th:data-label-signal-auth-context-inconsistent="#{admin.security.hcad.signal.authContextInconsistent}"
+             th:data-label-signal-privileged-authorization="#{admin.security.hcad.signal.privilegedAuthorization}"
+             th:data-label-signal-fresh-mfa-required="#{admin.security.hcad.signal.freshMfaRequired}"
+             th:data-label-signal-low-auth-assurance="#{admin.security.hcad.signal.lowAuthAssurance}"
+             th:data-label-signal-baseline-mismatch="#{admin.security.hcad.signal.baselineMismatch}"
+             th:data-label-signal-evidence="#{admin.security.hcad.signal.evidence}"
+             th:data-label-non-trigger-reason="#{admin.security.hcad.nonTrigger.title}"
+             th:data-label-evidence-coverage="#{admin.security.hcad.evidenceCoverage.title}"
+             th:data-label-evidence-gap="#{admin.security.hcad.detail.evidenceGap}"
+             th:data-label-anchor-signals="#{admin.security.hcad.detail.anchorSignals}"
+             th:data-label-corroborating-signals="#{admin.security.hcad.detail.corroboratingSignals}"
+             th:data-label-reason-triggered-llm="#{admin.security.hcad.reason.triggeredLlm}"
+             th:data-label-reason-duplicate-suppressed="#{admin.security.hcad.reason.duplicateSuppressed}"
+             th:data-label-reason-negative-cache-hit="#{admin.security.hcad.reason.negativeCacheHit}"
+             th:data-label-reason-supporting-only="#{admin.security.hcad.reason.supportingOnly}"
+             th:data-label-reason-no-trusted-signal="#{admin.security.hcad.reason.noTrustedSignal}"
+             th:data-label-reason-baseline-insufficient="#{admin.security.hcad.reason.baselineInsufficient}"
+             th:data-label-reason-baseline-unavailable="#{admin.security.hcad.reason.baselineUnavailable}"
+             th:data-label-reason-below-threshold="#{admin.security.hcad.reason.belowThreshold}"
+             th:data-label-reason-eligible-not-published="#{admin.security.hcad.reason.eligibleNotPublished}"
+             th:data-label-reason-observe-only="#{admin.security.hcad.reason.observeOnly}"
+             th:data-label-reason-rate-limited="#{admin.security.hcad.reason.rateLimited}"
+             th:data-label-reason-not-triggered="#{admin.security.hcad.reason.notTriggered}"
+             th:data-label-reason-duplicate-suppressed-help="#{admin.security.hcad.reasonHelp.duplicateSuppressed}"
+             th:data-label-reason-negative-cache-hit-help="#{admin.security.hcad.reasonHelp.negativeCacheHit}"
+             th:data-label-reason-supporting-only-help="#{admin.security.hcad.reasonHelp.supportingOnly}"
+             th:data-label-reason-no-trusted-signal-help="#{admin.security.hcad.reasonHelp.noTrustedSignal}"
+             th:data-label-reason-baseline-insufficient-help="#{admin.security.hcad.reasonHelp.baselineInsufficient}"
+             th:data-label-reason-baseline-unavailable-help="#{admin.security.hcad.reasonHelp.baselineUnavailable}"
+             th:data-label-reason-below-threshold-help="#{admin.security.hcad.reasonHelp.belowThreshold}"
+             th:data-label-reason-eligible-not-published-help="#{admin.security.hcad.reasonHelp.eligibleNotPublished}"
+             th:data-label-reason-default-help="#{admin.security.hcad.reasonHelp.default}"
+             th:data-label-evidence-baseline-available="#{admin.security.hcad.evidence.baselineAvailable}"
+             th:data-label-evidence-baseline-unavailable="#{admin.security.hcad.evidence.baselineUnavailable}"
+             th:data-label-evidence-baseline-insufficient="#{admin.security.hcad.evidence.baselineInsufficient}"
+             th:data-label-evidence-anchor-present="#{admin.security.hcad.evidence.anchorPresent}"
+             th:data-label-evidence-anchor-absent="#{admin.security.hcad.evidence.anchorAbsent}"
+             th:data-label-evidence-supporting-present="#{admin.security.hcad.evidence.supportingPresent}"
+             th:data-label-evidence-supporting-absent="#{admin.security.hcad.evidence.supportingAbsent}"
+             th:data-label-evidence-authorization-present="#{admin.security.hcad.evidence.authorizationPresent}"
+             th:data-label-evidence-authorization-absent="#{admin.security.hcad.evidence.authorizationAbsent}"
+             th:data-label-evidence-location-observed="#{admin.security.hcad.evidence.locationObserved}"
+             th:data-label-evidence-location-not-observed="#{admin.security.hcad.evidence.locationNotObserved}"
+             th:data-label-evidence-failed-login-present="#{admin.security.hcad.evidence.failedLoginPresent}"
+             th:data-label-evidence-failed-login-absent="#{admin.security.hcad.evidence.failedLoginAbsent}"
+             th:data-label-evidence-missing-help="#{admin.security.hcad.evidence.help.missing}"
+             th:data-label-evidence-present-help="#{admin.security.hcad.evidence.help.present}"
+             th:data-label-score-band-help="#{admin.security.hcad.help.scoreBand}"
+             th:data-label-analysis-connection="#{admin.security.hcad.label.analysisConnection}"
+             th:data-label-candidate-requests="#{admin.security.hcad.label.candidateRequests}"
+             th:data-label-ai-confirmed-risk="#{admin.security.hcad.label.aiConfirmedRisk}"
+             th:data-label-score="#{admin.security.hcad.table.score}"
+             th:data-label-band="#{admin.security.hcad.table.band}"
+             th:data-label-triggered="#{admin.security.hcad.label.triggered}"
+             th:data-label-not-triggered="#{admin.security.hcad.label.notTriggered}"
+             th:data-label-band-low="#{admin.security.hcad.band.low}"
+             th:data-label-band-medium="#{admin.security.hcad.band.medium}"
+             th:data-label-band-high="#{admin.security.hcad.band.high}"
+             th:data-label-band-redline="#{admin.security.hcad.band.redline}"
+             th:data-label-score-unknown="#{admin.security.hcad.score.unknown}"
+             th:data-label-band-unknown="#{admin.security.hcad.band.unknown}"
+             th:data-label-prev="#{admin.security.hcad.pagination.prev}"
+             th:data-label-next="#{admin.security.hcad.pagination.next}"
+             th:data-label-page-status="#{admin.security.hcad.pagination.status}"
              th:data-label-screen-or-api="#{admin.security.hcad.label.screenOrApi}"
              th:data-label-outcome-tp="#{admin.security.hcad.outcome.tp}"
              th:data-label-outcome-fp="#{admin.security.hcad.outcome.fp}"
@@ -106,7 +210,25 @@
              th:data-label-mode-shadow="#{admin.security.hcad.mode.shadow}"
              th:data-label-mode-observe="#{admin.security.hcad.mode.observe}"
              th:data-label-mode-enforce="#{admin.security.hcad.mode.enforce}"
-             th:data-label-mode-disabled="#{admin.security.hcad.mode.disabled}">
+             th:data-label-mode-disabled="#{admin.security.hcad.mode.disabled}"
+             th:data-label-view-detail="#{admin.security.hcad.detail.view}"
+             th:data-label-close-detail="#{admin.security.hcad.detail.close}"
+             th:data-label-evaluation-id="#{admin.security.hcad.detail.evaluationId}"
+             th:data-label-request-id="#{admin.security.hcad.detail.requestId}"
+             th:data-label-duplicate-suppressed="#{admin.security.hcad.detail.duplicateSuppressed}"
+             th:data-label-final-action="#{admin.security.hcad.detail.finalAction}"
+             th:data-label-risk-score="#{admin.security.hcad.detail.riskScore}"
+             th:data-label-confidence="#{admin.security.hcad.detail.confidence}"
+             th:data-label-fallback="#{admin.security.hcad.detail.fallback}"
+             th:data-label-decided-at="#{admin.security.hcad.detail.decidedAt}"
+             th:data-label-yes="#{admin.security.hcad.label.yes}"
+             th:data-label-no="#{admin.security.hcad.label.no}"
+             th:data-label-action-allow="#{admin.aiMonitor.enum.allow}"
+             th:data-label-action-challenge="#{admin.aiMonitor.enum.challenge}"
+             th:data-label-action-deny="#{admin.aiMonitor.enum.deny}"
+             th:data-label-action-pending="#{admin.aiMonitor.enum.pendingAnalysis}"
+             th:data-label-parser-failure="#{admin.aiMonitor.enum.parserFailure}"
+             th:data-label-technical-fallback="#{admin.aiMonitor.enum.technicalFallback}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                     <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.security.hcad.title}">HCAD Shadow Monitor</h1>
@@ -135,13 +257,21 @@
                 <div class="hcad-kpis" id="hcad-kpis"></div>
             </section>
 
+            <section class="hcad-band">
+                <div class="hcad-band-title" th:text="#{admin.security.hcad.score.title}">Score and Risk Band Distribution</div>
+                <p class="hcad-band-help" th:text="#{admin.security.hcad.help.scoreBand}">Review how each early detection score range maps to risk bands.</p>
+                <div class="hcad-score-band-list" id="hcad-score-band-distribution"></div>
+            </section>
+
             <div class="hcad-two-col">
                 <section class="hcad-band">
                     <div class="hcad-band-title" th:text="#{admin.security.hcad.signal.title}">Signal Performance</div>
+                    <p class="hcad-band-help" th:text="#{admin.security.hcad.help.signal}">Check which evidence led to AI-confirmed risk decisions.</p>
                     <div class="hcad-simple-list" id="hcad-signals"></div>
                 </section>
                 <section class="hcad-band">
                     <div class="hcad-band-title" th:text="#{admin.security.hcad.resource.title}">Resource Performance</div>
+                    <p class="hcad-band-help" th:text="#{admin.security.hcad.help.resource}">Check which business screens or APIs repeatedly entered early detection.</p>
                     <div class="hcad-simple-list" id="hcad-resources"></div>
                 </section>
             </div>
@@ -154,19 +284,26 @@
                         <th th:text="#{admin.security.hcad.table.created}">Created</th>
                         <th th:text="#{admin.security.hcad.table.user}">User</th>
                         <th th:text="#{admin.security.hcad.table.request}">Request</th>
+                        <th th:text="#{admin.security.hcad.table.score}">Score</th>
                         <th th:text="#{admin.security.hcad.table.reason}">Reason</th>
                         <th th:text="#{admin.security.hcad.table.contractVersion}">Contract</th>
                         <th th:text="#{admin.security.hcad.table.result}">Result</th>
+                        <th th:text="#{admin.security.hcad.table.detail}">Detail</th>
                     </tr>
                     </thead>
                     <tbody id="hcad-recent"></tbody>
                 </table>
+                <div class="hcad-pagination">
+                    <button type="button" class="hcad-page-button" id="hcad-prev"></button>
+                    <span class="hcad-page-note" id="hcad-page-status"></span>
+                    <button type="button" class="hcad-page-button" id="hcad-next"></button>
+                </div>
             </section>
         </div>
     </main>
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<script th:src="@{/js/admin/hcad-monitor.js?v=20260619a}"></script>
+<script th:src="@{/js/admin/hcad-monitor.js?v=20260622f}"></script>
 </body>
 </html>

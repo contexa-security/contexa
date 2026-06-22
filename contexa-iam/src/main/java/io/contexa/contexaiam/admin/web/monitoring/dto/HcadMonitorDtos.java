@@ -53,10 +53,13 @@ public final class HcadMonitorDtos {
             List<Breakdown> signalBreakdown,
             List<CountBreakdown> scoreDistribution,
             List<CountBreakdown> bandDistribution,
+            List<ScoreBandBreakdown> scoreBandDistribution,
             List<Breakdown> anchorSignalBreakdown,
             List<Breakdown> corroboratingSignalBreakdown,
             List<ResourceBreakdown> resourceBreakdown,
             List<UserSessionBreakdown> userSessionBreakdown,
+            List<CountBreakdown> nonTriggerReasonBreakdown,
+            List<CountBreakdown> evidenceCoverageBreakdown,
             List<RecentEvaluation> recentEvaluations,
             List<RecentEvaluation> unknownEvaluations
     ) {
@@ -84,6 +87,17 @@ public final class HcadMonitorDtos {
     public record CountBreakdown(
             String key,
             long count
+    ) {
+    }
+
+    public record ScoreBandBreakdown(
+            String scoreBucket,
+            long lowCount,
+            long mediumCount,
+            long highCount,
+            long redlineCount,
+            long unknownCount,
+            long totalCount
     ) {
     }
 
@@ -129,7 +143,11 @@ public final class HcadMonitorDtos {
             Boolean llmTechnicalFallback,
             String llmFallbackCategory,
             String outcomeClass,
+            List<String> anchorSignals,
+            List<String> corroboratingSignals,
             List<String> reasonCodes,
+            String nonTriggerReason,
+            List<String> evidenceGaps,
             String promptContextContractVersion,
             String baselineComparisonSummary,
             String createdAt,

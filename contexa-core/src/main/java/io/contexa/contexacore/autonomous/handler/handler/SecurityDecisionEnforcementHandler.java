@@ -443,7 +443,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
         String evaluationId = metadataText(event, "hcadEvaluationId");
         Long llmLatencyMs = result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null;
-        String outcomeClass = isHcadTriggeredEvent(event)
+        String outcomeClass = isUnknownHcadOutcome(event, result)
+                ? HcadOutcomeClassifier.UNKNOWN
+                : isHcadTriggeredEvent(event)
                 ? HcadOutcomeClassifier.classifyHcadTriggered(result, enforcedAction)
                 : HcadOutcomeClassifier.classifyHcadObservation(result, enforcedAction);
         if (evaluationId != null) {
@@ -544,9 +546,68 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return false;
         }
         return containsParserFailure(result.getTechnicalFallbackCategory())
-                || containsParserFailure(result.getTechnicalFallbackReason())
-                || (Boolean.FALSE.equals(result.getLlmDecisionPresent())
-                        && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()));
+                || containsParserFailure(result.getTechnicalFallbackReason());
+    }
+
+    private boolean isUnknownHcadOutcome(SecurityEvent event, ProcessingResult result) {
+        if (result == null || !result.isSuccess()) {
+            return true;
+        }
+        if (isParserFailure(result)) {
+            return true;
+        }
+        String category = firstText(
+                metadataText(event, "structuredOutputFailureCategory"),
+                metadataText(event, "securityDecisionParseFailureCategory"),
+                metadataText(event, "decisionFailureCategory"),
+                result.getTechnicalFallbackCategory());
+        String reason = firstText(
+                result.getErrorMessage(),
+                result.getMessage(),
+                result.getTechnicalFallbackReason(),
+                metadataText(event, "securityDecisionRawExecutionFailureMessage"),
+                metadataText(event, "securityDecisionFallbackReason"),
+                metadataText(event, "decisionFailureMessage"));
+        if (isFailureCategory(category) || isFailureCategory(reason)) {
+            return true;
+        }
+        String llmDecisionPresent = firstText(
+                metadataText(event, "llmDecisionPresent"),
+                result.getLlmDecisionPresent());
+        return "false".equalsIgnoreCase(llmDecisionPresent);
+    }
+
+    private boolean isFailureCategory(String value) {
+        String normalized = value == null ? null : value.trim().toLowerCase();
+        return normalized != null
+                && !normalized.isBlank()
+                && !"none".equals(normalized)
+                && (normalized.contains("json")
+                || normalized.contains("parser")
+                || normalized.contains("parse")
+                || normalized.contains("timeout")
+                || normalized.contains("timed out")
+                || normalized.contains("model_unavailable")
+                || normalized.contains("model unavailable")
+                || normalized.contains("missing_action")
+                || normalized.contains("empty_response")
+                || normalized.contains("llm_execution_failed"));
+    }
+
+    private String firstText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            String text = value.toString().trim();
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return null;
     }
 
     private boolean containsParserFailure(String value) {
