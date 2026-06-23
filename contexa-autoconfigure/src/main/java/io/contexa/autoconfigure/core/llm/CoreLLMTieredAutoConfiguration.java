@@ -142,6 +142,19 @@ public class CoreLLMTieredAutoConfiguration {
                         "No chat runtime binding is available for spring-primary selection. Register a Spring AI ChatModel bean first."));
     }
 
+    @Bean(name = "primaryChatModel")
+    @Primary
+    @ConditionalOnMissingBean(name = "primaryChatModel")
+    @Conditional(AnyChatModelAvailableCondition.class)
+    @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "fixed")
+    public ChatModel fixedPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+        String provider = resolveFixedChatProvider();
+        return llmRuntimeCatalog.resolvePrimaryChatModel(provider)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No chat runtime binding could be resolved for fixed provider '" + provider + "'. "
+                                + "Configure exactly one contexa.llm.selection.chat.priority value and the matching Spring AI chat runtime."));
+    }
+
     @Bean
     @ConditionalOnMissingBean(ModelSelectionStrategy.class)
     @ConditionalOnBean(name = "primaryChatModel")
@@ -150,6 +163,15 @@ public class CoreLLMTieredAutoConfiguration {
             TieredLLMProperties tieredLLMProperties,
             @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
         return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
+    }
+
+    @Bean(name = "chatClientBuilder")
+    @Primary
+    @ConditionalOnMissingBean(name = "chatClientBuilder")
+    @ConditionalOnBean(name = "primaryChatModel")
+    public ChatClient.Builder contexaPrimaryChatClientBuilder(
+            @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
+        return ChatClient.builder(primaryChatModel);
     }
 
     @Bean
@@ -261,6 +283,20 @@ public class CoreLLMTieredAutoConfiguration {
             return contexaLlmSelectionProperties.getEmbedding().getPriority().trim();
         }
         return contexaProperties.getLlm().getEmbeddingModelPriority();
+    }
+
+    private String resolveFixedChatProvider() {
+        List<String> providers = Arrays.stream(resolveChatPriority().split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (providers.size() != 1) {
+            throw new IllegalStateException(
+                    "Fixed chat runtime selection requires exactly one provider. "
+                            + "Configure contexa.llm.selection.chat.priority=openai, anthropic, or ollama.");
+        }
+        return providers.get(0);
     }
 
     private String resolveFixedEmbeddingProvider() {

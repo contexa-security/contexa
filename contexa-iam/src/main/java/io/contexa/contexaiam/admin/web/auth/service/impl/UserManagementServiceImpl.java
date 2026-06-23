@@ -70,7 +70,6 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
-    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void createUser(UserDto userDto) {
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.user.username.exists", userDto.getUsername()));
@@ -153,7 +152,6 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     @Override
-    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
 //    @Protectable
     public void modifyUser(@ModelAttribute UserDto userDto) {
         log.error("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
@@ -243,7 +241,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-//    @Protectable
+    @Protectable(verificationRequired = false)
     public List<UserListDto> getUsers() {
         return userRepository.findAllWithDetails().stream()
                 .map(user -> {
@@ -258,8 +256,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
-    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable(ownerField = "username")
+    @Protectable(verificationRequired = false)
     public void deleteUser(Long id) {
         try {
             String admin = "SYSTEM";

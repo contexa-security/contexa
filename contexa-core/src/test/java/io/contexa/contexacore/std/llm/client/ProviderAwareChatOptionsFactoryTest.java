@@ -26,31 +26,49 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ProviderAwareChatOptionsFactoryTest {
 
+    private static final String CAPABILITY_MODEL = "capability-test-model";
+    private static final String LEGACY_MODEL = "legacy-chat-model";
+    private static final String MAX_COMPLETION_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.openai.max-completion-token-patterns";
+    private static final String DEFAULT_SAMPLING_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.openai.default-sampling-only-patterns";
+
     @Test
-    void buildRuntimeOptionsShouldUseMaxCompletionTokensForGpt5OpenAiModels() {
+    void buildRuntimeOptionsShouldUseConfiguredOpenAiCapabilities() {
         ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
         context.setMaxTokens(96);
         context.setTemperature(0.0d);
+        context.setTopP(0.5d);
         context.addMetadata("selectedModelProvider", "openai");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
 
         ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(
                 context,
-                new StubChatModel(OpenAiChatOptions.builder().model("gpt-5-nano").build()));
+                new StubChatModel(OpenAiChatOptions.builder()
+                        .model(CAPABILITY_MODEL)
+                        .temperature(0.7d)
+                        .topP(0.9d)
+                        .build()));
 
         assertThat(options).isInstanceOf(OpenAiChatOptions.class);
         OpenAiChatOptions openAiOptions = (OpenAiChatOptions) options;
-        assertThat(openAiOptions.getModel()).isEqualTo("gpt-5-nano");
+        assertThat(openAiOptions.getModel()).isEqualTo(CAPABILITY_MODEL);
         assertThat(openAiOptions.getMaxTokens()).isNull();
         assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(96);
-        assertThat(openAiOptions.getTemperature()).isEqualTo(0.0d);
+        assertThat(openAiOptions.getTemperature()).isNull();
+        assertThat(openAiOptions.getTopP()).isNull();
+        clearOpenAiCapabilities();
     }
 
     @Test
-    void normalizeExplicitOptionsShouldMoveOpenAiGpt5MaxTokensToMaxCompletionTokens() {
+    void normalizeExplicitOptionsShouldApplyConfiguredOpenAiCapabilities() {
         ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
         ChatOptions explicitOptions = OpenAiChatOptions.builder()
-                .model("gpt-5-nano")
+                .model(CAPABILITY_MODEL)
                 .maxTokens(128)
+                .temperature(0.7d)
+                .topP(0.9d)
                 .build();
 
         ChatOptions normalized = ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
@@ -62,13 +80,17 @@ class ProviderAwareChatOptionsFactoryTest {
         OpenAiChatOptions openAiOptions = (OpenAiChatOptions) normalized;
         assertThat(openAiOptions.getMaxTokens()).isNull();
         assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(128);
+        assertThat(openAiOptions.getTemperature()).isNull();
+        assertThat(openAiOptions.getTopP()).isNull();
+        clearOpenAiCapabilities();
     }
 
     @Test
     void normalizeExplicitOptionsShouldKeepLegacyOpenAiMaxTokens() {
         ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
         ChatOptions explicitOptions = OpenAiChatOptions.builder()
-                .model("gpt-4o-mini")
+                .model(LEGACY_MODEL)
                 .maxTokens(128)
                 .build();
 
@@ -81,24 +103,180 @@ class ProviderAwareChatOptionsFactoryTest {
         OpenAiChatOptions openAiOptions = (OpenAiChatOptions) normalized;
         assertThat(openAiOptions.getMaxTokens()).isEqualTo(128);
         assertThat(openAiOptions.getMaxCompletionTokens()).isNull();
+        clearOpenAiCapabilities();
     }
 
     @Test
-    void buildRuntimeOptionsShouldConvertDefaultOpenAiGpt5MaxTokensEvenWithoutRuntimeMaxTokens() {
+    void normalizeExplicitOptionsShouldUseConfiguredOpenAiModelWhenOptionModelIsMissing() {
+        String previous = System.getProperty("spring.ai.openai.chat.options.model");
+        System.setProperty("spring.ai.openai.chat.options.model", CAPABILITY_MODEL);
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+            context.addMetadata("selectedModelProvider", "openai");
+            ChatOptions explicitOptions = ChatOptions.builder()
+                    .temperature(0.7d)
+                    .topP(0.9d)
+                    .maxTokens(128)
+                    .build();
+
+            ChatOptions normalized = ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    explicitOptions,
+                    context,
+                    new StubChatModel(OpenAiChatOptions.builder().build()));
+
+            assertThat(normalized).isInstanceOf(OpenAiChatOptions.class);
+            OpenAiChatOptions openAiOptions = (OpenAiChatOptions) normalized;
+            assertThat(openAiOptions.getMaxTokens()).isNull();
+            assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(128);
+            assertThat(openAiOptions.getTemperature()).isNull();
+            assertThat(openAiOptions.getTopP()).isNull();
+        } finally {
+            clearOpenAiCapabilities();
+            if (previous == null) {
+                System.clearProperty("spring.ai.openai.chat.options.model");
+            } else {
+                System.setProperty("spring.ai.openai.chat.options.model", previous);
+            }
+        }
+    }
+
+    @Test
+    void normalizeExplicitOptionsShouldPreferConfiguredOpenAiModelOverLogicalContextModel() {
+        String previous = System.getProperty("spring.ai.openai.chat.options.model");
+        System.setProperty("spring.ai.openai.chat.options.model", CAPABILITY_MODEL);
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+            context.setPreferredModel("logical-tier-model");
+            context.addMetadata("runtimeModelId", "logical-runtime-id");
+            context.addMetadata("selectedModelProvider", "openai");
+            ChatOptions explicitOptions = ChatOptions.builder()
+                    .temperature(0.7d)
+                    .topP(0.9d)
+                    .maxTokens(128)
+                    .build();
+
+            ChatOptions normalized = ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    explicitOptions,
+                    context,
+                    new StubChatModel(OpenAiChatOptions.builder().build()));
+
+            assertThat(normalized).isInstanceOf(OpenAiChatOptions.class);
+            OpenAiChatOptions openAiOptions = (OpenAiChatOptions) normalized;
+            assertThat(openAiOptions.getModel()).isEqualTo(CAPABILITY_MODEL);
+            assertThat(openAiOptions.getMaxTokens()).isNull();
+            assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(128);
+            assertThat(openAiOptions.getTemperature()).isNull();
+            assertThat(openAiOptions.getTopP()).isNull();
+        } finally {
+            clearOpenAiCapabilities();
+            if (previous == null) {
+                System.clearProperty("spring.ai.openai.chat.options.model");
+            } else {
+                System.setProperty("spring.ai.openai.chat.options.model", previous);
+            }
+        }
+    }
+
+    @Test
+    void normalizeExplicitOptionsShouldUseConfiguredProviderWhenModelClassIsWrapped() {
+        String previousModel = System.getProperty("spring.ai.openai.chat.options.model");
+        String previousProvider = System.getProperty("contexa.llm.selection.chat.priority");
+        System.setProperty("spring.ai.openai.chat.options.model", CAPABILITY_MODEL);
+        System.setProperty("contexa.llm.selection.chat.priority", "openai");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+            ChatOptions explicitOptions = ChatOptions.builder()
+                    .temperature(0.7d)
+                    .topP(0.9d)
+                    .maxTokens(128)
+                    .build();
+
+            ChatOptions normalized = ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    explicitOptions,
+                    context,
+                    new StubChatModel(ChatOptions.builder().build()));
+
+            assertThat(normalized).isInstanceOf(OpenAiChatOptions.class);
+            OpenAiChatOptions openAiOptions = (OpenAiChatOptions) normalized;
+            assertThat(openAiOptions.getModel()).isEqualTo(CAPABILITY_MODEL);
+            assertThat(openAiOptions.getMaxTokens()).isNull();
+            assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(128);
+            assertThat(openAiOptions.getTemperature()).isNull();
+            assertThat(openAiOptions.getTopP()).isNull();
+        } finally {
+            clearOpenAiCapabilities();
+            if (previousModel == null) {
+                System.clearProperty("spring.ai.openai.chat.options.model");
+            } else {
+                System.setProperty("spring.ai.openai.chat.options.model", previousModel);
+            }
+            if (previousProvider == null) {
+                System.clearProperty("contexa.llm.selection.chat.priority");
+            } else {
+                System.setProperty("contexa.llm.selection.chat.priority", previousProvider);
+            }
+        }
+    }
+
+    @Test
+    void buildRuntimeOptionsShouldConvertDefaultOpenAiMaxTokensWhenCapabilityRequiresIt() {
         ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
         context.addMetadata("selectedModelProvider", "openai");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
 
         ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(
                 context,
                 new StubChatModel(OpenAiChatOptions.builder()
-                        .model("gpt-5-nano")
+                        .model(CAPABILITY_MODEL)
                         .maxTokens(256)
+                        .temperature(0.7d)
+                        .topP(0.9d)
                         .build()));
 
         assertThat(options).isInstanceOf(OpenAiChatOptions.class);
         OpenAiChatOptions openAiOptions = (OpenAiChatOptions) options;
         assertThat(openAiOptions.getMaxTokens()).isNull();
         assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(256);
+        assertThat(openAiOptions.getTemperature()).isNull();
+        assertThat(openAiOptions.getTopP()).isNull();
+        clearOpenAiCapabilities();
+    }
+
+    @Test
+    void normalizeModelDefaultOptionsInPlaceShouldMutateActualOpenAiDefaultOptions() {
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            CopyingOpenAiDefaultOptionsChatModel chatModel = new CopyingOpenAiDefaultOptionsChatModel(
+                    OpenAiChatOptions.builder()
+                            .model(CAPABILITY_MODEL)
+                            .maxTokens(256)
+                            .temperature(0.7d)
+                            .topP(0.9d)
+                            .build());
+
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(chatModel);
+
+            assertThat(chatModel.actualDefaultOptions.getTemperature()).isNull();
+            assertThat(chatModel.actualDefaultOptions.getTopP()).isNull();
+            assertThat(chatModel.actualDefaultOptions.getMaxTokens()).isNull();
+            assertThat(chatModel.actualDefaultOptions.getMaxCompletionTokens()).isEqualTo(256);
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    private static void configureOpenAiCapabilities(String modelName) {
+        String escaped = "\\Q" + modelName + "\\E";
+        System.setProperty(MAX_COMPLETION_PATTERNS_PROPERTY, escaped);
+        System.setProperty(DEFAULT_SAMPLING_PATTERNS_PROPERTY, escaped);
+    }
+
+    private static void clearOpenAiCapabilities() {
+        System.clearProperty(MAX_COMPLETION_PATTERNS_PROPERTY);
+        System.clearProperty(DEFAULT_SAMPLING_PATTERNS_PROPERTY);
     }
 
     private record StubChatModel(ChatOptions defaultOptions) implements ChatModel {
@@ -111,6 +289,27 @@ class ProviderAwareChatOptionsFactoryTest {
         @Override
         public ChatOptions getDefaultOptions() {
             return defaultOptions;
+        }
+    }
+
+    private static final class CopyingOpenAiDefaultOptionsChatModel implements ChatModel {
+
+        private final OpenAiChatOptions defaultOptions;
+        private final OpenAiChatOptions actualDefaultOptions;
+
+        private CopyingOpenAiDefaultOptionsChatModel(OpenAiChatOptions defaultOptions) {
+            this.defaultOptions = defaultOptions;
+            this.actualDefaultOptions = defaultOptions;
+        }
+
+        @Override
+        public ChatResponse call(Prompt prompt) {
+            throw new UnsupportedOperationException("not used");
+        }
+
+        @Override
+        public ChatOptions getDefaultOptions() {
+            return defaultOptions.copy();
         }
     }
 }

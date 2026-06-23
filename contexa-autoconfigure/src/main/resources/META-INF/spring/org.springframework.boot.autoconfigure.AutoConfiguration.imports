@@ -15,8 +15,10 @@ io.contexa.autoconfigure.core.CoreDataAutoConfiguration
 io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 
 # Core LLM
+io.contexa.autoconfigure.core.llm.OpenAiChatModelOptionsAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration
 io.contexa.autoconfigure.core.hcad.HcadExtremeTestAutoConfiguration
+io.contexa.autoconfigure.core.hcad.HcadLiveVerificationAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
 
 # Core Advisor

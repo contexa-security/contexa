@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
@@ -27,6 +28,7 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.InMemorySecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
@@ -166,17 +168,22 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ColdPathEventProcessor.class)
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ProcessingStrategy.class)
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies) {
         return new ProcessingExecutionHandler(processingStrategies);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityEventProcessor securityEventProcessingOrchestrator(
+            List<SecurityEventHandler> handlers) {
+        return new SecurityEventProcessor(handlers);
     }
 
     @Bean

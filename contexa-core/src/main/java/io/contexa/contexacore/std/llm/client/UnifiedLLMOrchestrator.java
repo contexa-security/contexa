@@ -122,6 +122,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                             "LLM model not configured. " +
                                     "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA."));
                 }
+                ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(selectedModel);
 
                 ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
 
@@ -265,13 +266,16 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     "No LLM model configured. " +
                             "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
         }
+        ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(selectedModel);
         return selectedModel;
     }
 
     private ChatClient.ChatClientRequestSpec preparePromptSpec(ChatClient chatClient,
                                                                ExecutionContext context,
                                                                ChatModel selectedModel) {
-        ChatClient.ChatClientRequestSpec promptSpec = chatClient.prompt(context.getPrompt());
+        ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(selectedModel);
+        Prompt prompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(context.getPrompt(), context, selectedModel);
+        ChatClient.ChatClientRequestSpec promptSpec = chatClient.prompt(prompt);
         promptSpec = applyAdvisorConfiguration(promptSpec, context);
         promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
 
@@ -542,10 +546,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                         "No LLM model configured. " +
                                 "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
             }
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(model);
 
             ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
 
-            var promptSpec = client.prompt(prompt);
+            Prompt normalizedPrompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(prompt, context, model);
+            var promptSpec = client.prompt(normalizedPrompt);
             if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
                 promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
             }
@@ -574,10 +580,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                         "No LLM model configured. " +
                                 "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
             }
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(model);
 
             ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
 
-            var promptSpec = client.prompt(prompt);
+            Prompt normalizedPrompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(prompt, context, model);
+            var promptSpec = client.prompt(normalizedPrompt);
             if (toolCallbacks != null && toolCallbacks.length > 0) {
                 promptSpec = promptSpec.toolCallbacks(toolCallbacks);
             }
@@ -616,6 +624,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     }
 
     private ChatClient buildChatClient(ChatModel model, Boolean advisorEnabled) {
+        ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(model);
         if (!isAdvisorEnabled(advisorEnabled)) {
             return chatClientNoAdvisorCache.computeIfAbsent(model, m -> ChatClient.builder(m).build());
         }

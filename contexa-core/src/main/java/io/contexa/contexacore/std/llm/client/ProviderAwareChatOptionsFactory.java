@@ -16,19 +16,51 @@
 package io.contexa.contexacore.std.llm.client;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.Prompt;
 
 @Slf4j
 public final class ProviderAwareChatOptionsFactory {
 
     private static final String OPENAI_CHAT_OPTIONS_CLASS = "org.springframework.ai.openai.OpenAiChatOptions";
+    private static final String OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.openai.max-completion-token-patterns";
+    private static final String OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_ENV =
+            "CONTEXA_LLM_MODEL_CAPABILITIES_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS";
+    private static final String OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.openai.default-sampling-only-patterns";
+    private static final String OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_ENV =
+            "CONTEXA_LLM_MODEL_CAPABILITIES_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS";
+    private static final String OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.ollama.disable-thinking-patterns";
+    private static final String OLLAMA_DISABLE_THINKING_PATTERNS_ENV =
+            "CONTEXA_LLM_MODEL_CAPABILITIES_OLLAMA_DISABLE_THINKING_PATTERNS";
+    private static final AtomicReference<String> CONFIGURED_OPENAI_MODEL = new AtomicReference<>();
+    private static final AtomicReference<String> CONFIGURED_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS = new AtomicReference<>();
+    private static final AtomicReference<String> CONFIGURED_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS = new AtomicReference<>();
+    private static final AtomicReference<String> CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS = new AtomicReference<>();
 
     private ProviderAwareChatOptionsFactory() {
+    }
+
+    public static void configureModelCapabilities(
+            String openAiModel,
+            String openAiMaxCompletionTokenPatterns,
+            String openAiDefaultSamplingOnlyPatterns,
+            String ollamaDisableThinkingPatterns) {
+        setIfText(CONFIGURED_OPENAI_MODEL, openAiModel);
+        setIfText(CONFIGURED_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS, openAiMaxCompletionTokenPatterns);
+        setIfText(CONFIGURED_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS, openAiDefaultSamplingOnlyPatterns);
+        setIfText(CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS, ollamaDisableThinkingPatterns);
     }
 
     public static ChatOptions normalizeExplicitOptions(ChatOptions options, ExecutionContext context, ChatModel selectedModel) {
@@ -38,18 +70,19 @@ public final class ProviderAwareChatOptionsFactory {
         String modelName = resolveModelName(context, selectedModel, options);
         boolean isOpenAi = isOpenAiOptions(options);
         boolean requiresMaxCompletion = requiresMaxCompletionTokens(modelName);
+        boolean usesDefaultSamplingOnly = usesDefaultSamplingOnly(modelName);
 
         if (!isOpenAi && isOpenAiModel(selectedModel, context) && requiresMaxCompletion) {
             try {
                 Class<?> openAiOptionsClass = loadOpenAiOptionsClass();
                 Object builder = openAiOptionsClass.getMethod("builder").invoke(null);
-                if (options.getModel() != null) {
-                    invokeBuilder(builder, "model", String.class, options.getModel());
+                if (modelName != null && !modelName.isBlank()) {
+                    invokeBuilder(builder, "model", String.class, modelName);
                 }
-                if (options.getTemperature() != null) {
+                if (!usesDefaultSamplingOnly && options.getTemperature() != null) {
                     invokeBuilder(builder, "temperature", Double.class, options.getTemperature());
                 }
-                if (options.getTopP() != null) {
+                if (!usesDefaultSamplingOnly && options.getTopP() != null) {
                     invokeBuilder(builder, "topP", Double.class, options.getTopP());
                 }
                 if (options.getMaxTokens() != null) {
@@ -66,7 +99,7 @@ public final class ProviderAwareChatOptionsFactory {
         }
 
         Object copy = copyOpenAiOptions(options);
-        if (isReasoningModel(modelName)) {
+        if (usesDefaultSamplingOnly) {
             try {
                 invokeSetter(copy, "setTemperature", Double.class, null);
             } catch (Exception ignored) {
@@ -88,6 +121,129 @@ public final class ProviderAwareChatOptionsFactory {
         } catch (Exception ignored) {
         }
         return (ChatOptions) copy;
+    }
+
+    public static ChatOptions normalizeModelDefaultOptions(ChatOptions options) {
+        if (!isOpenAiOptions(options)) {
+            return options;
+        }
+        String modelName = firstNonBlank(
+                readString(options, "getModel"),
+                configuredOpenAiModel());
+        boolean requiresMaxCompletion = requiresMaxCompletionTokens(modelName);
+        boolean usesDefaultSamplingOnly = usesDefaultSamplingOnly(modelName);
+        if (!requiresMaxCompletion && !usesDefaultSamplingOnly) {
+            return options;
+        }
+        Object copy = copyOpenAiOptions(options);
+        if (modelName != null && !modelName.isBlank()) {
+            try {
+                invokeSetter(copy, "setModel", String.class, modelName);
+            } catch (Exception ignored) {
+            }
+        }
+        if (usesDefaultSamplingOnly) {
+            try {
+                invokeSetter(copy, "setTemperature", Double.class, null);
+            } catch (Exception ignored) {
+            }
+            try {
+                invokeSetter(copy, "setTopP", Double.class, null);
+            } catch (Exception ignored) {
+            }
+        }
+        if (requiresMaxCompletion) {
+            Integer maxTokens = readInteger(options, "getMaxTokens");
+            Integer maxCompletionTokens = readInteger(options, "getMaxCompletionTokens");
+            if (maxTokens != null && maxCompletionTokens == null) {
+                try {
+                    invokeSetter(copy, "setMaxCompletionTokens", Integer.class, maxTokens);
+                } catch (Exception ignored) {
+                }
+            }
+            try {
+                invokeSetter(copy, "setMaxTokens", Integer.class, null);
+            } catch (Exception ignored) {
+            }
+        }
+        return (ChatOptions) copy;
+    }
+
+    public static void normalizeModelDefaultOptionsInPlace(ChatModel selectedModel) {
+        if (selectedModel == null) {
+            return;
+        }
+        ChatOptions options = mutableDefaultOptions(selectedModel);
+        if (!isOpenAiOptions(options)) {
+            return;
+        }
+        String modelName = firstNonBlank(
+                readString(options, "getModel"),
+                configuredOpenAiModel());
+        boolean requiresMaxCompletion = requiresMaxCompletionTokens(modelName);
+        boolean usesDefaultSamplingOnly = usesDefaultSamplingOnly(modelName);
+        if (!requiresMaxCompletion && !usesDefaultSamplingOnly) {
+            return;
+        }
+        if (modelName != null && !modelName.isBlank()) {
+            try {
+                invokeSetter(options, "setModel", String.class, modelName);
+            } catch (Exception ignored) {
+            }
+        }
+        if (usesDefaultSamplingOnly) {
+            try {
+                invokeSetter(options, "setTemperature", Double.class, null);
+            } catch (Exception ignored) {
+            }
+            try {
+                invokeSetter(options, "setTopP", Double.class, null);
+            } catch (Exception ignored) {
+            }
+        }
+        if (requiresMaxCompletion) {
+            Integer maxTokens = readInteger(options, "getMaxTokens");
+            Integer maxCompletionTokens = readInteger(options, "getMaxCompletionTokens");
+            if (maxTokens != null && maxCompletionTokens == null) {
+                try {
+                    invokeSetter(options, "setMaxCompletionTokens", Integer.class, maxTokens);
+                } catch (Exception ignored) {
+                }
+            }
+            try {
+                invokeSetter(options, "setMaxTokens", Integer.class, null);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static ChatOptions mutableDefaultOptions(ChatModel selectedModel) {
+        if (selectedModel == null) {
+            return null;
+        }
+        Field defaultOptionsField = findField(selectedModel.getClass(), "defaultOptions");
+        if (defaultOptionsField != null) {
+            try {
+                defaultOptionsField.setAccessible(true);
+                Object value = defaultOptionsField.get(selectedModel);
+                if (value instanceof ChatOptions chatOptions) {
+                    return chatOptions;
+                }
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+            }
+        }
+        return selectedModel.getDefaultOptions();
+    }
+
+    public static Prompt normalizePromptOptions(Prompt prompt, ExecutionContext context, ChatModel selectedModel) {
+        if (prompt == null || prompt.getOptions() == null) {
+            return prompt;
+        }
+        ChatOptions normalizedOptions = normalizeExplicitOptions(prompt.getOptions(), context, selectedModel);
+        if (normalizedOptions == prompt.getOptions()) {
+            return prompt;
+        }
+        return new Prompt(prompt.getInstructions(), normalizedOptions);
     }
 
     public static ChatOptions buildRuntimeOptions(ExecutionContext context, ChatModel selectedModel) {
@@ -117,22 +273,17 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     static boolean requiresMaxCompletionTokens(String modelName) {
-        if (modelName == null || modelName.isBlank()) {
-            return false;
-        }
-        String normalized = modelName.trim().toLowerCase(Locale.ROOT);
-        return normalized.startsWith("gpt-5")
-                || normalized.matches("^o[0-9].*");
+        return matchesConfiguredModelPattern(
+                modelName,
+                OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_PROPERTY,
+                OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_ENV);
     }
 
-    static boolean isReasoningModel(String modelName) {
-        if (modelName == null || modelName.isBlank()) {
-            return false;
-        }
-        String normalized = modelName.trim().toLowerCase(Locale.ROOT);
-        return normalized.matches("^o[0-9].*")
-                || normalized.contains("reasoner")
-                || normalized.contains("-r1");
+    static boolean usesDefaultSamplingOnly(String modelName) {
+        return matchesConfiguredModelPattern(
+                modelName,
+                OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY,
+                OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_ENV);
     }
 
     private static ChatOptions buildGenericChatOptions(ExecutionContext context) {
@@ -160,11 +311,15 @@ public final class ProviderAwareChatOptionsFactory {
         if (modelName != null && !modelName.isBlank()) {
             invokeBuilder(builder, "model", String.class, modelName);
         }
-        boolean isReasoningModel = isReasoningModel(modelName);
-        if (!isReasoningModel && context.getTemperature() != null) {
+        boolean usesDefaultSamplingOnly = usesDefaultSamplingOnly(modelName);
+        if (usesDefaultSamplingOnly) {
+            invokeBuilder(builder, "temperature", Double.class, null);
+            invokeBuilder(builder, "topP", Double.class, null);
+        }
+        if (!usesDefaultSamplingOnly && context.getTemperature() != null) {
             invokeBuilder(builder, "temperature", Double.class, context.getTemperature());
         }
-        if (!isReasoningModel && context.getTopP() != null) {
+        if (!usesDefaultSamplingOnly && context.getTopP() != null) {
             invokeBuilder(builder, "topP", Double.class, context.getTopP());
         }
         if (context.getMaxTokens() != null) {
@@ -229,7 +384,10 @@ public final class ProviderAwareChatOptionsFactory {
             return true;
         }
         Object provider = context != null ? context.getMetadata().get("selectedModelProvider") : null;
-        return provider != null && String.valueOf(provider).trim().equalsIgnoreCase("openai");
+        if (provider != null && String.valueOf(provider).trim().equalsIgnoreCase("openai")) {
+            return true;
+        }
+        return "openai".equalsIgnoreCase(configuredChatProvider());
     }
 
     private static boolean isOpenAiOptions(Object options) {
@@ -237,23 +395,90 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     private static String resolveModelName(ExecutionContext context, ChatModel selectedModel, ChatOptions explicitOptions) {
+        String explicitRequest = null;
+        String selectedModelHint = null;
+        ChatOptions defaultOptions = selectedModel != null ? selectedModel.getDefaultOptions() : null;
         if (context != null) {
-            String preferred = firstNonBlank(
+            explicitRequest = firstNonBlank(
                     context.getPreferredModel(),
+                    metadataText(context, "preferredModel"),
+                    metadataText(context, "requestedModelId"));
+            selectedModelHint = firstNonBlank(
                     metadataText(context, "runtimeModelId"),
-                    metadataText(context, "requestedModelId"),
                     metadataText(context, "selectedModelId"),
                     metadataText(context, "providerResponseModel"));
-            if (preferred != null) {
-                return preferred;
+        }
+        if (isOpenAiModel(selectedModel, context) || isOpenAiOptions(explicitOptions) || isOpenAiOptions(defaultOptions)) {
+            return firstNonBlank(
+                    readString(explicitOptions, "getModel"),
+                    readString(defaultOptions, "getModel"),
+                    configuredOpenAiModel(),
+                    explicitRequest,
+                    selectedModelHint);
+        }
+        return firstNonBlank(
+                explicitRequest,
+                readString(explicitOptions, "getModel"),
+                readString(defaultOptions, "getModel"),
+                configuredOpenAiModel(),
+                selectedModelHint);
+    }
+
+    private static String configuredOpenAiModel() {
+        return firstNonBlank(
+                System.getProperty("spring.ai.openai.chat.options.model"),
+                System.getenv("SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL"),
+                CONFIGURED_OPENAI_MODEL.get());
+    }
+
+    private static String configuredChatProvider() {
+        return firstNonBlank(
+                System.getProperty("contexa.llm.selection.chat.priority"),
+                System.getenv("CONTEXA_LLM_SELECTION_CHAT_PRIORITY"));
+    }
+
+    private static boolean matchesConfiguredModelPattern(String modelName, String propertyName, String envName) {
+        if (modelName == null || modelName.isBlank()) {
+            return false;
+        }
+        String configuredPatterns = firstNonBlank(
+                System.getProperty(propertyName),
+                System.getenv(envName),
+                configuredPatternOverride(propertyName));
+        if (configuredPatterns == null || configuredPatterns.isBlank()) {
+            return false;
+        }
+        String resolvedModelName = modelName.trim();
+        for (String rawPattern : configuredPatterns.split("[,;\\r\\n]+")) {
+            String pattern = rawPattern.trim();
+            if (pattern.isEmpty()) {
+                continue;
+            }
+            try {
+                if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(resolvedModelName).matches()) {
+                    return true;
+                }
+            } catch (PatternSyntaxException ex) {
+                log.error("Ignoring invalid LLM model capability pattern '{}' from {}", pattern, propertyName);
             }
         }
-        String explicitModel = readString(explicitOptions, "getModel");
-        if (explicitModel != null) {
-            return explicitModel;
+        return false;
+    }
+
+    private static String configuredPatternOverride(String propertyName) {
+        return switch (propertyName) {
+            case OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_PROPERTY -> CONFIGURED_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS.get();
+            case OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY -> CONFIGURED_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS.get();
+            case OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY -> CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS.get();
+            default -> null;
+        };
+    }
+
+    private static void setIfText(AtomicReference<String> target, String value) {
+        if (value == null || value.isBlank()) {
+            return;
         }
-        ChatOptions defaultOptions = selectedModel != null ? selectedModel.getDefaultOptions() : null;
-        return readString(defaultOptions, "getModel");
+        target.set(value.trim());
     }
 
     private static String metadataText(ExecutionContext context, String key) {
@@ -329,6 +554,18 @@ public final class ProviderAwareChatOptionsFactory {
         } catch (ReflectiveOperationException ignored) {
             return null;
         }
+    }
+
+    private static Field findField(Class<?> type, String name) {
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            try {
+                return current.getDeclaredField(name);
+            } catch (NoSuchFieldException ex) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
     }
 
     private static boolean isOllamaModel(ChatModel selectedModel, ExecutionContext context) {
@@ -450,10 +687,9 @@ public final class ProviderAwareChatOptionsFactory {
         if (modelName == null) {
             return false;
         }
-        String normalized = modelName.toLowerCase(Locale.ROOT);
-        return normalized.startsWith("qwen3")
-                || normalized.matches(".*qwen[3-9].*")
-                || normalized.matches(".*qwen[1-9][0-9]+.*")
-                || normalized.contains("deepseek-r1");
+        return matchesConfiguredModelPattern(
+                modelName,
+                OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY,
+                OLLAMA_DISABLE_THINKING_PATTERNS_ENV);
     }
 }

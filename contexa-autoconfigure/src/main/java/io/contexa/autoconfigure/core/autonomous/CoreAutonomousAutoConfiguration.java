@@ -29,7 +29,6 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
-import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.repository.*;
@@ -323,14 +322,6 @@ public class CoreAutonomousAutoConfiguration {
             SecurityPlaneProperties securityPlaneProperties) {
         return new SecurityMonitoringService(eventCollector, securityPlaneProperties);
     }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityEventProcessor securityEventProcessingOrchestrator(
-            List<SecurityEventHandler> handlers) {
-        return new SecurityEventProcessor(handlers);
-    }
-
 
     @Bean
     @ConditionalOnMissingBean

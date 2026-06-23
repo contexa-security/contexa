@@ -23,13 +23,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
-import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -44,7 +42,9 @@ public class DefaultStreamingHandler implements StreamingHandler {
         return Flux.defer(() -> {
             try {
 
-                var promptSpec = chatClient.prompt(context.getPrompt());
+                ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(selectedModel);
+                Prompt prompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(context.getPrompt(), context, selectedModel);
+                var promptSpec = chatClient.prompt(prompt);
                 promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
 
                 Flux<String> rawResponseFlux = promptSpec.stream().content();
@@ -139,7 +139,9 @@ public class DefaultStreamingHandler implements StreamingHandler {
                                                           ChatModel selectedModel) {
 
         try {
-            var promptSpec = chatClient.prompt(context.getPrompt());
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(selectedModel);
+            Prompt prompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(context.getPrompt(), context, selectedModel);
+            var promptSpec = chatClient.prompt(prompt);
             promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
 
             Flux<String> rawResponseFlux = promptSpec.stream().content();
@@ -169,19 +171,21 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     selectedModel));
         }
 
-        if (selectedModel.getClass().getName().equals("org.springframework.ai.ollama.OllamaChatModel")) {
-            return promptSpec.options(buildOllamaOptions(context, selectedModel));
-        }
-
         if (ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, selectedModel)) {
-            return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
+            return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                    context,
+                    selectedModel,
+                    tieredLLMProperties));
         }
 
         if (!hasRuntimeOptions(context)) {
             return promptSpec;
         }
 
-        return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, selectedModel));
+        return promptSpec.options(ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                context,
+                selectedModel,
+                tieredLLMProperties));
     }
 
     private boolean hasRuntimeOptions(ExecutionContext context) {
@@ -192,38 +196,6 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 || context.getTier() != null
                 || context.getAnalysisLevel() != null
                 || context.getSecurityTaskType() != null;
-    }
-
-    private ChatOptions buildOllamaOptions(ExecutionContext context, ChatModel selectedModel) {
-        try {
-            String modelName = determineModelName(context);
-            ChatOptions defaultOptions = selectedModel.getDefaultOptions();
-            Class<?> optionsClass = Class.forName("org.springframework.ai.ollama.api.OllamaChatOptions");
-            Object optionsBuilder = optionsClass.getMethod("builder").invoke(null);
-            Object options = optionsBuilder.getClass().getMethod("build").invoke(optionsBuilder);
-
-            if (defaultOptions != null && optionsClass.isInstance(defaultOptions)) {
-                options = optionsClass.getMethod("fromOptions", optionsClass).invoke(null, defaultOptions);
-            }
-
-            if (modelName != null && !modelName.isBlank()) {
-                optionsClass.getMethod("setModel", String.class).invoke(options, modelName);
-            }
-            if (context.getTemperature() != null) {
-                optionsClass.getMethod("setTemperature", Double.class).invoke(options, context.getTemperature());
-            }
-            if (context.getTopP() != null) {
-                optionsClass.getMethod("setTopP", Double.class).invoke(options, context.getTopP());
-            }
-            if (context.getMaxTokens() != null) {
-                optionsClass.getMethod("setNumPredict", Integer.class).invoke(options, context.getMaxTokens());
-            }
-
-            return (ChatOptions) options;
-        } catch (Exception e) {
-            log.error("Failed to build Ollama options via reflection", e);
-            return selectedModel.getDefaultOptions();
-        }
     }
 
     private Flux<String> executeToolCallback(ToolCallback callback, ExecutionContext context) {
@@ -273,13 +245,6 @@ public class DefaultStreamingHandler implements StreamingHandler {
         };
     }
 
-    private String resolveConfiguredModelNameForTier(Integer tier) {
-        if (tier == null || tier <= 1) {
-            return tieredLLMProperties.getModelNameForTier(1);
-        }
-        return tieredLLMProperties.getModelNameForTier(Math.min(tier, 2));
-    }
-
     private boolean hasToolsEnabled(ExecutionContext context) {
         return Boolean.TRUE.equals(context.getToolExecutionEnabled())
                 && (!context.getToolCallbacks().isEmpty() || !context.getToolProviders().isEmpty());
@@ -322,45 +287,6 @@ public class DefaultStreamingHandler implements StreamingHandler {
         }
 
         return promptContent.substring(inputStartIndex, inputEndIndex);
-    }
-
-    private String determineModelName(ExecutionContext context) {
-
-        String selectedModelId = resolveSelectedModelId(context);
-        if (selectedModelId != null) {
-            return selectedModelId;
-        }
-
-        if (context.getPreferredModel() != null) {
-            return context.getPreferredModel();
-        }
-
-        if (context.getAnalysisLevel() != null) {
-            int tier = context.getAnalysisLevel().getDefaultTier();
-            return tieredLLMProperties.getModelNameForTier(tier);
-        }
-
-        if (context.getTier() != null) {
-            return resolveConfiguredModelNameForTier(context.getTier());
-        }
-
-        return resolveConfiguredModelNameForTier(2);
-    }
-
-    private String resolveSelectedModelId(ExecutionContext context) {
-        if (context == null || context.getMetadata() == null) {
-            return null;
-        }
-        for (String key : List.of("selectedModelId", "runtimeModelId", "requestedModelId")) {
-            Object value = context.getMetadata().get(key);
-            if (value != null) {
-                String text = String.valueOf(value).trim();
-                if (!text.isEmpty()) {
-                    return text;
-                }
-            }
-        }
-        return null;
     }
 }
 
