@@ -28,7 +28,7 @@ public enum HcadPreTriggerMode {
     }
 
     public boolean publishesLlmEvent() {
-        return this == SHADOW || this == ENFORCE;
+        return this == ENFORCE;
     }
 
     public boolean isShadowBoundary() {

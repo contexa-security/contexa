@@ -54,19 +54,57 @@
 
     function renderStatus(summary) {
         const profile = sectionProfile();
+        const modeHtml = runtimeModePanel(summary);
         if (section === 'readiness') {
             statusEl.innerHTML = `
                 <div>
                     <div class="ai-monitor-band-title">${escapeHtml(profile.title)}</div>
                     <div class="text-sm" style="color:#94a3b8;">${escapeHtml(profile.description)}</div>
-                </div>`;
+                </div>
+                ${modeHtml}`;
             return;
         }
         statusEl.innerHTML = `
             <div>
                 <div class="ai-monitor-band-title">${escapeHtml(profile.title)}</div>
                 <div class="text-sm" style="color:#94a3b8;">${escapeHtml(profile.description)}</div>
+            </div>
+            ${modeHtml}`;
+    }
+
+    function runtimeModePanel(summary) {
+        const modes = summary && summary.snapshot ? summary.snapshot.runtimeModes : null;
+        if (!modes) return '';
+        return `
+            <div class="ai-monitor-mode-grid" aria-label="${escapeHtml(label('labelModeTitle'))}">
+                ${runtimeModeCard(label('labelModeHcad'), modes.hcadMode, modes.hcadEffectKey)}
+                ${runtimeModeCard(label('labelModeLlm'), modes.llmMode, modes.llmEffectKey)}
             </div>`;
+    }
+
+    function runtimeModeCard(title, mode, effectKey) {
+        const normalized = String(mode || '').toUpperCase();
+        return `
+            <div class="ai-monitor-mode-card ${escapeHtml(modeTone(normalized))}">
+                <div class="ai-monitor-mode-head">
+                    <span class="ai-monitor-mode-title">${escapeHtml(title)}</span>
+                    <span class="ai-monitor-mode-badge">${escapeHtml(displayKey(normalized || '-'))}</span>
+                </div>
+                <div class="ai-monitor-mode-effect">${escapeHtml(effectText(effectKey))}</div>
+            </div>`;
+    }
+
+    function effectText(effectKey) {
+        if (!effectKey) return '-';
+        const mapped = root.dataset[`labelModeEffect${toDatasetSuffix(effectKey)}`];
+        return mapped || displayKey(effectKey);
+    }
+
+    function modeTone(mode) {
+        if (mode === 'ENFORCE') return 'enforce';
+        if (mode === 'SHADOW' || mode === 'OBSERVE') return 'shadow';
+        if (mode === 'DISABLED') return 'disabled';
+        return '';
     }
 
     function renderOverview(summary) {

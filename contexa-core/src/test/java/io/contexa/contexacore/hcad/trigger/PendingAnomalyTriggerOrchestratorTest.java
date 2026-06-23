@@ -90,10 +90,35 @@ class PendingAnomalyTriggerOrchestratorTest {
     }
 
     @Test
-    @DisplayName("shadow mode should publish one HCAD pre-trigger event and mark cooldown")
-    void maybeTrigger_shadowMode_shouldPublishEvent() {
+    @DisplayName("shadow mode should record HCAD candidate but must not publish an LLM event")
+    void maybeTrigger_shadowMode_shouldRecordCandidateOnly() {
         HcadProperties properties = new HcadProperties();
-        PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties);
+        PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
+        PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
+        PendingAnomalyEvidenceReport report = triggerReport();
+
+        when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
+        when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-shadow");
+
+        orchestrator.maybeTrigger(request,
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
+
+        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.SHADOW, report);
+        verify(eventTriggerService, never()).publish(any(), any(), any());
+        verify(analysisTriggerStateRepository, never()).tryAcquireInFlight(any(), any());
+        verify(analysisTriggerStateRepository, never()).tryAcquireRateLimit(any(), any(), anyInt());
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-shadow");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED)).isNull();
+    }
+
+    @Test
+    @DisplayName("enforce mode should publish one HCAD pre-trigger event and mark cooldown")
+    void maybeTrigger_enforceMode_shouldPublishEvent() {
+        HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
+        PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
         PendingAnomalyEvidenceReport report = triggerReport();
@@ -101,6 +126,7 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.ENFORCE, report)).thenReturn("eval-enforce");
         when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(false);
         when(analysisTriggerStateRepository.tryAcquireInFlight(eq(escalationKey), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.isCoolingDown("base-1")).thenReturn(false);
@@ -110,7 +136,9 @@ class PendingAnomalyTriggerOrchestratorTest {
         orchestrator.maybeTrigger(request,
                 new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
 
-        verify(eventTriggerService).publish(request, report, null);
+        verify(eventTriggerService).publish(request, report, "eval-enforce");
+        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.ENFORCE, report);
+        verify(hcadEvaluationWriter).markTriggered("eval-enforce");
         verify(analysisTriggerStateRepository).markCooldown(eq("base-1"), any(Duration.class));
         verify(analysisTriggerStateRepository).markCooldown(eq(escalationKey), any(Duration.class));
         verify(analysisTriggerStateRepository, never()).releaseInFlight("base-1");
@@ -171,6 +199,7 @@ class PendingAnomalyTriggerOrchestratorTest {
     @DisplayName("missing LLM event publisher should still record the HCAD candidate")
     void maybeTrigger_missingPublisher_shouldRecordCandidateOnly() {
         HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
         PendingAnomalyTriggerOrchestrator orchestrator = new PendingAnomalyTriggerOrchestrator(
                 eligibilityGate,
                 evidenceCheckService,
@@ -184,12 +213,12 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
-        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-no-publisher");
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.ENFORCE, report)).thenReturn("eval-no-publisher");
 
         orchestrator.maybeTrigger(request,
                 new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
 
-        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.SHADOW, report);
+        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.ENFORCE, report);
         verify(analysisTriggerStateRepository, never()).tryAcquireInFlight(any(), any());
         verify(analysisTriggerStateRepository, never()).tryAcquireRateLimit(any(), any(), anyInt());
     }
@@ -198,6 +227,7 @@ class PendingAnomalyTriggerOrchestratorTest {
     @DisplayName("rate-limited trigger should record the candidate but skip LLM publication")
     void maybeTrigger_rateLimited_shouldSkipPublishAndReleaseInflight() {
         HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
         PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
@@ -206,7 +236,7 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
-        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-rate");
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.ENFORCE, report)).thenReturn("eval-rate");
         when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(false);
         when(analysisTriggerStateRepository.tryAcquireInFlight(eq(escalationKey), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.isCoolingDown("base-1")).thenReturn(false);
@@ -227,6 +257,7 @@ class PendingAnomalyTriggerOrchestratorTest {
     @DisplayName("duplicate trigger should be suppressed and exposed to same-request Protectable suppression")
     void maybeTrigger_duplicate_shouldMarkSuppressedRequestState() {
         HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
         PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
@@ -235,7 +266,7 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
-        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-duplicate");
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.ENFORCE, report)).thenReturn("eval-duplicate");
         when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(false);
         when(analysisTriggerStateRepository.tryAcquireInFlight(eq(escalationKey), any(Duration.class))).thenReturn(true);
         when(analysisTriggerStateRepository.isCoolingDown("base-1")).thenReturn(true);
@@ -255,6 +286,7 @@ class PendingAnomalyTriggerOrchestratorTest {
     @DisplayName("same trusted anchor should be suppressed by escalation cooldown before LLM publication")
     void maybeTrigger_sameAnchorEscalationCoolingDown_shouldSuppressDuplicate() {
         HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
         PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
         PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
@@ -263,7 +295,7 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
-        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-anchor-duplicate");
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.ENFORCE, report)).thenReturn("eval-anchor-duplicate");
         when(analysisTriggerStateRepository.isCoolingDown(escalationKey)).thenReturn(true);
 
         orchestrator.maybeTrigger(request,

@@ -27,7 +27,20 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
 
     String MONITORABLE_REQUEST_CONDITION = """
                and not (
-                   lower(coalesce(e.request_path, '')) in ('/favicon.ico', '/manifest.json', '/manifest.webmanifest', '/robots.txt')
+                   lower(coalesce(e.request_path, '')) in (
+                       '/favicon.ico',
+                       '/manifest.json',
+                       '/manifest.webmanifest',
+                       '/robots.txt',
+                       '/login',
+                       '/logout',
+                       '/admin/login',
+                       '/admin/logout',
+                       '/contexa/admin/login',
+                       '/contexa/admin/logout',
+                       '/mfa/login',
+                       '/contexa/mfa/login'
+                   )
                    or lower(coalesce(e.request_path, '')) like '/assets/%'
                    or lower(coalesce(e.request_path, '')) like '/css/%'
                    or lower(coalesce(e.request_path, '')) like '/fonts/%'
@@ -58,7 +71,20 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
 
     String MONITORABLE_RESOURCE_VALUE_CONDITION = """
                and not (
-                   lower(coalesce(resource.value, '')) in ('/favicon.ico', '/manifest.json', '/manifest.webmanifest', '/robots.txt')
+                   lower(coalesce(resource.value, '')) in (
+                       '/favicon.ico',
+                       '/manifest.json',
+                       '/manifest.webmanifest',
+                       '/robots.txt',
+                       '/login',
+                       '/logout',
+                       '/admin/login',
+                       '/admin/logout',
+                       '/contexa/admin/login',
+                       '/contexa/admin/logout',
+                       '/mfa/login',
+                       '/contexa/mfa/login'
+                   )
                    or lower(coalesce(resource.value, '')) like '/assets/%'
                    or lower(coalesce(resource.value, '')) like '/css/%'
                    or lower(coalesce(resource.value, '')) like '/fonts/%'

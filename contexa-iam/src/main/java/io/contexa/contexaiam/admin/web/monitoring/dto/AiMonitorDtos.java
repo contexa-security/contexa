@@ -28,7 +28,16 @@ public final class AiMonitorDtos {
             String period,
             String from,
             String to,
-            String generatedAt
+            String generatedAt,
+            RuntimeModeSummary runtimeModes
+    ) {
+    }
+
+    public record RuntimeModeSummary(
+            String hcadMode,
+            String hcadEffectKey,
+            String llmMode,
+            String llmEffectKey
     ) {
     }
 

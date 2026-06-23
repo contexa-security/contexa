@@ -729,6 +729,23 @@ class HCADFilterTest {
     }
 
     @Test
+    @DisplayName("authenticated login entry points should bypass HCAD evaluation")
+    void doFilter_authenticatedLoginEntryPoints_bypassEvaluation() throws Exception {
+        setAuthenticated();
+
+        request.setRequestURI("/contexa/admin/login");
+        hcadFilter.doFilter(request, response, filterChain);
+
+        assertThat(filterChain.getRequest()).isNotNull();
+        verify(trustedProjectionFactory, never()).project(any(), any());
+        verify(preProtectablePromotionScorer, never()).score(any());
+        verify(pendingAnomalyTriggerOrchestrator, never()).maybeTrigger(any(), any());
+
+        request = new MockHttpServletRequest("GET", "/mfa/login");
+        assertThat(hcadFilter.shouldNotFilter(request)).isTrue();
+    }
+
+    @Test
     @DisplayName("Unauthenticated request passes through without analysis")
     void doFilterInternal_unauthenticated_passesThrough() throws Exception {
         hcadFilter.doFilterInternal(request, response, filterChain);

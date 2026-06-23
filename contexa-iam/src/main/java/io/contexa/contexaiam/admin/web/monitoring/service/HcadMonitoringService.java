@@ -18,9 +18,12 @@ package io.contexa.contexaiam.admin.web.monitoring.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RuntimeModeSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Breakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.CountBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
@@ -47,6 +50,7 @@ public class HcadMonitoringService {
 
     private final HcadDetectionEvaluationRepository repository;
     private final HcadProperties hcadProperties;
+    private final SecurityZeroTrustProperties zeroTrustProperties;
     private final ObjectMapper objectMapper;
 
     public HcadMonitoringService(
@@ -59,8 +63,17 @@ public class HcadMonitoringService {
             HcadDetectionEvaluationRepository repository,
             HcadProperties hcadProperties,
             ObjectMapper objectMapper) {
+        this(repository, hcadProperties, objectMapper, null);
+    }
+
+    public HcadMonitoringService(
+            HcadDetectionEvaluationRepository repository,
+            HcadProperties hcadProperties,
+            ObjectMapper objectMapper,
+            SecurityZeroTrustProperties zeroTrustProperties) {
         this.repository = repository;
         this.hcadProperties = hcadProperties;
+        this.zeroTrustProperties = zeroTrustProperties;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
     }
 
@@ -109,7 +122,7 @@ public class HcadMonitoringService {
                 ISO.format(from),
                 ISO.format(to),
                 ISO.format(to),
-                new MonitorSnapshot(normalizedPeriod, ISO.format(from), ISO.format(to), ISO.format(to)),
+                new MonitorSnapshot(normalizedPeriod, ISO.format(from), ISO.format(to), ISO.format(to), runtimeModeSummary()),
                 hcadProperties.getPreTrigger().effectiveMode().metadataValue(),
                 candidateCount,
                 observedRequestCount,
@@ -151,6 +164,35 @@ public class HcadMonitoringService {
                 evidenceCoverageBreakdown(from, to),
                 recentEvaluations(from, to),
                 unknownEvaluations(from, to));
+    }
+
+    private RuntimeModeSummary runtimeModeSummary() {
+        HcadPreTriggerMode hcadMode = hcadProperties == null
+                ? HcadPreTriggerMode.SHADOW
+                : hcadProperties.getPreTrigger().effectiveMode();
+        SecurityZeroTrustProperties.SecurityMode llmMode = zeroTrustProperties == null
+                ? SecurityZeroTrustProperties.SecurityMode.ENFORCE
+                : zeroTrustProperties.getMode();
+        return new RuntimeModeSummary(
+                hcadMode.metadataValue(),
+                hcadEffectKey(hcadMode),
+                llmMode.name(),
+                llmEffectKey(llmMode));
+    }
+
+    private String hcadEffectKey(HcadPreTriggerMode mode) {
+        return switch (mode) {
+            case DISABLED -> "HCAD_DISABLED";
+            case OBSERVE -> "HCAD_OBSERVE_LOG_ONLY";
+            case SHADOW -> "HCAD_SHADOW_LOG_ONLY";
+            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_LOG";
+        };
+    }
+
+    private String llmEffectKey(SecurityZeroTrustProperties.SecurityMode mode) {
+        return mode == SecurityZeroTrustProperties.SecurityMode.SHADOW
+                ? "LLM_SHADOW_LOG_ONLY"
+                : "LLM_ENFORCE_ACTION_LOG";
     }
 
     @Transactional(readOnly = true)

@@ -18,6 +18,15 @@
         .ai-monitor-band { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.36); }
         .ai-monitor-band-title { color: #e2e8f0; font-size: .95rem; font-weight: 700; margin-bottom: .75rem; }
         .ai-monitor-band-help { color: #94a3b8; font-size: .78rem; line-height: 1.55; margin: -.35rem 0 .85rem; }
+        .ai-monitor-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: .75rem; margin-top: .85rem; }
+        .ai-monitor-mode-card { border: 1px solid rgba(34,211,238,.28); border-radius: .5rem; background: rgba(8,47,73,.24); padding: .85rem; display: grid; gap: .45rem; }
+        .ai-monitor-mode-card.enforce { border-color: rgba(34,197,94,.42); background: rgba(20,83,45,.18); }
+        .ai-monitor-mode-card.shadow { border-color: rgba(245,158,11,.45); background: rgba(120,53,15,.18); }
+        .ai-monitor-mode-card.disabled { border-color: rgba(148,163,184,.35); background: rgba(30,41,59,.34); }
+        .ai-monitor-mode-head { display: flex; justify-content: space-between; gap: .75rem; align-items: center; }
+        .ai-monitor-mode-title { color: #cbd5e1; font-size: .78rem; font-weight: 700; }
+        .ai-monitor-mode-badge { color: #f8fafc; font-size: .78rem; font-weight: 900; border-radius: 999px; padding: .28rem .65rem; background: rgba(34,211,238,.18); }
+        .ai-monitor-mode-effect { color: #94a3b8; font-size: .78rem; line-height: 1.45; }
         .ai-monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
         .ai-monitor-dashboard { display: grid; gap: 1rem; }
         .ai-monitor-overview-top { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(420px, 1.4fr); gap: 1rem; }
@@ -254,6 +263,15 @@
              th:data-label-screen-or-api="#{admin.aiMonitor.label.screenOrApi}"
              th:data-label-screen-purpose="#{admin.aiMonitor.status.screenPurpose}"
              th:data-label-current-decision="#{admin.aiMonitor.status.currentDecision}"
+             th:data-label-mode-title="#{admin.aiMonitor.mode.title}"
+             th:data-label-mode-hcad="#{admin.aiMonitor.mode.hcad}"
+             th:data-label-mode-llm="#{admin.aiMonitor.mode.llm}"
+             th:data-label-mode-effect-hcad-disabled="#{admin.aiMonitor.mode.effect.hcad.disabled}"
+             th:data-label-mode-effect-hcad-observe-log-only="#{admin.aiMonitor.mode.effect.hcad.observeLogOnly}"
+             th:data-label-mode-effect-hcad-shadow-log-only="#{admin.aiMonitor.mode.effect.hcad.shadowLogOnly}"
+             th:data-label-mode-effect-hcad-enforce-llm-trigger-log="#{admin.aiMonitor.mode.effect.hcad.enforceLlmTriggerLog}"
+             th:data-label-mode-effect-llm-shadow-log-only="#{admin.aiMonitor.mode.effect.llm.shadowLogOnly}"
+             th:data-label-mode-effect-llm-enforce-action-log="#{admin.aiMonitor.mode.effect.llm.enforceActionLog}"
              th:data-label-no-decision="#{admin.aiMonitor.status.noDecision}"
              th:data-label-no-decision-data="#{admin.aiMonitor.status.noDecisionData}"
              th:data-label-section-overview-title="#{admin.aiMonitor.section.overviewTitle}"
@@ -362,6 +380,10 @@
              th:data-label-enum-hcad-pre-trigger="#{admin.aiMonitor.enum.hcadPreTrigger}"
              th:data-label-enum-pending-redline="#{admin.aiMonitor.enum.pendingRedline}"
              th:data-label-enum-pending-analysis="#{admin.aiMonitor.enum.pendingAnalysis}"
+             th:data-label-enum-shadow="#{admin.aiMonitor.enum.shadow}"
+             th:data-label-enum-enforce="#{admin.aiMonitor.enum.enforce}"
+             th:data-label-enum-observe="#{admin.aiMonitor.enum.observe}"
+             th:data-label-enum-disabled="#{admin.aiMonitor.enum.disabled}"
              th:data-label-enum-allow="#{admin.aiMonitor.enum.allow}"
              th:data-label-enum-block="#{admin.aiMonitor.enum.block}"
              th:data-label-enum-deny="#{admin.aiMonitor.enum.deny}"

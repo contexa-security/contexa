@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationMatrixRow;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.AffectedRequest;
@@ -29,6 +31,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSumm
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentFailure;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentCorrelation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RuntimeModeSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.StandardMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -51,7 +54,20 @@ public class AiSecurityDecisionMonitoringService {
     private static final int BREAKDOWN_LIMIT = 12;
     private static final String MONITORABLE_PATH_CONDITION = """
             not (
-                lower(coalesce(@PATH@, '')) in ('/favicon.ico', '/manifest.json', '/manifest.webmanifest', '/robots.txt')
+                lower(coalesce(@PATH@, '')) in (
+                    '/favicon.ico',
+                    '/manifest.json',
+                    '/manifest.webmanifest',
+                    '/robots.txt',
+                    '/login',
+                    '/logout',
+                    '/admin/login',
+                    '/admin/logout',
+                    '/contexa/admin/login',
+                    '/contexa/admin/logout',
+                    '/mfa/login',
+                    '/contexa/mfa/login'
+                )
                 or lower(coalesce(@PATH@, '')) like '/assets/%'
                 or lower(coalesce(@PATH@, '')) like '/css/%'
                 or lower(coalesce(@PATH@, '')) like '/fonts/%'
@@ -83,14 +99,17 @@ public class AiSecurityDecisionMonitoringService {
     private final HcadMonitoringService hcadMonitoringService;
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final HcadProperties hcadProperties;
+    private final SecurityZeroTrustProperties zeroTrustProperties;
 
     public AiSecurityDecisionMonitoringService(
             HcadMonitoringService hcadMonitoringService,
             Supplier<JdbcOperations> jdbcOperationsSupplier,
-            HcadProperties hcadProperties) {
+            HcadProperties hcadProperties,
+            SecurityZeroTrustProperties zeroTrustProperties) {
         this.hcadMonitoringService = hcadMonitoringService;
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.hcadProperties = hcadProperties;
+        this.zeroTrustProperties = zeroTrustProperties;
     }
 
     @Transactional(readOnly = true)
@@ -262,7 +281,8 @@ public class AiSecurityDecisionMonitoringService {
                 window.period(),
                 ISO.format(window.from()),
                 ISO.format(window.to()),
-                ISO.format(window.generatedAt()));
+                ISO.format(window.generatedAt()),
+                runtimeModeSummary());
         HcadSummary hcad = hcadMonitoringService.summarize(window.period(), window.from(), window.to());
         LlmDecisionSummary llm = llmSummary(window.from(), window.to());
         CorrelationSummary correlation = correlationSummary(window.from(), window.to());
@@ -419,6 +439,35 @@ public class AiSecurityDecisionMonitoringService {
 
     private double metricNumber(MetricValue metric) {
         return metric == null || metric.value() == null ? 0.0d : metric.value();
+    }
+
+    private RuntimeModeSummary runtimeModeSummary() {
+        HcadPreTriggerMode hcadMode = hcadProperties == null
+                ? HcadPreTriggerMode.SHADOW
+                : hcadProperties.getPreTrigger().effectiveMode();
+        SecurityZeroTrustProperties.SecurityMode llmMode = zeroTrustProperties == null
+                ? SecurityZeroTrustProperties.SecurityMode.ENFORCE
+                : zeroTrustProperties.getMode();
+        return new RuntimeModeSummary(
+                hcadMode.metadataValue(),
+                hcadEffectKey(hcadMode),
+                llmMode.name(),
+                llmEffectKey(llmMode));
+    }
+
+    private String hcadEffectKey(HcadPreTriggerMode mode) {
+        return switch (mode) {
+            case DISABLED -> "HCAD_DISABLED";
+            case OBSERVE -> "HCAD_OBSERVE_LOG_ONLY";
+            case SHADOW -> "HCAD_SHADOW_LOG_ONLY";
+            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_LOG";
+        };
+    }
+
+    private String llmEffectKey(SecurityZeroTrustProperties.SecurityMode mode) {
+        return mode == SecurityZeroTrustProperties.SecurityMode.SHADOW
+                ? "LLM_SHADOW_LOG_ONLY"
+                : "LLM_ENFORCE_ACTION_LOG";
     }
 
     private LlmDecisionSummary llmSummary(LocalDateTime from, LocalDateTime to) {

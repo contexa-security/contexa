@@ -29,6 +29,15 @@
         .hcad-status.warn { background: rgba(245,158,11,.18); color: #fbbf24; }
         .hcad-status.bad { background: rgba(239,68,68,.18); color: #f87171; }
         .hcad-status.info { background: rgba(34,211,238,.16); color: #67e8f9; }
+        .hcad-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: .75rem; margin-top: .85rem; }
+        .hcad-mode-card { border: 1px solid rgba(34,211,238,.28); border-radius: .5rem; background: rgba(8,47,73,.24); padding: .85rem; display: grid; gap: .45rem; }
+        .hcad-mode-card.enforce { border-color: rgba(34,197,94,.42); background: rgba(20,83,45,.18); }
+        .hcad-mode-card.shadow { border-color: rgba(245,158,11,.45); background: rgba(120,53,15,.18); }
+        .hcad-mode-card.disabled { border-color: rgba(148,163,184,.35); background: rgba(30,41,59,.34); }
+        .hcad-mode-head { display: flex; justify-content: space-between; gap: .75rem; align-items: center; }
+        .hcad-mode-title { color: #cbd5e1; font-size: .78rem; font-weight: 700; }
+        .hcad-mode-badge { color: #f8fafc; font-size: .78rem; font-weight: 900; border-radius: 999px; padding: .28rem .65rem; background: rgba(34,211,238,.18); }
+        .hcad-mode-effect { color: #94a3b8; font-size: .78rem; line-height: 1.45; }
         .hcad-two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
         .hcad-simple-list { display: grid; gap: .65rem; }
         .hcad-simple-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: center; border-bottom: 1px solid rgba(71,85,105,.22); padding: .7rem 0; }
@@ -90,6 +99,15 @@
         <div class="modern-card hcad-layout" id="hcad-monitor" th:data-period="${period}"
              th:data-label-promotion-readiness="#{admin.security.hcad.status.promotionReadiness}"
              th:data-label-mode="#{admin.security.hcad.status.mode}"
+             th:data-label-mode-title="#{admin.aiMonitor.mode.title}"
+             th:data-label-mode-hcad="#{admin.aiMonitor.mode.hcad}"
+             th:data-label-mode-llm="#{admin.aiMonitor.mode.llm}"
+             th:data-label-mode-effect-hcad-disabled="#{admin.aiMonitor.mode.effect.hcad.disabled}"
+             th:data-label-mode-effect-hcad-observe-log-only="#{admin.aiMonitor.mode.effect.hcad.observeLogOnly}"
+             th:data-label-mode-effect-hcad-shadow-log-only="#{admin.aiMonitor.mode.effect.hcad.shadowLogOnly}"
+             th:data-label-mode-effect-hcad-enforce-llm-trigger-log="#{admin.aiMonitor.mode.effect.hcad.enforceLlmTriggerLog}"
+             th:data-label-mode-effect-llm-shadow-log-only="#{admin.aiMonitor.mode.effect.llm.shadowLogOnly}"
+             th:data-label-mode-effect-llm-enforce-action-log="#{admin.aiMonitor.mode.effect.llm.enforceActionLog}"
              th:data-label-sample="#{admin.security.hcad.status.sample}"
              th:data-label-precision="#{admin.security.hcad.kpi.precision}"
              th:data-label-hcad-windows="#{admin.security.hcad.kpi.hcadWindows}"

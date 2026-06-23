@@ -21,6 +21,8 @@ import com.github.benmanes.caffeine.cache.Expiry;
 import io.contexa.contexacore.properties.HcadProperties;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -117,8 +119,8 @@ public class CaffeineHcadSemanticEvidenceCache implements HcadSemanticEvidenceCa
                 null,
                 null,
                 null,
-                java.util.List.of("SOURCE_ABSENT"),
-                java.time.Instant.now(),
+                List.of("SOURCE_ABSENT"),
+                Instant.now(),
                 null);
     }
 

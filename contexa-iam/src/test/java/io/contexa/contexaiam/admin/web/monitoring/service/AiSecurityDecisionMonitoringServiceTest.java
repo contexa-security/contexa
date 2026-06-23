@@ -16,9 +16,11 @@
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualification;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +59,11 @@ class AiSecurityDecisionMonitoringServiceTest {
                 .thenReturn(hcadSummary());
         HcadProperties properties = new HcadProperties();
         properties.getPreTrigger().getQualification().setEstimatedLlmCallCostUsd(0.02d);
-        service = new AiSecurityDecisionMonitoringService(hcadMonitoringService, () -> jdbcTemplate, properties);
+        service = new AiSecurityDecisionMonitoringService(
+                hcadMonitoringService,
+                () -> jdbcTemplate,
+                properties,
+                new SecurityZeroTrustProperties());
     }
 
     @Test
@@ -237,6 +243,9 @@ class AiSecurityDecisionMonitoringServiceTest {
                 "day",
                 LocalDateTime.now().minusDays(1).toString(),
                 LocalDateTime.now().toString(),
+                LocalDateTime.now().toString(),
+                new MonitorSnapshot("day", LocalDateTime.now().minusDays(1).toString(), LocalDateTime.now().toString(),
+                        LocalDateTime.now().toString(), null),
                 "SHADOW",
                 120L,
                 240L,

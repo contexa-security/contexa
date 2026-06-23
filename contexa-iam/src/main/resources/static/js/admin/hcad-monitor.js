@@ -92,6 +92,7 @@
         const sample = summary.candidateCount || 0;
         const minSample = summary.qualification ? summary.qualification.minimumSampleSize : 100;
         const comparisonAvailable = hasComparison(summary);
+        const modeHtml = runtimeModePanel(summary);
         statusEl.innerHTML = `
             <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div>
@@ -103,7 +104,50 @@
                     </div>
                 </div>
                 <span class="hcad-status ${recommendationTone(recommendation)}">${escapeHtml(recommendationLabel(recommendation))}</span>
+            </div>
+            ${modeHtml}`;
+    }
+
+    function runtimeModePanel(summary) {
+        const modes = summary && summary.snapshot ? summary.snapshot.runtimeModes : null;
+        if (!modes) return '';
+        return `
+            <div class="hcad-mode-grid" aria-label="${escapeHtml(label('labelModeTitle'))}">
+                ${runtimeModeCard(label('labelModeHcad'), modes.hcadMode, modes.hcadEffectKey)}
+                ${runtimeModeCard(label('labelModeLlm'), modes.llmMode, modes.llmEffectKey)}
             </div>`;
+    }
+
+    function runtimeModeCard(title, mode, effectKey) {
+        const normalized = String(mode || '').toUpperCase();
+        return `
+            <div class="hcad-mode-card ${escapeHtml(modeTone(normalized))}">
+                <div class="hcad-mode-head">
+                    <span class="hcad-mode-title">${escapeHtml(title)}</span>
+                    <span class="hcad-mode-badge">${escapeHtml(friendlyMode(normalized || '-'))}</span>
+                </div>
+                <div class="hcad-mode-effect">${escapeHtml(effectText(effectKey))}</div>
+            </div>`;
+    }
+
+    function effectText(effectKey) {
+        if (!effectKey) return '-';
+        const mapped = labels[`labelModeEffect${toDatasetSuffix(effectKey)}`];
+        return mapped || effectKey;
+    }
+
+    function modeTone(mode) {
+        if (mode === 'ENFORCE') return 'enforce';
+        if (mode === 'SHADOW' || mode === 'OBSERVE') return 'shadow';
+        if (mode === 'DISABLED') return 'disabled';
+        return '';
+    }
+
+    function toDatasetSuffix(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+([a-z0-9])/g, (_, chr) => chr.toUpperCase())
+            .replace(/^[a-z]/, chr => chr.toUpperCase());
     }
 
     function renderKpis(summary) {

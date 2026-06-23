@@ -33,10 +33,11 @@ import static org.mockito.Mockito.verify;
 class PendingAnomalyEventTriggerServiceTest {
 
     @Test
-    @DisplayName("shadow mode event carries HCAD shadow boundary metadata")
-    void publish_shadowMode_shouldCarryShadowMetadata() {
+    @DisplayName("enforce mode event carries HCAD enforcement boundary metadata")
+    void publish_enforceMode_shouldCarryEnforceMetadata() {
         ZeroTrustEventPublisher publisher = mock(ZeroTrustEventPublisher.class);
         HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
         PendingAnomalyEventTriggerService service = new PendingAnomalyEventTriggerService(publisher, properties);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
 
@@ -47,14 +48,14 @@ class PendingAnomalyEventTriggerServiceTest {
         Map<String, Object> payload = payloadCaptor.getValue();
         assertThat(payload).containsEntry("triggerStage", "PRE_PROTECTABLE");
         assertThat(payload).containsEntry("triggerSource", "HCAD_PRE_TRIGGER");
-        assertThat(payload).containsEntry("hcadMode", "SHADOW");
-        assertThat(payload).containsEntry("decisionBoundaryMode", "SHADOW");
+        assertThat(payload).containsEntry("hcadMode", "ENFORCE");
+        assertThat(payload).containsEntry("decisionBoundaryMode", "ENFORCE");
         assertThat(payload).containsEntry("earlyAnalysisScore", 72);
         assertThat(payload).containsEntry("hcadBand", "REDLINE");
 
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED)).isEqualTo(true);
-        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MODE)).isEqualTo("SHADOW");
-        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE)).isEqualTo("SHADOW");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MODE)).isEqualTo("ENFORCE");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE)).isEqualTo("ENFORCE");
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EARLY_ANALYSIS_SCORE)).isEqualTo(72);
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_BAND)).isEqualTo("REDLINE");
     }

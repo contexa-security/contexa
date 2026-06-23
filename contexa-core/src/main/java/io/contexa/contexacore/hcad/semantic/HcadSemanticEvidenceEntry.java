@@ -16,6 +16,7 @@
 package io.contexa.contexacore.hcad.semantic;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -90,7 +91,7 @@ public record HcadSemanticEvidenceEntry(
     }
 
     private static List<String> appendGap(List<String> existing, String gapCode) {
-        java.util.LinkedHashSet<String> gaps = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> gaps = new LinkedHashSet<>();
         if (existing != null) {
             gaps.addAll(existing);
         }

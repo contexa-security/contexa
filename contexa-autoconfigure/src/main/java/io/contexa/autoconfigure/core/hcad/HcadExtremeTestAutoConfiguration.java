@@ -24,6 +24,7 @@ import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
 import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCacheStatus;
 import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceEntry;
 import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceKey;
+import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
@@ -611,9 +612,10 @@ public class HcadExtremeTestAutoConfiguration {
             String resourceId = HcadRequestPathUtils.resourceFamily(resolvedPath);
             int currentDimension = Math.max(1, hcadProperties.getVector().getEmbeddingDimension());
             String normalizedType = firstText(mismatchType, "version-mismatch").toLowerCase(Locale.ROOT);
+            boolean cacheHit = normalizedType.equals("hit") || normalizedType.equals("cache-hit");
             boolean dimensionMismatch = normalizedType.contains("dimension");
             boolean versionMismatch = normalizedType.contains("version");
-            if (!dimensionMismatch && !versionMismatch) {
+            if (!cacheHit && !dimensionMismatch && !versionMismatch) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "seeded", false,
                         "reason", "unsupported-mismatch-type",
@@ -644,7 +646,7 @@ public class HcadExtremeTestAutoConfiguration {
                     userId,
                     resourceId,
                     versionMismatch ? "policy-stale" : "policy-unknown",
-                    versionMismatch ? "prompt-stale" : "prompt-unknown",
+                    versionMismatch ? "prompt-stale" : HcadPromptSecurityContextFieldRegistry.version(),
                     cachedEmbeddingModel,
                     cachedDimension,
                     cachedEvidenceVersion);

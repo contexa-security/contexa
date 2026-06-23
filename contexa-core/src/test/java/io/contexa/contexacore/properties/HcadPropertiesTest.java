@@ -33,7 +33,7 @@ class HcadPropertiesTest {
 
         assertThat(properties.getPreTrigger().getMode()).isEqualTo(HcadPreTriggerMode.SHADOW);
         assertThat(properties.getPreTrigger().effectiveMode()).isEqualTo(HcadPreTriggerMode.SHADOW);
-        assertThat(properties.getPreTrigger().shouldPublishLlmEvent()).isTrue();
+        assertThat(properties.getPreTrigger().shouldPublishLlmEvent()).isFalse();
         assertThat(properties.getPreTrigger().getQualification().getShadowMinPrecision()).isEqualTo(0.80);
         assertThat(properties.getPreTrigger().getQualification().getLimitedEnforceMinPrecision()).isEqualTo(0.90);
         assertThat(properties.getPreTrigger().getQualification().getDefaultEnforceMinPrecision()).isEqualTo(0.95);

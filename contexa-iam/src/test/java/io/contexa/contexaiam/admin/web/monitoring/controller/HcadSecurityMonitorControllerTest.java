@@ -71,6 +71,8 @@ class HcadSecurityMonitorControllerTest {
                 period,
                 "2026-06-19T00:00:00",
                 "2026-06-20T00:00:00",
+                "2026-06-20T00:00:01",
+                null,
                 "SHADOW",
                 12L,
                 30L,

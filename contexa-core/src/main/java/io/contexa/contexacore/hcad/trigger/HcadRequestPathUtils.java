@@ -76,7 +76,15 @@ public final class HcadRequestPathUtils {
             "/favicon.ico",
             "/manifest.json",
             "/manifest.webmanifest",
-            "/robots.txt");
+            "/robots.txt",
+            "/login",
+            "/logout",
+            "/admin/login",
+            "/admin/logout",
+            "/contexa/admin/login",
+            "/contexa/admin/logout",
+            "/mfa/login",
+            "/contexa/mfa/login");
 
     private static final List<String> NON_ACTIONABLE_STATIC_SUFFIXES = List.of(
             ".avif",

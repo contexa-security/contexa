@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
@@ -69,8 +70,13 @@ public class IamAdminMonitoringAutoConfiguration {
     public HcadMonitoringService hcadMonitoringService(
             HcadDetectionEvaluationRepository hcadDetectionEvaluationRepository,
             HcadProperties hcadProperties,
-            ObjectMapper objectMapper) {
-        return new HcadMonitoringService(hcadDetectionEvaluationRepository, hcadProperties, objectMapper);
+            ObjectMapper objectMapper,
+            SecurityZeroTrustProperties zeroTrustProperties) {
+        return new HcadMonitoringService(
+                hcadDetectionEvaluationRepository,
+                hcadProperties,
+                objectMapper,
+                zeroTrustProperties);
     }
 
     @Bean
@@ -78,11 +84,13 @@ public class IamAdminMonitoringAutoConfiguration {
     public AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService(
             HcadMonitoringService hcadMonitoringService,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            HcadProperties hcadProperties) {
+            HcadProperties hcadProperties,
+            SecurityZeroTrustProperties zeroTrustProperties) {
         return new AiSecurityDecisionMonitoringService(
                 hcadMonitoringService,
                 jdbcOperationsProvider::getIfAvailable,
-                hcadProperties);
+                hcadProperties,
+                zeroTrustProperties);
     }
 
     @Bean
