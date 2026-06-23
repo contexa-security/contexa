@@ -31,6 +31,8 @@ import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupService;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -443,14 +445,18 @@ public class IdentitySecurityCoreAutoConfiguration {
             HcadProperties hcadProperties,
             ObjectProvider<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorProvider,
             HcadEvaluationWriter hcadEvaluationWriter,
-            HcadObservationWindowRepository hcadObservationWindowRepository) {
+            HcadObservationWindowRepository hcadObservationWindowRepository,
+            ObjectProvider<HcadSemanticEvidenceCache> semanticEvidenceCacheProvider,
+            ObjectProvider<HcadSemanticEvidenceWarmupService> semanticEvidenceWarmupServiceProvider) {
         return new HCADFilter(
                 trustedHcadContextProjectionFactory,
                 hcadPreProtectablePromotionScorer,
                 hcadProperties,
                 pendingAnomalyTriggerOrchestratorProvider::getIfAvailable,
                 () -> hcadEvaluationWriter,
-                hcadObservationWindowRepository);
+                hcadObservationWindowRepository,
+                semanticEvidenceCacheProvider::getIfAvailable,
+                semanticEvidenceWarmupServiceProvider::getIfAvailable);
     }
 
     @Bean

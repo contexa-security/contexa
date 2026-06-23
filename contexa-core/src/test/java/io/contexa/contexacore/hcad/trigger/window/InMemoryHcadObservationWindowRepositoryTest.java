@@ -147,6 +147,37 @@ class InMemoryHcadObservationWindowRepositoryTest {
         assertThat(third.windowId()).isNotEqualTo(first.windowId());
     }
 
+    @Test
+    @DisplayName("same window should allow escalation only for a new trusted anchor after deep evaluation")
+    void tryAcquireEscalation_sameWindow_shouldRequireCompletedAndNewAnchor() {
+        InMemoryHcadObservationWindowRepository repository = new InMemoryHcadObservationWindowRepository();
+        HcadObservationWindowLease lease = repository.observe(
+                "actor-1",
+                observation("r1", "GET", "/api/dashboard"),
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(60));
+
+        assertThat(repository.tryAcquireEscalation(
+                "actor-1",
+                lease.windowId(),
+                "IMPOSSIBLE_TRAVEL")).isFalse();
+
+        repository.markDeepEvaluationCompleted("actor-1", lease.windowId(), "IMPOSSIBLE_TRAVEL");
+
+        assertThat(repository.tryAcquireEscalation(
+                "actor-1",
+                lease.windowId(),
+                "IMPOSSIBLE_TRAVEL")).isFalse();
+        assertThat(repository.tryAcquireEscalation(
+                "actor-1",
+                lease.windowId(),
+                "FAILED_LOGIN_BURST")).isTrue();
+        assertThat(repository.tryAcquireEscalation(
+                "actor-1",
+                lease.windowId(),
+                "FAILED_LOGIN_BURST")).isFalse();
+    }
+
     private HcadRequestObservation observation(String requestId, String method, String path) {
         return new HcadRequestObservation(requestId, method, path, path, Instant.now());
     }

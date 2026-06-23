@@ -15,10 +15,13 @@
  */
 package io.contexa.contexacore.hcad.trigger.window;
 
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.invocation.InvocationOnMock;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
@@ -37,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -121,6 +125,39 @@ class RedisHcadObservationWindowRepositoryTest {
         assertThat(latest.duplicateSuppressedCount()).isEqualTo(requestCount - 1);
         assertThat(latest.resourceFamilies()).containsExactly("/api/fanout/{id}");
         verify(redisTemplate, times(requestCount)).execute(any(RedisScript.class), anyList(), any(Object[].class));
+    }
+
+    @Test
+    @DisplayName("Redis repository should allow same-window escalation only for a new trusted anchor")
+    @SuppressWarnings("unchecked")
+    void tryAcquireEscalation_sameWindow_shouldRequireCompletedAndNewAnchor() {
+        String actorSessionKey = "actor-1";
+        String windowId = "window-1";
+        String existingAnchor = "IMPOSSIBLE_TRAVEL";
+        String newAnchor = "FAILED_LOGIN_BURST";
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        SetOperations<String, String> setOperations = mock(SetOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(redisTemplate.opsForSet()).thenReturn(setOperations);
+        String deepEvaluationKey = ZeroTrustRedisKeys.hcadObservationWindowDeepEvaluation(actorSessionKey, windowId);
+        String anchorKey = ZeroTrustRedisKeys.hcadObservationWindowAnchorSignatures(actorSessionKey, windowId);
+        String observationKey = ZeroTrustRedisKeys.hcadObservationWindowObservations(actorSessionKey, windowId);
+        when(redisTemplate.hasKey(deepEvaluationKey)).thenReturn(false, true, true);
+        when(redisTemplate.getExpire(observationKey)).thenReturn(30L);
+        when(setOperations.add(anchorKey, existingAnchor)).thenReturn(1L, 0L);
+        when(setOperations.add(anchorKey, newAnchor)).thenReturn(1L, 0L);
+        RedisHcadObservationWindowRepository repository = new RedisHcadObservationWindowRepository(redisTemplate);
+
+        assertThat(repository.tryAcquireEscalation(actorSessionKey, windowId, existingAnchor)).isFalse();
+
+        repository.markDeepEvaluationCompleted(actorSessionKey, windowId, existingAnchor);
+
+        assertThat(repository.tryAcquireEscalation(actorSessionKey, windowId, existingAnchor)).isFalse();
+        assertThat(repository.tryAcquireEscalation(actorSessionKey, windowId, newAnchor)).isTrue();
+        assertThat(repository.tryAcquireEscalation(actorSessionKey, windowId, newAnchor)).isFalse();
+        verify(valueOperations).set(deepEvaluationKey, "1", Duration.ofSeconds(30));
+        verify(setOperations, times(4)).add(anyString(), anyString());
     }
 
     private static final class FakeObservationScript {

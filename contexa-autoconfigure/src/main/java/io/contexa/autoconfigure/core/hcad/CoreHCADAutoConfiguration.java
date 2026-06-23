@@ -26,6 +26,10 @@ import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.service.GeoIpService;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCacheFactory;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupService;
+import io.contexa.contexacore.hcad.semantic.JdbcHcadSemanticEvidenceWarmupService;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.hcad.store.InMemoryBaselineDataStore;
@@ -57,8 +61,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcOperations;
 
 @AutoConfiguration
@@ -89,6 +95,33 @@ public class CoreHCADAutoConfiguration {
     @ConditionalOnMissingBean
     public HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer(HcadProperties hcadProperties) {
         return new HcadPreProtectablePromotionScorer(hcadProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HcadSemanticEvidenceCache hcadSemanticEvidenceCache(
+            HcadProperties hcadProperties,
+            ObjectMapper objectMapper,
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+            Environment environment) {
+        return HcadSemanticEvidenceCacheFactory.create(
+                environment.getProperty("contexa.infrastructure.mode", "local"),
+                hcadProperties,
+                stringRedisTemplateProvider.getIfAvailable(),
+                objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HcadSemanticEvidenceWarmupService hcadSemanticEvidenceWarmupService(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            HcadProperties hcadProperties,
+            ObjectProvider<TaskExecutor> taskExecutorProvider) {
+        TaskExecutor taskExecutor = taskExecutorProvider.getIfAvailable();
+        return new JdbcHcadSemanticEvidenceWarmupService(
+                jdbcOperationsProvider::getIfAvailable,
+                hcadProperties,
+                taskExecutor == null ? null : taskExecutor::execute);
     }
 
     @Bean

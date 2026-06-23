@@ -24,10 +24,19 @@ import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
 import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
+import io.contexa.contexacore.hcad.semantic.CachedSemanticEvidenceProjection;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCacheStatus;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceEntry;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceKey;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupRequest;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupResult;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupService;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
+import io.contexa.contexacore.hcad.trigger.window.InMemoryHcadObservationWindowRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +57,8 @@ import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,6 +69,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -217,6 +229,232 @@ class HCADFilterTest {
         verify(hcadEvaluationWriter).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any());
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-low");
         assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("semantic evidence cache hit should be passed to scorer without changing actor window key")
+    void doFilterInternal_semanticEvidenceCacheHit_passesProjectionToScorer() throws Exception {
+        setAuthenticated();
+        HcadSemanticEvidenceCache semanticEvidenceCache = mock(HcadSemanticEvidenceCache.class);
+        HcadSemanticEvidenceWarmupService warmupService = mock(HcadSemanticEvidenceWarmupService.class);
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> pendingAnomalyTriggerOrchestrator,
+                () -> hcadEvaluationWriter,
+                new InMemoryHcadObservationWindowRepository(),
+                () -> semanticEvidenceCache,
+                () -> warmupService);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("PRIVILEGED_AUTHORIZATION"),
+                List.of("SEMANTIC_RISK_SIMILARITY", "SEMANTIC_EVIDENCE_MISMATCH"),
+                List.of("PRIVILEGED_AUTHORIZATION", "SEMANTIC_RISK_SIMILARITY", "SEMANTIC_EVIDENCE_MISMATCH"),
+                "semantic evidence projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 75));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(semanticEvidenceCache.get(any())).thenReturn(Optional.of(semanticEntry()));
+        when(preProtectablePromotionScorer.score(eq(projection), any(CachedSemanticEvidenceProjection.class)))
+                .thenReturn(assessment);
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<CachedSemanticEvidenceProjection> evidenceCaptor =
+                ArgumentCaptor.forClass(CachedSemanticEvidenceProjection.class);
+        verify(preProtectablePromotionScorer).score(eq(projection), evidenceCaptor.capture());
+        assertThat(evidenceCaptor.getValue().hasUsableEvidence()).isTrue();
+        assertThat(evidenceCaptor.getValue().maxSimilarityToRisk()).isEqualTo(0.91d);
+        verify(semanticEvidenceCache, times(2)).get(any());
+        assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("semantic evidence cache miss should remain an evidence gap and should not block HCAD")
+    void doFilterInternal_semanticEvidenceCacheMiss_recordsGapOnly() throws Exception {
+        setAuthenticated();
+        HcadSemanticEvidenceCache semanticEvidenceCache = mock(HcadSemanticEvidenceCache.class);
+        HcadSemanticEvidenceWarmupService warmupService = mock(HcadSemanticEvidenceWarmupService.class);
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> pendingAnomalyTriggerOrchestrator,
+                () -> hcadEvaluationWriter,
+                new InMemoryHcadObservationWindowRepository(),
+                () -> semanticEvidenceCache,
+                () -> warmupService);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                "cache miss stays gap-only",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 10));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(semanticEvidenceCache.get(any())).thenReturn(Optional.empty());
+        when(warmupService.requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache)))
+                .thenReturn(HcadSemanticEvidenceWarmupResult.queued());
+        when(preProtectablePromotionScorer.score(eq(projection), any(CachedSemanticEvidenceProjection.class)))
+                .thenReturn(assessment);
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<CachedSemanticEvidenceProjection> evidenceCaptor =
+                ArgumentCaptor.forClass(CachedSemanticEvidenceProjection.class);
+        verify(preProtectablePromotionScorer).score(eq(projection), evidenceCaptor.capture());
+        assertThat(evidenceCaptor.getValue().hasUsableEvidence()).isFalse();
+        assertThat(evidenceCaptor.getValue().evidenceGapCodes())
+                .contains("SEMANTIC_EVIDENCE_CACHE_MISS", "WARMUP_QUEUED");
+        verify(semanticEvidenceCache, times(2)).get(any());
+        verify(semanticEvidenceCache, never()).put(any(), any());
+        verify(warmupService, times(2)).requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache));
+        assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("semantic evidence lookup timeout should be recorded without blocking or warming up")
+    void doFilterInternal_semanticEvidenceLookupTimeout_recordsGapOnly() throws Exception {
+        setAuthenticated();
+        hcadProperties.getSemanticEvidence().setLookupTimeoutMs(5);
+        HcadSemanticEvidenceCache semanticEvidenceCache = mock(HcadSemanticEvidenceCache.class);
+        HcadSemanticEvidenceWarmupService warmupService = mock(HcadSemanticEvidenceWarmupService.class);
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> pendingAnomalyTriggerOrchestrator,
+                () -> hcadEvaluationWriter,
+                new InMemoryHcadObservationWindowRepository(),
+                () -> semanticEvidenceCache,
+                () -> warmupService);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                "lookup timeout stays gap-only",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 10));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(semanticEvidenceCache.provider()).thenReturn(
+                HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.REDIS);
+        when(semanticEvidenceCache.get(any())).thenAnswer(invocation -> {
+            Thread.sleep(50);
+            return Optional.empty();
+        });
+        when(preProtectablePromotionScorer.score(eq(projection), any(CachedSemanticEvidenceProjection.class)))
+                .thenReturn(assessment);
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<CachedSemanticEvidenceProjection> evidenceCaptor =
+                ArgumentCaptor.forClass(CachedSemanticEvidenceProjection.class);
+        verify(preProtectablePromotionScorer).score(eq(projection), evidenceCaptor.capture());
+        assertThat(evidenceCaptor.getValue().evidenceGapCodes())
+                .contains("SEMANTIC_EVIDENCE_LOOKUP_TIMEOUT");
+        verify(warmupService, never())
+                .requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache));
+    }
+
+    @Test
+    @DisplayName("semantic evidence mismatch should be recorded and should request current-key warmup")
+    void doFilterInternal_semanticEvidenceMismatch_requestsWarmup() throws Exception {
+        setAuthenticated();
+        HcadSemanticEvidenceCache semanticEvidenceCache = mock(HcadSemanticEvidenceCache.class);
+        HcadSemanticEvidenceWarmupService warmupService = mock(HcadSemanticEvidenceWarmupService.class);
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> pendingAnomalyTriggerOrchestrator,
+                () -> hcadEvaluationWriter,
+                new InMemoryHcadObservationWindowRepository(),
+                () -> semanticEvidenceCache,
+                () -> warmupService);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                "mismatch stays gap-only",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 10));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(semanticEvidenceCache.get(any()))
+                .thenReturn(Optional.of(semanticEntry()
+                        .withStatus(HcadSemanticEvidenceCacheStatus.VERSION_MISMATCH, "VERSION_MISMATCH")));
+        when(warmupService.requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache)))
+                .thenReturn(HcadSemanticEvidenceWarmupResult.queued());
+        when(preProtectablePromotionScorer.score(eq(projection), any(CachedSemanticEvidenceProjection.class)))
+                .thenReturn(assessment);
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<CachedSemanticEvidenceProjection> evidenceCaptor =
+                ArgumentCaptor.forClass(CachedSemanticEvidenceProjection.class);
+        verify(preProtectablePromotionScorer).score(eq(projection), evidenceCaptor.capture());
+        assertThat(evidenceCaptor.getValue().hasUsableEvidence()).isFalse();
+        assertThat(evidenceCaptor.getValue().evidenceGapCodes())
+                .contains("VERSION_MISMATCH", "WARMUP_QUEUED");
+        verify(warmupService, times(2))
+                .requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache));
+    }
+
+    @Test
+    @DisplayName("semantic source absent negative cache hit should be recorded on the evaluation")
+    void doFilterInternal_semanticNegativeCacheHit_marksEvaluationNegativeCacheHit() throws Exception {
+        setAuthenticated();
+        HcadSemanticEvidenceCache semanticEvidenceCache = mock(HcadSemanticEvidenceCache.class);
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> null,
+                () -> hcadEvaluationWriter,
+                new InMemoryHcadObservationWindowRepository(),
+                () -> semanticEvidenceCache,
+                () -> null);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                "source absent stays gap-only",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 10));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(semanticEvidenceCache.get(any())).thenReturn(Optional.of(sourceAbsentEntry()));
+        when(preProtectablePromotionScorer.score(eq(projection), any(CachedSemanticEvidenceProjection.class)))
+                .thenReturn(assessment);
+        when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-negative");
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<CachedSemanticEvidenceProjection> evidenceCaptor =
+                ArgumentCaptor.forClass(CachedSemanticEvidenceProjection.class);
+        verify(preProtectablePromotionScorer).score(eq(projection), evidenceCaptor.capture());
+        assertThat(evidenceCaptor.getValue().evidenceGapCodes()).contains("SOURCE_ABSENT");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT))
+                .isEqualTo(true);
+        verify(hcadEvaluationWriter).markNegativeCacheHit("eval-negative");
     }
 
     @Test
@@ -582,5 +820,55 @@ class HCADFilterTest {
         request.setRemoteAddr(remoteAddr);
         request.addHeader("User-Agent", userAgent);
         return request;
+    }
+
+    private HcadSemanticEvidenceEntry semanticEntry() {
+        return new HcadSemanticEvidenceEntry(
+                HcadSemanticEvidenceKey.riskRequestSimilarity(
+                        "tenant-1",
+                        "testUser",
+                        "/api/test",
+                        "policy-1",
+                        HcadPromptSecurityContextFieldRegistry.version(),
+                        hcadProperties.getSemanticEvidence().getEmbeddingModel(),
+                        hcadProperties.getVector().getEmbeddingDimension(),
+                        hcadProperties.getSemanticEvidence().getEvidenceVersion()),
+                HcadSemanticEvidenceCacheStatus.HIT,
+                "source-v1",
+                hcadProperties.getSemanticEvidence().getEvidenceVersion(),
+                hcadProperties.getSemanticEvidence().getEmbeddingModel(),
+                hcadProperties.getVector().getEmbeddingDimension(),
+                0.2d,
+                0.91d,
+                0.7d,
+                "{}",
+                List.of(),
+                Instant.now(),
+                Instant.now().plusSeconds(300));
+    }
+
+    private HcadSemanticEvidenceEntry sourceAbsentEntry() {
+        return new HcadSemanticEvidenceEntry(
+                HcadSemanticEvidenceKey.riskRequestSimilarity(
+                        "tenant-1",
+                        "testUser",
+                        "/api/test",
+                        "policy-1",
+                        HcadPromptSecurityContextFieldRegistry.version(),
+                        hcadProperties.getSemanticEvidence().getEmbeddingModel(),
+                        hcadProperties.getVector().getEmbeddingDimension(),
+                        hcadProperties.getSemanticEvidence().getEvidenceVersion()),
+                HcadSemanticEvidenceCacheStatus.NEGATIVE_CACHE_HIT,
+                null,
+                hcadProperties.getSemanticEvidence().getEvidenceVersion(),
+                hcadProperties.getSemanticEvidence().getEmbeddingModel(),
+                hcadProperties.getVector().getEmbeddingDimension(),
+                null,
+                null,
+                null,
+                null,
+                List.of("SOURCE_ABSENT"),
+                Instant.now(),
+                Instant.now().plusSeconds(300));
     }
 }

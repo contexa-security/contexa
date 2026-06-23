@@ -22,6 +22,14 @@ import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.HcadTrustedAnchorSignalProbe;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
+import io.contexa.contexacore.hcad.semantic.CachedSemanticEvidenceProjection;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCacheStatus;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceEntry;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceKey;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupRequest;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupResult;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupService;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.hcad.trigger.HcadActorSessionKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
@@ -48,8 +56,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -59,6 +74,8 @@ public class HCADFilter extends OncePerRequestFilter {
     private final HcadPreProtectablePromotionScorer preProtectablePromotionScorer;
     private final Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier;
     private final Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier;
+    private final Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier;
+    private final Supplier<HcadSemanticEvidenceWarmupService> semanticEvidenceWarmupServiceSupplier;
     private final HcadObservationWindowRepository observationWindowRepository;
     private final HcadProperties hcadProperties;
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
@@ -105,6 +122,8 @@ public class HCADFilter extends OncePerRequestFilter {
         this.hcadProperties = hcadProperties;
         this.pendingAnomalyTriggerOrchestratorSupplier = pendingAnomalyTriggerOrchestratorSupplier;
         this.hcadEvaluationWriterSupplier = hcadEvaluationWriterSupplier;
+        this.semanticEvidenceCacheSupplier = null;
+        this.semanticEvidenceWarmupServiceSupplier = null;
         this.observationWindowRepository = new InMemoryHcadObservationWindowRepository();
     }
 
@@ -115,11 +134,52 @@ public class HCADFilter extends OncePerRequestFilter {
             Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier,
             Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier,
             HcadObservationWindowRepository observationWindowRepository) {
+        this(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                pendingAnomalyTriggerOrchestratorSupplier,
+                hcadEvaluationWriterSupplier,
+                observationWindowRepository,
+                null,
+                null);
+    }
+
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier,
+            Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier,
+            HcadObservationWindowRepository observationWindowRepository,
+            Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier) {
+        this(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                pendingAnomalyTriggerOrchestratorSupplier,
+                hcadEvaluationWriterSupplier,
+                observationWindowRepository,
+                semanticEvidenceCacheSupplier,
+                null);
+    }
+
+    public HCADFilter(
+            TrustedHcadContextProjectionFactory trustedProjectionFactory,
+            HcadPreProtectablePromotionScorer preProtectablePromotionScorer,
+            HcadProperties hcadProperties,
+            Supplier<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorSupplier,
+            Supplier<HcadEvaluationWriter> hcadEvaluationWriterSupplier,
+            HcadObservationWindowRepository observationWindowRepository,
+            Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier,
+            Supplier<HcadSemanticEvidenceWarmupService> semanticEvidenceWarmupServiceSupplier) {
         this.trustedProjectionFactory = trustedProjectionFactory;
         this.preProtectablePromotionScorer = preProtectablePromotionScorer;
         this.hcadProperties = hcadProperties;
         this.pendingAnomalyTriggerOrchestratorSupplier = pendingAnomalyTriggerOrchestratorSupplier;
         this.hcadEvaluationWriterSupplier = hcadEvaluationWriterSupplier;
+        this.semanticEvidenceCacheSupplier = semanticEvidenceCacheSupplier;
+        this.semanticEvidenceWarmupServiceSupplier = semanticEvidenceWarmupServiceSupplier;
         this.observationWindowRepository = observationWindowRepository == null
                 ? new InMemoryHcadObservationWindowRepository()
                 : observationWindowRepository;
@@ -185,7 +245,12 @@ public class HCADFilter extends OncePerRequestFilter {
             }
 
             TrustedHcadContextProjection projection = trustedProjectionFactory.project(request, authentication);
-            HcadPreProtectablePromotionAssessment assessment = preProtectablePromotionScorer.score(projection);
+            CachedSemanticEvidenceProjection semanticEvidence = semanticEvidenceCacheSupplier == null
+                    ? null
+                    : resolveSemanticEvidence(request, projection);
+            HcadPreProtectablePromotionAssessment assessment = semanticEvidence == null
+                    ? preProtectablePromotionScorer.score(projection)
+                    : preProtectablePromotionScorer.score(projection, semanticEvidence);
             String projectedActorSessionKey = HcadActorSessionKeyFactory.fromProjection(projection);
             windowLease = observationWindowRepository
                     .snapshot(actorSessionKey, windowLease.windowId())
@@ -247,6 +312,153 @@ public class HCADFilter extends OncePerRequestFilter {
                 observation,
                 Duration.ofMillis(Math.max(1L, hcadProperties.getPreTrigger().getCoalesceWindowMs())),
                 Duration.ofSeconds(Math.max(1, hcadProperties.getPreTrigger().getObservationTtlSeconds())));
+    }
+
+    private CachedSemanticEvidenceProjection resolveSemanticEvidence(
+            HttpServletRequest request,
+            TrustedHcadContextProjection projection) {
+        HcadSemanticEvidenceCache cache = semanticEvidenceCacheSupplier == null
+                ? null
+                : semanticEvidenceCacheSupplier.get();
+        if (cache == null || projection == null) {
+            return CachedSemanticEvidenceProjection.unavailable("SEMANTIC_EVIDENCE_CACHE_UNAVAILABLE");
+        }
+        List<HcadSemanticEvidenceEntry> entries = new ArrayList<>();
+        List<String> gaps = new ArrayList<>();
+        for (HcadSemanticEvidenceKey key : semanticEvidenceKeys(projection)) {
+            SemanticEvidenceLookup lookup = lookupSemanticEvidence(cache, key);
+            if (lookup.gapCode() != null) {
+                gaps.add(lookup.gapCode());
+                if (lookup.terminalFailure()) {
+                    continue;
+                }
+            }
+            Optional<HcadSemanticEvidenceEntry> entry = lookup.entry();
+            if (entry.isPresent()) {
+                entries.add(entry.get());
+                if (entry.get().status().sourceAbsent() && request != null) {
+                    request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT, true);
+                }
+                if (entry.get().status() == HcadSemanticEvidenceCacheStatus.VERSION_MISMATCH
+                        || entry.get().status() == HcadSemanticEvidenceCacheStatus.DIMENSION_MISMATCH) {
+                    HcadSemanticEvidenceWarmupResult warmupResult =
+                            requestSemanticEvidenceWarmup(projection, cache, key);
+                    appendWarmupGaps(gaps, warmupResult);
+                }
+            } else {
+                gaps.add("SEMANTIC_EVIDENCE_CACHE_MISS");
+                HcadSemanticEvidenceWarmupResult warmupResult = requestSemanticEvidenceWarmup(projection, cache, key);
+                appendWarmupGaps(gaps, warmupResult);
+            }
+        }
+        CachedSemanticEvidenceProjection projectionEvidence = CachedSemanticEvidenceProjection.of(entries);
+        if (gaps.isEmpty()) {
+            return projectionEvidence;
+        }
+        List<String> mergedGaps = new ArrayList<>(projectionEvidence.evidenceGapCodes());
+        mergedGaps.addAll(gaps);
+        return new CachedSemanticEvidenceProjection(entries, mergedGaps);
+    }
+
+    private SemanticEvidenceLookup lookupSemanticEvidence(
+            HcadSemanticEvidenceCache cache,
+            HcadSemanticEvidenceKey key) {
+        if (cache == null || key == null) {
+            return SemanticEvidenceLookup.empty("SEMANTIC_EVIDENCE_CACHE_UNAVAILABLE", true);
+        }
+        int timeoutMs = hcadProperties == null || hcadProperties.getSemanticEvidence() == null
+                ? 0
+                : hcadProperties.getSemanticEvidence().getLookupTimeoutMs();
+        HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider provider = cache.provider();
+        if (provider != HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.REDIS
+                || timeoutMs <= 0) {
+            try {
+                return new SemanticEvidenceLookup(cache.get(key), null, false);
+            } catch (RuntimeException ex) {
+                log.debug("[HCAD] semantic evidence lookup failed: type={}, resourceId={}",
+                        key.type(), key.resourceId(), ex);
+                return SemanticEvidenceLookup.empty("SEMANTIC_EVIDENCE_LOOKUP_FAILED", true);
+            }
+        }
+        CompletableFuture<Optional<HcadSemanticEvidenceEntry>> lookup =
+                CompletableFuture.supplyAsync(() -> cache.get(key));
+        try {
+            return new SemanticEvidenceLookup(lookup.get(timeoutMs, TimeUnit.MILLISECONDS), null, false);
+        } catch (TimeoutException ex) {
+            lookup.cancel(true);
+            return SemanticEvidenceLookup.empty("SEMANTIC_EVIDENCE_LOOKUP_TIMEOUT", true);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return SemanticEvidenceLookup.empty("SEMANTIC_EVIDENCE_LOOKUP_FAILED", true);
+        } catch (ExecutionException | RuntimeException ex) {
+            return SemanticEvidenceLookup.empty("SEMANTIC_EVIDENCE_LOOKUP_FAILED", true);
+        }
+    }
+
+    private void appendWarmupGaps(List<String> gaps, HcadSemanticEvidenceWarmupResult warmupResult) {
+        if (gaps == null || warmupResult == null) {
+            return;
+        }
+        if (warmupResult.status() != null) {
+            gaps.add(warmupResult.status().name());
+        }
+        if (warmupResult.reasonCode() != null) {
+            gaps.add(warmupResult.reasonCode());
+        }
+    }
+
+    private HcadSemanticEvidenceWarmupResult requestSemanticEvidenceWarmup(
+            TrustedHcadContextProjection projection,
+            HcadSemanticEvidenceCache cache,
+            HcadSemanticEvidenceKey key) {
+        HcadSemanticEvidenceWarmupService warmupService = semanticEvidenceWarmupServiceSupplier == null
+                ? null
+                : semanticEvidenceWarmupServiceSupplier.get();
+        if (warmupService == null) {
+            return HcadSemanticEvidenceWarmupResult.unavailable("WARMUP_SERVICE_UNAVAILABLE");
+        }
+        return warmupService.requestWarmup(new HcadSemanticEvidenceWarmupRequest(projection, key), cache);
+    }
+
+    private List<HcadSemanticEvidenceKey> semanticEvidenceKeys(TrustedHcadContextProjection projection) {
+        if (projection == null) {
+            return List.of();
+        }
+        String resourceId = HcadRequestPathUtils.resourceFamily(projection.normalizedPath());
+        HcadProperties.SemanticEvidenceSettings settings = hcadProperties.getSemanticEvidence();
+        int dimension = Math.max(1, hcadProperties.getVector().getEmbeddingDimension());
+        return List.of(
+                HcadSemanticEvidenceKey.normalRequestSimilarity(
+                        projection.tenantId(),
+                        projection.userId(),
+                        resourceId,
+                        settings.getBaselineVersion(),
+                        settings.getEmbeddingModel(),
+                        dimension,
+                        settings.getEvidenceVersion()),
+                HcadSemanticEvidenceKey.riskRequestSimilarity(
+                        projection.tenantId(),
+                        projection.userId(),
+                        resourceId,
+                        firstText(projection.authorizationPolicyId(), "policy-unknown"),
+                        firstText(projection.promptContextContractVersion(), "prompt-unknown"),
+                        settings.getEmbeddingModel(),
+                        dimension,
+                        settings.getEvidenceVersion()));
+    }
+
+    private record SemanticEvidenceLookup(
+            Optional<HcadSemanticEvidenceEntry> entry,
+            String gapCode,
+            boolean terminalFailure) {
+
+        private SemanticEvidenceLookup {
+            entry = entry == null ? Optional.empty() : entry;
+        }
+
+        static SemanticEvidenceLookup empty(String gapCode, boolean terminalFailure) {
+            return new SemanticEvidenceLookup(Optional.empty(), gapCode, terminalFailure);
+        }
     }
 
     private void updateWindowObservation(String actorSessionKey, HcadObservationWindowLease windowLease) {

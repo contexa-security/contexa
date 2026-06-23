@@ -18,6 +18,7 @@ package io.contexa.contexacore.hcad.promotion;
 import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
+import io.contexa.contexacore.hcad.semantic.CachedSemanticEvidenceProjection;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.springframework.util.StringUtils;
 
@@ -36,6 +37,12 @@ public class HcadPreProtectablePromotionScorer {
     }
 
     public HcadPreProtectablePromotionAssessment score(TrustedHcadContextProjection projection) {
+        return score(projection, CachedSemanticEvidenceProjection.unavailable("SEMANTIC_EVIDENCE_NOT_REQUESTED"));
+    }
+
+    public HcadPreProtectablePromotionAssessment score(
+            TrustedHcadContextProjection projection,
+            CachedSemanticEvidenceProjection semanticEvidence) {
         if (projection == null) {
             return HcadPreProtectablePromotionAssessment.unavailable(
                     "Trusted HCAD context projection was not available for pre-protectable promotion scoring.");
@@ -44,6 +51,10 @@ public class HcadPreProtectablePromotionScorer {
         List<HcadPreProtectablePromotionSignal> anchors = new ArrayList<>();
         List<HcadPreProtectablePromotionSignal> corroborating = new ArrayList<>();
         Map<String, Object> rawSignals = createRawSignalSnapshot(projection);
+        CachedSemanticEvidenceProjection evidence = semanticEvidence == null
+                ? CachedSemanticEvidenceProjection.unavailable("SEMANTIC_EVIDENCE_NOT_AVAILABLE")
+                : semanticEvidence;
+        rawSignals.put("semanticEvidence", evidence.snapshot());
 
         if (Boolean.TRUE.equals(projection.impossibleTravel())
                 && projection.hasScorableTrustedSource("impossibleTravel", HcadTrustedSource.STORE_DERIVED)) {
@@ -88,8 +99,19 @@ public class HcadPreProtectablePromotionScorer {
         if (hasMaterialBaselineMismatch(projection)) {
             corroborating.add(HcadPreProtectablePromotionSignal.BASELINE_MATERIAL_MISMATCH);
         }
+        List<HcadPreProtectablePromotionSignal> semanticCorroborating = new ArrayList<>();
+        if (evidence.hasMismatchAtLeast(hcadProperties.getSemanticEvidence().getMismatchScoreThreshold())) {
+            semanticCorroborating.add(HcadPreProtectablePromotionSignal.SEMANTIC_EVIDENCE_MISMATCH);
+        }
+        if (evidence.hasRiskSimilarityAtLeast(hcadProperties.getSemanticEvidence().getRiskSimilarityThreshold())) {
+            semanticCorroborating.add(HcadPreProtectablePromotionSignal.SEMANTIC_RISK_SIMILARITY);
+        }
+        corroborating.addAll(semanticCorroborating);
 
-        int score = calculateScore(anchors, corroborating);
+        int structuredScore = calculateScore(anchors, corroboratingWithoutSemantic(corroborating));
+        int semanticScore = calculateSemanticScore(semanticCorroborating, evidence);
+        int normalSuppressionScore = calculateNormalSimilaritySuppression(evidence);
+        int score = boundScore(structuredScore + semanticScore - normalSuppressionScore);
         List<String> anchorSignals = anchors.stream().map(Enum::name).toList();
         List<String> corroboratingSignals = corroborating.stream().map(Enum::name).toList();
         List<String> reasonCodes = new ArrayList<>(anchorSignals);
@@ -104,6 +126,10 @@ public class HcadPreProtectablePromotionScorer {
 
         rawSignals.put("earlyAnalysisScore", score);
         rawSignals.put("preTriggerScore", score);
+        rawSignals.put("structuredScore", structuredScore);
+        rawSignals.put("semanticEvidenceScore", semanticScore);
+        rawSignals.put("semanticNormalSuppressionScore", normalSuppressionScore);
+        rawSignals.put("semanticEvidenceScoreApplied", semanticScore - normalSuppressionScore);
         rawSignals.put("earlyAnalysisBand", band.serializedValue());
         rawSignals.put("earlyAnalysisEligible", eligible);
         rawSignals.put("earlyAnalysisVersion", "hcad-early-analysis-v2-trusted-projection");
@@ -166,7 +192,50 @@ public class HcadPreProtectablePromotionScorer {
         for (HcadPreProtectablePromotionSignal signal : corroborating) {
             score += signal.weight();
         }
-        return Math.min(100, score);
+        return boundScore(score);
+    }
+
+    private int calculateSemanticScore(
+            List<HcadPreProtectablePromotionSignal> semanticCorroborating,
+            CachedSemanticEvidenceProjection evidence) {
+        if (semanticCorroborating == null || semanticCorroborating.isEmpty() || evidence == null) {
+            return 0;
+        }
+        int score = 0;
+        for (HcadPreProtectablePromotionSignal signal : semanticCorroborating) {
+            score += signal.weight();
+        }
+        if (evidence.hasStaleHit() && !evidence.hasFreshHit()) {
+            double multiplier = Math.max(0.0d, Math.min(1.0d,
+                    hcadProperties.getSemanticEvidence().getStaleEvidenceWeightMultiplier()));
+            score = (int) Math.round(score * multiplier);
+        }
+        return boundScore(score);
+    }
+
+    private int calculateNormalSimilaritySuppression(CachedSemanticEvidenceProjection evidence) {
+        if (evidence == null || !evidence.hasUsableEvidence()) {
+            return 0;
+        }
+        if (evidence.maxSimilarityToNormal() < hcadProperties.getSemanticEvidence().getNormalSimilarityThreshold()) {
+            return 0;
+        }
+        return Math.max(0, hcadProperties.getSemanticEvidence().getNormalSimilaritySuppressionScore());
+    }
+
+    private List<HcadPreProtectablePromotionSignal> corroboratingWithoutSemantic(
+            List<HcadPreProtectablePromotionSignal> corroborating) {
+        if (corroborating == null || corroborating.isEmpty()) {
+            return List.of();
+        }
+        return corroborating.stream()
+                .filter(signal -> signal != HcadPreProtectablePromotionSignal.SEMANTIC_EVIDENCE_MISMATCH)
+                .filter(signal -> signal != HcadPreProtectablePromotionSignal.SEMANTIC_RISK_SIMILARITY)
+                .toList();
+    }
+
+    private int boundScore(int score) {
+        return Math.max(0, Math.min(100, score));
     }
 
     private boolean hasTriggerQuorum(

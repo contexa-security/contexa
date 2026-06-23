@@ -120,6 +120,47 @@ public class RedisHcadObservationWindowRepository implements HcadObservationWind
                 extract(values, 2)));
     }
 
+    @Override
+    public boolean tryAcquireEscalation(String actorSessionKey, String windowId, String anchorSignature) {
+        if (!StringUtils.hasText(actorSessionKey)
+                || !StringUtils.hasText(windowId)
+                || !StringUtils.hasText(anchorSignature)) {
+            return false;
+        }
+        String deepEvaluationKey = ZeroTrustRedisKeys.hcadObservationWindowDeepEvaluation(actorSessionKey, windowId);
+        if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(deepEvaluationKey))) {
+            return false;
+        }
+        String anchorKey = ZeroTrustRedisKeys.hcadObservationWindowAnchorSignatures(actorSessionKey, windowId);
+        Long added = stringRedisTemplate.opsForSet().add(anchorKey, anchorSignature);
+        if (added == null || added <= 0L) {
+            return false;
+        }
+        Duration ttl = observationTtl(actorSessionKey, windowId);
+        if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
+            stringRedisTemplate.expire(anchorKey, ttl);
+        }
+        return true;
+    }
+
+    @Override
+    public void markDeepEvaluationCompleted(String actorSessionKey, String windowId, String anchorSignature) {
+        if (!StringUtils.hasText(actorSessionKey) || !StringUtils.hasText(windowId)) {
+            return;
+        }
+        String deepEvaluationKey = ZeroTrustRedisKeys.hcadObservationWindowDeepEvaluation(actorSessionKey, windowId);
+        Duration ttl = observationTtl(actorSessionKey, windowId);
+        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
+            ttl = Duration.ofSeconds(60);
+        }
+        stringRedisTemplate.opsForValue().set(deepEvaluationKey, "1", ttl);
+        if (StringUtils.hasText(anchorSignature)) {
+            String anchorKey = ZeroTrustRedisKeys.hcadObservationWindowAnchorSignatures(actorSessionKey, windowId);
+            stringRedisTemplate.opsForSet().add(anchorKey, anchorSignature);
+            stringRedisTemplate.expire(anchorKey, ttl);
+        }
+    }
+
     private List<String> executeObserveScript(
             String windowKey,
             String newWindowId,
@@ -161,6 +202,18 @@ public class RedisHcadObservationWindowRepository implements HcadObservationWind
             return fallback;
         }
         return value;
+    }
+
+    private Duration observationTtl(String actorSessionKey, String windowId) {
+        if (!StringUtils.hasText(actorSessionKey) || !StringUtils.hasText(windowId)) {
+            return null;
+        }
+        Long ttlSeconds = stringRedisTemplate.getExpire(
+                ZeroTrustRedisKeys.hcadObservationWindowObservations(actorSessionKey, windowId));
+        if (ttlSeconds == null || ttlSeconds <= 0L) {
+            return null;
+        }
+        return Duration.ofSeconds(ttlSeconds);
     }
 
     private String encode(HcadRequestObservation observation) {

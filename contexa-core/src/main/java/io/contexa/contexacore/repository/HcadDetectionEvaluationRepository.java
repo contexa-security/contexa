@@ -620,6 +620,38 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
                              else 'FAILED_LOGIN_HISTORY_ABSENT'
                            end
                       from monitorable_rows
+                    union all
+                    select case
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%CACHE_MISS_SOURCE_AVAILABLE%'
+                               then 'SEMANTIC_EVIDENCE_SOURCE_AVAILABLE'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceAvailable}' = 'true'
+                               and snapshot #>> '{semanticEvidence,semanticEvidenceFreshHit}' = 'true'
+                               then 'SEMANTIC_EVIDENCE_AVAILABLE'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceAvailable}' = 'true'
+                               and snapshot #>> '{semanticEvidence,semanticEvidenceStaleHit}' = 'true'
+                               then 'SEMANTIC_EVIDENCE_STALE'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%DIMENSION_MISMATCH%'
+                               then 'SEMANTIC_EVIDENCE_DIMENSION_MISMATCH'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%VERSION_MISMATCH%'
+                               then 'SEMANTIC_EVIDENCE_VERSION_MISMATCH'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%SEMANTIC_EVIDENCE_LOOKUP_TIMEOUT%'
+                               then 'SEMANTIC_EVIDENCE_LOOKUP_TIMEOUT'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%SEMANTIC_EVIDENCE_LOOKUP_FAILED%'
+                               then 'SEMANTIC_EVIDENCE_LOOKUP_FAILED'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%WARMUP_FAILED%'
+                               then 'SEMANTIC_EVIDENCE_WARMUP_FAILED'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%WARMUP_QUEUED%'
+                               then 'SEMANTIC_EVIDENCE_WARMUP_QUEUED'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%SEMANTIC_EVIDENCE_CACHE_MISS%'
+                               then 'SEMANTIC_EVIDENCE_CACHE_MISS'
+                             when snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%SOURCE_ABSENT%'
+                               or snapshot #>> '{semanticEvidence,semanticEvidenceGapCodes}' like '%NEGATIVE_CACHE_HIT%'
+                               then 'SEMANTIC_EVIDENCE_SOURCE_ABSENT'
+                             when jsonb_exists(snapshot, 'semanticEvidence')
+                               then 'SEMANTIC_EVIDENCE_MISSING'
+                             else 'SEMANTIC_EVIDENCE_NOT_REQUESTED'
+                           end
+                      from monitorable_rows
               ) coverage
              group by coverage_key
              order by coverage_key asc

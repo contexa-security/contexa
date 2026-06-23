@@ -28,7 +28,9 @@ public enum HcadPreProtectablePromotionSignal {
     RAPID_SEQUENCE(false, 10, List.of("rapidSequence")),
     PREVIOUS_PATH_JUMP(false, 10, List.of("previousPath", "normalizedPath")),
     LOW_AUTH_ASSURANCE(false, 15, List.of("authenticationAssurance")),
-    BASELINE_MATERIAL_MISMATCH(false, 20, List.of("baselineComparison"));
+    BASELINE_MATERIAL_MISMATCH(false, 20, List.of("baselineComparison")),
+    SEMANTIC_EVIDENCE_MISMATCH(false, 15, List.of("semanticEvidence")),
+    SEMANTIC_RISK_SIMILARITY(false, 20, List.of("semanticEvidence"));
 
     private final boolean anchor;
     private final int weight;

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceType;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -56,6 +57,9 @@ public class HcadProperties {
 
     @NestedConfigurationProperty
     private VectorSettings vector = new VectorSettings();
+
+    @NestedConfigurationProperty
+    private SemanticEvidenceSettings semanticEvidence = new SemanticEvidenceSettings();
 
     @NestedConfigurationProperty
     private SessionSettings session = new SessionSettings();
@@ -185,6 +189,48 @@ public class HcadProperties {
         private int maxCachedEmbeddings = 1000;
         private double similarityThreshold = 0.85;
         private boolean scenarioDetectionEnabled = true;
+    }
+
+    @Data
+    public static class SemanticEvidenceSettings {
+        private boolean enabled = true;
+        private EvidenceCacheProvider provider = EvidenceCacheProvider.AUTO;
+        private int lookupTimeoutMs = 25;
+        private int maxCaffeineEntries = 10000;
+        private String redisKeyPrefix = "hcad:semantic:evidence:";
+        private int userBaselineTtlMinutes = 1440;
+        private int sessionFlowTtlMinutes = 30;
+        private int resourceDecisionSummaryTtlMinutes = 60;
+        private int policyPromptSnapshotTtlMinutes = 60;
+        private int similarityTtlMinutes = 30;
+        private int sourceAbsentNegativeTtlSeconds = 300;
+        private int warmupRetryTtlSeconds = 30;
+        private String embeddingModel = "default";
+        private String evidenceVersion = "hcad-semantic-evidence-v1";
+        private String baselineVersion = "hcad-baseline-v1";
+        private String flowVersion = "hcad-session-flow-v1";
+        private double riskSimilarityThreshold = 0.80d;
+        private double normalSimilarityThreshold = 0.85d;
+        private double mismatchScoreThreshold = 0.65d;
+        private int normalSimilaritySuppressionScore = 10;
+        private double staleEvidenceWeightMultiplier = 0.5d;
+
+        public long ttlSecondsFor(HcadSemanticEvidenceType type) {
+            return switch (type) {
+                case USER_NORMAL_BASELINE -> userBaselineTtlMinutes * 60L;
+                case SESSION_RECENT_FLOW -> sessionFlowTtlMinutes * 60L;
+                case RESOURCE_LLM_DECISION_SUMMARY -> resourceDecisionSummaryTtlMinutes * 60L;
+                case POLICY_PROMPT_VERSION_SNAPSHOT -> policyPromptSnapshotTtlMinutes * 60L;
+                case NORMAL_REQUEST_SIMILARITY, RISK_REQUEST_SIMILARITY -> similarityTtlMinutes * 60L;
+            };
+        }
+
+        public enum EvidenceCacheProvider {
+            AUTO,
+            CAFFEINE,
+            REDIS,
+            DISABLED
+        }
     }
 
     @Data

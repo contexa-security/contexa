@@ -20,8 +20,14 @@ import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCacheStatus;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceEntry;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceKey;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -322,12 +328,16 @@ public class HcadExtremeTestAutoConfiguration {
         private final HCADDataStore hcadDataStore;
         private final SecurityContextDataStore securityContextDataStore;
         private final BaselineDataStore baselineDataStore;
+        private final HcadSemanticEvidenceCache semanticEvidenceCache;
+        private final HcadProperties hcadProperties;
 
         public HcadExtremeTestController(
                 HcadExtremeTestService service,
                 ObjectProvider<HCADDataStore> hcadDataStoreProvider,
                 ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider,
-                ObjectProvider<BaselineDataStore> baselineDataStoreProvider) {
+                ObjectProvider<BaselineDataStore> baselineDataStoreProvider,
+                ObjectProvider<HcadSemanticEvidenceCache> semanticEvidenceCacheProvider,
+                ObjectProvider<HcadProperties> hcadPropertiesProvider) {
             this.service = service;
             this.hcadDataStore = hcadDataStoreProvider == null ? null : hcadDataStoreProvider.getIfAvailable();
             this.securityContextDataStore = securityContextDataStoreProvider == null
@@ -336,6 +346,12 @@ public class HcadExtremeTestAutoConfiguration {
             this.baselineDataStore = baselineDataStoreProvider == null
                     ? null
                     : baselineDataStoreProvider.getIfAvailable();
+            this.semanticEvidenceCache = semanticEvidenceCacheProvider == null
+                    ? null
+                    : semanticEvidenceCacheProvider.getIfAvailable();
+            this.hcadProperties = hcadPropertiesProvider == null
+                    ? null
+                    : hcadPropertiesProvider.getIfAvailable();
         }
 
         @PostMapping("/seed/redline")
@@ -434,6 +450,26 @@ public class HcadExtremeTestAutoConfiguration {
                 Authentication authentication,
                 @RequestParam(required = false) String runId) {
             return seedInsufficientBaseline(request, authentication, runId);
+        }
+
+        @PostMapping("/seed/semantic/{mismatchType}")
+        public ResponseEntity<Map<String, Object>> seedSemanticEvidenceMismatch(
+                HttpServletRequest request,
+                Authentication authentication,
+                @PathVariable String mismatchType,
+                @RequestParam(required = false) String runId,
+                @RequestParam(required = false) String targetPath) {
+            return seedSemanticEvidenceMismatchInternal(request, authentication, mismatchType, runId, targetPath);
+        }
+
+        @GetMapping("/seed/semantic/{mismatchType}")
+        public ResponseEntity<Map<String, Object>> seedSemanticEvidenceMismatchGet(
+                HttpServletRequest request,
+                Authentication authentication,
+                @PathVariable String mismatchType,
+                @RequestParam(required = false) String runId,
+                @RequestParam(required = false) String targetPath) {
+            return seedSemanticEvidenceMismatchInternal(request, authentication, mismatchType, runId, targetPath);
         }
 
         @GetMapping("/protectable/allow")
@@ -553,18 +589,116 @@ public class HcadExtremeTestAutoConfiguration {
             }
             return true;
         }
+
+        private ResponseEntity<Map<String, Object>> seedSemanticEvidenceMismatchInternal(
+                HttpServletRequest request,
+                Authentication authentication,
+                String mismatchType,
+                String runId,
+                String targetPath) {
+            String resolvedRunId = firstText(runId, request != null ? request.getHeader(RUN_ID_HEADER) : null, "semantic-mismatch");
+            if (semanticEvidenceCache == null || hcadProperties == null) {
+                return ResponseEntity.status(503).body(Map.of(
+                        "seeded", false,
+                        "reason", "semantic-evidence-cache-unavailable",
+                        "runId", resolvedRunId));
+            }
+            HcadProperties.SemanticEvidenceSettings settings = hcadProperties.getSemanticEvidence();
+            String userId = authentication != null ? authentication.getName() : "anonymous";
+            String resolvedPath = firstText(
+                    targetPath,
+                    "/contexa/test/hcad/non-protectable/fanout/allow/" + resolvedRunId);
+            String resourceId = HcadRequestPathUtils.resourceFamily(resolvedPath);
+            int currentDimension = Math.max(1, hcadProperties.getVector().getEmbeddingDimension());
+            String normalizedType = firstText(mismatchType, "version-mismatch").toLowerCase(Locale.ROOT);
+            boolean dimensionMismatch = normalizedType.contains("dimension");
+            boolean versionMismatch = normalizedType.contains("version");
+            if (!dimensionMismatch && !versionMismatch) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "seeded", false,
+                        "reason", "unsupported-mismatch-type",
+                        "mismatchType", mismatchType == null ? "" : mismatchType,
+                        "runId", resolvedRunId));
+            }
+
+            int cachedDimension = dimensionMismatch ? currentDimension + 1 : currentDimension;
+            String cachedEvidenceVersion = versionMismatch
+                    ? settings.getEvidenceVersion() + "-stale"
+                    : settings.getEvidenceVersion();
+            String cachedEmbeddingModel = versionMismatch
+                    ? settings.getEmbeddingModel() + "-stale"
+                    : settings.getEmbeddingModel();
+            String cachedBaselineVersion = versionMismatch
+                    ? settings.getBaselineVersion() + "-stale"
+                    : settings.getBaselineVersion();
+            HcadSemanticEvidenceKey normalKey = HcadSemanticEvidenceKey.normalRequestSimilarity(
+                    null,
+                    userId,
+                    resourceId,
+                    cachedBaselineVersion,
+                    cachedEmbeddingModel,
+                    cachedDimension,
+                    cachedEvidenceVersion);
+            HcadSemanticEvidenceKey riskKey = HcadSemanticEvidenceKey.riskRequestSimilarity(
+                    null,
+                    userId,
+                    resourceId,
+                    versionMismatch ? "policy-stale" : "policy-unknown",
+                    versionMismatch ? "prompt-stale" : "prompt-unknown",
+                    cachedEmbeddingModel,
+                    cachedDimension,
+                    cachedEvidenceVersion);
+            Duration ttl = Duration.ofMinutes(Math.max(1, settings.getSimilarityTtlMinutes()));
+            putSemanticMismatchEntry(normalKey, normalizedType, ttl);
+            putSemanticMismatchEntry(riskKey, normalizedType, ttl);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("seeded", true);
+            response.put("mismatchType", normalizedType);
+            response.put("runId", resolvedRunId);
+            response.put("userId", userId);
+            response.put("targetPath", resolvedPath);
+            response.put("resourceId", resourceId);
+            response.put("cacheProvider", semanticEvidenceCache.provider().name());
+            response.put("cachedDimension", cachedDimension);
+            response.put("currentDimension", currentDimension);
+            response.put("cachedEvidenceVersion", cachedEvidenceVersion);
+            response.put("currentEvidenceVersion", settings.getEvidenceVersion());
+            return ResponseEntity.ok(response);
+        }
+
+        private void putSemanticMismatchEntry(
+                HcadSemanticEvidenceKey key,
+                String mismatchType,
+                Duration ttl) {
+            Instant now = Instant.now();
+            HcadSemanticEvidenceEntry entry = new HcadSemanticEvidenceEntry(
+                    key,
+                    HcadSemanticEvidenceCacheStatus.HIT,
+                    "hcad-extreme-test",
+                    key.evidenceVersion(),
+                    key.embeddingModel(),
+                    key.dimension(),
+                    0.12d,
+                    0.91d,
+                    0.79d,
+                    "{\"source\":\"hcad-extreme-test\",\"seed\":\"" + mismatchType + "\"}",
+                    List.of("SEMANTIC_EVIDENCE_EXTREME_TEST_SEED"),
+                    now,
+                    now.plus(ttl));
+            semanticEvidenceCache.put(entry, ttl);
+        }
     }
 
     private static String firstText(String... values) {
         if (values == null) {
-            return null;
+            return "";
         }
         for (String value : values) {
             if (StringUtils.hasText(value)) {
                 return value.trim();
             }
         }
-        return null;
+        return "";
     }
 
     private static void demoteProductionLlmPrimary(ConfigurableListableBeanFactory beanFactory, String beanName) {

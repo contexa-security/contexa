@@ -391,7 +391,9 @@
             PRIVILEGED_AUTHORIZATION: label('labelSignalPrivilegedAuthorization'),
             FRESH_MFA_REQUIRED: label('labelSignalFreshMfaRequired'),
             LOW_AUTH_ASSURANCE: label('labelSignalLowAuthAssurance'),
-            BASELINE_MATERIAL_MISMATCH: label('labelSignalBaselineMismatch')
+            BASELINE_MATERIAL_MISMATCH: label('labelSignalBaselineMismatch'),
+            SEMANTIC_EVIDENCE_MISMATCH: label('labelSignalSemanticMismatch'),
+            SEMANTIC_RISK_SIMILARITY: label('labelSignalSemanticRiskSimilarity')
         };
         return known[normalized] || value || '-';
     }
@@ -445,13 +447,54 @@
             LOCATION_RISK_OBSERVED: label('labelEvidenceLocationObserved'),
             LOCATION_RISK_NOT_OBSERVED: label('labelEvidenceLocationNotObserved'),
             FAILED_LOGIN_HISTORY_PRESENT: label('labelEvidenceFailedLoginPresent'),
-            FAILED_LOGIN_HISTORY_ABSENT: label('labelEvidenceFailedLoginAbsent')
+            FAILED_LOGIN_HISTORY_ABSENT: label('labelEvidenceFailedLoginAbsent'),
+            SEMANTIC_EVIDENCE_AVAILABLE: label('labelEvidenceSemanticAvailable'),
+            SEMANTIC_EVIDENCE_STALE: label('labelEvidenceSemanticStale'),
+            SEMANTIC_EVIDENCE_MISSING: label('labelEvidenceSemanticMissing'),
+            SEMANTIC_EVIDENCE_SOURCE_AVAILABLE: label('labelEvidenceSemanticSourceAvailable'),
+            SEMANTIC_EVIDENCE_SOURCE_ABSENT: label('labelEvidenceSemanticSourceAbsent'),
+            SEMANTIC_EVIDENCE_VERSION_MISMATCH: label('labelEvidenceSemanticVersionMismatch'),
+            SEMANTIC_EVIDENCE_DIMENSION_MISMATCH: label('labelEvidenceSemanticDimensionMismatch'),
+            SEMANTIC_EVIDENCE_LOOKUP_TIMEOUT: label('labelEvidenceSemanticLookupTimeout'),
+            SEMANTIC_EVIDENCE_LOOKUP_FAILED: label('labelEvidenceSemanticLookupFailed'),
+            SEMANTIC_EVIDENCE_CACHE_MISS: label('labelEvidenceSemanticCacheMiss'),
+            SEMANTIC_EVIDENCE_WARMUP_QUEUED: label('labelEvidenceSemanticWarmupQueued'),
+            SEMANTIC_EVIDENCE_WARMUP_COMPLETED: label('labelEvidenceSemanticWarmupCompleted'),
+            SEMANTIC_EVIDENCE_WARMUP_FAILED: label('labelEvidenceSemanticWarmupFailed'),
+            DIMENSION_MISMATCH: label('labelEvidenceSemanticDimensionMismatch'),
+            VERSION_MISMATCH: label('labelEvidenceSemanticVersionMismatch'),
+            CACHE_MISS_SOURCE_AVAILABLE: label('labelEvidenceSemanticSourceAvailable'),
+            CACHE_MISS_SOURCE_ABSENT: label('labelEvidenceSemanticSourceAbsent'),
+            CACHE_MISS_SOURCE_UNKNOWN: label('labelEvidenceSemanticCacheMiss'),
+            SEMANTIC_EVIDENCE_CACHE_UNAVAILABLE: label('labelEvidenceSemanticLookupFailed'),
+            SEMANTIC_EVIDENCE_NOT_AVAILABLE: label('labelEvidenceSemanticMissing'),
+            WARMUP_QUEUED: label('labelEvidenceSemanticWarmupQueued'),
+            WARMUP_COMPLETED: label('labelEvidenceSemanticWarmupCompleted'),
+            WARMUP_FAILED: label('labelEvidenceSemanticWarmupFailed'),
+            SEMANTIC_EVIDENCE_NOT_REQUESTED: label('labelEvidenceSemanticNotRequested')
         };
         return known[normalized] || value || '-';
     }
 
     function evidenceHelp(value) {
         const normalized = String(value || '').trim().toUpperCase();
+        if (normalized.includes('SEMANTIC_EVIDENCE_MISSING')
+                || normalized.includes('SEMANTIC_EVIDENCE_SOURCE_ABSENT')
+                || normalized.includes('SEMANTIC_EVIDENCE_VERSION_MISMATCH')
+                || normalized.includes('SEMANTIC_EVIDENCE_DIMENSION_MISMATCH')
+                || normalized.includes('SEMANTIC_EVIDENCE_LOOKUP_TIMEOUT')
+                || normalized.includes('SEMANTIC_EVIDENCE_LOOKUP_FAILED')
+                || normalized.includes('SEMANTIC_EVIDENCE_CACHE_MISS')
+                || normalized.includes('WARMUP_FAILED')
+                || normalized.includes('SEMANTIC_EVIDENCE_NOT_REQUESTED')) {
+            return label('labelEvidenceSemanticMissingHelp');
+        }
+        if (normalized.includes('SEMANTIC_EVIDENCE_STALE')) {
+            return label('labelEvidenceSemanticStaleHelp');
+        }
+        if (normalized.includes('SEMANTIC_EVIDENCE_AVAILABLE')) {
+            return label('labelEvidenceSemanticPresentHelp');
+        }
         if (normalized.endsWith('_ABSENT') || normalized.includes('UNAVAILABLE') || normalized.includes('INSUFFICIENT')) {
             return label('labelEvidenceMissingHelp');
         }
