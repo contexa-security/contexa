@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.dto;
 
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
+
 import java.util.List;
 
 public final class HcadMonitorDtos {
@@ -26,6 +28,8 @@ public final class HcadMonitorDtos {
             String period,
             String from,
             String to,
+            String generatedAt,
+            MonitorSnapshot snapshot,
             String currentMode,
             long candidateCount,
             long observedRequestCount,

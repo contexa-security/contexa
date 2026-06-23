@@ -32,6 +32,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     private static final Duration SESSION_METADATA_TTL = Duration.ofHours(24);
     private static final Duration USER_DEVICE_TTL = Duration.ofDays(30);
     private static final Duration REQUEST_COUNTER_TTL = Duration.ofMinutes(10);
+    private static final Duration LOGIN_FAILURE_COUNTER_TTL = Duration.ofMinutes(10);
     private static final Duration HCAD_ANALYSIS_TTL = Duration.ofHours(24);
     private static final long DEFAULT_MAX_ENTRIES = 100_000L;
     private static final long REQUEST_COUNTER_KEY_FACTOR = 1_000_000L;
@@ -39,6 +40,7 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     private final Cache<String, Map<String, Object>> sessionMetadata = ttlCache(SESSION_METADATA_TTL);
     private final Cache<String, Set<String>> userDevices = ttlCache(USER_DEVICE_TTL);
     private final Cache<String, ConcurrentSkipListMap<Long, String>> requestCounters = ttlCache(REQUEST_COUNTER_TTL);
+    private final Cache<String, ConcurrentSkipListMap<Long, String>> loginFailureCounters = ttlCache(LOGIN_FAILURE_COUNTER_TTL);
     private final AtomicLong requestSequence = new AtomicLong();
     private final Set<String> registeredUsers = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
@@ -130,6 +132,27 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     }
 
     @Override
+    public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
+        if (hasText(userId)) {
+            recordCounter(loginFailureCounters, "user:" + userId.trim(), currentTimeMs);
+        }
+        if (hasText(clientIp)) {
+            recordCounter(loginFailureCounters, "ip:" + clientIp.trim(), currentTimeMs);
+        }
+    }
+
+    @Override
+    public int getRecentLoginFailureCount(String userId, String clientIp, long windowStartMs, long currentTimeMs) {
+        int userCount = hasText(userId)
+                ? countCounter(loginFailureCounters, "user:" + userId.trim(), windowStartMs, currentTimeMs)
+                : 0;
+        int ipCount = hasText(clientIp)
+                ? countCounter(loginFailureCounters, "ip:" + clientIp.trim(), windowStartMs, currentTimeMs)
+                : 0;
+        return Math.max(userCount, ipCount);
+    }
+
+    @Override
     public boolean isUserRegistered(String userId) {
         return registeredUsers.contains(userId);
     }
@@ -174,6 +197,42 @@ public class InMemoryHCADDataStore implements HCADDataStore {
                 .expireAfterWrite(ttl)
                 .maximumSize(DEFAULT_MAX_ENTRIES)
                 .build();
+    }
+
+    private void recordCounter(
+            Cache<String, ConcurrentSkipListMap<Long, String>> cache,
+            String key,
+            long currentTimeMs) {
+        cache.asMap().compute(key, (ignored, counter) -> {
+            if (counter == null) {
+                counter = new ConcurrentSkipListMap<>();
+            }
+            long uniqueKey = toCounterKey(currentTimeMs, requestSequence.incrementAndGet());
+            counter.put(uniqueKey, Long.toString(currentTimeMs));
+            long fiveMinutesAgo = currentTimeMs - (5 * 60 * 1000);
+            counter.headMap(toCounterKey(fiveMinutesAgo, 0)).clear();
+            return counter;
+        });
+    }
+
+    private int countCounter(
+            Cache<String, ConcurrentSkipListMap<Long, String>> cache,
+            String key,
+            long windowStartMs,
+            long currentTimeMs) {
+        ConcurrentSkipListMap<Long, String> counter = cache.getIfPresent(key);
+        if (counter == null) {
+            return 0;
+        }
+        return counter.subMap(
+                toCounterKey(windowStartMs, 0),
+                true,
+                toCounterKey(currentTimeMs, REQUEST_COUNTER_KEY_FACTOR - 1),
+                true).size();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private long toCounterKey(long timestampMs, long sequence) {

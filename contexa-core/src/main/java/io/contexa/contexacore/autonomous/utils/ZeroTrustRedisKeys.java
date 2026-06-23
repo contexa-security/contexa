@@ -95,6 +95,18 @@ public class ZeroTrustRedisKeys {
         return "hcad:request:counter:" + userId;
     }
 
+    public static String hcadLoginFailuresByUser(String userId) {
+        validateUserId(userId);
+        return "hcad:login:failure:user:" + userId;
+    }
+
+    public static String hcadLoginFailuresByIp(String clientIp) {
+        if (clientIp == null || clientIp.trim().isEmpty()) {
+            throw new IllegalArgumentException("Client IP cannot be null or empty");
+        }
+        return "hcad:login:failure:ip:" + clientIp;
+    }
+
     public static String soarExecution(String eventId) {
         if (eventId == null || eventId.trim().isEmpty()) {
             throw new IllegalArgumentException("Event ID cannot be null or empty");

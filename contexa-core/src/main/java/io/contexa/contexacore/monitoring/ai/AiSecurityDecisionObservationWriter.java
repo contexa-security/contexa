@@ -56,9 +56,14 @@ public class AiSecurityDecisionObservationWriter {
         Map<String, Object> metadata = event.getMetadata() == null ? Map.of() : event.getMetadata();
         String observationId = UUID.randomUUID().toString();
         String hcadEvaluationId = firstText(metadata, "hcadEvaluationId");
+        String testRunId = testRunId(metadata);
         boolean hcadTriggered = isHcadTriggered(metadata);
         boolean hcadObserved = isHcadObserved(metadata, hcadEvaluationId);
         boolean protectable = isProtectable(metadata);
+        if (!protectable && hcadTriggered && hcadObserved
+                && isProtectableMergePending(jdbcOperations, hcadEvaluationId)) {
+            protectable = true;
+        }
         Boolean llmDecisionPresent = firstBoolean(
                 result != null ? result.getLlmDecisionPresent() : null,
                 metadata.get("llmDecisionPresent"));
@@ -79,6 +84,7 @@ public class AiSecurityDecisionObservationWriter {
                         event_id,
                         request_id,
                         correlation_id,
+                        test_run_id,
                         user_id,
                         session_id,
                         context_binding_hash,
@@ -117,13 +123,14 @@ public class AiSecurityDecisionObservationWriter {
                         created_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     observationId,
                     event.getEventId(),
                     firstText(metadata, "requestId", "correlationId"),
                     firstText(metadata, "correlationId", "requestId"),
+                    testRunId,
                     firstText(event.getUserId(), text(metadata.get("userId"))),
                     event.getSessionId(),
                     firstText(metadata, "contextBindingHash"),
@@ -176,6 +183,7 @@ public class AiSecurityDecisionObservationWriter {
                     outcomeClass,
                     result,
                     finalAction,
+                    testRunId,
                     now);
             return observationId;
         } catch (DataAccessException ex) {
@@ -197,6 +205,18 @@ public class AiSecurityDecisionObservationWriter {
         if (jdbcOperations == null) {
             return false;
         }
+        boolean hcadMarked = jdbcOperations.update("""
+                UPDATE hcad_detection_evaluation
+                   SET protectable_observed = true,
+                       protectable_resource_id = COALESCE(NULLIF(protectable_resource_id, ''), NULLIF(?, '')),
+                       protectable_resource_url = COALESCE(NULLIF(protectable_resource_url, ''), NULLIF(?, ''), request_path),
+                       protectable_http_method = COALESCE(NULLIF(protectable_http_method, ''), NULLIF(?, ''), http_method)
+                 WHERE evaluation_id = ?
+                """,
+                blankToEmpty(resourceId),
+                blankToEmpty(resourceUrl),
+                blankToEmpty(httpMethod),
+                hcadEvaluationId) > 0;
         int observations = jdbcOperations.update("""
                 UPDATE ai_security_decision_observation
                    SET trigger_relation = 'HCAD_AND_PROTECTABLE',
@@ -217,7 +237,7 @@ public class AiSecurityDecisionObservationWriter {
                    AND trigger_relation = 'HCAD_ONLY'
                 """,
                 hcadEvaluationId);
-        return observations > 0;
+        return hcadMarked || observations > 0;
     }
 
     private void recordCorrelation(
@@ -230,6 +250,7 @@ public class AiSecurityDecisionObservationWriter {
             String outcomeClass,
             ProcessingResult result,
             ZeroTrustAction finalAction,
+            String testRunId,
             LocalDateTime now) {
         jdbcOperations.update("""
                 INSERT INTO hcad_llm_decision_correlation (
@@ -238,6 +259,7 @@ public class AiSecurityDecisionObservationWriter {
                     llm_observation_id,
                     event_id,
                     request_id,
+                    test_run_id,
                     user_id,
                     actor_session_key,
                     window_id,
@@ -253,7 +275,7 @@ public class AiSecurityDecisionObservationWriter {
                     created_at,
                     decided_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 UUID.randomUUID().toString(),
@@ -261,6 +283,7 @@ public class AiSecurityDecisionObservationWriter {
                 observationId,
                 event.getEventId(),
                 firstText(metadata, "requestId", "correlationId"),
+                testRunId,
                 firstText(event.getUserId(), text(metadata.get("userId"))),
                 firstText(metadata, "actorSessionKey"),
                 firstText(metadata, "windowId"),
@@ -313,6 +336,22 @@ public class AiSecurityDecisionObservationWriter {
             return "OBSERVED_ONLY";
         }
         return "UNMATCHED_LLM";
+    }
+
+    private boolean isProtectableMergePending(JdbcOperations jdbcOperations, String hcadEvaluationId) {
+        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
+            return false;
+        }
+        try {
+            Boolean pending = jdbcOperations.queryForObject("""
+                    SELECT COALESCE(protectable_observed, false)
+                      FROM hcad_detection_evaluation
+                     WHERE evaluation_id = ?
+                    """, Boolean.class, hcadEvaluationId);
+            return Boolean.TRUE.equals(pending);
+        } catch (DataAccessException ex) {
+            return false;
+        }
     }
 
     private String outcomeClass(
@@ -517,6 +556,59 @@ public class AiSecurityDecisionObservationWriter {
             String text = text(value);
             if (text != null) {
                 return text;
+            }
+        }
+        return null;
+    }
+
+    private String testRunId(Map<String, Object> metadata) {
+        String direct = firstText(metadata,
+                "testRunId",
+                "hcadTestRunId",
+                "hcadExtremeRunId",
+                "xContexaTestRunId");
+        if (direct != null) {
+            return direct;
+        }
+        Object rawSignals = firstObject(metadata, "rawSignalSnapshot", "rawSignalSnapshotJson", "rawSignalSnapshotMap");
+        return testRunId(rawSignals);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String testRunId(Object rawSignals) {
+        if (!(rawSignals instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Map<String, Object> typed = (Map<String, Object>) map;
+        String direct = firstText(typed,
+                "testRunId",
+                "hcadTestRunId",
+                "hcadExtremeRunId",
+                "xContexaTestRunId");
+        if (direct != null) {
+            return direct;
+        }
+        Object ignored = typed.get("ignoredInputs");
+        if (ignored instanceof Map<?, ?> ignoredMap) {
+            for (Map.Entry<?, ?> entry : ignoredMap.entrySet()) {
+                String key = entry.getKey() == null ? "" : entry.getKey().toString();
+                if ("header.X-Contexa-Test-Run-Id".equalsIgnoreCase(key)
+                        || "header.x-contexa-test-run-id".equalsIgnoreCase(key)
+                        || key.toLowerCase().endsWith(".x-contexa-test-run-id")) {
+                    return text(entry.getValue());
+                }
+            }
+        }
+        return null;
+    }
+
+    private Object firstObject(Map<String, Object> metadata, String... keys) {
+        if (metadata == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (metadata.containsKey(key) && metadata.get(key) != null) {
+                return metadata.get(key);
             }
         }
         return null;

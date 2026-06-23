@@ -80,7 +80,9 @@ public class PendingAnomalyEligibilityGate {
 
         boolean escalationEvaluation = Boolean.TRUE.equals(
                 request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_ESCALATION_EVALUATION));
-        if (!escalationEvaluation && analysisTriggerStateRepository.isNegativeCached(baseKey)) {
+        if (!escalationEvaluation
+                && !assessment.eligible()
+                && analysisTriggerStateRepository.isNegativeCached(baseKey)) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT, true);
             return null;
         }

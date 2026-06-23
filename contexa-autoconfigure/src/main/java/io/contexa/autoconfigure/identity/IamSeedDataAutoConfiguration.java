@@ -28,6 +28,8 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -55,6 +57,8 @@ import java.util.Set;
 public class IamSeedDataAutoConfiguration {
 
     private static final String CANONICAL_SCHEMA_LOCATION = "db/schema.sql";
+    static final String IAM_SEED_DATA_INITIALIZER_BEAN = "iamSeedDataInitializer";
+    static final String CONTEXA_ENTITY_MANAGER_FACTORY_BEAN = "contexaEntityManagerFactory";
     private static final int EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS = 66;
     private static final int EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS = 688;
     private static final int EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS = 12;
@@ -94,7 +98,29 @@ public class IamSeedDataAutoConfiguration {
             "db/data-system-settings.sql"
     };
 
-    @Bean(name = "iamSeedDataInitializer")
+    @Bean
+    public static BeanFactoryPostProcessor iamSeedDataJpaDependencyConfigurer() {
+        return beanFactory -> {
+            if (!beanFactory.containsBeanDefinition(CONTEXA_ENTITY_MANAGER_FACTORY_BEAN)
+                    || !beanFactory.containsBeanDefinition(IAM_SEED_DATA_INITIALIZER_BEAN)) {
+                return;
+            }
+            BeanDefinition entityManagerFactory =
+                    beanFactory.getBeanDefinition(CONTEXA_ENTITY_MANAGER_FACTORY_BEAN);
+            Set<String> dependsOn = new LinkedHashSet<>();
+            if (entityManagerFactory.getDependsOn() != null) {
+                for (String dependency : entityManagerFactory.getDependsOn()) {
+                    dependsOn.add(dependency);
+                }
+            }
+            if (dependsOn.add(IAM_SEED_DATA_INITIALIZER_BEAN)) {
+                entityManagerFactory.setDependsOn(dependsOn.toArray(String[]::new));
+                log.info("[IamSeedData] contexaEntityManagerFactory will wait for IAM schema maintenance");
+            }
+        };
+    }
+
+    @Bean(name = IAM_SEED_DATA_INITIALIZER_BEAN)
     public InitializingBean iamSeedDataInitializer(@Qualifier("contexaDataSource") DataSource dataSource) {
         return () -> initializeSchemaAndSeedData(dataSource);
     }

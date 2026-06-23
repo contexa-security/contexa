@@ -20,8 +20,10 @@ import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -57,6 +59,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     private final LoginAttemptIpRepository loginAttemptIpRepository;
     private final PasswordPolicyService passwordPolicyService;
     private final LoginAttemptIpUpserter loginAttemptIpUpserter;
+    private final ObjectProvider<HCADDataStore> hcadDataStoreProvider;
 
     // ---------------------------------------------------------------------
     // Public API — legacy signatures delegate to the extended ones
@@ -97,10 +100,12 @@ public class LoginPolicyService implements LoginPolicyHandler {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void onLoginFailure(String username, String ip, String failureType, String sourceTag) {
         if (username == null || username.isBlank()) {
+            recordHcadLoginFailure(null, ip);
             applyIpThrottle(ip, null, "MISSING_USERNAME");
             return;
         }
         if (!firstHandle("F:" + username + ":" + (ip == null ? "-" : ip))) return; // idempotent guard
+        recordHcadLoginFailure(username, ip);
 
         try {
             // Self-heal: clear an expired lock before counting, otherwise the next failure
@@ -122,6 +127,18 @@ public class LoginPolicyService implements LoginPolicyHandler {
             applyIpThrottle(ip, username, failureType);
         } catch (Exception e) {
             log.error("[login-policy] onLoginFailure failed for {}", username, e);
+        }
+    }
+
+    private void recordHcadLoginFailure(String username, String ip) {
+        try {
+            HCADDataStore dataStore = hcadDataStoreProvider == null ? null : hcadDataStoreProvider.getIfAvailable();
+            if (dataStore != null) {
+                dataStore.recordLoginFailure(username, ip, System.currentTimeMillis());
+            }
+        } catch (Exception e) {
+            log.warn("[login-policy] HCAD login failure signal recording failed username={} ip={}",
+                    username, ip, e);
         }
     }
 

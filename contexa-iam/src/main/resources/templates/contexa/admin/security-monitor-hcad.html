@@ -6,6 +6,10 @@
     <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
     <style>
         .hcad-layout { display: grid; gap: 1rem; }
+        .ai-monitor-tabs { display: flex; gap: .5rem; flex-wrap: wrap; border-bottom: 1px solid rgba(71,85,105,.45); padding-bottom: .75rem; }
+        .ai-monitor-toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+        .ai-monitor-tab { border: 1px solid rgba(71,85,105,.45); border-radius: .5rem; color: #94a3b8; padding: .45rem .75rem; text-decoration: none; font-size: .8rem; }
+        .ai-monitor-tab.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
         .hcad-toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
         .hcad-period { border: 1px solid rgba(71,85,105,.45); border-radius: .5rem; color: #94a3b8; padding: .45rem .8rem; text-decoration: none; font-size: .8rem; }
         .hcad-period.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
@@ -231,19 +235,27 @@
              th:data-label-technical-fallback="#{admin.aiMonitor.enum.technicalFallback}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                    <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.security.hcad.title}">HCAD Shadow Monitor</h1>
-                    <p class="text-sm mt-1" style="color:#94a3b8;" th:text="#{admin.security.hcad.subtitle}">Early-detection precision and LLM trigger quality</p>
+                    <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
+                    <p class="text-sm mt-1" style="color:#94a3b8;" th:text="#{admin.aiMonitor.subtitle}">AI security decision quality overview</p>
                 </div>
-                <a th:href="@{/contexa/admin/security-monitor}" class="hcad-period" th:text="#{admin.security.hcad.back}">Security Monitor</a>
+                <span id="hcad-range" class="text-xs" style="color:#64748b;"></span>
             </div>
 
-            <div class="hcad-toolbar">
+            <nav class="ai-monitor-tabs">
+                <a th:href="@{/contexa/admin/ai-monitor(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.overview}">Overview</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period=${period})}" class="ai-monitor-tab active" th:text="#{menu.aiMonitor.hcad}">HCAD</a>
+                <a th:href="@{/contexa/admin/ai-monitor/llm(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.llm}">LLM</a>
+                <a th:href="@{/contexa/admin/ai-monitor/correlation(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.correlation}">Correlation</a>
+                <a th:href="@{/contexa/admin/ai-monitor/failures(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.failures}">Failures</a>
+                <a th:href="@{/contexa/admin/ai-monitor/readiness(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.readiness}">Readiness</a>
+            </nav>
+
+            <div class="ai-monitor-toolbar">
                 <span class="text-sm" style="color:#94a3b8;" th:text="#{admin.security.hcad.period}">Period</span>
-                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='day')}" class="hcad-period" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
-                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='week')}" class="hcad-period" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
-                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='month')}" class="hcad-period" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
-                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='year')}" class="hcad-period" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
-                <span id="hcad-range" class="text-xs" style="color:#64748b;"></span>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='day')}" class="ai-monitor-tab" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='week')}" class="ai-monitor-tab" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='month')}" class="ai-monitor-tab" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
+                <a th:href="@{/contexa/admin/ai-monitor/hcad(period='year')}" class="ai-monitor-tab" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
                 <a id="hcad-export" th:href="@{/contexa/admin/api/security-monitor/hcad/summary.csv(period=${period})}" class="hcad-period">CSV</a>
             </div>
 

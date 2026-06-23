@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Breakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.CountBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
@@ -107,6 +108,8 @@ public class HcadMonitoringService {
                 normalizedPeriod,
                 ISO.format(from),
                 ISO.format(to),
+                ISO.format(to),
+                new MonitorSnapshot(normalizedPeriod, ISO.format(from), ISO.format(to), ISO.format(to)),
                 hcadProperties.getPreTrigger().effectiveMode().metadataValue(),
                 candidateCount,
                 observedRequestCount,

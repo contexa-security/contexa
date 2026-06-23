@@ -19,7 +19,7 @@ import java.util.List;
 
 public enum HcadPreProtectablePromotionSignal {
     IMPOSSIBLE_TRAVEL(true, 45, List.of("impossibleTravel")),
-    FAILED_LOGIN_BURST(true, 30, List.of("failedLoginBurst")),
+    FAILED_LOGIN_BURST(true, 50, List.of("failedLoginBurst")),
     AUTH_CONTEXT_INCONSISTENT(true, 40, List.of("authenticationMethod", "mfaVerified")),
     RECENT_PERMISSION_CHANGE(true, 35, List.of("recentPermissionChanges")),
     PRIVILEGED_AUTHORIZATION(true, 35, List.of("authorizationPrivileged")),

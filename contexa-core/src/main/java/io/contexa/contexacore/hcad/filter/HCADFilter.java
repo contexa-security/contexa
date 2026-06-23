@@ -144,6 +144,7 @@ public class HCADFilter extends OncePerRequestFilter {
 
         try {
             String actorSessionKey = HcadActorSessionKeyFactory.fromRequest(request, authentication);
+            trustedProjectionFactory.recordLightweightRequestCounter(request, authentication);
             HcadObservationWindowLease windowLease = observeRequest(actorSessionKey, request);
             request.setAttribute("hcad.actorSessionKey", actorSessionKey);
             request.setAttribute("hcad.windowId", windowLease.windowId());
@@ -170,6 +171,7 @@ public class HCADFilter extends OncePerRequestFilter {
                 }
             }
             if (!deepEvaluationOwner || nonUserInteraction) {
+                trustedProjectionFactory.recordLightweightSessionNarrative(request, authentication);
                 updateWindowObservation(actorSessionKey, windowLease);
                 if (log.isTraceEnabled()) {
                     log.trace("[HCADFilter] Observation-only request: actorSessionKey={}, windowId={}, path={}, owner={}",

@@ -52,6 +52,7 @@ public class TrustedHcadContextProjectionFactory {
 
     private static final long REQUEST_BURST_WINDOW_MS = Duration.ofMinutes(5).toMillis();
     private static final List<String> UNTRUSTED_HEADER_PREFIXES = List.of("x-contexa-");
+    private static final String LIGHTWEIGHT_REQUEST_RECORDED_ATTRIBUTE = "hcad.lightweightRequestRecorded";
 
     private final HCADDataStore hcadDataStore;
     private final SecurityContextDataStore securityContextDataStore;
@@ -172,9 +173,9 @@ public class TrustedHcadContextProjectionFactory {
                 HcadTrustedSource.STORE_DERIVED,
                 "Resolved from server-side security context store.");
 
-        int failedLoginBurst = failedLoginBurst(sessionId);
+        int failedLoginBurst = failedLoginBurst(sessionId, userId, clientIp, now);
         putProvenance(provenance, "failedLoginBurst", failedLoginBurst, HcadTrustedSource.STORE_DERIVED,
-                "Resolved from server-side session action history.");
+                "Resolved from server-side session action history and login failure counters.");
 
         int requestBurst = requestBurst(userId, now);
         putProvenance(provenance, "requestBurst", requestBurst, HcadTrustedSource.STORE_DERIVED,
@@ -246,6 +247,33 @@ public class TrustedHcadContextProjectionFactory {
                 ignoredInputs);
     }
 
+    public void recordLightweightRequestCounter(HttpServletRequest request, Authentication authentication) {
+        if (request == null || HcadRequestPathUtils.isNonUserInteractionRequest(request)) {
+            return;
+        }
+        AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request);
+        String userId = firstText(
+                authenticationStamp != null ? authenticationStamp.principalId() : null,
+                authentication != null ? authentication.getName() : null);
+        if (hcadDataStore != null && StringUtils.hasText(userId)) {
+            hcadDataStore.recordRequest(userId, System.currentTimeMillis());
+            request.setAttribute(LIGHTWEIGHT_REQUEST_RECORDED_ATTRIBUTE, true);
+        }
+    }
+
+    public void recordLightweightSessionNarrative(HttpServletRequest request, Authentication authentication) {
+        if (request == null || HcadRequestPathUtils.isNonUserInteractionRequest(request)) {
+            return;
+        }
+        AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request);
+        String userId = firstText(
+                authenticationStamp != null ? authenticationStamp.principalId() : null,
+                authentication != null ? authentication.getName() : null);
+        String sessionId = resolveServerSessionId(request, authenticationStamp);
+        String normalizedPath = HcadRequestPathUtils.normalizedPath(request);
+        updateSessionNarrativeStores(sessionId, userId, normalizedPath, System.currentTimeMillis());
+    }
+
     public HcadTrustedAnchorSignalProbe probeAnchorSignals(HttpServletRequest request, Authentication authentication) {
         AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request);
         AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request);
@@ -275,7 +303,9 @@ public class TrustedHcadContextProjectionFactory {
         if (Boolean.TRUE.equals(asBoolean(metadata.get("impossibleTravel")))) {
             anchors.add(HcadPreProtectablePromotionSignal.IMPOSSIBLE_TRAVEL.name());
         }
-        if (failedLoginBurst(sessionId) >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()) {
+        String clientIp = request != null ? request.getRemoteAddr() : null;
+        if (failedLoginBurst(sessionId, userId, clientIp, System.currentTimeMillis())
+                >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()) {
             anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST.name());
         }
         if (isAuthContextInconsistent(authenticationMethod, mfaVerified)) {
@@ -550,7 +580,15 @@ public class TrustedHcadContextProjectionFactory {
         return changes == null ? List.of() : List.copyOf(changes);
     }
 
-    private int failedLoginBurst(String sessionId) {
+    private int failedLoginBurst(String sessionId, String userId, String clientIp, long now) {
+        int sessionActionCount = sessionLoginFailureActionCount(sessionId);
+        int persistedCounterCount = hcadDataStore == null
+                ? 0
+                : hcadDataStore.getRecentLoginFailureCount(userId, clientIp, now - REQUEST_BURST_WINDOW_MS, now);
+        return Math.max(sessionActionCount, persistedCounterCount);
+    }
+
+    private int sessionLoginFailureActionCount(String sessionId) {
         if (!StringUtils.hasText(sessionId) || securityContextDataStore == null) {
             return 0;
         }
@@ -624,9 +662,19 @@ public class TrustedHcadContextProjectionFactory {
         if (HcadRequestPathUtils.isNonUserInteractionRequest(request)) {
             return;
         }
-        if (hcadDataStore != null && StringUtils.hasText(userId)) {
+        boolean requestCounterAlreadyRecorded = request != null
+                && Boolean.TRUE.equals(request.getAttribute(LIGHTWEIGHT_REQUEST_RECORDED_ATTRIBUTE));
+        if (!requestCounterAlreadyRecorded && hcadDataStore != null && StringUtils.hasText(userId)) {
             hcadDataStore.recordRequest(userId, now);
         }
+        updateSessionNarrativeStores(sessionId, userId, normalizedPath, now);
+    }
+
+    private void updateSessionNarrativeStores(
+            String sessionId,
+            String userId,
+            String normalizedPath,
+            long now) {
         if (securityContextDataStore == null) {
             return;
         }

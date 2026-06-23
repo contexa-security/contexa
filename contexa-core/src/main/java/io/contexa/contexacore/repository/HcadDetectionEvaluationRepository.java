@@ -593,13 +593,13 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
                       from monitorable_rows
                     union all
                     select case
-                             when snapshot ? 'authorizationPrivileged'
+                             when jsonb_exists(snapshot, 'authorizationPrivileged')
                                and snapshot ->> 'authorizationPrivileged' is not null
                                then 'AUTHORIZATION_CONTEXT_PRESENT'
-                             when snapshot ? 'verificationRequired'
+                             when jsonb_exists(snapshot, 'verificationRequired')
                                and snapshot ->> 'verificationRequired' is not null
                                then 'AUTHORIZATION_CONTEXT_PRESENT'
-                             when snapshot ? 'authorizationPolicyId'
+                             when jsonb_exists(snapshot, 'authorizationPolicyId')
                                and snapshot ->> 'authorizationPolicyId' is not null
                                then 'AUTHORIZATION_CONTEXT_PRESENT'
                              else 'AUTHORIZATION_CONTEXT_ABSENT'
@@ -607,7 +607,7 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
                       from monitorable_rows
                     union all
                     select case
-                             when snapshot ? 'impossibleTravel'
+                             when jsonb_exists(snapshot, 'impossibleTravel')
                                and snapshot ->> 'impossibleTravel' is not null
                                then 'LOCATION_RISK_OBSERVED'
                              else 'LOCATION_RISK_NOT_OBSERVED'

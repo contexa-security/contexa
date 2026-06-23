@@ -114,6 +114,11 @@ class PendingAnomalyTriggerOrchestratorTest {
         verify(analysisTriggerStateRepository).markCooldown(eq("base-1"), any(Duration.class));
         verify(analysisTriggerStateRepository).markCooldown(eq(escalationKey), any(Duration.class));
         verify(analysisTriggerStateRepository, never()).releaseInFlight("base-1");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED)).isEqualTo(true);
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DUPLICATE_SUPPRESSED)).isEqualTo(false);
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_STATE_KEY)).isEqualTo("base-1");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_REQUEST_ID)).isEqualTo("request-1");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_RISK_SIGNATURE)).isEqualTo("risk-1");
     }
 
     @Test

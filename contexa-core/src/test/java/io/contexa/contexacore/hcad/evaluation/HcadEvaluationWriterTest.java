@@ -26,6 +26,7 @@ import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.JdbcOperations;
 
 import java.util.List;
 import java.util.Map;
@@ -68,12 +69,40 @@ class HcadEvaluationWriterTest {
         assertThat(saved.getTriggeredLlm()).isFalse();
         assertThat(saved.getOutcomeClass()).isEqualTo("UNKNOWN");
         assertThat(saved.getAnchorSignals()).contains("FAILED_LOGIN_BURST");
+        assertThat(saved.getTestRunId()).isEqualTo("run-evidence-1");
         assertThat(saved.getNonTriggerReason()).isNull();
         assertThat(saved.getEvidenceGapCodes()).contains("PERSONAL_BASELINE_UNAVAILABLE");
         assertThat(saved.getBaselineAvailable()).isFalse();
+        assertThat(saved.getBaselineEstablished()).isFalse();
         assertThat(saved.getBaselineUpdateCount()).isZero();
+        assertThat(saved.getBaselineMinSamples()).isZero();
+        assertThat(saved.getBaselineComparedDimensions()).isZero();
         assertThat(saved.getTriggerDecisionReason()).isEqualTo("TRIGGER_CANDIDATE");
         assertThat(saved.getSignalSnapshotJson()).contains("signalProvenance");
+    }
+
+    @Test
+    @DisplayName("recordCandidate JDBC insert should include queryable baseline evidence columns")
+    void recordCandidate_jdbcInsert_shouldIncludeBaselineEvidenceColumns() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(jdbcOperations, new ObjectMapper());
+
+        writer.recordCandidate(HcadPreTriggerMode.SHADOW, report());
+
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations).update(any(String.class), argsCaptor.capture());
+        Object[] args = argsCaptor.getValue();
+        assertThat(args).hasSize(58);
+        assertThat(args[4]).isEqualTo("run-evidence-1");
+        assertThat(args[30]).isEqualTo(false);
+        assertThat(args[31]).isEqualTo(false);
+        assertThat(args[32]).isEqualTo(0L);
+        assertThat(args[33]).isEqualTo(0);
+        assertThat(args[34]).isEqualTo(0);
+        assertThat(args[35]).isEqualTo(0);
+        assertThat(args[36]).isEqualTo(0.0d);
+        assertThat(args[38]).isEqualTo("{}");
+        assertThat(args[39]).isEqualTo("{}");
     }
 
     @Test
@@ -288,6 +317,7 @@ class HcadEvaluationWriterTest {
                         "duplicateSuppressedCount", 2,
                         "resourceFamilies", List.of("/admin/reports"),
                         "samplePaths", List.of("/admin/reports", "/admin/menu"),
+                        "ignoredInputs", Map.of("header.X-Contexa-Test-Run-Id", "run-evidence-1"),
                         "signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
     }
 }

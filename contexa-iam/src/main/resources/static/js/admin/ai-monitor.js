@@ -54,21 +54,18 @@
 
     function renderStatus(summary) {
         const profile = sectionProfile();
-        const recommendation = summary.readinessRecommendation || summary.recommendation;
-        const hasRecommendation = section === 'readiness';
-        const statusTitle = hasRecommendation ? label('labelCurrentDecision') : label('labelScreenPurpose');
-        const statusText = hasRecommendation ? friendlyRecommendation(recommendation) : profile.description;
-        const tone = hasRecommendation ? recommendationTone(recommendation) : 'info';
-        statusEl.innerHTML = `
-            <div class="flex items-center justify-between gap-3 flex-wrap">
+        if (section === 'readiness') {
+            statusEl.innerHTML = `
                 <div>
                     <div class="ai-monitor-band-title">${escapeHtml(profile.title)}</div>
                     <div class="text-sm" style="color:#94a3b8;">${escapeHtml(profile.description)}</div>
-                </div>
-                <div>
-                    <div class="ai-monitor-kpi-label" style="margin:0 0 .35rem;">${escapeHtml(statusTitle)}</div>
-                    <span class="ai-monitor-status ${tone}">${escapeHtml(statusText || label('labelNoDecision'))}</span>
-                </div>
+                </div>`;
+            return;
+        }
+        statusEl.innerHTML = `
+            <div>
+                <div class="ai-monitor-band-title">${escapeHtml(profile.title)}</div>
+                <div class="text-sm" style="color:#94a3b8;">${escapeHtml(profile.description)}</div>
             </div>`;
     }
 
@@ -78,25 +75,26 @@
         const operations = summary.operations || {};
         const correlation = summary.correlation || {};
         const metrics = correlationMetrics(correlation, hcad, llm, operations);
+        const standard = summary.metrics || {};
         detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
-            [label('labelObservedRequests'), hcad.observedRequestCount || 0],
-            [label('labelHcadWindows'), hcad.candidateCount || 0],
-            [label('labelLlmCalls'), llm.totalDecisionCount || 0],
-            [label('labelHcadPrecision'), formatPercentOrNoData(hcad.precision || 0, hasHcadComparison(hcad))],
-            [label('labelUnknownRate'), formatPercentOrNoData(hcad.unknownRate || 0, hasHcadComparison(hcad))],
-            [label('labelAverageLatency'), formatMsOrNoData(operations.averageLatencyMs, (llm.totalDecisionCount || 0) > 0)]
+            [label('labelRecommendation'), friendlyRecommendation(summary.readinessRecommendation), label('labelCurrentDecision')],
+            [label('labelHcadPrecision'), formatMetricPercent(standard.hcadPrecision, metrics.hcadPrecision, (metrics.tp + metrics.fp) > 0), label('labelHcadPrecisionHelp')],
+            [label('labelObservableFnRate'), formatMetricPercent(standard.observableFalseNegativeRate, metrics.fnRiskRate, (metrics.tp + metrics.fn) > 0), label('labelObservableFnRateHelp')],
+            [label('labelUnknownRate'), formatMetricPercent(standard.unknownRate, metrics.unknownRate, metrics.comparisonAvailable), label('labelUnknownRateHelp')],
+            [label('labelFailureRate'), formatMetricPercent(standard.failureRate, metrics.failureRate, (llm.totalDecisionCount || 0) > 0), label('labelFailureRateHelp')]
         ]);
         detailsEl.innerHTML = [
             flowPanel([
                 flowItem(label('labelObservedRequests'), hcad.observedRequestCount || 0, label('labelFlowBase'), 1, '#22d3ee'),
                 flowItem(label('labelHcadWindows'), hcad.candidateCount || 0, label('labelFlowObservedToHcad'), ratioValue(hcad.candidateCount || 0, hcad.observedRequestCount || 0), '#38bdf8'),
-                flowItem(label('labelLlmCalls'), llm.totalDecisionCount || 0, label('labelFlowHcadToLlm'), ratioValue(llm.totalDecisionCount || 0, hcad.candidateCount || 0), '#a78bfa'),
+                flowItem(label('labelHcadAiConnected'), hcad.triggeredLlmCount || 0, label('labelFlowHcadToLlm'), ratioValue(hcad.triggeredLlmCount || 0, hcad.candidateCount || 0), '#a78bfa'),
+                flowItem(label('labelLlmDecisions'), llm.totalDecisionCount || 0, label('labelFlowObservedToAi'), ratioValue(llm.totalDecisionCount || 0, Math.max(1, hcad.observedRequestCount || 0)), '#818cf8'),
                 flowItem(label('labelClearOutcome'), metrics.classified, label('labelFlowLlmToClear'), ratioValue(metrics.classified, llm.totalDecisionCount || 0), '#22c55e')
             ]),
             `<div class="ai-monitor-overview-grid">
                 ${agreementPanel(metrics)}
-                ${qualitySignalPanel(hcad, llm, operations, metrics)}
+                ${qualitySignalPanel(hcad, llm, operations, metrics, standard)}
             </div>`
         ].join('');
     }
@@ -104,11 +102,11 @@
     function renderLlm(summary) {
         detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
-            [label('labelLlmDecisions'), summary.totalDecisionCount],
-            [label('labelHcadPretriggerDecisions'), summary.hcadPreTriggerDecisionCount],
-            [label('labelProtectableDecisions'), summary.protectableDecisionCount],
-            [label('labelHcadAndProtectable'), summary.hcadAndProtectableDecisionCount],
-            [label('labelAverageLatency'), formatMsOrNoData(summary.averageLatencyMs, (summary.totalDecisionCount || 0) > 0)]
+            [label('labelLlmDecisions'), summary.totalDecisionCount, label('labelLlmDecisionsHelp')],
+            [label('labelHcadPretriggerDecisions'), summary.hcadPreTriggerDecisionCount, label('labelHcadPretriggerHelp')],
+            [label('labelProtectableDecisions'), summary.protectableDecisionCount, label('labelProtectableDecisionsHelp')],
+            [label('labelHcadAndProtectable'), summary.hcadAndProtectableDecisionCount, label('labelHcadAndProtectableHelp')],
+            [label('labelAverageLatency'), formatMsOrNoData(summary.averageLatencyMs, (summary.totalDecisionCount || 0) > 0), label('labelAverageLatencyHelp')]
         ]);
         detailsEl.innerHTML = [
             `<div class="ai-monitor-overview-grid">
@@ -128,13 +126,14 @@
 
     function renderCorrelation(summary) {
         const metrics = correlationMetrics(summary || {}, {}, {}, {});
+        const standard = summary.metrics || {};
         detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
-            [label('labelMatchRate'), formatPercentOrNoData(metrics.matchRate, metrics.classified > 0)],
-            [label('labelMismatchRate'), formatPercentOrNoData(metrics.mismatchRate, metrics.classified > 0)],
-            [label('labelFalsePositiveRate'), formatPercentOrNoData(metrics.fpTriggerRate, (metrics.tp + metrics.fp) > 0)],
-            [label('labelObservableFnRate'), formatPercentOrNoData(metrics.fnRiskRate, (metrics.tp + metrics.fn) > 0)],
-            [label('labelUnknownRate'), formatPercentOrNoData(metrics.unknownRate, (metrics.classified + metrics.unknown) > 0)]
+            [label('labelMatchRate'), formatMetricPercent(standard.matchRate, metrics.matchRate, metrics.classified > 0), label('labelMatchRateHelp')],
+            [label('labelMismatchRate'), formatMetricPercent(standard.mismatchRate, metrics.mismatchRate, metrics.classified > 0), label('labelMismatchRateHelp')],
+            [label('labelFalsePositiveRate'), formatMetricPercent(standard.falsePositiveRate, metrics.fpTriggerRate, (metrics.tp + metrics.fp) > 0), label('labelFalsePositiveRateHelp')],
+            [label('labelObservableFnRate'), formatMetricPercent(standard.observableFalseNegativeRate, metrics.fnRiskRate, (metrics.tp + metrics.fn) > 0), label('labelObservableFnRateHelp')],
+            [label('labelUnknownRate'), formatMetricPercent(standard.unknownRate, metrics.unknownRate, metrics.comparisonAvailable), label('labelUnknownRateHelp')]
         ]);
         detailsEl.innerHTML = [
             confusionMatrixPanel(summary || {}),
@@ -150,10 +149,10 @@
         const failureTotal = failureCount(operations);
         detailsEl.className = 'ai-monitor-dashboard';
         renderKpis([
-            [label('labelTimeouts'), operations.timeoutCount],
-            [label('labelParserFailures'), operations.parserFailureCount],
-            [label('labelModelUnavailable'), operations.modelUnavailableCount],
-            [label('labelAverageLatency'), formatMs(operations.averageLatencyMs)]
+            [label('labelTimeouts'), operations.timeoutCount, label('labelTimeoutsHelp')],
+            [label('labelParserFailures'), operations.parserFailureCount, label('labelParserFailuresHelp')],
+            [label('labelModelUnavailable'), operations.modelUnavailableCount, label('labelModelUnavailableHelp')],
+            [label('labelAverageLatency'), formatMs(operations.averageLatencyMs), label('labelAverageLatencyHelp')]
         ]);
         detailsEl.innerHTML = [
             `<div class="ai-monitor-overview-grid">
@@ -162,17 +161,23 @@
             </div>`,
             `<div class="ai-monitor-overview-grid">
                 ${recentFailurePanel(summary.recentFailures || [])}
-                ${affectedRequestPanel(summary.affectedRequests || [])}
+                ${slowRequestPanel(summary.slowRequests || [])}
             </div>`,
             `<div class="ai-monitor-overview-grid">
+                ${affectedRequestPanel(summary.affectedRequests || [])}
                 ${optionalBreakdownPanel(label('labelProvider'), summary.providerBreakdown || [], label('labelProviderUnknownHelp'))}
+            </div>`,
+            `<div class="ai-monitor-overview-grid">
                 ${optionalBreakdownPanel(label('labelModel'), summary.modelBreakdown || [], label('labelProviderUnknownHelp'))}
+                ${optionalBreakdownPanel(label('labelPromptTemplate'), summary.promptTemplateBreakdown || [], label('labelNoData'))}
             </div>`
         ].join('');
     }
 
     function renderReadiness(summary) {
         const blockers = readinessBlockers({
+            observableFalseNegativeRate: summary.observableFalseNegativeRate,
+            failureRate: summary.failureRate,
             recommendation: summary.recommendation,
             hcad: {
                 candidateCount: summary.hcadCandidateCount,
@@ -193,18 +198,10 @@
         const criteria = readinessCriteria(summary);
 
         detailsEl.className = 'ai-monitor-dashboard';
-        renderKpis([
-            [label('labelRecommendation'), friendlyRecommendation(summary.recommendation)],
-            [label('labelMinimumSample'), `${formatNumber(summary.hcadCandidateCount || 0)} / ${formatNumber(summary.minimumSampleSize || 0)}`],
-            [label('labelHcadPrecision'), formatPercentOrNoData(summary.hcadPrecision, (summary.llmDecisionCount || 0) > 0)],
-            [label('labelObservableFnRate'), formatPercentOrNoData(summary.observableFalseNegativeRate, (summary.llmDecisionCount || 0) > 0)],
-            [label('labelUnknownRate'), formatPercentOrNoData(summary.unknownRate, (summary.llmDecisionCount || 0) > 0)],
-            [label('labelFailureRate'), formatPercentOrNoData(summary.failureRate, (summary.llmDecisionCount || 0) > 0)]
-        ]);
+        renderKpis([]);
         detailsEl.innerHTML = [
             executiveDecisionPanel(summary.recommendation, blockers),
-            readinessVisualizationPanel(summary, criteria),
-            criteriaChecklistPanel(criteria)
+            readinessVisualizationPanel(summary, criteria)
         ].join('');
     }
 
@@ -275,13 +272,14 @@
             { label: label('labelMismatched'), value: metrics.mismatch, color: '#ef4444' },
             { label: label('labelUnknown'), value: metrics.unknown, color: '#94a3b8' }
         ];
+        const centerText = metrics.classified > 0 ? formatPercent(metrics.matchRate) : label('labelNoComparisonData');
         return `
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewOutcome'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelOverviewOutcomeDesc'))}</div>
                 <div class="ai-monitor-chart-shell">
                     <div class="ai-monitor-donut" style="background:${escapeHtml(donutGradient(rows))};">
-                        <div class="ai-monitor-donut-center">${escapeHtml(formatPercent(metrics.matchRate))}</div>
+                        <div class="ai-monitor-donut-center">${escapeHtml(centerText)}</div>
                     </div>
                     <div class="ai-monitor-legend">
                         ${rows.map(row => `
@@ -295,19 +293,19 @@
             </section>`;
     }
 
-    function qualitySignalPanel(hcad, llm, operations, metrics) {
-        const hcadComparisonAvailable = hasHcadComparison(hcad);
+    function qualitySignalPanel(hcad, llm, operations, metrics, standard) {
+        const hcadComparisonAvailable = (metrics.tp + metrics.fp) > 0;
         const llmAvailable = (llm.totalDecisionCount || 0) > 0;
         return `
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewReliability'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelOverviewReliabilityDesc'))}</div>
                 <div class="ai-monitor-bars">
-                    ${metricBarOptional(label('labelHcadPrecision'), hcad.precision || 0, hcadComparisonAvailable, (hcad.precision || 0) >= 0.80 ? 'warn' : 'bad')}
-                    ${metricBarOptional(label('labelMismatchRate'), metrics.mismatchRate, metrics.classified > 0, metrics.mismatchRate >= 0.20 ? 'bad' : (metrics.mismatchRate > 0 ? 'warn' : 'good'))}
-                    ${metricBarOptional(label('labelUnknownPressure'), hcad.unknownRate || 0, hcadComparisonAvailable, (hcad.unknownRate || 0) >= 0.40 ? 'bad' : ((hcad.unknownRate || 0) > 0 ? 'warn' : 'good'))}
-                    ${metricBarOptional(label('labelTimeoutPressure'), llm.timeoutRate || 0, llmAvailable, (llm.timeoutRate || 0) >= 0.10 ? 'bad' : ((llm.timeoutRate || 0) > 0 ? 'warn' : 'good'))}
-                    ${valueRow(label('labelAverageLatency'), formatMsOrNoData(operations.averageLatencyMs || 0, llmAvailable), (operations.averageLatencyMs || 0) > 0 ? 'warn' : 'good')}
+                    ${metricBarFromMetric(label('labelHcadPrecision'), standard.hcadPrecision, metrics.hcadPrecision, hcadComparisonAvailable, metrics.hcadPrecision >= 0.80 ? 'warn' : 'bad')}
+                    ${metricBarFromMetric(label('labelMismatchRate'), standard.mismatchRate, metrics.mismatchRate, metrics.classified > 0, metrics.mismatchRate >= 0.20 ? 'bad' : (metrics.mismatchRate > 0 ? 'warn' : 'good'))}
+                    ${metricBarFromMetric(label('labelUnknownPressure'), standard.unknownRate, metrics.unknownRate, metrics.comparisonAvailable, metrics.unknownRate >= 0.40 ? 'bad' : (metrics.unknownRate > 0 ? 'warn' : 'good'))}
+                    ${metricBarFromMetric(label('labelTimeoutPressure'), standard.timeoutRate, llm.timeoutRate || 0, llmAvailable, (llm.timeoutRate || 0) >= 0.10 ? 'bad' : ((llm.timeoutRate || 0) > 0 ? 'warn' : 'good'))}
+                    ${valueRow(label('labelAverageLatency'), formatMetricMs(standard.averageLatencyMs, operations.averageLatencyMs || 0, llmAvailable), (operations.averageLatencyMs || 0) > 0 ? 'warn' : 'good')}
                 </div>
             </section>`;
     }
@@ -365,18 +363,11 @@
     }
 
     function llmQualityPanel(summary) {
-        const failures = [
-            { label: label('labelParserFailureRate'), value: summary.parserFailureRate || 0 },
-            { label: label('labelTimeoutRate'), value: summary.timeoutRate || 0 },
-            { label: label('labelModelUnavailableRate'), value: summary.modelUnavailableRate || 0 }
-        ];
         return `
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelResponseQuality'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelQualityFailureLink'))}</div>
-                <div class="ai-monitor-bars">
-                    ${failures.map(item => metricBar(item.label, item.value, item.value > 0 ? 'warn' : 'good')).join('')}
-                </div>
+                <a class="ai-monitor-inline-link" href="/contexa/admin/ai-monitor/failures?period=${encodeURIComponent(period)}">${escapeHtml(label('labelOpenFailurePage'))}</a>
             </section>`;
     }
 
@@ -428,9 +419,9 @@
                 <tr>
                     <td>${escapeHtml(formatDate(row.createdAt))}</td>
                     <td>${escapeHtml(row.userId || '-')}</td>
-                    <td>${escapeHtml(displayKey(row.outcomeClass || '-'))}</td>
-                    <td>${escapeHtml(formatNumber(row.hcadScore || 0))}</td>
-                    <td>${escapeHtml(displayKey(row.llmFinalAction || '-'))}</td>
+                    <td>${escapeHtml(displayKey(row.outcomeClass || '-'))}<div class="ai-monitor-row-meta">${escapeHtml(`requestId ${row.requestId || '-'}`)}</div></td>
+                    <td>${escapeHtml(formatNumber(row.hcadScore || 0))}<div class="ai-monitor-row-meta">${escapeHtml(`hcad ${row.hcadEvaluationId || '-'}`)}</div></td>
+                    <td>${escapeHtml(displayKey(row.llmFinalAction || '-'))}<div class="ai-monitor-row-meta">${escapeHtml(`llm ${row.llmObservationId || '-'}`)}</div></td>
                 </tr>`).join('')
             : `<tr><td colspan="5">${escapeHtml(label('labelNoData'))}</td></tr>`;
         return `
@@ -495,6 +486,26 @@
             </section>`;
     }
 
+    function slowRequestPanel(rows) {
+        const body = (rows || []).length
+            ? rows.slice(0, 10).map(row => `
+                <tr>
+                    <td>${escapeHtml(formatDate(row.createdAt))}</td>
+                    <td>${escapeHtml(`${row.method || ''} ${row.path || '-'}`.trim())}</td>
+                    <td>${escapeHtml(formatMs(row.latencyMs || 0))}</td>
+                </tr>`).join('')
+            : `<tr><td colspan="3">${escapeHtml(label('labelNoData'))}</td></tr>`;
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelSlowRequests'))}</div>
+                <div class="ai-monitor-band-help">${escapeHtml(label('labelSlowRequestsHelp'))}</div>
+                <table class="ai-monitor-table">
+                    <thead><tr><th>${escapeHtml(label('labelCreatedAt'))}</th><th>${escapeHtml(label('labelRequest'))}</th><th>${escapeHtml(label('labelAverageLatency'))}</th></tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </section>`;
+    }
+
     function affectedRequestPanel(rows) {
         return `
             <section class="ai-monitor-band">
@@ -533,11 +544,10 @@
         return `
             <div class="ai-monitor-readiness-visual-grid">
                 <section class="ai-monitor-band ai-monitor-readiness-gauge-card">
-                    <div class="ai-monitor-band-title">${escapeHtml(label('labelOverviewReadiness'))}</div>
+                    <div class="ai-monitor-band-title">${escapeHtml(label('labelReadinessScore'))}</div>
                     <div class="ai-monitor-readiness-gauge" style="--readiness-angle:${angle}deg;">
                         <div class="ai-monitor-readiness-gauge-core">
                             <strong>${escapeHtml(formatNumber(score))}%</strong>
-                            <span>${escapeHtml(friendlyRecommendation(summary.recommendation))}</span>
                         </div>
                     </div>
                 </section>
@@ -622,8 +632,13 @@
             + (correlation.falsePositiveCount || 0)
             + (correlation.observableFalseNegativeCount || 0)
             + (correlation.trueNegativeCount || 0);
-        const fnRate = ratioValue(correlation.observableFalseNegativeCount || 0, classified);
-        const failureRate = ratioValue(failureCount(operations), llm.totalDecisionCount || context.llmDecisionCount || 0);
+        const fnRate = Number.isFinite(context.observableFalseNegativeRate)
+            ? context.observableFalseNegativeRate
+            : ratioValue(correlation.observableFalseNegativeCount || 0,
+                (correlation.truePositiveCount || 0) + (correlation.observableFalseNegativeCount || 0));
+        const failureRate = Number.isFinite(context.failureRate)
+            ? context.failureRate
+            : ratioValue(failureCount(operations), llm.totalDecisionCount || context.llmDecisionCount || 0);
         const blockers = [];
         if ((hcad.candidateCount || 0) < minSample) {
             blockers.push({
@@ -675,6 +690,7 @@
         const tn = correlation.trueNegativeCount || 0;
         const unknown = correlation.unknownCount || 0;
         const classified = tp + fp + fn + tn;
+        const comparisonTotal = classified + unknown;
         const match = tp + tn;
         const mismatch = fp + fn;
         return {
@@ -684,8 +700,11 @@
             tn,
             unknown,
             classified,
+            comparisonTotal,
+            comparisonAvailable: comparisonTotal > 0,
             match,
             mismatch,
+            hcadPrecision: ratioValue(tp, tp + fp),
             matchRate: ratioValue(match, classified),
             mismatchRate: ratioValue(mismatch, classified),
             fpTriggerRate: ratioValue(fp, tp + fp),
@@ -744,6 +763,13 @@
     function metricBarOptional(labelText, value, available, tone) {
         return metricBar(labelText, available ? value : 0, available ? tone : 'warn',
                 available ? formatPercent(value) : label('labelNoDecisionData'));
+    }
+
+    function metricBarFromMetric(labelText, metric, fallbackValue, fallbackAvailable, tone) {
+        const available = metricAvailable(metric, fallbackAvailable);
+        const value = metricValue(metric, fallbackValue);
+        return metricBar(labelText, available ? value : 0, available ? tone : 'warn',
+                available ? formatPercent(value) : noDataText(metric));
     }
 
     function valueRow(labelText, value, tone) {
@@ -860,6 +886,12 @@
         return available ? formatMs(value) : label('labelNoDecisionData');
     }
 
+    function formatMetricMs(metric, fallbackValue, fallbackAvailable) {
+        if (metric && metric.noDataReason) return noDataText(metric);
+        if (metric && typeof metric.value === 'number') return formatMs(metric.value);
+        return formatMsOrNoData(fallbackValue, fallbackAvailable);
+    }
+
     function formatPercent(value) {
         if (typeof value !== 'number' || Number.isNaN(value)) return '0%';
         return percentFormatter.format(value);
@@ -867,6 +899,28 @@
 
     function formatPercentOrNoData(value, available) {
         return available ? formatPercent(value) : label('labelNoDecisionData');
+    }
+
+    function formatMetricPercent(metric, fallbackValue, fallbackAvailable) {
+        if (metric && metric.noDataReason) return noDataText(metric);
+        if (metric && typeof metric.value === 'number') return formatPercent(metric.value);
+        return formatPercentOrNoData(fallbackValue, fallbackAvailable);
+    }
+
+    function metricAvailable(metric, fallbackAvailable) {
+        if (metric) return !metric.noDataReason && typeof metric.value === 'number';
+        return fallbackAvailable;
+    }
+
+    function metricValue(metric, fallbackValue) {
+        if (metric && typeof metric.value === 'number') return metric.value;
+        return fallbackValue || 0;
+    }
+
+    function noDataText(metric) {
+        const reason = metric && metric.noDataReason ? metric.noDataReason : 'NO_DECISION_DATA';
+        const mapped = root.dataset[`labelNoData${toDatasetSuffix(reason)}`];
+        return mapped || label('labelNoDecisionData');
     }
 
     function hasHcadComparison(hcad) {

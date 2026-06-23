@@ -131,6 +131,31 @@ class TrustedHcadContextProjectionFactoryTest {
     }
 
     @Test
+    @DisplayName("server-side login failure counters are trusted HCAD anchor evidence")
+    void project_loginFailureCounter_shouldDriveFailedLoginBurstAnchor() {
+        MockHttpServletRequest request = baseRequest();
+        when(securityContextDataStore.getRecentSessionActions(anyString(), eq(20))).thenReturn(List.of());
+        when(securityContextDataStore.getSessionLastRequestTime(anyString())).thenReturn(System.currentTimeMillis());
+        when(securityContextDataStore.getSessionPreviousPath(anyString())).thenReturn("/admin/dashboard");
+        when(hcadDataStore.getRecentLoginFailureCount(eq("alice"), eq("203.0.113.10"), anyLong(), anyLong()))
+                .thenReturn(3);
+        when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong())).thenReturn(12);
+
+        TrustedHcadContextProjection projection = factory.project(request, authentication());
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(projection.failedLoginBurst()).isEqualTo(3);
+        assertThat(projection.sourceOf("failedLoginBurst")).isEqualTo(HcadTrustedSource.STORE_DERIVED);
+        assertThat(assessment.anchorSignals()).contains("FAILED_LOGIN_BURST");
+        assertThat(assessment.corroboratingSignals()).contains(
+                "REQUEST_BURST",
+                "RAPID_SEQUENCE",
+                "PREVIOUS_PATH_JUMP");
+        assertThat(assessment.score()).isGreaterThanOrEqualTo(properties.getPreTrigger().getRedlineScore());
+        assertThat(assessment.eligible()).isTrue();
+    }
+
+    @Test
     @DisplayName("persisted personal baseline is compared against the trusted request context")
     void project_persistedPersonalBaseline_shouldExposeMaterialMismatch() {
         MockHttpServletRequest request = baseRequest();
@@ -160,6 +185,32 @@ class TrustedHcadContextProjectionFactoryTest {
                 .contains("ipBand", "pathFamily", "authenticationType");
         assertThat(assessment.corroboratingSignals()).contains("BASELINE_MATERIAL_MISMATCH");
         assertThat(assessment.anchorSignals()).doesNotContain("BASELINE_MATERIAL_MISMATCH");
+        assertThat(assessment.eligible()).isFalse();
+    }
+
+    @Test
+    @DisplayName("insufficient personal baseline should be recorded as unavailable evidence and must not trigger mismatch")
+    void project_insufficientPersonalBaseline_shouldExplainEvidenceGap() {
+        MockHttpServletRequest request = baseRequest();
+        when(baselineDataStore.getUserBaseline("alice")).thenReturn(BaselineVector.builder()
+                .userId("alice")
+                .updateCount(3L)
+                .normalIpRanges(new String[]{"10.0.0"})
+                .frequentPaths(new String[]{"/dashboard"})
+                .normalAuthenticationTypes(new String[]{"TOKEN"})
+                .build());
+
+        TrustedHcadContextProjection projection = factory.project(request, authentication());
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
+
+        assertThat(projection.baselineComparison().available()).isTrue();
+        assertThat(projection.baselineComparison().established()).isFalse();
+        assertThat(projection.baselineComparison().updateCount()).isEqualTo(3L);
+        assertThat(projection.baselineComparison().minSamples()).isEqualTo(20);
+        assertThat(projection.baselineComparison().materialMismatch()).isFalse();
+        assertThat(projection.baselineComparison().missingDimensions())
+                .contains("personalBaselineInsufficientSamples");
+        assertThat(assessment.corroboratingSignals()).doesNotContain("BASELINE_MATERIAL_MISMATCH");
         assertThat(assessment.eligible()).isFalse();
     }
 

@@ -25,6 +25,9 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.beans.factory.InitializingBean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,6 +74,26 @@ class IamSeedDataAutoConfigurationTest {
         assertThat(initializer.getReturnType())
                 .as("IAM seed must run during bean initialization against contexaDataSource")
                 .isEqualTo(InitializingBean.class);
+    }
+
+    @Test
+    @DisplayName("IAM schema maintenance should run before Contexa JPA validation")
+    void iamSchemaMaintenanceRunsBeforeContexaJpaValidation() {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        beanFactory.registerBeanDefinition(
+                IamSeedDataAutoConfiguration.CONTEXA_ENTITY_MANAGER_FACTORY_BEAN,
+                new RootBeanDefinition(Object.class));
+        beanFactory.registerBeanDefinition(
+                IamSeedDataAutoConfiguration.IAM_SEED_DATA_INITIALIZER_BEAN,
+                new RootBeanDefinition(Object.class));
+
+        BeanFactoryPostProcessor postProcessor = IamSeedDataAutoConfiguration.iamSeedDataJpaDependencyConfigurer();
+        postProcessor.postProcessBeanFactory(beanFactory);
+
+        assertThat(beanFactory
+                .getBeanDefinition(IamSeedDataAutoConfiguration.CONTEXA_ENTITY_MANAGER_FACTORY_BEAN)
+                .getDependsOn())
+                .contains(IamSeedDataAutoConfiguration.IAM_SEED_DATA_INITIALIZER_BEAN);
     }
 
     @Test

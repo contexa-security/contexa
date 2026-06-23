@@ -34,6 +34,7 @@ public class RedisHCADDataStore implements HCADDataStore {
     private static final Duration SESSION_TTL = Duration.ofHours(24);
     private static final Duration DEVICE_TTL = Duration.ofDays(30);
     private static final Duration REQUEST_COUNTER_TTL = Duration.ofMinutes(10);
+    private static final Duration LOGIN_FAILURE_COUNTER_TTL = Duration.ofMinutes(10);
     private static final Duration DEFAULT_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int MAX_DEVICES = 10;
     private final AtomicLong requestSequence = new AtomicLong();
@@ -127,6 +128,27 @@ public class RedisHCADDataStore implements HCADDataStore {
     }
 
     @Override
+    public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
+        if (hasText(userId)) {
+            recordLoginFailureCounter(ZeroTrustRedisKeys.hcadLoginFailuresByUser(userId.trim()), currentTimeMs);
+        }
+        if (hasText(clientIp)) {
+            recordLoginFailureCounter(ZeroTrustRedisKeys.hcadLoginFailuresByIp(clientIp.trim()), currentTimeMs);
+        }
+    }
+
+    @Override
+    public int getRecentLoginFailureCount(String userId, String clientIp, long windowStartMs, long currentTimeMs) {
+        int userCount = hasText(userId)
+                ? countLoginFailureCounter(ZeroTrustRedisKeys.hcadLoginFailuresByUser(userId.trim()), windowStartMs, currentTimeMs)
+                : 0;
+        int ipCount = hasText(clientIp)
+                ? countLoginFailureCounter(ZeroTrustRedisKeys.hcadLoginFailuresByIp(clientIp.trim()), windowStartMs, currentTimeMs)
+                : 0;
+        return Math.max(userCount, ipCount);
+    }
+
+    @Override
     public boolean isUserRegistered(String userId) {
         try {
             String key = ZeroTrustRedisKeys.userRegistered(userId);
@@ -188,5 +210,31 @@ public class RedisHCADDataStore implements HCADDataStore {
         } catch (Exception e) {
             log.error("[HCADDataStore] Failed to save HCAD analysis: userId={}", userId, e);
         }
+    }
+
+    private void recordLoginFailureCounter(String key, long currentTimeMs) {
+        try {
+            String member = currentTimeMs + ":" + requestSequence.incrementAndGet();
+            redisTemplate.opsForZSet().add(key, member, currentTimeMs);
+            long fiveMinutesAgo = currentTimeMs - (5 * 60 * 1000);
+            redisTemplate.opsForZSet().removeRangeByScore(key, 0, fiveMinutesAgo);
+            redisTemplate.expire(key, LOGIN_FAILURE_COUNTER_TTL);
+        } catch (Exception e) {
+            log.error("[HCADDataStore] Failed to record login failure counter: key={}", key, e);
+        }
+    }
+
+    private int countLoginFailureCounter(String key, long windowStartMs, long currentTimeMs) {
+        try {
+            Long count = redisTemplate.opsForZSet().count(key, windowStartMs, currentTimeMs);
+            return count != null ? count.intValue() : 0;
+        } catch (Exception e) {
+            log.error("[HCADDataStore] Failed to count login failure counter: key={}", key, e);
+            return 0;
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

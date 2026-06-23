@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
@@ -26,8 +27,18 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
+import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
+import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
+import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +51,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.List;
@@ -49,6 +61,7 @@ import java.util.Set;
 import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -371,6 +384,113 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
+    @DisplayName("Protectable authorization should attach observed HCAD evidence when the request was not the window owner")
+    void shouldAttachProtectableHcadObservationWhenWindowWasAlreadyObserved() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/users");
+        request.setRequestedSessionId("session-hcad-protectable-observed");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("203.0.113.20");
+        request.setAttribute("hcad.actorSessionKey", "actor-window-1");
+        request.setAttribute("hcad.windowId", "window-1");
+        request.setAttribute("hcad.windowRequestCount", 4);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        TrustedHcadContextProjection projection = new TrustedHcadContextProjection(
+                "alice",
+                null,
+                null,
+                "session-hcad-protectable-observed",
+                "binding-1",
+                "GET",
+                "/admin/users",
+                "203.0.113.20",
+                "password",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                0,
+                0,
+                false,
+                "/admin/dashboard",
+                false,
+                0.95d,
+                true,
+                new HcadBaselineComparison(
+                        true,
+                        true,
+                        40L,
+                        20,
+                        4,
+                        0,
+                        1.0d,
+                        false,
+                        List.of("method", "path"),
+                        List.of(),
+                        List.of(),
+                        Map.of("path", "/admin/users"),
+                        Map.of("path", "/admin/users")),
+                "hcad-test",
+                Map.of(),
+                Map.of(),
+                Map.of());
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                10,
+                HcadPreProtectablePromotionBand.LOW,
+                false,
+                List.of(),
+                List.of("BASELINE_MATCH"),
+                List.of("BASELINE_MATCH"),
+                "No trusted risk signal",
+                "hcad-test",
+                Map.of("baselineComparison", projection.baselineComparison()));
+        TrustedHcadContextProjectionFactory projectionFactory = mock(TrustedHcadContextProjectionFactory.class);
+        HcadPreProtectablePromotionScorer scorer = mock(HcadPreProtectablePromotionScorer.class);
+        HcadEvaluationWriter writer = mock(HcadEvaluationWriter.class);
+        when(projectionFactory.project(eq(request), any())).thenReturn(projection);
+        when(scorer.score(projection)).thenReturn(assessment);
+        when(writer.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class)))
+                .thenReturn("eval-protectable-observed");
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        setField(publisher, "trustedHcadContextProjectionFactory", projectionFactory);
+        setField(publisher, "hcadPreProtectablePromotionScorer", scorer);
+        setField(publisher, "hcadEvaluationWriter", writer);
+        setField(publisher, "hcadProperties", new HcadProperties());
+
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        assertThat(event.getPayload())
+                .containsEntry("protectableDeclared", true)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
+                .containsEntry("hcadEvaluationId", "eval-protectable-observed");
+        ArgumentCaptor<PendingAnomalyEvidenceReport> reportCaptor =
+                ArgumentCaptor.forClass(PendingAnomalyEvidenceReport.class);
+        verify(writer).recordCandidate(eq(HcadPreTriggerMode.SHADOW), reportCaptor.capture());
+        assertThat(reportCaptor.getValue().shouldTrigger()).isFalse();
+        assertThat(reportCaptor.getValue().rawSignalSnapshot())
+                .containsEntry("actorSessionKey", "actor-window-1")
+                .containsEntry("windowId", "window-1")
+                .containsEntry("triggerScope", "PROTECTABLE_OBSERVATION")
+                .containsEntry("protectableObserved", true);
+    }
+
+    @Test
     @DisplayName("pre-protectable threat publication should include bridge metadata when available")
     void shouldIncludeBridgeMetadataInPreProtectableThreatPayload() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/export/reports");
@@ -482,8 +602,21 @@ class ZeroTrustEventPublisherTest {
         );
     }
 
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
     private static class SampleService {
         void approve() {
+        }
+
+        @Protectable(
+                resourceId = "sample.protectable",
+                resourceUrl = "/admin/users",
+                httpMethod = "GET")
+        void protectableApprove() {
         }
     }
 }

@@ -31,6 +31,10 @@ public interface HCADDataStore {
 
     int getRecentRequestCount(String userId, long windowStartMs, long currentTimeMs);
 
+    void recordLoginFailure(String userId, String clientIp, long currentTimeMs);
+
+    int getRecentLoginFailureCount(String userId, String clientIp, long windowStartMs, long currentTimeMs);
+
     boolean isUserRegistered(String userId);
 
     void registerUser(String userId);

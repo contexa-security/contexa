@@ -60,6 +60,9 @@ public class HcadDetectionEvaluation {
     @Column(name = "correlation_id", length = 160)
     private String correlationId;
 
+    @Column(name = "test_run_id", length = 160)
+    private String testRunId;
+
     @Column(name = "user_id", length = 160)
     private String userId;
 
@@ -144,14 +147,32 @@ public class HcadDetectionEvaluation {
     @Column(name = "baseline_available")
     private Boolean baselineAvailable;
 
+    @Column(name = "baseline_established")
+    private Boolean baselineEstablished;
+
     @Column(name = "baseline_update_count")
     private Long baselineUpdateCount;
+
+    @Column(name = "baseline_min_samples")
+    private Integer baselineMinSamples;
+
+    @Column(name = "baseline_compared_dimensions")
+    private Integer baselineComparedDimensions;
 
     @Column(name = "baseline_mismatch_count")
     private Integer baselineMismatchCount;
 
+    @Column(name = "baseline_match_ratio")
+    private Double baselineMatchRatio;
+
     @Column(name = "baseline_mismatched_dimensions", columnDefinition = "TEXT")
     private String baselineMismatchedDimensions;
+
+    @Column(name = "baseline_current_values_json", columnDefinition = "TEXT")
+    private String baselineCurrentValuesJson;
+
+    @Column(name = "baseline_reference_values_json", columnDefinition = "TEXT")
+    private String baselineReferenceValuesJson;
 
     @Column(name = "trigger_decision_reason", length = 128)
     private String triggerDecisionReason;

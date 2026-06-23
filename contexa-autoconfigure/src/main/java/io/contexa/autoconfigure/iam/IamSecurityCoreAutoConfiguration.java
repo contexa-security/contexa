@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.security.AISecurityContextSupport;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacore.security.AIOAuth2SecurityContextRepository;
@@ -54,6 +55,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.RedisTemplate;
 
@@ -76,9 +78,10 @@ public class IamSecurityCoreAutoConfiguration {
     public LoginPolicyHandler loginPolicyHandler(UserRepository userRepository,
                                                   LoginAttemptIpRepository loginAttemptIpRepository,
                                                   PasswordPolicyService passwordPolicyService,
-                                                  LoginAttemptIpUpserter loginAttemptIpUpserter) {
+                                                  LoginAttemptIpUpserter loginAttemptIpUpserter,
+                                                  ObjectProvider<HCADDataStore> hcadDataStoreProvider) {
         return new LoginPolicyService(userRepository, loginAttemptIpRepository,
-                passwordPolicyService, loginAttemptIpUpserter);
+                passwordPolicyService, loginAttemptIpUpserter, hcadDataStoreProvider);
     }
 
     @Bean

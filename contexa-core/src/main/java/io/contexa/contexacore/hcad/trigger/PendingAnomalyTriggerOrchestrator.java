@@ -113,6 +113,7 @@ public class PendingAnomalyTriggerOrchestrator {
             eventTriggerService.publish(request, report, evaluationId);
             triggerCoordinator.markCooldown(triggerLease);
             markTriggered(evaluationId);
+            markRequestTriggered(request, report, triggerLease.dedupKey(), evaluationId);
             success = true;
         } catch (Exception ex) {
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to publish pre-protectable threat event", ex);
@@ -154,6 +155,30 @@ public class PendingAnomalyTriggerOrchestrator {
             hcadEvaluationWriter.markDuplicateSuppressed(evaluationId);
         } catch (Exception ex) {
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to mark duplicate HCAD evaluation", ex);
+        }
+    }
+
+    private void markRequestTriggered(
+            HttpServletRequest request,
+            PendingAnomalyEvidenceReport report,
+            String dedupKey,
+            String evaluationId) {
+        if (request == null) {
+            return;
+        }
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED, true);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_STATE_KEY, dedupKey);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DUPLICATE_SUPPRESSED, false);
+        if (evaluationId != null && !evaluationId.isBlank()) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+        }
+        if (report != null) {
+            if (report.requestId() != null) {
+                request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_REQUEST_ID, report.requestId());
+            }
+            if (report.riskSignature() != null) {
+                request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_RISK_SIGNATURE, report.riskSignature());
+            }
         }
     }
 

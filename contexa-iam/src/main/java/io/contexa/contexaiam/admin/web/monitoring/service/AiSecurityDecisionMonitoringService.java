@@ -21,12 +21,15 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationS
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.AffectedRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.NamedCount;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OperationsSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentFailure;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentCorrelation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.StandardMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,47 +95,46 @@ public class AiSecurityDecisionMonitoringService {
 
     @Transactional(readOnly = true)
     public OverviewSummary overview(String period) {
-        String normalizedPeriod = normalizePeriod(period);
-        LocalDateTime to = LocalDateTime.now();
-        LocalDateTime from = from(normalizedPeriod, to);
-        HcadSummary hcad = hcadMonitoringService.summarize(normalizedPeriod, from, to);
-        LlmDecisionSummary llm = llmSummary(from, to);
-        CorrelationSummary correlation = correlationSummary(from, to);
-        OperationsSummary operations = operationsSummary(from, to, hcad);
+        SnapshotData data = snapshotData(period);
         return new OverviewSummary(
-                normalizedPeriod,
-                ISO.format(from),
-                ISO.format(to),
-                hcad,
-                llm,
-                correlation,
-                operations,
-                readinessRecommendation(hcad, llm, correlation, operations));
+                data.window().period(),
+                ISO.format(data.window().from()),
+                ISO.format(data.window().to()),
+                data.snapshot().generatedAt(),
+                data.snapshot(),
+                data.metrics(),
+                data.hcad(),
+                withMetrics(data.llm(), data.snapshot(), data.metrics()),
+                withMetrics(data.correlation(), data.snapshot(), data.metrics()),
+                data.operations(),
+                data.readinessRecommendation());
     }
 
     @Transactional(readOnly = true)
     public LlmDecisionSummary llm(String period) {
-        TimeWindow window = window(period);
-        return llmSummary(window.from(), window.to());
+        SnapshotData data = snapshotData(period);
+        return withMetrics(data.llm(), data.snapshot(), data.metrics());
     }
 
     @Transactional(readOnly = true)
     public CorrelationSummary correlation(String period) {
-        TimeWindow window = window(period);
-        return correlationSummary(window.from(), window.to());
+        SnapshotData data = snapshotData(period);
+        return withMetrics(data.correlation(), data.snapshot(), data.metrics());
     }
 
     @Transactional(readOnly = true)
     public FailureSummary failures(String period) {
-        TimeWindow window = window(period);
-        HcadSummary hcad = hcadMonitoringService.summarize(window.period(), window.from(), window.to());
-        OperationsSummary operations = operationsSummary(window.from(), window.to(), hcad);
+        SnapshotData data = snapshotData(period);
+        TimeWindow window = data.window();
         List<NamedCount> canonicalFailures = explicitFailureBreakdown(window.from(), window.to());
         return new FailureSummary(
                 window.period(),
                 ISO.format(window.from()),
                 ISO.format(window.to()),
-                operations,
+                data.snapshot().generatedAt(),
+                data.snapshot(),
+                data.metrics(),
+                data.operations(),
                 canonicalFailures,
                 canonicalFailures,
                 nonEmptyBreakdown("fallback_category", window.from(), window.to()),
@@ -141,40 +143,39 @@ public class AiSecurityDecisionMonitoringService {
                 breakdown("ai_security_decision_observation", "coalesce(prompt_template_key, 'UNKNOWN')", window.from(), window.to()),
                 failureTrend(window.period(), window.from(), window.to()),
                 affectedRequests(window.from(), window.to()),
-                recentFailures(window.from(), window.to()));
+                recentFailures(window.from(), window.to()),
+                slowRequests(window.from(), window.to()));
     }
 
     @Transactional(readOnly = true)
     public ReadinessSummary readiness(String period) {
-        OverviewSummary overview = overview(period);
-        long classified = overview.correlation().truePositiveCount()
-                + overview.correlation().falsePositiveCount()
-                + overview.correlation().observableFalseNegativeCount()
-                + overview.correlation().trueNegativeCount();
-        long failures = overview.operations().parserFailureCount()
-                + overview.operations().technicalFallbackCount()
-                + overview.operations().timeoutCount()
-                + overview.operations().modelUnavailableCount();
+        SnapshotData data = snapshotData(period);
+        HcadSummary hcad = data.hcad();
+        LlmDecisionSummary llm = data.llm();
+        OperationsSummary operations = data.operations();
         return new ReadinessSummary(
-                overview.period(),
-                overview.from(),
-                overview.to(),
-                overview.readinessRecommendation(),
-                overview.hcad().qualification().minimumSampleSize(),
-                overview.hcad().candidateCount(),
-                overview.llm().totalDecisionCount(),
-                overview.hcad().precision(),
-                ratio(overview.correlation().observableFalseNegativeCount(), classified),
-                overview.hcad().unknownRate(),
-                ratio(failures, overview.llm().totalDecisionCount()),
-                ratio(overview.operations().parserFailureCount(), overview.llm().totalDecisionCount()),
-                ratio(overview.operations().technicalFallbackCount(), overview.llm().totalDecisionCount()),
-                ratio(overview.operations().timeoutCount(), overview.llm().totalDecisionCount()),
-                ratio(overview.operations().modelUnavailableCount(), overview.llm().totalDecisionCount()),
-                overview.operations().averageLatencyMs(),
-                p95Latency(overview.from(), overview.to()),
-                overview.operations().estimatedWasteCostUsd(),
-                overview.operations().estimatedSavedCostUsd());
+                data.window().period(),
+                ISO.format(data.window().from()),
+                ISO.format(data.window().to()),
+                data.snapshot().generatedAt(),
+                data.snapshot(),
+                data.metrics(),
+                data.readinessRecommendation(),
+                hcad.qualification().minimumSampleSize(),
+                hcad.candidateCount(),
+                llm.totalDecisionCount(),
+                metricNumber(data.metrics().hcadPrecision()),
+                metricNumber(data.metrics().observableFalseNegativeRate()),
+                metricNumber(data.metrics().unknownRate()),
+                metricNumber(data.metrics().failureRate()),
+                llm.parserFailureRate(),
+                llm.technicalFallbackRate(),
+                llm.timeoutRate(),
+                llm.modelUnavailableRate(),
+                operations.averageLatencyMs(),
+                p95Latency(data.window().from(), data.window().to()),
+                operations.estimatedWasteCostUsd(),
+                operations.estimatedSavedCostUsd());
     }
 
     @Transactional(readOnly = true)
@@ -255,6 +256,171 @@ public class AiSecurityDecisionMonitoringService {
         };
     }
 
+    private SnapshotData snapshotData(String period) {
+        TimeWindow window = window(period);
+        MonitorSnapshot snapshot = new MonitorSnapshot(
+                window.period(),
+                ISO.format(window.from()),
+                ISO.format(window.to()),
+                ISO.format(window.generatedAt()));
+        HcadSummary hcad = hcadMonitoringService.summarize(window.period(), window.from(), window.to());
+        LlmDecisionSummary llm = llmSummary(window.from(), window.to());
+        CorrelationSummary correlation = correlationSummary(window.from(), window.to());
+        OperationsSummary operations = operationsSummary(window.from(), window.to(), hcad);
+        StandardMetrics metrics = standardMetrics(hcad, llm, correlation, operations);
+        return new SnapshotData(
+                window,
+                snapshot,
+                hcad,
+                llm,
+                correlation,
+                operations,
+                metrics,
+                readinessRecommendation(hcad, llm, correlation, operations));
+    }
+
+    private StandardMetrics standardMetrics(
+            HcadSummary hcad,
+            LlmDecisionSummary llm,
+            CorrelationSummary correlation,
+            OperationsSummary operations) {
+        long tp = correlation.truePositiveCount();
+        long fp = correlation.falsePositiveCount();
+        long fn = correlation.observableFalseNegativeCount();
+        long tn = correlation.trueNegativeCount();
+        long unknown = correlation.unknownCount();
+        long classified = tp + fp + fn + tn;
+        long comparisonTotal = classified + unknown;
+        long failures = operations.parserFailureCount()
+                + operations.technicalFallbackCount()
+                + operations.timeoutCount()
+                + operations.modelUnavailableCount();
+        return new StandardMetrics(
+                countMetric("observedRequests", "전체 관측 요청", "기간 내 보안 판단 가치가 있는 요청 수입니다.",
+                        hcad.observedRequestCount()),
+                countMetric("hcadEvaluations", "조기탐지 평가", "HCAD가 실제 평가한 요청 또는 window 수입니다.",
+                        hcad.candidateCount()),
+                countMetric("hcadAiConnected", "조기탐지 AI 연결", "조기탐지 판단으로 AI 분석까지 이어진 수입니다.",
+                        hcad.triggeredLlmCount()),
+                countMetric("totalAiDecisions", "전체 AI 판정", "AI가 실제 분석한 요청 수입니다.",
+                        llm.totalDecisionCount()),
+                countMetric("clearOutcomes", "판정 확정", "정탐, 오탐, 미탐, 정상으로 비교 가능한 판정 수입니다.",
+                        classified),
+                ratioMetric("hcadPrecision", "HCAD 정탐 비율", "조기탐지가 위험으로 본 요청 중 AI도 위험으로 본 비율입니다.",
+                        tp, tp + fp, "NO_HCAD_RISK_COMPARISON"),
+                ratioMetric("matchRate", "판정 일치율", "조기탐지와 AI가 같은 방향으로 판단한 비율입니다.",
+                        tp + tn, classified, "NO_CLASSIFIED_COMPARISON"),
+                ratioMetric("mismatchRate", "판정 불일치율", "조기탐지와 AI 판단이 충돌한 비율입니다.",
+                        fp + fn, classified, "NO_CLASSIFIED_COMPARISON"),
+                ratioMetric("falsePositiveRate", "오탐률", "조기탐지가 위험으로 봤지만 AI가 허용한 비율입니다.",
+                        fp, tp + fp, "NO_HCAD_RISK_COMPARISON"),
+                ratioMetric("observableFalseNegativeRate", "미탐률", "조기탐지가 놓쳤지만 AI가 위험으로 본 비율입니다.",
+                        fn, tp + fn, "NO_AI_RISK_COMPARISON"),
+                ratioMetric("unknownRate", "판정 불명확 비율", "비교 또는 판정 신뢰가 어려운 비율입니다.",
+                        unknown, comparisonTotal, "NO_COMPARISON_DATA"),
+                ratioMetric("failureRate", "AI 분석 실패율", "AI 분석 자체가 정상 완료되지 않은 비율입니다.",
+                        failures, llm.totalDecisionCount(), "NO_AI_DECISION_DATA"),
+                ratioMetric("timeoutRate", "시간 초과율", "AI 분석 요청 중 시간 초과된 비율입니다.",
+                        operations.timeoutCount(), llm.totalDecisionCount(), "NO_AI_DECISION_DATA"),
+                durationMetric("averageLatencyMs", "평균 분석 지연", "AI 분석 응답 평균 시간입니다.",
+                        operations.averageLatencyMs(), llm.totalDecisionCount()));
+    }
+
+    private MetricValue countMetric(String key, String label, String description, long value) {
+        return new MetricValue(key, label, description, (double) value, value, null, "COUNT", null);
+    }
+
+    private MetricValue ratioMetric(
+            String key,
+            String label,
+            String description,
+            long numerator,
+            long denominator,
+            String noDataReason) {
+        return new MetricValue(
+                key,
+                label,
+                description,
+                denominator <= 0 ? null : (double) numerator / denominator,
+                numerator,
+                denominator,
+                "RATIO",
+                denominator <= 0 ? noDataReason : null);
+    }
+
+    private MetricValue durationMetric(
+            String key,
+            String label,
+            String description,
+            double value,
+            long denominator) {
+        return new MetricValue(
+                key,
+                label,
+                description,
+                denominator <= 0 ? null : value,
+                null,
+                denominator,
+                "MILLISECONDS",
+                denominator <= 0 ? "NO_AI_DECISION_DATA" : null);
+    }
+
+    private LlmDecisionSummary withMetrics(
+            LlmDecisionSummary summary,
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics) {
+        return new LlmDecisionSummary(
+                snapshot,
+                metrics,
+                summary.totalDecisionCount(),
+                summary.hcadPreTriggerDecisionCount(),
+                summary.protectableDecisionCount(),
+                summary.hcadAndProtectableDecisionCount(),
+                summary.triggerSourceBreakdown(),
+                summary.actionBreakdown(),
+                summary.proposedActionBreakdown(),
+                summary.finalActionBreakdown(),
+                summary.providerBreakdown(),
+                summary.modelBreakdown(),
+                summary.promptTemplateBreakdown(),
+                summary.parserFailureCount(),
+                summary.technicalFallbackCount(),
+                summary.timeoutCount(),
+                summary.modelUnavailableCount(),
+                summary.parserFailureRate(),
+                summary.technicalFallbackRate(),
+                summary.timeoutRate(),
+                summary.modelUnavailableRate(),
+                summary.averageLatencyMs(),
+                summary.p95LatencyMs(),
+                summary.riskScoreDistribution(),
+                summary.confidenceDistribution());
+    }
+
+    private CorrelationSummary withMetrics(
+            CorrelationSummary summary,
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics) {
+        return new CorrelationSummary(
+                snapshot,
+                metrics,
+                summary.truePositiveCount(),
+                summary.falsePositiveCount(),
+                summary.observableFalseNegativeCount(),
+                summary.trueNegativeCount(),
+                summary.unknownCount(),
+                summary.unobservedCount(),
+                summary.triggerRelationBreakdown(),
+                summary.outcomeBreakdown(),
+                summary.matrixRows(),
+                summary.notCalledReasonBreakdown(),
+                summary.recentCorrelations());
+    }
+
+    private double metricNumber(MetricValue metric) {
+        return metric == null || metric.value() == null ? 0.0d : metric.value();
+    }
+
     private LlmDecisionSummary llmSummary(LocalDateTime from, LocalDateTime to) {
         long total = countAi("created_at between ? and ?", from, to);
         long parserFailures = countAi(
@@ -266,6 +432,8 @@ public class AiSecurityDecisionMonitoringService {
         long modelUnavailable = countAi(
                 "model_unavailable = true and created_at between ? and ?", from, to);
         return new LlmDecisionSummary(
+                null,
+                null,
                 total,
                 countAi(
                         "trigger_source in ('HCAD_PRE_TRIGGER', 'PENDING_REDLINE') and created_at between ? and ?",
@@ -302,6 +470,8 @@ public class AiSecurityDecisionMonitoringService {
 
     private CorrelationSummary correlationSummary(LocalDateTime from, LocalDateTime to) {
         return new CorrelationSummary(
+                null,
+                null,
                 countCorrelationOutcome("TP", from, to),
                 countCorrelationOutcome("FP", from, to),
                 countCorrelationOutcome("FN", from, to),
@@ -474,6 +644,48 @@ public class AiSecurityDecisionMonitoringService {
                          order by created_at desc
                          limit 10
                         """.formatted(canonicalFailureTypeExpression(), failurePredicate(), monitorablePath("request_path")),
+                (rs, rowNum) -> {
+                    Number latency = (Number) rs.getObject("llm_latency_ms");
+                    return new RecentFailure(
+                            rs.getString("observation_id"),
+                            rs.getString("request_id"),
+                            rs.getString("user_id"),
+                            rs.getString("http_method"),
+                            rs.getString("request_path"),
+                            rs.getString("failure_type"),
+                            rs.getString("final_action"),
+                            latency == null ? null : latency.doubleValue(),
+                            format(rs.getObject("created_at", LocalDateTime.class)));
+                },
+                from,
+                to);
+    }
+
+    private List<RecentFailure> slowRequests(LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return List.of();
+        }
+        return jdbcOperations.query("""
+                        select observation_id,
+                               request_id,
+                               user_id,
+                               http_method,
+                               request_path,
+                               case
+                                 when (%1$s) is not null then (%1$s)
+                                 else 'SLOW_ANALYSIS'
+                               end as failure_type,
+                               final_action,
+                               llm_latency_ms,
+                               created_at
+                         from ai_security_decision_observation
+                        where created_at between ? and ?
+                          and llm_latency_ms is not null
+                          and %2$s
+                        order by llm_latency_ms desc, created_at desc
+                        limit 10
+                        """.formatted(canonicalFailureTypeExpression(), monitorablePath("request_path")),
                 (rs, rowNum) -> {
                     Number latency = (Number) rs.getObject("llm_latency_ms");
                     return new RecentFailure(
@@ -678,9 +890,7 @@ public class AiSecurityDecisionMonitoringService {
                 llm.totalDecisionCount());
         double observableFnRate = ratio(correlation.observableFalseNegativeCount(),
                 correlation.truePositiveCount()
-                        + correlation.falsePositiveCount()
-                        + correlation.observableFalseNegativeCount()
-                        + correlation.trueNegativeCount());
+                        + correlation.observableFalseNegativeCount());
         if (failureRate >= 0.10d || observableFnRate >= 0.10d) {
             return "DO_NOT_ENFORCE";
         }
@@ -985,8 +1195,8 @@ public class AiSecurityDecisionMonitoringService {
 
     private TimeWindow window(String period) {
         String normalizedPeriod = normalizePeriod(period);
-        LocalDateTime to = LocalDateTime.now();
-        return new TimeWindow(normalizedPeriod, from(normalizedPeriod, to), to);
+        LocalDateTime generatedAt = LocalDateTime.now().withNano(0);
+        return new TimeWindow(normalizedPeriod, from(normalizedPeriod, generatedAt), generatedAt, generatedAt);
     }
 
     private double ratio(long numerator, long denominator) {
@@ -1014,7 +1224,18 @@ public class AiSecurityDecisionMonitoringService {
         return "\"" + escaped + "\"";
     }
 
-    private record TimeWindow(String period, LocalDateTime from, LocalDateTime to) {
+    private record TimeWindow(String period, LocalDateTime from, LocalDateTime to, LocalDateTime generatedAt) {
+    }
+
+    private record SnapshotData(
+            TimeWindow window,
+            MonitorSnapshot snapshot,
+            HcadSummary hcad,
+            LlmDecisionSummary llm,
+            CorrelationSummary correlation,
+            OperationsSummary operations,
+            StandardMetrics metrics,
+            String readinessRecommendation) {
     }
 
     private record MatrixCounts(long risk, long allow, long unknown, long notCalled) {

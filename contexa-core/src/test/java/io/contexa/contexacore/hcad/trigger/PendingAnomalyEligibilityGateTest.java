@@ -66,6 +66,31 @@ class PendingAnomalyEligibilityGateTest {
         assertThat(afterTtl.actorSessionKey()).isEqualTo("actor-1");
     }
 
+    @Test
+    @DisplayName("eligible redline assessment should bypass a previous low-risk negative cache")
+    void evaluate_eligibleAssessmentBypassesNegativeCache() {
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        when(actionRepository.getCurrentAction(anyString(), anyString())).thenReturn(ZeroTrustAction.ALLOW);
+        InMemoryAnalysisTriggerStateRepository stateRepository = new InMemoryAnalysisTriggerStateRepository();
+        PendingAnomalyEligibilityGate gate = new PendingAnomalyEligibilityGate(
+                actionRepository,
+                stateRepository,
+                new HcadProperties());
+        MockHttpServletRequest request = request();
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of());
+
+        projectLowRiskAssessment(request);
+        PendingAnomalyEligibility first = gate.evaluate(request, authentication);
+        stateRepository.markNegative(first.baseKey(), Duration.ofMinutes(1));
+
+        projectEligibleAssessment(request);
+        PendingAnomalyEligibility eligible = gate.evaluate(request, authentication);
+
+        assertThat(eligible).isNotNull();
+        assertThat(eligible.actorSessionKey()).isEqualTo("actor-1");
+    }
+
     private MockHttpServletRequest request() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/dashboard");
         request.setRequestURI("/admin/dashboard");
@@ -92,5 +117,23 @@ class PendingAnomalyEligibilityGateTest {
                                 "userId", "alice",
                                 "actorSessionKey", "actor-1",
                                 "earlyAnalysisScore", 10)));
+    }
+
+    private void projectEligibleAssessment(MockHttpServletRequest request) {
+        HcadPreProtectablePromotionRequestProjector.project(
+                request,
+                new HcadPreProtectablePromotionAssessment(
+                        70,
+                        HcadPreProtectablePromotionBand.REDLINE,
+                        true,
+                        List.of("FAILED_LOGIN_BURST"),
+                        List.of("RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
+                        List.of("FAILED_LOGIN_BURST", "RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
+                        "redline window",
+                        "hcad-promotion-v2-trusted-projection",
+                        Map.of(
+                                "userId", "alice",
+                                "actorSessionKey", "actor-1",
+                                "earlyAnalysisScore", 70)));
     }
 }

@@ -18,7 +18,9 @@ package io.contexa.autoconfigure.core.hcad;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,6 +52,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -317,16 +321,21 @@ public class HcadExtremeTestAutoConfiguration {
         private final HcadExtremeTestService service;
         private final HCADDataStore hcadDataStore;
         private final SecurityContextDataStore securityContextDataStore;
+        private final BaselineDataStore baselineDataStore;
 
         public HcadExtremeTestController(
                 HcadExtremeTestService service,
                 ObjectProvider<HCADDataStore> hcadDataStoreProvider,
-                ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider) {
+                ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider,
+                ObjectProvider<BaselineDataStore> baselineDataStoreProvider) {
             this.service = service;
             this.hcadDataStore = hcadDataStoreProvider == null ? null : hcadDataStoreProvider.getIfAvailable();
             this.securityContextDataStore = securityContextDataStoreProvider == null
                     ? null
                     : securityContextDataStoreProvider.getIfAvailable();
+            this.baselineDataStore = baselineDataStoreProvider == null
+                    ? null
+                    : baselineDataStoreProvider.getIfAvailable();
         }
 
         @PostMapping("/seed/redline")
@@ -352,6 +361,7 @@ public class HcadExtremeTestAutoConfiguration {
             String userId = authentication != null ? authentication.getName() : "anonymous";
             String sessionId = sessionId(request);
             long now = System.currentTimeMillis();
+            seedEstablishedBaseline(userId);
 
             if (securityContextDataStore != null && StringUtils.hasText(sessionId)) {
                 securityContextDataStore.addSessionAction(sessionId, "AUTHENTICATION_FAILURE");
@@ -368,7 +378,7 @@ public class HcadExtremeTestAutoConfiguration {
                 hcadDataStore.saveSessionMetadata(sessionId, Map.of(
                         "impossibleTravel", true,
                         "baselineConfidence", 0.95d,
-                        "hcadExtremeRunId", firstText(runId, request != null ? request.getHeader(RUN_ID_HEADER) : null)));
+                        "hcadExtremeRunId", firstText(runId, request != null ? request.getHeader(RUN_ID_HEADER) : null, "")));
             }
             if (hcadDataStore != null && StringUtils.hasText(userId)) {
                 for (int i = 0; i < 15; i++) {
@@ -380,6 +390,50 @@ public class HcadExtremeTestAutoConfiguration {
                     "runId", firstText(runId, request != null ? request.getHeader(RUN_ID_HEADER) : null, ""),
                     "userId", userId,
                     "sessionId", sessionId == null ? "" : sessionId));
+        }
+
+        @PostMapping("/seed/baseline/established")
+        public ResponseEntity<Map<String, Object>> seedEstablishedBaseline(
+                HttpServletRequest request,
+                Authentication authentication,
+                @RequestParam(required = false) String runId) {
+            String userId = authentication != null ? authentication.getName() : "anonymous";
+            boolean saved = seedEstablishedBaseline(userId);
+            return ResponseEntity.ok(Map.of(
+                    "baselineSeeded", saved,
+                    "baselineProfile", "established-office",
+                    "runId", firstText(runId, request != null ? request.getHeader(RUN_ID_HEADER) : null, ""),
+                    "userId", userId));
+        }
+
+        @PostMapping("/seed/baseline/insufficient")
+        public ResponseEntity<Map<String, Object>> seedInsufficientBaseline(
+                HttpServletRequest request,
+                Authentication authentication,
+                @RequestParam(required = false) String runId) {
+            String userId = authentication != null ? authentication.getName() : "anonymous";
+            boolean saved = seedBaseline(userId, 3L, "insufficient-office");
+            return ResponseEntity.ok(Map.of(
+                    "baselineSeeded", saved,
+                    "baselineProfile", "insufficient-office",
+                    "runId", firstText(runId, request != null ? request.getHeader(RUN_ID_HEADER) : null, ""),
+                    "userId", userId));
+        }
+
+        @GetMapping("/seed/baseline/established")
+        public ResponseEntity<Map<String, Object>> seedEstablishedBaselineGet(
+                HttpServletRequest request,
+                Authentication authentication,
+                @RequestParam(required = false) String runId) {
+            return seedEstablishedBaseline(request, authentication, runId);
+        }
+
+        @GetMapping("/seed/baseline/insufficient")
+        public ResponseEntity<Map<String, Object>> seedInsufficientBaselineGet(
+                HttpServletRequest request,
+                Authentication authentication,
+                @RequestParam(required = false) String runId) {
+            return seedInsufficientBaseline(request, authentication, runId);
         }
 
         @GetMapping("/protectable/allow")
@@ -451,6 +505,53 @@ public class HcadExtremeTestAutoConfiguration {
             }
             HttpSession session = request.getSession(false);
             return session == null ? null : session.getId();
+        }
+
+        private boolean seedEstablishedBaseline(String userId) {
+            return seedBaseline(userId, 40L, "established-office");
+        }
+
+        private boolean seedBaseline(String userId, long updateCount, String profile) {
+            if (baselineDataStore == null || !StringUtils.hasText(userId)) {
+                return false;
+            }
+            Map<String, Long> frequencies = new HashMap<>();
+            frequencies.put("ip:10.10.0.0/16", updateCount);
+            frequencies.put("path:admin.dashboard", updateCount);
+            frequencies.put("ua:Firefox/120", updateCount);
+            frequencies.put("os:Linux", updateCount);
+            frequencies.put("browser:Firefox", updateCount);
+            frequencies.put("auth:password", updateCount);
+            frequencies.put("action:READ", updateCount);
+            frequencies.put("resource:ADMIN_DASHBOARD", updateCount);
+
+            BaselineVector baseline = BaselineVector.builder()
+                    .userId(userId)
+                    .avgTrustScore(0.98d)
+                    .avgRequestCount(updateCount)
+                    .updateCount(updateCount)
+                    .lastUpdated(Instant.now())
+                    .normalIpRanges(new String[]{"10.10.0.0/16"})
+                    .normalIpBands(new String[]{"10.10.0.0/16"})
+                    .normalAccessHours(new Integer[]{9, 10, 11, 13, 14, 15})
+                    .normalAccessDays(new Integer[]{1, 2, 3, 4, 5})
+                    .frequentPaths(new String[]{"/contexa/admin/dashboard", "/contexa/admin/users"})
+                    .frequentResourceFamilies(new String[]{"ADMIN_DASHBOARD", "USER_ADMINISTRATION"})
+                    .normalUserAgents(new String[]{"Firefox/120"})
+                    .normalOperatingSystems(new String[]{"Linux"})
+                    .normalBrowsers(new String[]{"Firefox"})
+                    .normalAuthenticationTypes(new String[]{"password"})
+                    .frequentActionFamilies(new String[]{"READ"})
+                    .elementFrequencies(frequencies)
+                    .build();
+            baselineDataStore.saveUserBaseline(userId, baseline);
+            if (hcadDataStore != null) {
+                hcadDataStore.saveSessionMetadata("hcad-extreme-baseline:" + userId, Map.of(
+                        "profile", profile,
+                        "updateCount", updateCount,
+                        "seededAt", Instant.now().toString()));
+            }
+            return true;
         }
     }
 

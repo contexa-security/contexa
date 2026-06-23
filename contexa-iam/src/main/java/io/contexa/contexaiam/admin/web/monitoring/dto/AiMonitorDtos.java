@@ -24,10 +24,51 @@ public final class AiMonitorDtos {
     private AiMonitorDtos() {
     }
 
+    public record MonitorSnapshot(
+            String period,
+            String from,
+            String to,
+            String generatedAt
+    ) {
+    }
+
+    public record MetricValue(
+            String key,
+            String label,
+            String description,
+            Double value,
+            Long numerator,
+            Long denominator,
+            String unit,
+            String noDataReason
+    ) {
+    }
+
+    public record StandardMetrics(
+            MetricValue observedRequests,
+            MetricValue hcadEvaluations,
+            MetricValue hcadAiConnected,
+            MetricValue totalAiDecisions,
+            MetricValue clearOutcomes,
+            MetricValue hcadPrecision,
+            MetricValue matchRate,
+            MetricValue mismatchRate,
+            MetricValue falsePositiveRate,
+            MetricValue observableFalseNegativeRate,
+            MetricValue unknownRate,
+            MetricValue failureRate,
+            MetricValue timeoutRate,
+            MetricValue averageLatencyMs
+    ) {
+    }
+
     public record OverviewSummary(
             String period,
             String from,
             String to,
+            String generatedAt,
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics,
             HcadSummary hcad,
             LlmDecisionSummary llm,
             CorrelationSummary correlation,
@@ -37,6 +78,8 @@ public final class AiMonitorDtos {
     }
 
     public record LlmDecisionSummary(
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics,
             long totalDecisionCount,
             long hcadPreTriggerDecisionCount,
             long protectableDecisionCount,
@@ -64,6 +107,8 @@ public final class AiMonitorDtos {
     }
 
     public record CorrelationSummary(
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics,
             long truePositiveCount,
             long falsePositiveCount,
             long observableFalseNegativeCount,
@@ -100,6 +145,9 @@ public final class AiMonitorDtos {
             String period,
             String from,
             String to,
+            String generatedAt,
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics,
             OperationsSummary operations,
             List<NamedCount> explicitFailureBreakdown,
             List<NamedCount> failureTypeBreakdown,
@@ -109,7 +157,8 @@ public final class AiMonitorDtos {
             List<NamedCount> promptTemplateBreakdown,
             List<NamedCount> failureTrend,
             List<AffectedRequest> affectedRequests,
-            List<RecentFailure> recentFailures
+            List<RecentFailure> recentFailures,
+            List<RecentFailure> slowRequests
     ) {
     }
 
@@ -117,6 +166,9 @@ public final class AiMonitorDtos {
             String period,
             String from,
             String to,
+            String generatedAt,
+            MonitorSnapshot snapshot,
+            StandardMetrics metrics,
             String recommendation,
             long minimumSampleSize,
             long hcadCandidateCount,

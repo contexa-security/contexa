@@ -78,6 +78,7 @@ public class HcadEvaluationWriter {
                 .evaluationId(evaluationId)
                 .requestId(report.requestId())
                 .correlationId(report.requestId())
+                .testRunId(testRunId(rawSnapshot))
                 .userId(report.userId())
                 .contextBindingHash(report.contextBindingHash())
                 .actorSessionKey(text(rawSnapshot.get("actorSessionKey")))
@@ -104,9 +105,15 @@ public class HcadEvaluationWriter {
                 .nonTriggerReason(nonTriggerReason)
                 .evidenceGapCodes(writeJson(evidenceGaps))
                 .baselineAvailable(baselineComparison.available())
+                .baselineEstablished(baselineComparison.established())
                 .baselineUpdateCount(baselineComparison.updateCount())
+                .baselineMinSamples(baselineComparison.minSamples())
+                .baselineComparedDimensions(baselineComparison.comparedDimensions())
                 .baselineMismatchCount(baselineComparison.mismatchCount())
+                .baselineMatchRatio(baselineComparison.matchRatio())
                 .baselineMismatchedDimensions(writeJson(baselineComparison.mismatchedDimensions()))
+                .baselineCurrentValuesJson(writeJson(baselineComparison.currentValues()))
+                .baselineReferenceValuesJson(writeJson(baselineComparison.baselineValues()))
                 .triggerDecisionReason(report.shouldTrigger() ? "TRIGGER_CANDIDATE" : nonTriggerReason)
                 .signalSnapshotJson(writeJson(rawSnapshot))
                 .signalProvenanceJson(writeJson(rawSnapshot == null
@@ -417,6 +424,7 @@ public class HcadEvaluationWriter {
                 .eventId(event != null ? event.getEventId() : null)
                 .requestId(firstText(metadata, "requestId", "correlationId"))
                 .correlationId(firstText(metadata, "correlationId", "requestId"))
+                .testRunId(testRunId(metadata, rawSignals))
                 .userId(event != null ? event.getUserId() : firstText(metadata, "userId"))
                 .contextBindingHash(text(metadata.get("contextBindingHash")))
                 .actorSessionKey(text(metadata.get("actorSessionKey")))
@@ -443,9 +451,15 @@ public class HcadEvaluationWriter {
                 .nonTriggerReason(nonTriggerReason(anchorSignals, corroboratingSignals, baselineComparison, evidenceGaps))
                 .evidenceGapCodes(writeJson(evidenceGaps))
                 .baselineAvailable(baselineComparison.available())
+                .baselineEstablished(baselineComparison.established())
                 .baselineUpdateCount(baselineComparison.updateCount())
+                .baselineMinSamples(baselineComparison.minSamples())
+                .baselineComparedDimensions(baselineComparison.comparedDimensions())
                 .baselineMismatchCount(baselineComparison.mismatchCount())
+                .baselineMatchRatio(baselineComparison.matchRatio())
                 .baselineMismatchedDimensions(writeJson(baselineComparison.mismatchedDimensions()))
+                .baselineCurrentValuesJson(writeJson(baselineComparison.currentValues()))
+                .baselineReferenceValuesJson(writeJson(baselineComparison.baselineValues()))
                 .triggerDecisionReason("OBSERVED_WITH_LLM_DECISION")
                 .signalSnapshotJson(writeJson(rawSignals))
                 .signalProvenanceJson(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_PROVENANCE)))
@@ -593,6 +607,7 @@ public class HcadEvaluationWriter {
                         event_id,
                         request_id,
                         correlation_id,
+                        test_run_id,
                         user_id,
                         context_binding_hash,
                         actor_session_key,
@@ -619,9 +634,15 @@ public class HcadEvaluationWriter {
                         non_trigger_reason,
                         evidence_gap_codes,
                         baseline_available,
+                        baseline_established,
                         baseline_update_count,
+                        baseline_min_samples,
+                        baseline_compared_dimensions,
                         baseline_mismatch_count,
+                        baseline_match_ratio,
                         baseline_mismatched_dimensions,
+                        baseline_current_values_json,
+                        baseline_reference_values_json,
                         trigger_decision_reason,
                         signal_snapshot_json,
                         signal_provenance_json,
@@ -641,13 +662,14 @@ public class HcadEvaluationWriter {
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
                     evaluation.getEventId(),
                     evaluation.getRequestId(),
                     evaluation.getCorrelationId(),
+                    evaluation.getTestRunId(),
                     evaluation.getUserId(),
                     evaluation.getContextBindingHash(),
                     evaluation.getActorSessionKey(),
@@ -674,9 +696,15 @@ public class HcadEvaluationWriter {
                     evaluation.getNonTriggerReason(),
                     evaluation.getEvidenceGapCodes(),
                     evaluation.getBaselineAvailable(),
+                    evaluation.getBaselineEstablished(),
                     evaluation.getBaselineUpdateCount(),
+                    evaluation.getBaselineMinSamples(),
+                    evaluation.getBaselineComparedDimensions(),
                     evaluation.getBaselineMismatchCount(),
+                    evaluation.getBaselineMatchRatio(),
                     evaluation.getBaselineMismatchedDimensions(),
+                    evaluation.getBaselineCurrentValuesJson(),
+                    evaluation.getBaselineReferenceValuesJson(),
                     evaluation.getTriggerDecisionReason(),
                     evaluation.getSignalSnapshotJson(),
                     evaluation.getSignalProvenanceJson(),
@@ -725,6 +753,51 @@ public class HcadEvaluationWriter {
             String value = text(metadata.get(key));
             if (value != null) {
                 return value;
+            }
+        }
+        return null;
+    }
+
+    private String testRunId(Map<String, Object> metadata, Object rawSignals) {
+        String direct = firstText(metadata,
+                "testRunId",
+                "hcadTestRunId",
+                "hcadExtremeRunId",
+                "xContexaTestRunId");
+        if (direct != null) {
+            return direct;
+        }
+        String nested = testRunId(rawSignals);
+        if (nested != null) {
+            return nested;
+        }
+        Object rawSignalSnapshot = metadata == null ? null : metadata.get("rawSignalSnapshot");
+        return testRunId(rawSignalSnapshot);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String testRunId(Object rawSignals) {
+        if (!(rawSignals instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Map<String, Object> typed = (Map<String, Object>) map;
+        String direct = firstText(typed,
+                "testRunId",
+                "hcadTestRunId",
+                "hcadExtremeRunId",
+                "xContexaTestRunId");
+        if (direct != null) {
+            return direct;
+        }
+        Object ignored = typed.get("ignoredInputs");
+        if (ignored instanceof Map<?, ?> ignoredMap) {
+            for (Map.Entry<?, ?> entry : ignoredMap.entrySet()) {
+                String key = entry.getKey() == null ? "" : entry.getKey().toString();
+                if ("header.X-Contexa-Test-Run-Id".equalsIgnoreCase(key)
+                        || "header.x-contexa-test-run-id".equalsIgnoreCase(key)
+                        || key.toLowerCase().endsWith(".x-contexa-test-run-id")) {
+                    return text(entry.getValue());
+                }
             }
         }
         return null;

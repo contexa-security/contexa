@@ -164,6 +164,22 @@ abstract class AbstractHCADDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("Login failure count is tracked by user and IP inside the rolling window")
+    void loginFailure_countInsideWindow() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("user-login", "203.0.113.10", now - 60_000);
+        store.recordLoginFailure("user-login", "203.0.113.10", now - 30_000);
+        store.recordLoginFailure("other-user", "203.0.113.10", now);
+
+        assertThat(store.getRecentLoginFailureCount("user-login", "203.0.113.10", now - 120_000, now))
+                .isEqualTo(3);
+        assertThat(store.getRecentLoginFailureCount("user-login", "198.51.100.10", now - 120_000, now))
+                .isEqualTo(2);
+        assertThat(store.getRecentLoginFailureCount("ghost-user", "198.51.100.10", now - 120_000, now))
+                .isZero();
+    }
+
+    @Test
     @DisplayName("User registration flag is observable")
     void user_registerAndCheck() {
         store.registerUser("user1");

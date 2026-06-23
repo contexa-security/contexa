@@ -10,6 +10,7 @@
         .ai-monitor-tab.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
         .ai-monitor-toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
         .ai-monitor-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .85rem; }
+        .ai-monitor-kpis:empty { display: none; }
         .ai-monitor-kpi { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.48); }
         .ai-monitor-kpi-value { color: #e2e8f0; font-size: 1.6rem; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
         .ai-monitor-kpi-label { color: #94a3b8; font-size: .76rem; margin-top: .45rem; }
@@ -39,7 +40,7 @@
         .ai-monitor-chart-shell { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 1rem; align-items: center; min-height: 210px; }
         .ai-monitor-donut { width: 148px; aspect-ratio: 1; border-radius: 50%; position: relative; background: rgba(30,41,59,.9); box-shadow: inset 0 0 0 1px rgba(148,163,184,.18); }
         .ai-monitor-donut::after { content: ""; position: absolute; inset: 26px; border-radius: 50%; background: #0f172a; box-shadow: inset 0 0 0 1px rgba(71,85,105,.45); }
-        .ai-monitor-donut-center { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; color: #e2e8f0; font-size: 1.45rem; font-weight: 800; }
+        .ai-monitor-donut-center { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; color: #e2e8f0; font-size: 1rem; font-weight: 800; text-align: center; padding: 2.4rem; line-height: 1.25; }
         .ai-monitor-legend { display: grid; gap: .55rem; }
         .ai-monitor-legend-row { display: grid; grid-template-columns: .6rem minmax(0, 1fr) auto; gap: .55rem; align-items: center; color: #94a3b8; font-size: .76rem; }
         .ai-monitor-legend-dot { width: .6rem; height: .6rem; border-radius: 999px; background: var(--legend-color, #22d3ee); }
@@ -54,6 +55,9 @@
         .ai-monitor-table { width: 100%; border-collapse: collapse; }
         .ai-monitor-table th { color: #cbd5e1; font-size: .72rem; text-align: left; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.45); }
         .ai-monitor-table td { color: #94a3b8; font-size: .8rem; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.22); }
+        .ai-monitor-row-meta { color: #64748b; font-size: .68rem; line-height: 1.35; margin-top: .25rem; overflow-wrap: anywhere; }
+        .ai-monitor-inline-link { display: inline-flex; align-items: center; width: fit-content; border: 1px solid rgba(34,211,238,.42); border-radius: .45rem; color: #67e8f9; padding: .5rem .75rem; text-decoration: none; font-size: .78rem; font-weight: 700; background: rgba(34,211,238,.08); }
+        .ai-monitor-inline-link:hover { background: rgba(34,211,238,.16); }
         .ai-monitor-status { border-radius: 999px; padding: .25rem .65rem; font-size: .72rem; font-weight: 700; display: inline-flex; background: rgba(34,211,238,.16); color: #67e8f9; }
         .ai-monitor-status.good { background: rgba(34,197,94,.18); color: #4ade80; }
         .ai-monitor-status.warn { background: rgba(245,158,11,.18); color: #fbbf24; }
@@ -77,7 +81,7 @@
         .ai-monitor-blocker.good { border-left-color: #22c55e; }
         .ai-monitor-blocker.warn { border-left-color: #f59e0b; }
         .ai-monitor-blocker.bad { border-left-color: #ef4444; }
-        .ai-monitor-funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+        .ai-monitor-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; }
         .ai-monitor-funnel-step { position: relative; min-height: 136px; padding: .95rem; border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; background: rgba(15,23,42,.48); overflow: hidden; }
         .ai-monitor-flow-index { width: 1.4rem; height: 1.4rem; display: grid; place-items: center; border-radius: 999px; color: #0f172a; background: var(--flow-color, #22d3ee); font-size: .72rem; font-weight: 900; margin-bottom: .5rem; }
         .ai-monitor-simple-list { display: grid; gap: .55rem; }
@@ -162,13 +166,20 @@
              th:data-label-loading="#{admin.aiMonitor.status.loading}"
              th:data-label-unavailable="#{admin.aiMonitor.status.unavailable}"
              th:data-label-observed-requests="#{admin.aiMonitor.kpi.observedRequests}"
+             th:data-label-observed-requests-help="#{admin.aiMonitor.help.observedRequests}"
              th:data-label-hcad-windows="#{admin.aiMonitor.kpi.hcadWindows}"
+             th:data-label-hcad-windows-help="#{admin.aiMonitor.help.hcadWindows}"
              th:data-label-llm-calls="#{admin.aiMonitor.kpi.llmCalls}"
+             th:data-label-hcad-ai-connected="#{admin.aiMonitor.kpi.hcadAiConnected}"
              th:data-label-hcad-candidates="#{admin.aiMonitor.kpi.hcadCandidates}"
              th:data-label-llm-decisions="#{admin.aiMonitor.kpi.llmDecisions}"
+             th:data-label-llm-decisions-help="#{admin.aiMonitor.help.llmDecisions}"
              th:data-label-protectable-decisions="#{admin.aiMonitor.kpi.protectableDecisions}"
+             th:data-label-protectable-decisions-help="#{admin.aiMonitor.help.protectableDecisions}"
              th:data-label-hcad-pretrigger-decisions="#{admin.aiMonitor.kpi.hcadPreTriggerDecisions}"
+             th:data-label-hcad-pretrigger-help="#{admin.aiMonitor.help.hcadPreTriggerDecisions}"
              th:data-label-hcad-and-protectable="#{admin.aiMonitor.kpi.hcadAndProtectable}"
+             th:data-label-hcad-and-protectable-help="#{admin.aiMonitor.help.hcadAndProtectable}"
              th:data-label-correlation-unknown="#{admin.aiMonitor.kpi.correlationUnknown}"
              th:data-label-timeouts="#{admin.aiMonitor.kpi.timeouts}"
              th:data-label-parser-failures="#{admin.aiMonitor.kpi.parserFailures}"
@@ -179,18 +190,23 @@
              th:data-label-timeout-rate="#{admin.aiMonitor.kpi.timeoutRate}"
              th:data-label-model-unavailable-rate="#{admin.aiMonitor.kpi.modelUnavailableRate}"
              th:data-label-average-latency="#{admin.aiMonitor.kpi.averageLatency}"
+             th:data-label-average-latency-help="#{admin.aiMonitor.help.averageLatency}"
              th:data-label-p95-latency="#{admin.aiMonitor.kpi.p95Latency}"
              th:data-label-recommendation="#{admin.aiMonitor.kpi.recommendation}"
              th:data-label-minimum-sample="#{admin.aiMonitor.kpi.minimumSample}"
              th:data-label-hcad-precision="#{admin.aiMonitor.kpi.hcadPrecision}"
+             th:data-label-hcad-precision-help="#{admin.aiMonitor.help.hcadPrecision}"
              th:data-label-false-positive="#{admin.aiMonitor.kpi.falsePositive}"
              th:data-label-observable-fn="#{admin.aiMonitor.kpi.observableFn}"
              th:data-label-observable-fn-rate="#{admin.aiMonitor.kpi.observableFnRate}"
+             th:data-label-observable-fn-rate-help="#{admin.aiMonitor.help.observableFnRate}"
              th:data-label-true-negative="#{admin.aiMonitor.kpi.trueNegative}"
              th:data-label-unknown="#{admin.aiMonitor.kpi.unknown}"
              th:data-label-unobserved="#{admin.aiMonitor.kpi.unobserved}"
              th:data-label-unknown-rate="#{admin.aiMonitor.kpi.unknownRate}"
+             th:data-label-unknown-rate-help="#{admin.aiMonitor.help.unknownRate}"
              th:data-label-failure-rate="#{admin.aiMonitor.kpi.failureRate}"
+             th:data-label-failure-rate-help="#{admin.aiMonitor.help.failureRate}"
              th:data-label-action-breakdown="#{admin.aiMonitor.section.actionBreakdown}"
              th:data-label-proposed-action-breakdown="#{admin.aiMonitor.section.proposedActionBreakdown}"
              th:data-label-final-action-breakdown="#{admin.aiMonitor.section.finalActionBreakdown}"
@@ -259,6 +275,8 @@
              th:data-label-flow-observed-to-hcad="#{admin.aiMonitor.dashboard.flowObservedToHcad}"
              th:data-label-flow-hcad-to-llm="#{admin.aiMonitor.dashboard.flowHcadToLlm}"
              th:data-label-flow-llm-to-clear="#{admin.aiMonitor.dashboard.flowLlmToClear}"
+             th:data-label-flow-all-ai-decisions="#{admin.aiMonitor.dashboard.flowAllAiDecisions}"
+             th:data-label-flow-observed-to-ai="#{admin.aiMonitor.dashboard.flowObservedToAi}"
              th:data-label-flow-base="#{admin.aiMonitor.dashboard.flowBase}"
              th:data-label-sample-coverage="#{admin.aiMonitor.dashboard.sampleCoverage}"
              th:data-label-analysis-coverage="#{admin.aiMonitor.dashboard.analysisCoverage}"
@@ -274,8 +292,15 @@
              th:data-label-matched="#{admin.aiMonitor.dashboard.matched}"
              th:data-label-mismatched="#{admin.aiMonitor.dashboard.mismatched}"
              th:data-label-match-rate="#{admin.aiMonitor.kpi.matchRate}"
+             th:data-label-match-rate-help="#{admin.aiMonitor.help.matchRate}"
              th:data-label-mismatch-rate="#{admin.aiMonitor.kpi.mismatchRate}"
+             th:data-label-mismatch-rate-help="#{admin.aiMonitor.help.mismatchRate}"
              th:data-label-false-positive-rate="#{admin.aiMonitor.kpi.falsePositiveRate}"
+             th:data-label-false-positive-rate-help="#{admin.aiMonitor.help.falsePositiveRate}"
+             th:data-label-timeouts-help="#{admin.aiMonitor.help.timeouts}"
+             th:data-label-parser-failures-help="#{admin.aiMonitor.help.parserFailures}"
+             th:data-label-model-unavailable-help="#{admin.aiMonitor.help.modelUnavailable}"
+             th:data-label-no-comparison-data="#{admin.aiMonitor.status.noComparisonData}"
              th:data-label-blocker-sample="#{admin.aiMonitor.blocker.sample}"
              th:data-label-blocker-precision="#{admin.aiMonitor.blocker.precision}"
              th:data-label-blocker-fn="#{admin.aiMonitor.blocker.fn}"
@@ -304,18 +329,28 @@
              th:data-label-affected-requests="#{admin.aiMonitor.failures.affectedRequests}"
              th:data-label-provider-unknown-help="#{admin.aiMonitor.failures.providerUnknownHelp}"
              th:data-label-request="#{admin.aiMonitor.table.request}"
-             th:data-label-passed="#{admin.aiMonitor.readiness.passed}"
-             th:data-label-need-more-samples="#{admin.aiMonitor.readiness.needMoreSamples}"
-             th:data-label-or-more="#{admin.aiMonitor.readiness.orMore}"
-             th:data-label-or-less="#{admin.aiMonitor.readiness.orLess}"
-             th:data-label-gap="#{admin.aiMonitor.readiness.gap}"
+              th:data-label-passed="#{admin.aiMonitor.readiness.passed}"
+              th:data-label-need-more-samples="#{admin.aiMonitor.readiness.needMoreSamples}"
+              th:data-label-or-more="#{admin.aiMonitor.readiness.orMore}"
+              th:data-label-or-less="#{admin.aiMonitor.readiness.orLess}"
+              th:data-label-gap="#{admin.aiMonitor.readiness.gap}"
+              th:data-label-readiness-score="#{admin.aiMonitor.readiness.score}"
              th:data-label-key-metrics="#{admin.aiMonitor.section.keyMetrics}"
-             th:data-label-decision-path="#{admin.aiMonitor.section.decisionPath}"
-             th:data-label-decision-result="#{admin.aiMonitor.section.decisionResult}"
-             th:data-label-response-quality="#{admin.aiMonitor.section.responseQuality}"
-             th:data-label-comparison-result="#{admin.aiMonitor.section.comparisonResult}"
-             th:data-label-main-failure-cause="#{admin.aiMonitor.section.mainFailureCause}"
-             th:data-label-enum-insufficient-sample="#{admin.aiMonitor.enum.insufficientSample}"
+            th:data-label-decision-path="#{admin.aiMonitor.section.decisionPath}"
+            th:data-label-decision-result="#{admin.aiMonitor.section.decisionResult}"
+            th:data-label-response-quality="#{admin.aiMonitor.section.responseQuality}"
+            th:data-label-comparison-result="#{admin.aiMonitor.section.comparisonResult}"
+            th:data-label-main-failure-cause="#{admin.aiMonitor.section.mainFailureCause}"
+            th:data-label-open-failure-page="#{admin.aiMonitor.action.openFailurePage}"
+            th:data-label-slow-requests="#{admin.aiMonitor.failures.slowRequests}"
+            th:data-label-slow-requests-help="#{admin.aiMonitor.failures.slowRequestsHelp}"
+            th:data-label-no-data-no-ai-decision-data="#{admin.aiMonitor.status.noAiDecisionData}"
+            th:data-label-no-data-no-classified-comparison="#{admin.aiMonitor.status.noClassifiedComparison}"
+            th:data-label-no-data-no-hcad-risk-comparison="#{admin.aiMonitor.status.noHcadRiskComparison}"
+            th:data-label-no-data-no-ai-risk-comparison="#{admin.aiMonitor.status.noAiRiskComparison}"
+            th:data-label-no-data-no-comparison-data="#{admin.aiMonitor.status.noComparisonData}"
+            th:data-label-no-data-no-decision-data="#{admin.aiMonitor.status.noDecisionData}"
+            th:data-label-enum-insufficient-sample="#{admin.aiMonitor.enum.insufficientSample}"
              th:data-label-enum-do-not-enforce="#{admin.aiMonitor.enum.doNotEnforce}"
              th:data-label-enum-default-enforce-candidate="#{admin.aiMonitor.enum.defaultEnforceCandidate}"
              th:data-label-enum-limited-enforce-candidate="#{admin.aiMonitor.enum.limitedEnforceCandidate}"
