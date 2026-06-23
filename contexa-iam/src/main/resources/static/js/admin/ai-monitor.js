@@ -101,8 +101,10 @@
 
     function renderLlm(summary) {
         detailsEl.className = 'ai-monitor-dashboard';
+        const confirmedDecisions = confirmedDecisionCount(summary.finalActionBreakdown || []);
         renderKpis([
             [label('labelLlmDecisions'), summary.totalDecisionCount, label('labelLlmDecisionsHelp')],
+            [label('labelConfirmedDecisions'), confirmedDecisions, label('labelConfirmedDecisionsHelp')],
             [label('labelHcadPretriggerDecisions'), summary.hcadPreTriggerDecisionCount, label('labelHcadPretriggerHelp')],
             [label('labelProtectableDecisions'), summary.protectableDecisionCount, label('labelProtectableDecisionsHelp')],
             [label('labelHcadAndProtectable'), summary.hcadAndProtectableDecisionCount, label('labelHcadAndProtectableHelp')],
@@ -723,6 +725,15 @@
             key: row.key === 'BLOCK' ? 'DENY' : row.key,
             count: row.count
         }));
+    }
+
+    function confirmedDecisionCount(rows) {
+        return normalizeRows(rows)
+            .filter(row => {
+                const key = String(row.key || '').toUpperCase();
+                return key !== 'PENDING_ANALYSIS' && key !== 'UNKNOWN' && key !== 'NONE' && key !== '-';
+            })
+            .reduce((sum, row) => sum + (row.count || 0), 0);
     }
 
     function meaningfulRows(rows) {
