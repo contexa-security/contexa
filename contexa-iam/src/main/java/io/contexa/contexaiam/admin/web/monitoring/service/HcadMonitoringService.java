@@ -83,7 +83,7 @@ public class HcadMonitoringService {
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public HcadSummary summarize(String period) {
         String normalizedPeriod = normalizePeriod(period);
         LocalDateTime to = LocalDateTime.now();
@@ -96,7 +96,7 @@ public class HcadMonitoringService {
         return summarize(normalizedPeriod, from, to);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public HcadSummary summarize(String period, LocalDateTime from, LocalDateTime to) {
         String normalizedPeriod = normalizePeriod(period);
 
@@ -204,12 +204,12 @@ public class HcadMonitoringService {
         };
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public String exportCsv(String period) {
         return exportCsv(period, Locale.ENGLISH);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public HcadEvaluationExplanation explainEvaluation(String evaluationId) {
         if (evaluationId == null || evaluationId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "HCAD evaluation not found");
@@ -273,7 +273,7 @@ public class HcadMonitoringService {
                         evaluation.getLlmReasoningHash()));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public String exportCsv(String period, Locale locale) {
         HcadSummary summary = summarize(period);
         boolean korean = locale != null && "ko".equalsIgnoreCase(locale.getLanguage());

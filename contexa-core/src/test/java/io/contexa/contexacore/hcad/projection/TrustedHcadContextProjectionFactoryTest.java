@@ -170,8 +170,8 @@ class TrustedHcadContextProjectionFactoryTest {
     }
 
     @Test
-    @DisplayName("request burst bucket should create trusted same-window re-evaluation signal")
-    void probeAnchorSignals_requestBurstBucket_shouldCreateReEvaluationSignal() {
+    @DisplayName("request burst alone should not create same-window re-evaluation signal")
+    void probeAnchorSignals_requestBurstOnly_shouldNotCreateReEvaluationSignal() {
         MockHttpServletRequest request = baseRequest();
         when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong()))
                 .thenReturn(properties.getPreTrigger().getRequestBurstThreshold() * 2);
@@ -180,8 +180,8 @@ class TrustedHcadContextProjectionFactoryTest {
         HcadTrustedAnchorSignalProbe probe = factory.probeAnchorSignals(request, authentication());
 
         assertThat(probe.anchorSignals()).isEmpty();
-        assertThat(probe.reEvaluationSignals()).contains("REQUEST_BURST_BUCKET:2");
-        assertThat(probe.hasReEvaluationSignature()).isTrue();
+        assertThat(probe.reEvaluationSignals()).isEmpty();
+        assertThat(probe.hasReEvaluationSignature()).isFalse();
     }
 
     @Test

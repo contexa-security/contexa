@@ -232,6 +232,37 @@ class HCADFilterTest {
     }
 
     @Test
+    @DisplayName("missing orchestrator should not persist high-risk score when assessment is not trigger eligible")
+    void doFilterInternal_missingOrchestrator_doesNotPersistHighRiskNonTriggerWindowWithWriter() throws Exception {
+        setAuthenticated();
+        hcadFilter = new HCADFilter(
+                trustedProjectionFactory,
+                preProtectablePromotionScorer,
+                hcadProperties,
+                () -> null,
+                () -> hcadEvaluationWriter);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                62,
+                HcadPreProtectablePromotionBand.HIGH,
+                false,
+                List.of(),
+                List.of("REQUEST_BURST", "BASELINE_MISMATCH"),
+                List.of("REQUEST_BURST", "BASELINE_MISMATCH"),
+                "trusted high-risk non-trigger projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 62));
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+
+        hcadFilter.doFilterInternal(request, response, filterChain);
+
+        verify(hcadEvaluationWriter, never()).recordCandidate(any(), any());
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isNull();
+        assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
     @DisplayName("semantic evidence cache hit should be passed to scorer without changing actor window key")
     void doFilterInternal_semanticEvidenceCacheHit_passesProjectionToScorer() throws Exception {
         setAuthenticated();
@@ -637,8 +668,8 @@ class HCADFilterTest {
     }
 
     @Test
-    @DisplayName("new trusted re-evaluation signature should allow one extra deep evaluation in same window")
-    void doFilterInternal_newTrustedReEvaluationSignature_allowsEscalationEvaluation() throws Exception {
+    @DisplayName("new trusted anchor signal should allow one extra deep evaluation in same window")
+    void doFilterInternal_newTrustedAnchorSignal_allowsEscalationEvaluation() throws Exception {
         setAuthenticated();
         hcadProperties.getPreTrigger().setEvaluationTtlSeconds(60);
         TrustedHcadContextProjection projection = projection();
@@ -658,10 +689,8 @@ class HCADFilterTest {
         when(trustedProjectionFactory.probeAnchorSignals(any(), any())).thenReturn(
                 null,
                 new HcadTrustedAnchorSignalProbe(
-                        List.of(),
-                        "",
-                        List.of("REQUEST_BURST_BUCKET:2"),
-                        "REQUEST_BURST_BUCKET:2"));
+                        List.of("FAILED_LOGIN_BURST"),
+                        "FAILED_LOGIN_BURST"));
 
         MockHttpServletRequest first = hcadRequest("GET", "/api/orders/1001", "session-1", "203.0.113.10", "JUnit");
         MockHttpServletRequest second = hcadRequest("GET", "/api/orders/1002", "session-1", "203.0.113.10", "JUnit");
@@ -676,7 +705,7 @@ class HCADFilterTest {
         assertThat(second.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_ESCALATION_EVALUATION))
                 .isEqualTo(true);
         assertThat(second.getAttribute("hcad.reEvaluationSignals").toString())
-                .contains("REQUEST_BURST_BUCKET:2");
+                .contains("FAILED_LOGIN_BURST");
     }
 
     @Test

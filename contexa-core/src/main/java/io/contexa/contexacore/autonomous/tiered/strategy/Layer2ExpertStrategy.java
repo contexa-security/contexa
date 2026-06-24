@@ -211,9 +211,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             annotateThreatKnowledgeContext(event, behaviorCtx);
 
             SecurityResponse response;
+            SecurityDecisionResponse pipelineResponse = null;
             clearPromptRuntimeTelemetry(event);
             if (pipelineOrchestrator != null) {
-                SecurityDecisionResponse pipelineResponse = executeSecurityDecisionPipeline(
+                pipelineResponse = executeSecurityDecisionPipeline(
                                 pipelineOrchestrator,
                                 event,
                                 sessionCtx,
@@ -233,6 +234,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
             expertDecision.setLlmDecisionPresent(true);
             expertDecision.setTechnicalFallbackApplied(false);
+            applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
             terminalizeLayer2EscalateDecision(expertDecision);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {

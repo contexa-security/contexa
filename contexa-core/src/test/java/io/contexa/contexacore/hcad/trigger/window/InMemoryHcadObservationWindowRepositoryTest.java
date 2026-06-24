@@ -193,7 +193,7 @@ class InMemoryHcadObservationWindowRepositoryTest {
                 Duration.ofMillis(50))).isFalse();
         assertThat(repository.tryAcquireActorSessionEvaluation(
                 "actor-1",
-                "REQUEST_BURST_BUCKET:2",
+                "FAILED_LOGIN_BURST",
                 Duration.ofMillis(50))).isTrue();
 
         Thread.sleep(75L);

@@ -281,8 +281,10 @@ public class HCADFilter extends OncePerRequestFilter {
                     .orElse(windowLease);
             request.setAttribute("hcad.windowRequestCount", windowLease.requestCount());
             assessment = withWindowMetadata(
+                    request,
                     projection,
                     assessment,
+                    semanticEvidence,
                     windowLease,
                     firstText(projectedActorSessionKey, actorSessionKey),
                     trustedContextSignature);
@@ -351,6 +353,10 @@ public class HCADFilter extends OncePerRequestFilter {
                 : semanticEvidenceCacheSupplier.get();
         if (cache == null || projection == null) {
             return CachedSemanticEvidenceProjection.unavailable("SEMANTIC_EVIDENCE_CACHE_UNAVAILABLE");
+        }
+        HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider provider = cache.provider();
+        if (request != null && provider != null) {
+            request.setAttribute("hcad.semanticEvidenceCacheProvider", provider.name());
         }
         List<HcadSemanticEvidenceEntry> entries = new ArrayList<>();
         List<String> gaps = new ArrayList<>();
@@ -502,8 +508,10 @@ public class HCADFilter extends OncePerRequestFilter {
     }
 
     private HcadPreProtectablePromotionAssessment withWindowMetadata(
+            HttpServletRequest request,
             TrustedHcadContextProjection projection,
             HcadPreProtectablePromotionAssessment assessment,
+            CachedSemanticEvidenceProjection semanticEvidence,
             HcadObservationWindowLease windowLease,
             String actorSessionKey,
             String trustedContextSignature) {
@@ -524,6 +532,13 @@ public class HCADFilter extends OncePerRequestFilter {
         rawSignals.put("actorSessionEvaluationSignature", trustedContextSignature);
         rawSignals.put("observationWindowTtl", hcadProperties.getPreTrigger().getEvaluationTtlSeconds() + "s");
         rawSignals.put("observationTtl", hcadProperties.getPreTrigger().getObservationTtlSeconds() + "s");
+        Object semanticEvidenceCacheProvider = request == null
+                ? null
+                : request.getAttribute("hcad.semanticEvidenceCacheProvider");
+        if (semanticEvidenceCacheProvider != null) {
+            rawSignals.put("semanticEvidenceCacheProvider", semanticEvidenceCacheProvider);
+        }
+        putSemanticEvidenceFreshness(rawSignals, semanticEvidence);
         if (projection != null) {
             rawSignals.put("tenantId", projection.tenantId());
             rawSignals.put("organizationId", projection.organizationId());
@@ -538,6 +553,42 @@ public class HCADFilter extends OncePerRequestFilter {
                 assessment.summary(),
                 assessment.evaluationVersion(),
                 rawSignals);
+    }
+
+    private void putSemanticEvidenceFreshness(
+            Map<String, Object> rawSignals,
+            CachedSemanticEvidenceProjection semanticEvidence) {
+        if (rawSignals == null || semanticEvidence == null || semanticEvidence.entries().isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> entries = new ArrayList<>();
+        Instant latestExpiresAt = null;
+        for (HcadSemanticEvidenceEntry entry : semanticEvidence.entries()) {
+            if (entry == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("type", entry.key().type().name());
+            item.put("status", entry.status().name());
+            item.put("createdAt", entry.createdAt() == null ? null : entry.createdAt().toString());
+            item.put("expiresAt", entry.expiresAt() == null ? null : entry.expiresAt().toString());
+            item.put("sourceVersion", entry.sourceVersion());
+            item.put("evidenceVersion", entry.evidenceVersion());
+            item.put("embeddingModel", entry.embeddingModel());
+            item.put("dimension", entry.dimension());
+            entries.add(item);
+            if (entry.expiresAt() != null
+                    && (latestExpiresAt == null || entry.expiresAt().isAfter(latestExpiresAt))) {
+                latestExpiresAt = entry.expiresAt();
+            }
+        }
+        if (!entries.isEmpty()) {
+            rawSignals.put("semanticEvidenceFreshnessEntries", entries);
+        }
+        if (latestExpiresAt != null) {
+            rawSignals.put("semanticEvidenceExpiresAt", latestExpiresAt.toString());
+            rawSignals.put("semanticEvidenceTtl", "entry-specific");
+        }
     }
 
     private Duration actorSessionEvaluationTtl() {
@@ -582,9 +633,6 @@ public class HCADFilter extends OncePerRequestFilter {
         if (pendingAnomalyTriggerOrchestrator != null) {
             pendingAnomalyTriggerOrchestrator.maybeTrigger(request, authentication);
             refreshRecordedWindowObservation(assessment);
-            if (request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID) == null) {
-                recordCandidateWithoutPublisher(request, projection, assessment);
-            }
             return;
         }
         recordCandidateWithoutPublisher(request, projection, assessment);
@@ -644,11 +692,7 @@ public class HCADFilter extends OncePerRequestFilter {
         if (assessment == null) {
             return false;
         }
-        if (assessment.eligible()) {
-            return true;
-        }
-        String band = assessment.band() == null ? null : assessment.band().serializedValue();
-        return "HIGH".equalsIgnoreCase(band) || "REDLINE".equalsIgnoreCase(band);
+        return assessment.eligible();
     }
 
     private void refreshRecordedWindowObservation(HcadPreProtectablePromotionAssessment assessment) {

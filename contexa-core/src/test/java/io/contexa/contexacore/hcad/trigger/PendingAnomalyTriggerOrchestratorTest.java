@@ -172,8 +172,8 @@ class PendingAnomalyTriggerOrchestratorTest {
     }
 
     @Test
-    @DisplayName("non-trigger high-risk HCAD window should be persisted for review without publishing LLM")
-    void maybeTrigger_nonTriggerHighRisk_shouldPersistWithoutPublish() {
+    @DisplayName("non-trigger high-risk HCAD window should not be persisted without an LLM trigger")
+    void maybeTrigger_nonTriggerHighRisk_shouldNotPersistWithoutLlmTrigger() {
         HcadProperties properties = new HcadProperties();
         PendingAnomalyTriggerOrchestrator orchestrator = orchestrator(properties, hcadEvaluationWriter);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/dashboard");
@@ -182,15 +182,14 @@ class PendingAnomalyTriggerOrchestratorTest {
 
         when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
         when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
-        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.SHADOW, report)).thenReturn("eval-high-review");
 
         orchestrator.maybeTrigger(request,
                 new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
 
-        verify(hcadEvaluationWriter).recordCandidate(HcadPreTriggerMode.SHADOW, report);
+        verify(hcadEvaluationWriter, never()).recordCandidate(any(), any());
         verify(analysisTriggerStateRepository).markNegative(eq("actor-1"), any(Duration.class));
         verify(eventTriggerService, never()).publish(any(), any(), any());
-        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-high-review");
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isNull();
     }
 
     @Test

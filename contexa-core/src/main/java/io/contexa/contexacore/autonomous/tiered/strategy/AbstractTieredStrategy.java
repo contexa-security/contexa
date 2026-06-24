@@ -1538,6 +1538,73 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return structuredOutputCapabilityRegistry.resolve(modelHint, providerHint, true);
     }
 
+    protected void applySecurityDecisionRuntimeTelemetry(
+            SecurityDecision decision,
+            SecurityDecisionResponse pipelineResponse) {
+        if (decision == null || pipelineResponse == null) {
+            return;
+        }
+        Map<String, Object> metadata = pipelineResponse.getAllMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return;
+        }
+        Boolean llmDecisionPresent = booleanValue(metadata.get("llmDecisionPresent"));
+        boolean rawExecutionFailed = Boolean.FALSE.equals(booleanValue(metadata.get("rawExecutionSucceeded")));
+        boolean fallbackApplied = Boolean.TRUE.equals(booleanValue(metadata.get("securityDecisionFallbackApplied")))
+                || Boolean.TRUE.equals(booleanValue(metadata.get("securityDecisionParsingFallbackApplied")))
+                || Boolean.TRUE.equals(booleanValue(metadata.get("syntheticSecurityDecisionApplied")));
+        String failureCategory = normalizeTelemetryFailureCategory(firstNonBlank(
+                metadata.get("structuredOutputFailureCategory"),
+                metadata.get("securityDecisionParseFailureCategory"),
+                metadata.get("decisionFailureCategory")));
+        if (Boolean.FALSE.equals(llmDecisionPresent) || rawExecutionFailed || fallbackApplied || failureCategory != null) {
+            decision.setLlmDecisionPresent(false);
+            decision.setTechnicalFallbackApplied(true);
+            decision.setTechnicalFallbackCategory(firstNonBlank(
+                    failureCategory,
+                    metadata.get("securityDecisionFallbackReason"),
+                    metadata.get("securityDecisionRawExecutionFailureClass"),
+                    decision.getTechnicalFallbackCategory(),
+                    "TECHNICAL_FALLBACK"));
+            decision.setTechnicalFallbackReason(firstNonBlank(
+                    metadata.get("securityDecisionRawExecutionFailureMessage"),
+                    metadata.get("securityDecisionFallbackReason"),
+                    metadata.get("decisionFailureMessage"),
+                    decision.getTechnicalFallbackReason(),
+                    "Security decision was produced by fail-closed fallback."));
+            decision.setTechnicalFallbackAction(firstNonBlank(
+                    metadata.get("securityDecisionFallbackAction"),
+                    metadata.get("decisionFailureTechnicalFallbackAction"),
+                    decision.getTechnicalFallbackAction(),
+                    decision.getAction() != null ? decision.getAction().name() : null));
+            return;
+        }
+        decision.setLlmDecisionPresent(true);
+        decision.setTechnicalFallbackApplied(false);
+    }
+
+    private Boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty() || "NULL_VALUE".equalsIgnoreCase(text)) {
+            return null;
+        }
+        return Boolean.parseBoolean(text);
+    }
+
+    private String normalizeTelemetryFailureCategory(String value) {
+        String text = firstNonBlank(value);
+        if (text == null || "NONE".equalsIgnoreCase(text)) {
+            return null;
+        }
+        return text;
+    }
+
     private String firstNonBlank(Object... values) {
         if (values == null) {
             return null;

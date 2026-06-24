@@ -283,6 +283,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
+            SecurityDecisionResponse pipelineResponse = null;
             clearPromptRuntimeTelemetry(event);
             if (pipelineOrchestrator != null) {
                 long llmExecutionStart = System.currentTimeMillis();
@@ -290,7 +291,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 // upstream model never wedges Layer 1 indefinitely. Reactor surfaces a
                 // timeout as IllegalStateException, which the outer catch converts to a
                 // technical fallback decision (ESCALATE to Layer 2).
-                SecurityDecisionResponse pipelineResponse = executeSecurityDecisionPipeline(
+                pipelineResponse = executeSecurityDecisionPipeline(
                                 pipelineOrchestrator,
                                 event,
                                 sessionCtx,
@@ -314,6 +315,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             SecurityDecision decision = convertToSecurityDecision(response, event);
             decision.setLlmDecisionPresent(true);
             decision.setTechnicalFallbackApplied(false);
+            applySecurityDecisionRuntimeTelemetry(decision, pipelineResponse);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 

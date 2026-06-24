@@ -112,7 +112,7 @@ public class AiSecurityDecisionMonitoringService {
         this.zeroTrustProperties = zeroTrustProperties;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public OverviewSummary overview(String period) {
         SnapshotData data = snapshotData(period);
         return new OverviewSummary(
@@ -129,19 +129,19 @@ public class AiSecurityDecisionMonitoringService {
                 data.readinessRecommendation());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public LlmDecisionSummary llm(String period) {
         SnapshotData data = snapshotData(period);
         return withMetrics(data.llm(), data.snapshot(), data.metrics());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public CorrelationSummary correlation(String period) {
         SnapshotData data = snapshotData(period);
         return withMetrics(data.correlation(), data.snapshot(), data.metrics());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public FailureSummary failures(String period) {
         SnapshotData data = snapshotData(period);
         TimeWindow window = data.window();
@@ -166,7 +166,7 @@ public class AiSecurityDecisionMonitoringService {
                 slowRequests(window.from(), window.to()));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public ReadinessSummary readiness(String period) {
         SnapshotData data = snapshotData(period);
         HcadSummary hcad = data.hcad();
@@ -197,7 +197,7 @@ public class AiSecurityDecisionMonitoringService {
                 operations.estimatedSavedCostUsd());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public String exportCsv(String period, String type, Locale locale) {
         String normalizedType = type == null || type.isBlank()
                 ? "overview"

@@ -996,6 +996,13 @@ public class HcadEvaluationWriter {
         return rawSnapshot;
     }
 
+    private List<?> valueAsList(Object value) {
+        if (value instanceof List<?> list) {
+            return list;
+        }
+        return List.of();
+    }
+
     private Map<String, Object> semanticEvidenceExplanation(Map<String, Object> rawSnapshot) {
         Map<String, Object> explanation = new LinkedHashMap<>();
         Object semanticEvidence = rawSnapshot == null ? null : rawSnapshot.get("semanticEvidence");
@@ -1011,6 +1018,9 @@ public class HcadEvaluationWriter {
         explanation.put("sourceTable", "ai_security_decision_observation");
         explanation.put("ttl", rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceTtl"));
         explanation.put("expiresAt", rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceExpiresAt"));
+        explanation.put("freshnessEntries", rawSnapshot == null
+                ? List.of()
+                : valueAsList(rawSnapshot.get("semanticEvidenceFreshnessEntries")));
         explanation.put("ttlStatus", rawSnapshot != null && rawSnapshot.containsKey("semanticEvidenceExpiresAt")
                 ? "RECORDED"
                 : "NOT_RECORDED_IN_RAW_SNAPSHOT");
@@ -1622,11 +1632,28 @@ public class HcadEvaluationWriter {
                 if ("header.X-Contexa-Test-Run-Id".equalsIgnoreCase(key)
                         || "header.x-contexa-test-run-id".equalsIgnoreCase(key)
                         || key.toLowerCase().endsWith(".x-contexa-test-run-id")) {
-                    return text(entry.getValue());
+                    return trimToLength(ignoredInputValue(entry.getValue()), 160);
                 }
             }
         }
         return null;
+    }
+
+    private String ignoredInputValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Object extracted = map.get("value");
+            if (extracted != null) {
+                return text(extracted);
+            }
+        }
+        return text(value);
+    }
+
+    private String trimToLength(String value, int maxLength) {
+        if (value == null || maxLength <= 0 || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     private String text(Object value) {

@@ -335,7 +335,6 @@ public class TrustedHcadContextProjectionFactory {
         int failedLoginBurstThreshold = hcadProperties.getPreTrigger().getFailedLoginBurstThreshold();
         if (failedLoginBurst >= failedLoginBurstThreshold) {
             anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST.name());
-            reEvaluationSignals.add("FAILED_LOGIN_BURST_BUCKET:" + bucket(failedLoginBurst, failedLoginBurstThreshold));
         }
         if (isAuthContextInconsistent(authenticationMethod, mfaVerified)) {
             anchors.add(HcadPreProtectablePromotionSignal.AUTH_CONTEXT_INCONSISTENT.name());
@@ -349,11 +348,6 @@ public class TrustedHcadContextProjectionFactory {
         if (isFreshMfaRequiredButNotFresh(verificationRequired, mfaVerified, mfaFreshnessSeconds)) {
             anchors.add(HcadPreProtectablePromotionSignal.FRESH_MFA_REQUIRED.name());
         }
-        int requestBurst = requestBurst(userId, now);
-        int requestBurstThreshold = hcadProperties.getPreTrigger().getRequestBurstThreshold();
-        if (requestBurst >= requestBurstThreshold) {
-            reEvaluationSignals.add("REQUEST_BURST_BUCKET:" + bucket(requestBurst, requestBurstThreshold));
-        }
         Object semanticStateSignature = request == null ? null : request.getAttribute("hcad.semanticEvidenceStateSignature");
         if (semanticStateSignature instanceof String text && StringUtils.hasText(text)) {
             reEvaluationSignals.add("SEMANTIC_EVIDENCE_STATE:" + text.trim());
@@ -364,11 +358,6 @@ public class TrustedHcadContextProjectionFactory {
                 PendingAnomalyKeyFactory.buildTrustedAnchorSignature(anchors),
                 reEvaluationSignals,
                 PendingAnomalyKeyFactory.buildTrustedSignalSignature(reEvaluationSignals, List.of()));
-    }
-
-    private int bucket(int count, int threshold) {
-        int safeThreshold = Math.max(1, threshold);
-        return Math.max(0, count / safeThreshold);
     }
 
     private HcadBaselineComparison comparePersonalBaseline(

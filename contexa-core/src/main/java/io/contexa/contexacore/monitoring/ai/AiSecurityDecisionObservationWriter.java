@@ -107,7 +107,11 @@ public class AiSecurityDecisionObservationWriter {
                 metadata.get("llmDecisionPresent"));
         boolean parserFailure = isParserFailure(result) || isParserFailure(metadata);
         boolean technicalFallback = (result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()))
-                || Boolean.TRUE.equals(bool(metadata.get("technicalFallbackApplied")));
+                || Boolean.TRUE.equals(bool(metadata.get("technicalFallbackApplied")))
+                || Boolean.TRUE.equals(bool(metadata.get("securityDecisionFallbackApplied")))
+                || Boolean.TRUE.equals(bool(metadata.get("securityDecisionParsingFallbackApplied")))
+                || Boolean.TRUE.equals(bool(metadata.get("syntheticSecurityDecisionApplied")))
+                || Boolean.FALSE.equals(bool(metadata.get("rawExecutionSucceeded")));
         String failureReason = failureReason(result, metadata);
         String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent);
         String triggerSource = triggerSource(metadata, hcadTriggered, hcadObserved, protectable);
@@ -223,7 +227,7 @@ public class AiSecurityDecisionObservationWriter {
                     result != null ? summarize(result.getTechnicalFallbackReason(), 1024) : null,
                     outcomeClass,
                     writeJson(metadata),
-                    result != null && result.isSuccess(),
+                    result != null && result.isSuccess() && failureType == null,
                     now,
                     now);
 
@@ -556,6 +560,9 @@ public class AiSecurityDecisionObservationWriter {
         if (containsTimeout(structuredFailure) || containsTimeout(failureReason)) {
             return "TIMEOUT";
         }
+        if (containsProviderAuthenticationFailure(structuredFailure) || containsProviderAuthenticationFailure(failureReason)) {
+            return "MODEL_UNAVAILABLE";
+        }
         if (containsNoRuntimeLlmClient(failureReason)) {
             return "NO_RUNTIME_LLM_CLIENT";
         }
@@ -575,6 +582,9 @@ public class AiSecurityDecisionObservationWriter {
             return "PARSER_FAILURE";
         }
         if (containsModelUnavailable(structuredFailure) || containsModelUnavailable(failureReason)) {
+            return "MODEL_UNAVAILABLE";
+        }
+        if (containsLlmExecutionFailure(structuredFailure) || containsLlmExecutionFailure(failureReason)) {
             return "MODEL_UNAVAILABLE";
         }
         if (Boolean.FALSE.equals(llmDecisionPresent)) {
@@ -632,6 +642,20 @@ public class AiSecurityDecisionObservationWriter {
                 || normalized.contains("no runtime llm client")
                 || normalized.contains("no pipeline executor")
                 || normalized.contains("no model available"));
+    }
+
+    private boolean containsProviderAuthenticationFailure(String value) {
+        String normalized = normalize(value);
+        return normalized != null && (normalized.contains("invalid_api_key")
+                || normalized.contains("incorrect api key")
+                || normalized.contains("401 unauthorized")
+                || normalized.contains("http 401")
+                || normalized.contains("api key"));
+    }
+
+    private boolean containsLlmExecutionFailure(String value) {
+        String normalized = normalize(value);
+        return normalized != null && normalized.contains("llm_execution_failed");
     }
 
     private boolean containsNoRuntimeLlmClient(String value) {

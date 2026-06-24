@@ -175,11 +175,7 @@ public class PendingAnomalyTriggerOrchestrator {
         if (report == null) {
             return false;
         }
-        if (report.shouldTrigger() || report.escalationEligible()) {
-            return true;
-        }
-        String band = report.escalationBand();
-        return "HIGH".equalsIgnoreCase(band) || "REDLINE".equalsIgnoreCase(band);
+        return report.shouldTrigger();
     }
 
     private void markTriggered(String evaluationId) {

@@ -173,6 +173,10 @@ class RedisHcadObservationWindowRepositoryTest {
                 ZeroTrustRedisKeys.hcadActorSessionEvaluation(actorSessionKey, signature),
                 "1",
                 Duration.ofSeconds(30))).thenReturn(true, false);
+        when(valueOperations.setIfAbsent(
+                ZeroTrustRedisKeys.hcadActorSessionEvaluation(actorSessionKey, "FAILED_LOGIN_BURST"),
+                "1",
+                Duration.ofSeconds(30))).thenReturn(true);
         RedisHcadObservationWindowRepository repository = new RedisHcadObservationWindowRepository(redisTemplate);
 
         assertThat(repository.tryAcquireActorSessionEvaluation(
@@ -185,8 +189,8 @@ class RedisHcadObservationWindowRepositoryTest {
                 Duration.ofSeconds(30))).isFalse();
         assertThat(repository.tryAcquireActorSessionEvaluation(
                 actorSessionKey,
-                "REQUEST_BURST_BUCKET:2",
-                Duration.ofSeconds(30))).isFalse();
+                "FAILED_LOGIN_BURST",
+                Duration.ofSeconds(30))).isTrue();
     }
 
     private static final class FakeObservationScript {
