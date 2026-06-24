@@ -167,6 +167,35 @@ class HcadEvaluationWriterTest {
     }
 
     @Test
+    @DisplayName("markProtectableObserved should record reused Protectable LLM trigger")
+    void markProtectableObserved_reusedProtectableLlm_shouldUpdateHcadRow() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(jdbcOperations, new ObjectMapper());
+
+        writer.markProtectableObserved(
+                "eval-combined",
+                "hcad.live.vendor.export",
+                "/contexa/test/hcad/live/vendors/{vendorId}/export",
+                "GET",
+                true);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations).update(sqlCaptor.capture(), argsCaptor.capture());
+
+        assertThat(sqlCaptor.getValue())
+                .contains("protectable_observed = true")
+                .contains("triggered_llm = true")
+                .contains("non_trigger_reason = NULL")
+                .contains("trigger_decision_reason = 'PROTECTABLE_LLM_REUSED'");
+        Object[] args = argsCaptor.getValue();
+        assertThat(args[0]).isEqualTo("hcad.live.vendor.export");
+        assertThat(args[1]).isEqualTo("/contexa/test/hcad/live/vendors/{vendorId}/export");
+        assertThat(args[2]).isEqualTo("GET");
+        assertThat(args[4]).isEqualTo("eval-combined");
+    }
+
+    @Test
     @DisplayName("updateWindowObservation should refresh request count and sampled paths")
     void updateWindowObservation_shouldRefreshWindowSummary() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);

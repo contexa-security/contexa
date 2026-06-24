@@ -36,6 +36,27 @@ public class InMemoryAnalysisTriggerStateRepository implements AnalysisTriggerSt
     private final Cache<String, Long> negativeCache = buildExpiringCache();
     private final Cache<String, Long> cooldownCache = buildExpiringCache();
     private final Cache<String, Long> inFlightCache = buildExpiringCache();
+    private final Cache<String, TimedValue> activeEvaluationCache = Caffeine.newBuilder()
+            .maximumSize(MAX_ENTRIES)
+            .expireAfter(new Expiry<String, TimedValue>() {
+                @Override
+                public long expireAfterCreate(String key, TimedValue value, long currentTimeNanos) {
+                    return Math.max(1L, value.expiresAtNanos - currentTimeNanos);
+                }
+
+                @Override
+                public long expireAfterUpdate(String key, TimedValue value,
+                                              long currentTimeNanos, long currentDurationNanos) {
+                    return Math.max(1L, value.expiresAtNanos - currentTimeNanos);
+                }
+
+                @Override
+                public long expireAfterRead(String key, TimedValue value,
+                                            long currentTimeNanos, long currentDurationNanos) {
+                    return currentDurationNanos;
+                }
+            })
+            .build();
     private final Cache<String, RateWindow> rateLimitCache = Caffeine.newBuilder()
             .maximumSize(MAX_ENTRIES)
             .build();
@@ -110,6 +131,26 @@ public class InMemoryAnalysisTriggerStateRepository implements AnalysisTriggerSt
         return true;
     }
 
+    @Override
+    public void rememberActiveEvaluation(String stateKey, String evaluationId, Duration ttl) {
+        if (stateKey == null || stateKey.isBlank()
+                || evaluationId == null || evaluationId.isBlank()
+                || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return;
+        }
+        long ttlNanos = Math.min(ttl.toNanos(), MAX_TTL_NANOS);
+        activeEvaluationCache.put(stateKey, new TimedValue(evaluationId, System.nanoTime() + ttlNanos));
+    }
+
+    @Override
+    public String findActiveEvaluation(String stateKey) {
+        if (stateKey == null || stateKey.isBlank()) {
+            return null;
+        }
+        TimedValue value = activeEvaluationCache.getIfPresent(stateKey);
+        return value == null ? null : value.value;
+    }
+
     private static void putWithTtl(Cache<String, Long> cache, String key, Duration ttl) {
         if (key == null || ttl == null || ttl.isZero() || ttl.isNegative()) {
             return;
@@ -139,5 +180,8 @@ public class InMemoryAnalysisTriggerStateRepository implements AnalysisTriggerSt
     };
 
     private record RateWindow(int count, long expiresAtNanos) {
+    }
+
+    private record TimedValue(String value, long expiresAtNanos) {
     }
 }

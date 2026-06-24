@@ -18,6 +18,7 @@ package io.contexa.contexacore.hcad.trigger;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -224,6 +225,31 @@ class PendingAnomalyTriggerOrchestratorTest {
     }
 
     @Test
+    @DisplayName("HCAD enforce should not publish when AI decision mode is observe")
+    void maybeTrigger_hcadEnforceWithLlmObserve_shouldSuppressLlmPublication() {
+        HcadProperties properties = new HcadProperties();
+        properties.getPreTrigger().setMode(HcadPreTriggerMode.ENFORCE);
+        SecurityZeroTrustProperties zeroTrustProperties = new SecurityZeroTrustProperties();
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.SecurityMode.OBSERVE);
+        PendingAnomalyTriggerOrchestrator orchestrator =
+                orchestrator(properties, hcadEvaluationWriter, zeroTrustProperties);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/reports");
+        PendingAnomalyEligibility eligibility = new PendingAnomalyEligibility("alice", "ctx-1", "base-1");
+        PendingAnomalyEvidenceReport report = triggerReport();
+
+        when(eligibilityGate.evaluate(eq(request), any())).thenReturn(eligibility);
+        when(evidenceCheckService.evaluate(request, eligibility)).thenReturn(report);
+        when(hcadEvaluationWriter.recordCandidate(HcadPreTriggerMode.ENFORCE, report)).thenReturn("eval-observe");
+
+        orchestrator.maybeTrigger(request,
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of()));
+
+        verify(eventTriggerService, never()).publish(any(), any(), any());
+        verify(analysisTriggerStateRepository, never()).tryAcquireInFlight(any(), any());
+        verify(hcadEvaluationWriter).markTriggerSuppressed("eval-observe", "LLM_MODE_OBSERVE");
+    }
+
+    @Test
     @DisplayName("rate-limited trigger should record the candidate but skip LLM publication")
     void maybeTrigger_rateLimited_shouldSkipPublishAndReleaseInflight() {
         HcadProperties properties = new HcadProperties();
@@ -311,13 +337,21 @@ class PendingAnomalyTriggerOrchestratorTest {
     }
 
     private PendingAnomalyTriggerOrchestrator orchestrator(HcadProperties properties, HcadEvaluationWriter hcadEvaluationWriter) {
+        return orchestrator(properties, hcadEvaluationWriter, null);
+    }
+
+    private PendingAnomalyTriggerOrchestrator orchestrator(
+            HcadProperties properties,
+            HcadEvaluationWriter hcadEvaluationWriter,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new PendingAnomalyTriggerOrchestrator(
                 eligibilityGate,
                 evidenceCheckService,
                 eventTriggerService,
                 analysisTriggerStateRepository,
                 properties,
-                hcadEvaluationWriter);
+                hcadEvaluationWriter,
+                securityZeroTrustProperties);
     }
 
     private PendingAnomalyEvidenceReport triggerReport() {

@@ -33,6 +33,10 @@ contexa:
       chat:
         mode: dynamic-priority
         priority: ollama,openai,anthropic
+    model-capabilities:
+      openai:
+        max-completion-token-patterns: ${CONTEXA_LLM_MODEL_CAPABILITIES_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS:gpt-5.*}
+        default-sampling-only-patterns: ${CONTEXA_LLM_MODEL_CAPABILITIES_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS:gpt-5.*}
     chat:
       ollama:
         base-url: ${CONTEXA_CHAT_OLLAMA_BASE_URL:http://127.0.0.1:31434}

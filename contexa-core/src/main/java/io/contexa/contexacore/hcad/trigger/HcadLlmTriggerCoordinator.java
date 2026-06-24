@@ -84,6 +84,37 @@ public class HcadLlmTriggerCoordinator {
         }
     }
 
+    public void rememberEvaluation(TriggerLease triggerLease, String evaluationId) {
+        if (triggerLease == null || !StringUtils.hasText(evaluationId)) {
+            return;
+        }
+        Duration ttl = activeEvaluationTtl();
+        if (StringUtils.hasText(triggerLease.dedupKey())) {
+            stateRepository.rememberActiveEvaluation(triggerLease.dedupKey(), evaluationId, ttl);
+        }
+        if (StringUtils.hasText(triggerLease.escalationKey())) {
+            stateRepository.rememberActiveEvaluation(triggerLease.escalationKey(), evaluationId, ttl);
+        }
+    }
+
+    public String findActiveEvaluation(TriggerLease triggerLease) {
+        if (triggerLease == null) {
+            return null;
+        }
+        String escalationEvaluation = findActiveEvaluation(triggerLease.escalationKey());
+        if (StringUtils.hasText(escalationEvaluation)) {
+            return escalationEvaluation;
+        }
+        return findActiveEvaluation(triggerLease.dedupKey());
+    }
+
+    public String findActiveEvaluation(String stateKey) {
+        if (!StringUtils.hasText(stateKey)) {
+            return null;
+        }
+        return stateRepository.findActiveEvaluation(stateKey);
+    }
+
     public void releaseInFlight(String dedupKey) {
         if (StringUtils.hasText(dedupKey)) {
             stateRepository.releaseInFlight(dedupKey);
@@ -172,6 +203,13 @@ public class HcadLlmTriggerCoordinator {
         if (StringUtils.hasText(escalationKey)) {
             stateRepository.releaseInFlight(escalationKey);
         }
+    }
+
+    private Duration activeEvaluationTtl() {
+        long cooldown = Math.max(1L, hcadProperties.getPreTrigger().getCooldownSeconds());
+        long escalationCooldown = Math.max(cooldown, hcadProperties.getPreTrigger().getEscalationCooldownSeconds());
+        long inFlight = Math.max(escalationCooldown, hcadProperties.getPreTrigger().getInFlightTtlSeconds());
+        return Duration.ofSeconds(inFlight);
     }
 
     public record TriggerLease(

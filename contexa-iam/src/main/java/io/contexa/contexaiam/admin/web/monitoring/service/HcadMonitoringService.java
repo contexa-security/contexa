@@ -185,14 +185,17 @@ public class HcadMonitoringService {
             case DISABLED -> "HCAD_DISABLED";
             case OBSERVE -> "HCAD_OBSERVE_LOG_ONLY";
             case SHADOW -> "HCAD_SHADOW_LOG_ONLY";
-            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_LOG";
+            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_ACTION_LOG";
         };
     }
 
     private String llmEffectKey(SecurityZeroTrustProperties.SecurityMode mode) {
-        return mode == SecurityZeroTrustProperties.SecurityMode.SHADOW
-                ? "LLM_SHADOW_LOG_ONLY"
-                : "LLM_ENFORCE_ACTION_LOG";
+        return switch (mode) {
+            case DISABLED -> "LLM_DISABLED";
+            case OBSERVE -> "LLM_OBSERVE_LOG_ONLY";
+            case SHADOW -> "LLM_SHADOW_LOG_ONLY";
+            case ENFORCE -> "LLM_ENFORCE_ACTION_LOG";
+        };
     }
 
     @Transactional(readOnly = true)

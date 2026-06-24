@@ -34,4 +34,12 @@ public interface AnalysisTriggerStateRepository {
     void releaseInFlight(String dedupKey);
 
     boolean tryAcquireRateLimit(String rateKey, Duration window, int maxTriggers);
+
+    default void rememberActiveEvaluation(String stateKey, String evaluationId, Duration ttl) {
+        // Optional capability. Repositories that cannot store the link simply skip merge reuse.
+    }
+
+    default String findActiveEvaluation(String stateKey) {
+        return null;
+    }
 }

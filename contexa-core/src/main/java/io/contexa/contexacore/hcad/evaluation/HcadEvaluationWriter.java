@@ -22,6 +22,7 @@ import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
 import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
+import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
@@ -33,6 +34,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,14 +73,27 @@ public class HcadEvaluationWriter {
             return null;
         }
         String evaluationId = UUID.randomUUID().toString();
-        Map<String, Object> rawSnapshot = report.rawSignalSnapshot() == null ? Map.of() : report.rawSignalSnapshot();
+        String evaluationEventId = "hcad-" + evaluationId;
+        Map<String, Object> rawSnapshot = report.rawSignalSnapshot() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(report.rawSignalSnapshot());
+        String requestId = firstNonBlank(
+                report.requestId(),
+                text(rawSnapshot.get("requestId")),
+                text(rawSnapshot.get("correlationId")),
+                evaluationEventId);
+        rawSnapshot.putIfAbsent("requestId", requestId);
+        rawSnapshot.putIfAbsent("correlationId", requestId);
+        String normalizedPath = HcadRequestPathUtils.normalizePathText(report.requestPath());
+        String resourceId = resolveResourceId(rawSnapshot, normalizedPath);
         HcadBaselineComparison baselineComparison = baselineComparison(rawSnapshot);
         List<String> evidenceGaps = evidenceGapCodes(report, baselineComparison);
         String nonTriggerReason = report.shouldTrigger() ? null : nonTriggerReason(report, baselineComparison, evidenceGaps);
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
-                .requestId(report.requestId())
-                .correlationId(report.requestId())
+                .eventId(evaluationEventId)
+                .requestId(requestId)
+                .correlationId(requestId)
                 .testRunId(testRunId(rawSnapshot))
                 .userId(report.userId())
                 .contextBindingHash(report.contextBindingHash())
@@ -87,6 +103,8 @@ public class HcadEvaluationWriter {
                 .requestCount(integerDefault(rawSnapshot.get("requestCount"), 1))
                 .httpMethod(report.httpMethod())
                 .requestPath(report.requestPath())
+                .normalizedPath(normalizedPath)
+                .resourceId(resourceId)
                 .clientIp(report.clientIp())
                 .mode(mode == null ? HcadPreTriggerMode.SHADOW.metadataValue() : mode.metadataValue())
                 .earlyAnalysisScore(report.escalationScore())
@@ -228,6 +246,84 @@ public class HcadEvaluationWriter {
                 evaluation.setTriggerDecisionReason("DUPLICATE_SUPPRESSED");
                 repository.save(evaluation);
             });
+        }
+    }
+
+    public void markTriggerSuppressed(String evaluationId, String reason) {
+        if (evaluationId == null || evaluationId.isBlank()) {
+            return;
+        }
+        String resolvedReason = truncate(blankToDefault(reason, "TRIGGER_SUPPRESSED"), 128);
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations != null) {
+            jdbcOperations.update("""
+                    UPDATE hcad_detection_evaluation
+                       SET triggered_llm = false,
+                           non_trigger_reason = COALESCE(non_trigger_reason, ?),
+                           trigger_decision_reason = ?
+                     WHERE evaluation_id = ?
+                    """,
+                    resolvedReason,
+                    resolvedReason,
+                    evaluationId);
+            return;
+        }
+        HcadDetectionEvaluationRepository repository = repository();
+        if (repository != null) {
+            repository.findById(evaluationId).ifPresent(evaluation -> {
+                evaluation.setTriggeredLlm(false);
+                if (evaluation.getNonTriggerReason() == null || evaluation.getNonTriggerReason().isBlank()) {
+                    evaluation.setNonTriggerReason(resolvedReason);
+                }
+                evaluation.setTriggerDecisionReason(resolvedReason);
+                repository.save(evaluation);
+            });
+        }
+    }
+
+    public void markProtectableObserved(
+            String evaluationId,
+            String resourceId,
+            String resourceUrl,
+            String httpMethod,
+            boolean protectableLlmReused) {
+        if (evaluationId == null || evaluationId.isBlank()) {
+            return;
+        }
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations != null) {
+            if (protectableLlmReused) {
+                jdbcOperations.update("""
+                        UPDATE hcad_detection_evaluation
+                           SET protectable_observed = true,
+                               protectable_resource_id = COALESCE(NULLIF(protectable_resource_id, ''), NULLIF(?, '')),
+                               protectable_resource_url = COALESCE(NULLIF(protectable_resource_url, ''), NULLIF(?, ''), request_path),
+                               protectable_http_method = COALESCE(NULLIF(protectable_http_method, ''), NULLIF(?, ''), http_method),
+                               triggered_llm = true,
+                               non_trigger_reason = NULL,
+                               trigger_decision_reason = 'PROTECTABLE_LLM_REUSED',
+                               triggered_at = COALESCE(triggered_at, ?)
+                         WHERE evaluation_id = ?
+                        """,
+                        blankToEmpty(resourceId),
+                        blankToEmpty(resourceUrl),
+                        blankToEmpty(httpMethod),
+                        LocalDateTime.now(),
+                        evaluationId);
+                return;
+            }
+            jdbcOperations.update("""
+                    UPDATE hcad_detection_evaluation
+                       SET protectable_observed = true,
+                           protectable_resource_id = COALESCE(NULLIF(protectable_resource_id, ''), NULLIF(?, '')),
+                           protectable_resource_url = COALESCE(NULLIF(protectable_resource_url, ''), NULLIF(?, ''), request_path),
+                           protectable_http_method = COALESCE(NULLIF(protectable_http_method, ''), NULLIF(?, ''), http_method)
+                     WHERE evaluation_id = ?
+                    """,
+                    blankToEmpty(resourceId),
+                    blankToEmpty(resourceUrl),
+                    blankToEmpty(httpMethod),
+                    evaluationId);
         }
     }
 
@@ -416,14 +512,26 @@ public class HcadEvaluationWriter {
         HcadBaselineComparison baselineComparison = baselineComparison(rawSignals);
         List<String> anchorSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS));
         List<String> corroboratingSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS));
-        List<String> evidenceGaps = evidenceGapCodes(anchorSignals, corroboratingSignals, baselineComparison);
+        List<String> evidenceGaps = evidenceGapCodes(anchorSignals, corroboratingSignals, baselineComparison, rawSignals);
+        String requestPath = firstText(metadata, "requestPath", "requestUri", "httpUri");
+        String normalizedPath = HcadRequestPathUtils.normalizePathText(requestPath);
+        String resourceId = resolveResourceId(rawSignals, normalizedPath);
         String evaluationId = UUID.randomUUID().toString();
+        String evaluationEventId = event != null && event.getEventId() != null && !event.getEventId().isBlank()
+                ? event.getEventId()
+                : "hcad-" + evaluationId;
+        String requestId = firstNonBlank(
+                firstText(metadata, "requestId", "correlationId"),
+                evaluationEventId);
+        String correlationId = firstNonBlank(
+                firstText(metadata, "correlationId", "requestId"),
+                requestId);
         LocalDateTime now = LocalDateTime.now();
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
-                .eventId(event != null ? event.getEventId() : null)
-                .requestId(firstText(metadata, "requestId", "correlationId"))
-                .correlationId(firstText(metadata, "correlationId", "requestId"))
+                .eventId(evaluationEventId)
+                .requestId(requestId)
+                .correlationId(correlationId)
                 .testRunId(testRunId(metadata, rawSignals))
                 .userId(event != null ? event.getUserId() : firstText(metadata, "userId"))
                 .contextBindingHash(text(metadata.get("contextBindingHash")))
@@ -432,7 +540,9 @@ public class HcadEvaluationWriter {
                 .triggerScope(blankToDefault(text(metadata.get("triggerScope")), "SESSION_WINDOW"))
                 .requestCount(integerDefault(metadata.get("requestCount"), 1))
                 .httpMethod(firstText(metadata, "httpMethod", "protectableHttpMethod"))
-                .requestPath(firstText(metadata, "requestPath", "requestUri", "httpUri"))
+                .requestPath(requestPath)
+                .normalizedPath(normalizedPath)
+                .resourceId(resourceId)
                 .clientIp(event != null ? event.getSourceIp() : text(metadata.get("clientIp")))
                 .mode(firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_MODE, "hcadMode"))
                 .earlyAnalysisScore(integer(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE)))
@@ -525,19 +635,62 @@ public class HcadEvaluationWriter {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> semanticEvidenceGapCodes(Object rawSignals) {
+        if (!(rawSignals instanceof Map<?, ?> map)) {
+            return List.of();
+        }
+        Object semanticEvidence = map.get("semanticEvidence");
+        if (!(semanticEvidence instanceof Map<?, ?> semanticMap)) {
+            return List.of();
+        }
+        return stringList(((Map<String, Object>) semanticMap).get("semanticEvidenceGapCodes"));
+    }
+
+    private String resolveResourceId(Object rawSignals, String normalizedPath) {
+        if (rawSignals instanceof Map<?, ?> map) {
+            return firstNonBlank(
+                    text(map.get("resourceId")),
+                    text(map.get("resourceFamily")),
+                    HcadRequestPathUtils.resourceFamily(normalizedPath));
+        }
+        return HcadRequestPathUtils.resourceFamily(normalizedPath);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
     private List<String> evidenceGapCodes(
             PendingAnomalyEvidenceReport report,
             HcadBaselineComparison baselineComparison) {
         return evidenceGapCodes(
                 report == null ? List.of() : report.anchorSignals(),
                 report == null ? List.of() : report.corroboratingSignals(),
-                baselineComparison);
+                baselineComparison,
+                report == null ? null : report.rawSignalSnapshot());
     }
 
     private List<String> evidenceGapCodes(
             Collection<String> anchorSignals,
             Collection<String> corroboratingSignals,
             HcadBaselineComparison baselineComparison) {
+        return evidenceGapCodes(anchorSignals, corroboratingSignals, baselineComparison, null);
+    }
+
+    private List<String> evidenceGapCodes(
+            Collection<String> anchorSignals,
+            Collection<String> corroboratingSignals,
+            HcadBaselineComparison baselineComparison,
+            Object rawSignals) {
         List<String> gaps = new ArrayList<>();
         HcadBaselineComparison baseline = baselineComparison == null
                 ? HcadBaselineComparison.unavailable(0)
@@ -555,7 +708,8 @@ public class HcadEvaluationWriter {
         if (isEmpty(corroboratingSignals)) {
             gaps.add("SUPPORTING_SIGNAL_ABSENT");
         }
-        return List.copyOf(gaps);
+        gaps.addAll(semanticEvidenceGapCodes(rawSignals));
+        return List.copyOf(new LinkedHashSet<>(gaps));
     }
 
     private String nonTriggerReason(
@@ -616,6 +770,8 @@ public class HcadEvaluationWriter {
                         request_count,
                         http_method,
                         request_path,
+                        normalized_path,
+                        resource_id,
                         client_ip,
                         mode,
                         early_analysis_score,
@@ -662,7 +818,7 @@ public class HcadEvaluationWriter {
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
@@ -678,6 +834,8 @@ public class HcadEvaluationWriter {
                     evaluation.getRequestCount() == null ? 1 : evaluation.getRequestCount(),
                     evaluation.getHttpMethod(),
                     evaluation.getRequestPath(),
+                    evaluation.getNormalizedPath(),
+                    evaluation.getResourceId(),
                     evaluation.getClientIp(),
                     blankToDefault(evaluation.getMode(), "SHADOW"),
                     evaluation.getEarlyAnalysisScore(),

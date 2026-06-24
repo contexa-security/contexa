@@ -420,11 +420,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private boolean isEventShadowBoundary(SecurityEvent event) {
         String decisionBoundaryMode = metadataText(event, "decisionBoundaryMode");
-        if ("SHADOW".equalsIgnoreCase(decisionBoundaryMode)) {
-            return true;
-        }
-        String hcadMode = metadataText(event, "hcadMode");
-        return "SHADOW".equalsIgnoreCase(hcadMode);
+        return "SHADOW".equalsIgnoreCase(decisionBoundaryMode);
     }
 
     private String resolveSuppressionReason(SecurityEvent event) {

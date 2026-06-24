@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceRefreshService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -31,13 +32,125 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiSecurityDecisionObservationWriterTest {
+
+    @Test
+    @DisplayName("Successful LLM decision should refresh HCAD semantic evidence cache after observation storage")
+    void recordDecision_successfulDecision_shouldRefreshSemanticEvidence() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadSemanticEvidenceRefreshService refreshService = mock(HcadSemanticEvidenceRefreshService.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(
+                        () -> jdbcOperations,
+                        new ObjectMapper(),
+                        "openai",
+                        "gpt-5-nano",
+                        refreshService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-refresh-1")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "PROTECTABLE",
+                        "requestId", "req-refresh-1",
+                        "requestPath", "/contexa/admin/users",
+                        "resourceId", "/contexa/admin/users"
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("ALLOW")
+                .proposedAction("ALLOW")
+                .llmAuditRiskScore(0.08d)
+                .llmAuditConfidence(0.91d)
+                .llmDecisionPresent(true)
+                .processingTimeMs(120L)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        verify(refreshService).refreshAfterDecision(eq(event), anyMap());
+    }
+
+    @Test
+    @DisplayName("Failed LLM decision should not refresh HCAD semantic evidence cache")
+    void recordDecision_failedDecision_shouldNotRefreshSemanticEvidence() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadSemanticEvidenceRefreshService refreshService = mock(HcadSemanticEvidenceRefreshService.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(
+                        () -> jdbcOperations,
+                        new ObjectMapper(),
+                        "openai",
+                        "gpt-5-nano",
+                        refreshService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-refresh-failure")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "PROTECTABLE",
+                        "requestId", "req-refresh-failure",
+                        "requestPath", "/contexa/admin/users",
+                        "resourceId", "/contexa/admin/users"
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(false)
+                .action("PENDING_ANALYSIS")
+                .proposedAction("PENDING_ANALYSIS")
+                .errorMessage("LLM timeout")
+                .llmDecisionPresent(false)
+                .processingTimeMs(15000L)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
+
+        verify(refreshService, never()).refreshAfterDecision(eq(event), anyMap());
+    }
+
+    @Test
+    @DisplayName("Successful non-ALLOW LLM decision should not refresh normal HCAD semantic evidence cache")
+    void recordDecision_successfulChallengeDecision_shouldNotRefreshSemanticEvidence() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadSemanticEvidenceRefreshService refreshService = mock(HcadSemanticEvidenceRefreshService.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(
+                        () -> jdbcOperations,
+                        new ObjectMapper(),
+                        "openai",
+                        "gpt-5-nano",
+                        refreshService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-refresh-challenge")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "PROTECTABLE",
+                        "requestId", "req-refresh-challenge",
+                        "requestPath", "/contexa/admin/users",
+                        "resourceId", "/contexa/admin/users"
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("CHALLENGE")
+                .proposedAction("CHALLENGE")
+                .llmAuditRiskScore(0.88d)
+                .llmAuditConfidence(0.9d)
+                .llmDecisionPresent(true)
+                .processingTimeMs(120L)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        verify(refreshService, never()).refreshAfterDecision(eq(event), anyMap());
+    }
 
     @Test
     @DisplayName("HCAD pre-triggered LLM decision should be stored as HCAD_ONLY TP when LLM reports risk")
@@ -197,6 +310,150 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(correlationArgs[5]).isEqualTo("run-evidence-combined-fp");
         assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
         assertThat(correlationArgs[10]).isEqualTo("FP");
+    }
+
+    @Test
+    @DisplayName("Protectable LLM decision with eligible same-request HCAD observation should be stored as HCAD_AND_PROTECTABLE FP when allowed")
+    void recordDecision_protectableWithEligibleHcadObservationAllow_shouldStoreCombinedFalsePositive() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-protectable-combined-fp")
+                .userId("admin")
+                .metadata(metadata(Map.ofEntries(
+                        Map.entry("triggerSource", "PROTECTABLE"),
+                        Map.entry("protectableDeclared", true),
+                        Map.entry("protectableResourceId", "hcad.live.vendor.export"),
+                        Map.entry("protectableResourceUrl", "/contexa/test/hcad/live/vendors/{vendorId}/export"),
+                        Map.entry("hcadEvaluationId", "eval-protectable-combined-fp"),
+                        Map.entry("testRunId", "run-protectable-combined-fp"),
+                        Map.entry("requestId", "req-protectable-combined-fp"),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 70),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "REDLINE"),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, true)
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("ALLOW")
+                .proposedAction("ALLOW")
+                .llmAuditRiskScore(0.35d)
+                .llmAuditConfidence(0.84d)
+                .llmDecisionPresent(true)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[4]).isEqualTo("run-protectable-combined-fp");
+        assertThat(args[11]).isEqualTo("PROTECTABLE");
+        assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(args[37]).isEqualTo("FP");
+        Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
+        assertThat(correlationArgs[5]).isEqualTo("run-protectable-combined-fp");
+        assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(correlationArgs[10]).isEqualTo("FP");
+    }
+
+    @Test
+    @DisplayName("Protectable LLM risk with eligible same-request HCAD observation should be stored as HCAD_AND_PROTECTABLE TP")
+    void recordDecision_protectableWithEligibleHcadObservationRisk_shouldStoreCombinedTruePositive() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-protectable-combined-tp")
+                .userId("admin")
+                .metadata(metadata(Map.ofEntries(
+                        Map.entry("triggerSource", "PROTECTABLE"),
+                        Map.entry("protectableDeclared", true),
+                        Map.entry("protectableResourceId", "hcad.live.finance.invoice"),
+                        Map.entry("protectableResourceUrl", "/contexa/test/hcad/live/finance/invoices/{invoiceId}"),
+                        Map.entry("hcadEvaluationId", "eval-protectable-combined-tp"),
+                        Map.entry("testRunId", "run-protectable-combined-tp"),
+                        Map.entry("requestId", "req-protectable-combined-tp"),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 90),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "REDLINE"),
+                        Map.entry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, true)
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("CHALLENGE")
+                .proposedAction("CHALLENGE")
+                .llmAuditRiskScore(0.9d)
+                .llmAuditConfidence(0.9d)
+                .llmDecisionPresent(true)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[4]).isEqualTo("run-protectable-combined-tp");
+        assertThat(args[11]).isEqualTo("PROTECTABLE");
+        assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(args[37]).isEqualTo("TP");
+        Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
+        assertThat(correlationArgs[5]).isEqualTo("run-protectable-combined-tp");
+        assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(correlationArgs[10]).isEqualTo("TP");
+    }
+
+    @Test
+    @DisplayName("Protectable LLM decision should use durable HCAD eligible marker when event metadata omits it")
+    void recordDecision_protectableWithDurableEligibleHcadObservation_shouldStoreCombinedRelation() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        when(jdbcOperations.queryForObject(
+                        contains("trigger_decision_reason = 'PROTECTABLE_LLM_REUSED'"),
+                        eq(Boolean.class),
+                        eq("eval-durable-combined")))
+                .thenReturn(true);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-durable-combined")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "PROTECTABLE",
+                        "protectableDeclared", true,
+                        "protectableResourceId", "hcad.live.vendor.export",
+                        "protectableResourceUrl", "/contexa/test/hcad/live/vendors/{vendorId}/export",
+                        "hcadEvaluationId", "eval-durable-combined",
+                        "testRunId", "run-durable-combined",
+                        "requestId", "req-durable-combined",
+                        HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true,
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 70,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "REDLINE"
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("ALLOW")
+                .proposedAction("ALLOW")
+                .llmAuditRiskScore(0.35d)
+                .llmAuditConfidence(0.84d)
+                .llmDecisionPresent(true)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        assertThat(observationId).isNotBlank();
+        Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(args[4]).isEqualTo("run-durable-combined");
+        assertThat(args[11]).isEqualTo("PROTECTABLE");
+        assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(args[17]).isEqualTo(true);
+        assertThat(args[37]).isEqualTo("FP");
+        Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
+        assertThat(correlationArgs[5]).isEqualTo("run-durable-combined");
+        assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
+        assertThat(correlationArgs[10]).isEqualTo("FP");
+        assertThat(correlationArgs[13]).isEqualTo(true);
     }
 
     @Test

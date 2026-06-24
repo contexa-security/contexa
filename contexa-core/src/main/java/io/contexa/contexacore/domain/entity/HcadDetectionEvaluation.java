@@ -88,6 +88,12 @@ public class HcadDetectionEvaluation {
     @Column(name = "request_path", length = 2048)
     private String requestPath;
 
+    @Column(name = "normalized_path", length = 2048)
+    private String normalizedPath;
+
+    @Column(name = "resource_id", length = 512)
+    private String resourceId;
+
     @Column(name = "client_ip", length = 64)
     private String clientIp;
 

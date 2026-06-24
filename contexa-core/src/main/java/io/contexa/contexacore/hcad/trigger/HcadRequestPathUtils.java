@@ -70,7 +70,15 @@ public final class HcadRequestPathUtils {
             "/images/",
             "/static/",
             "/webjars/",
-            "/.well-known/appspecific/");
+            "/.well-known/appspecific/",
+            "/admin/api/ai-monitor/",
+            "/admin/api/security-monitor/",
+            "/admin/ai-monitor",
+            "/admin/security-monitor",
+            "/contexa/admin/api/ai-monitor/",
+            "/contexa/admin/api/security-monitor/",
+            "/contexa/admin/ai-monitor",
+            "/contexa/admin/security-monitor");
 
     private static final List<String> NON_ACTIONABLE_EXACT_PATHS = List.of(
             "/favicon.ico",

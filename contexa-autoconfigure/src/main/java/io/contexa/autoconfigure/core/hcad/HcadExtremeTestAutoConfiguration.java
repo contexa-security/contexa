@@ -78,11 +78,21 @@ public class HcadExtremeTestAutoConfiguration {
 
     @Bean(name = "hcadExtremeToolCapableLlmClient")
     @Primary
+    @ConditionalOnProperty(
+            prefix = "contexa.hcad.extreme-test.deterministic-llm",
+            name = "enabled",
+            havingValue = "true",
+            matchIfMissing = true)
     public ToolCapableLLMClient hcadExtremeToolCapableLlmClient(ObjectMapper objectMapper) {
         return new HcadExtremeDeterministicLlmClient(objectMapper);
     }
 
     @Bean
+    @ConditionalOnProperty(
+            prefix = "contexa.hcad.extreme-test.deterministic-llm",
+            name = "enabled",
+            havingValue = "true",
+            matchIfMissing = true)
     public static BeanFactoryPostProcessor hcadExtremeLlmPrimaryPostProcessor() {
         return beanFactory -> demoteProductionLlmPrimary(beanFactory, "unifiedLLMOrchestrator");
     }

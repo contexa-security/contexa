@@ -69,7 +69,7 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         try {
             HcadSemanticEvidenceEntry entry = switch (key.type()) {
                 case NORMAL_REQUEST_SIMILARITY -> normalRequestSimilarity(jdbcOperations, key);
-                case RISK_REQUEST_SIMILARITY -> riskRequestSimilarity(jdbcOperations, key);
+                case RISK_REQUEST_SIMILARITY -> null;
                 default -> null;
             };
             if (entry == null) {
@@ -89,7 +89,7 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
     private HcadSemanticEvidenceEntry normalRequestSimilarity(
             JdbcOperations jdbcOperations,
             HcadSemanticEvidenceKey key) {
-        Map<String, Object> row = aggregate(jdbcOperations, key, true);
+        Map<String, Object> row = aggregate(jdbcOperations, key);
         if (row == null || number(row.get("sample_count")).intValue() <= 0) {
             return null;
         }
@@ -100,25 +100,9 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         return entry(key, normal, risk, mismatch, row);
     }
 
-    private HcadSemanticEvidenceEntry riskRequestSimilarity(
-            JdbcOperations jdbcOperations,
-            HcadSemanticEvidenceKey key) {
-        Map<String, Object> row = aggregate(jdbcOperations, key, false);
-        if (row == null || number(row.get("sample_count")).intValue() <= 0) {
-            return null;
-        }
-        double risk = bounded(number(row.get("avg_risk")).doubleValue(), 0.0d, 1.0d);
-        double confidence = bounded(number(row.get("avg_confidence")).doubleValue(), 0.0d, 1.0d);
-        double similarityToRisk = risk <= 0.0d ? 0.75d : risk;
-        double normal = bounded(1.0d - similarityToRisk, 0.0d, 1.0d);
-        double mismatch = bounded(similarityToRisk * Math.max(confidence, 0.5d), 0.0d, 1.0d);
-        return entry(key, normal, similarityToRisk, mismatch, row);
-    }
-
     private Map<String, Object> aggregate(
             JdbcOperations jdbcOperations,
-            HcadSemanticEvidenceKey key,
-            boolean normal) {
+            HcadSemanticEvidenceKey key) {
         List<Map<String, Object>> rows = jdbcOperations.queryForList("""
                 SELECT count(*) AS sample_count,
                        avg(coalesce(llm_risk_score, 0)) AS avg_risk,
@@ -131,16 +115,11 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
                    )
                    AND success = true
                    AND outcome_class <> 'UNKNOWN'
-                   AND (
-                        (? = true AND coalesce(final_action, '') IN ('ALLOW', 'PERMIT', 'NONE'))
-                        OR (? = false AND coalesce(final_action, '') IN ('CHALLENGE', 'MFA', 'BLOCK', 'DENY'))
-                   )
+                   AND coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '') = 'ALLOW'
                 """,
                 value(key.userId()),
                 value(key.resourceId()),
-                "%" + value(key.resourceId()) + "%",
-                normal,
-                normal);
+                "%" + value(key.resourceId()) + "%");
         return rows == null || rows.isEmpty() ? null : rows.get(0);
     }
 

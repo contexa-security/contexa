@@ -28,6 +28,7 @@ import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.service.GeoIpService;
 import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
 import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCacheFactory;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceRefreshService;
 import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupService;
 import io.contexa.contexacore.hcad.semantic.JdbcHcadSemanticEvidenceWarmupService;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
@@ -48,6 +49,7 @@ import io.contexa.contexacore.hcad.trigger.window.InMemoryHcadObservationWindowR
 import io.contexa.contexacore.hcad.trigger.window.RedisHcadObservationWindowRepository;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import org.springframework.beans.factory.ObjectProvider;
@@ -73,7 +75,7 @@ import org.springframework.jdbc.core.JdbcOperations;
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class, TieredStrategyProperties.class })
+@EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class, SecurityZeroTrustProperties.class, TieredStrategyProperties.class })
 public class CoreHCADAutoConfiguration {
 
     @Bean
@@ -122,6 +124,18 @@ public class CoreHCADAutoConfiguration {
                 jdbcOperationsProvider::getIfAvailable,
                 hcadProperties,
                 taskExecutor == null ? null : taskExecutor::execute);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HcadSemanticEvidenceRefreshService hcadSemanticEvidenceRefreshService(
+            ObjectProvider<HcadSemanticEvidenceCache> hcadSemanticEvidenceCacheProvider,
+            ObjectProvider<HcadSemanticEvidenceWarmupService> hcadSemanticEvidenceWarmupServiceProvider,
+            HcadProperties hcadProperties) {
+        return new HcadSemanticEvidenceRefreshService(
+                hcadSemanticEvidenceCacheProvider::getIfAvailable,
+                hcadSemanticEvidenceWarmupServiceProvider::getIfAvailable,
+                hcadProperties);
     }
 
     @Bean
@@ -180,8 +194,57 @@ public class CoreHCADAutoConfiguration {
     @ConditionalOnMissingBean
     public AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            ObjectMapper objectMapper) {
-        return new AiSecurityDecisionObservationWriter(jdbcOperationsProvider::getIfAvailable, objectMapper);
+            ObjectMapper objectMapper,
+            Environment environment,
+            ObjectProvider<HcadSemanticEvidenceRefreshService> semanticEvidenceRefreshServiceProvider) {
+        return new AiSecurityDecisionObservationWriter(
+                jdbcOperationsProvider::getIfAvailable,
+                objectMapper,
+                defaultModelProvider(environment),
+                defaultModelId(environment),
+                semanticEvidenceRefreshServiceProvider.getIfAvailable());
+    }
+
+    private static String defaultModelProvider(Environment environment) {
+        if (environment == null) {
+            return null;
+        }
+        if (hasText(environment.getProperty("spring.ai.openai.chat.options.model"))) {
+            return "openai";
+        }
+        if (hasText(environment.getProperty("spring.ai.anthropic.chat.options.model"))) {
+            return "anthropic";
+        }
+        if (hasText(environment.getProperty("spring.ai.ollama.chat.options.model"))) {
+            return "ollama";
+        }
+        return null;
+    }
+
+    private static String defaultModelId(Environment environment) {
+        if (environment == null) {
+            return null;
+        }
+        return firstText(
+                environment.getProperty("spring.ai.openai.chat.options.model"),
+                environment.getProperty("spring.ai.anthropic.chat.options.model"),
+                environment.getProperty("spring.ai.ollama.chat.options.model"));
+    }
+
+    private static String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     @Bean
@@ -193,14 +256,16 @@ public class CoreHCADAutoConfiguration {
             ObjectProvider<PendingAnomalyEventTriggerService> pendingAnomalyEventTriggerServiceProvider,
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             HcadProperties hcadProperties,
-            ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider) {
+            ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustPropertiesProvider) {
         return new PendingAnomalyTriggerOrchestrator(
                 pendingAnomalyEligibilityGate,
                 pendingAnomalyEvidenceCheckService,
                 pendingAnomalyEventTriggerServiceProvider.getIfAvailable(),
                 analysisTriggerStateRepository,
                 hcadProperties,
-                hcadEvaluationWriterProvider.getIfAvailable());
+                hcadEvaluationWriterProvider.getIfAvailable(),
+                securityZeroTrustPropertiesProvider.getIfAvailable());
     }
 
     @Configuration

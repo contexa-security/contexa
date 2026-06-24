@@ -42,6 +42,7 @@ import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContex
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -87,6 +88,9 @@ public class ZeroTrustEventPublisher {
 
     @Autowired(required = false)
     private HcadProperties hcadProperties;
+
+    @Autowired(required = false)
+    private SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
@@ -358,6 +362,7 @@ public class ZeroTrustEventPublisher {
 
         populateAuthenticationFallback(authentication, payload);
         reconcileAuthorizationDecision(granted, payload);
+        putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
 
         if (actionRedisRepository != null && authentication != null) {
             ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(effectiveUserId);
@@ -377,6 +382,13 @@ public class ZeroTrustEventPublisher {
                 payload,
                 requestInfo != null ? requestInfo.getObservedAt() : null
         );
+    }
+
+    private String securityZeroTrustMode() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getMode() == null) {
+            return null;
+        }
+        return securityZeroTrustProperties.getMode().name();
     }
 
     private void ensureProtectableHcadObservation(Authentication authentication, Map<String, Object> payload) {
@@ -415,7 +427,7 @@ public class ZeroTrustEventPublisher {
                     ? HcadPreTriggerMode.SHADOW
                     : effectiveHcadProperties.getPreTrigger().effectiveMode();
             HcadPreProtectablePromotionRequestProjector.project(request, assessment, mode);
-            String evaluationId = recordProtectableObservation(request, projection, assessment, mode);
+            String evaluationId = recordProtectableObservation(request, projection, assessment, payload, mode);
             if (StringUtils.hasText(evaluationId)) {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
             }
@@ -460,6 +472,7 @@ public class ZeroTrustEventPublisher {
             HttpServletRequest request,
             TrustedHcadContextProjection projection,
             HcadPreProtectablePromotionAssessment assessment,
+            Map<String, Object> payload,
             HcadPreTriggerMode mode) {
         if (projection == null || assessment == null) {
             return null;
@@ -490,7 +503,24 @@ public class ZeroTrustEventPublisher {
                 assessment.reasonCodes(),
                 assessment.summary(),
                 assessment.rawSignalSnapshot());
-        return hcadEvaluationWriter.recordCandidate(mode, report);
+        String evaluationId = hcadEvaluationWriter.recordCandidate(mode, report);
+        if (StringUtils.hasText(evaluationId)) {
+            hcadEvaluationWriter.markProtectableObserved(
+                    evaluationId,
+                    firstText(payload == null ? null : payload.get("protectableResourceId"),
+                            payload == null ? null : payload.get("resourceId"),
+                            payload == null ? null : payload.get("requestedResourceId"),
+                            payload == null ? null : payload.get("protectedResourceId")),
+                    firstText(payload == null ? null : payload.get("protectableResourceUrl"),
+                            payload == null ? null : payload.get("requestPath"),
+                            payload == null ? null : payload.get("requestUri"),
+                            projection.normalizedPath()),
+                    firstText(payload == null ? null : payload.get("protectableHttpMethod"),
+                            payload == null ? null : payload.get("httpMethod"),
+                            projection.method()),
+                    assessment.eligible());
+        }
+        return evaluationId;
     }
 
     public void publish(

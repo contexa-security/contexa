@@ -32,16 +32,26 @@ public class SecurityZeroTrustProperties {
     private int maxBlockMfaAttempts = 2;
 
     public enum SecurityMode {
+        DISABLED,
+        OBSERVE,
         SHADOW,
         ENFORCE;
+
+        public boolean allowsLlmAnalysis() {
+            return this == SHADOW || this == ENFORCE;
+        }
 
         public boolean isEnforcementEnabled() {
             return this == ENFORCE;
         }
     }
 
+    public boolean allowsLlmAnalysis() {
+        return enabled && mode != null && mode.allowsLlmAnalysis();
+    }
+
     public boolean isEnforcementEnabled() {
-        return mode.isEnforcementEnabled();
+        return enabled && mode != null && mode.isEnforcementEnabled();
     }
 
     @NestedConfigurationProperty

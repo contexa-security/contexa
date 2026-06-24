@@ -288,6 +288,50 @@ class AuthorizationManagerMethodInterceptorTest {
     class ShadowModeSyncTests {
 
         @Test
+        @DisplayName("DISABLED mode: sync Protectable should skip AI analysis and proceed")
+        void disabled_syncProtectable_shouldSkipAiAnalysisAndProceed() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(methodInvocation.proceed()).thenReturn("protected");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties disabled = new SecurityZeroTrustProperties();
+            disabled.setMode(SecurityZeroTrustProperties.SecurityMode.DISABLED);
+            interceptor.setSecurityZeroTrustProperties(disabled);
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("protected");
+            verify(authorizationManager).protectable(any(), eq(methodInvocation));
+            verify(rapidReentryGuard, never()).tryAcquire(any(), any());
+            verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+        }
+
+        @Test
+        @DisplayName("OBSERVE mode: sync Protectable should observe authorization only and skip AI analysis")
+        void observe_syncProtectable_shouldSkipAiAnalysisAndProceed() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(methodInvocation.proceed()).thenReturn("protected");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties observe = new SecurityZeroTrustProperties();
+            observe.setMode(SecurityZeroTrustProperties.SecurityMode.OBSERVE);
+            interceptor.setSecurityZeroTrustProperties(observe);
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("protected");
+            verify(authorizationManager).protectable(any(), eq(methodInvocation));
+            verify(rapidReentryGuard, never()).tryAcquire(any(), any());
+            verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+        }
+
+        @Test
         @DisplayName("ENFORCE mode: sync BLOCK should throw ZeroTrustAccessDeniedException")
         void enforce_syncBlock_shouldThrow() throws Throwable {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");

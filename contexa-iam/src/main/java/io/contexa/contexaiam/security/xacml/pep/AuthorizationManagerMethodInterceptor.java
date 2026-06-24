@@ -78,21 +78,30 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         boolean publishEvent = true;
         String denialReason = null;
         Protectable protectable = resolveProtectable(mi);
+        boolean llmAnalysisAllowed = isLlmAnalysisAllowed();
         boolean rapidReentryAllowed = true;
 
         try {
-            rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi);
-            if (!rapidReentryAllowed && (protectable == null || !protectable.sync())) {
+            if (!llmAnalysisAllowed) {
                 publishEvent = false;
-                log.debug("[ZeroTrust] Rapid re-entry detected for async protectable. Access will proceed and analysis will be skipped.");
-            } else if (!rapidReentryAllowed) {
-                rapidReentryGuard.check(authentication, mi);
+                log.debug("[ZeroTrust] AI decision analysis is disabled for Protectable invocation. mode={}",
+                        securityZeroTrustMode());
+            } else {
+                rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi);
+                if (!rapidReentryAllowed && (protectable == null || !protectable.sync())) {
+                    publishEvent = false;
+                    log.debug("[ZeroTrust] Rapid re-entry detected for async protectable. Access will proceed and analysis will be skipped.");
+                } else if (!rapidReentryAllowed) {
+                    rapidReentryGuard.check(authentication, mi);
+                }
             }
 
             authorizationManager.protectable(() -> authentication, mi);
-            enforcePromptQualityCertificateGate(mi, authentication, protectable);
+            if (llmAnalysisAllowed) {
+                enforcePromptQualityCertificateGate(mi, authentication, protectable);
+            }
 
-            if (isSyncProtectable(protectable)) {
+            if (llmAnalysisAllowed && isSyncProtectable(protectable)) {
                 SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {
                     if (isEnforcementDisabled()) {
@@ -126,7 +135,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             throw e;
 
         } finally {
-            if (publishEvent) {
+            if (publishEvent && llmAnalysisAllowed) {
                 publishAuthorizationEvent(mi, authentication, granted, denialReason);
             }
         }
@@ -280,6 +289,17 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
     private boolean isEnforcementDisabled() {
         return securityZeroTrustProperties != null && !securityZeroTrustProperties.isEnforcementEnabled();
+    }
+
+    private boolean isLlmAnalysisAllowed() {
+        return securityZeroTrustProperties == null || securityZeroTrustProperties.allowsLlmAnalysis();
+    }
+
+    private String securityZeroTrustMode() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getMode() == null) {
+            return "UNSPECIFIED";
+        }
+        return securityZeroTrustProperties.getMode().name();
     }
 
     private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,

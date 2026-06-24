@@ -246,6 +246,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:hcad:pretrigger:rate:%s", NAMESPACE, rateKey);
     }
 
+    public static String analysisTriggerEvaluation(String stateKey) {
+        validateTriggerKey(stateKey);
+        return String.format("%s:hcad:pretrigger:evaluation:%s", NAMESPACE, stateKey);
+    }
+
     public static String hcadObservationWindow(String actorSessionKey) {
         validateTriggerKey(actorSessionKey);
         return String.format("%s:hcad:pretrigger:window:%s", NAMESPACE, actorSessionKey);

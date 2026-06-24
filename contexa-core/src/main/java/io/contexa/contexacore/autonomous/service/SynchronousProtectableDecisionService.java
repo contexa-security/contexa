@@ -166,9 +166,7 @@ public class SynchronousProtectableDecisionService {
         if (event == null || event.getPayload() == null) {
             return false;
         }
-        return "SHADOW".equalsIgnoreCase(firstText(
-                event.getPayload().get("decisionBoundaryMode"),
-                event.getPayload().get("hcadMode")));
+        return "SHADOW".equalsIgnoreCase(firstText(event.getPayload().get("decisionBoundaryMode")));
     }
 
     private boolean isPreProtectableAnalysisAlreadyStarted(
@@ -203,9 +201,6 @@ public class SynchronousProtectableDecisionService {
 
     private boolean isCurrentRequestPreTriggerShadow() {
         Object mode = currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE);
-        if (mode == null) {
-            mode = currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MODE);
-        }
         return "SHADOW".equalsIgnoreCase(firstText(mode));
     }
 
@@ -222,7 +217,9 @@ public class SynchronousProtectableDecisionService {
     }
 
     private void scheduleProtectableMerge(ZeroTrustSpringEvent event) {
-        String evaluationId = firstText(currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID));
+        String evaluationId = firstText(
+                currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MERGE_EVALUATION_ID),
+                currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID));
         AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
         if (!StringUtils.hasText(evaluationId) || writer == null) {
             return;

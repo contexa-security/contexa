@@ -18,6 +18,7 @@ package io.contexa.contexacore.hcad.trigger;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -33,6 +34,7 @@ public class PendingAnomalyTriggerOrchestrator {
     private final AnalysisTriggerStateRepository analysisTriggerStateRepository;
     private final HcadProperties hcadProperties;
     private final HcadEvaluationWriter hcadEvaluationWriter;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final HcadLlmTriggerCoordinator triggerCoordinator;
 
     public PendingAnomalyTriggerOrchestrator(
@@ -41,7 +43,7 @@ public class PendingAnomalyTriggerOrchestrator {
             PendingAnomalyEventTriggerService eventTriggerService,
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             HcadProperties hcadProperties) {
-        this(eligibilityGate, evidenceCheckService, eventTriggerService, analysisTriggerStateRepository, hcadProperties, null);
+        this(eligibilityGate, evidenceCheckService, eventTriggerService, analysisTriggerStateRepository, hcadProperties, null, null);
     }
 
     public PendingAnomalyTriggerOrchestrator(
@@ -51,12 +53,30 @@ public class PendingAnomalyTriggerOrchestrator {
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             HcadProperties hcadProperties,
             HcadEvaluationWriter hcadEvaluationWriter) {
+        this(eligibilityGate,
+                evidenceCheckService,
+                eventTriggerService,
+                analysisTriggerStateRepository,
+                hcadProperties,
+                hcadEvaluationWriter,
+                null);
+    }
+
+    public PendingAnomalyTriggerOrchestrator(
+            PendingAnomalyEligibilityGate eligibilityGate,
+            PendingAnomalyEvidenceCheckService evidenceCheckService,
+            PendingAnomalyEventTriggerService eventTriggerService,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            HcadProperties hcadProperties,
+            HcadEvaluationWriter hcadEvaluationWriter,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         this.eligibilityGate = eligibilityGate;
         this.evidenceCheckService = evidenceCheckService;
         this.eventTriggerService = eventTriggerService;
         this.analysisTriggerStateRepository = analysisTriggerStateRepository;
         this.hcadProperties = hcadProperties;
         this.hcadEvaluationWriter = hcadEvaluationWriter;
+        this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.triggerCoordinator = new HcadLlmTriggerCoordinator(analysisTriggerStateRepository, hcadProperties);
     }
 
@@ -84,13 +104,23 @@ public class PendingAnomalyTriggerOrchestrator {
         }
 
         if (protectableAnalysisAlreadyStarted(request)) {
+            String activeEvaluationId = triggerCoordinator.findActiveEvaluation(report.triggerStateKey());
             markDuplicateSuppressed(evaluationId);
-            markRequestSuppressed(request, report, report.triggerStateKey(), evaluationId);
+            markRequestSuppressed(request, report, report.triggerStateKey(), evaluationId, activeEvaluationId);
             return;
         }
 
         if (!mode.publishesLlmEvent()) {
-            log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger observe mode matched but LLM publication is disabled");
+            markTriggerSuppressed(evaluationId, "HCAD_MODE_" + mode.name());
+            log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger matched but LLM publication is disabled by HCAD mode. mode={}",
+                    mode);
+            return;
+        }
+        if (!llmAnalysisAllowed()) {
+            String llmMode = securityZeroTrustMode();
+            markTriggerSuppressed(evaluationId, "LLM_MODE_" + llmMode);
+            log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger matched but LLM publication is disabled by AI decision mode. mode={}",
+                    llmMode);
             return;
         }
         if (eventTriggerService == null) {
@@ -102,16 +132,18 @@ public class PendingAnomalyTriggerOrchestrator {
                 triggerCoordinator.tryAcquire(report, eligibility.baseKey());
         if (!triggerLease.acquired()) {
             if (triggerLease.duplicateSuppressed()) {
+                String activeEvaluationId = triggerCoordinator.findActiveEvaluation(triggerLease);
                 markDuplicateSuppressed(evaluationId);
-                markRequestSuppressed(request, report, triggerLease.dedupKey(), evaluationId);
+                markRequestSuppressed(request, report, triggerLease.dedupKey(), evaluationId, activeEvaluationId);
             }
             return;
         }
 
         boolean success = false;
         try {
-            eventTriggerService.publish(request, report, evaluationId);
+            eventTriggerService.publish(request, report, evaluationId, securityZeroTrustMode());
             triggerCoordinator.markCooldown(triggerLease);
+            triggerCoordinator.rememberEvaluation(triggerLease, evaluationId);
             markTriggered(evaluationId);
             markRequestTriggered(request, report, triggerLease.dedupKey(), evaluationId);
             success = true;
@@ -158,6 +190,17 @@ public class PendingAnomalyTriggerOrchestrator {
         }
     }
 
+    private void markTriggerSuppressed(String evaluationId, String reason) {
+        if (hcadEvaluationWriter == null) {
+            return;
+        }
+        try {
+            hcadEvaluationWriter.markTriggerSuppressed(evaluationId, reason);
+        } catch (Exception ex) {
+            log.error("[PendingAnomalyTriggerOrchestrator] Failed to mark suppressed HCAD trigger", ex);
+        }
+    }
+
     private void markRequestTriggered(
             HttpServletRequest request,
             PendingAnomalyEvidenceReport report,
@@ -171,6 +214,7 @@ public class PendingAnomalyTriggerOrchestrator {
         request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DUPLICATE_SUPPRESSED, false);
         if (evaluationId != null && !evaluationId.isBlank()) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MERGE_EVALUATION_ID, evaluationId);
         }
         if (report != null) {
             if (report.requestId() != null) {
@@ -186,7 +230,8 @@ public class PendingAnomalyTriggerOrchestrator {
             HttpServletRequest request,
             PendingAnomalyEvidenceReport report,
             String dedupKey,
-            String evaluationId) {
+            String evaluationId,
+            String mergeEvaluationId) {
         if (request == null) {
             return;
         }
@@ -195,6 +240,9 @@ public class PendingAnomalyTriggerOrchestrator {
         request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DUPLICATE_SUPPRESSED, true);
         if (evaluationId != null && !evaluationId.isBlank()) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
+        }
+        if (mergeEvaluationId != null && !mergeEvaluationId.isBlank()) {
+            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MERGE_EVALUATION_ID, mergeEvaluationId);
         }
         if (report != null) {
             if (report.requestId() != null) {
@@ -209,5 +257,16 @@ public class PendingAnomalyTriggerOrchestrator {
     private boolean protectableAnalysisAlreadyStarted(HttpServletRequest request) {
         return request != null
                 && Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED));
+    }
+
+    private boolean llmAnalysisAllowed() {
+        return securityZeroTrustProperties == null || securityZeroTrustProperties.allowsLlmAnalysis();
+    }
+
+    private String securityZeroTrustMode() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getMode() == null) {
+            return "UNSPECIFIED";
+        }
+        return securityZeroTrustProperties.getMode().name();
     }
 }

@@ -88,6 +88,19 @@ class HcadRequestPathUtilsTest {
         assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/api/orders/1001")).isFalse();
     }
 
+    @Test
+    @DisplayName("AI monitor read pages and APIs are excluded so viewing metrics does not mutate metrics")
+    void isNonActionableMonitoringPath_aiMonitorReadPaths_returnsTrue() {
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/api/ai-monitor/overview")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/api/ai-monitor/llm")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/api/security-monitor/hcad/summary")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/ai-monitor")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/ai-monitor/hcad")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/security-monitor")).isTrue();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/groups")).isFalse();
+        assertThat(HcadRequestPathUtils.isNonActionableMonitoringPath("/contexa/admin/api/users/1/disable")).isFalse();
+    }
+
     private boolean requestWithFetchDest(String fetchDest) {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/any/generated/path");
         request.addHeader("Sec-Fetch-Dest", fetchDest);

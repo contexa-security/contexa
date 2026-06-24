@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -169,8 +170,10 @@ public class TieredStrategyProperties {
         private Rag rag = new Rag();
         private Cache cache = new Cache();
 
-        private long timeoutMs = 7000;
+        private long timeoutMs = 30000;
         private boolean enableSoar = false;
+        private boolean allowEscalateFinalAction = false;
+        private ZeroTrustAction escalateFallbackAction = ZeroTrustAction.CHALLENGE;
         private int ragTopK = 5;
         private String defaultBudgetProfile = "CORTEX_L2_EXPERT_STRICT";
 

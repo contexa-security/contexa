@@ -522,6 +522,7 @@ public class HCADFilter extends OncePerRequestFilter {
         request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED, true);
         if (pendingAnomalyTriggerOrchestrator != null) {
             pendingAnomalyTriggerOrchestrator.maybeTrigger(request, authentication);
+            refreshRecordedWindowObservation(assessment);
             if (request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID) == null) {
                 recordCandidateWithoutPublisher(request, projection, assessment);
             }
@@ -573,7 +574,23 @@ public class HCADFilter extends OncePerRequestFilter {
             if (Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT))) {
                 writer.markNegativeCacheHit(evaluationId);
             }
+            refreshRecordedWindowObservation(assessment);
         }
+    }
+
+    private void refreshRecordedWindowObservation(HcadPreProtectablePromotionAssessment assessment) {
+        HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
+        if (writer == null || assessment == null || assessment.rawSignalSnapshot() == null) {
+            return;
+        }
+        String actorSessionKey = valueAsText(assessment.rawSignalSnapshot().get("actorSessionKey"));
+        String windowId = valueAsText(assessment.rawSignalSnapshot().get("windowId"));
+        if (actorSessionKey == null || windowId == null) {
+            return;
+        }
+        observationWindowRepository
+                .snapshot(actorSessionKey, windowId)
+                .ifPresent(latest -> writer.updateWindowObservation(actorSessionKey, windowId, latest));
     }
 
     private String firstText(String... values) {

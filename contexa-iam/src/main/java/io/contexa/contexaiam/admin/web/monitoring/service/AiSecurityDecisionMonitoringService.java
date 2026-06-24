@@ -460,14 +460,17 @@ public class AiSecurityDecisionMonitoringService {
             case DISABLED -> "HCAD_DISABLED";
             case OBSERVE -> "HCAD_OBSERVE_LOG_ONLY";
             case SHADOW -> "HCAD_SHADOW_LOG_ONLY";
-            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_LOG";
+            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_ACTION_LOG";
         };
     }
 
     private String llmEffectKey(SecurityZeroTrustProperties.SecurityMode mode) {
-        return mode == SecurityZeroTrustProperties.SecurityMode.SHADOW
-                ? "LLM_SHADOW_LOG_ONLY"
-                : "LLM_ENFORCE_ACTION_LOG";
+        return switch (mode) {
+            case DISABLED -> "LLM_DISABLED";
+            case OBSERVE -> "LLM_OBSERVE_LOG_ONLY";
+            case SHADOW -> "LLM_SHADOW_LOG_ONLY";
+            case ENFORCE -> "LLM_ENFORCE_ACTION_LOG";
+        };
     }
 
     private LlmDecisionSummary llmSummary(LocalDateTime from, LocalDateTime to) {
@@ -485,11 +488,11 @@ public class AiSecurityDecisionMonitoringService {
                 null,
                 total,
                 countAi(
-                        "trigger_source in ('HCAD_PRE_TRIGGER', 'PENDING_REDLINE') and created_at between ? and ?",
+                        "trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE') and created_at between ? and ?",
                         from,
                         to),
                 countAi(
-                        "trigger_relation in ('PROTECTABLE_ONLY', 'HCAD_AND_PROTECTABLE', 'PROTECTABLE_SUPPRESSED_BY_HCAD') and created_at between ? and ?",
+                        "trigger_relation in ('PROTECTABLE_ONLY', 'HCAD_AND_PROTECTABLE') and created_at between ? and ?",
                         from,
                         to),
                 countAi(

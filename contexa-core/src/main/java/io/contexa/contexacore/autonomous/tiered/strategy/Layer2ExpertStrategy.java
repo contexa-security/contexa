@@ -233,6 +233,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
             expertDecision.setLlmDecisionPresent(true);
             expertDecision.setTechnicalFallbackApplied(false);
+            terminalizeLayer2EscalateDecision(expertDecision);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
@@ -343,6 +344,40 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             decision.setMitreMapping(mitreMapping);
         }
         return decision;
+    }
+
+    private void terminalizeLayer2EscalateDecision(SecurityDecision decision) {
+        if (decision == null || tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
+            return;
+        }
+        ZeroTrustAction proposed = decision.getAction();
+        ZeroTrustAction autonomous = decision.resolveAutonomousAction();
+        if (proposed != ZeroTrustAction.ESCALATE && autonomous != ZeroTrustAction.ESCALATE) {
+            return;
+        }
+
+        ZeroTrustAction fallback = tieredStrategyProperties.getLayer2().getEscalateFallbackAction();
+        if (fallback == null
+                || fallback == ZeroTrustAction.ESCALATE
+                || fallback == ZeroTrustAction.PENDING_ANALYSIS) {
+            fallback = ZeroTrustAction.CHALLENGE;
+        }
+        decision.setAction(fallback);
+        decision.setAutonomousAction(fallback);
+        decision.setAutonomyConstraintApplied(true);
+        List<String> reasons = decision.getAutonomyConstraintReasons();
+        if (reasons == null) {
+            reasons = new ArrayList<>();
+            decision.setAutonomyConstraintReasons(reasons);
+        }
+        reasons.add("LAYER2_ESCALATE_TERMINALIZED");
+        String summary = "Layer2 returned ESCALATE, so final autonomous action was terminalized to "
+                + fallback.name() + " by tiered strategy policy.";
+        decision.setAutonomyConstraintSummary(summary);
+        String reasoning = decision.getReasoning();
+        decision.setReasoning((reasoning == null || reasoning.isBlank())
+                ? summary
+                : reasoning + "\n" + summary);
     }
 
     private void executeSoarPlaybook(SecurityDecision decision, SecurityEvent event) {

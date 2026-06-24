@@ -1412,6 +1412,8 @@ CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
     request_count INTEGER DEFAULT 1,
     http_method VARCHAR(16),
     request_path VARCHAR(2048),
+    normalized_path VARCHAR(2048),
+    resource_id VARCHAR(512),
     client_ip VARCHAR(64),
     mode VARCHAR(32) NOT NULL,
     early_analysis_score INTEGER,
@@ -1469,6 +1471,8 @@ ALTER TABLE hcad_detection_evaluation
     ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
     ADD COLUMN IF NOT EXISTS trigger_scope VARCHAR(32),
     ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS normalized_path VARCHAR(2048),
+    ADD COLUMN IF NOT EXISTS resource_id VARCHAR(512),
     ADD COLUMN IF NOT EXISTS duplicate_suppressed_count INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS negative_cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS negative_cache_hit_count INTEGER DEFAULT 0,
@@ -1506,6 +1510,9 @@ CREATE INDEX IF NOT EXISTS idx_hcad_eval_outcome_created
 
 CREATE INDEX IF NOT EXISTS idx_hcad_eval_resource
     ON hcad_detection_evaluation (request_path, http_method);
+
+CREATE INDEX IF NOT EXISTS idx_hcad_eval_normalized_resource
+    ON hcad_detection_evaluation (normalized_path, resource_id, http_method);
 
 CREATE INDEX IF NOT EXISTS idx_hcad_eval_request_id
     ON hcad_detection_evaluation (request_id);

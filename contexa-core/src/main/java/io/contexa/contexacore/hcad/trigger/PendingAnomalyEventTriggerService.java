@@ -45,6 +45,14 @@ public class PendingAnomalyEventTriggerService {
     }
 
     public void publish(HttpServletRequest request, PendingAnomalyEvidenceReport report, String evaluationId) {
+        publish(request, report, evaluationId, null);
+    }
+
+    public void publish(
+            HttpServletRequest request,
+            PendingAnomalyEvidenceReport report,
+            String evaluationId,
+            String decisionBoundaryMode) {
         ZeroTrustEventPublisher zeroTrustEventPublisher = zeroTrustEventPublisherSupplier == null
                 ? null
                 : zeroTrustEventPublisherSupplier.get();
@@ -58,7 +66,9 @@ public class PendingAnomalyEventTriggerService {
         payload.put("triggerSource", "HCAD_PRE_TRIGGER");
         payload.put("action", ZeroTrustAction.PENDING_ANALYSIS.name());
         payload.put("hcadMode", mode.metadataValue());
-        payload.put("decisionBoundaryMode", mode.isShadowBoundary() ? "SHADOW" : mode.metadataValue());
+        if (decisionBoundaryMode != null && !decisionBoundaryMode.isBlank()) {
+            payload.put("decisionBoundaryMode", decisionBoundaryMode);
+        }
         if (evaluationId != null && !evaluationId.isBlank()) {
             payload.put("hcadEvaluationId", evaluationId);
         }
@@ -92,8 +102,11 @@ public class PendingAnomalyEventTriggerService {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
             }
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MODE, mode.metadataValue());
-            request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE,
-                    mode.isShadowBoundary() ? "SHADOW" : mode.metadataValue());
+            if (decisionBoundaryMode != null && !decisionBoundaryMode.isBlank()) {
+                request.setAttribute(
+                        PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE,
+                        decisionBoundaryMode);
+            }
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EARLY_ANALYSIS_SCORE, report.escalationScore());
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_BAND, report.escalationBand());
             if (report.requestId() != null) {

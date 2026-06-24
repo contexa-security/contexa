@@ -38,6 +38,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceRefreshService;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -59,6 +60,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -205,8 +207,57 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            ObjectMapper objectMapper) {
-        return new AiSecurityDecisionObservationWriter(jdbcOperationsProvider::getIfAvailable, objectMapper);
+            ObjectMapper objectMapper,
+            Environment environment,
+            ObjectProvider<HcadSemanticEvidenceRefreshService> semanticEvidenceRefreshServiceProvider) {
+        return new AiSecurityDecisionObservationWriter(
+                jdbcOperationsProvider::getIfAvailable,
+                objectMapper,
+                defaultModelProvider(environment),
+                defaultModelId(environment),
+                semanticEvidenceRefreshServiceProvider.getIfAvailable());
+    }
+
+    private static String defaultModelProvider(Environment environment) {
+        if (environment == null) {
+            return null;
+        }
+        if (hasText(environment.getProperty("spring.ai.openai.chat.options.model"))) {
+            return "openai";
+        }
+        if (hasText(environment.getProperty("spring.ai.anthropic.chat.options.model"))) {
+            return "anthropic";
+        }
+        if (hasText(environment.getProperty("spring.ai.ollama.chat.options.model"))) {
+            return "ollama";
+        }
+        return null;
+    }
+
+    private static String defaultModelId(Environment environment) {
+        if (environment == null) {
+            return null;
+        }
+        return firstText(
+                environment.getProperty("spring.ai.openai.chat.options.model"),
+                environment.getProperty("spring.ai.anthropic.chat.options.model"),
+                environment.getProperty("spring.ai.ollama.chat.options.model"));
+    }
+
+    private static String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     @Bean

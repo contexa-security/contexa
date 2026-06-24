@@ -90,4 +90,23 @@ public class RedisAnalysisTriggerStateRepository implements AnalysisTriggerState
         }
         return count <= maxTriggers;
     }
+
+    @Override
+    public void rememberActiveEvaluation(String stateKey, String evaluationId, Duration ttl) {
+        if (stateKey == null || stateKey.isBlank()
+                || evaluationId == null || evaluationId.isBlank()
+                || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return;
+        }
+        stringRedisTemplate.opsForValue()
+                .set(ZeroTrustRedisKeys.analysisTriggerEvaluation(stateKey), evaluationId, ttl);
+    }
+
+    @Override
+    public String findActiveEvaluation(String stateKey) {
+        if (stateKey == null || stateKey.isBlank()) {
+            return null;
+        }
+        return stringRedisTemplate.opsForValue().get(ZeroTrustRedisKeys.analysisTriggerEvaluation(stateKey));
+    }
 }
