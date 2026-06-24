@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadEvaluationExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import io.contexa.contexaiam.admin.web.monitoring.service.HcadMonitoringService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -55,6 +57,15 @@ public class HcadSecurityMonitorController {
     })
     public HcadSummary summary(@RequestParam(required = false, defaultValue = "day") String period) {
         return hcadMonitoringService.summarize(period);
+    }
+
+    @ResponseBody
+    @GetMapping({
+            "/contexa/admin/api/ai-monitor/hcad/evaluations/{evaluationId}/explanation",
+            "/contexa/admin/api/security-monitor/hcad/evaluations/{evaluationId}/explanation"
+    })
+    public HcadEvaluationExplanation explanation(@PathVariable String evaluationId) {
+        return hcadMonitoringService.explainEvaluation(evaluationId);
     }
 
     @GetMapping(value = "/contexa/admin/api/security-monitor/hcad/summary.csv", produces = "text/csv")

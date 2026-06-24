@@ -15,14 +15,17 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
+import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadEvaluationExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.data.Offset.offset;
@@ -104,5 +107,70 @@ class HcadMonitoringServiceTest {
         assertThat(summary.userSessionBreakdown()).hasSize(1);
         assertThat(summary.unknownEvaluations()).isEmpty();
         assertThat(service.exportCsv("week")).contains("currentMode").contains("DEFAULT_ENFORCE_CANDIDATE");
+    }
+
+    @Test
+    @DisplayName("explainEvaluation should return persisted explanation JSON sections without recalculating them")
+    void explainEvaluation_shouldReturnPersistedExplanationSections() {
+        HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
+                .evaluationId("eval-explain-1")
+                .requestId("req-1")
+                .eventId("event-1")
+                .correlationId("corr-1")
+                .userId("admin")
+                .actorSessionKey("actor-1")
+                .contextBindingHash("ctx-1")
+                .windowId("win-1")
+                .httpMethod("GET")
+                .requestPath("/contexa/admin/dashboard")
+                .normalizedPath("/contexa/admin/dashboard")
+                .resourceId("admin.dashboard")
+                .mode("ENFORCE")
+                .earlyAnalysisScore(85)
+                .band("REDLINE")
+                .eligible(true)
+                .triggeredLlm(true)
+                .duplicateSuppressed(true)
+                .duplicateSuppressedCount(3)
+                .nonTriggerReason(null)
+                .triggerDecisionReason("TRIGGER_PUBLISHED")
+                .outcomeClass("TP")
+                .scoreBreakdownJson("{\"finalScore\":85,\"scoreFormula\":\"structured+semantic-normal\"}")
+                .signalExplanationsJson("[{\"signal\":\"REQUEST_BURST\",\"weight\":35,\"applied\":true}]")
+                .contextExplanationJson("{\"userId\":\"admin\",\"normalizedPath\":\"/contexa/admin/dashboard\"}")
+                .baselineExplanationJson("{\"available\":true,\"mismatchCount\":1}")
+                .semanticEvidenceExplanationJson("{\"cacheStatus\":\"FRESH\",\"embeddingModel\":\"text-embedding-3-small\"}")
+                .freshnessExplanationJson("{\"semanticCacheAgeSeconds\":12}")
+                .triggerExplanationJson("{\"triggerDecisionReason\":\"TRIGGER_PUBLISHED\"}")
+                .signalProvenanceJson("{\"userId\":\"TRUSTED_SERVER\"}")
+                .signalSnapshotJson("{\"ignoredInputs\":[\"X-Contexa-Resource-Sensitivity\"],\"promptContextContractVersion\":\"v1\"}")
+                .llmAction("CHALLENGE")
+                .llmRiskScore(0.82d)
+                .llmConfidence(0.91d)
+                .llmLatencyMs(4512L)
+                .createdAt(LocalDateTime.of(2026, 6, 24, 10, 0))
+                .triggeredAt(LocalDateTime.of(2026, 6, 24, 10, 0, 1))
+                .decidedAt(LocalDateTime.of(2026, 6, 24, 10, 0, 5))
+                .build();
+        when(repository.findById("eval-explain-1")).thenReturn(Optional.of(evaluation));
+        HcadMonitoringService service = new HcadMonitoringService(repository, new HcadProperties());
+
+        HcadEvaluationExplanation explanation = service.explainEvaluation("eval-explain-1");
+
+        assertThat(explanation.evaluationId()).isEqualTo("eval-explain-1");
+        assertThat(explanation.request().requestId()).isEqualTo("req-1");
+        assertThat(explanation.score().finalScore()).isEqualTo(85);
+        assertThat(explanation.scoreBreakdown()).containsEntry("scoreFormula", "structured+semantic-normal");
+        assertThat(explanation.signalExplanations()).hasSize(1);
+        assertThat(explanation.signalExplanations().get(0)).containsEntry("signal", "REQUEST_BURST");
+        assertThat(explanation.context()).containsEntry("normalizedPath", "/contexa/admin/dashboard");
+        assertThat(explanation.baseline()).containsEntry("mismatchCount", 1);
+        assertThat(explanation.semanticEvidence()).containsEntry("cacheStatus", "FRESH");
+        assertThat(explanation.freshness()).containsEntry("semanticCacheAgeSeconds", 12);
+        assertThat(explanation.trigger()).containsEntry("triggerDecisionReason", "TRIGGER_PUBLISHED");
+        assertThat(explanation.provenance()).containsEntry("userId", "TRUSTED_SERVER");
+        assertThat(explanation.ignoredInputs()).containsExactly("X-Contexa-Resource-Sensitivity");
+        assertThat(explanation.llmDecision().action()).isEqualTo("CHALLENGE");
     }
 }

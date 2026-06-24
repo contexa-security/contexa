@@ -160,6 +160,35 @@ class RedisHcadObservationWindowRepositoryTest {
         verify(setOperations, times(4)).add(anyString(), anyString());
     }
 
+    @Test
+    @DisplayName("Redis repository should suppress actor-session evaluation by trusted context signature")
+    @SuppressWarnings("unchecked")
+    void tryAcquireActorSessionEvaluation_sameSignatureWithinTtl_shouldUseSetIfAbsent() {
+        String actorSessionKey = "actor-1";
+        String signature = "NO_TRUSTED_ANCHOR_SIGNAL";
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(
+                ZeroTrustRedisKeys.hcadActorSessionEvaluation(actorSessionKey, signature),
+                "1",
+                Duration.ofSeconds(30))).thenReturn(true, false);
+        RedisHcadObservationWindowRepository repository = new RedisHcadObservationWindowRepository(redisTemplate);
+
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                actorSessionKey,
+                signature,
+                Duration.ofSeconds(30))).isTrue();
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                actorSessionKey,
+                signature,
+                Duration.ofSeconds(30))).isFalse();
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                actorSessionKey,
+                "REQUEST_BURST_BUCKET:2",
+                Duration.ofSeconds(30))).isFalse();
+    }
+
     private static final class FakeObservationScript {
         private final Map<String, String> windows = new HashMap<>();
         private final Map<String, List<String>> observations = new HashMap<>();

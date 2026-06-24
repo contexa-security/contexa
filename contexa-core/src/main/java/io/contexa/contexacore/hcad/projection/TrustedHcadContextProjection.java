@@ -78,7 +78,8 @@ public record TrustedHcadContextProjection(
         if (allowedSources == null || allowedSources.length == 0) {
             return actual == HcadTrustedSource.TRUSTED_SERVER
                     || actual == HcadTrustedSource.BRIDGE_VERIFIED
-                    || actual == HcadTrustedSource.STORE_DERIVED;
+                    || actual == HcadTrustedSource.STORE_DERIVED
+                    || actual == HcadTrustedSource.CACHE_DERIVED;
         }
         for (HcadTrustedSource allowedSource : allowedSources) {
             if (actual == allowedSource) {

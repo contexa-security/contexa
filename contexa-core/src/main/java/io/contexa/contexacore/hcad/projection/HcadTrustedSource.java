@@ -19,6 +19,7 @@ public enum HcadTrustedSource {
     TRUSTED_SERVER,
     BRIDGE_VERIFIED,
     STORE_DERIVED,
+    CACHE_DERIVED,
     UNTRUSTED_IGNORED,
     ABSENT
 }

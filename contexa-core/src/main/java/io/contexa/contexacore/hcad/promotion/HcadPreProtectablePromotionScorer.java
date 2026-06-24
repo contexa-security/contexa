@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.promotion;
 
+import io.contexa.contexacore.hcad.projection.HcadFieldProvenance;
 import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
 import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
@@ -55,6 +56,19 @@ public class HcadPreProtectablePromotionScorer {
                 ? CachedSemanticEvidenceProjection.unavailable("SEMANTIC_EVIDENCE_NOT_AVAILABLE")
                 : semanticEvidence;
         rawSignals.put("semanticEvidence", evidence.snapshot());
+        Map<String, HcadFieldProvenance> scoringProvenance = new LinkedHashMap<>(projection.provenance());
+        HcadFieldProvenance semanticEvidenceProvenance = evidence.hasUsableEvidence()
+                ? HcadFieldProvenance.present(
+                "semanticEvidence",
+                HcadTrustedSource.CACHE_DERIVED,
+                "Resolved from Redis/Caffeine cached semantic evidence built from prior ALLOW decisions.")
+                : HcadFieldProvenance.absent(
+                "semanticEvidence",
+                "Redis/Caffeine cached semantic evidence was unavailable or not usable for scoring.");
+        scoringProvenance.put("semanticEvidence", semanticEvidenceProvenance);
+        rawSignals.put("signalProvenance", scoringProvenance);
+        rawSignals.put("promptContextFieldContracts", HcadPromptSecurityContextFieldRegistry.snapshot(scoringProvenance));
+        rawSignals.put("scoringContractSnapshot", HcadPromptSecurityContextFieldRegistry.scoringSnapshot(scoringProvenance));
 
         if (Boolean.TRUE.equals(projection.impossibleTravel())
                 && projection.hasScorableTrustedSource("impossibleTravel", HcadTrustedSource.STORE_DERIVED)) {
@@ -133,7 +147,18 @@ public class HcadPreProtectablePromotionScorer {
         rawSignals.put("earlyAnalysisBand", band.serializedValue());
         rawSignals.put("earlyAnalysisEligible", eligible);
         rawSignals.put("earlyAnalysisVersion", "hcad-early-analysis-v2-trusted-projection");
-        rawSignals.put("signalProvenanceSummary", summarizeProvenance(projection));
+        rawSignals.put("scoringThresholds", scoringThresholds());
+        rawSignals.put("eligibleQuorum", eligibleQuorum(anchors, corroborating, score));
+        rawSignals.put("eligibleFalseReasons", eligibleFalseReasons(anchors, corroborating, score, eligible));
+        rawSignals.put("scoreFormula", scoreFormula(structuredScore, semanticScore, normalSuppressionScore, score));
+        rawSignals.put("signalExplanations", signalExplanations(
+                HcadPreProtectablePromotionSignal.values(),
+                anchors,
+                corroborating,
+                rawSignals,
+                scoringProvenance,
+                evidence));
+        rawSignals.put("signalProvenanceSummary", summarizeProvenance(scoringProvenance));
 
         return new HcadPreProtectablePromotionAssessment(
                 score,
@@ -179,7 +204,23 @@ public class HcadPreProtectablePromotionScorer {
                 HcadPromptSecurityContextFieldRegistry.scoringSnapshot(projection.provenance()));
         snapshot.put("signalProvenance", projection.provenance());
         snapshot.put("ignoredInputs", projection.ignoredInputs());
+        snapshot.put("ignoredInputReasons", ignoredInputReasons(projection.ignoredInputs()));
         return snapshot;
+    }
+
+    private Map<String, Object> ignoredInputReasons(Map<String, Object> ignoredInputs) {
+        Map<String, Object> reasons = new LinkedHashMap<>();
+        if (ignoredInputs == null || ignoredInputs.isEmpty()) {
+            return reasons;
+        }
+        ignoredInputs.forEach((key, value) -> {
+            if (value instanceof Map<?, ?> map && map.containsKey("reason")) {
+                reasons.put(key, map.get("reason"));
+            } else {
+                reasons.put(key, "Client-supplied value is excluded from HCAD pre-trigger scoring.");
+            }
+        });
+        return reasons;
     }
 
     private int calculateScore(
@@ -284,10 +325,205 @@ public class HcadPreProtectablePromotionScorer {
                 corroborators);
     }
 
-    private Map<String, Object> summarizeProvenance(TrustedHcadContextProjection projection) {
+    private Map<String, Object> summarizeProvenance(Map<String, HcadFieldProvenance> provenance) {
         Map<String, Object> summary = new LinkedHashMap<>();
-        projection.provenance().forEach((field, provenance) -> summary.put(field, provenance.source().name()));
+        if (provenance != null) {
+            provenance.forEach((field, fieldProvenance) -> {
+                if (fieldProvenance != null) {
+                    summary.put(field, fieldProvenance.source().name());
+                }
+            });
+        }
         return summary;
+    }
+
+    private Map<String, Object> scoringThresholds() {
+        Map<String, Object> thresholds = new LinkedHashMap<>();
+        thresholds.put("mediumRiskScore", hcadProperties.getPreTrigger().getMediumRiskScore());
+        thresholds.put("highRiskScore", hcadProperties.getPreTrigger().getHighRiskScore());
+        thresholds.put("redlineScore", hcadProperties.getPreTrigger().getRedlineScore());
+        thresholds.put("failedLoginBurstThreshold", hcadProperties.getPreTrigger().getFailedLoginBurstThreshold());
+        thresholds.put("requestBurstThreshold", hcadProperties.getPreTrigger().getRequestBurstThreshold());
+        thresholds.put("freshMfaMaxAgeSeconds", hcadProperties.getPreTrigger().getFreshMfaMaxAgeSeconds());
+        thresholds.put("semanticMismatchScoreThreshold", hcadProperties.getSemanticEvidence().getMismatchScoreThreshold());
+        thresholds.put("semanticRiskSimilarityThreshold", hcadProperties.getSemanticEvidence().getRiskSimilarityThreshold());
+        thresholds.put("semanticNormalSimilarityThreshold", hcadProperties.getSemanticEvidence().getNormalSimilarityThreshold());
+        thresholds.put("semanticNormalSimilaritySuppressionScore", hcadProperties.getSemanticEvidence().getNormalSimilaritySuppressionScore());
+        thresholds.put("semanticStaleEvidenceWeightMultiplier", hcadProperties.getSemanticEvidence().getStaleEvidenceWeightMultiplier());
+        return thresholds;
+    }
+
+    private Map<String, Object> eligibleQuorum(
+            List<HcadPreProtectablePromotionSignal> anchors,
+            List<HcadPreProtectablePromotionSignal> corroborating,
+            int score) {
+        Map<String, Object> quorum = new LinkedHashMap<>();
+        quorum.put("requiresAnchorSignal", true);
+        quorum.put("requiresCorroboratingSignal", true);
+        quorum.put("minimumScore", hcadProperties.getPreTrigger().getRedlineScore());
+        quorum.put("actualAnchorCount", anchors == null ? 0 : anchors.size());
+        quorum.put("actualCorroboratingCount", corroborating == null ? 0 : corroborating.size());
+        quorum.put("actualScore", score);
+        return quorum;
+    }
+
+    private List<String> eligibleFalseReasons(
+            List<HcadPreProtectablePromotionSignal> anchors,
+            List<HcadPreProtectablePromotionSignal> corroborating,
+            int score,
+            boolean eligible) {
+        if (eligible) {
+            return List.of();
+        }
+        List<String> reasons = new ArrayList<>();
+        if (anchors == null || anchors.isEmpty()) {
+            reasons.add("TRUSTED_ANCHOR_SIGNAL_REQUIRED");
+        }
+        if (corroborating == null || corroborating.isEmpty()) {
+            reasons.add("CORROBORATING_SIGNAL_REQUIRED");
+        }
+        if (score < hcadProperties.getPreTrigger().getRedlineScore()) {
+            reasons.add("REDLINE_SCORE_THRESHOLD_NOT_MET");
+        }
+        return reasons;
+    }
+
+    private Map<String, Object> scoreFormula(
+            int structuredScore,
+            int semanticScore,
+            int normalSuppressionScore,
+            int finalScore) {
+        Map<String, Object> formula = new LinkedHashMap<>();
+        formula.put("expression", "bounded(structuredScore + semanticEvidenceScore - normalSuppressionScore)");
+        formula.put("structuredScore", structuredScore);
+        formula.put("semanticEvidenceScore", semanticScore);
+        formula.put("normalSuppressionScore", normalSuppressionScore);
+        formula.put("finalScore", finalScore);
+        return formula;
+    }
+
+    private List<Map<String, Object>> signalExplanations(
+            HcadPreProtectablePromotionSignal[] allSignals,
+            List<HcadPreProtectablePromotionSignal> anchors,
+            List<HcadPreProtectablePromotionSignal> corroborating,
+            Map<String, Object> rawSignals,
+            Map<String, HcadFieldProvenance> scoringProvenance,
+            CachedSemanticEvidenceProjection evidence) {
+        if (allSignals == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> explanations = new ArrayList<>();
+        for (HcadPreProtectablePromotionSignal signal : allSignals) {
+            boolean appliedAsAnchor = anchors != null && anchors.contains(signal);
+            boolean appliedAsCorroborating = corroborating != null && corroborating.contains(signal);
+            Map<String, Object> explanation = new LinkedHashMap<>();
+            explanation.put("signal", signal.name());
+            explanation.put("role", signal.isAnchor() ? "ANCHOR" : "CORROBORATING");
+            explanation.put("weight", signal.weight());
+            explanation.put("requiredFields", signal.requiredContractFields());
+            explanation.put("condition", signalCondition(signal));
+            explanation.put("applied", appliedAsAnchor || appliedAsCorroborating);
+            explanation.put("appliedAs", appliedAsAnchor ? "ANCHOR" : appliedAsCorroborating ? "CORROBORATING" : null);
+            explanation.put("currentValues", valuesForFields(rawSignals, signal.requiredContractFields()));
+            explanation.put("fieldSources", sourcesForFields(scoringProvenance, signal.requiredContractFields()));
+            explanation.put("unmetReason", appliedAsAnchor || appliedAsCorroborating
+                    ? null
+                    : signalUnmetReason(signal, scoringProvenance, evidence));
+            explanations.add(explanation);
+        }
+        return explanations;
+    }
+
+    private String signalCondition(HcadPreProtectablePromotionSignal signal) {
+        return switch (signal) {
+            case IMPOSSIBLE_TRAVEL -> "Stored impossible-travel indicator is true.";
+            case FAILED_LOGIN_BURST -> "Stored failed-login burst count meets the configured threshold.";
+            case AUTH_CONTEXT_INCONSISTENT -> "Trusted authentication context is internally inconsistent.";
+            case RECENT_PERMISSION_CHANGE -> "Stored recent permission changes exist.";
+            case PRIVILEGED_AUTHORIZATION -> "Bridge-verified authorization context marks the request as privileged.";
+            case FRESH_MFA_REQUIRED -> "Verified resource requires fresh MFA and the current MFA state is absent or stale.";
+            case REQUEST_BURST -> "Stored request count meets the configured burst threshold.";
+            case RAPID_SEQUENCE -> "Stored request sequence is marked rapid.";
+            case PREVIOUS_PATH_JUMP -> "Stored previous path and current path indicate an unusual navigation jump.";
+            case LOW_AUTH_ASSURANCE -> "Bridge-verified authentication assurance matches a configured low assurance value.";
+            case BASELINE_MATERIAL_MISMATCH -> "Personal baseline comparison reports a material mismatch.";
+            case SEMANTIC_EVIDENCE_MISMATCH -> "Fresh cached semantic evidence differs from prior allowed request evidence.";
+            case SEMANTIC_RISK_SIMILARITY -> "Fresh cached semantic evidence is similar to verified risk evidence.";
+        };
+    }
+
+    private String signalUnmetReason(
+            HcadPreProtectablePromotionSignal signal,
+            Map<String, HcadFieldProvenance> scoringProvenance,
+            CachedSemanticEvidenceProjection evidence) {
+        if (signal == HcadPreProtectablePromotionSignal.SEMANTIC_EVIDENCE_MISMATCH
+                || signal == HcadPreProtectablePromotionSignal.SEMANTIC_RISK_SIMILARITY) {
+            if (evidence == null || !evidence.hasFreshHit()) {
+                return "FRESH_SEMANTIC_EVIDENCE_REQUIRED";
+            }
+            return "SEMANTIC_THRESHOLD_NOT_MET";
+        }
+        if (!requiredFieldsPresentForScoring(signal, scoringProvenance)) {
+            return "REQUIRED_TRUSTED_CONTEXT_ABSENT";
+        }
+        return "CONDITION_NOT_MET";
+    }
+
+    private boolean requiredFieldsPresentForScoring(
+            HcadPreProtectablePromotionSignal signal,
+            Map<String, HcadFieldProvenance> scoringProvenance) {
+        if (signal == null || signal.requiredContractFields().isEmpty()) {
+            return true;
+        }
+        if (scoringProvenance == null || scoringProvenance.isEmpty()) {
+            return false;
+        }
+        for (String field : signal.requiredContractFields()) {
+            HcadFieldProvenance provenance = scoringProvenance.get(field);
+            if (provenance == null || !provenance.present()) {
+                return false;
+            }
+            if (!scoringAllowed(field, provenance.source())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Map<String, Object> valuesForFields(Map<String, Object> rawSignals, List<String> fields) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        if (fields == null || fields.isEmpty()) {
+            return values;
+        }
+        for (String field : fields) {
+            values.put(field, rawSignals == null ? null : rawSignals.get(field));
+        }
+        return values;
+    }
+
+    private List<Map<String, Object>> sourcesForFields(
+            Map<String, HcadFieldProvenance> scoringProvenance,
+            List<String> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> sources = new ArrayList<>();
+        for (String field : fields) {
+            HcadFieldProvenance provenance = scoringProvenance == null ? null : scoringProvenance.get(field);
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("field", field);
+            source.put("source", provenance == null ? HcadTrustedSource.ABSENT.name() : provenance.source().name());
+            source.put("present", provenance != null && provenance.present());
+            source.put("reason", provenance == null ? "No trusted value was projected for this field." : provenance.reason());
+            source.put("scoringAllowed", provenance != null && scoringAllowed(field, provenance.source()));
+            sources.add(source);
+        }
+        return sources;
+    }
+
+    private boolean scoringAllowed(String field, HcadTrustedSource source) {
+        return HcadPromptSecurityContextFieldRegistry.contract(field) != null
+                && HcadPromptSecurityContextFieldRegistry.contract(field).allowsScoringFrom(source);
     }
 
     private boolean isAuthContextInconsistent(TrustedHcadContextProjection projection) {

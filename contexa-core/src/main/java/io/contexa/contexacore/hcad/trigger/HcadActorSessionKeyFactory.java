@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.hcad.trigger;
 
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,9 +29,16 @@ public final class HcadActorSessionKeyFactory {
     }
 
     public static String fromRequest(HttpServletRequest request, Authentication authentication) {
-        String userId = authentication != null ? authentication.getName() : null;
+        AuthenticationStamp authenticationStamp = authenticationStamp(request);
+        String userId = firstText(
+                authenticationStamp != null ? authenticationStamp.principalId() : null,
+                authentication != null ? authentication.getName() : null);
+        String tenantId = stampAttribute(authenticationStamp, "tenantId");
+        String organizationId = firstText(
+                stampAttribute(authenticationStamp, "organizationId"),
+                stampAttribute(authenticationStamp, "orgId"));
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
-        return fromParts(null, null, userId, contextBindingHash);
+        return fromParts(tenantId, organizationId, userId, contextBindingHash);
     }
 
     public static String fromProjection(TrustedHcadContextProjection projection) {
@@ -56,5 +65,37 @@ public final class HcadActorSessionKeyFactory {
                 organizationId,
                 userId,
                 contextBindingHash);
+    }
+
+    private static AuthenticationStamp authenticationStamp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object rawStamp = request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP);
+        return rawStamp instanceof AuthenticationStamp stamp ? stamp : null;
+    }
+
+    private static String stampAttribute(AuthenticationStamp stamp, String key) {
+        if (stamp == null || stamp.attributes() == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        Object value = stamp.attributes().get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isBlank() ? null : text;
+    }
+
+    private static String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

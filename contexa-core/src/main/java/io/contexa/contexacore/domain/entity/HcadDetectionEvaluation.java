@@ -129,6 +129,19 @@ public class HcadDetectionEvaluation {
     @Builder.Default
     private Integer negativeCacheHitCount = 0;
 
+    @Column(name = "protectable_observed", nullable = false)
+    @Builder.Default
+    private Boolean protectableObserved = false;
+
+    @Column(name = "protectable_resource_id", length = 512)
+    private String protectableResourceId;
+
+    @Column(name = "protectable_resource_url", length = 2048)
+    private String protectableResourceUrl;
+
+    @Column(name = "protectable_http_method", length = 16)
+    private String protectableHttpMethod;
+
     @Column(name = "resource_families", columnDefinition = "TEXT")
     private String resourceFamilies;
 
@@ -188,6 +201,27 @@ public class HcadDetectionEvaluation {
 
     @Column(name = "signal_provenance_json", columnDefinition = "TEXT")
     private String signalProvenanceJson;
+
+    @Column(name = "score_breakdown_json", columnDefinition = "TEXT")
+    private String scoreBreakdownJson;
+
+    @Column(name = "signal_explanations_json", columnDefinition = "TEXT")
+    private String signalExplanationsJson;
+
+    @Column(name = "context_explanation_json", columnDefinition = "TEXT")
+    private String contextExplanationJson;
+
+    @Column(name = "baseline_explanation_json", columnDefinition = "TEXT")
+    private String baselineExplanationJson;
+
+    @Column(name = "semantic_evidence_explanation_json", columnDefinition = "TEXT")
+    private String semanticEvidenceExplanationJson;
+
+    @Column(name = "freshness_explanation_json", columnDefinition = "TEXT")
+    private String freshnessExplanationJson;
+
+    @Column(name = "trigger_explanation_json", columnDefinition = "TEXT")
+    private String triggerExplanationJson;
 
     @Column(name = "llm_action", length = 64)
     private String llmAction;
@@ -259,6 +293,9 @@ public class HcadDetectionEvaluation {
         }
         if (negativeCacheHitCount == null) {
             negativeCacheHitCount = 0;
+        }
+        if (protectableObserved == null) {
+            protectableObserved = false;
         }
         if (requestCount == null) {
             requestCount = 1;

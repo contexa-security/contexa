@@ -52,6 +52,31 @@ public class TrustedHcadContextProjectionFactory {
 
     private static final long REQUEST_BURST_WINDOW_MS = Duration.ofMinutes(5).toMillis();
     private static final List<String> UNTRUSTED_HEADER_PREFIXES = List.of("x-contexa-");
+    private static final List<String> UNTRUSTED_HEADER_NAMES = List.of(
+            "x-tenant-id",
+            "x-organization-id",
+            "x-org-id",
+            "x-user-id",
+            "x-principal-id",
+            "x-session-id",
+            "x-context-binding-hash",
+            "x-resource-sensitivity",
+            "x-business-impact",
+            "x-forwarded-user");
+    private static final List<String> UNTRUSTED_QUERY_NAMES = List.of(
+            "tenant",
+            "tenantid",
+            "organizationid",
+            "orgid",
+            "user",
+            "userid",
+            "principalid",
+            "sessionid",
+            "contextbindinghash",
+            "resourcesensitivity",
+            "businessimpact",
+            "sensitivity",
+            "impact");
     private static final String LIGHTWEIGHT_REQUEST_RECORDED_ATTRIBUTE = "hcad.lightweightRequestRecorded";
 
     private final HCADDataStore hcadDataStore;
@@ -299,14 +324,18 @@ public class TrustedHcadContextProjectionFactory {
         Boolean verificationRequired = booleanAttribute(authorizationStamp, "verificationRequired");
 
         List<String> anchors = new ArrayList<>();
+        List<String> reEvaluationSignals = new ArrayList<>();
         Map<Object, Object> metadata = sessionMetadata(sessionId);
         if (Boolean.TRUE.equals(asBoolean(metadata.get("impossibleTravel")))) {
             anchors.add(HcadPreProtectablePromotionSignal.IMPOSSIBLE_TRAVEL.name());
         }
         String clientIp = request != null ? request.getRemoteAddr() : null;
-        if (failedLoginBurst(sessionId, userId, clientIp, System.currentTimeMillis())
-                >= hcadProperties.getPreTrigger().getFailedLoginBurstThreshold()) {
+        long now = System.currentTimeMillis();
+        int failedLoginBurst = failedLoginBurst(sessionId, userId, clientIp, now);
+        int failedLoginBurstThreshold = hcadProperties.getPreTrigger().getFailedLoginBurstThreshold();
+        if (failedLoginBurst >= failedLoginBurstThreshold) {
             anchors.add(HcadPreProtectablePromotionSignal.FAILED_LOGIN_BURST.name());
+            reEvaluationSignals.add("FAILED_LOGIN_BURST_BUCKET:" + bucket(failedLoginBurst, failedLoginBurstThreshold));
         }
         if (isAuthContextInconsistent(authenticationMethod, mfaVerified)) {
             anchors.add(HcadPreProtectablePromotionSignal.AUTH_CONTEXT_INCONSISTENT.name());
@@ -320,9 +349,26 @@ public class TrustedHcadContextProjectionFactory {
         if (isFreshMfaRequiredButNotFresh(verificationRequired, mfaVerified, mfaFreshnessSeconds)) {
             anchors.add(HcadPreProtectablePromotionSignal.FRESH_MFA_REQUIRED.name());
         }
+        int requestBurst = requestBurst(userId, now);
+        int requestBurstThreshold = hcadProperties.getPreTrigger().getRequestBurstThreshold();
+        if (requestBurst >= requestBurstThreshold) {
+            reEvaluationSignals.add("REQUEST_BURST_BUCKET:" + bucket(requestBurst, requestBurstThreshold));
+        }
+        Object semanticStateSignature = request == null ? null : request.getAttribute("hcad.semanticEvidenceStateSignature");
+        if (semanticStateSignature instanceof String text && StringUtils.hasText(text)) {
+            reEvaluationSignals.add("SEMANTIC_EVIDENCE_STATE:" + text.trim());
+        }
+        reEvaluationSignals.addAll(anchors);
         return new HcadTrustedAnchorSignalProbe(
                 anchors,
-                PendingAnomalyKeyFactory.buildTrustedAnchorSignature(anchors));
+                PendingAnomalyKeyFactory.buildTrustedAnchorSignature(anchors),
+                reEvaluationSignals,
+                PendingAnomalyKeyFactory.buildTrustedSignalSignature(reEvaluationSignals, List.of()));
+    }
+
+    private int bucket(int count, int threshold) {
+        int safeThreshold = Math.max(1, threshold);
+        return Math.max(0, count / safeThreshold);
     }
 
     private HcadBaselineComparison comparePersonalBaseline(
@@ -395,7 +441,8 @@ public class TrustedHcadContextProjectionFactory {
                     mismatched,
                     missing,
                     currentValues,
-                    baselineValues);
+                    baselineValues,
+                    baseline.getLastUpdated());
         }
 
         compareStringDimension("ipBand", currentIpBand, baselineIpBands, matched, mismatched, missing, false);
@@ -424,7 +471,8 @@ public class TrustedHcadContextProjectionFactory {
                 mismatched,
                 missing,
                 currentValues,
-                baselineValues);
+                baselineValues,
+                baseline.getLastUpdated());
     }
 
     private void compareStringDimension(
@@ -543,16 +591,66 @@ public class TrustedHcadContextProjectionFactory {
         while (headerNames != null && headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
             String normalized = headerName == null ? "" : headerName.toLowerCase(Locale.ROOT);
-            boolean ignored = UNTRUSTED_HEADER_PREFIXES.stream().anyMatch(normalized::startsWith);
+            boolean ignored = UNTRUSTED_HEADER_PREFIXES.stream().anyMatch(normalized::startsWith)
+                    || UNTRUSTED_HEADER_NAMES.contains(normalized);
             if (!ignored) {
                 continue;
             }
-            ignoredInputs.put("header." + headerName, request.getHeader(headerName));
-            provenance.put("header." + headerName, HcadFieldProvenance.ignored(
-                    "header." + headerName,
-                    "Client-supplied Contexa header is excluded from HCAD pre-trigger scoring."));
+            String fieldName = "header." + headerName;
+            String reason = "Client-supplied security context header is excluded from HCAD pre-trigger scoring.";
+            ignoredInputs.put(fieldName, ignoredInput(request.getHeader(headerName), reason));
+            provenance.put(fieldName, HcadFieldProvenance.ignored(fieldName, reason));
+        }
+        String queryString = request.getQueryString();
+        if (StringUtils.hasText(queryString)) {
+            for (String parameter : queryString.split("&")) {
+                if (!StringUtils.hasText(parameter)) {
+                    continue;
+                }
+                int separator = parameter.indexOf('=');
+                String rawName = separator >= 0 ? parameter.substring(0, separator) : parameter;
+                String rawValue = separator >= 0 ? parameter.substring(separator + 1) : "";
+                String normalizedName = normalizeControlName(rawName);
+                boolean ignored = normalizedName.startsWith("contexa")
+                        || normalizedName.startsWith("xcontexa")
+                        || UNTRUSTED_QUERY_NAMES.contains(normalizedName);
+                if (!ignored) {
+                    continue;
+                }
+                String fieldName = "query." + rawName;
+                String reason = "Client-supplied query override is excluded from HCAD pre-trigger scoring.";
+                ignoredInputs.put(fieldName, ignoredInput(rawValue, reason));
+                provenance.put(fieldName, HcadFieldProvenance.ignored(fieldName, reason));
+            }
+        }
+        String requestUri = request.getRequestURI();
+        if (StringUtils.hasText(requestUri) && requestUri.contains(";")) {
+            String normalizedMatrix = normalizeControlName(requestUri.substring(requestUri.indexOf(';') + 1));
+            boolean ignored = UNTRUSTED_QUERY_NAMES.stream().anyMatch(normalizedMatrix::contains)
+                    || normalizedMatrix.contains("contexa");
+            if (ignored) {
+                String fieldName = "path.matrixParameters";
+                String reason = "Client-supplied matrix/path override is excluded from HCAD pre-trigger scoring.";
+                ignoredInputs.put(fieldName, ignoredInput(requestUri, reason));
+                provenance.put(fieldName, HcadFieldProvenance.ignored(fieldName, reason));
+            }
         }
         return ignoredInputs;
+    }
+
+    private Map<String, Object> ignoredInput(Object value, String reason) {
+        Map<String, Object> ignored = new LinkedHashMap<>();
+        ignored.put("value", value);
+        ignored.put("reason", reason);
+        ignored.put("source", HcadTrustedSource.UNTRUSTED_IGNORED.name());
+        return ignored;
+    }
+
+    private String normalizeControlName(String name) {
+        if (name == null) {
+            return "";
+        }
+        return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
     private String resolveServerSessionId(HttpServletRequest request, AuthenticationStamp authenticationStamp) {

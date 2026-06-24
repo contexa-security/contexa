@@ -59,6 +59,12 @@ class JdbcHcadSemanticEvidenceWarmupServiceTest {
         verify(cache).put(entryCaptor.capture(), any(Duration.class));
         assertThat(entryCaptor.getValue().evidenceGapCodes())
                 .contains("CACHE_MISS_SOURCE_AVAILABLE", "WARMUP_COMPLETED");
+        assertThat(entryCaptor.getValue().sourceVersion()).isEqualTo("ai_security_decision_observation");
+        assertThat(entryCaptor.getValue().embeddingModel()).isEqualTo(key().embeddingModel());
+        assertThat(entryCaptor.getValue().dimension()).isEqualTo(key().dimension());
+        assertThat(entryCaptor.getValue().summaryJson())
+                .contains("\"source\":\"ai_security_decision_observation\"")
+                .contains("\"sampleCount\":3");
         verify(cache, never()).putSourceAbsent(any(), any());
     }
 
@@ -128,12 +134,11 @@ class JdbcHcadSemanticEvidenceWarmupServiceTest {
     }
 
     private HcadSemanticEvidenceKey key() {
-        return HcadSemanticEvidenceKey.riskRequestSimilarity(
+        return HcadSemanticEvidenceKey.normalRequestSimilarity(
                 "tenant-1",
                 "admin",
                 "/contexa/admin/orders",
-                "policy-v1",
-                "prompt-v1",
+                "baseline-v1",
                 hcadProperties.getSemanticEvidence().getEmbeddingModel(),
                 hcadProperties.getVector().getEmbeddingDimension(),
                 hcadProperties.getSemanticEvidence().getEvidenceVersion());

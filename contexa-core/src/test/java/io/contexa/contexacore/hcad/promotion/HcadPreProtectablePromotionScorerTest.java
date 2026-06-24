@@ -299,7 +299,8 @@ class HcadPreProtectablePromotionScorerTest {
                 List.of("ipRange", "pathFamily", "authenticationType"),
                 List.of(),
                 Map.of("pathFamily", "/admin/users"),
-                Map.of("frequentPaths", List.of("/dashboard")));
+                Map.of("frequentPaths", List.of("/dashboard")),
+                null);
         TrustedHcadContextProjection projection = trustedProjection(
                 true,
                 List.of(),
@@ -456,12 +457,14 @@ class HcadPreProtectablePromotionScorerTest {
                 .containsEntry("semanticEvidenceScore", 35)
                 .containsEntry("semanticNormalSuppressionScore", 10)
                 .containsEntry("semanticEvidenceScoreApplied", 25);
+        assertThat(assessment.rawSignalSnapshot())
+                .containsKeys("eligibleQuorum", "eligibleFalseReasons", "scoreFormula", "signalExplanations");
         assertThat(assessment.earlyAnalysisScore()).isEqualTo(60);
     }
 
     @Test
-    @DisplayName("stale semantic evidence should use lower semantic score while preserving signal labels")
-    void score_staleSemanticEvidence_shouldApplyLowerSemanticWeight() {
+    @DisplayName("stale semantic evidence should be explained but never applied to scoring")
+    void score_staleSemanticEvidence_shouldRemainExplanationOnly() {
         HcadProperties properties = new HcadProperties();
         HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
         TrustedHcadContextProjection projection = trustedProjection(
@@ -482,12 +485,16 @@ class HcadPreProtectablePromotionScorerTest {
         HcadPreProtectablePromotionAssessment assessment = scorer.score(projection, semanticEvidence);
 
         assertThat(assessment.corroboratingSignals())
-                .contains("SEMANTIC_EVIDENCE_MISMATCH", "SEMANTIC_RISK_SIMILARITY");
+                .doesNotContain("SEMANTIC_EVIDENCE_MISMATCH", "SEMANTIC_RISK_SIMILARITY");
         assertThat(assessment.rawSignalSnapshot())
                 .containsEntry("structuredScore", 35)
-                .containsEntry("semanticEvidenceScore", 18)
+                .containsEntry("semanticEvidenceScore", 0)
                 .containsEntry("semanticNormalSuppressionScore", 0);
-        assertThat(assessment.earlyAnalysisScore()).isEqualTo(53);
+        assertThat(assessment.rawSignalSnapshot().get("eligibleFalseReasons").toString())
+                .contains("CORROBORATING_SIGNAL_REQUIRED", "REDLINE_SCORE_THRESHOLD_NOT_MET");
+        assertThat(assessment.rawSignalSnapshot().get("signalExplanations").toString())
+                .contains("FRESH_SEMANTIC_EVIDENCE_REQUIRED", "condition", "weight");
+        assertThat(assessment.earlyAnalysisScore()).isEqualTo(35);
         assertThat(assessment.eligible()).isFalse();
     }
 

@@ -192,6 +192,10 @@ public final class HcadPromptSecurityContextFieldRegistry {
                 "workProfile.personalBaselineComparison", List.of(HcadTrustedSource.STORE_DERIVED),
                 HcadPromptSecurityContextFieldUse.CORROBORATING,
                 "contract-field-comparison", "BaselineDataStore"));
+        register(contracts, scoring("semanticEvidence", "SemanticEvidence", null,
+                "workProfile.semanticEvidence", List.of(HcadTrustedSource.CACHE_DERIVED),
+                HcadPromptSecurityContextFieldUse.CORROBORATING,
+                "cached-vector-similarity", "HcadSemanticEvidenceCache"));
         return Map.copyOf(contracts);
     }
 

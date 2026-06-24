@@ -30,7 +30,7 @@ public enum HcadSemanticEvidenceCacheStatus {
     WARMUP_FAILED;
 
     public boolean usableForScoring() {
-        return this == HIT || this == STALE_HIT;
+        return this == HIT;
     }
 
     public boolean sourceAbsent() {

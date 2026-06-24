@@ -161,6 +161,22 @@ public class RedisHcadObservationWindowRepository implements HcadObservationWind
         }
     }
 
+    @Override
+    public boolean tryAcquireActorSessionEvaluation(
+            String actorSessionKey,
+            String trustedContextSignature,
+            Duration actorSessionEvaluationTtl) {
+        if (!StringUtils.hasText(actorSessionKey) || !StringUtils.hasText(trustedContextSignature)) {
+            return true;
+        }
+        Duration ttl = positive(actorSessionEvaluationTtl, Duration.ZERO);
+        if (ttl.isZero() || ttl.isNegative()) {
+            return true;
+        }
+        String key = ZeroTrustRedisKeys.hcadActorSessionEvaluation(actorSessionKey, trustedContextSignature);
+        return Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(key, "1", ttl));
+    }
+
     private List<String> executeObserveScript(
             String windowKey,
             String newWindowId,

@@ -22,6 +22,7 @@ import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
 import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
+import io.contexa.contexacore.hcad.projection.HcadTrustedAnchorSignalProbe;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
 import io.contexa.contexacore.hcad.semantic.CachedSemanticEvidenceProjection;
@@ -200,8 +201,8 @@ class HCADFilterTest {
     }
 
     @Test
-    @DisplayName("missing orchestrator should record non-eligible window for shadow monitoring")
-    void doFilterInternal_missingOrchestrator_recordsLowRiskWindowWithWriter() throws Exception {
+    @DisplayName("missing orchestrator should not persist low-risk non-trigger HTTP requests")
+    void doFilterInternal_missingOrchestrator_doesNotPersistLowRiskWindowWithWriter() throws Exception {
         setAuthenticated();
         hcadFilter = new HCADFilter(
                 trustedProjectionFactory,
@@ -222,12 +223,11 @@ class HCADFilterTest {
                 Map.of("earlyAnalysisScore", 10));
         when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
         when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
-        when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-low");
 
         hcadFilter.doFilterInternal(request, response, filterChain);
 
-        verify(hcadEvaluationWriter).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any());
-        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isEqualTo("eval-low");
+        verify(hcadEvaluationWriter, never()).recordCandidate(any(), any());
+        assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID)).isNull();
         assertThat(filterChain.getRequest()).isNotNull();
     }
 
@@ -444,7 +444,6 @@ class HCADFilterTest {
         when(semanticEvidenceCache.get(any())).thenReturn(Optional.of(sourceAbsentEntry()));
         when(preProtectablePromotionScorer.score(eq(projection), any(CachedSemanticEvidenceProjection.class)))
                 .thenReturn(assessment);
-        when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-negative");
 
         hcadFilter.doFilterInternal(request, response, filterChain);
 
@@ -454,7 +453,8 @@ class HCADFilterTest {
         assertThat(evidenceCaptor.getValue().evidenceGapCodes()).contains("SOURCE_ABSENT");
         assertThat(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT))
                 .isEqualTo(true);
-        verify(hcadEvaluationWriter).markNegativeCacheHit("eval-negative");
+        verify(hcadEvaluationWriter, never()).recordCandidate(any(), any());
+        verify(hcadEvaluationWriter, never()).markNegativeCacheHit(any());
     }
 
     @Test
@@ -469,15 +469,15 @@ class HCADFilterTest {
                 () -> hcadEvaluationWriter);
         TrustedHcadContextProjection projection = projection();
         HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
-                10,
-                HcadPreProtectablePromotionBand.LOW,
-                false,
-                List.of(),
-                List.of("PREVIOUS_PATH_JUMP"),
-                List.of("PREVIOUS_PATH_JUMP"),
-                "trusted low-risk projection",
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST", "RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST", "RAPID_SEQUENCE", "PREVIOUS_PATH_JUMP"),
+                "trusted redline projection",
                 "hcad-promotion-v2-trusted-projection",
-                Map.of("earlyAnalysisScore", 10));
+                Map.of("earlyAnalysisScore", 75));
         when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
         when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
         when(hcadEvaluationWriter.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any())).thenReturn("eval-low");
@@ -597,6 +597,86 @@ class HCADFilterTest {
         verify(pendingAnomalyTriggerOrchestrator, times(1)).maybeTrigger(any(), any());
         assertThat(second.getAttribute("hcad.windowId")).isEqualTo(first.getAttribute("hcad.windowId"));
         assertThat(second.getAttribute("hcad.windowRequestCount")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("actor-session evaluation TTL should suppress deep re-evaluation after coalesce window expires")
+    void doFilterInternal_sameActorSessionWithinEvaluationTtl_suppressesRepeatedDeepEvaluation() throws Exception {
+        setAuthenticated();
+        hcadProperties.getPreTrigger().setCoalesceWindowMs(1);
+        hcadProperties.getPreTrigger().setActorSessionEvaluationTtlSeconds(2);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 75));
+
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+
+        MockHttpServletRequest first = hcadRequest("GET", "/api/orders/1001", "session-1", "203.0.113.10", "JUnit");
+        MockHttpServletRequest second = hcadRequest("GET", "/api/orders/1002", "session-1", "203.0.113.10", "JUnit");
+        second.setQueryString("refresh=2");
+
+        hcadFilter.doFilterInternal(first, response, new MockFilterChain());
+        Thread.sleep(25);
+        hcadFilter.doFilterInternal(second, new MockHttpServletResponse(), new MockFilterChain());
+
+        verify(trustedProjectionFactory, times(1)).project(any(), any());
+        verify(preProtectablePromotionScorer, times(1)).score(any());
+        verify(pendingAnomalyTriggerOrchestrator, times(1)).maybeTrigger(any(), any());
+        assertThat(second.getAttribute("hcad.windowId")).isNotEqualTo(first.getAttribute("hcad.windowId"));
+        assertThat(second.getAttribute("hcad.windowRequestCount")).isEqualTo(1);
+        assertThat(second.getAttribute("hcad.actorSessionEvaluationSuppressed")).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("new trusted re-evaluation signature should allow one extra deep evaluation in same window")
+    void doFilterInternal_newTrustedReEvaluationSignature_allowsEscalationEvaluation() throws Exception {
+        setAuthenticated();
+        hcadProperties.getPreTrigger().setEvaluationTtlSeconds(60);
+        TrustedHcadContextProjection projection = projection();
+        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
+                75,
+                HcadPreProtectablePromotionBand.REDLINE,
+                true,
+                List.of("IMPOSSIBLE_TRAVEL"),
+                List.of("REQUEST_BURST"),
+                List.of("IMPOSSIBLE_TRAVEL", "REQUEST_BURST"),
+                "trusted projection",
+                "hcad-promotion-v2-trusted-projection",
+                Map.of("earlyAnalysisScore", 75));
+
+        when(trustedProjectionFactory.project(any(), any())).thenReturn(projection);
+        when(preProtectablePromotionScorer.score(projection)).thenReturn(assessment);
+        when(trustedProjectionFactory.probeAnchorSignals(any(), any())).thenReturn(
+                null,
+                new HcadTrustedAnchorSignalProbe(
+                        List.of(),
+                        "",
+                        List.of("REQUEST_BURST_BUCKET:2"),
+                        "REQUEST_BURST_BUCKET:2"));
+
+        MockHttpServletRequest first = hcadRequest("GET", "/api/orders/1001", "session-1", "203.0.113.10", "JUnit");
+        MockHttpServletRequest second = hcadRequest("GET", "/api/orders/1002", "session-1", "203.0.113.10", "JUnit");
+
+        hcadFilter.doFilterInternal(first, response, new MockFilterChain());
+        hcadFilter.doFilterInternal(second, new MockHttpServletResponse(), new MockFilterChain());
+
+        verify(trustedProjectionFactory, times(2)).project(any(), any());
+        verify(preProtectablePromotionScorer, times(2)).score(any());
+        verify(pendingAnomalyTriggerOrchestrator, times(2)).maybeTrigger(any(), any());
+        assertThat(second.getAttribute("hcad.windowId")).isEqualTo(first.getAttribute("hcad.windowId"));
+        assertThat(second.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_ESCALATION_EVALUATION))
+                .isEqualTo(true);
+        assertThat(second.getAttribute("hcad.reEvaluationSignals").toString())
+                .contains("REQUEST_BURST_BUCKET:2");
     }
 
     @Test

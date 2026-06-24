@@ -379,6 +379,8 @@ public class HcadProperties {
         private int cooldownSeconds = 15;
         private int inFlightTtlSeconds = 15;
         private int negativeCacheSeconds = 3;
+        private int evaluationTtlSeconds = 60;
+        private int actorSessionEvaluationTtlSeconds = 60;
         private long coalesceWindowMs = 1000L;
         private int observationTtlSeconds = 60;
         private int escalationCooldownSeconds = 15;
@@ -435,4 +437,3 @@ public class HcadProperties {
         }
     }
 }
-

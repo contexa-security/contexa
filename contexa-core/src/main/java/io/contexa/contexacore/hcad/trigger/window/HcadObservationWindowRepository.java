@@ -36,4 +36,11 @@ public interface HcadObservationWindowRepository {
 
     default void markDeepEvaluationCompleted(String actorSessionKey, String windowId, String anchorSignature) {
     }
+
+    default boolean tryAcquireActorSessionEvaluation(
+            String actorSessionKey,
+            String trustedContextSignature,
+            Duration actorSessionEvaluationTtl) {
+        return true;
+    }
 }

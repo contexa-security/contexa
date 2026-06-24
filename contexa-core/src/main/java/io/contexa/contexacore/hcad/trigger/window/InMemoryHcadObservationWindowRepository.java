@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class InMemoryHcadObservationWindowRepository implements HcadObservationWindowRepository {
 
     private final Map<String, WindowState> windows = new ConcurrentHashMap<>();
+    private final Map<String, ActorEvaluationState> actorEvaluationStates = new ConcurrentHashMap<>();
 
     @Override
     public synchronized HcadObservationWindowLease observe(
@@ -101,6 +102,27 @@ public class InMemoryHcadObservationWindowRepository implements HcadObservationW
         }
     }
 
+    @Override
+    public synchronized boolean tryAcquireActorSessionEvaluation(
+            String actorSessionKey,
+            String trustedContextSignature,
+            Duration actorSessionEvaluationTtl) {
+        if (!StringUtils.hasText(actorSessionKey) || !StringUtils.hasText(trustedContextSignature)) {
+            return true;
+        }
+        long ttlMs = positiveMillis(actorSessionEvaluationTtl, 0L);
+        if (ttlMs <= 0L) {
+            return true;
+        }
+        long now = System.currentTimeMillis();
+        ActorEvaluationState state = actorEvaluationStates.get(actorSessionKey);
+        if (state == null || state.expiresAt <= now) {
+            state = new ActorEvaluationState(now + ttlMs);
+            actorEvaluationStates.put(actorSessionKey, state);
+        }
+        return state.evaluatedTrustedContextSignatures.add(trustedContextSignature);
+    }
+
     private long positiveMillis(Duration duration, long defaultValue) {
         if (duration == null || duration.isZero() || duration.isNegative()) {
             return defaultValue;
@@ -155,6 +177,15 @@ public class InMemoryHcadObservationWindowRepository implements HcadObservationW
                     observations.size(),
                     List.copyOf(families),
                     List.copyOf(paths));
+        }
+    }
+
+    private static final class ActorEvaluationState {
+        private final long expiresAt;
+        private final Set<String> evaluatedTrustedContextSignatures = new LinkedHashSet<>();
+
+        private ActorEvaluationState(long expiresAt) {
+            this.expiresAt = expiresAt;
         }
     }
 }

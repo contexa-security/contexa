@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.monitoring.dto;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
 
 import java.util.List;
+import java.util.Map;
 
 public final class HcadMonitorDtos {
 
@@ -156,6 +157,72 @@ public final class HcadMonitorDtos {
             String baselineComparisonSummary,
             String createdAt,
             String decidedAt
+    ) {
+    }
+
+    public record HcadEvaluationExplanation(
+            String evaluationId,
+            RequestExplanation request,
+            ScoreExplanation score,
+            Map<String, Object> scoreBreakdown,
+            List<Map<String, Object>> signalExplanations,
+            Map<String, Object> context,
+            Map<String, Object> baseline,
+            Map<String, Object> semanticEvidence,
+            Map<String, Object> freshness,
+            Map<String, Object> trigger,
+            Map<String, Object> provenance,
+            Map<String, Object> rawSignalSnapshot,
+            List<String> ignoredInputs,
+            LlmDecisionExplanation llmDecision
+    ) {
+    }
+
+    public record RequestExplanation(
+            String requestId,
+            String eventId,
+            String correlationId,
+            String testRunId,
+            String userId,
+            String actorSessionKey,
+            String contextBindingHash,
+            String windowId,
+            String method,
+            String path,
+            String normalizedPath,
+            String resourceId,
+            String mode,
+            String createdAt,
+            String triggeredAt,
+            String decidedAt
+    ) {
+    }
+
+    public record ScoreExplanation(
+            Integer finalScore,
+            String band,
+            Boolean eligible,
+            Boolean triggeredLlm,
+            Boolean duplicateSuppressed,
+            Integer duplicateSuppressedCount,
+            String nonTriggerReason,
+            String triggerDecisionReason,
+            String outcomeClass
+    ) {
+    }
+
+    public record LlmDecisionExplanation(
+            String action,
+            String proposedAction,
+            Double riskScore,
+            Double confidence,
+            Long latencyMs,
+            Boolean parserFailure,
+            Boolean technicalFallback,
+            String fallbackCategory,
+            String fallbackReason,
+            String reasoningSummary,
+            String reasoningHash
     ) {
     }
 }

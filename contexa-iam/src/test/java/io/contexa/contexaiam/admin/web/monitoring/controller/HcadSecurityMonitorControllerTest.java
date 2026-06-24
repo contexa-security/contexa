@@ -17,7 +17,11 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.CountBreakdown;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadEvaluationExplanation;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.LlmDecisionExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualification;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.RequestExplanation;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ScoreExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.service.HcadMonitoringService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -64,6 +69,24 @@ class HcadSecurityMonitorControllerTest {
                 .andExpect(jsonPath("$.period").value("week"))
                 .andExpect(jsonPath("$.candidateCount").value(12))
                 .andExpect(jsonPath("$.currentMode").value("SHADOW"));
+    }
+
+    @Test
+    @DisplayName("HCAD explanation API should expose persisted explanation sections")
+    void explanation_shouldExposeEvaluationExplanation() throws Exception {
+        HcadMonitoringService service = mock(HcadMonitoringService.class);
+        when(service.explainEvaluation("eval-1")).thenReturn(explanation());
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new HcadSecurityMonitorController(service)).build();
+
+        mvc.perform(get("/contexa/admin/api/ai-monitor/hcad/evaluations/eval-1/explanation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evaluationId").value("eval-1"))
+                .andExpect(jsonPath("$.request.requestId").value("req-1"))
+                .andExpect(jsonPath("$.score.finalScore").value(85))
+                .andExpect(jsonPath("$.scoreBreakdown.scoreFormula").value("structured+semantic-normal"))
+                .andExpect(jsonPath("$.signalExplanations[0].signal").value("REQUEST_BURST"))
+                .andExpect(jsonPath("$.trigger.triggerDecisionReason").value("TRIGGER_PUBLISHED"))
+                .andExpect(jsonPath("$.ignoredInputs[0]").value("X-Contexa-Resource-Sensitivity"));
     }
 
     private HcadSummary summary(String period) {
@@ -110,5 +133,59 @@ class HcadSecurityMonitorControllerTest {
                 List.of(),
                 List.of()
         );
+    }
+
+    private HcadEvaluationExplanation explanation() {
+        return new HcadEvaluationExplanation(
+                "eval-1",
+                new RequestExplanation(
+                        "req-1",
+                        "event-1",
+                        "corr-1",
+                        null,
+                        "admin",
+                        "actor-1",
+                        "ctx-1",
+                        "window-1",
+                        "GET",
+                        "/contexa/admin/dashboard",
+                        "/contexa/admin/dashboard",
+                        "admin.dashboard",
+                        "ENFORCE",
+                        "2026-06-24T10:00:00",
+                        "2026-06-24T10:00:01",
+                        "2026-06-24T10:00:05"),
+                new ScoreExplanation(
+                        85,
+                        "REDLINE",
+                        true,
+                        true,
+                        false,
+                        0,
+                        null,
+                        "TRIGGER_PUBLISHED",
+                        "TP"),
+                Map.of("scoreFormula", "structured+semantic-normal"),
+                List.of(Map.of("signal", "REQUEST_BURST")),
+                Map.of("userId", "admin"),
+                Map.of("available", true),
+                Map.of("cacheStatus", "FRESH"),
+                Map.of("semanticCacheAgeSeconds", 12),
+                Map.of("triggerDecisionReason", "TRIGGER_PUBLISHED"),
+                Map.of("userId", "TRUSTED_SERVER"),
+                Map.of("promptContextContractVersion", "v1"),
+                List.of("X-Contexa-Resource-Sensitivity"),
+                new LlmDecisionExplanation(
+                        "CHALLENGE",
+                        "CHALLENGE",
+                        0.82d,
+                        0.91d,
+                        4512L,
+                        false,
+                        false,
+                        null,
+                        null,
+                        "summary",
+                        "hash"));
     }
 }

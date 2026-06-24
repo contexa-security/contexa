@@ -279,6 +279,15 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:hcad:pretrigger:window:anchors:%s:%s", NAMESPACE, actorSessionKey, windowId);
     }
 
+    public static String hcadActorSessionEvaluation(String actorSessionKey, String trustedContextSignature) {
+        validateTriggerKey(actorSessionKey);
+        validateTriggerKey(trustedContextSignature);
+        return String.format("%s:hcad:pretrigger:actor:evaluated:%s:%s",
+                NAMESPACE,
+                actorSessionKey,
+                trustedContextSignature);
+    }
+
     private static void validateTriggerKey(String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Trigger key cannot be null or empty");

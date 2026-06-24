@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,6 +81,63 @@ class HcadEvaluationWriterTest {
         assertThat(saved.getBaselineComparedDimensions()).isZero();
         assertThat(saved.getTriggerDecisionReason()).isEqualTo("TRIGGER_CANDIDATE");
         assertThat(saved.getSignalSnapshotJson()).contains("signalProvenance");
+        assertThat(saved.getScoreBreakdownJson()).contains("finalScore", "72", "REDLINE");
+        assertThat(saved.getScoreBreakdownJson()).contains(
+                "structuredScore",
+                "semanticEvidenceScore",
+                "normalSuppressionScore",
+                "eligibleQuorum",
+                "scoreFormula");
+        assertThat(saved.getSignalExplanationsJson()).contains(
+                "FAILED_LOGIN_BURST",
+                "REQUEST_BURST",
+                "condition",
+                "unmetReason",
+                "Repeated failed login",
+                "Short-time request increase");
+        assertThat(saved.getContextExplanationJson()).contains("alice", "/admin/reports", "request-1");
+        assertThat(saved.getBaselineExplanationJson()).contains("available", "false");
+        assertThat(saved.getSemanticEvidenceExplanationJson()).contains("SEMANTIC_EVIDENCE_NOT_RECORDED");
+        assertThat(saved.getFreshnessExplanationJson()).contains("window-1", "duplicateSuppressedCount");
+        assertThat(saved.getTriggerExplanationJson()).contains("TRIGGER_CANDIDATE", "risk-1");
+    }
+
+    @Test
+    @DisplayName("recordCandidate should explain zero score without vague normal-pattern wording")
+    void recordCandidate_zeroScore_shouldPersistConcreteReason() {
+        HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        when(repository.save(any(HcadDetectionEvaluation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(repository, new ObjectMapper());
+
+        writer.recordCandidate(HcadPreTriggerMode.SHADOW, PendingAnomalyEvidenceReport.noTrigger(
+                "alice",
+                "ctx-1",
+                "base-1",
+                "request-zero",
+                "session-1",
+                "/admin/dashboard",
+                "GET",
+                "203.0.113.10",
+                0,
+                "LOW",
+                false,
+                "hcad-promotion-v2-trusted-projection",
+                List.of(),
+                List.of(),
+                List.of(),
+                "no trusted signal",
+                Map.of("actorSessionKey", "actor-1", "windowId", "window-1")));
+
+        ArgumentCaptor<HcadDetectionEvaluation> captor = ArgumentCaptor.forClass(HcadDetectionEvaluation.class);
+        verify(repository).save(captor.capture());
+        HcadDetectionEvaluation saved = captor.getValue();
+        assertThat(saved.getScoreBreakdownJson()).contains(
+                "scoreInterpretation",
+                "NO_APPLIED_TRUSTED_RISK_SIGNAL",
+                "No trusted risk signal contributed");
+        assertThat(saved.getTriggerExplanationJson()).contains(
+                "TRUSTED_ANCHOR_ABSENT",
+                "SUPPORTING_SIGNAL_ABSENT");
     }
 
     @Test
@@ -89,20 +148,41 @@ class HcadEvaluationWriterTest {
 
         writer.recordCandidate(HcadPreTriggerMode.SHADOW, report());
 
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
-        verify(jdbcOperations).update(any(String.class), argsCaptor.capture());
+        verify(jdbcOperations).update(sqlCaptor.capture(), argsCaptor.capture());
+        assertThat(sqlCaptor.getValue())
+                .contains("score_breakdown_json")
+                .contains("signal_explanations_json")
+                .contains("context_explanation_json")
+                .contains("baseline_explanation_json")
+                .contains("semantic_evidence_explanation_json")
+                .contains("freshness_explanation_json")
+                .contains("trigger_explanation_json");
         Object[] args = argsCaptor.getValue();
-        assertThat(args).hasSize(58);
+        assertThat(args).hasSize(67);
         assertThat(args[4]).isEqualTo("run-evidence-1");
-        assertThat(args[30]).isEqualTo(false);
-        assertThat(args[31]).isEqualTo(false);
-        assertThat(args[32]).isEqualTo(0L);
-        assertThat(args[33]).isEqualTo(0);
-        assertThat(args[34]).isEqualTo(0);
+        assertThat(args[32]).isEqualTo(false);
+        assertThat(args[33]).isEqualTo(false);
+        assertThat(args[34]).isEqualTo(0L);
         assertThat(args[35]).isEqualTo(0);
-        assertThat(args[36]).isEqualTo(0.0d);
-        assertThat(args[38]).isEqualTo("{}");
-        assertThat(args[39]).isEqualTo("{}");
+        assertThat(args[36]).isEqualTo(0);
+        assertThat(args[37]).isEqualTo(0);
+        assertThat(args[38]).isEqualTo(0.0d);
+        assertThat(args[40]).isEqualTo("{}");
+        assertThat(args[41]).isEqualTo("{}");
+        assertThat(args[45]).asString().contains("finalScore", "72");
+        assertThat(args[46]).asString().contains(
+                "FAILED_LOGIN_BURST",
+                "source_field_path",
+                "session.failedLoginAttempts",
+                "STORE_DERIVED",
+                "scoringAllowed");
+        assertThat(args[47]).asString().contains("/admin/reports");
+        assertThat(args[48]).asString().contains("available");
+        assertThat(args[49]).asString().contains("SEMANTIC_EVIDENCE_NOT_RECORDED");
+        assertThat(args[50]).asString().contains("duplicateSuppressedCount");
+        assertThat(args[51]).asString().contains("TRIGGER_CANDIDATE");
     }
 
     @Test
@@ -144,6 +224,60 @@ class HcadEvaluationWriterTest {
     }
 
     @Test
+    @DisplayName("recordCandidate should persist explainable baseline dimension details")
+    void recordCandidate_shouldPersistBaselineExplanationDetails() {
+        HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        when(repository.save(any(HcadDetectionEvaluation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(repository, new ObjectMapper());
+        Instant lastUpdated = Instant.parse("2026-06-24T00:00:00Z");
+        HcadBaselineComparison baselineComparison = new HcadBaselineComparison(
+                true,
+                true,
+                25L,
+                20,
+                4,
+                2,
+                0.50d,
+                true,
+                List.of("accessHour", "browser"),
+                List.of("ipBand", "pathFamily"),
+                List.of(),
+                Map.of("ipBand", "203.0.113", "pathFamily", "/admin/reports"),
+                Map.of("normalIpBands", List.of("10.0.0"), "frequentPaths", List.of("/dashboard")),
+                lastUpdated);
+
+        writer.recordCandidate(HcadPreTriggerMode.SHADOW, PendingAnomalyEvidenceReport.noTrigger(
+                "alice",
+                "ctx-1",
+                "base-1",
+                "request-baseline",
+                "session-1",
+                "/admin/reports",
+                "GET",
+                "203.0.113.10",
+                20,
+                "LOW",
+                false,
+                "hcad-promotion-v2-trusted-projection",
+                List.of(),
+                List.of("BASELINE_MATERIAL_MISMATCH"),
+                List.of("BASELINE_MATERIAL_MISMATCH"),
+                "baseline mismatch",
+                Map.of("baselineComparison", baselineComparison)));
+
+        ArgumentCaptor<HcadDetectionEvaluation> captor = ArgumentCaptor.forClass(HcadDetectionEvaluation.class);
+        verify(repository).save(captor.capture());
+        HcadDetectionEvaluation saved = captor.getValue();
+        assertThat(saved.getBaselineExplanationJson()).contains(
+                "lastUpdated",
+                "2026-06-24T00:00:00Z",
+                "dimensionExplanations",
+                "IP band",
+                "Screen/API family",
+                "weight");
+    }
+
+    @Test
     @DisplayName("markTriggered should update triggered flag and timestamp")
     void markTriggered_shouldUpdateEvaluation() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
@@ -162,8 +296,63 @@ class HcadEvaluationWriterTest {
         assertThat(evaluation.getTriggeredLlm()).isTrue();
         assertThat(evaluation.getNonTriggerReason()).isNull();
         assertThat(evaluation.getTriggerDecisionReason()).isEqualTo("TRIGGER_PUBLISHED");
+        assertThat(evaluation.getTriggerExplanationJson()).contains("TRIGGER_PUBLISHED", "modeSemantics");
         assertThat(evaluation.getTriggeredAt()).isNotNull();
         verify(repository).save(evaluation);
+    }
+
+    @Test
+    @DisplayName("markTriggered JDBC should update trigger explanation json")
+    void markTriggered_jdbc_shouldUpdateTriggerExplanation() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(jdbcOperations, new ObjectMapper());
+
+        writer.markTriggered("eval-1");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations).update(sqlCaptor.capture(), argsCaptor.capture());
+        assertThat(sqlCaptor.getValue()).contains("trigger_explanation_json");
+        assertThat(argsCaptor.getValue()[0]).asString().contains("TRIGGER_PUBLISHED", "modeSemantics");
+    }
+
+    @Test
+    @DisplayName("markDuplicateSuppressed should record existing evaluation id and suppression scope")
+    void markDuplicateSuppressed_jdbc_shouldRecordExistingEvaluationId() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(jdbcOperations, new ObjectMapper());
+
+        writer.markDuplicateSuppressed("eval-window-1");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations).update(sqlCaptor.capture(), argsCaptor.capture());
+
+        assertThat(sqlCaptor.getValue()).contains("duplicate_suppressed_count", "trigger_explanation_json");
+        assertThat(argsCaptor.getValue()[0]).asString().contains(
+                "DUPLICATE_SUPPRESSED",
+                "existingEvaluationId",
+                "eval-window-1",
+                "ACTOR_WINDOW",
+                "modeSemantics");
+    }
+
+    @Test
+    @DisplayName("markTriggerSuppressed should record non-trigger reason with mode semantics")
+    void markTriggerSuppressed_jdbc_shouldRecordReason() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadEvaluationWriter writer = new HcadEvaluationWriter(jdbcOperations, new ObjectMapper());
+
+        writer.markTriggerSuppressed("eval-low-risk", "LOW_RISK");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations).update(sqlCaptor.capture(), argsCaptor.capture());
+
+        assertThat(sqlCaptor.getValue()).contains("trigger_explanation_json");
+        assertThat(argsCaptor.getValue()[0]).isEqualTo("LOW_RISK");
+        assertThat(argsCaptor.getValue()[1]).isEqualTo("LOW_RISK");
+        assertThat(argsCaptor.getValue()[2]).asString().contains("LOW_RISK", "triggeredLlm", "modeSemantics");
     }
 
     @Test
@@ -187,12 +376,14 @@ class HcadEvaluationWriterTest {
                 .contains("protectable_observed = true")
                 .contains("triggered_llm = true")
                 .contains("non_trigger_reason = NULL")
-                .contains("trigger_decision_reason = 'PROTECTABLE_LLM_REUSED'");
+                .contains("trigger_decision_reason = 'PROTECTABLE_LLM_REUSED'")
+                .contains("trigger_explanation_json");
         Object[] args = argsCaptor.getValue();
         assertThat(args[0]).isEqualTo("hcad.live.vendor.export");
         assertThat(args[1]).isEqualTo("/contexa/test/hcad/live/vendors/{vendorId}/export");
         assertThat(args[2]).isEqualTo("GET");
-        assertThat(args[4]).isEqualTo("eval-combined");
+        assertThat(args[3]).asString().contains("HCAD_AND_PROTECTABLE", "PROTECTABLE_LLM_REUSED", "mergeExplanation");
+        assertThat(args[5]).isEqualTo("eval-combined");
     }
 
     @Test
@@ -316,6 +507,12 @@ class HcadEvaluationWriterTest {
         assertThat(saved.getEvidenceGapCodes()).contains("TRUSTED_ANCHOR_ABSENT");
         assertThat(saved.getTriggerDecisionReason()).isEqualTo("OBSERVED_WITH_LLM_DECISION");
         assertThat(saved.getSignalSnapshotJson()).contains("requestBurst");
+        assertThat(saved.getScoreBreakdownJson()).contains("finalScore", "35");
+        assertThat(saved.getSignalExplanationsJson()).contains("REQUEST_BURST");
+        assertThat(saved.getContextExplanationJson()).contains("bob", "/admin/users", "request-observed");
+        assertThat(saved.getBaselineExplanationJson()).contains("available", "false");
+        assertThat(saved.getSemanticEvidenceExplanationJson()).contains("SEMANTIC_EVIDENCE_NOT_RECORDED");
+        assertThat(saved.getTriggerExplanationJson()).contains("OBSERVED_WITH_LLM_DECISION");
     }
 
     private PendingAnomalyEvidenceReport report() {
@@ -338,15 +535,33 @@ class HcadEvaluationWriterTest {
                 List.of("FAILED_LOGIN_BURST", "REQUEST_BURST"),
                 "candidate",
                 "risk-1",
-                Map.of(
-                        "actorSessionKey", "actor-1",
-                        "windowId", "window-1",
-                        "triggerScope", "SESSION_WINDOW",
-                        "requestCount", 3,
-                        "duplicateSuppressedCount", 2,
-                        "resourceFamilies", List.of("/admin/reports"),
-                        "samplePaths", List.of("/admin/reports", "/admin/menu"),
-                        "ignoredInputs", Map.of("header.X-Contexa-Test-Run-Id", "run-evidence-1"),
-                        "signalProvenance", Map.of("failedLoginBurst", "STORE_DERIVED")));
+                Map.ofEntries(
+                        Map.entry("actorSessionKey", "actor-1"),
+                        Map.entry("windowId", "window-1"),
+                        Map.entry("triggerScope", "SESSION_WINDOW"),
+                        Map.entry("requestCount", 3),
+                        Map.entry("duplicateSuppressedCount", 2),
+                        Map.entry("resourceFamilies", List.of("/admin/reports")),
+                        Map.entry("samplePaths", List.of("/admin/reports", "/admin/menu")),
+                        Map.entry("ignoredInputs", Map.of("header.X-Contexa-Test-Run-Id", "run-evidence-1")),
+                        Map.entry("structuredScore", 60),
+                        Map.entry("semanticEvidenceScore", 12),
+                        Map.entry("semanticNormalSuppressionScore", 0),
+                        Map.entry("semanticEvidenceScoreApplied", 12),
+                        Map.entry("scoringThresholds", Map.of("redlineScore", 70, "highRiskScore", 55)),
+                        Map.entry("eligibleQuorum", Map.of(
+                                "requiresAnchorSignal", true,
+                                "requiresCorroboratingSignal", true,
+                                "minimumScore", 70,
+                                "actualAnchorCount", 1,
+                                "actualCorroboratingCount", 1,
+                                "actualScore", 72)),
+                        Map.entry("eligibleFalseReasons", List.of()),
+                        Map.entry("scoreFormula", Map.of(
+                                "expression", "bounded(structuredScore + semanticEvidenceScore - normalSuppressionScore)",
+                                "finalScore", 72)),
+                        Map.entry("signalProvenance", Map.of(
+                                "failedLoginBurst", "STORE_DERIVED",
+                                "requestBurst", "STORE_DERIVED"))));
     }
 }

@@ -15,12 +15,16 @@
  */
 package io.contexa.contexacore.hcad.trigger;
 
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -65,6 +69,25 @@ class HcadActorSessionKeyFactoryTest {
     }
 
     @Test
+    @DisplayName("actor session key should include trusted bridge tenant and organization when available")
+    void fromRequest_bridgeTenantOrOrganizationChanges_shouldReturnDifferentKeys() {
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken("alice", "n/a", List.of());
+        MockHttpServletRequest first = request("GET", "/api/dashboard", "session-1", "203.0.113.10", "JUnit");
+        MockHttpServletRequest second = request("GET", "/api/dashboard", "session-1", "203.0.113.10", "JUnit");
+        MockHttpServletRequest third = request("GET", "/api/dashboard", "session-1", "203.0.113.10", "JUnit");
+
+        first.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, stamp("alice", "tenant-a", "org-a"));
+        second.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, stamp("alice", "tenant-b", "org-a"));
+        third.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, stamp("alice", "tenant-a", "org-b"));
+
+        String firstKey = HcadActorSessionKeyFactory.fromRequest(first, auth);
+
+        assertThat(HcadActorSessionKeyFactory.fromRequest(second, auth)).isNotEqualTo(firstKey);
+        assertThat(HcadActorSessionKeyFactory.fromRequest(third, auth)).isNotEqualTo(firstKey);
+    }
+
+    @Test
     @DisplayName("legacy base and trigger keys should not include method or path")
     void pendingAnomalyKeys_methodAndPath_shouldNotChangeBaseOrTriggerKeys() {
         String firstBase = PendingAnomalyKeyFactory.buildBaseKey("alice", "ctx-1", "GET", "/api/a");
@@ -104,5 +127,23 @@ class HcadActorSessionKeyFactoryTest {
         request.setRemoteAddr(remoteAddr);
         request.addHeader("User-Agent", userAgent);
         return request;
+    }
+
+    private AuthenticationStamp stamp(String userId, String tenantId, String organizationId) {
+        return new AuthenticationStamp(
+                userId,
+                userId,
+                "USER",
+                true,
+                "password",
+                "test",
+                "medium",
+                true,
+                Instant.now(),
+                "session-1",
+                List.of(),
+                Map.of(
+                        "tenantId", tenantId,
+                        "organizationId", organizationId));
     }
 }

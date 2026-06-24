@@ -211,16 +211,21 @@ public class HCADFilter extends OncePerRequestFilter {
             request.setAttribute("hcad.windowRequestCount", windowLease.requestCount());
             boolean nonUserInteraction = HcadRequestPathUtils.isNonUserInteractionRequest(request);
             boolean deepEvaluationOwner = windowLease.deepEvaluationOwner();
+            HcadTrustedAnchorSignalProbe anchorProbe = nonUserInteraction
+                    ? null
+                    : trustedProjectionFactory.probeAnchorSignals(request, authentication);
+            String trustedContextSignature = trustedContextSignature(anchorProbe);
             if (!deepEvaluationOwner && !nonUserInteraction) {
-                HcadTrustedAnchorSignalProbe anchorProbe = trustedProjectionFactory.probeAnchorSignals(request, authentication);
                 if (anchorProbe != null
-                        && anchorProbe.hasAnchorSignature()
+                        && anchorProbe.hasReEvaluationSignature()
                         && observationWindowRepository.tryAcquireEscalation(
                         actorSessionKey,
                         windowLease.windowId(),
-                        anchorProbe.anchorSignature())) {
+                        anchorProbe.reEvaluationSignature())) {
                     deepEvaluationOwner = true;
                     request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_ESCALATION_EVALUATION, true);
+                    request.setAttribute("hcad.reEvaluationSignals", anchorProbe.reEvaluationSignals());
+                    request.setAttribute("hcad.reEvaluationSignature", anchorProbe.reEvaluationSignature());
                     windowLease = new HcadObservationWindowLease(
                             true,
                             windowLease.actorSessionKey(),
@@ -229,6 +234,25 @@ public class HCADFilter extends OncePerRequestFilter {
                             windowLease.resourceFamilies(),
                             windowLease.samplePaths());
                 }
+            }
+            if (deepEvaluationOwner && !nonUserInteraction
+                    && !observationWindowRepository.tryAcquireActorSessionEvaluation(
+                    actorSessionKey,
+                    trustedContextSignature,
+                    actorSessionEvaluationTtl())) {
+                request.setAttribute("hcad.actorSessionEvaluationSuppressed", true);
+                request.setAttribute("hcad.actorSessionEvaluationSignature", trustedContextSignature);
+                trustedProjectionFactory.recordLightweightSessionNarrative(request, authentication);
+                updateWindowObservation(actorSessionKey, windowLease);
+                if (log.isTraceEnabled()) {
+                    log.trace("[HCADFilter] Actor-session TTL suppressed deep evaluation: actorSessionKey={}, windowId={}, path={}, signature={}",
+                            actorSessionKey,
+                            windowLease.windowId(),
+                            HcadRequestPathUtils.normalizedPath(request),
+                            trustedContextSignature);
+                }
+                filterChain.doFilter(request, response);
+                return;
             }
             if (!deepEvaluationOwner || nonUserInteraction) {
                 trustedProjectionFactory.recordLightweightSessionNarrative(request, authentication);
@@ -260,7 +284,8 @@ public class HCADFilter extends OncePerRequestFilter {
                     projection,
                     assessment,
                     windowLease,
-                    firstText(projectedActorSessionKey, actorSessionKey));
+                    firstText(projectedActorSessionKey, actorSessionKey),
+                    trustedContextSignature);
             observationWindowRepository.markDeepEvaluationCompleted(
                     actorSessionKey,
                     windowLease.windowId(),
@@ -307,11 +332,15 @@ public class HCADFilter extends OncePerRequestFilter {
                 HcadRequestPathUtils.normalizedPath(request),
                 HcadRequestPathUtils.resourceFamily(HcadRequestPathUtils.normalizedPath(request)),
                 Instant.now());
+        Duration coalesceWindow = Duration.ofMillis(Math.max(1L, hcadProperties.getPreTrigger().getCoalesceWindowMs()));
+        Duration observationTtl = Duration.ofSeconds(Math.max(
+                hcadProperties.getPreTrigger().getEvaluationTtlSeconds(),
+                hcadProperties.getPreTrigger().getObservationTtlSeconds()));
         return observationWindowRepository.observe(
                 actorSessionKey,
                 observation,
-                Duration.ofMillis(Math.max(1L, hcadProperties.getPreTrigger().getCoalesceWindowMs())),
-                Duration.ofSeconds(Math.max(1, hcadProperties.getPreTrigger().getObservationTtlSeconds())));
+                coalesceWindow,
+                observationTtl);
     }
 
     private CachedSemanticEvidenceProjection resolveSemanticEvidence(
@@ -476,7 +505,8 @@ public class HCADFilter extends OncePerRequestFilter {
             TrustedHcadContextProjection projection,
             HcadPreProtectablePromotionAssessment assessment,
             HcadObservationWindowLease windowLease,
-            String actorSessionKey) {
+            String actorSessionKey,
+            String trustedContextSignature) {
         if (assessment == null) {
             return null;
         }
@@ -488,6 +518,12 @@ public class HCADFilter extends OncePerRequestFilter {
         rawSignals.put("duplicateSuppressedCount", windowLease.duplicateSuppressedCount());
         rawSignals.put("resourceFamilies", windowLease.resourceFamilies());
         rawSignals.put("samplePaths", windowLease.samplePaths());
+        rawSignals.put("coalesceWindowMs", hcadProperties.getPreTrigger().getCoalesceWindowMs());
+        rawSignals.put("actorSessionEvaluationTtl",
+                hcadProperties.getPreTrigger().getActorSessionEvaluationTtlSeconds() + "s");
+        rawSignals.put("actorSessionEvaluationSignature", trustedContextSignature);
+        rawSignals.put("observationWindowTtl", hcadProperties.getPreTrigger().getEvaluationTtlSeconds() + "s");
+        rawSignals.put("observationTtl", hcadProperties.getPreTrigger().getObservationTtlSeconds() + "s");
         if (projection != null) {
             rawSignals.put("tenantId", projection.tenantId());
             rawSignals.put("organizationId", projection.organizationId());
@@ -502,6 +538,29 @@ public class HCADFilter extends OncePerRequestFilter {
                 assessment.summary(),
                 assessment.evaluationVersion(),
                 rawSignals);
+    }
+
+    private Duration actorSessionEvaluationTtl() {
+        return Duration.ofSeconds(Math.max(1, hcadProperties.getPreTrigger().getActorSessionEvaluationTtlSeconds()));
+    }
+
+    private String trustedContextSignature(HcadTrustedAnchorSignalProbe anchorProbe) {
+        List<String> signatureParts = new ArrayList<>();
+        if (anchorProbe != null && anchorProbe.hasReEvaluationSignature()) {
+            signatureParts.add(anchorProbe.reEvaluationSignature());
+        } else {
+            signatureParts.add("NO_TRUSTED_ANCHOR_SIGNAL");
+        }
+        HcadProperties.SemanticEvidenceSettings semantic = hcadProperties.getSemanticEvidence();
+        HcadProperties.VectorSettings vector = hcadProperties.getVector();
+        if (semantic != null) {
+            signatureParts.add("SEMANTIC_VERSION:" + firstText(semantic.getEvidenceVersion(), "unknown"));
+            signatureParts.add("SEMANTIC_MODEL:" + firstText(semantic.getEmbeddingModel(), "unknown"));
+        }
+        if (vector != null) {
+            signatureParts.add("EMBEDDING_DIMENSION:" + Math.max(1, vector.getEmbeddingDimension()));
+        }
+        return PendingAnomalyKeyFactory.buildTrustedAnchorSignature(signatureParts);
     }
 
     private void maybeTriggerPendingAnomaly(
@@ -537,6 +596,9 @@ public class HCADFilter extends OncePerRequestFilter {
             HcadPreProtectablePromotionAssessment assessment) {
         HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
         if (writer == null || projection == null || assessment == null) {
+            return;
+        }
+        if (!shouldPersistEvaluation(assessment)) {
             return;
         }
         String requestPath = projection.normalizedPath();
@@ -576,6 +638,17 @@ public class HCADFilter extends OncePerRequestFilter {
             }
             refreshRecordedWindowObservation(assessment);
         }
+    }
+
+    private boolean shouldPersistEvaluation(HcadPreProtectablePromotionAssessment assessment) {
+        if (assessment == null) {
+            return false;
+        }
+        if (assessment.eligible()) {
+            return true;
+        }
+        String band = assessment.band() == null ? null : assessment.band().serializedValue();
+        return "HIGH".equalsIgnoreCase(band) || "REDLINE".equalsIgnoreCase(band);
     }
 
     private void refreshRecordedWindowObservation(HcadPreProtectablePromotionAssessment assessment) {

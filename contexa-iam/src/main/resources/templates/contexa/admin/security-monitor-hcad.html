@@ -82,6 +82,14 @@
         .hcad-detail-item { display: grid; gap: .25rem; min-width: 0; }
         .hcad-detail-item span { color: #64748b; font-size: .68rem; }
         .hcad-detail-item strong { color: #cbd5e1; font-size: .76rem; overflow-wrap: anywhere; }
+        .hcad-explanation { display: grid; gap: .85rem; padding: .9rem; border: 1px solid rgba(34,211,238,.18); border-radius: .65rem; background: rgba(8,13,27,.52); }
+        .hcad-explanation-section { display: grid; gap: .65rem; padding: .8rem; border: 1px solid rgba(71,85,105,.3); border-radius: .55rem; background: rgba(15,23,42,.34); }
+        .hcad-explanation-section h3 { margin: 0; color: #e2e8f0; font-size: .86rem; font-weight: 800; }
+        .hcad-signal-explanations { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .65rem; margin-top: .65rem; }
+        .hcad-signal-card { display: grid; gap: .32rem; padding: .7rem; border: 1px solid rgba(34,211,238,.18); border-radius: .5rem; background: rgba(2,6,23,.3); }
+        .hcad-ignored-inputs { margin: 0; padding-left: 1.1rem; color: #cbd5e1; font-size: .78rem; }
+        .hcad-raw-json summary { cursor: pointer; color: #67e8f9; font-size: .76rem; font-weight: 700; }
+        .hcad-raw-json pre { max-height: 320px; overflow: auto; padding: .75rem; border-radius: .45rem; background: rgba(2,6,23,.65); color: #94a3b8; font-size: .7rem; line-height: 1.5; }
         .hcad-pagination { display: flex; align-items: center; justify-content: flex-end; gap: .6rem; padding-top: .75rem; }
         .hcad-page-button { border: 1px solid rgba(71,85,105,.45); border-radius: .45rem; color: #94a3b8; padding: .35rem .65rem; background: rgba(15,23,42,.45); font-size: .78rem; }
         .hcad-page-button:disabled { opacity: .45; cursor: not-allowed; }
@@ -148,6 +156,7 @@
              th:data-label-evaluated-help="#{admin.security.hcad.help.evaluated}"
              th:data-label-llm-help="#{admin.security.hcad.help.llmCalls}"
              th:data-label-duplicate-help="#{admin.security.hcad.help.duplicates}"
+             th:data-label-precision-help="#{admin.security.hcad.help.precision}"
              th:data-label-unknown-help="#{admin.security.hcad.help.unknown}"
              th:data-label-false-positive-help="#{admin.security.hcad.help.falsePositive}"
              th:data-label-observable-fn-help="#{admin.security.hcad.help.observableFn}"
@@ -265,6 +274,46 @@
              th:data-label-confidence="#{admin.security.hcad.detail.confidence}"
              th:data-label-fallback="#{admin.security.hcad.detail.fallback}"
              th:data-label-decided-at="#{admin.security.hcad.detail.decidedAt}"
+             th:data-label-trigger-decision-reason="#{admin.security.hcad.detail.triggerDecisionReason}"
+             th:data-label-detail-loading="#{admin.security.hcad.detail.loading}"
+             th:data-label-detail-load-error="#{admin.security.hcad.detail.loadError}"
+             th:data-label-detail-no-explanation="#{admin.security.hcad.detail.noExplanation}"
+             th:data-label-detail-question-trigger="#{admin.security.hcad.detail.question.trigger}"
+             th:data-label-detail-question-score="#{admin.security.hcad.detail.question.score}"
+             th:data-label-detail-question-baseline="#{admin.security.hcad.detail.question.baseline}"
+             th:data-label-detail-question-semantic="#{admin.security.hcad.detail.question.semantic}"
+             th:data-label-detail-question-freshness="#{admin.security.hcad.detail.question.freshness}"
+             th:data-label-detail-question-ignored="#{admin.security.hcad.detail.question.ignored}"
+             th:data-label-detail-raw-json="#{admin.security.hcad.detail.rawJson}"
+             th:data-label-detail-raw-json-open="#{admin.security.hcad.detail.rawJsonOpen}"
+             th:data-label-detail-applied="#{admin.security.hcad.detail.applied}"
+             th:data-label-detail-weight="#{admin.security.hcad.detail.weight}"
+             th:data-label-detail-condition="#{admin.security.hcad.detail.condition}"
+             th:data-label-detail-unmet-reason="#{admin.security.hcad.detail.unmetReason}"
+             th:data-label-field-final-score="#{admin.security.hcad.field.finalScore}"
+             th:data-label-field-structured-score="#{admin.security.hcad.field.structuredScore}"
+             th:data-label-field-semantic-evidence-score="#{admin.security.hcad.field.semanticEvidenceScore}"
+             th:data-label-field-normal-suppression-score="#{admin.security.hcad.field.normalSuppressionScore}"
+             th:data-label-field-score-formula="#{admin.security.hcad.field.scoreFormula}"
+             th:data-label-field-score-interpretation="#{admin.security.hcad.field.scoreInterpretation}"
+             th:data-label-field-eligible-quorum="#{admin.security.hcad.field.eligibleQuorum}"
+             th:data-label-field-eligible-false-reasons="#{admin.security.hcad.field.eligibleFalseReasons}"
+             th:data-label-field-available="#{admin.security.hcad.field.available}"
+             th:data-label-field-established="#{admin.security.hcad.field.established}"
+             th:data-label-field-update-count="#{admin.security.hcad.field.updateCount}"
+             th:data-label-field-mismatch-count="#{admin.security.hcad.field.mismatchCount}"
+             th:data-label-field-match-ratio="#{admin.security.hcad.field.matchRatio}"
+             th:data-label-field-cache-status="#{admin.security.hcad.field.cacheStatus}"
+             th:data-label-field-provider="#{admin.security.hcad.field.provider}"
+             th:data-label-field-embedding-model="#{admin.security.hcad.field.embeddingModel}"
+             th:data-label-field-dimension="#{admin.security.hcad.field.dimension}"
+             th:data-label-field-sample-count="#{admin.security.hcad.field.sampleCount}"
+             th:data-label-field-similarity-to-normal="#{admin.security.hcad.field.similarityToNormal}"
+             th:data-label-field-mismatch-score="#{admin.security.hcad.field.mismatchScore}"
+             th:data-label-field-trigger-decision-reason="#{admin.security.hcad.field.triggerDecisionReason}"
+             th:data-label-field-non-trigger-reason="#{admin.security.hcad.field.nonTriggerReason}"
+             th:data-label-field-triggered-llm="#{admin.security.hcad.field.triggeredLlm}"
+             th:data-label-field-mode-semantics="#{admin.security.hcad.field.modeSemantics}"
              th:data-label-yes="#{admin.security.hcad.label.yes}"
              th:data-label-no="#{admin.security.hcad.label.no}"
              th:data-label-action-allow="#{admin.aiMonitor.enum.allow}"

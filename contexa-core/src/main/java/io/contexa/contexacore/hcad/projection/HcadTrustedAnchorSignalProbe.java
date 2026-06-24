@@ -19,15 +19,27 @@ import java.util.List;
 
 public record HcadTrustedAnchorSignalProbe(
         List<String> anchorSignals,
-        String anchorSignature
+        String anchorSignature,
+        List<String> reEvaluationSignals,
+        String reEvaluationSignature
 ) {
+
+    public HcadTrustedAnchorSignalProbe(List<String> anchorSignals, String anchorSignature) {
+        this(anchorSignals, anchorSignature, anchorSignals, anchorSignature);
+    }
 
     public HcadTrustedAnchorSignalProbe {
         anchorSignals = anchorSignals == null ? List.of() : List.copyOf(anchorSignals);
         anchorSignature = anchorSignature == null ? "" : anchorSignature;
+        reEvaluationSignals = reEvaluationSignals == null ? List.of() : List.copyOf(reEvaluationSignals);
+        reEvaluationSignature = reEvaluationSignature == null ? "" : reEvaluationSignature;
     }
 
     public boolean hasAnchorSignature() {
         return !anchorSignature.isBlank();
+    }
+
+    public boolean hasReEvaluationSignature() {
+        return !reEvaluationSignature.isBlank();
     }
 }

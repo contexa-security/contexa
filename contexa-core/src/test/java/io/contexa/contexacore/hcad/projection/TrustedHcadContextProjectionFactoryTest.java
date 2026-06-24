@@ -83,6 +83,10 @@ class TrustedHcadContextProjectionFactoryTest {
         request.addHeader("X-Contexa-Recent-Permission-Changes", "admin=true");
         request.addHeader("X-Contexa-Resource-Sensitivity", "HIGH");
         request.addHeader("X-Contexa-Business-Impact", "CRITICAL");
+        request.addHeader("X-User-Id", "forged-admin");
+        request.setQueryString("tenantId=forged-tenant&sessionId=forged-session&businessImpact=CRITICAL");
+        request.setRequestURI("/admin/reports;tenantId=forged-tenant");
+        request.setServletPath("/admin/reports;tenantId=forged-tenant");
 
         TrustedHcadContextProjection projection = factory.project(request, authentication());
         HcadPreProtectablePromotionAssessment assessment = scorer.score(projection);
@@ -90,7 +94,16 @@ class TrustedHcadContextProjectionFactoryTest {
         assertThat(projection.ignoredInputs()).containsKeys(
                 "header.X-Contexa-Recent-Permission-Changes",
                 "header.X-Contexa-Resource-Sensitivity",
-                "header.X-Contexa-Business-Impact");
+                "header.X-Contexa-Business-Impact",
+                "header.X-User-Id",
+                "query.tenantId",
+                "query.sessionId",
+                "query.businessImpact",
+                "path.matrixParameters");
+        assertThat(projection.userId()).isEqualTo("alice");
+        assertThat(projection.tenantId()).isNull();
+        assertThat(projection.sessionId()).isNotEqualTo("forged-session");
+        assertThat(projection.normalizedPath()).isEqualTo("/admin/reports");
         assertThat(projection.promptContextContractVersion())
                 .isEqualTo(HcadPromptSecurityContextFieldRegistry.version());
         assertThat(projection.promptContextFieldContracts())
@@ -100,6 +113,7 @@ class TrustedHcadContextProjectionFactoryTest {
         assertThat(projection.sourceOf("header.X-Contexa-Recent-Permission-Changes"))
                 .isEqualTo(HcadTrustedSource.UNTRUSTED_IGNORED);
         assertThat(assessment.anchorSignals()).doesNotContain("RECENT_PERMISSION_CHANGE", "PRIVILEGED_AUTHORIZATION");
+        assertThat(assessment.rawSignalSnapshot()).containsKey("ignoredInputReasons");
         assertThat(assessment.score()).isZero();
     }
 
@@ -156,14 +170,31 @@ class TrustedHcadContextProjectionFactoryTest {
     }
 
     @Test
+    @DisplayName("request burst bucket should create trusted same-window re-evaluation signal")
+    void probeAnchorSignals_requestBurstBucket_shouldCreateReEvaluationSignal() {
+        MockHttpServletRequest request = baseRequest();
+        when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong()))
+                .thenReturn(properties.getPreTrigger().getRequestBurstThreshold() * 2);
+
+        factory.project(request, authentication());
+        HcadTrustedAnchorSignalProbe probe = factory.probeAnchorSignals(request, authentication());
+
+        assertThat(probe.anchorSignals()).isEmpty();
+        assertThat(probe.reEvaluationSignals()).contains("REQUEST_BURST_BUCKET:2");
+        assertThat(probe.hasReEvaluationSignature()).isTrue();
+    }
+
+    @Test
     @DisplayName("persisted personal baseline is compared against the trusted request context")
     void project_persistedPersonalBaseline_shouldExposeMaterialMismatch() {
         MockHttpServletRequest request = baseRequest();
         request.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
         ZonedDateTime now = ZonedDateTime.now(ZoneId.systemDefault());
+        Instant lastUpdated = Instant.parse("2026-06-24T00:00:00Z");
         when(baselineDataStore.getUserBaseline("alice")).thenReturn(BaselineVector.builder()
                 .userId("alice")
                 .updateCount(25L)
+                .lastUpdated(lastUpdated)
                 .normalIpRanges(new String[]{"10.0.0"})
                 .normalAccessHours(new Integer[]{now.getHour()})
                 .normalAccessDays(new Integer[]{now.getDayOfWeek().getValue()})
@@ -181,6 +212,7 @@ class TrustedHcadContextProjectionFactoryTest {
         assertThat(projection.baselineComparison().available()).isTrue();
         assertThat(projection.baselineComparison().established()).isTrue();
         assertThat(projection.baselineComparison().materialMismatch()).isTrue();
+        assertThat(projection.baselineComparison().lastUpdated()).isEqualTo(lastUpdated);
         assertThat(projection.baselineComparison().mismatchedDimensions())
                 .contains("ipBand", "pathFamily", "authenticationType");
         assertThat(assessment.corroboratingSignals()).contains("BASELINE_MATERIAL_MISMATCH");

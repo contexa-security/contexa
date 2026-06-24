@@ -20,7 +20,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.domain.entity.HcadDetectionEvaluation;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionSignal;
 import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
+import io.contexa.contexacore.hcad.projection.HcadFieldProvenance;
+import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldContract;
+import io.contexa.contexacore.hcad.projection.HcadPromptSecurityContextFieldRegistry;
+import io.contexa.contexacore.hcad.projection.HcadTrustedSource;
 import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
@@ -31,6 +36,7 @@ import org.springframework.jdbc.core.JdbcOperations;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -89,6 +95,7 @@ public class HcadEvaluationWriter {
         HcadBaselineComparison baselineComparison = baselineComparison(rawSnapshot);
         List<String> evidenceGaps = evidenceGapCodes(report, baselineComparison);
         String nonTriggerReason = report.shouldTrigger() ? null : nonTriggerReason(report, baselineComparison, evidenceGaps);
+        String triggerDecisionReason = report.shouldTrigger() ? "TRIGGER_CANDIDATE" : nonTriggerReason;
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
                 .eventId(evaluationEventId)
@@ -115,6 +122,10 @@ public class HcadEvaluationWriter {
                 .duplicateSuppressedCount(integerDefault(rawSnapshot.get("duplicateSuppressedCount"), 0))
                 .negativeCacheHit(false)
                 .negativeCacheHitCount(integerDefault(rawSnapshot.get("negativeCacheHitCount"), 0))
+                .protectableObserved(boolDefault(bool(rawSnapshot.get("protectableObserved")), false))
+                .protectableResourceId(text(rawSnapshot.get("protectableResourceId")))
+                .protectableResourceUrl(text(rawSnapshot.get("protectableResourceUrl")))
+                .protectableHttpMethod(text(rawSnapshot.get("protectableHttpMethod")))
                 .resourceFamilies(writeJson(rawSnapshot.get("resourceFamilies")))
                 .samplePaths(writeJson(rawSnapshot.get("samplePaths")))
                 .anchorSignals(writeJson(report.anchorSignals()))
@@ -132,11 +143,18 @@ public class HcadEvaluationWriter {
                 .baselineMismatchedDimensions(writeJson(baselineComparison.mismatchedDimensions()))
                 .baselineCurrentValuesJson(writeJson(baselineComparison.currentValues()))
                 .baselineReferenceValuesJson(writeJson(baselineComparison.baselineValues()))
-                .triggerDecisionReason(report.shouldTrigger() ? "TRIGGER_CANDIDATE" : nonTriggerReason)
+                .triggerDecisionReason(triggerDecisionReason)
                 .signalSnapshotJson(writeJson(rawSnapshot))
                 .signalProvenanceJson(writeJson(rawSnapshot == null
                         ? Map.of()
                         : rawSnapshot.get("signalProvenance")))
+                .scoreBreakdownJson(writeJson(scoreBreakdown(report, rawSnapshot)))
+                .signalExplanationsJson(writeJson(signalExplanations(report, rawSnapshot, baselineComparison)))
+                .contextExplanationJson(writeJson(contextExplanation(report, rawSnapshot, normalizedPath, resourceId, requestId)))
+                .baselineExplanationJson(writeJson(baselineExplanation(baselineComparison)))
+                .semanticEvidenceExplanationJson(writeJson(semanticEvidenceExplanation(rawSnapshot)))
+                .freshnessExplanationJson(writeJson(freshnessExplanation(rawSnapshot, baselineComparison)))
+                .triggerExplanationJson(writeJson(triggerExplanation(report, nonTriggerReason, triggerDecisionReason, evidenceGaps)))
                 .outcomeClass("UNKNOWN")
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -200,9 +218,13 @@ public class HcadEvaluationWriter {
                        SET triggered_llm = true,
                            non_trigger_reason = NULL,
                            trigger_decision_reason = 'TRIGGER_PUBLISHED',
+                           trigger_explanation_json = ?,
                            triggered_at = ?
                      WHERE evaluation_id = ?
-                    """, LocalDateTime.now(), evaluationId);
+                    """,
+                    writeJson(triggerStateExplanation("TRIGGER_PUBLISHED", null, true, null, null, null, null)),
+                    LocalDateTime.now(),
+                    evaluationId);
             return;
         }
         HcadDetectionEvaluationRepository repository = repository();
@@ -211,6 +233,14 @@ public class HcadEvaluationWriter {
                 evaluation.setTriggeredLlm(true);
                 evaluation.setNonTriggerReason(null);
                 evaluation.setTriggerDecisionReason("TRIGGER_PUBLISHED");
+                evaluation.setTriggerExplanationJson(writeJson(triggerStateExplanation(
+                        "TRIGGER_PUBLISHED",
+                        null,
+                        true,
+                        null,
+                        null,
+                        null,
+                        null)));
                 evaluation.setTriggeredAt(LocalDateTime.now());
                 repository.save(evaluation);
             });
@@ -229,8 +259,11 @@ public class HcadEvaluationWriter {
                          , duplicate_suppressed_count = GREATEST(COALESCE(duplicate_suppressed_count, 0), 1)
                          , non_trigger_reason = COALESCE(non_trigger_reason, 'DUPLICATE_SUPPRESSED')
                          , trigger_decision_reason = 'DUPLICATE_SUPPRESSED'
+                         , trigger_explanation_json = ?
                      WHERE evaluation_id = ?
-                    """, evaluationId);
+                    """,
+                    writeJson(duplicateSuppressedExplanation(evaluationId, "DUPLICATE_SUPPRESSED")),
+                    evaluationId);
             return;
         }
         HcadDetectionEvaluationRepository repository = repository();
@@ -244,6 +277,9 @@ public class HcadEvaluationWriter {
                     evaluation.setNonTriggerReason("DUPLICATE_SUPPRESSED");
                 }
                 evaluation.setTriggerDecisionReason("DUPLICATE_SUPPRESSED");
+                evaluation.setTriggerExplanationJson(writeJson(duplicateSuppressedExplanation(
+                        evaluationId,
+                        evaluation.getNonTriggerReason())));
                 repository.save(evaluation);
             });
         }
@@ -260,11 +296,13 @@ public class HcadEvaluationWriter {
                     UPDATE hcad_detection_evaluation
                        SET triggered_llm = false,
                            non_trigger_reason = COALESCE(non_trigger_reason, ?),
-                           trigger_decision_reason = ?
+                           trigger_decision_reason = ?,
+                           trigger_explanation_json = ?
                      WHERE evaluation_id = ?
                     """,
                     resolvedReason,
                     resolvedReason,
+                    writeJson(triggerStateExplanation(resolvedReason, resolvedReason, false, null, null, null, null)),
                     evaluationId);
             return;
         }
@@ -276,6 +314,14 @@ public class HcadEvaluationWriter {
                     evaluation.setNonTriggerReason(resolvedReason);
                 }
                 evaluation.setTriggerDecisionReason(resolvedReason);
+                evaluation.setTriggerExplanationJson(writeJson(triggerStateExplanation(
+                        resolvedReason,
+                        evaluation.getNonTriggerReason(),
+                        false,
+                        null,
+                        null,
+                        null,
+                        null)));
                 repository.save(evaluation);
             });
         }
@@ -302,12 +348,21 @@ public class HcadEvaluationWriter {
                                triggered_llm = true,
                                non_trigger_reason = NULL,
                                trigger_decision_reason = 'PROTECTABLE_LLM_REUSED',
+                               trigger_explanation_json = ?,
                                triggered_at = COALESCE(triggered_at, ?)
                          WHERE evaluation_id = ?
                         """,
                         blankToEmpty(resourceId),
                         blankToEmpty(resourceUrl),
                         blankToEmpty(httpMethod),
+                        writeJson(triggerStateExplanation(
+                                "PROTECTABLE_LLM_REUSED",
+                                null,
+                                true,
+                                "HCAD_AND_PROTECTABLE",
+                                resourceId,
+                                resourceUrl,
+                                httpMethod)),
                         LocalDateTime.now(),
                         evaluationId);
                 return;
@@ -509,7 +564,8 @@ public class HcadEvaluationWriter {
         }
 
         Object rawSignals = metadata.get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS);
-        HcadBaselineComparison baselineComparison = baselineComparison(rawSignals);
+        Map<String, Object> rawSnapshot = rawSnapshotMap(rawSignals);
+        HcadBaselineComparison baselineComparison = baselineComparison(rawSnapshot);
         List<String> anchorSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS));
         List<String> corroboratingSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS));
         List<String> evidenceGaps = evidenceGapCodes(anchorSignals, corroboratingSignals, baselineComparison, rawSignals);
@@ -526,6 +582,24 @@ public class HcadEvaluationWriter {
         String correlationId = firstNonBlank(
                 firstText(metadata, "correlationId", "requestId"),
                 requestId);
+        PendingAnomalyEvidenceReport observedReport = PendingAnomalyEvidenceReport.noTrigger(
+                event != null ? event.getUserId() : firstText(metadata, "userId"),
+                text(metadata.get("contextBindingHash")),
+                firstNonBlank(text(metadata.get("triggerStateKey")), text(metadata.get("actorSessionKey"))),
+                requestId,
+                firstText(metadata, "sessionId", "actorSessionKey"),
+                requestPath,
+                firstText(metadata, "httpMethod", "protectableHttpMethod"),
+                event != null ? event.getSourceIp() : text(metadata.get("clientIp")),
+                integerDefault(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE), 0),
+                text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_BAND)),
+                boolDefault(bool(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE)), false),
+                text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_VERSION)),
+                anchorSignals,
+                corroboratingSignals,
+                stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES)),
+                text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SUMMARY)),
+                rawSnapshot);
         LocalDateTime now = LocalDateTime.now();
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
@@ -573,6 +647,17 @@ public class HcadEvaluationWriter {
                 .triggerDecisionReason("OBSERVED_WITH_LLM_DECISION")
                 .signalSnapshotJson(writeJson(rawSignals))
                 .signalProvenanceJson(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_PROVENANCE)))
+                .scoreBreakdownJson(writeJson(scoreBreakdown(observedReport, rawSnapshot)))
+                .signalExplanationsJson(writeJson(signalExplanations(observedReport, rawSnapshot, baselineComparison)))
+                .contextExplanationJson(writeJson(contextExplanation(observedReport, rawSnapshot, normalizedPath, resourceId, requestId)))
+                .baselineExplanationJson(writeJson(baselineExplanation(baselineComparison)))
+                .semanticEvidenceExplanationJson(writeJson(semanticEvidenceExplanation(rawSnapshot)))
+                .freshnessExplanationJson(writeJson(freshnessExplanation(rawSnapshot, baselineComparison)))
+                .triggerExplanationJson(writeJson(triggerExplanation(
+                        observedReport,
+                        nonTriggerReason(anchorSignals, corroboratingSignals, baselineComparison, evidenceGaps),
+                        "OBSERVED_WITH_LLM_DECISION",
+                        evidenceGaps)))
                 .llmAction(llmAction)
                 .llmProposedAction(llmProposedAction)
                 .llmRiskScore(llmRiskScore)
@@ -590,6 +675,574 @@ public class HcadEvaluationWriter {
                 .build();
         save(evaluation);
         return evaluationId;
+    }
+
+    private Map<String, Object> scoreBreakdown(
+            PendingAnomalyEvidenceReport report,
+            Map<String, Object> rawSnapshot) {
+        Map<String, Object> breakdown = new LinkedHashMap<>();
+        breakdown.put("structuredScore", integer(rawSnapshot == null ? null : rawSnapshot.get("structuredScore")));
+        breakdown.put("semanticEvidenceScore", integer(rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceScore")));
+        breakdown.put("normalSuppressionScore", integer(rawSnapshot == null ? null : rawSnapshot.get("semanticNormalSuppressionScore")));
+        breakdown.put("semanticEvidenceScoreApplied", integer(rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceScoreApplied")));
+        breakdown.put("finalScore", report == null ? null : report.escalationScore());
+        breakdown.put("band", report == null ? null : report.escalationBand());
+        breakdown.put("eligible", report == null ? null : report.escalationEligible());
+        breakdown.put("thresholds", rawSnapshot == null ? null : rawSnapshot.get("scoringThresholds"));
+        breakdown.put("eligibleQuorum", rawSnapshot == null ? null : rawSnapshot.get("eligibleQuorum"));
+        breakdown.put("eligibleFalseReasons", rawSnapshot == null ? List.of() : rawSnapshot.get("eligibleFalseReasons"));
+        breakdown.put("scoreFormula", rawSnapshot == null ? null : rawSnapshot.get("scoreFormula"));
+        breakdown.put("scoreInterpretation", scoreInterpretation(report, rawSnapshot));
+        return breakdown;
+    }
+
+    private Map<String, Object> scoreInterpretation(
+            PendingAnomalyEvidenceReport report,
+            Map<String, Object> rawSnapshot) {
+        Map<String, Object> interpretation = new LinkedHashMap<>();
+        int score = report == null
+                ? integerDefault(rawSnapshot == null ? null : rawSnapshot.get("earlyAnalysisScore"), 0)
+                : report.escalationScore();
+        interpretation.put("score", score);
+        interpretation.put("band", report == null ? null : report.escalationBand());
+        interpretation.put("eligible", report == null ? null : report.escalationEligible());
+        if (score == 0) {
+            interpretation.put("summary", "No trusted risk signal contributed to the early-detection score.");
+            interpretation.put("reason", zeroScoreReason(report, rawSnapshot));
+        } else {
+            interpretation.put("summary", "Score is the bounded sum of structured evidence and semantic evidence minus normal-similarity suppression.");
+            interpretation.put("reason", report == null ? null : report.reasonSummary());
+        }
+        return interpretation;
+    }
+
+    private String zeroScoreReason(PendingAnomalyEvidenceReport report, Map<String, Object> rawSnapshot) {
+        if (rawSnapshot != null && Boolean.TRUE.equals(rawSnapshot.get("nonActionableRequest"))) {
+            return "NON_ACTIONABLE_REQUEST_EXCLUDED";
+        }
+        if (report != null && isEmpty(report.anchorSignals()) && isEmpty(report.corroboratingSignals())) {
+            return "NO_APPLIED_TRUSTED_RISK_SIGNAL";
+        }
+        Object semantic = rawSnapshot == null ? null : rawSnapshot.get("semanticEvidence");
+        if (semantic instanceof Map<?, ?> map && map.containsKey("semanticEvidenceGapCodes")) {
+            return "SEMANTIC_EVIDENCE_GAP";
+        }
+        return "CONDITIONS_NOT_MET";
+    }
+
+    private List<Map<String, Object>> signalExplanations(
+            PendingAnomalyEvidenceReport report,
+            Map<String, Object> rawSnapshot,
+            HcadBaselineComparison baselineComparison) {
+        List<String> anchors = report == null ? List.of() : report.anchorSignals();
+        List<String> corroborating = report == null ? List.of() : report.corroboratingSignals();
+        Object scorerExplanations = rawSnapshot == null ? null : rawSnapshot.get("signalExplanations");
+        if (scorerExplanations instanceof List<?> scorerList && !scorerList.isEmpty()) {
+            return normalizeSignalExplanations(scorerList, rawSnapshot, baselineComparison);
+        }
+        List<Map<String, Object>> explanations = new ArrayList<>();
+        for (HcadPreProtectablePromotionSignal signal : HcadPreProtectablePromotionSignal.values()) {
+            boolean appliedAsAnchor = anchors.contains(signal.name());
+            boolean appliedAsCorroborating = corroborating.contains(signal.name());
+            Map<String, Object> explanation = new LinkedHashMap<>();
+            explanation.put("signal", signal.name());
+            explanation.put("displayName", signalDisplayName(signal));
+            explanation.put("type", signal.isAnchor() ? "ANCHOR" : "CORROBORATING");
+            explanation.put("weight", signal.weight());
+            explanation.put("requiredFields", signal.requiredContractFields());
+            explanation.put("condition", signalCondition(signal));
+            explanation.put("applied", appliedAsAnchor || appliedAsCorroborating);
+            explanation.put("appliedAs", appliedAsAnchor ? "ANCHOR" : appliedAsCorroborating ? "CORROBORATING" : null);
+            explanation.put("currentValues", valuesForFields(rawSnapshot, signal.requiredContractFields()));
+            explanation.put("baselineValues", baselineValuesForSignal(signal, baselineComparison));
+            explanation.put("fieldSources", fieldExplanations(rawSnapshot, signal.requiredContractFields()));
+            explanation.put("excludedReason", appliedAsAnchor || appliedAsCorroborating
+                    ? null
+                    : signalUnmetReason(signal, rawSnapshot));
+            explanation.put("unmetReason", appliedAsAnchor || appliedAsCorroborating
+                    ? null
+                    : signalUnmetReason(signal, rawSnapshot));
+            explanations.add(explanation);
+        }
+        return explanations;
+    }
+
+    private List<Map<String, Object>> normalizeSignalExplanations(
+            List<?> scorerList,
+            Map<String, Object> rawSnapshot,
+            HcadBaselineComparison baselineComparison) {
+        List<Map<String, Object>> explanations = new ArrayList<>();
+        for (Object item : scorerList) {
+            if (item instanceof Map<?, ?> map) {
+                Map<String, Object> explanation = new LinkedHashMap<>();
+                map.forEach((key, value) -> explanation.put(String.valueOf(key), value));
+                HcadPreProtectablePromotionSignal signal = signal(text(explanation.get("signal")));
+                if (signal != null) {
+                    explanation.putIfAbsent("displayName", signalDisplayName(signal));
+                    explanation.putIfAbsent("type", signal.isAnchor() ? "ANCHOR" : "CORROBORATING");
+                    explanation.putIfAbsent("baselineValues", baselineValuesForSignal(signal, baselineComparison));
+                    explanation.put("fieldSources", fieldExplanations(rawSnapshot, signal.requiredContractFields()));
+                    explanation.putIfAbsent("excludedReason", explanation.get("unmetReason"));
+                }
+                explanations.add(explanation);
+            }
+        }
+        return explanations;
+    }
+
+    private HcadPreProtectablePromotionSignal signal(String signalName) {
+        if (signalName == null || signalName.isBlank()) {
+            return null;
+        }
+        try {
+            return HcadPreProtectablePromotionSignal.valueOf(signalName);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String signalDisplayName(HcadPreProtectablePromotionSignal signal) {
+        return switch (signal) {
+            case IMPOSSIBLE_TRAVEL -> "Unusual access location";
+            case FAILED_LOGIN_BURST -> "Repeated failed login";
+            case AUTH_CONTEXT_INCONSISTENT -> "Inconsistent authentication state";
+            case RECENT_PERMISSION_CHANGE -> "Recent permission change";
+            case PRIVILEGED_AUTHORIZATION -> "Privileged authorization request";
+            case FRESH_MFA_REQUIRED -> "Fresh MFA required";
+            case REQUEST_BURST -> "Short-time request increase";
+            case RAPID_SEQUENCE -> "Rapid request sequence";
+            case PREVIOUS_PATH_JUMP -> "Different flow from previous screen";
+            case LOW_AUTH_ASSURANCE -> "Low authentication assurance";
+            case BASELINE_MATERIAL_MISMATCH -> "Different from personal baseline";
+            case SEMANTIC_EVIDENCE_MISMATCH -> "Different from allowed semantic evidence";
+            case SEMANTIC_RISK_SIMILARITY -> "Similar to risk semantic evidence";
+        };
+    }
+
+    private String signalCondition(HcadPreProtectablePromotionSignal signal) {
+        return switch (signal) {
+            case IMPOSSIBLE_TRAVEL -> "Stored impossible-travel indicator is true.";
+            case FAILED_LOGIN_BURST -> "Stored failed-login burst count meets the configured threshold.";
+            case AUTH_CONTEXT_INCONSISTENT -> "Trusted authentication context is internally inconsistent.";
+            case RECENT_PERMISSION_CHANGE -> "Stored recent permission changes exist.";
+            case PRIVILEGED_AUTHORIZATION -> "Bridge-verified authorization context marks the request as privileged.";
+            case FRESH_MFA_REQUIRED -> "Verified resource requires fresh MFA and current MFA state is absent or stale.";
+            case REQUEST_BURST -> "Stored request count meets the configured burst threshold.";
+            case RAPID_SEQUENCE -> "Stored request sequence is marked rapid.";
+            case PREVIOUS_PATH_JUMP -> "Stored previous path and current path indicate an unusual navigation jump.";
+            case LOW_AUTH_ASSURANCE -> "Bridge-verified authentication assurance matches a configured low assurance value.";
+            case BASELINE_MATERIAL_MISMATCH -> "Personal baseline comparison reports a material mismatch.";
+            case SEMANTIC_EVIDENCE_MISMATCH -> "Fresh cached semantic evidence differs from prior allowed request evidence.";
+            case SEMANTIC_RISK_SIMILARITY -> "Fresh cached semantic evidence is similar to verified risk evidence.";
+        };
+    }
+
+    private String signalUnmetReason(HcadPreProtectablePromotionSignal signal, Map<String, Object> rawSnapshot) {
+        if (signal == HcadPreProtectablePromotionSignal.SEMANTIC_EVIDENCE_MISMATCH
+                || signal == HcadPreProtectablePromotionSignal.SEMANTIC_RISK_SIMILARITY) {
+            Object semantic = rawSnapshot == null ? null : rawSnapshot.get("semanticEvidence");
+            if (semantic instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get("semanticEvidenceFreshHit"))) {
+                return "SEMANTIC_THRESHOLD_NOT_MET";
+            }
+            return "FRESH_SEMANTIC_EVIDENCE_REQUIRED";
+        }
+        List<Map<String, Object>> fields = fieldExplanations(rawSnapshot, signal.requiredContractFields());
+        boolean allAllowed = !fields.isEmpty()
+                && fields.stream().allMatch(field -> Boolean.TRUE.equals(field.get("present"))
+                && Boolean.TRUE.equals(field.get("scoringAllowed")));
+        return allAllowed ? "CONDITION_NOT_MET" : "REQUIRED_TRUSTED_CONTEXT_ABSENT";
+    }
+
+    private Map<String, Object> contextExplanation(
+            PendingAnomalyEvidenceReport report,
+            Map<String, Object> rawSnapshot,
+            String normalizedPath,
+            String resourceId,
+            String requestId) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("userId", report == null ? null : report.userId());
+        context.put("tenantId", rawSnapshot == null ? null : rawSnapshot.get("tenantId"));
+        context.put("organizationId", rawSnapshot == null ? null : rawSnapshot.get("organizationId"));
+        context.put("sessionId", report == null ? null : report.sessionId());
+        context.put("contextBindingHash", report == null ? null : report.contextBindingHash());
+        context.put("method", report == null ? null : report.httpMethod());
+        context.put("normalizedPath", normalizedPath);
+        context.put("resourceId", resourceId);
+        context.put("requestId", requestId);
+        context.put("windowId", rawSnapshot == null ? null : rawSnapshot.get("windowId"));
+        context.put("actorSessionKey", rawSnapshot == null ? null : rawSnapshot.get("actorSessionKey"));
+        context.put("source", "HCAD_TRUSTED_PROJECTION");
+        return context;
+    }
+
+    private Map<String, Object> baselineExplanation(HcadBaselineComparison baselineComparison) {
+        HcadBaselineComparison baseline = baselineComparison == null
+                ? HcadBaselineComparison.unavailable(0)
+                : baselineComparison;
+        Map<String, Object> explanation = new LinkedHashMap<>();
+        explanation.put("available", baseline.available());
+        explanation.put("established", baseline.established());
+        explanation.put("updateCount", baseline.updateCount());
+        explanation.put("minSamples", baseline.minSamples());
+        explanation.put("comparedDimensions", baseline.comparedDimensions());
+        explanation.put("mismatchCount", baseline.mismatchCount());
+        explanation.put("matchRatio", baseline.matchRatio());
+        explanation.put("materialMismatch", baseline.materialMismatch());
+        explanation.put("matchedDimensions", baseline.matchedDimensions());
+        explanation.put("mismatchedDimensions", baseline.mismatchedDimensions());
+        explanation.put("missingDimensions", baseline.missingDimensions());
+        explanation.put("currentValues", baseline.currentValues());
+        explanation.put("referenceValues", baseline.baselineValues());
+        explanation.put("confidence", baseline.established() ? baseline.matchRatio() : 0.0d);
+        explanation.put("confidenceSource", "baselineMatchRatio");
+        explanation.put("lastUpdated", baseline.lastUpdated() == null ? null : baseline.lastUpdated().toString());
+        explanation.put("lastUpdatedAgeSeconds", baseline.lastUpdated() == null
+                ? null
+                : Math.max(0L, Instant.now().getEpochSecond() - baseline.lastUpdated().getEpochSecond()));
+        explanation.put("lastUpdatedStatus", baseline.lastUpdated() == null
+                ? "NOT_RECORDED"
+                : "RECORDED");
+        explanation.put("dimensionExplanations", baselineDimensionExplanations(baseline));
+        return explanation;
+    }
+
+    private List<Map<String, Object>> baselineDimensionExplanations(HcadBaselineComparison baseline) {
+        if (baseline == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> explanations = new ArrayList<>();
+        for (String dimension : baseline.mismatchedDimensions()) {
+            explanations.add(baselineDimensionExplanation(baseline, dimension, "MISMATCH"));
+        }
+        for (String dimension : baseline.matchedDimensions()) {
+            explanations.add(baselineDimensionExplanation(baseline, dimension, "MATCH"));
+        }
+        for (String dimension : baseline.missingDimensions()) {
+            explanations.add(baselineDimensionExplanation(baseline, dimension, "MISSING"));
+        }
+        return explanations;
+    }
+
+    private Map<String, Object> baselineDimensionExplanation(
+            HcadBaselineComparison baseline,
+            String dimension,
+            String status) {
+        Map<String, Object> explanation = new LinkedHashMap<>();
+        explanation.put("dimension", dimension);
+        explanation.put("displayName", baselineDimensionDisplayName(dimension));
+        explanation.put("status", status);
+        explanation.put("currentValue", baseline.currentValues().get(dimension));
+        explanation.put("referenceValue", baselineReferenceValue(baseline, dimension));
+        explanation.put("weight", "MISMATCH".equals(status) && baseline.materialMismatch()
+                ? HcadPreProtectablePromotionSignal.BASELINE_MATERIAL_MISMATCH.weight()
+                : 0);
+        return explanation;
+    }
+
+    private Object baselineReferenceValue(HcadBaselineComparison baseline, String dimension) {
+        if (baseline == null || dimension == null) {
+            return null;
+        }
+        Map<String, Object> values = baseline.baselineValues();
+        return switch (dimension) {
+            case "ipBand" -> firstPresent(values, "normalIpBands", "normalIpRanges");
+            case "accessHour" -> values.get("normalAccessHours");
+            case "accessDay" -> values.get("normalAccessDays");
+            case "pathFamily" -> firstPresent(values, "frequentResourceFamilies", "frequentPaths");
+            case "httpMethod" -> values.get("httpMethod");
+            case "userAgent" -> values.get("normalUserAgents");
+            case "operatingSystem" -> values.get("normalOperatingSystems");
+            case "browser" -> values.get("normalBrowsers");
+            case "authenticationType" -> values.get("normalAuthenticationTypes");
+            default -> values.get(dimension);
+        };
+    }
+
+    private Object firstPresent(Map<String, Object> values, String... keys) {
+        if (values == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = values.get(key);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String baselineDimensionDisplayName(String dimension) {
+        return switch (dimension == null ? "" : dimension) {
+            case "ipBand" -> "IP band";
+            case "accessHour" -> "Access hour";
+            case "accessDay" -> "Access day";
+            case "pathFamily" -> "Screen/API family";
+            case "httpMethod" -> "HTTP method";
+            case "userAgent" -> "Browser signature";
+            case "operatingSystem" -> "Operating system";
+            case "browser" -> "Browser";
+            case "authenticationType" -> "Authentication type";
+            case "personalBaselineInsufficientSamples" -> "Insufficient baseline samples";
+            case "personalBaselineUnavailable" -> "No personal baseline";
+            default -> dimension;
+        };
+    }
+
+    private Map<String, Object> rawSnapshotMap(Object rawSignals) {
+        Map<String, Object> rawSnapshot = new LinkedHashMap<>();
+        if (rawSignals instanceof Map<?, ?> map) {
+            map.forEach((key, value) -> rawSnapshot.put(String.valueOf(key), value));
+        }
+        return rawSnapshot;
+    }
+
+    private Map<String, Object> semanticEvidenceExplanation(Map<String, Object> rawSnapshot) {
+        Map<String, Object> explanation = new LinkedHashMap<>();
+        Object semanticEvidence = rawSnapshot == null ? null : rawSnapshot.get("semanticEvidence");
+        if (semanticEvidence instanceof Map<?, ?> semanticMap) {
+            semanticMap.forEach((key, value) -> explanation.put(String.valueOf(key), value));
+        } else {
+            explanation.put("semanticEvidenceAvailable", false);
+            explanation.put("semanticEvidenceGapCodes", List.of("SEMANTIC_EVIDENCE_NOT_RECORDED"));
+            explanation.put("semanticEvidenceEntries", List.of());
+        }
+        explanation.put("cacheProvider", rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceCacheProvider"));
+        explanation.put("cacheKeyType", "NORMAL_REQUEST_SIMILARITY/RISK_REQUEST_SIMILARITY");
+        explanation.put("sourceTable", "ai_security_decision_observation");
+        explanation.put("ttl", rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceTtl"));
+        explanation.put("expiresAt", rawSnapshot == null ? null : rawSnapshot.get("semanticEvidenceExpiresAt"));
+        explanation.put("ttlStatus", rawSnapshot != null && rawSnapshot.containsKey("semanticEvidenceExpiresAt")
+                ? "RECORDED"
+                : "NOT_RECORDED_IN_RAW_SNAPSHOT");
+        return explanation;
+    }
+
+    private Map<String, Object> freshnessExplanation(
+            Map<String, Object> rawSnapshot,
+            HcadBaselineComparison baselineComparison) {
+        Map<String, Object> freshness = new LinkedHashMap<>();
+        freshness.put("windowId", rawSnapshot == null ? null : rawSnapshot.get("windowId"));
+        freshness.put("requestCount", rawSnapshot == null ? null : rawSnapshot.get("requestCount"));
+        freshness.put("duplicateSuppressedCount", rawSnapshot == null ? null : rawSnapshot.get("duplicateSuppressedCount"));
+        freshness.put("negativeCacheHitCount", rawSnapshot == null ? null : rawSnapshot.get("negativeCacheHitCount"));
+        freshness.put("observationWindowTtl", rawSnapshot == null ? null : rawSnapshot.get("observationWindowTtl"));
+        freshness.put("observationWindowTtlStatus", rawSnapshot != null && rawSnapshot.containsKey("observationWindowTtl")
+                ? "RECORDED"
+                : "NOT_RECORDED_IN_RAW_SNAPSHOT");
+        freshness.put("baselineUpdateCount", baselineComparison == null ? null : baselineComparison.updateCount());
+        freshness.put("baselineLastUpdatedAge", "NOT_RECORDED_IN_BASELINE_COMPARISON");
+        Object semanticEvidence = rawSnapshot == null ? null : rawSnapshot.get("semanticEvidence");
+        if (semanticEvidence instanceof Map<?, ?> semanticMap) {
+            freshness.put("semanticEvidenceFreshHit", semanticMap.get("semanticEvidenceFreshHit"));
+            freshness.put("semanticEvidenceStaleHit", semanticMap.get("semanticEvidenceStaleHit"));
+            freshness.put("semanticEvidenceGapCodes", semanticMap.get("semanticEvidenceGapCodes"));
+        }
+        return freshness;
+    }
+
+    private Map<String, Object> triggerExplanation(
+            PendingAnomalyEvidenceReport report,
+            String nonTriggerReason,
+            String triggerDecisionReason,
+            List<String> evidenceGaps) {
+        Map<String, Object> explanation = new LinkedHashMap<>();
+        explanation.put("shouldTrigger", report == null ? null : report.shouldTrigger());
+        explanation.put("triggerDecisionReason", triggerDecisionReason);
+        explanation.put("nonTriggerReason", nonTriggerReason);
+        explanation.put("riskSignature", report == null ? null : report.riskSignature());
+        explanation.put("triggerStateKey", report == null ? null : report.triggerStateKey());
+        explanation.put("evidenceGapCodes", evidenceGaps);
+        explanation.put("anchorSignals", report == null ? List.of() : report.anchorSignals());
+        explanation.put("corroboratingSignals", report == null ? List.of() : report.corroboratingSignals());
+        explanation.put("eligibleQuorum", report == null || report.rawSignalSnapshot() == null
+                ? null
+                : report.rawSignalSnapshot().get("eligibleQuorum"));
+        explanation.put("eligibleFalseReasons", report == null || report.rawSignalSnapshot() == null
+                ? List.of()
+                : report.rawSignalSnapshot().get("eligibleFalseReasons"));
+        explanation.put("reasonSummary", report == null ? null : report.reasonSummary());
+        return explanation;
+    }
+
+    private Map<String, Object> triggerStateExplanation(
+            String triggerDecisionReason,
+            String nonTriggerReason,
+            boolean triggeredLlm,
+            String mergedRelation,
+            String protectableResourceId,
+            String protectableResourceUrl,
+            String protectableHttpMethod) {
+        Map<String, Object> explanation = new LinkedHashMap<>();
+        explanation.put("triggerDecisionReason", triggerDecisionReason);
+        explanation.put("nonTriggerReason", nonTriggerReason);
+        explanation.put("triggeredLlm", triggeredLlm);
+        explanation.put("modeSemantics", modeSemantics());
+        if (mergedRelation != null || protectableResourceId != null || protectableResourceUrl != null || protectableHttpMethod != null) {
+            Map<String, Object> merge = new LinkedHashMap<>();
+            merge.put("relation", mergedRelation);
+            merge.put("reason", "Same request reused the Protectable LLM decision instead of publishing a duplicate HCAD LLM trigger.");
+            merge.put("protectableResourceId", protectableResourceId);
+            merge.put("protectableResourceUrl", protectableResourceUrl);
+            merge.put("protectableHttpMethod", protectableHttpMethod);
+            explanation.put("mergeExplanation", merge);
+        }
+        return explanation;
+    }
+
+    private Map<String, Object> duplicateSuppressedExplanation(String existingEvaluationId, String nonTriggerReason) {
+        Map<String, Object> explanation = triggerStateExplanation(
+                "DUPLICATE_SUPPRESSED",
+                nonTriggerReason,
+                false,
+                null,
+                null,
+                null,
+                null);
+        explanation.put("existingEvaluationId", existingEvaluationId);
+        explanation.put("suppressionScope", "ACTOR_WINDOW");
+        explanation.put("reason", "Repeated requests in the same actor window are counted on the existing HCAD evaluation instead of creating request-level rows.");
+        return explanation;
+    }
+
+    private Map<String, Object> modeSemantics() {
+        Map<String, Object> modes = new LinkedHashMap<>();
+        modes.put("DISABLED", "HCAD does not evaluate or publish LLM triggers.");
+        modes.put("OBSERVE", "HCAD may observe configured data but must not publish LLM triggers.");
+        modes.put("SHADOW", "HCAD evaluates and records candidates; LLM decision remains non-enforcing.");
+        modes.put("ENFORCE", "HCAD eligible trigger can publish an LLM analysis request according to policy.");
+        return modes;
+    }
+
+    private Map<String, Object> valuesForFields(Map<String, Object> rawSnapshot, List<String> fields) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        if (fields == null || fields.isEmpty()) {
+            return values;
+        }
+        for (String field : fields) {
+            values.put(field, rawSnapshot == null ? null : rawSnapshot.get(field));
+        }
+        return values;
+    }
+
+    private List<Map<String, Object>> fieldExplanations(Map<String, Object> rawSnapshot, List<String> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Object> provenance = provenanceMap(rawSnapshot);
+        List<Map<String, Object>> explanations = new ArrayList<>();
+        for (String field : fields) {
+            HcadPromptSecurityContextFieldContract contract = HcadPromptSecurityContextFieldRegistry.contract(field);
+            Object rawProvenance = provenance.get(field);
+            String source = provenanceSource(rawProvenance);
+            HcadTrustedSource trustedSource = trustedSource(source);
+            Map<String, Object> explanation = new LinkedHashMap<>();
+            explanation.put("field", field);
+            explanation.put("value", rawSnapshot == null ? null : rawSnapshot.get(field));
+            explanation.put("source", source);
+            explanation.put("present", provenancePresent(rawProvenance, rawSnapshot != null && rawSnapshot.containsKey(field)));
+            explanation.put("reason", provenanceReason(rawProvenance));
+            explanation.put("source_field_path", contract == null ? null : contract.canonicalPath());
+            explanation.put("sourceFieldPath", contract == null ? null : contract.canonicalPath());
+            explanation.put("allowedSources", contract == null
+                    ? List.of()
+                    : contract.allowedSources().stream().map(Enum::name).toList());
+            explanation.put("scoringAllowed", contract != null && contract.allowsScoringFrom(trustedSource));
+            explanation.put("owner", contract == null ? null : contract.owner());
+            explanation.put("normalizer", contract == null ? null : contract.normalizer());
+            explanation.put("officialMetadataKey", contract == null ? null : contract.officialMetadataKey());
+            explanations.add(explanation);
+        }
+        return explanations;
+    }
+
+    private Map<String, Object> provenanceMap(Map<String, Object> rawSnapshot) {
+        Map<String, Object> provenance = new LinkedHashMap<>();
+        Object raw = rawSnapshot == null ? null : rawSnapshot.get("signalProvenance");
+        if (raw instanceof Map<?, ?> map) {
+            map.forEach((key, value) -> provenance.put(String.valueOf(key), value));
+        }
+        return provenance;
+    }
+
+    private String provenanceSource(Object rawProvenance) {
+        if (rawProvenance instanceof HcadFieldProvenance provenance) {
+            return provenance.source().name();
+        }
+        if (rawProvenance instanceof Map<?, ?> map) {
+            Object source = firstMapValue(map, "source", "trustedSource");
+            if (source != null) {
+                return source.toString();
+            }
+        }
+        if (rawProvenance instanceof String text && !text.isBlank()) {
+            return text;
+        }
+        return HcadTrustedSource.ABSENT.name();
+    }
+
+    private boolean provenancePresent(Object rawProvenance, boolean fallback) {
+        if (rawProvenance instanceof HcadFieldProvenance provenance) {
+            return provenance.present();
+        }
+        if (rawProvenance instanceof Map<?, ?> map) {
+            Object present = firstMapValue(map, "present");
+            if (present instanceof Boolean bool) {
+                return bool;
+            }
+            if (present != null) {
+                return Boolean.parseBoolean(present.toString());
+            }
+        }
+        return fallback;
+    }
+
+    private String provenanceReason(Object rawProvenance) {
+        if (rawProvenance instanceof HcadFieldProvenance provenance) {
+            return provenance.reason();
+        }
+        if (rawProvenance instanceof Map<?, ?> map) {
+            Object reason = firstMapValue(map, "reason");
+            return reason == null ? null : reason.toString();
+        }
+        return null;
+    }
+
+    private Object firstMapValue(Map<?, ?> map, String... keys) {
+        if (map == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (map.containsKey(key)) {
+                return map.get(key);
+            }
+        }
+        return null;
+    }
+
+    private HcadTrustedSource trustedSource(String source) {
+        if (source == null || source.isBlank()) {
+            return HcadTrustedSource.ABSENT;
+        }
+        try {
+            return HcadTrustedSource.valueOf(source);
+        } catch (IllegalArgumentException ex) {
+            return HcadTrustedSource.ABSENT;
+        }
+    }
+
+    private Map<String, Object> baselineValuesForSignal(
+            HcadPreProtectablePromotionSignal signal,
+            HcadBaselineComparison baselineComparison) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        if (signal != HcadPreProtectablePromotionSignal.BASELINE_MATERIAL_MISMATCH
+                || baselineComparison == null) {
+            return values;
+        }
+        values.put("referenceValues", baselineComparison.baselineValues());
+        values.put("mismatchedDimensions", baselineComparison.mismatchedDimensions());
+        values.put("missingDimensions", baselineComparison.missingDimensions());
+        values.put("matchRatio", baselineComparison.matchRatio());
+        return values;
     }
 
     private HcadBaselineComparison baselineComparison(Map<String, Object> rawSnapshot) {
@@ -629,7 +1282,8 @@ public class HcadEvaluationWriter {
                         stringList(typed.get("mismatchedDimensions")),
                         stringList(typed.get("missingDimensions")),
                         Map.of(),
-                        Map.of());
+                        Map.of(),
+                        instant(typed.get("lastUpdated")));
             }
             return HcadBaselineComparison.unavailable(0);
         }
@@ -802,6 +1456,13 @@ public class HcadEvaluationWriter {
                         trigger_decision_reason,
                         signal_snapshot_json,
                         signal_provenance_json,
+                        score_breakdown_json,
+                        signal_explanations_json,
+                        context_explanation_json,
+                        baseline_explanation_json,
+                        semantic_evidence_explanation_json,
+                        freshness_explanation_json,
+                        trigger_explanation_json,
                         llm_action,
                         llm_proposed_action,
                         llm_risk_score,
@@ -818,7 +1479,7 @@ public class HcadEvaluationWriter {
                         triggered_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     evaluation.getEvaluationId(),
@@ -866,6 +1527,13 @@ public class HcadEvaluationWriter {
                     evaluation.getTriggerDecisionReason(),
                     evaluation.getSignalSnapshotJson(),
                     evaluation.getSignalProvenanceJson(),
+                    evaluation.getScoreBreakdownJson(),
+                    evaluation.getSignalExplanationsJson(),
+                    evaluation.getContextExplanationJson(),
+                    evaluation.getBaselineExplanationJson(),
+                    evaluation.getSemanticEvidenceExplanationJson(),
+                    evaluation.getFreshnessExplanationJson(),
+                    evaluation.getTriggerExplanationJson(),
                     evaluation.getLlmAction(),
                     evaluation.getLlmProposedAction(),
                     evaluation.getLlmRiskScore(),
@@ -1027,6 +1695,21 @@ public class HcadEvaluationWriter {
     private Double doubleDefault(Object value, double defaultValue) {
         Double resolved = doubleValue(value);
         return resolved == null ? defaultValue : resolved;
+    }
+
+    private Instant instant(Object value) {
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        String text = text(value);
+        if (text == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(text);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private Boolean bool(Object value) {

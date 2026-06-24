@@ -25,6 +25,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -259,6 +260,31 @@ class HcadSemanticEvidenceCacheTest {
         assertThat(projection.hasUsableEvidence()).isFalse();
         assertThat(projection.evidenceGapCodes())
                 .contains("DIMENSION_MISMATCH");
+    }
+
+    @Test
+    @DisplayName("stale semantic evidence should remain visible but not usable for scoring")
+    void projection_staleHit_shouldRemainVisibleButNotUsableForScoring() {
+        HcadSemanticEvidenceEntry entry = entry(HcadSemanticEvidenceCacheStatus.STALE_HIT);
+
+        CachedSemanticEvidenceProjection projection = CachedSemanticEvidenceProjection.of(List.of(entry));
+
+        assertThat(projection.hasUsableEvidence()).isFalse();
+        assertThat(projection.hasFreshHit()).isFalse();
+        assertThat(projection.hasStaleHit()).isTrue();
+        assertThat(projection.maxSimilarityToRisk()).isZero();
+        assertThat(projection.evidenceGapCodes()).contains("STALE_HIT");
+        assertThat(projection.snapshot())
+                .extracting("semanticEvidenceStaleHit")
+                .isEqualTo(true);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries =
+                (List<Map<String, Object>>) projection.snapshot().get("semanticEvidenceEntries");
+        assertThat(entries).singleElement().satisfies(snapshot -> {
+            assertThat(snapshot).containsEntry("status", "STALE_HIT");
+            assertThat(snapshot).containsEntry("sourceTable", "source-v1");
+            assertThat(snapshot).containsEntry("sampleCount", null);
+        });
     }
 
     private ObjectMapper objectMapper() {

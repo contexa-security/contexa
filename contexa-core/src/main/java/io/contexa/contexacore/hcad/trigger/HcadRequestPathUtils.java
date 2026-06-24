@@ -139,7 +139,7 @@ public final class HcadRequestPathUtils {
         if (!StringUtils.hasText(path)) {
             return path;
         }
-        String trimmed = path.trim();
+        String trimmed = stripMatrixParameters(path.trim());
         return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
@@ -249,5 +249,22 @@ public final class HcadRequestPathUtils {
             return true;
         }
         return value.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+    }
+
+    private static String stripMatrixParameters(String path) {
+        if (!StringUtils.hasText(path) || !path.contains(";")) {
+            return path;
+        }
+        StringBuilder stripped = new StringBuilder(path.length());
+        String[] segments = path.split("/", -1);
+        for (int i = 0; i < segments.length; i++) {
+            if (i > 0) {
+                stripped.append('/');
+            }
+            String segment = segments[i];
+            int matrixStart = segment.indexOf(';');
+            stripped.append(matrixStart >= 0 ? segment.substring(0, matrixStart) : segment);
+        }
+        return stripped.toString();
     }
 }

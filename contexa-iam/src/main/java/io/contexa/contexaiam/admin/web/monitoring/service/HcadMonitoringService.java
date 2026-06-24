@@ -26,13 +26,19 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnaps
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RuntimeModeSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Breakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.CountBreakdown;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadEvaluationExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.LlmDecisionExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualification;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.RecentEvaluation;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.RequestExplanation;
+import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ScoreExplanation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ResourceBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ScoreBandBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.UserSessionBreakdown;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -201,6 +207,70 @@ public class HcadMonitoringService {
     @Transactional(readOnly = true)
     public String exportCsv(String period) {
         return exportCsv(period, Locale.ENGLISH);
+    }
+
+    @Transactional(readOnly = true)
+    public HcadEvaluationExplanation explainEvaluation(String evaluationId) {
+        if (evaluationId == null || evaluationId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "HCAD evaluation not found");
+        }
+        HcadDetectionEvaluation evaluation = repository.findById(evaluationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "HCAD evaluation not found"));
+        Map<String, Object> rawSignalSnapshot = readMap(evaluation.getSignalSnapshotJson());
+        return new HcadEvaluationExplanation(
+                evaluation.getEvaluationId(),
+                new RequestExplanation(
+                        evaluation.getRequestId(),
+                        evaluation.getEventId(),
+                        evaluation.getCorrelationId(),
+                        evaluation.getTestRunId(),
+                        evaluation.getUserId(),
+                        evaluation.getActorSessionKey(),
+                        evaluation.getContextBindingHash(),
+                        evaluation.getWindowId(),
+                        evaluation.getHttpMethod(),
+                        evaluation.getRequestPath(),
+                        evaluation.getNormalizedPath(),
+                        evaluation.getResourceId(),
+                        evaluation.getMode(),
+                        format(evaluation.getCreatedAt()),
+                        format(evaluation.getTriggeredAt()),
+                        format(evaluation.getDecidedAt())),
+                new ScoreExplanation(
+                        evaluation.getEarlyAnalysisScore(),
+                        evaluation.getBand(),
+                        evaluation.getEligible(),
+                        evaluation.getTriggeredLlm(),
+                        evaluation.getDuplicateSuppressed(),
+                        evaluation.getDuplicateSuppressedCount(),
+                        firstText(evaluation.getNonTriggerReason(), inferredNonTriggerReason(
+                                evaluation,
+                                readStringList(evaluation.getAnchorSignals()),
+                                readStringList(evaluation.getCorroboratingSignals()))),
+                        evaluation.getTriggerDecisionReason(),
+                        evaluation.getOutcomeClass()),
+                readMap(evaluation.getScoreBreakdownJson()),
+                readMapList(evaluation.getSignalExplanationsJson()),
+                readMap(evaluation.getContextExplanationJson()),
+                readMap(evaluation.getBaselineExplanationJson()),
+                readMap(evaluation.getSemanticEvidenceExplanationJson()),
+                readMap(evaluation.getFreshnessExplanationJson()),
+                readMap(evaluation.getTriggerExplanationJson()),
+                readMap(evaluation.getSignalProvenanceJson()),
+                rawSignalSnapshot,
+                readStringListFromObject(rawSignalSnapshot.get("ignoredInputs")),
+                new LlmDecisionExplanation(
+                        evaluation.getLlmAction(),
+                        evaluation.getLlmProposedAction(),
+                        evaluation.getLlmRiskScore(),
+                        evaluation.getLlmConfidence(),
+                        evaluation.getLlmLatencyMs(),
+                        evaluation.getLlmParserFailure(),
+                        evaluation.getLlmTechnicalFallback(),
+                        evaluation.getLlmFallbackCategory(),
+                        evaluation.getLlmFallbackReason(),
+                        evaluation.getLlmReasoningSummary(),
+                        evaluation.getLlmReasoningHash()));
     }
 
     @Transactional(readOnly = true)
@@ -452,6 +522,22 @@ public class HcadMonitoringService {
         }
     }
 
+    private List<String> readStringListFromObject(Object raw) {
+        if (raw == null) {
+            return List.of();
+        }
+        if (raw instanceof List<?> list) {
+            return list.stream()
+                    .filter(value -> value != null && !value.toString().isBlank())
+                    .map(Object::toString)
+                    .toList();
+        }
+        if (raw instanceof String text) {
+            return readStringList(text);
+        }
+        return List.of(raw.toString());
+    }
+
     private String readSnapshotText(String json, String key) {
         MapSnapshot snapshot = readSnapshot(json);
         Object value = snapshot.values().get(key);
@@ -571,6 +657,23 @@ public class HcadMonitoringService {
             }));
         } catch (Exception ignored) {
             return new MapSnapshot(Map.of());
+        }
+    }
+
+    private Map<String, Object> readMap(String json) {
+        return readSnapshot(json).values();
+    }
+
+    private List<Map<String, Object>> readMapList(String json) {
+        if (json == null || json.isBlank() || "null".equalsIgnoreCase(json.trim())) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {
+            });
+        } catch (Exception ignored) {
+            Map<String, Object> asMap = readMap(json);
+            return asMap.isEmpty() ? List.of() : List.of(asMap);
         }
     }
 

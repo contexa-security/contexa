@@ -92,7 +92,10 @@ public class PendingAnomalyTriggerOrchestrator {
         }
 
         PendingAnomalyEvidenceReport report = evidenceCheckService.evaluate(request, eligibility);
-        String evaluationId = recordCandidate(mode, report);
+        if (report == null) {
+            return;
+        }
+        String evaluationId = shouldPersistEvaluation(report) ? recordCandidate(mode, report) : null;
         if (request != null && evaluationId != null) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
         }
@@ -166,6 +169,17 @@ public class PendingAnomalyTriggerOrchestrator {
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to record HCAD evaluation candidate", ex);
             return null;
         }
+    }
+
+    private boolean shouldPersistEvaluation(PendingAnomalyEvidenceReport report) {
+        if (report == null) {
+            return false;
+        }
+        if (report.shouldTrigger() || report.escalationEligible()) {
+            return true;
+        }
+        String band = report.escalationBand();
+        return "HIGH".equalsIgnoreCase(band) || "REDLINE".equalsIgnoreCase(band);
     }
 
     private void markTriggered(String evaluationId) {

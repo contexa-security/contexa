@@ -178,6 +178,32 @@ class InMemoryHcadObservationWindowRepositoryTest {
                 "FAILED_LOGIN_BURST")).isFalse();
     }
 
+    @Test
+    @DisplayName("actor-session evaluation TTL should suppress the same trusted context signature")
+    void tryAcquireActorSessionEvaluation_sameSignatureWithinTtl_shouldSuppress() throws Exception {
+        InMemoryHcadObservationWindowRepository repository = new InMemoryHcadObservationWindowRepository();
+
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                "actor-1",
+                "NO_TRUSTED_ANCHOR_SIGNAL",
+                Duration.ofMillis(50))).isTrue();
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                "actor-1",
+                "NO_TRUSTED_ANCHOR_SIGNAL",
+                Duration.ofMillis(50))).isFalse();
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                "actor-1",
+                "REQUEST_BURST_BUCKET:2",
+                Duration.ofMillis(50))).isTrue();
+
+        Thread.sleep(75L);
+
+        assertThat(repository.tryAcquireActorSessionEvaluation(
+                "actor-1",
+                "NO_TRUSTED_ANCHOR_SIGNAL",
+                Duration.ofMillis(50))).isTrue();
+    }
+
     private HcadRequestObservation observation(String requestId, String method, String path) {
         return new HcadRequestObservation(requestId, method, path, path, Instant.now());
     }

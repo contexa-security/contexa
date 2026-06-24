@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.projection;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,7 +34,8 @@ public record HcadBaselineComparison(
         List<String> mismatchedDimensions,
         List<String> missingDimensions,
         Map<String, Object> currentValues,
-        Map<String, Object> baselineValues
+        Map<String, Object> baselineValues,
+        Instant lastUpdated
 ) {
 
     public HcadBaselineComparison {
@@ -62,6 +64,7 @@ public record HcadBaselineComparison(
                 List.of(),
                 List.of("personalBaselineUnavailable"),
                 Map.of(),
-                Map.of());
+                Map.of(),
+                null);
     }
 }

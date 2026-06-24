@@ -13,6 +13,9 @@
     let recentEvaluations = [];
     let currentPage = 0;
     let expandedEvaluationId = null;
+    const detailCache = new Map();
+    const detailLoading = new Set();
+    const detailErrors = new Map();
 
     const statusEl = document.getElementById('hcad-status');
     const kpiEl = document.getElementById('hcad-kpis');
@@ -55,6 +58,9 @@
             if (!button) return;
             const id = button.getAttribute('data-hcad-detail');
             expandedEvaluationId = expandedEvaluationId === id ? null : id;
+            if (expandedEvaluationId && !detailCache.has(expandedEvaluationId) && !detailLoading.has(expandedEvaluationId)) {
+                fetchExplanation(expandedEvaluationId);
+            }
             renderRecent();
         });
     }
@@ -70,6 +76,28 @@
         .catch((error) => {
             statusEl.innerHTML = `<div class="hcad-band-title">${escapeHtml(label('labelUnavailable'))}</div><div class="text-sm" style="color:#f87171;">${escapeHtml(error.message)}</div>`;
         });
+
+    function fetchExplanation(evaluationId) {
+        detailLoading.add(evaluationId);
+        detailErrors.delete(evaluationId);
+        fetch(`/contexa/admin/api/ai-monitor/hcad/evaluations/${encodeURIComponent(evaluationId)}/explanation`, {
+            headers: { 'Accept': 'application/json' }
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then((payload) => {
+                detailCache.set(evaluationId, payload);
+            })
+            .catch((error) => {
+                detailErrors.set(evaluationId, error.message || String(error));
+            })
+            .finally(() => {
+                detailLoading.delete(evaluationId);
+                renderRecent();
+            });
+    }
 
     function render(summary) {
         if (rangeEl) {
@@ -155,8 +183,8 @@
         const kpis = [
             [label('labelHcadWindows'), summary.candidateCount, label('labelEvaluatedHelp')],
             [label('labelLlmCalls'), summary.triggeredLlmCount, label('labelLlmHelp')],
+            [label('labelPrecision'), formatPercentOrNoData(summary.precision || 0, comparisonAvailable), label('labelPrecisionHelp')],
             [label('labelFalsePositive'), summary.falsePositiveCount, label('labelFalsePositiveHelp')],
-            [label('labelObservableFn'), summary.observableFalseNegativeCount, label('labelObservableFnHelp')],
             [label('labelUnknown'), formatPercentOrNoData(summary.unknownRate || 0, comparisonAvailable), label('labelUnknownHelp')]
         ];
         kpiEl.innerHTML = kpis.map(([text, value, help]) => `
@@ -230,11 +258,6 @@
             meta: `${label('labelCandidateRequests')} ${formatter.format(item.candidateCount || 0)} / ${label('labelAiConfirmedRisk')} ${formatter.format(item.truePositiveCount || 0)} / ${label('labelFalsePositive')} ${formatter.format(item.falsePositiveCount || 0)}`,
             value: formatter.format(item.candidateCount || 0)
         }));
-        const nonTriggerRows = renderCountRows(summary.nonTriggerReasonBreakdown || [], (item) => ({
-            title: friendlyNonTriggerReason(item.key),
-            meta: nonTriggerHelp(item.key),
-            value: formatter.format(item.count || 0)
-        }));
         const evidenceRows = renderCountRows(summary.evidenceCoverageBreakdown || [], (item) => ({
             title: friendlyEvidenceGap(item.key),
             meta: evidenceHelp(item.key),
@@ -242,7 +265,6 @@
         }));
         signalEl.innerHTML = `
             ${miniSection(label('labelSignalEvidence'), signalRows)}
-            ${miniSection(label('labelNonTriggerReason'), nonTriggerRows)}
             ${miniSection(label('labelEvidenceCoverage'), evidenceRows)}
         `;
     }
@@ -340,27 +362,63 @@
     }
 
     function detailRow(item) {
+        const id = item.evaluationId;
+        let body;
+        if (!id) {
+            body = `<div class="hcad-simple-meta">${escapeHtml(label('labelDetailNoExplanation'))}</div>`;
+        } else if (detailLoading.has(id)) {
+            body = `<div class="hcad-simple-meta">${escapeHtml(label('labelDetailLoading'))}</div>`;
+        } else if (detailErrors.has(id)) {
+            body = `<div class="hcad-simple-meta" style="color:#f87171;">${escapeHtml(label('labelDetailLoadError'))}: ${escapeHtml(detailErrors.get(id))}</div>`;
+        } else if (detailCache.has(id)) {
+            body = explanationPanel(detailCache.get(id), item);
+        } else {
+            body = `<div class="hcad-simple-meta">${escapeHtml(label('labelDetailLoading'))}</div>`;
+        }
         return `
             <tr class="hcad-detail-row">
                 <td colspan="8">
-                    <div class="hcad-detail-panel">
-                        ${detailItem(label('labelEvaluationId'), item.evaluationId)}
-                        ${detailItem(label('labelRequestId'), item.requestId)}
-                        ${detailItem(label('labelMode'), friendlyMode(item.mode || '-'))}
-                        ${detailItem(label('labelTriggered'), item.triggeredLlm === true ? label('labelTriggered') : label('labelNotTriggered'))}
-                        ${detailItem(label('labelDuplicateSuppressed'), item.duplicateSuppressed === true ? label('labelYes') : label('labelNo'))}
-                        ${detailItem(label('labelNonTriggerReason'), friendlyNonTriggerReason(item.nonTriggerReason))}
-                        ${detailItem(label('labelEvidenceGap'), formatList(item.evidenceGaps, friendlyEvidenceGap))}
-                        ${detailItem(label('labelAnchorSignals'), formatList(item.anchorSignals, friendlySignal))}
-                        ${detailItem(label('labelCorroboratingSignals'), formatList(item.corroboratingSignals, friendlySignal))}
-                        ${detailItem(label('labelFinalAction'), displayOutcomeAction(item.llmAction))}
-                        ${detailItem(label('labelRiskScore'), item.llmRiskScore == null ? '-' : decimalFormatter.format(item.llmRiskScore))}
-                        ${detailItem(label('labelConfidence'), item.llmConfidence == null ? '-' : percentFormatter.format(item.llmConfidence))}
-                        ${detailItem(label('labelFallback'), fallbackSummary(item))}
-                        ${detailItem(label('labelDecidedAt'), formatDate(item.decidedAt))}
-                    </div>
+                    ${body}
                 </td>
             </tr>`;
+    }
+
+    function explanationPanel(explanation, fallbackItem) {
+        const request = explanation.request || {};
+        const score = explanation.score || {};
+        const llm = explanation.llmDecision || {};
+        return `
+            <div class="hcad-explanation">
+                ${detailSection(label('labelDetailQuestionTrigger'), [
+                    detailItem(label('labelEvaluationId'), explanation.evaluationId),
+                    detailItem(label('labelRequestId'), request.requestId || fallbackItem.requestId),
+                    detailItem(label('labelMode'), friendlyMode(request.mode || fallbackItem.mode || '-')),
+                    detailItem(label('labelTriggered'), score.triggeredLlm === true ? label('labelTriggered') : label('labelNotTriggered')),
+                    detailItem(label('labelNonTriggerReason'), friendlyNonTriggerReason(score.nonTriggerReason)),
+                    detailItem(label('labelTriggerDecisionReason'), friendlyNonTriggerReason(score.triggerDecisionReason)),
+                    detailItem(label('labelDuplicateSuppressed'), score.duplicateSuppressed === true ? `${label('labelYes')} (${formatter.format(score.duplicateSuppressedCount || 0)})` : label('labelNo')),
+                    detailItem(label('labelFinalAction'), displayOutcomeAction(llm.action)),
+                    detailItem(label('labelRiskScore'), llm.riskScore == null ? '-' : decimalFormatter.format(llm.riskScore)),
+                    detailItem(label('labelConfidence'), llm.confidence == null ? '-' : percentFormatter.format(llm.confidence))
+                ].join(''))}
+                ${detailSection(label('labelDetailQuestionScore'), `
+                    ${kvGrid(explanation.scoreBreakdown)}
+                    ${signalExplanationList(explanation.signalExplanations || [])}
+                `)}
+                ${detailSection(label('labelDetailQuestionBaseline'), kvGrid(explanation.baseline))}
+                ${detailSection(label('labelDetailQuestionSemantic'), kvGrid(explanation.semanticEvidence))}
+                ${detailSection(label('labelDetailQuestionFreshness'), kvGrid(explanation.freshness))}
+                ${detailSection(label('labelDetailQuestionIgnored'), ignoredInputsList(explanation.ignoredInputs || []))}
+                ${detailSection(label('labelDetailRawJson'), rawJsonDetails(explanation))}
+            </div>`;
+    }
+
+    function detailSection(title, body) {
+        return `
+            <section class="hcad-explanation-section">
+                <h3>${escapeHtml(title)}</h3>
+                <div>${body || `<div class="hcad-simple-meta">${escapeHtml(label('labelNoData'))}</div>`}</div>
+            </section>`;
     }
 
     function detailItem(title, value) {
@@ -369,6 +427,82 @@
                 <span>${escapeHtml(title)}</span>
                 <strong>${escapeHtml(value == null || value === '' ? '-' : value)}</strong>
             </div>`;
+    }
+
+    function kvGrid(value) {
+        const entries = objectEntries(value);
+        if (!entries.length) {
+            return `<div class="hcad-simple-meta">${escapeHtml(label('labelNoData'))}</div>`;
+        }
+        return `
+            <div class="hcad-detail-panel">
+                ${entries.map(([key, entryValue]) => detailItem(friendlyFieldName(key), displayAny(entryValue))).join('')}
+            </div>`;
+    }
+
+    function signalExplanationList(items) {
+        if (!Array.isArray(items) || !items.length) {
+            return `<div class="hcad-simple-meta">${escapeHtml(label('labelNoData'))}</div>`;
+        }
+        return `
+            <div class="hcad-signal-explanations">
+                ${items.map((item) => {
+                    const signal = friendlySignal(item.signal || item.key || '-');
+                    const applied = item.applied === true || item.appliedAs === true ? label('labelYes') : label('labelNo');
+                    return `
+                        <div class="hcad-signal-card">
+                            <div class="hcad-simple-title">${escapeHtml(signal)}</div>
+                            <div class="hcad-simple-meta">${escapeHtml(label('labelDetailApplied'))}: ${escapeHtml(applied)} / ${escapeHtml(label('labelDetailWeight'))}: ${escapeHtml(displayAny(item.weight))}</div>
+                            <div class="hcad-simple-meta">${escapeHtml(label('labelDetailCondition'))}: ${escapeHtml(displayAny(item.condition))}</div>
+                            <div class="hcad-simple-meta">${escapeHtml(label('labelDetailUnmetReason'))}: ${escapeHtml(displayAny(item.unmetReason))}</div>
+                        </div>`;
+                }).join('')}
+            </div>`;
+    }
+
+    function ignoredInputsList(items) {
+        if (!Array.isArray(items) || !items.length) {
+            return `<div class="hcad-simple-meta">${escapeHtml(label('labelNoData'))}</div>`;
+        }
+        return `<ul class="hcad-ignored-inputs">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    }
+
+    function rawJsonDetails(explanation) {
+        return `
+            <details class="hcad-raw-json">
+                <summary>${escapeHtml(label('labelDetailRawJsonOpen'))}</summary>
+                <pre>${escapeHtml(JSON.stringify({
+                    scoreBreakdown: explanation.scoreBreakdown || {},
+                    signalExplanations: explanation.signalExplanations || [],
+                    context: explanation.context || {},
+                    baseline: explanation.baseline || {},
+                    semanticEvidence: explanation.semanticEvidence || {},
+                    freshness: explanation.freshness || {},
+                    trigger: explanation.trigger || {},
+                    provenance: explanation.provenance || {},
+                    rawSignalSnapshot: explanation.rawSignalSnapshot || {}
+                }, null, 2))}</pre>
+            </details>`;
+    }
+
+    function objectEntries(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return [];
+        }
+        return Object.entries(value).filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== '');
+    }
+
+    function displayAny(value) {
+        if (value === null || value === undefined || value === '') return '-';
+        if (Array.isArray(value)) return value.length ? value.map(displayAny).join(', ') : '-';
+        if (typeof value === 'object') return JSON.stringify(value);
+        if (typeof value === 'boolean') return value ? label('labelYes') : label('labelNo');
+        return String(value);
+    }
+
+    function friendlyFieldName(key) {
+        const mapped = labels[`labelField${toDatasetSuffix(key)}`];
+        return mapped || key;
     }
 
     function updatePagination() {
