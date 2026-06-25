@@ -45,6 +45,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -107,7 +108,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
 
         if (!newResources.isEmpty()) {
-            int batchSize = 5;
+            int batchSize = 50;
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
             resourceBatches.forEach(this::processResourceBatch);
         }
@@ -148,16 +149,12 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         List<Map<String, String>> resourcesToSuggest = batch.stream()
                 .filter(Objects::nonNull)
                 .filter(r -> r.getResourceIdentifier() != null && !r.getResourceIdentifier().trim().isEmpty())
-                .map(r -> {
-                    String identifier = r.getResourceIdentifier();
-                    String owner = r.getServiceOwner() != null ? r.getServiceOwner() : "Unknown";
-
-                    return Map.of("identifier", identifier, "owner", owner);
-                })
+                .map(this::toResourceNamingInput)
                 .collect(Collectors.toList());
 
         if (resourcesToSuggest.isEmpty()) {
             log.error("No valid resources, skipping AI suggestion");
+            batch.forEach(this::applyFallback);
             managedResourceRepository.saveAll(batch);
             return;
         }
@@ -167,7 +164,25 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             ResourceNamingSuggestionResponse suggestionResponse =
                     aiNativeProcessor.process(request, ResourceNamingSuggestionResponse.class).block();
 
-            Map<String, ResourceNameSuggestion> suggestionsMap = suggestionResponse.toResourceNameSuggestionMap();
+            Set<String> requestedIdentifiers = resourcesToSuggest.stream()
+                    .map(resource -> resource.get("identifier"))
+                    .collect(Collectors.toSet());
+            Map<String, ResourceNameSuggestion> suggestionsMap = suggestionResponse == null
+                    ? Map.of()
+                    : suggestionResponse.toResourceNameSuggestionMap().entrySet().stream()
+                    .filter(entry -> requestedIdentifiers.contains(entry.getKey()))
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (first, ignored) -> first,
+                            LinkedHashMap::new
+                    ));
+
+            if (suggestionResponse == null) {
+                log.error("AI did not return a resource naming response; applying fallback for requested resources");
+            } else if (!suggestionResponse.getFailedIdentifiers().isEmpty()) {
+                log.error("AI resource naming response contained invalid entries: {}", suggestionResponse.getFailedIdentifiers());
+            }
 
             for (ManagedResource resource : batch) {
                 ResourceNameSuggestion suggestion = suggestionsMap.get(resource.getResourceIdentifier());
@@ -187,6 +202,28 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             log.error("AI suggestion processing failed, saving with defaults", e);
             batch.forEach(this::applyFallback);
             managedResourceRepository.saveAll(batch);
+        }
+    }
+
+    private Map<String, String> toResourceNamingInput(ManagedResource resource) {
+        Map<String, String> input = new LinkedHashMap<>();
+        putIfPresent(input, "identifier", resource.getResourceIdentifier());
+        putIfPresent(input, "owner", resource.getServiceOwner() != null ? resource.getServiceOwner() : "Unknown");
+        putIfPresent(input, "resourceType", resource.getResourceType() != null ? resource.getResourceType().name() : null);
+        putIfPresent(input, "httpMethod", resource.getHttpMethod() != null ? resource.getHttpMethod().name() : null);
+        putIfPresent(input, "serviceOwner", resource.getServiceOwner());
+        putIfPresent(input, "scannerFriendlyNameHint", resource.getFriendlyName());
+        putIfPresent(input, "scannerDescriptionHint", resource.getDescription());
+        putIfPresent(input, "parameterTypes", resource.getParameterTypes());
+        putIfPresent(input, "returnType", resource.getReturnType());
+        putIfPresent(input, "apiDocsUrl", resource.getApiDocsUrl());
+        putIfPresent(input, "sourceCodeLocation", resource.getSourceCodeLocation());
+        return input;
+    }
+
+    private void putIfPresent(Map<String, String> target, String key, String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            target.put(key, value);
         }
     }
 

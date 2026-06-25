@@ -67,6 +67,23 @@ class ResourceNamingTemplateSchemaAndGovernanceTest {
     }
 
     @Test
+    @DisplayName("System prompt fixes the response contract to an identifier-keyed JSON object")
+    void systemPrompt_usesIdentifierKeyedContractWithoutFallbackText() {
+        String systemPrompt = template.generateSystemPrompt(request(List.of("/api/x")), null);
+
+        assertThat(systemPrompt)
+                .contains("identifier-keyed")
+                .contains("Do not add wrapper keys named")
+                .contains("\"suggestions\"")
+                .contains("\"failedIdentifiers\"")
+                .contains("\"stats\"");
+        assertThat(systemPrompt)
+                .doesNotContain("Required output:")
+                .doesNotContain("Resource that did not receive AI recommendation.")
+                .doesNotContain("[item name] feature");
+    }
+
+    @Test
     @DisplayName("Governance descriptor overrides default owner and version for the ResourceNaming prompt")
     void governanceDescriptor_overridesOwnerAndVersion() {
         PromptGovernanceDescriptor descriptor = template.getPromptGovernanceDescriptor();
@@ -80,14 +97,14 @@ class ResourceNamingTemplateSchemaAndGovernanceTest {
     }
 
     @Test
-    @DisplayName("Batch larger than MAX_BATCH_SIZE (20) emits an error log without throwing")
-    void batchSize_over20_doesNotThrow() {
-        List<String> oversized = IntStream.range(0, 25)
+    @DisplayName("Batch larger than MAX_BATCH_SIZE emits an error log without throwing")
+    void batchSize_overMax_doesNotThrow() {
+        List<String> oversized = IntStream.range(0, 55)
                 .mapToObj(i -> "/api/resource-" + i)
                 .toList();
 
         String userPrompt = template.generateUserPrompt(request(oversized), null);
 
-        assertThat(userPrompt).contains("[RESOURCE_START_25]", "[RESOURCE_END_25]");
+        assertThat(userPrompt).contains("[RESOURCE_START_55]", "[RESOURCE_END_55]");
     }
 }

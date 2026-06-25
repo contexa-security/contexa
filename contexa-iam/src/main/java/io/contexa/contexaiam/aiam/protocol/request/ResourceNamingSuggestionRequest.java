@@ -23,6 +23,7 @@ import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,9 +51,13 @@ public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingCon
         private Map<String, String> metadata;
 
         public static ResourceItem fromMap(Map<String, String> resourceMap) {
+            Map<String, String> metadata = new LinkedHashMap<>(resourceMap);
+            metadata.remove("identifier");
+            metadata.remove("owner");
             return ResourceItem.builder()
                     .identifier(resourceMap.get("identifier"))
                     .owner(resourceMap.get("owner"))
+                    .metadata(metadata)
                     .build();
         }
     }
