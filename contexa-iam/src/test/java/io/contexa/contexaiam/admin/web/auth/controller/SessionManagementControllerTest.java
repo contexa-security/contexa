@@ -80,7 +80,7 @@ class SessionManagementControllerTest {
         @DisplayName("should return index page with active sessions list")
         void listAll() throws Exception {
             PageImpl<ActiveSession> page = new PageImpl<>(List.of(new ActiveSession()));
-            when(sessionManagementService.getActiveSessions(any(Pageable.class))).thenReturn(page);
+            when(sessionManagementService.searchActiveSessions(eq(null), any(Pageable.class))).thenReturn(page);
             when(sessionManagementService.getActiveSessionCount()).thenReturn(3L);
 
             mockMvc.perform(get("/contexa/admin/session-management"))

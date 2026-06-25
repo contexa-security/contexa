@@ -18,7 +18,6 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
-import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,9 +58,6 @@ class BlacklistControllerTest {
     private BlockedUserService blockedUserService;
 
     @Mock
-    private BlockedUserJpaRepository blockedUserJpaRepository;
-
-    @Mock
     private MessageSource messageSource;
 
     @InjectMocks
@@ -98,7 +94,7 @@ class BlacklistControllerTest {
         void nullFilter() {
             Model model = new ConcurrentModel();
             List<BlockedUser> all = List.of(BlockedUser.builder().id(1L).build());
-            when(blockedUserService.getAllBlockHistory()).thenReturn(all);
+            when(blockedUserService.findBlockedUsers("all", null)).thenReturn(all);
 
             String view = controller.listBlockedUsers("all", null, model);
 
@@ -112,7 +108,7 @@ class BlacklistControllerTest {
         void blockedFilter() {
             Model model = new ConcurrentModel();
             List<BlockedUser> blocked = List.of(BlockedUser.builder().id(2L).build());
-            when(blockedUserService.getBlockedUsers()).thenReturn(blocked);
+            when(blockedUserService.findBlockedUsers("blocked", null)).thenReturn(blocked);
 
             String view = controller.listBlockedUsers("blocked", null, model);
 
@@ -126,7 +122,7 @@ class BlacklistControllerTest {
         void unblockRequestedFilter() {
             Model model = new ConcurrentModel();
             List<BlockedUser> requested = List.of(BlockedUser.builder().id(3L).build());
-            when(blockedUserService.getUnblockRequested()).thenReturn(requested);
+            when(blockedUserService.findBlockedUsers("unblock_requested", null)).thenReturn(requested);
 
             String view = controller.listBlockedUsers("unblock_requested", null, model);
 
@@ -139,8 +135,7 @@ class BlacklistControllerTest {
         void resolvedFilter() {
             Model model = new ConcurrentModel();
             BlockedUser resolved = BlockedUser.builder().id(4L).status(BlockedUserStatus.RESOLVED).build();
-            BlockedUser blocked = BlockedUser.builder().id(5L).status(BlockedUserStatus.BLOCKED).build();
-            when(blockedUserService.getAllBlockHistory()).thenReturn(List.of(resolved, blocked));
+            when(blockedUserService.findBlockedUsers("resolved", null)).thenReturn(List.of(resolved));
 
             String view = controller.listBlockedUsers("resolved", null, model);
 
@@ -156,8 +151,7 @@ class BlacklistControllerTest {
         void timeoutRespondedFilter() {
             Model model = new ConcurrentModel();
             BlockedUser timeout = BlockedUser.builder().id(6L).status(BlockedUserStatus.TIMEOUT_RESPONDED).build();
-            BlockedUser blocked = BlockedUser.builder().id(7L).status(BlockedUserStatus.BLOCKED).build();
-            when(blockedUserService.getAllBlockHistory()).thenReturn(List.of(timeout, blocked));
+            when(blockedUserService.findBlockedUsers("timeout_responded", null)).thenReturn(List.of(timeout));
 
             String view = controller.listBlockedUsers("timeout_responded", null, model);
 

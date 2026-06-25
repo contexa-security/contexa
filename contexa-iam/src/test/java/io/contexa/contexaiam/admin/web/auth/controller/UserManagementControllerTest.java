@@ -22,9 +22,7 @@ import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
-import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
-import io.contexa.contexacommon.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -68,9 +66,6 @@ class UserManagementControllerTest {
     private GroupService groupService;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
     private PasswordPolicyService passwordPolicyService;
 
     @Mock
@@ -101,18 +96,18 @@ class UserManagementControllerTest {
         @DisplayName("should return users view with user list")
         void success() {
             Model model = new ConcurrentModel();
-            Pageable pageable = PageRequest.of(0, 15);
-            Users user = new Users();
+                        Pageable pageable = PageRequest.of(0, 15);
+            UserListDto user = new UserListDto();
             user.setId(1L);
             user.setUsername("testuser");
             user.setName("Test User");
-            when(userRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(user)));
+            when(userManagementService.getUsers(null, pageable)).thenReturn(new PageImpl<>(List.of(user)));
 
             String view = controller.getUsers(null, pageable, model);
 
             assertThat(view).isEqualTo("contexa/admin/users");
             assertThat(model.getAttribute("users")).isNotNull();
-            verify(userRepository).findAll(pageable);
+            verify(userManagementService).getUsers(null, pageable);
         }
     }
 

@@ -23,7 +23,6 @@ import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.UserGroup;
-import io.contexa.contexacommon.repository.GroupRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -72,9 +71,6 @@ class GroupControllerTest {
     private ModelMapper modelMapper;
 
     @Mock
-    private GroupRepository groupRepository;
-
-    @Mock
     private MessageSource messageSource;
 
     @InjectMocks
@@ -109,14 +105,14 @@ class GroupControllerTest {
             group.setUserGroups(Set.of(new UserGroup()));
 
             GroupDto dto = GroupDto.builder().name("TestGroup").build();
-            when(groupRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(group)));
+            when(groupService.searchGroups(null, pageable)).thenReturn(new PageImpl<>(List.of(group)));
             when(modelMapper.map(group, GroupDto.class)).thenReturn(dto);
 
             String view = controller.getGroups(null, pageable, model);
 
             assertThat(view).isEqualTo("contexa/admin/groups");
             assertThat(model.getAttribute("groups")).isNotNull();
-            verify(groupRepository).findAll(pageable);
+            verify(groupService).searchGroups(null, pageable);
         }
 
         @Test
@@ -129,7 +125,7 @@ class GroupControllerTest {
             group.setUserGroups(null);
 
             GroupDto dto = GroupDto.builder().build();
-            when(groupRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(group)));
+            when(groupService.searchGroups(null, pageable)).thenReturn(new PageImpl<>(List.of(group)));
             when(modelMapper.map(group, GroupDto.class)).thenReturn(dto);
 
             String view = controller.getGroups(null, pageable, model);

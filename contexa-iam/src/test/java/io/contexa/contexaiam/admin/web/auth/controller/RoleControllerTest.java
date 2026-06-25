@@ -18,16 +18,14 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
-import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
-import io.contexa.contexacommon.repository.RoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -78,12 +76,6 @@ class RoleControllerTest {
     private ModelMapper modelMapper;
 
     @Mock
-    private RoleRepository roleRepository;
-
-    @Mock
-    private PolicyRepository policyRepository;
-
-    @Mock
     private MessageSource messageSource;
 
     @InjectMocks
@@ -116,7 +108,7 @@ class RoleControllerTest {
             role.setRolePermissions(Set.of(new RolePermission()));
 
             RoleDto dto = RoleDto.builder().roleName("ADMIN").build();
-            when(roleRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(role)));
+            when(roleService.searchRoles(null, pageable)).thenReturn(new PageImpl<>(List.of(role)));
             when(modelMapper.map(role, RoleDto.class)).thenReturn(dto);
 
             String view = controller.getRoles(null, pageable, model);
@@ -134,7 +126,7 @@ class RoleControllerTest {
             role.setRolePermissions(null);
 
             RoleDto dto = RoleDto.builder().build();
-            when(roleRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(role)));
+            when(roleService.searchRoles(null, pageable)).thenReturn(new PageImpl<>(List.of(role)));
             when(modelMapper.map(role, RoleDto.class)).thenReturn(dto);
 
             String view = controller.getRoles(null, pageable, model);
@@ -270,18 +262,10 @@ class RoleControllerTest {
         @Test
         @DisplayName("should preserve existing response fields")
         void success() {
-            Role role = Role.builder()
-                    .id(10L)
-                    .roleName("ADMIN")
-                    .build();
-            Policy policy = Policy.builder()
-                    .id(20L)
-                    .name("AdminPolicy")
-                    .effect(Policy.Effect.DENY)
-                    .isActive(true)
-                    .build();
-            when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
-            when(policyRepository.findActivePoliciesReferencingExpression("ADMIN")).thenReturn(List.of(policy));
+                        AffectedPoliciesResponse affected = AffectedPoliciesResponse.forRole(
+                    "ADMIN",
+                    List.of(new AffectedPolicyResponse(20L, "AdminPolicy", "DENY", true)));
+            when(roleService.getAffectedPolicies(10L)).thenReturn(Optional.of(affected));
 
             ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
 
@@ -301,18 +285,10 @@ class RoleControllerTest {
         @Test
         @DisplayName("should handle legacy policies without effect")
         void legacyPolicyWithoutEffect() {
-            Role role = Role.builder()
-                    .id(10L)
-                    .roleName("ADMIN")
-                    .build();
-            Policy policy = Policy.builder()
-                    .id(20L)
-                    .name("LegacyPolicy")
-                    .effect(null)
-                    .isActive(true)
-                    .build();
-            when(roleRepository.findById(10L)).thenReturn(Optional.of(role));
-            when(policyRepository.findActivePoliciesReferencingExpression("ADMIN")).thenReturn(List.of(policy));
+                        AffectedPoliciesResponse affected = AffectedPoliciesResponse.forRole(
+                    "ADMIN",
+                    List.of(new AffectedPolicyResponse(20L, "LegacyPolicy", null, true)));
+            when(roleService.getAffectedPolicies(10L)).thenReturn(Optional.of(affected));
 
             ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
 

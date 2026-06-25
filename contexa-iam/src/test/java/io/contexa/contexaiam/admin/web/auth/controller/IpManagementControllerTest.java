@@ -90,7 +90,8 @@ class IpManagementControllerTest {
         @DisplayName("should return index page with rules list")
         void listAll() throws Exception {
             PageImpl<IpAccessRule> page = new PageImpl<>(List.of(new IpAccessRule()));
-            when(ipAccessRuleService.getAllRules(any(Pageable.class))).thenReturn(page);
+            when(ipAccessRuleService.searchRules(eq(null), eq(null), any(Pageable.class))).thenReturn(page);
+            when(ipAccessRuleService.normalizeRuleTypeFilter(null)).thenReturn(null);
             when(ipAccessRuleService.countAllowRules()).thenReturn(5L);
             when(ipAccessRuleService.countDenyRules()).thenReturn(2L);
 
@@ -108,8 +109,10 @@ class IpManagementControllerTest {
         @DisplayName("should filter by rule type ALLOW without keyword")
         void filterByAllow() throws Exception {
             PageImpl<IpAccessRule> page = new PageImpl<>(Collections.emptyList());
-            when(ipAccessRuleService.getRulesByType(eq(IpAccessRule.RuleType.ALLOW), any(Pageable.class)))
+            when(ipAccessRuleService.searchRules(eq("ALLOW"), eq(null), any(Pageable.class)))
                     .thenReturn(page);
+            when(ipAccessRuleService.normalizeRuleTypeFilter("ALLOW"))
+                    .thenReturn("ALLOW");
 
             mockMvc.perform(get("/contexa/admin/ip-management")
                             .param("type", "ALLOW"))
@@ -123,6 +126,7 @@ class IpManagementControllerTest {
             PageImpl<IpAccessRule> page = new PageImpl<>(Collections.emptyList());
             when(ipAccessRuleService.searchRules(eq(null), eq("test"), any(Pageable.class)))
                     .thenReturn(page);
+            when(ipAccessRuleService.normalizeRuleTypeFilter(null)).thenReturn(null);
 
             mockMvc.perform(get("/contexa/admin/ip-management")
                             .param("keyword", "test"))
@@ -136,6 +140,8 @@ class IpManagementControllerTest {
             PageImpl<IpAccessRule> page = new PageImpl<>(Collections.emptyList());
             when(ipAccessRuleService.searchRules(eq("DENY"), eq("192.168"), any(Pageable.class)))
                     .thenReturn(page);
+            when(ipAccessRuleService.normalizeRuleTypeFilter("DENY"))
+                    .thenReturn("DENY");
 
             mockMvc.perform(get("/contexa/admin/ip-management")
                             .param("type", "DENY")

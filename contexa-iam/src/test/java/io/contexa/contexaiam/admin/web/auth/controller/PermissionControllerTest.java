@@ -18,14 +18,12 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
-import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
-import io.contexa.contexacommon.repository.PermissionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -75,12 +73,6 @@ class PermissionControllerTest {
     private FunctionCatalogService functionCatalogService;
 
     @Mock
-    private PermissionRepository permissionRepository;
-
-    @Mock
-    private PolicyRepository policyRepository;
-
-    @Mock
     private MessageSource messageSource;
 
     @InjectMocks
@@ -113,7 +105,7 @@ class PermissionControllerTest {
             permission.setName("READ_USER");
             PermissionDto dto = PermissionDto.builder().name("READ_USER").build();
 
-            when(permissionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(permission)));
+            when(permissionService.searchPermissions(null, pageable)).thenReturn(new PageImpl<>(List.of(permission)));
             when(modelMapper.map(permission, PermissionDto.class)).thenReturn(dto);
 
             String view = controller.getPermissions(null, pageable, model);
@@ -134,7 +126,7 @@ class PermissionControllerTest {
             permission.setManagedResource(resource);
 
             PermissionDto dto = PermissionDto.builder().build();
-            when(permissionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(permission)));
+            when(permissionService.searchPermissions(null, pageable)).thenReturn(new PageImpl<>(List.of(permission)));
             when(modelMapper.map(permission, PermissionDto.class)).thenReturn(dto);
 
             String view = controller.getPermissions(null, pageable, model);
@@ -295,18 +287,11 @@ class PermissionControllerTest {
         @Test
         @DisplayName("should preserve existing response fields")
         void success() {
-            Permission permission = new Permission();
-            permission.setId(10L);
-            permission.setName("READ_ORDER");
-            Policy policy = Policy.builder()
-                    .id(20L)
-                    .name("OrderPolicy")
-                    .effect(Policy.Effect.ALLOW)
-                    .isActive(true)
-                    .build();
-            when(permissionRepository.findById(10L)).thenReturn(Optional.of(permission));
-            when(policyRepository.findActivePoliciesReferencingExpression("READ_ORDER")).thenReturn(List.of(policy));
-            when(permissionRepository.countRoleAssignments(10L)).thenReturn(3L);
+                        AffectedPoliciesResponse affected = AffectedPoliciesResponse.forPermission(
+                    "READ_ORDER",
+                    List.of(new AffectedPolicyResponse(20L, "OrderPolicy", "ALLOW", true)),
+                    3L);
+            when(permissionService.getAffectedPolicies(10L)).thenReturn(Optional.of(affected));
 
             ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
 
@@ -327,18 +312,11 @@ class PermissionControllerTest {
         @Test
         @DisplayName("should handle legacy policies without effect")
         void legacyPolicyWithoutEffect() {
-            Permission permission = new Permission();
-            permission.setId(10L);
-            permission.setName("READ_ORDER");
-            Policy policy = Policy.builder()
-                    .id(20L)
-                    .name("LegacyPolicy")
-                    .effect(null)
-                    .isActive(true)
-                    .build();
-            when(permissionRepository.findById(10L)).thenReturn(Optional.of(permission));
-            when(policyRepository.findActivePoliciesReferencingExpression("READ_ORDER")).thenReturn(List.of(policy));
-            when(permissionRepository.countRoleAssignments(10L)).thenReturn(0L);
+                        AffectedPoliciesResponse affected = AffectedPoliciesResponse.forPermission(
+                    "READ_ORDER",
+                    List.of(new AffectedPolicyResponse(20L, "LegacyPolicy", null, true)),
+                    0L);
+            when(permissionService.getAffectedPolicies(10L)).thenReturn(Optional.of(affected));
 
             ResponseEntity<AffectedPoliciesResponse> response = controller.getAffectedPolicies(10L);
 

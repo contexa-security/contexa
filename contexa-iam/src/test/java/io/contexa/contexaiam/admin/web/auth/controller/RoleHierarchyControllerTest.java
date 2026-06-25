@@ -21,7 +21,6 @@ import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.admin.web.auth.dto.RoleHierarchyDtos.ActiveHierarchyView;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
-import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,9 +62,6 @@ class RoleHierarchyControllerTest {
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
-
-    @Mock
-    private RoleHierarchyRepository roleHierarchyRepository;
 
     @Mock
     private ModelMapper modelMapper;
@@ -127,7 +123,7 @@ class RoleHierarchyControllerTest {
         void shouldReturnListView() {
             RoleHierarchyEntity entity = buildEntity(1L, "ROLE_ADMIN > ROLE_USER", "H1", true);
             Page<RoleHierarchyEntity> entityPage = new PageImpl<>(List.of(entity));
-            when(roleHierarchyRepository.findAll(any(Pageable.class))).thenReturn(entityPage);
+            when(roleHierarchyService.searchRoleHierarchies(eq(null), any(Pageable.class))).thenReturn(entityPage);
 
             RoleHierarchyDto dto = buildDto(1L, "ROLE_ADMIN > ROLE_USER", "H1", true);
             when(modelMapper.map(any(RoleHierarchyEntity.class), eq(RoleHierarchyDto.class))).thenReturn(dto);
@@ -146,7 +142,7 @@ class RoleHierarchyControllerTest {
         @DisplayName("계층이 없을 때 빈 목록을 반환해야 한다")
         void shouldReturnEmptyList() {
             Page<RoleHierarchyEntity> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(roleHierarchyRepository.findAll(any(Pageable.class))).thenReturn(emptyPage);
+            when(roleHierarchyService.searchRoleHierarchies(eq(null), any(Pageable.class))).thenReturn(emptyPage);
 
             Model model = new ConcurrentModel();
             String viewName = controller.getRoleHierarchies(null, 0, model);
