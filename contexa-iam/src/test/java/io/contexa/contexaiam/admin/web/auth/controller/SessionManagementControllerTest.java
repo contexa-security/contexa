@@ -18,7 +18,6 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
-import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -54,8 +53,6 @@ class SessionManagementControllerTest {
     @Mock
     private SessionManagementService sessionManagementService;
 
-    @Mock
-    private ActiveSessionRepository activeSessionRepository;
 
     @Mock
     private MessageSource messageSource;
@@ -71,7 +68,7 @@ class SessionManagementControllerTest {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        controller = new SessionManagementController(sessionManagementService, activeSessionRepository, messageSource, csvExportService);
+        controller = new SessionManagementController(sessionManagementService, messageSource, csvExportService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -98,7 +95,7 @@ class SessionManagementControllerTest {
         @DisplayName("should search active sessions by keyword")
         void search() throws Exception {
             PageImpl<ActiveSession> page = new PageImpl<>(Collections.emptyList());
-            when(activeSessionRepository.searchActiveSessions(eq("%test%"), any(Pageable.class))).thenReturn(page);
+            when(sessionManagementService.searchActiveSessions(eq("test"), any(Pageable.class))).thenReturn(page);
 
             mockMvc.perform(get("/contexa/admin/session-management")
                             .param("keyword", "test"))

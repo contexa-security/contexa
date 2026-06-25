@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationMatrixRow;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FeedbackLearningSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.NamedCount;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OperationsSummary;

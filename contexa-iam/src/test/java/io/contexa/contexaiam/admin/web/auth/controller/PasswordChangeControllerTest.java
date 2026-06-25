@@ -16,8 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexacommon.entity.PasswordPolicy;
-import io.contexa.contexacommon.entity.Users;
-import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,14 +28,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -52,10 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PasswordChangeControllerTest {
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
+    private PasswordChangeService passwordChangeService;
 
     @Mock
     private PasswordPolicyService passwordPolicyService;
@@ -71,7 +63,7 @@ class PasswordChangeControllerTest {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        controller = new PasswordChangeController(userRepository, passwordEncoder, passwordPolicyService, messageSource);
+        controller = new PasswordChangeController(passwordChangeService, passwordPolicyService, messageSource);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -101,7 +93,9 @@ class PasswordChangeControllerTest {
         @Test
         @DisplayName("should redirect with error when user does not exist")
         void userNotFound() throws Exception {
-            when(userRepository.findByUsername("none")).thenReturn(Optional.empty());
+            doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.user.not.found"))
+                    .when(passwordChangeService)
+                    .changePassword("none", "pass", "newpass", "newpass");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "none")
@@ -116,9 +110,9 @@ class PasswordChangeControllerTest {
         @Test
         @DisplayName("should redirect with error when current password does not match")
         void incorrectCurrentPassword() throws Exception {
-            Users user = Users.builder().username("testuser").password("encoded").build();
-            when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
+            doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.current.incorrect"))
+                    .when(passwordChangeService)
+                    .changePassword("testuser", "wrong", "newpass", "newpass");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -133,9 +127,9 @@ class PasswordChangeControllerTest {
         @Test
         @DisplayName("should redirect with error when new passwords do not match")
         void newPasswordMismatch() throws Exception {
-            Users user = Users.builder().username("testuser").password("encoded").build();
-            when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("correct", "encoded")).thenReturn(true);
+            doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.mismatch"))
+                    .when(passwordChangeService)
+                    .changePassword("testuser", "correct", "newpass", "diffpass");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -150,10 +144,9 @@ class PasswordChangeControllerTest {
         @Test
         @DisplayName("should redirect with error when new password violates policy")
         void policyViolation() throws Exception {
-            Users user = Users.builder().username("testuser").password("encoded").build();
-            when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("correct", "encoded")).thenReturn(true);
-            when(passwordPolicyService.validatePassword("weak")).thenReturn(List.of("Too short"));
+            doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.policy.violation", "Too short"))
+                    .when(passwordChangeService)
+                    .changePassword("testuser", "correct", "weak", "weak");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -168,11 +161,9 @@ class PasswordChangeControllerTest {
         @Test
         @DisplayName("should redirect with error when password is reused")
         void passwordReused() throws Exception {
-            Users user = Users.builder().id(10L).username("testuser").password("encoded").build();
-            when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("correct", "encoded")).thenReturn(true);
-            when(passwordPolicyService.validatePassword("validpass")).thenReturn(Collections.emptyList());
-            when(passwordPolicyService.isPasswordReused(10L, "validpass")).thenReturn(true);
+            doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.reused"))
+                    .when(passwordChangeService)
+                    .changePassword("testuser", "correct", "validpass", "validpass");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -185,15 +176,8 @@ class PasswordChangeControllerTest {
         }
 
         @Test
-        @DisplayName("should change password, record history, and redirect to login on success")
+        @DisplayName("should change password and redirect to login on success")
         void success() throws Exception {
-            Users user = Users.builder().id(10L).username("testuser").password("oldEncoded").build();
-            when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("correct", "oldEncoded")).thenReturn(true);
-            when(passwordPolicyService.validatePassword("validpass")).thenReturn(Collections.emptyList());
-            when(passwordPolicyService.isPasswordReused(10L, "validpass")).thenReturn(false);
-            when(passwordEncoder.encode("validpass")).thenReturn("newEncoded");
-
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
                             .param("currentPassword", "correct")
@@ -203,11 +187,6 @@ class PasswordChangeControllerTest {
                     .andExpect(redirectedUrl("/contexa/admin/mfa/login"))
                     .andExpect(flash().attribute("message", "msg.password.change.success"));
 
-            verify(passwordPolicyService).recordPasswordHistory(10L, "oldEncoded");
-            verify(userRepository).save(argThat(saved ->
-                    saved.getPassword().equals("newEncoded") &&
-                    !saved.isCredentialsExpired()
-            ));
-        }
-    }
+            verify(passwordChangeService).changePassword("testuser", "correct", "validpass", "validpass");
+        }    }
 }

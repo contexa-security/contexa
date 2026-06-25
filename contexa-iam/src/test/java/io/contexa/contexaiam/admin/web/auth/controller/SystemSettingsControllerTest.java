@@ -15,9 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexacommon.entity.SystemSettings;
-import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
@@ -54,8 +53,6 @@ class SystemSettingsControllerTest {
     @Mock
     private SystemSettingsService systemSettingsService;
 
-    @Mock
-    private RoleRepository roleRepository;
 
     @Mock
     private MessageSource messageSource;
@@ -70,7 +67,7 @@ class SystemSettingsControllerTest {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        controller = new SystemSettingsController(systemSettingsService, roleRepository, messageSource, authorizationManager);
+        controller = new SystemSettingsController(systemSettingsService, messageSource, authorizationManager);
     }
 
     @Nested
@@ -86,8 +83,7 @@ class SystemSettingsControllerTest {
                     .build();
             when(systemSettingsService.getSettings()).thenReturn(settings);
 
-            Role role = Role.builder().roleName("ROLE_USER").roleDesc("Standard User").enabled(true).build();
-            when(roleRepository.findAllRolesWithoutExpression()).thenReturn(List.of(role));
+            RoleOption role = RoleOption.of("ROLE_USER", "Standard User");`r`n            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of(role));
 
             Model model = new ConcurrentModel();
             String view = controller.showSettings(model);

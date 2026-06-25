@@ -18,7 +18,6 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.IpAccessRule;
-import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -60,8 +59,6 @@ class IpManagementControllerTest {
     @Mock
     private IpAccessRuleService ipAccessRuleService;
 
-    @Mock
-    private IpAccessRuleRepository ipAccessRuleRepository;
 
     @Mock
     private MessageSource messageSource;
@@ -81,7 +78,7 @@ class IpManagementControllerTest {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        controller = new IpManagementController(ipAccessRuleService, ipAccessRuleRepository, messageSource, csvExportService);
+        controller = new IpManagementController(ipAccessRuleService, messageSource, csvExportService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -124,7 +121,7 @@ class IpManagementControllerTest {
         @DisplayName("should search by keyword only")
         void searchByKeyword() throws Exception {
             PageImpl<IpAccessRule> page = new PageImpl<>(Collections.emptyList());
-            when(ipAccessRuleRepository.searchByKeyword(eq("%test%"), any(Pageable.class)))
+            when(ipAccessRuleService.searchRules(eq(null), eq("test"), any(Pageable.class)))
                     .thenReturn(page);
 
             mockMvc.perform(get("/contexa/admin/ip-management")
@@ -137,7 +134,7 @@ class IpManagementControllerTest {
         @DisplayName("should search by keyword and type DENY")
         void searchByKeywordAndDeny() throws Exception {
             PageImpl<IpAccessRule> page = new PageImpl<>(Collections.emptyList());
-            when(ipAccessRuleRepository.searchByTypeAndKeyword(eq(IpAccessRule.RuleType.DENY), eq("%192.168%"), any(Pageable.class)))
+            when(ipAccessRuleService.searchRules(eq("DENY"), eq("192.168"), any(Pageable.class)))
                     .thenReturn(page);
 
             mockMvc.perform(get("/contexa/admin/ip-management")
