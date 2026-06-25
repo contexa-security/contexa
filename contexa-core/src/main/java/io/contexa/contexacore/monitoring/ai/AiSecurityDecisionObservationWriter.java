@@ -98,9 +98,9 @@ public class AiSecurityDecisionObservationWriter {
             markProtectableObserved(
                     jdbcOperations,
                     hcadEvaluationId,
-                    firstText(metadata, "resourceId", "protectableResourceId", "requestedResourceId", "protectedResourceId"),
-                    firstText(metadata, "protectableResourceUrl", "requestPath", "requestUri", "httpUri"),
-                    firstText(metadata, "protectableHttpMethod", "httpMethod", "method"));
+                    firstText(metadata, "resourceId", "requestedResourceId", "protectedResourceId"),
+                    firstText(metadata, "requestPath", "requestUri", "httpUri"),
+                    firstText(metadata, "httpMethod", "method"));
         }
         Boolean llmDecisionPresent = firstBoolean(
                 result != null ? result.getLlmDecisionPresent() : null,
@@ -206,9 +206,9 @@ public class AiSecurityDecisionObservationWriter {
                             metadata.get("hcadEscalationScore")),
                     firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_BAND, "hcadBand", "hcadEscalationBand"),
                     hcadEligible,
-                    firstText(metadata, "httpMethod", "protectableHttpMethod", "method"),
-                    firstText(metadata, "requestPath", "requestUri", "httpUri", "protectableResourceUrl"),
-                    firstText(metadata, "resourceId", "protectableResourceId", "requestedResourceId", "protectedResourceId"),
+                    firstText(metadata, "httpMethod", "method"),
+                    firstText(metadata, "requestPath", "requestUri", "httpUri"),
+                    firstText(metadata, "resourceId", "requestedResourceId", "protectedResourceId"),
                     modelProvider,
                     modelId,
                     firstText(metadata, "templateKey", "promptTemplateKey"),
@@ -553,8 +553,6 @@ public class AiSecurityDecisionObservationWriter {
 
     private boolean isProtectable(Map<String, Object> metadata) {
         return Boolean.TRUE.equals(metadata.get("protectableDeclared"))
-                || metadata.containsKey("protectableResourceId")
-                || metadata.containsKey("protectableResourceUrl")
                 || metadata.containsKey("protectableMethod");
     }
 

@@ -263,61 +263,37 @@ public class HcadExtremeTestAutoConfiguration {
 
     public static class HcadExtremeTestService {
 
-        @Protectable(
-                resourceId = "hcad.extreme.allow",
-                resourceUrl = "/contexa/test/hcad/protectable/allow",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> allow(String runId) {
             return response("protectable-allow", runId);
         }
 
-        @Protectable(
-                resourceId = "hcad.extreme.challenge",
-                resourceUrl = "/contexa/test/hcad/protectable/challenge",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> challenge(String runId) {
             return response("protectable-challenge", runId);
         }
 
-        @Protectable(
-                resourceId = "hcad.extreme.block",
-                resourceUrl = "/contexa/test/hcad/protectable/block",
-                httpMethod = "POST",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> block(String runId) {
             return response("protectable-block", runId);
         }
 
-        @Protectable(
-                resourceId = "hcad.extreme.parser-failure",
-                resourceUrl = "/contexa/test/hcad/protectable/parser-failure",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> parserFailure(String runId) {
             return response("protectable-parser-failure", runId);
         }
 
-        @Protectable(
-                resourceId = "hcad.extreme.timeout",
-                resourceUrl = "/contexa/test/hcad/protectable/timeout",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> timeout(String runId) {
             return response("protectable-timeout", runId);
         }
 
-        @Protectable(
-                resourceId = "hcad.extreme.model-unavailable",
-                resourceUrl = "/contexa/test/hcad/protectable/model-unavailable",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> modelUnavailable(String runId) {
             return response("protectable-model-unavailable", runId);

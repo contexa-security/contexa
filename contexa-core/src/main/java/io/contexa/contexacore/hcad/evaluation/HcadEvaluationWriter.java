@@ -123,9 +123,9 @@ public class HcadEvaluationWriter {
                 .negativeCacheHit(false)
                 .negativeCacheHitCount(integerDefault(rawSnapshot.get("negativeCacheHitCount"), 0))
                 .protectableObserved(boolDefault(bool(rawSnapshot.get("protectableObserved")), false))
-                .protectableResourceId(text(rawSnapshot.get("protectableResourceId")))
-                .protectableResourceUrl(text(rawSnapshot.get("protectableResourceUrl")))
-                .protectableHttpMethod(text(rawSnapshot.get("protectableHttpMethod")))
+                .protectableResourceId(null)
+                .protectableResourceUrl(null)
+                .protectableHttpMethod(null)
                 .resourceFamilies(writeJson(rawSnapshot.get("resourceFamilies")))
                 .samplePaths(writeJson(rawSnapshot.get("samplePaths")))
                 .anchorSignals(writeJson(report.anchorSignals()))
@@ -589,7 +589,7 @@ public class HcadEvaluationWriter {
                 requestId,
                 firstText(metadata, "sessionId", "actorSessionKey"),
                 requestPath,
-                firstText(metadata, "httpMethod", "protectableHttpMethod"),
+                firstText(metadata, "httpMethod"),
                 event != null ? event.getSourceIp() : text(metadata.get("clientIp")),
                 integerDefault(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE), 0),
                 text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_BAND)),
@@ -613,7 +613,7 @@ public class HcadEvaluationWriter {
                 .windowId(text(metadata.get("windowId")))
                 .triggerScope(blankToDefault(text(metadata.get("triggerScope")), "SESSION_WINDOW"))
                 .requestCount(integerDefault(metadata.get("requestCount"), 1))
-                .httpMethod(firstText(metadata, "httpMethod", "protectableHttpMethod"))
+                .httpMethod(firstText(metadata, "httpMethod"))
                 .requestPath(requestPath)
                 .normalizedPath(normalizedPath)
                 .resourceId(resourceId)

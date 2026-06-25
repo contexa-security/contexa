@@ -228,9 +228,6 @@ public class ZeroTrustEventPublisher {
         if (protectable != null) {
             payload.put("protectableDeclared", true);
             payload.put("protectableSync", protectable.sync());
-            payload.put("protectableResourceId", protectable.resourceId());
-            payload.put("protectableResourceUrl", protectable.resourceUrl());
-            payload.put("protectableHttpMethod", protectable.httpMethod());
             payload.put("protectableVerificationRequired", protectable.verificationRequired());
             payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
                     + "." + methodInvocation.getMethod().getName());
@@ -567,16 +564,14 @@ public class ZeroTrustEventPublisher {
         if (StringUtils.hasText(evaluationId)) {
             hcadEvaluationWriter.markProtectableObserved(
                     evaluationId,
-                    firstText(payload == null ? null : payload.get("protectableResourceId"),
-                            payload == null ? null : payload.get("resourceId"),
+                    firstText(payload == null ? null : payload.get("resourceId"),
                             payload == null ? null : payload.get("requestedResourceId"),
-                            payload == null ? null : payload.get("protectedResourceId")),
-                    firstText(payload == null ? null : payload.get("protectableResourceUrl"),
-                            payload == null ? null : payload.get("requestPath"),
+                            payload == null ? null : payload.get("protectedResourceId"),
+                            projection.normalizedPath()),
+                    firstText(payload == null ? null : payload.get("requestPath"),
                             payload == null ? null : payload.get("requestUri"),
                             projection.normalizedPath()),
-                    firstText(payload == null ? null : payload.get("protectableHttpMethod"),
-                            payload == null ? null : payload.get("httpMethod"),
+                    firstText(payload == null ? null : payload.get("httpMethod"),
                             projection.method()),
                     assessment.eligible());
         }

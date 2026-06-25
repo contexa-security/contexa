@@ -226,18 +226,19 @@ public class SynchronousProtectableDecisionService {
         }
         Map<String, Object> payload = event != null && event.getPayload() != null ? event.getPayload() : Map.of();
         String resourceId = firstText(
-                payload.get("protectableResourceId"),
                 payload.get("resourceId"),
                 payload.get("requestedResourceId"),
-                payload.get("protectedResourceId"));
+                payload.get("protectedResourceId"),
+                payload.get("requestPath"),
+                payload.get("requestUri"),
+                event != null ? event.getResource() : null,
+                currentRequestNormalizedPath());
         String resourceUrl = firstText(
-                payload.get("protectableResourceUrl"),
                 payload.get("requestPath"),
                 payload.get("requestUri"),
                 event != null ? event.getResource() : null,
                 currentRequestNormalizedPath());
         String httpMethod = firstText(
-                payload.get("protectableHttpMethod"),
                 payload.get("httpMethod"),
                 payload.get("method"));
 

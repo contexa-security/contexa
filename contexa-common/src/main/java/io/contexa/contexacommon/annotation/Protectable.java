@@ -48,40 +48,6 @@ public @interface Protectable {
     String ownerField() default "";
 
     /**
-     * Identifier of the protected resource; unique within a tenant.
-     * <p>
-     * When blank, {@code ProtectableResourceCatalogService} auto-populates it
-     * as {@code {className}#{methodName}}. Explicit values should follow a
-     * dot-notation or kebab-case convention (for example,
-     * {@code user.profile.read}).
-     * <p>
-     * If an operational certificate is used, it is bound to this identifier.
-     * Changing the identifier can require re-verification.
-     * <p>
-     * Owner: architect or security lead.
-     */
-    String resourceId() default "";
-
-    /**
-     * HTTP path of the protected resource. When blank the path is inferred
-     * from Spring MVC annotations ({@code @RequestMapping}, {@code @GetMapping},
-     * and related). When explicit the value must match the actual MVC mapping.
-     * <p>
-     * Owner: developer.
-     */
-    String resourceUrl() default "";
-
-    /**
-     * HTTP method of the protected resource. When blank the method is inferred
-     * from MVC annotations. Allowed values: {@code GET}, {@code POST},
-     * {@code PUT}, {@code PATCH}, {@code DELETE}.
-     * <p>
-     * The same {@code resourceId} declared under different HTTP methods yields
-     * separate registry records and separate certificates.
-     */
-    String httpMethod() default "";
-
-    /**
      * Whether prompt quality verification must be enforced for this resource.
      * <p>
      * {@code true} (default): at invocation time the runtime policy checks

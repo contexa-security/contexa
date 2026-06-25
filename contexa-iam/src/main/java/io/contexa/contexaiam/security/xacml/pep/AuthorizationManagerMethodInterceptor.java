@@ -250,9 +250,6 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     }
 
     private String buildResourceId(MethodInvocation mi, Protectable protectable) {
-        if (protectable != null && protectable.resourceId() != null && !protectable.resourceId().isBlank()) {
-            return protectable.resourceId().trim();
-        }
         return mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
     }
 

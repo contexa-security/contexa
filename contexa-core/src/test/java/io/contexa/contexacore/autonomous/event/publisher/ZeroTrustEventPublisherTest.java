@@ -719,10 +719,7 @@ class ZeroTrustEventPublisherTest {
         void approve() {
         }
 
-        @Protectable(
-                resourceId = "sample.protectable",
-                resourceUrl = "/admin/users",
-                httpMethod = "GET")
+        @Protectable
         void protectableApprove() {
         }
     }

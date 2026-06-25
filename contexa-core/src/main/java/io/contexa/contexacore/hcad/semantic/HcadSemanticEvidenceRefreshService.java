@@ -20,8 +20,6 @@ import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -90,30 +88,21 @@ public class HcadSemanticEvidenceRefreshService {
         if (userId == null) {
             return List.of();
         }
-        String normalizedPath = HcadRequestPathUtils.normalizePathText(firstText(
-                text(metadata, "requestPath"),
-                text(metadata, "requestUri"),
-                text(metadata, "httpUri"),
-                text(metadata, "protectableResourceUrl")));
-        List<String> resourceIds = resourceIdentifiers(metadata, normalizedPath);
-        if (resourceIds.isEmpty()) {
+        String resourceId = canonicalResourceFamily(metadata);
+        if (resourceId == null) {
             return List.of();
         }
         int dimension = Math.max(1, hcadProperties.getVector().getEmbeddingDimension());
         String tenantId = firstText(text(metadata, "tenantId"), text(metadata, "organizationId"));
         if ("ALLOW".equals(normalizedAction)) {
-            List<HcadSemanticEvidenceKey> keys = new ArrayList<>();
-            for (String resourceId : resourceIds) {
-                keys.add(HcadSemanticEvidenceKey.normalRequestSimilarity(
-                        tenantId,
-                        userId,
-                        resourceId,
-                        settings.getBaselineVersion(),
-                        settings.getEmbeddingModel(),
-                        dimension,
-                        settings.getEvidenceVersion()));
-            }
-            return keys.stream().distinct().toList();
+            return List.of(HcadSemanticEvidenceKey.normalRequestSimilarity(
+                    tenantId,
+                    userId,
+                    resourceId,
+                    settings.getBaselineVersion(),
+                    settings.getEmbeddingModel(),
+                    dimension,
+                    settings.getEvidenceVersion()));
         }
         String policyVersion = firstText(
                 text(metadata, "authorizationPolicyId"),
@@ -126,27 +115,24 @@ public class HcadSemanticEvidenceRefreshService {
                 text(metadata, "promptTemplateKey"),
                 text(metadata, "templateKey"),
                 "prompt-unknown");
-        List<HcadSemanticEvidenceKey> keys = new ArrayList<>();
-        for (String resourceId : resourceIds) {
-            keys.add(HcadSemanticEvidenceKey.riskRequestSimilarity(
-                    tenantId,
-                    userId,
-                    resourceId,
-                    policyVersion,
-                    promptTemplateVersion,
-                    settings.getEmbeddingModel(),
-                    dimension,
-                    settings.getEvidenceVersion()));
-            keys.add(HcadSemanticEvidenceKey.resourceDecisionSummary(
-                    tenantId,
-                    resourceId,
-                    policyVersion,
-                    promptTemplateVersion,
-                    settings.getEmbeddingModel(),
-                    dimension,
-                    settings.getEvidenceVersion()));
-        }
-        return keys.stream().distinct().toList();
+        return List.of(
+                HcadSemanticEvidenceKey.riskRequestSimilarity(
+                        tenantId,
+                        userId,
+                        resourceId,
+                        policyVersion,
+                        promptTemplateVersion,
+                        settings.getEmbeddingModel(),
+                        dimension,
+                        settings.getEvidenceVersion()),
+                HcadSemanticEvidenceKey.resourceDecisionSummary(
+                        tenantId,
+                        resourceId,
+                        policyVersion,
+                        promptTemplateVersion,
+                        settings.getEmbeddingModel(),
+                        dimension,
+                        settings.getEvidenceVersion()));
     }
 
     private boolean enabled() {
@@ -166,21 +152,12 @@ public class HcadSemanticEvidenceRefreshService {
         return null;
     }
 
-    private static List<String> resourceIdentifiers(Map<String, Object> metadata, String normalizedPath) {
-        LinkedHashSet<String> identifiers = new LinkedHashSet<>();
-        addIdentifier(identifiers, text(metadata, "resourceId"));
-        addIdentifier(identifiers, text(metadata, "protectableResourceId"));
-        addIdentifier(identifiers, text(metadata, "requestedResourceId"));
-        addIdentifier(identifiers, text(metadata, "protectedResourceId"));
-        addIdentifier(identifiers, HcadRequestPathUtils.resourceFamily(normalizedPath));
-        return List.copyOf(identifiers);
-    }
-
-    private static void addIdentifier(LinkedHashSet<String> identifiers, String value) {
-        String text = firstText(value);
-        if (text != null) {
-            identifiers.add(text);
-        }
+    private static String canonicalResourceFamily(Map<String, Object> metadata) {
+        String normalizedPath = HcadRequestPathUtils.normalizePathText(firstText(
+                text(metadata, "normalizedPath"),
+                text(metadata, "requestPath"),
+                text(metadata, "requestUri")));
+        return firstText(HcadRequestPathUtils.resourceFamily(normalizedPath));
     }
 
     private static String text(Map<String, Object> metadata, String key) {

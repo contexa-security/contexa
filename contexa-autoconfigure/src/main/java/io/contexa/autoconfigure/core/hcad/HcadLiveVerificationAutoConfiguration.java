@@ -47,55 +47,35 @@ public class HcadLiveVerificationAutoConfiguration {
 
     public static class HcadLiveVerificationService {
 
-        @Protectable(
-                resourceId = "hcad.live.account.detail",
-                resourceUrl = "/contexa/test/hcad/live/accounts/{accountId}",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> accountDetail(String accountId, String runId) {
             return response("account-detail", "GET", "/contexa/test/hcad/live/accounts/" + accountId, runId,
                     Map.of("accountId", safe(accountId), "businessArea", "customer-account"));
         }
 
-        @Protectable(
-                resourceId = "hcad.live.finance.invoice",
-                resourceUrl = "/contexa/test/hcad/live/finance/invoices/{invoiceId}",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> financeInvoice(String invoiceId, String runId) {
             return response("finance-invoice", "GET", "/contexa/test/hcad/live/finance/invoices/" + invoiceId, runId,
                     Map.of("invoiceId", safe(invoiceId), "businessArea", "finance"));
         }
 
-        @Protectable(
-                resourceId = "hcad.live.policy.escalation",
-                resourceUrl = "/contexa/test/hcad/live/policies/escalation",
-                httpMethod = "POST",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> policyEscalation(Map<String, Object> body, String runId) {
             return response("policy-escalation", "POST", "/contexa/test/hcad/live/policies/escalation", runId,
                     Map.of("businessArea", "policy", "payloadKeys", body == null ? 0 : body.size()));
         }
 
-        @Protectable(
-                resourceId = "hcad.live.vendor.export",
-                resourceUrl = "/contexa/test/hcad/live/vendors/{vendorId}/export",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> vendorExport(String vendorId, String runId) {
             return response("vendor-export", "GET", "/contexa/test/hcad/live/vendors/" + vendorId + "/export", runId,
                     Map.of("vendorId", safe(vendorId), "businessArea", "external-vendor"));
         }
 
-        @Protectable(
-                resourceId = "hcad.live.security.incident.close",
-                resourceUrl = "/contexa/test/hcad/live/security/incidents/{incidentId}/close",
-                httpMethod = "POST",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> closeSecurityIncident(String incidentId, Map<String, Object> body, String runId) {
             return response("security-incident-close", "POST",
@@ -104,11 +84,7 @@ public class HcadLiveVerificationAutoConfiguration {
                             body == null ? 0 : body.size()));
         }
 
-        @Protectable(
-                resourceId = "hcad.live.hr.candidate",
-                resourceUrl = "/contexa/test/hcad/live/hr/candidates/{candidateId}",
-                httpMethod = "GET",
-                verificationRequired = false,
+        @Protectable(verificationRequired = false,
                 sync = true)
         public Map<String, Object> hrCandidate(String candidateId, String runId) {
             return response("hr-candidate", "GET", "/contexa/test/hcad/live/hr/candidates/" + candidateId, runId,
