@@ -83,7 +83,8 @@ class SystemSettingsControllerTest {
                     .build();
             when(systemSettingsService.getSettings()).thenReturn(settings);
 
-            RoleOption role = RoleOption.of("ROLE_USER", "Standard User");`r`n            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of(role));
+            RoleOption role = RoleOption.of("ROLE_USER", "Standard User");
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of(role));
 
             Model model = new ConcurrentModel();
             String view = controller.showSettings(model);

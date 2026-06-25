@@ -254,6 +254,18 @@ class AiMonitorControllerTest {
                         1L,
                         0.01d,
                         0.08d),
+                new FeedbackLearningSummary(
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        0.0d,
+                        0.0d,
+                        0.0d),
                 "KEEP_SHADOW");
     }
 }
