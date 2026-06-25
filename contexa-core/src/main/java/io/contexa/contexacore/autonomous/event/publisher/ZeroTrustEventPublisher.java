@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
+import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
 import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
 import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
@@ -413,16 +414,24 @@ public class ZeroTrustEventPublisher {
             }
             HttpServletRequest request = attrs.getRequest();
             if (request == null
-                    || Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))
                     || HcadRequestPathUtils.isNonUserInteractionRequest(request)
                     || HcadRequestPathUtils.isNonActionableMonitoringPath(HcadRequestPathUtils.normalizedPath(request))) {
+                return;
+            }
+            if (Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))
+                    && StringUtils.hasText(attributeText(
+                    request,
+                    PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID))) {
                 return;
             }
 
             TrustedHcadContextProjection projection =
                     trustedHcadContextProjectionFactory.project(request, authentication);
-            HcadPreProtectablePromotionAssessment assessment =
-                    withProtectableWindowMetadata(projection, hcadPreProtectablePromotionScorer.score(projection), request);
+            HcadPreProtectablePromotionAssessment assessment = assessmentFromRequest(request);
+            if (assessment == null) {
+                assessment = hcadPreProtectablePromotionScorer.score(projection);
+            }
+            assessment = withProtectableWindowMetadata(projection, assessment, request);
             HcadPreTriggerMode mode = effectiveHcadProperties == null
                     ? HcadPreTriggerMode.SHADOW
                     : effectiveHcadProperties.getPreTrigger().effectiveMode();
@@ -436,6 +445,57 @@ public class ZeroTrustEventPublisher {
         }
     }
 
+    private HcadPreProtectablePromotionAssessment assessmentFromRequest(HttpServletRequest request) {
+        if (request == null
+                || !Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))) {
+            return null;
+        }
+        HcadPreProtectablePromotionBand band = bandAttribute(request);
+        if (band == null) {
+            return null;
+        }
+        Map<String, Object> rawSignals = mapAttribute(
+                request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS));
+        return new HcadPreProtectablePromotionAssessment(
+                integerAttribute(request, HcadPreProtectablePromotionAttributes.REQUEST_SCORE, 0),
+                band,
+                booleanAttribute(request, HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, false),
+                extractStringList(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS)),
+                extractStringList(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_CORROBORATING_SIGNALS)),
+                extractStringList(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES)),
+                attributeText(request, HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY),
+                attributeText(request, HcadPreProtectablePromotionAttributes.REQUEST_VERSION),
+                rawSignals);
+    }
+
+    private HcadPreProtectablePromotionBand bandAttribute(HttpServletRequest request) {
+        String value = attributeText(request, HcadPreProtectablePromotionAttributes.REQUEST_BAND);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return HcadPreProtectablePromotionBand.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private boolean booleanAttribute(HttpServletRequest request, String attributeName, boolean defaultValue) {
+        Object value = request == null || attributeName == null ? null : request.getAttribute(attributeName);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        String text = textValue(value);
+        return text == null ? defaultValue : Boolean.parseBoolean(text);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mapAttribute(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return new HashMap<>();
+        }
+        return new HashMap<>((Map<String, Object>) map);
+    }
     private HcadPreProtectablePromotionAssessment withProtectableWindowMetadata(
             TrustedHcadContextProjection projection,
             HcadPreProtectablePromotionAssessment assessment,

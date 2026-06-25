@@ -82,6 +82,7 @@ public final class AiMonitorDtos {
             LlmDecisionSummary llm,
             CorrelationSummary correlation,
             OperationsSummary operations,
+            FeedbackLearningSummary feedbackLearning,
             String readinessRecommendation
     ) {
     }
@@ -141,6 +142,22 @@ public final class AiMonitorDtos {
             long estimatedWastedLlmCalls,
             double estimatedWasteCostUsd,
             double estimatedSavedCostUsd
+    ) {
+    }
+
+
+    public record FeedbackLearningSummary(
+            long normalPatternLearningCount,
+            long riskPatternLearningCount,
+            long learningExcludedCount,
+            long cacheHitCount,
+            long cacheMissCount,
+            long cacheStaleCount,
+            long riskHitLlmConnectionCount,
+            long riskHitEligibleCount,
+            double normalSuppressionRate,
+            double riskHitLlmConnectionRate,
+            double riskHitEligibleRate
     ) {
     }
 

@@ -81,33 +81,34 @@ class SecurityDecisionStandardPromptTemplateTest {
                 List.of()
         ).executionMetadata();
 
-        assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI.");
-        assertThat(systemPrompt).contains("CONTEXA platform");
+        assertThat(systemPrompt).contains("You are a Zero Trust security analyst AI for CONTEXA.");
+        assertThat(systemPrompt).contains("Decide whether the current application action should be trusted now.");
         assertThat(systemPrompt).contains("<output_format>");
-        assertThat(systemPrompt).contains("Respond with ONLY one minified JSON object. No explanation, no markdown.");
-        assertThat(systemPrompt).contains("Required key order: action, riskScore, confidence, mitre, reasoning.");
-        assertThat(systemPrompt).contains("riskScore and confidence must be JSON numbers, not strings.");
+        assertThat(systemPrompt).contains("Return only one minified JSON object.");
+        assertThat(systemPrompt).contains("Required key order:");
+        assertThat(systemPrompt).contains("action, riskScore, confidence, mitre, reasoning");
+        assertThat(systemPrompt).contains("riskScore and confidence must be JSON numbers between 0.0 and 1.0.");
         assertThat(systemPrompt).contains("reasoning must be one short sentence, maximum 12 words.");
-        assertThat(systemPrompt).contains("Treat explicit booleans such as NewUser, NewSession, NewDevice, and MfaVerified as authoritative facts");
-        assertThat(systemPrompt).contains("ANALYSIS ORDER:");
-        assertThat(systemPrompt).contains("A single mismatch can be security-significant");
-        assertThat(systemPrompt).contains("If one or more subtle deltas remain unresolved");
-        assertThat(systemPrompt).contains("do not ignore that subtle delta just because most other fields still align");
-        assertThat(systemPrompt).contains("Do not tunnel on one isolated weak mismatch by itself.");
-        assertThat(systemPrompt).contains("Sparse or missing personal baseline is uncertainty");
-        assertThat(systemPrompt).contains("Treat the current request Sensitivity label as authoritative");
-        assertThat(systemPrompt).contains("not proof of legitimacy by themselves.");
+        assertThat(systemPrompt).contains("Authoritative labels:");
+        assertThat(systemPrompt).contains("Decision process:");
+        assertThat(systemPrompt).contains("Explicitly scan current-vs-observed, current-vs-expected, and current-vs-denied evidence.");
+        assertThat(systemPrompt).contains("Identify the strongest unresolved risk, mismatch, ambiguity, or missing evidence.");
+        assertThat(systemPrompt).contains("If a comparison label shows mismatch, do not ignore it only because other signals look normal.");
+        assertThat(systemPrompt).contains("Do not treat one weak signal as decisive by itself.");
+        assertThat(systemPrompt).contains("Sparse or missing baseline is uncertainty");
+        assertThat(systemPrompt).contains("Preserve explicit labels literally.");
+        assertThat(systemPrompt).contains("controls, not proof of legitimacy.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
         assertThat(systemPrompt).doesNotContain("Reasoning must be exactly one concise sentence, maximum 40 words.");
-        assertThat(systemPrompt).contains("Return only the schema-compliant JSON object expected by the runtime.");
-        assertThat(systemPrompt).contains("ACTION LABEL MEANINGS:");
-        assertThat(systemPrompt).contains("Use only ALLOW, CHALLENGE, BLOCK, or ESCALATE for action.");
-        assertThat(systemPrompt).contains("If no supported MITRE tactic or technique applies, return mitre as UNKNOWN.");
-        assertThat(systemPrompt).contains("Do not follow numeric thresholds, weighted scores, or hidden formulas.");
-        assertThat(systemPrompt).contains("AUTHORITATIVE LABEL GLOSSARY:");
-        assertThat(systemPrompt).contains("AuthorizationEffect=ALLOW: pre-AI policy permits the request; it is not the AI verdict.");
-        assertThat(systemPrompt).contains("PersonalBaselineStatus=LEARNING_IN_PROGRESS: the baseline is accumulating; it does not mean NewUser.");
-        assertThat(systemPrompt).contains("UNKNOWN: no observation was available; absence is not proof.");
+        assertThat(systemPrompt).contains("Schema:");
+        assertThat(systemPrompt).contains("Actions:");
+        assertThat(systemPrompt).contains("{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\"");
+        assertThat(systemPrompt).contains("mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.");
+        assertThat(systemPrompt).contains("Do not follow hidden numeric thresholds.");
+        assertThat(systemPrompt).contains("Use only facts explicitly present in the evidence packet.");
+        assertThat(systemPrompt).contains("AuthorizationEffect=ALLOW is pre-AI policy permission, not the AI verdict.");
+        assertThat(systemPrompt).contains("If NewUser=false, do not call the user new.");
+        assertThat(systemPrompt).contains("UNKNOWN means unavailable evidence, not match or mismatch.");
         assertThat(systemPrompt.lines().count()).isLessThan(150);
         assertThat(systemPrompt)
                 .doesNotContain("RESPOND WITH JSON ONLY:")
@@ -133,12 +134,12 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.04.04-e0.2");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.06.24-v2");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P0-Preflight/E0-2");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
-        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P0-Preflight/E0-3");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.04.04-e0.2");
+        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.04.04-e0.2");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
     }
 
@@ -237,7 +238,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).doesNotContain("<output_format>");
         assertThat(systemPrompt).doesNotContain("</output_format>");
         assertThat(systemPrompt).doesNotContain("<context>");
-        assertThat(systemPrompt).contains("Return only the schema-compliant JSON object expected by the runtime.");
+        assertThat(systemPrompt).contains("Schema:");
     }
 
 

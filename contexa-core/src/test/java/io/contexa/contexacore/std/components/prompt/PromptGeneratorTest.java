@@ -124,12 +124,12 @@ class PromptGeneratorTest {
 
         PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
         assertThat(executionMetadata).isNotNull();
-        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.04.04-e0.2");
+        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.06.24-v2");
         assertThat(executionMetadata.governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(executionMetadata.governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("P0-Preflight/E0-2");
-        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.03.26-e0.1");
-        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.03.26-e0.1");
+        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("P0-Preflight/E0-3");
+        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.04.04-e0.2");
+        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.04.04-e0.2");
         assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_INTERACTIVE_STRICT");
         assertThat(executionMetadata.budgetProfile().viewProfile()).isEqualTo(PromptViewProfile.STANDARD);
         assertThat(executionMetadata.budgetProfile().maxInputTokens()).isEqualTo(4200);

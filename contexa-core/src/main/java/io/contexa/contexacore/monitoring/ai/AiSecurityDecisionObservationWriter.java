@@ -259,34 +259,55 @@ public class AiSecurityDecisionObservationWriter {
             ProcessingResult result,
             ZeroTrustAction finalAction,
             String failureType) {
-        if (semanticEvidenceRefreshService == null || !semanticEvidenceMaterial(result, finalAction, failureType)) {
+        if (semanticEvidenceRefreshService == null) {
+            return;
+        }
+        String learningAction = semanticEvidenceLearningAction(result, finalAction, failureType);
+        if (learningAction == null) {
             return;
         }
         try {
-            semanticEvidenceRefreshService.refreshAfterDecision(event, metadata);
+            semanticEvidenceRefreshService.refreshAfterDecision(event, metadata, learningAction);
         } catch (RuntimeException ex) {
             log.debug("[AiSecurityDecisionObservationWriter] Failed to refresh HCAD semantic evidence: eventId={}",
                     event != null ? event.getEventId() : null, ex);
         }
     }
 
-    private boolean semanticEvidenceMaterial(
+    private String semanticEvidenceLearningAction(
             ProcessingResult result,
             ZeroTrustAction finalAction,
             String failureType) {
         if (failureType != null || result == null || !result.isSuccess()) {
-            return false;
+            return null;
         }
-        return semanticEvidenceAction(finalAction != null ? finalAction.name() : null)
-                || semanticEvidenceAction(result.getProposedAction())
-                || semanticEvidenceAction(result.getAction());
+        if (result.resolveAuditRiskScore() == null || result.resolveAuditConfidence() == null) {
+            return null;
+        }
+        String resolved = learningAction(finalAction != null ? finalAction.name() : null);
+        if (resolved != null) {
+            return resolved;
+        }
+        resolved = learningAction(result.getAction());
+        if (resolved != null) {
+            return resolved;
+        }
+        return learningAction(result.getProposedAction());
     }
 
-    private boolean semanticEvidenceAction(String action) {
+    private String learningAction(String action) {
         String normalized = normalize(action);
-        return "allow".equals(normalized);
+        if ("allow".equals(normalized)) {
+            return "ALLOW";
+        }
+        if ("challenge".equals(normalized)) {
+            return "CHALLENGE";
+        }
+        if ("block".equals(normalized)) {
+            return "BLOCK";
+        }
+        return null;
     }
-
     public boolean markProtectableMerged(
             String hcadEvaluationId,
             String resourceId,

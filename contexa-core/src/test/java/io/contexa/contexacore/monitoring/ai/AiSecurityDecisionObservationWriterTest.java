@@ -33,6 +33,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -76,7 +77,7 @@ class AiSecurityDecisionObservationWriterTest {
 
         writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
 
-        verify(refreshService).refreshAfterDecision(eq(event), anyMap());
+        verify(refreshService).refreshAfterDecision(eq(event), anyMap(), eq("ALLOW"));
     }
 
     @Test
@@ -112,12 +113,12 @@ class AiSecurityDecisionObservationWriterTest {
 
         writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
 
-        verify(refreshService, never()).refreshAfterDecision(eq(event), anyMap());
+        verify(refreshService, never()).refreshAfterDecision(eq(event), anyMap(), anyString());
     }
 
     @Test
-    @DisplayName("Successful non-ALLOW LLM decision should not refresh normal HCAD semantic evidence cache")
-    void recordDecision_successfulChallengeDecision_shouldNotRefreshSemanticEvidence() {
+    @DisplayName("Successful CHALLENGE LLM decision should refresh HCAD risk semantic evidence cache")
+    void recordDecision_successfulChallengeDecision_shouldRefreshRiskSemanticEvidence() {
         JdbcOperations jdbcOperations = mock(JdbcOperations.class);
         HcadSemanticEvidenceRefreshService refreshService = mock(HcadSemanticEvidenceRefreshService.class);
         AiSecurityDecisionObservationWriter writer =
@@ -149,9 +150,43 @@ class AiSecurityDecisionObservationWriterTest {
 
         writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
 
-        verify(refreshService, never()).refreshAfterDecision(eq(event), anyMap());
+        verify(refreshService).refreshAfterDecision(eq(event), anyMap(), eq("CHALLENGE"));
     }
 
+    @Test
+    @DisplayName("Successful LLM decision without risk score or confidence should not refresh HCAD semantic evidence cache")
+    void recordDecision_successfulDecisionWithoutScoreOrConfidence_shouldNotRefreshSemanticEvidence() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadSemanticEvidenceRefreshService refreshService = mock(HcadSemanticEvidenceRefreshService.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(
+                        () -> jdbcOperations,
+                        new ObjectMapper(),
+                        "openai",
+                        "gpt-5-nano",
+                        refreshService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-refresh-no-score")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "PROTECTABLE",
+                        "requestId", "req-refresh-no-score",
+                        "requestPath", "/contexa/admin/users",
+                        "resourceId", "/contexa/admin/users"
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("ALLOW")
+                .proposedAction("ALLOW")
+                .llmDecisionPresent(true)
+                .processingTimeMs(120L)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        verify(refreshService, never()).refreshAfterDecision(eq(event), anyMap(), anyString());
+    }
     @Test
     @DisplayName("HCAD pre-triggered LLM decision should be stored as HCAD_ONLY TP when LLM reports risk")
     void recordDecision_hcadTriggeredRisk_shouldStoreHcadOnlyTruePositive() {

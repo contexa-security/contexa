@@ -498,6 +498,125 @@ class HcadPreProtectablePromotionScorerTest {
         assertThat(assessment.eligible()).isFalse();
     }
 
+
+    @Test
+    @DisplayName("source-absent semantic evidence should be explained as a gap and never applied to scoring")
+    void score_sourceAbsentSemanticEvidence_shouldRemainGapOnly() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        TrustedHcadContextProjection projection = trustedProjection(
+                true,
+                List.of(),
+                0,
+                0,
+                false,
+                false,
+                0.9,
+                Map.of("authorizationPrivileged", HcadFieldProvenance.present(
+                        "authorizationPrivileged",
+                        HcadTrustedSource.BRIDGE_VERIFIED,
+                        "test")));
+        CachedSemanticEvidenceProjection semanticEvidence = CachedSemanticEvidenceProjection.of(List.of(
+                semanticEntry(HcadSemanticEvidenceCacheStatus.CACHE_MISS_SOURCE_ABSENT, 0.1, 0.95, 0.8)));
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection, semanticEvidence);
+
+        assertThat(assessment.corroboratingSignals())
+                .doesNotContain("SEMANTIC_EVIDENCE_MISMATCH", "SEMANTIC_RISK_SIMILARITY");
+        assertThat(assessment.rawSignalSnapshot())
+                .containsEntry("structuredScore", 35)
+                .containsEntry("semanticEvidenceScore", 0)
+                .containsEntry("semanticNormalSuppressionScore", 0);
+        assertThat(assessment.rawSignalSnapshot().get("semanticEvidence").toString())
+                .contains("SOURCE_ABSENT");
+        assertThat(assessment.earlyAnalysisScore()).isEqualTo(35);
+        assertThat(assessment.eligible()).isFalse();
+    }
+
+    @Test
+    @DisplayName("version-mismatched semantic evidence should be explained but never applied to scoring")
+    void score_versionMismatchSemanticEvidence_shouldRemainGapOnly() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        TrustedHcadContextProjection projection = trustedProjection(
+                true,
+                List.of(),
+                0,
+                0,
+                false,
+                false,
+                0.9,
+                Map.of("authorizationPrivileged", HcadFieldProvenance.present(
+                        "authorizationPrivileged",
+                        HcadTrustedSource.BRIDGE_VERIFIED,
+                        "test")));
+        HcadSemanticEvidenceEntry mismatched = semanticEntry(HcadSemanticEvidenceCacheStatus.HIT, 0.1, 0.95, 0.8)
+                .forRequestedKey(HcadSemanticEvidenceKey.riskRequestSimilarity(
+                        "tenant-1",
+                        "alice",
+                        "admin.reports",
+                        "policy-v2",
+                        "prompt-v1",
+                        "bge-small",
+                        384,
+                        "semantic-v1"));
+        CachedSemanticEvidenceProjection semanticEvidence = CachedSemanticEvidenceProjection.of(List.of(mismatched));
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection, semanticEvidence);
+
+        assertThat(assessment.corroboratingSignals())
+                .doesNotContain("SEMANTIC_EVIDENCE_MISMATCH", "SEMANTIC_RISK_SIMILARITY");
+        assertThat(assessment.rawSignalSnapshot())
+                .containsEntry("structuredScore", 35)
+                .containsEntry("semanticEvidenceScore", 0)
+                .containsEntry("semanticNormalSuppressionScore", 0);
+        assertThat(assessment.rawSignalSnapshot().get("semanticEvidence").toString())
+                .contains("VERSION_MISMATCH");
+        assertThat(assessment.earlyAnalysisScore()).isEqualTo(35);
+        assertThat(assessment.eligible()).isFalse();
+    }
+    @Test
+    @DisplayName("dimension-mismatched semantic evidence should be explained but never applied to scoring")
+    void score_dimensionMismatchSemanticEvidence_shouldRemainGapOnly() {
+        HcadProperties properties = new HcadProperties();
+        HcadPreProtectablePromotionScorer scorer = new HcadPreProtectablePromotionScorer(properties);
+        TrustedHcadContextProjection projection = trustedProjection(
+                true,
+                List.of(),
+                0,
+                0,
+                false,
+                false,
+                0.9,
+                Map.of("authorizationPrivileged", HcadFieldProvenance.present(
+                        "authorizationPrivileged",
+                        HcadTrustedSource.BRIDGE_VERIFIED,
+                        "test")));
+        HcadSemanticEvidenceEntry mismatched = semanticEntry(HcadSemanticEvidenceCacheStatus.HIT, 0.1, 0.95, 0.8)
+                .forRequestedKey(HcadSemanticEvidenceKey.riskRequestSimilarity(
+                        "tenant-1",
+                        "alice",
+                        "admin.reports",
+                        "policy-v1",
+                        "prompt-v1",
+                        "bge-small",
+                        768,
+                        "semantic-v1"));
+        CachedSemanticEvidenceProjection semanticEvidence = CachedSemanticEvidenceProjection.of(List.of(mismatched));
+
+        HcadPreProtectablePromotionAssessment assessment = scorer.score(projection, semanticEvidence);
+
+        assertThat(assessment.corroboratingSignals())
+                .doesNotContain("SEMANTIC_EVIDENCE_MISMATCH", "SEMANTIC_RISK_SIMILARITY");
+        assertThat(assessment.rawSignalSnapshot())
+                .containsEntry("structuredScore", 35)
+                .containsEntry("semanticEvidenceScore", 0)
+                .containsEntry("semanticNormalSuppressionScore", 0);
+        assertThat(assessment.rawSignalSnapshot().get("semanticEvidence").toString())
+                .contains("DIMENSION_MISMATCH");
+        assertThat(assessment.earlyAnalysisScore()).isEqualTo(35);
+        assertThat(assessment.eligible()).isFalse();
+    }
     private TrustedHcadContextProjection trustedProjection(
             Boolean authorizationPrivileged,
             List<String> recentPermissionChanges,
@@ -519,7 +638,6 @@ class HcadPreProtectablePromotionScorerTest {
                 provenance,
                 HcadBaselineComparison.unavailable(20));
     }
-
     private TrustedHcadContextProjection trustedProjection(
             Boolean authorizationPrivileged,
             List<String> recentPermissionChanges,
@@ -542,7 +660,6 @@ class HcadPreProtectablePromotionScorerTest {
                 provenance,
                 HcadBaselineComparison.unavailable(20));
     }
-
     private TrustedHcadContextProjection trustedProjection(
             Boolean authorizationPrivileged,
             List<String> recentPermissionChanges,

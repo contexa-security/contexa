@@ -16,10 +16,12 @@
 package io.contexa.contexacore.hcad.semantic;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public record CachedSemanticEvidenceProjection(
         List<HcadSemanticEvidenceEntry> entries,
@@ -66,7 +68,6 @@ public record CachedSemanticEvidenceProjection(
     public boolean hasStaleHit() {
         return entries.stream()
                 .anyMatch(entry -> entry != null
-                        && entry.usableForScoring()
                         && entry.status() == HcadSemanticEvidenceCacheStatus.STALE_HIT);
     }
 
@@ -126,13 +127,51 @@ public record CachedSemanticEvidenceProjection(
         snapshot.put("type", entry.key().type().name());
         snapshot.put("status", entry.status().name());
         snapshot.put("sourceVersion", entry.sourceVersion());
+        snapshot.put("sourceTable", entry.sourceVersion());
         snapshot.put("evidenceVersion", entry.evidenceVersion());
         snapshot.put("embeddingModel", entry.embeddingModel());
         snapshot.put("dimension", entry.dimension());
         snapshot.put("similarityToNormal", entry.similarityToNormal());
         snapshot.put("similarityToRisk", entry.similarityToRisk());
         snapshot.put("mismatchScore", entry.mismatchScore());
+        snapshot.put("sampleCount", numberFromSummary(entry.summaryJson(), "sampleCount"));
+        snapshot.put("evidenceKind", textFromSummary(entry.summaryJson(), "evidenceKind"));
+        snapshot.put("actionFamily", textFromSummary(entry.summaryJson(), "actionFamily"));
+        snapshot.put("avgRisk", numberFromSummary(entry.summaryJson(), "avgRisk"));
+        snapshot.put("avgConfidence", numberFromSummary(entry.summaryJson(), "avgConfidence"));
+        snapshot.put("lastDecisionAt", textFromSummary(entry.summaryJson(), "lastDecisionAt"));
+        snapshot.put("summaryJson", entry.summaryJson());
         snapshot.put("gapCodes", entry.evidenceGapCodes());
         return snapshot;
+    }
+
+    private static Number numberFromSummary(String summaryJson, String field) {
+        String value = summaryValue(summaryJson, field, false);
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (value.contains(".")) {
+                return Double.parseDouble(value);
+            }
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static String textFromSummary(String summaryJson, String field) {
+        return summaryValue(summaryJson, field, true);
+    }
+
+    private static String summaryValue(String summaryJson, String field, boolean quoted) {
+        if (summaryJson == null || summaryJson.isBlank() || field == null || field.isBlank()) {
+            return null;
+        }
+        String pattern = quoted
+                ? "\\\"" + Pattern.quote(field) + "\\\"\\s*:\\s*\\\"([^\\\"]*)\\\""
+                : "\\\"" + Pattern.quote(field) + "\\\"\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?)";
+        Matcher matcher = Pattern.compile(pattern).matcher(summaryJson);
+        return matcher.find() ? matcher.group(1) : null;
     }
 }

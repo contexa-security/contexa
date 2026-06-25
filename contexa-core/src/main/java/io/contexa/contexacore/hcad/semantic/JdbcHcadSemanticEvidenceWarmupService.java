@@ -69,7 +69,8 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         try {
             HcadSemanticEvidenceEntry entry = switch (key.type()) {
                 case NORMAL_REQUEST_SIMILARITY -> normalRequestSimilarity(jdbcOperations, key);
-                case RISK_REQUEST_SIMILARITY -> null;
+                case RISK_REQUEST_SIMILARITY -> riskRequestSimilarity(jdbcOperations, key);
+                case RESOURCE_LLM_DECISION_SUMMARY -> resourceDecisionSummary(jdbcOperations, key);
                 default -> null;
             };
             if (entry == null) {
@@ -89,24 +90,54 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
     private HcadSemanticEvidenceEntry normalRequestSimilarity(
             JdbcOperations jdbcOperations,
             HcadSemanticEvidenceKey key) {
-        Map<String, Object> row = aggregate(jdbcOperations, key);
-        if (row == null || number(row.get("sample_count")).intValue() <= 0) {
+        Map<String, Object> row = aggregateNormal(jdbcOperations, key);
+        if (empty(row)) {
             return null;
         }
         double confidence = bounded(number(row.get("avg_confidence")).doubleValue(), 0.0d, 1.0d);
         double risk = bounded(number(row.get("avg_risk")).doubleValue(), 0.0d, 1.0d);
         double normal = confidence <= 0.0d ? 0.75d : confidence;
         double mismatch = bounded(risk * (1.0d - normal), 0.0d, 1.0d);
-        return entry(key, normal, risk, mismatch, row);
+        return entry(key, normal, risk, mismatch, row, "normal", "ALLOW");
     }
 
-    private Map<String, Object> aggregate(
+    private HcadSemanticEvidenceEntry riskRequestSimilarity(
             JdbcOperations jdbcOperations,
             HcadSemanticEvidenceKey key) {
-        List<Map<String, Object>> rows = jdbcOperations.queryForList("""
+        Map<String, Object> row = aggregateRisk(jdbcOperations, key);
+        if (empty(row)) {
+            return null;
+        }
+        double confidence = bounded(number(row.get("avg_confidence")).doubleValue(), 0.0d, 1.0d);
+        double risk = bounded(number(row.get("avg_risk")).doubleValue(), 0.0d, 1.0d);
+        double riskSimilarity = bounded(Math.max(risk, confidence * 0.9d), 0.0d, 1.0d);
+        return entry(key, null, riskSimilarity, riskSimilarity, row, "risk", "CHALLENGE_BLOCK");
+    }
+
+    private HcadSemanticEvidenceEntry resourceDecisionSummary(
+            JdbcOperations jdbcOperations,
+            HcadSemanticEvidenceKey key) {
+        Map<String, Object> row = aggregateResourceSummary(jdbcOperations, key);
+        if (empty(row)) {
+            return null;
+        }
+        double riskCount = number(row.get("challenge_count")).doubleValue()
+                + number(row.get("block_count")).doubleValue();
+        double total = Math.max(1.0d, number(row.get("sample_count")).doubleValue());
+        double riskRatio = bounded(riskCount / total, 0.0d, 1.0d);
+        double avgRisk = bounded(number(row.get("avg_risk")).doubleValue(), 0.0d, 1.0d);
+        double riskSimilarity = bounded(Math.max(riskRatio, avgRisk), 0.0d, 1.0d);
+        return entry(key, null, riskSimilarity, riskSimilarity, row, "resourceDecisionSummary", "ALLOW_CHALLENGE_BLOCK");
+    }
+
+    private Map<String, Object> aggregateNormal(
+            JdbcOperations jdbcOperations,
+            HcadSemanticEvidenceKey key) {
+        return firstRow(jdbcOperations.queryForList("""
                 SELECT count(*) AS sample_count,
                        avg(coalesce(llm_risk_score, 0)) AS avg_risk,
-                       avg(coalesce(llm_confidence, 0)) AS avg_confidence
+                       avg(coalesce(llm_confidence, 0)) AS avg_confidence,
+                       max(decided_at) AS last_decision_at
                   FROM ai_security_decision_observation
                  WHERE coalesce(user_id, '') = coalesce(?, '')
                    AND (
@@ -115,20 +146,70 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
                    )
                    AND success = true
                    AND outcome_class <> 'UNKNOWN'
-                   AND coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '') = 'ALLOW'
+                   AND upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) = 'ALLOW'
                 """,
                 value(key.userId()),
                 value(key.resourceId()),
-                "%" + value(key.resourceId()) + "%");
-        return rows == null || rows.isEmpty() ? null : rows.get(0);
+                resourceLikePattern(key.resourceId())));
+    }
+
+    private Map<String, Object> aggregateRisk(
+            JdbcOperations jdbcOperations,
+            HcadSemanticEvidenceKey key) {
+        return firstRow(jdbcOperations.queryForList("""
+                SELECT count(*) AS sample_count,
+                       avg(coalesce(llm_risk_score, 0)) AS avg_risk,
+                       avg(coalesce(llm_confidence, 0)) AS avg_confidence,
+                       max(decided_at) AS last_decision_at,
+                       sum(CASE WHEN upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) = 'CHALLENGE' THEN 1 ELSE 0 END) AS challenge_count,
+                       sum(CASE WHEN upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) = 'BLOCK' THEN 1 ELSE 0 END) AS block_count
+                  FROM ai_security_decision_observation
+                 WHERE coalesce(user_id, '') = coalesce(?, '')
+                   AND (
+                        coalesce(resource_id, '') = coalesce(?, '')
+                        OR coalesce(request_path, '') LIKE ?
+                   )
+                   AND success = true
+                   AND outcome_class <> 'UNKNOWN'
+                   AND upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) IN ('CHALLENGE', 'BLOCK')
+                """,
+                value(key.userId()),
+                value(key.resourceId()),
+                resourceLikePattern(key.resourceId())));
+    }
+
+    private Map<String, Object> aggregateResourceSummary(
+            JdbcOperations jdbcOperations,
+            HcadSemanticEvidenceKey key) {
+        return firstRow(jdbcOperations.queryForList("""
+                SELECT count(*) AS sample_count,
+                       avg(coalesce(llm_risk_score, 0)) AS avg_risk,
+                       avg(coalesce(llm_confidence, 0)) AS avg_confidence,
+                       max(decided_at) AS last_decision_at,
+                       sum(CASE WHEN upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) = 'ALLOW' THEN 1 ELSE 0 END) AS allow_count,
+                       sum(CASE WHEN upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) = 'CHALLENGE' THEN 1 ELSE 0 END) AS challenge_count,
+                       sum(CASE WHEN upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) = 'BLOCK' THEN 1 ELSE 0 END) AS block_count
+                  FROM ai_security_decision_observation
+                 WHERE (
+                        coalesce(resource_id, '') = coalesce(?, '')
+                        OR coalesce(request_path, '') LIKE ?
+                   )
+                   AND success = true
+                   AND outcome_class <> 'UNKNOWN'
+                   AND upper(coalesce(nullif(final_action, 'PENDING_ANALYSIS'), nullif(proposed_action, ''), '')) IN ('ALLOW', 'CHALLENGE', 'BLOCK')
+                """,
+                value(key.resourceId()),
+                resourceLikePattern(key.resourceId())));
     }
 
     private HcadSemanticEvidenceEntry entry(
             HcadSemanticEvidenceKey key,
-            double normal,
-            double risk,
-            double mismatch,
-            Map<String, Object> row) {
+            Double normal,
+            Double risk,
+            Double mismatch,
+            Map<String, Object> row,
+            String evidenceKind,
+            String actionFamily) {
         Instant now = Instant.now();
         return new HcadSemanticEvidenceEntry(
                 key,
@@ -140,8 +221,7 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
                 normal,
                 risk,
                 mismatch,
-                "{\"source\":\"ai_security_decision_observation\",\"sampleCount\":"
-                        + number(row.get("sample_count")).intValue() + "}",
+                summaryJson(row, evidenceKind, actionFamily),
                 List.of("CACHE_MISS_SOURCE_AVAILABLE", "WARMUP_COMPLETED"),
                 now,
                 now.plusSeconds(ttlSeconds(key)));
@@ -175,8 +255,25 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         return Math.max(1L, hcadProperties.getSemanticEvidence().getSourceAbsentNegativeTtlSeconds());
     }
 
+    private static Map<String, Object> firstRow(List<Map<String, Object>> rows) {
+        return rows == null || rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private static boolean empty(Map<String, Object> row) {
+        return row == null || number(row.get("sample_count")).intValue() <= 0;
+    }
+
     private static String value(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String resourceLikePattern(String resourceId) {
+        String value = value(resourceId);
+        int placeholder = value.indexOf('{');
+        if (placeholder > 0) {
+            return value.substring(0, placeholder) + "%";
+        }
+        return "%" + value + "%";
     }
 
     private static Number number(Object value) {
@@ -187,7 +284,55 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         return Math.max(min, Math.min(max, value));
     }
 
+    private static String summaryJson(Map<String, Object> row, String evidenceKind, String actionFamily) {
+        StringBuilder builder = new StringBuilder();
+        builder.append('{');
+        field(builder, "source", "ai_security_decision_observation");
+        field(builder, "evidenceKind", evidenceKind);
+        field(builder, "actionFamily", actionFamily);
+        numberField(builder, "sampleCount", number(row.get("sample_count")));
+        numberField(builder, "avgRisk", number(row.get("avg_risk")));
+        numberField(builder, "avgConfidence", number(row.get("avg_confidence")));
+        numberField(builder, "allowCount", number(row.get("allow_count")));
+        numberField(builder, "challengeCount", number(row.get("challenge_count")));
+        numberField(builder, "blockCount", number(row.get("block_count")));
+        field(builder, "lastDecisionAt", text(row.get("last_decision_at")));
+        builder.append('}');
+        return builder.toString();
+    }
+
+    private static void field(StringBuilder builder, String name, String value) {
+        appendSeparator(builder);
+        builder.append('"').append(escapeJson(name)).append("\":");
+        if (value == null) {
+            builder.append("null");
+        } else {
+            builder.append('"').append(escapeJson(value)).append('"');
+        }
+    }
+
+    private static void numberField(StringBuilder builder, String name, Number value) {
+        appendSeparator(builder);
+        builder.append('"').append(escapeJson(name)).append("\":");
+        builder.append(value == null ? 0 : value);
+    }
+
+    private static void appendSeparator(StringBuilder builder) {
+        if (builder.length() > 1 && builder.charAt(builder.length() - 1) != '{') {
+            builder.append(',');
+        }
+    }
+
+    private static String text(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isBlank() ? null : text;
+    }
+
     private static String escapeJson(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
+

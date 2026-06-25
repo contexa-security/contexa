@@ -168,7 +168,7 @@ public class SealedEvidencePromptScorecard {
                 "output_format section present");
 
         check(checks, "systemPrompt contains action schema",
-                systemPrompt != null && systemPrompt.contains("\"action\":\"ALLOW|CHALLENGE|BLOCK|ESCALATE\""),
+                systemPrompt != null && systemPrompt.contains("\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\""),
                 "action schema present");
 
         // --- Harness: userPrompt section checks (individual, not combined) ---

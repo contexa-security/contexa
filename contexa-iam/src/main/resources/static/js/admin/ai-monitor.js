@@ -133,7 +133,8 @@
             `<div class="ai-monitor-overview-grid">
                 ${agreementPanel(metrics)}
                 ${qualitySignalPanel(hcad, llm, operations, metrics, standard)}
-            </div>`
+            </div>`,
+            feedbackLearningPanel(summary.feedbackLearning || {})
         ].join('');
     }
 
@@ -350,6 +351,44 @@
             </section>`;
     }
 
+
+    function feedbackLearningPanel(summary) {
+        const normalCount = summary.normalPatternLearningCount || 0;
+        const riskCount = summary.riskPatternLearningCount || 0;
+        const excludedCount = summary.learningExcludedCount || 0;
+        const cacheHit = summary.cacheHitCount || 0;
+        const cacheMiss = summary.cacheMissCount || 0;
+        const cacheStale = summary.cacheStaleCount || 0;
+        const hasNormal = normalCount > 0;
+        const hasRisk = riskCount > 0;
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelFeedbackLearning'))}</div>
+                <div class="ai-monitor-band-help">${escapeHtml(label('labelFeedbackLearningHelp'))}</div>
+                <div class="ai-monitor-cause-grid">
+                    ${feedbackCause(label('labelNormalLearning'), normalCount, label('labelNormalLearningHelp'))}
+                    ${feedbackCause(label('labelRiskLearning'), riskCount, label('labelRiskLearningHelp'))}
+                    ${feedbackCause(label('labelLearningExcluded'), excludedCount, label('labelLearningExcludedHelp'))}
+                    ${feedbackCause(label('labelCacheHit'), cacheHit, label('labelCacheHitHelp'))}
+                    ${feedbackCause(label('labelCacheMiss'), cacheMiss, label('labelCacheMissHelp'))}
+                    ${feedbackCause(label('labelCacheStale'), cacheStale, label('labelCacheStaleHelp'))}
+                </div>
+                <div class="ai-monitor-bars" style="margin-top:1rem;">
+                    ${metricBar(label('labelNormalSuppression'), hasNormal ? summary.normalSuppressionRate || 0 : 0, 'good', hasNormal ? formatPercent(summary.normalSuppressionRate || 0) : label('labelNoData'))}
+                    ${metricBar(label('labelRiskHitLlm'), hasRisk ? summary.riskHitLlmConnectionRate || 0 : 0, 'warn', hasRisk ? formatPercent(summary.riskHitLlmConnectionRate || 0) : label('labelNoData'))}
+                    ${metricBar(label('labelRiskHitEligible'), hasRisk ? summary.riskHitEligibleRate || 0 : 0, 'warn', hasRisk ? formatPercent(summary.riskHitEligibleRate || 0) : label('labelNoData'))}
+                </div>
+            </section>`;
+    }
+
+    function feedbackCause(title, value, help) {
+        return `
+            <div class="ai-monitor-cause">
+                <strong>${escapeHtml(title)}</strong>
+                <span>${escapeHtml(formatNumber(value || 0))}</span>
+                <i>${escapeHtml(help)}</i>
+            </div>`;
+    }
     function distributionPanel(title, rows, variant) {
         const safeRows = rows.filter(row => row.count > 0).slice(0, 6);
         const total = safeRows.reduce((sum, row) => sum + row.count, 0);

@@ -479,6 +479,14 @@ public class HCADFilter extends OncePerRequestFilter {
                         firstText(projection.promptContextContractVersion(), "prompt-unknown"),
                         settings.getEmbeddingModel(),
                         dimension,
+                        settings.getEvidenceVersion()),
+                HcadSemanticEvidenceKey.resourceDecisionSummary(
+                        projection.tenantId(),
+                        resourceId,
+                        firstText(projection.authorizationPolicyId(), "policy-unknown"),
+                        firstText(projection.promptContextContractVersion(), "prompt-unknown"),
+                        settings.getEmbeddingModel(),
+                        dimension,
                         settings.getEvidenceVersion()));
     }
 
@@ -752,3 +760,4 @@ public class HCADFilter extends OncePerRequestFilter {
         return false;
     }
 }
+

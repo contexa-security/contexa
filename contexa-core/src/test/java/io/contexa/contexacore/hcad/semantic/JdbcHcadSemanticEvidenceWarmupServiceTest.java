@@ -16,12 +16,14 @@
 package io.contexa.contexacore.hcad.semantic;
 
 import io.contexa.contexacore.properties.HcadProperties;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.dao.DataAccessResourceFailureException;
+import org.mockito.ArgumentMatchers;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -35,112 +37,102 @@ import static org.mockito.Mockito.when;
 
 class JdbcHcadSemanticEvidenceWarmupServiceTest {
 
-    private final HcadProperties hcadProperties = new HcadProperties();
-
     @Test
-    void requestWarmup_existingAiDecisionSource_materializesCacheEntry() {
+    @DisplayName("Risk request similarity should materialize from successful CHALLENGE/BLOCK observations")
+    void requestWarmup_riskRequestSimilarity_shouldPutRiskEvidence() {
         JdbcOperations jdbcOperations = mock(JdbcOperations.class);
         HcadSemanticEvidenceCache cache = mock(HcadSemanticEvidenceCache.class);
-        JdbcHcadSemanticEvidenceWarmupService service = new JdbcHcadSemanticEvidenceWarmupService(
-                () -> jdbcOperations,
-                hcadProperties,
-                Runnable::run);
-        when(jdbcOperations.queryForList(anyString(), any(Object[].class)))
+        HcadSemanticEvidenceKey key = riskKey();
+        when(jdbcOperations.queryForList(anyString(), ArgumentMatchers.<Object>any(), ArgumentMatchers.<Object>any(), ArgumentMatchers.<Object>any()))
                 .thenReturn(List.of(Map.of(
-                        "sample_count", 3L,
-                        "avg_risk", 0.87d,
-                        "avg_confidence", 0.92d)));
+                        "sample_count", 3,
+                        "avg_risk", 0.86d,
+                        "avg_confidence", 0.9d,
+                        "last_decision_at", LocalDateTime.now(),
+                        "challenge_count", 2,
+                        "block_count", 1)));
+        JdbcHcadSemanticEvidenceWarmupService service = service(jdbcOperations);
 
-        HcadSemanticEvidenceWarmupResult result = service.requestWarmup(request(key()), cache);
+        service.requestWarmup(new HcadSemanticEvidenceWarmupRequest(null, key), cache);
 
-        assertThat(result.status()).isEqualTo(HcadSemanticEvidenceCacheStatus.WARMUP_QUEUED);
-        ArgumentCaptor<HcadSemanticEvidenceEntry> entryCaptor =
-                ArgumentCaptor.forClass(HcadSemanticEvidenceEntry.class);
+        ArgumentCaptor<HcadSemanticEvidenceEntry> entryCaptor = ArgumentCaptor.forClass(HcadSemanticEvidenceEntry.class);
         verify(cache).put(entryCaptor.capture(), any(Duration.class));
-        assertThat(entryCaptor.getValue().evidenceGapCodes())
-                .contains("CACHE_MISS_SOURCE_AVAILABLE", "WARMUP_COMPLETED");
-        assertThat(entryCaptor.getValue().sourceVersion()).isEqualTo("ai_security_decision_observation");
-        assertThat(entryCaptor.getValue().embeddingModel()).isEqualTo(key().embeddingModel());
-        assertThat(entryCaptor.getValue().dimension()).isEqualTo(key().dimension());
-        assertThat(entryCaptor.getValue().summaryJson())
-                .contains("\"source\":\"ai_security_decision_observation\"")
-                .contains("\"sampleCount\":3");
-        verify(cache, never()).putSourceAbsent(any(), any());
+        HcadSemanticEvidenceEntry entry = entryCaptor.getValue();
+        assertThat(entry.key().type()).isEqualTo(HcadSemanticEvidenceType.RISK_REQUEST_SIMILARITY);
+        assertThat(entry.similarityToNormal()).isNull();
+        assertThat(entry.similarityToRisk()).isGreaterThanOrEqualTo(0.86d);
+        assertThat(entry.summaryJson()).contains("\"evidenceKind\":\"risk\"", "\"actionFamily\":\"CHALLENGE_BLOCK\"", "\"sampleCount\":3");
+        verify(cache, never()).putSourceAbsent(any(), any(Duration.class));
     }
 
     @Test
-    void requestWarmup_missingSource_storesShortNegativeCache() {
+    @DisplayName("Resource decision summary should materialize resource-level decision distribution")
+    void requestWarmup_resourceDecisionSummary_shouldPutResourceEvidence() {
         JdbcOperations jdbcOperations = mock(JdbcOperations.class);
         HcadSemanticEvidenceCache cache = mock(HcadSemanticEvidenceCache.class);
-        JdbcHcadSemanticEvidenceWarmupService service = new JdbcHcadSemanticEvidenceWarmupService(
-                () -> jdbcOperations,
-                hcadProperties,
-                Runnable::run);
-        when(jdbcOperations.queryForList(anyString(), any(Object[].class)))
+        HcadSemanticEvidenceKey key = HcadSemanticEvidenceKey.resourceDecisionSummary(
+                "tenant-a",
+                "/contexa/admin/users/{id}",
+                "policy-v1",
+                "prompt-v1",
+                "text-embedding-3-small",
+                1024,
+                "semantic-v1");
+        when(jdbcOperations.queryForList(anyString(), ArgumentMatchers.<Object>any(), ArgumentMatchers.<Object>any()))
                 .thenReturn(List.of(Map.of(
-                        "sample_count", 0L,
-                        "avg_risk", 0.0d,
-                        "avg_confidence", 0.0d)));
-        HcadSemanticEvidenceKey key = key();
+                        "sample_count", 10,
+                        "avg_risk", 0.54d,
+                        "avg_confidence", 0.88d,
+                        "last_decision_at", LocalDateTime.now(),
+                        "allow_count", 6,
+                        "challenge_count", 3,
+                        "block_count", 1)));
+        JdbcHcadSemanticEvidenceWarmupService service = service(jdbcOperations);
 
-        HcadSemanticEvidenceWarmupResult result = service.requestWarmup(request(key), cache);
+        service.requestWarmup(new HcadSemanticEvidenceWarmupRequest(null, key), cache);
 
-        assertThat(result.status()).isEqualTo(HcadSemanticEvidenceCacheStatus.WARMUP_QUEUED);
-        verify(cache).putSourceAbsent(any(HcadSemanticEvidenceKey.class), any(Duration.class));
-        verify(cache, never()).put(any(), any());
+        ArgumentCaptor<HcadSemanticEvidenceEntry> entryCaptor = ArgumentCaptor.forClass(HcadSemanticEvidenceEntry.class);
+        verify(cache).put(entryCaptor.capture(), any(Duration.class));
+        HcadSemanticEvidenceEntry entry = entryCaptor.getValue();
+        assertThat(entry.key().type()).isEqualTo(HcadSemanticEvidenceType.RESOURCE_LLM_DECISION_SUMMARY);
+        assertThat(entry.similarityToNormal()).isNull();
+        assertThat(entry.similarityToRisk()).isGreaterThanOrEqualTo(0.54d);
+        assertThat(entry.summaryJson()).contains("\"evidenceKind\":\"resourceDecisionSummary\"", "\"allowCount\":6", "\"blockCount\":1");
     }
 
     @Test
-    void requestWarmup_withoutJdbc_doesNotTouchCache() {
-        HcadSemanticEvidenceCache cache = mock(HcadSemanticEvidenceCache.class);
-        JdbcHcadSemanticEvidenceWarmupService service = new JdbcHcadSemanticEvidenceWarmupService(
-                () -> null,
-                hcadProperties,
-                Runnable::run);
-
-        HcadSemanticEvidenceWarmupResult result = service.requestWarmup(request(key()), cache);
-
-        assertThat(result.status()).isEqualTo(HcadSemanticEvidenceCacheStatus.CACHE_MISS_SOURCE_UNKNOWN);
-        verify(cache, never()).put(any(), any());
-        verify(cache, never()).putSourceAbsent(any(), any());
-    }
-
-    @Test
-    void requestWarmup_failedSourceLookup_storesRetryBoundFailureEntry() {
+    @DisplayName("Risk request similarity should cache source absent when no risk decision exists")
+    void requestWarmup_riskRequestSimilarityWithoutRows_shouldPutSourceAbsent() {
         JdbcOperations jdbcOperations = mock(JdbcOperations.class);
         HcadSemanticEvidenceCache cache = mock(HcadSemanticEvidenceCache.class);
-        JdbcHcadSemanticEvidenceWarmupService service = new JdbcHcadSemanticEvidenceWarmupService(
-                () -> jdbcOperations,
-                hcadProperties,
-                Runnable::run);
-        when(jdbcOperations.queryForList(anyString(), any(Object[].class)))
-                .thenThrow(new DataAccessResourceFailureException("db down"));
-        hcadProperties.getSemanticEvidence().setWarmupRetryTtlSeconds(17);
+        HcadSemanticEvidenceKey key = riskKey();
+        when(jdbcOperations.queryForList(anyString(), ArgumentMatchers.<Object>any(), ArgumentMatchers.<Object>any(), ArgumentMatchers.<Object>any()))
+                .thenReturn(List.of(Map.of("sample_count", 0)));
+        JdbcHcadSemanticEvidenceWarmupService service = service(jdbcOperations);
 
-        HcadSemanticEvidenceWarmupResult result = service.requestWarmup(request(key()), cache);
+        service.requestWarmup(new HcadSemanticEvidenceWarmupRequest(null, key), cache);
 
-        assertThat(result.status()).isEqualTo(HcadSemanticEvidenceCacheStatus.WARMUP_QUEUED);
-        ArgumentCaptor<HcadSemanticEvidenceEntry> entryCaptor =
-                ArgumentCaptor.forClass(HcadSemanticEvidenceEntry.class);
-        ArgumentCaptor<Duration> ttlCaptor = ArgumentCaptor.forClass(Duration.class);
-        verify(cache).put(entryCaptor.capture(), ttlCaptor.capture());
-        assertThat(entryCaptor.getValue().status()).isEqualTo(HcadSemanticEvidenceCacheStatus.WARMUP_FAILED);
-        assertThat(entryCaptor.getValue().evidenceGapCodes()).contains("WARMUP_FAILED");
-        assertThat(ttlCaptor.getValue()).isEqualTo(Duration.ofSeconds(17));
+        verify(cache).putSourceAbsent(any(), any(Duration.class));
+        verify(cache, never()).put(any(), any(Duration.class));
     }
 
-    private HcadSemanticEvidenceWarmupRequest request(HcadSemanticEvidenceKey key) {
-        return new HcadSemanticEvidenceWarmupRequest(null, key);
+    private JdbcHcadSemanticEvidenceWarmupService service(JdbcOperations jdbcOperations) {
+        HcadProperties properties = new HcadProperties();
+        properties.getSemanticEvidence().setEmbeddingModel("text-embedding-3-small");
+        properties.getVector().setEmbeddingDimension(1024);
+        return new JdbcHcadSemanticEvidenceWarmupService(() -> jdbcOperations, properties, Runnable::run);
     }
 
-    private HcadSemanticEvidenceKey key() {
-        return HcadSemanticEvidenceKey.normalRequestSimilarity(
-                "tenant-1",
+    private HcadSemanticEvidenceKey riskKey() {
+        return HcadSemanticEvidenceKey.riskRequestSimilarity(
+                "tenant-a",
                 "admin",
-                "/contexa/admin/orders",
-                "baseline-v1",
-                hcadProperties.getSemanticEvidence().getEmbeddingModel(),
-                hcadProperties.getVector().getEmbeddingDimension(),
-                hcadProperties.getSemanticEvidence().getEvidenceVersion());
+                "/contexa/admin/users/{id}",
+                "policy-v1",
+                "prompt-v1",
+                "text-embedding-3-small",
+                1024,
+                "semantic-v1");
     }
 }
+

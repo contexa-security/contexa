@@ -22,6 +22,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationM
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.AffectedRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FeedbackLearningSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitorSnapshot;
@@ -126,6 +127,7 @@ public class AiSecurityDecisionMonitoringService {
                 withMetrics(data.llm(), data.snapshot(), data.metrics()),
                 withMetrics(data.correlation(), data.snapshot(), data.metrics()),
                 data.operations(),
+                data.feedbackLearning(),
                 data.readinessRecommendation());
     }
 
@@ -287,6 +289,7 @@ public class AiSecurityDecisionMonitoringService {
         LlmDecisionSummary llm = llmSummary(window.from(), window.to());
         CorrelationSummary correlation = correlationSummary(window.from(), window.to());
         OperationsSummary operations = operationsSummary(window.from(), window.to(), hcad);
+        FeedbackLearningSummary feedbackLearning = feedbackLearningSummary(window.from(), window.to());
         StandardMetrics metrics = standardMetrics(hcad, llm, correlation, operations);
         return new SnapshotData(
                 window,
@@ -295,6 +298,7 @@ public class AiSecurityDecisionMonitoringService {
                 llm,
                 correlation,
                 operations,
+                feedbackLearning,
                 metrics,
                 readinessRecommendation(hcad, llm, correlation, operations));
     }
@@ -558,6 +562,76 @@ public class AiSecurityDecisionMonitoringService {
                 hcad.duplicateSuppressedCount() * cost);
     }
 
+
+    private FeedbackLearningSummary feedbackLearningSummary(LocalDateTime from, LocalDateTime to) {
+        long normalEvidence = countSemanticEvidence(from, to, "%normal_request_similarity%");
+        long riskEvidence = countSemanticEvidence(from, to, "%risk_request_similarity%")
+                + countSemanticEvidence(from, to, "%resource_llm_decision_summary%");
+        long learningExcluded = countAi("""
+                created_at between ? and ?
+                and (
+                    success = false
+                    or coalesce(failure_type, '') <> ''
+                    or upper(coalesce(nullif(final_action, ''), nullif(proposed_action, ''), 'UNKNOWN')) not in ('ALLOW', 'CHALLENGE', 'BLOCK')
+                )
+                """, from, to);
+        long cacheHits = countHcad("""
+                created_at between ? and ?
+                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                """, from, to, "%semanticevidencefreshhit%", "%true%");
+        long cacheMisses = countHcad("""
+                created_at between ? and ?
+                and (
+                    lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                    or lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                )
+                """, from, to, "%cache_miss%", "%source_absent%");
+        long cacheStale = countHcad("""
+                created_at between ? and ?
+                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                """, from, to, "%stale_hit%");
+        long normalSuppressed = countHcad("""
+                created_at between ? and ?
+                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                and triggered_llm = false
+                """, from, to, "%normal_request_similarity%");
+        long riskHitLlmConnections = countHcad("""
+                created_at between ? and ?
+                and (
+                    lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                    or lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                )
+                and triggered_llm = true
+                """, from, to, "%risk_request_similarity%", "%resource_llm_decision_summary%");
+        long riskHitEligible = countHcad("""
+                created_at between ? and ?
+                and (
+                    lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                    or lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                )
+                and eligible = true
+                """, from, to, "%risk_request_similarity%", "%resource_llm_decision_summary%");
+        return new FeedbackLearningSummary(
+                normalEvidence,
+                riskEvidence,
+                learningExcluded,
+                cacheHits,
+                cacheMisses,
+                cacheStale,
+                riskHitLlmConnections,
+                riskHitEligible,
+                ratio(normalSuppressed, normalEvidence),
+                ratio(riskHitLlmConnections, riskEvidence),
+                ratio(riskHitEligible, riskEvidence));
+    }
+
+    private long countSemanticEvidence(LocalDateTime from, LocalDateTime to, String pattern) {
+        return countHcad("""
+                created_at between ? and ?
+                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
+                """, from, to, pattern);
+    }
     private List<NamedCount> explicitFailureBreakdown(LocalDateTime from, LocalDateTime to) {
         JdbcOperations jdbcOperations = jdbcOperations();
         if (jdbcOperations == null) {
@@ -1286,6 +1360,7 @@ public class AiSecurityDecisionMonitoringService {
             LlmDecisionSummary llm,
             CorrelationSummary correlation,
             OperationsSummary operations,
+            FeedbackLearningSummary feedbackLearning,
             StandardMetrics metrics,
             String readinessRecommendation) {
     }

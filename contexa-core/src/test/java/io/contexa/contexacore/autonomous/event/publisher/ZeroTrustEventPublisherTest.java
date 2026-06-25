@@ -492,6 +492,112 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
+    @DisplayName("already evaluated Protectable request should persist HCAD observation before LLM event")
+    void shouldPersistAlreadyEvaluatedProtectableObservationBeforeMethodEvent() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/test/hcad/live/accounts/123");
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("User-Agent", "JUnit");
+        request.setAttribute("hcad.actorSessionKey", "actor-window-existing");
+        request.setAttribute("hcad.windowId", "window-existing");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED, true);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_MODE, "SHADOW");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SCORE, 10);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE, 10);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_BAND, "LOW");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, false);
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS, List.of());
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_CORROBORATING_SIGNALS, List.of("BASELINE_MATCH"));
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES, List.of("BASELINE_MATCH"));
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY, "No trusted risk signal");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_VERSION, "hcad-test");
+        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS,
+                Map.of("baselineComparison", Map.of("available", true, "established", true)));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        TrustedHcadContextProjection projection = new TrustedHcadContextProjection(
+                "alice",
+                "tenant-a",
+                "org-a",
+                "session-a",
+                "binding-a",
+                "GET",
+                "/contexa/test/hcad/live/accounts/123",
+                "127.0.0.1",
+                "password",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                0,
+                1,
+                false,
+                "/contexa/admin/dashboard",
+                false,
+                0.95d,
+                true,
+                new HcadBaselineComparison(
+                        true,
+                        true,
+                        40L,
+                        20,
+                        4,
+                        0,
+                        1.0d,
+                        false,
+                        List.of("method", "path"),
+                        List.of(),
+                        List.of(),
+                        Map.of("path", "/contexa/test/hcad/live/accounts/{accountId}"),
+                        Map.of("path", "/contexa/test/hcad/live/accounts/{accountId}"),
+                        null),
+                "hcad-test",
+                Map.of(),
+                Map.of(),
+                Map.of());
+        TrustedHcadContextProjectionFactory projectionFactory = mock(TrustedHcadContextProjectionFactory.class);
+        HcadPreProtectablePromotionScorer scorer = mock(HcadPreProtectablePromotionScorer.class);
+        HcadEvaluationWriter writer = mock(HcadEvaluationWriter.class);
+        when(projectionFactory.project(eq(request), any())).thenReturn(projection);
+        when(writer.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class)))
+                .thenReturn("eval-existing-observation");
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        setField(publisher, "trustedHcadContextProjectionFactory", projectionFactory);
+        setField(publisher, "hcadPreProtectablePromotionScorer", scorer);
+        setField(publisher, "hcadEvaluationWriter", writer);
+        setField(publisher, "hcadProperties", new HcadProperties());
+
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        assertThat(event.getPayload())
+                .containsEntry("hcadEvaluationId", "eval-existing-observation")
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false);
+        verify(scorer, never()).score(any());
+        ArgumentCaptor<PendingAnomalyEvidenceReport> reportCaptor =
+                ArgumentCaptor.forClass(PendingAnomalyEvidenceReport.class);
+        verify(writer).recordCandidate(eq(HcadPreTriggerMode.SHADOW), reportCaptor.capture());
+        assertThat(reportCaptor.getValue().shouldTrigger()).isFalse();
+        assertThat(reportCaptor.getValue().rawSignalSnapshot())
+                .containsEntry("actorSessionKey", "actor-window-existing")
+                .containsEntry("windowId", "window-existing")
+                .containsEntry("protectableObserved", true);
+    }
+    @Test
     @DisplayName("pre-protectable threat publication should include bridge metadata when available")
     void shouldIncludeBridgeMetadataInPreProtectableThreatPayload() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/export/reports");
