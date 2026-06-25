@@ -2921,9 +2921,9 @@ UPDATE official_verification_metric_regression_package
        resource_template_id = 'official.verification.normal.{resourceId}',
        actual_resource_id = 'resource-001',
        sample_package_json = '{"packageId":"pqa12-clean-pass","promptHash":"sha256:pqa12-clean-pass","contextHash":"sha256:ctx-pqa12-clean-pass","requestFacts":{"resourceId":"resource-001","protectableResourceId":"official.verification.normal.{resourceId}","protectableResourceUrl":"/admin/api/enterprise/verification/runtime/probe/normal/{resourceId}"},"promptFacts":{"promptHash":"sha256:pqa12-clean-pass","contextHash":"sha256:ctx-pqa12-clean-pass"},"analysisFacts":{"sampleKind":"PASS_ALL","metricSet":"PQA12"}}',
-       expected_finding_snapshot = '12媛??꾨＼?꾪듃 ?덉쭏 吏???꾩껜媛 媛숈? 遊됱씤 利앷굅? 媛숈? 怨좉컼 臾몄옣 怨꾩빟?쇰줈 ?듦낵?댁빞 ?⑸땲??',
-       expected_remediation_group = '?ㅽ뙣 吏?쒓? ?놁쑝硫?臾몄젣 ?닿껐 洹몃９??留뚮뱾吏 ?딄퀬 媛먯궗 洹쇨굅濡쒕쭔 ?곌껐?⑸땲??',
-       expected_reverify_criterion = '媛숈? 利앷굅 援ъ“濡??ㅼ떆 ?ㅽ뻾?대룄 12媛?吏???꾩껜媛 ?듦낵?댁빞 ?⑸땲??',
+       expected_finding_snapshot = 'All 12 prompt quality criteria must pass against the same sealed evidence and the same customer sentence contract.',
+       expected_remediation_group = 'When no failed criterion remains, do not create a remediation group and link only the audit evidence.',
+       expected_reverify_criterion = 'Re-running with the same evidence structure must pass all 12 criteria.',
        expected_audit_payload_json = '{"sampleKind":"PASS_ALL","metricSet":"PQA12","containsCustomerText":true}',
        customer_sentence_contract_json = '{"requiresPlainKorean":true,"forbidsInternalCodeOnly":true,"forbidsRawJsonExposure":true}'
  WHERE scenario_id = 'pqa12-clean-pass';
@@ -2935,9 +2935,9 @@ UPDATE official_verification_metric_regression_package
        resource_template_id = 'official.verification.normal.{resourceId}',
        actual_resource_id = 'resource-001',
        sample_package_json = '{"packageId":"' || scenario_id || '","promptHash":"sha256:' || scenario_id || '","contextHash":"sha256:ctx-' || scenario_id || '","requestFacts":{"resourceId":"resource-001","protectableResourceId":"official.verification.normal.{resourceId}","protectableResourceUrl":"/admin/api/enterprise/verification/runtime/probe/normal/{resourceId}"},"promptFacts":{"promptHash":"sha256:' || scenario_id || '","contextHash":"sha256:ctx-' || scenario_id || '"},"analysisFacts":{"metricCode":"' || target_metric_codes || '","sampleKind":"FAIL","expectedDecision":"BLOCKED"}}',
-       expected_finding_snapshot = target_metric_codes || ' 吏???ㅽ뙣 ?섑뵆? ?대뼡 利앷굅 ??ぉ??湲곗???異⑹”?섏? 紐삵뻽?붿? 怨좉컼???댄빐?????덈뒗 臾몄옣?쇰줈 ??λ릺?댁빞 ?⑸땲??',
-       expected_remediation_group = target_metric_codes || ' 吏???ㅽ뙣???대떦 而⑦뀓?ㅽ듃 ?앹궛?먯? ?꾨＼?꾪듃 議곕┰ 寃쎈줈瑜??섎굹??臾몄젣 ?닿껐 洹몃９?쇰줈 ?곌껐?댁빞 ?⑸땲??',
-       expected_reverify_criterion = target_metric_codes || ' 吏?쒖쓽 ?ㅽ뙣 泥댄겕媛 ?ㅼ쓬 怨듭떇寃?ъ뿉???듦낵 ?곹깭濡???λ릺?댁빞 ?⑸땲??',
+       expected_finding_snapshot = target_metric_codes || ' failed sample must store a customer-readable sentence explaining which evidence item did not satisfy the criterion.',
+       expected_remediation_group = target_metric_codes || ' failed sample must connect the context producer and prompt assembly path to one remediation group.',
+       expected_reverify_criterion = target_metric_codes || ' failed check must be stored as passed in the next official verification run.',
        expected_audit_payload_json = '{"metricCode":"' || target_metric_codes || '","sampleKind":"FAIL","containsCustomerText":true,"resourceTemplateId":"official.verification.normal.{resourceId}","actualResourceId":"resource-001"}',
        customer_sentence_contract_json = '{"requiresPlainKorean":true,"requiresProblemCauseImpactAction":true,"forbidsInternalCodeOnly":true,"forbidsRawJsonExposure":true}'
  WHERE scenario_id LIKE 'pqa12-fail-%';
@@ -2946,9 +2946,9 @@ UPDATE official_verification_metric_regression_expectation
    SET expected_score = 90.00,
        expected_passed_check_count = 0,
        expected_failed_check_count = 1,
-       expected_finding_snapshot = metric_code || ' 吏???ㅽ뙣 ?먯씤??泥댄겕 ?⑥쐞濡???λ릺?댁빞 ?⑸땲??',
-       expected_remediation_group = metric_code || ' 吏???ㅽ뙣???섏젙 梨낆엫 ??곴낵 ?ㅼ쓬 議곗튂濡?臾띠뿬???⑸땲??',
-       expected_reverify_criterion = metric_code || ' 吏???ㅽ뙣 泥댄겕媛 ?ш?利앹뿉???듦낵?댁빞 ?⑸땲??',
+       expected_finding_snapshot = metric_code || ' failed reason must be stored at check level.',
+       expected_remediation_group = metric_code || ' failed reason must be grouped by correction owner and next action.',
+       expected_reverify_criterion = metric_code || ' failed check must pass in re-verification.',
        expected_audit_payload_json = '{"metricCode":"' || metric_code || '","sampleKind":"FAIL","expectedFailure":true}'
  WHERE scenario_id LIKE 'pqa12-fail-%';
 
@@ -2978,9 +2978,9 @@ SELECT scenario_id,
        'official.verification.normal.{resourceId}',
        'resource-001',
        '{"packageId":"' || scenario_id || '","promptHash":"sha256:' || scenario_id || '","contextHash":"sha256:ctx-' || scenario_id || '","requestFacts":{"requestId":"' || scenario_id || '","resourceId":"resource-001","protectableResourceId":"official.verification.normal.{resourceId}","protectableResourceUrl":"/admin/api/enterprise/verification/runtime/probe/normal/{resourceId}"},"promptFacts":{"promptHash":"sha256:' || scenario_id || '","contextHash":"sha256:ctx-' || scenario_id || '"},"analysisFacts":{"metricCode":"' || metric_code || '","sampleKind":"' || sample_kind || '","expectedDecision":"' || expected_decision || '"}}',
-       metric_code || ' 吏??' || sample_kind || ' ?섑뵆? ?ㅼ젣 ?붿껌 resource-001怨?@Protectable ?쒗뵆由?{resourceId}瑜?遺꾨━???곹깭?먯꽌 媛숈? 吏꾨떒 臾몄옣??蹂댁〈?댁빞 ?⑸땲??',
-       metric_code || ' 吏?쒖쓽 臾몄젣 ?닿껐 洹몃９? ?먯씤, ?섏젙 梨낆엫 ??? ?ㅼ쓬 議곗튂瑜?怨좉컼 臾몄옣?쇰줈 ??ν빐???⑸땲??',
-       metric_code || ' 吏?쒕뒗 媛숈? 利앷굅 議곌굔?쇰줈 ?ш?利앺뻽????湲곕? ?곹깭? 怨좉컼 臾몄옣???좎??섏뼱???⑸땲??',
+       metric_code || ' ' || sample_kind || ' sample must preserve the same diagnostic sentence for real request evidence resource-001 and the @Protectable template {resourceId}.',
+       metric_code || ' remediation group must record cause, correction owner, and next action in customer-readable language.',
+       metric_code || ' re-verification must pass under the same evidence condition and keep the expected state in customer-readable language.',
        '{"metricCode":"' || metric_code || '","sampleKind":"' || sample_kind || '","containsCustomerText":true,"resourceTemplateId":"official.verification.normal.{resourceId}","actualResourceId":"resource-001"}',
        '{"requiresPlainKorean":true,"requiresProblemCauseImpactAction":true,"forbidsInternalCodeOnly":true,"forbidsRawJsonExposure":true}'
   FROM (
@@ -3023,9 +3023,9 @@ SELECT scenario_id,
        100.00,
        1,
        0,
-       metric_code || ' 吏?쒕뒗 ???섑뵆?먯꽌 怨좉컼???댄빐?????덈뒗 ?듦낵 ?ъ쑀瑜???ν빐???⑸땲??',
-       metric_code || ' 吏?쒓? ?듦낵?섎㈃ 蹂꾨룄 蹂닿컯 議곗튂 ?놁씠 媛먯궗 洹쇨굅濡??곌껐?⑸땲??',
-       metric_code || ' 吏?쒕뒗 媛숈? 利앷굅濡??ㅼ떆 ?ㅽ뻾?대룄 ?듦낵 ?곹깭? 臾몄옣???좎??섏뼱???⑸땲??',
+       metric_code || ' pass sample must store a customer-readable pass reason.',
+       metric_code || ' pass sample links to audit evidence without a remediation action.',
+       metric_code || ' pass sample must keep the passed state in customer-readable language when re-run with the same evidence.',
        '{"metricCode":"' || metric_code || '","sampleKind":"' || sample_kind || '","expectedFailure":false}'
   FROM (
       VALUES
@@ -4521,7 +4521,7 @@ binding_runtime AS (
                  ), '') AS source_fact_key
       ) source_fact
       JOIN LATERAL (
-          SELECT concat(source_fact.source_fact_key, ' 媛믪? ', v.value_preview) AS fact_text,
+          SELECT concat(source_fact.source_fact_key, ' value ', v.value_preview) AS fact_text,
                  binding.binding_ord AS fact_ord
             FROM official_prompt_field_value_ledger v
            WHERE v.aggregate_run_id = e.aggregate_run_id
