@@ -627,7 +627,6 @@ public class HcadMonitoringService {
         return "평소 패턴과 다른 항목 " + countText + "건, 일치율 " + ratioText
                 + ", 항목 " + baseline.get("mismatchedDimensions");
     }
-
     private String baselineComparisonSummary(String json) {
         MapSnapshot snapshot = readSnapshot(json);
         Object raw = snapshot.values().get("baselineComparison");
@@ -647,7 +646,6 @@ public class HcadMonitoringService {
         return "평소 패턴과 다른 항목 " + countText + "건, 일치율 " + ratioText
                 + ", 항목 " + mismatchedDimensions;
     }
-
     private MapSnapshot readSnapshot(String json) {
         if (json == null || json.isBlank() || "null".equalsIgnoreCase(json.trim())) {
             return new MapSnapshot(Map.of());

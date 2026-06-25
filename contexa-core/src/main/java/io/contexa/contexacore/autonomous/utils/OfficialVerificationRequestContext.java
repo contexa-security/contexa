@@ -30,7 +30,6 @@ public final class OfficialVerificationRequestContext {
     public static final String REQUESTED_USER_ID = "officialVerification.requestedUserId";
     public static final String SYNTHETIC_SESSION_ID = "officialVerification.sessionId";
 
-    private static final String USER_ID_HEADER = "X-Contexa-User-Id";
     private static final String USER_ID_ATTRIBUTE = "contexa.userId";
     private static final String HCAD_USER_ID = "hcad.user_id";
     private static final String HCAD_USER_ID_CAMEL = "hcad.userId";
@@ -67,11 +66,6 @@ public final class OfficialVerificationRequestContext {
         );
         if (StringUtils.hasText(attributeUserId)) {
             return attributeUserId;
-        }
-
-        String headerUserId = request.getHeader(USER_ID_HEADER);
-        if (StringUtils.hasText(headerUserId)) {
-            return headerUserId.trim();
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

@@ -63,31 +63,27 @@ public final class RequestInfoExtractor {
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String tenantId = firstNonBlankText(
-                extractHeaderOrAttribute(request,
-                        "X-Contexa-Tenant-Id",
+                castToText(officialContextFields.get("tenantId")),
+                authenticationStampAttribute(request, "tenantId", "tenant_id"),
+                extractAttributeText(request,
                         "tenantId",
                         "ctxa.auth.tenantId",
                         "hcad.tenant_id",
-                        "hcad.tenantId"),
-                extractHeaderOrAttribute(request, "X-Tenant-Id"),
-                castToText(officialContextFields.get("tenantId")),
-                authenticationStampAttribute(request, "tenantId", "tenant_id"));
+                        "hcad.tenantId"));
         String organizationId = firstNonBlankText(
-                extractHeaderOrAttribute(request,
-                        "X-Contexa-Organization-Id",
+                castToText(officialContextFields.get("organizationId")),
+                castToText(officialContextFields.get("orgId")),
+                authenticationStampAttribute(request, "organizationId", "orgId"),
+                extractAttributeText(request,
                         "organizationId",
                         "ctxa.auth.organizationId",
                         "hcad.organization_id",
                         "hcad.organizationId"),
-                extractHeaderOrAttribute(request,
-                        "X-Contexa-Org-Id",
+                extractAttributeText(request,
                         "orgId",
                         "ctxa.auth.orgId",
                         "hcad.org_id",
-                        "hcad.orgId"),
-                castToText(officialContextFields.get("organizationId")),
-                castToText(officialContextFields.get("orgId")),
-                authenticationStampAttribute(request, "organizationId", "orgId"));
+                        "hcad.orgId"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
                 requestedModelId,

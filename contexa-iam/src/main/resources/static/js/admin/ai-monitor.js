@@ -178,10 +178,7 @@
         ]);
         detailsEl.innerHTML = [
             confusionMatrixPanel(summary || {}),
-            `<div class="ai-monitor-overview-grid">
-                ${notCalledPanel(summary.notCalledReasonBreakdown || [])}
-                ${attentionListPanel(summary.recentCorrelations || [])}
-            </div>`
+            attentionListPanel(summary.recentCorrelations || [])
         ].join('');
     }
 
