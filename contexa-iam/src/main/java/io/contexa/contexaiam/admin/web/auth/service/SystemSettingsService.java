@@ -15,12 +15,18 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Manages the singleton {@link SystemSettings} row.
@@ -39,12 +45,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class SystemSettingsService {
 
     private final SystemSettingsRepository repository;
+    private final RoleRepository roleRepository;
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public SystemSettings getSettings() {
         return repository.findAll().stream()
                 .findFirst()
                 .orElseGet(() -> SystemSettings.builder().build());
+    }
+
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<RoleOption> getDefaultRoleOptions() {
+        return roleRepository.findAllRolesWithoutExpression().stream()
+                .filter(Role::isEnabled)
+                .sorted(Comparator.comparing(Role::getRoleName, String.CASE_INSENSITIVE_ORDER))
+                .map(role -> RoleOption.of(role.getRoleName(), role.getRoleDesc()))
+                .toList();
     }
 
     /**

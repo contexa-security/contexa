@@ -15,6 +15,9 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import io.contexa.contexacommon.entity.Group;
 
 import java.util.List;
@@ -24,6 +27,7 @@ public interface GroupService {
     Group createGroup(Group group, List<Long> selectedRoleIds);
     Optional<Group> getGroup(Long id);
     List<Group> getAllGroups();
+    Page<Group> searchGroups(String keyword, Pageable pageable);
     void deleteGroup(Long id);
     Group updateGroup(Group group, List<Long> selectedRoleIds);
     List<String> checkHierarchyWarnings(List<Long> roleIds);

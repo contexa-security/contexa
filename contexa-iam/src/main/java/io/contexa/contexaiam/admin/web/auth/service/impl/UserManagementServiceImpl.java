@@ -37,6 +37,8 @@ import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
@@ -244,16 +246,28 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Protectable(verificationRequired = false)
     public List<UserListDto> getUsers() {
         return userRepository.findAllWithDetails().stream()
-                .map(user -> {
-                    UserListDto dto = modelMapper.map(user, UserListDto.class);
-                    dto.setGroupCount(user.getUserGroups() != null ? user.getUserGroups().size() : 0);
-                    long roleCount = user.getRoleNames().stream().distinct().count();
-                    dto.setRoleCount((int) roleCount);
-                    return dto;
-                })
+                .map(this::toUserListDto)
                 .toList();
     }
 
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    @Protectable(verificationRequired = false)
+    public Page<UserListDto> getUsers(String keyword, Pageable pageable) {
+        Page<Users> users = StringUtils.hasText(keyword)
+                ? userRepository.findByUsernameContainingIgnoreCaseOrNameContainingIgnoreCase(
+                        keyword.trim(), keyword.trim(), pageable)
+                : userRepository.findAll(pageable);
+        return users.map(this::toUserListDto);
+    }
+
+    private UserListDto toUserListDto(Users user) {
+        UserListDto dto = modelMapper.map(user, UserListDto.class);
+        dto.setGroupCount(user.getUserGroups() != null ? user.getUserGroups().size() : 0);
+        long roleCount = user.getRoleNames().stream().distinct().count();
+        dto.setRoleCount((int) roleCount);
+        return dto;
+    }
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     @Protectable(verificationRequired = false)

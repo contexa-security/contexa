@@ -34,6 +34,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -273,6 +274,42 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 });
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<BlockedUser> findBlockedUsers(String filter, String keyword) {
+        String safeFilter = filter != null ? filter : "all";
+        if (StringUtils.hasText(keyword)) {
+            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            return switch (safeFilter) {
+                case "blocked" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.BLOCKED, likePattern);
+                case "unblock_requested" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.UNBLOCK_REQUESTED, likePattern);
+                case "resolved" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.RESOLVED, likePattern);
+                case "timeout_responded" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.TIMEOUT_RESPONDED, likePattern);
+                default -> blockedUserJpaRepository.searchByUsername(likePattern);
+            };
+        }
+
+        return switch (safeFilter) {
+            case "blocked" -> getBlockedUsers();
+            case "unblock_requested" -> getUnblockRequested();
+            case "resolved" -> getAllBlockHistory().stream()
+                    .filter(b -> b.getStatus() == BlockedUserStatus.RESOLVED)
+                    .toList();
+            case "timeout_responded" -> getAllBlockHistory().stream()
+                    .filter(b -> b.getStatus() == BlockedUserStatus.TIMEOUT_RESPONDED)
+                    .toList();
+            default -> getAllBlockHistory();
+        };
+    }
+
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public boolean hasLatestStatus(String userId, BlockedUserStatus status) {
+        if (!StringUtils.hasText(userId) || status == null) {
+            return false;
+        }
+        return blockedUserJpaRepository.findFirstByUserIdOrderByBlockedAtDesc(userId)
+                .map(blockedUser -> blockedUser.getStatus() == status)
+                .orElse(false);
+    }
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<BlockedUser> getUnblockRequested() {
         return blockedUserJpaRepository.findByStatusOrderByBlockedAtDesc(BlockedUserStatus.UNBLOCK_REQUESTED);

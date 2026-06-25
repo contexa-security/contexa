@@ -15,8 +15,11 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
-import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.domain.dto.PermissionDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +28,8 @@ public interface PermissionService {
     Permission createPermission(Permission permission);
     Optional<Permission> getPermission(Long id);
     List<Permission> getAllPermissions();
+    Page<Permission> searchPermissions(String keyword, Pageable pageable);
+    Optional<AffectedPoliciesResponse> getAffectedPolicies(Long id);
     void deletePermission(Long id);
     Permission updatePermission(Long id, PermissionDto permissionDto);
     Optional<Permission> findByName(String name);

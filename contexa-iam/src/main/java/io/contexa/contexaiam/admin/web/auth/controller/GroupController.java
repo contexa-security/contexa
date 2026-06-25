@@ -21,7 +21,6 @@ import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
-import io.contexa.contexacommon.repository.GroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -50,7 +49,6 @@ public class GroupController {
     private final GroupService groupService;
     private final RoleService roleService;
     private final ModelMapper modelMapper;
-    private final GroupRepository groupRepository;
     private final MessageSource messageSource;
 
     private String msg(String key, Object... args) {
@@ -61,12 +59,7 @@ public class GroupController {
     public String getGroups(@RequestParam(required = false) String keyword,
                             @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
                             Model model) {
-        Page<Group> groupPage;
-        if (keyword != null && !keyword.isBlank()) {
-            groupPage = groupRepository.findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(keyword, keyword, pageable);
-        } else {
-            groupPage = groupRepository.findAll(pageable);
-        }
+        Page<Group> groupPage = groupService.searchGroups(keyword, pageable);
         Page<GroupDto> dtoPage = groupPage.map(group -> {
             GroupDto dto = modelMapper.map(group, GroupDto.class);
             dto.setRoleCount(group.getGroupRoles() != null ? group.getGroupRoles().size() : 0);

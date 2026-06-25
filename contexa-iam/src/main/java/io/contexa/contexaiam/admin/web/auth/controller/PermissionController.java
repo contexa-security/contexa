@@ -16,14 +16,11 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
-import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.entity.FunctionCatalog;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
-import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Permission;
-import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -50,8 +47,6 @@ public class PermissionController {
     private final PermissionService permissionService;
     private final ModelMapper modelMapper;
     private final FunctionCatalogService functionCatalogService;
-    private final PermissionRepository permissionRepository;
-    private final PolicyRepository policyRepository;
     private final MessageSource messageSource;
 
     private String msg(String key, Object... args) {
@@ -62,13 +57,7 @@ public class PermissionController {
     public String getPermissions(@RequestParam(required = false) String keyword,
                                  @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
                                  Model model) {
-        Page<Permission> permissionPage;
-        if (keyword != null && !keyword.isBlank()) {
-            permissionPage = permissionRepository.findByNameContainingIgnoreCaseOrFriendlyNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
-                    keyword, keyword, keyword, pageable);
-        } else {
-            permissionPage = permissionRepository.findAll(pageable);
-        }
+        Page<Permission> permissionPage = permissionService.searchPermissions(keyword, pageable);
         Page<PermissionDto> dtoPage = permissionPage.map(this::convertToDto);
         model.addAttribute("permissions", dtoPage.getContent());
         model.addAttribute("page", dtoPage);
@@ -118,20 +107,9 @@ public class PermissionController {
     @GetMapping("/api/{id}/affected-policies")
     @ResponseBody
     public ResponseEntity<AffectedPoliciesResponse> getAffectedPolicies(@PathVariable Long id) {
-        Permission permission = permissionRepository.findById(id).orElse(null);
-        if (permission == null) {
-            return ResponseEntity.notFound().build();
-        }
-        long roleCount = permissionRepository.countRoleAssignments(id);
-        List<AffectedPolicyResponse> policyList = policyRepository
-                .findActivePoliciesReferencingExpression(permission.getName())
-                .stream()
-                .map(AffectedPolicyResponse::from)
-                .toList();
-        return ResponseEntity.ok(AffectedPoliciesResponse.forPermission(
-                permission.getName(),
-                policyList,
-                roleCount));
+        return permissionService.getAffectedPolicies(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/delete/{id}")

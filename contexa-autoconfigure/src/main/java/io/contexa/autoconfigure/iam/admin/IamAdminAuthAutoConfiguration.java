@@ -59,10 +59,9 @@ public class IamAdminAuthAutoConfiguration {
             UserManagementService userManagementService,
             RoleService roleService,
             GroupService groupService,
-            UserRepository userRepository,
             PasswordPolicyService passwordPolicyService,
             MessageSource messageSource) {
-        return new UserManagementController(userManagementService, roleService, groupService, userRepository, passwordPolicyService, messageSource);
+        return new UserManagementController(userManagementService, roleService, groupService, passwordPolicyService, messageSource);
     }
 
     @Bean
@@ -71,23 +70,19 @@ public class IamAdminAuthAutoConfiguration {
             RoleService roleService,
             PermissionService permissionService,
             ModelMapper modelMapper,
-            RoleRepository roleRepository,
-            PolicyRepository policyRepository,
             MessageSource messageSource) {
-        return new RoleController(roleService, permissionService, modelMapper, roleRepository, policyRepository, messageSource);
+        return new RoleController(roleService, permissionService, modelMapper, messageSource);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public RoleHierarchyController roleHierarchyController(
             RoleHierarchyService roleHierarchyService,
-            RoleHierarchyRepository roleHierarchyRepository,
             ModelMapper modelMapper,
             RoleService roleService,
             GroupService groupService,
             MessageSource messageSource) {
-        return new RoleHierarchyController(
-                roleHierarchyService, roleHierarchyRepository, modelMapper, roleService, groupService, messageSource);
+        return new RoleHierarchyController(roleHierarchyService, modelMapper, roleService, groupService, messageSource);
     }
 
     @Bean
@@ -96,9 +91,8 @@ public class IamAdminAuthAutoConfiguration {
             GroupService groupService,
             RoleService roleService,
             ModelMapper modelMapper,
-            GroupRepository groupRepository,
             MessageSource messageSource) {
-        return new GroupController(groupService, roleService, modelMapper, groupRepository, messageSource);
+        return new GroupController(groupService, roleService, modelMapper, messageSource);
     }
 
     @Bean
@@ -107,10 +101,8 @@ public class IamAdminAuthAutoConfiguration {
             PermissionService permissionService,
             ModelMapper modelMapper,
             FunctionCatalogService functionCatalogService,
-            PermissionRepository permissionRepository,
-            PolicyRepository policyRepository,
             MessageSource messageSource) {
-        return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository, policyRepository, messageSource);
+        return new PermissionController(permissionService, modelMapper, functionCatalogService, messageSource);
     }
 
     @Bean("userManagementService")
@@ -138,9 +130,11 @@ public class IamAdminAuthAutoConfiguration {
             IntegrationEventBus eventBus,
             CentralAuditFacade centralAuditFacade,
             RoleHierarchyRepository roleHierarchyRepository,
+            PolicyRepository policyRepository,
             PolicySynchronizationService policySynchronizationService,
             MessageSource messageSource) {
-        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade, roleHierarchyRepository, policySynchronizationService, messageSource);
+        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade,
+                roleHierarchyRepository, policyRepository, policySynchronizationService, messageSource);
     }
 
     @Bean
@@ -158,9 +152,10 @@ public class IamAdminAuthAutoConfiguration {
     public PermissionService permissionService(
             PermissionRepository permissionRepository,
             ManagedResourceRepository managedResourceRepository,
+            PolicyRepository policyRepository,
             MessageSource messageSource) {
         return new PermissionServiceImpl(
-                permissionRepository, managedResourceRepository, messageSource);
+                permissionRepository, managedResourceRepository, policyRepository, messageSource);
     }
 
     @Bean

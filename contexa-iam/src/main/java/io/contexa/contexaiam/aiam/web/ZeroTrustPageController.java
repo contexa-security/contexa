@@ -17,8 +17,8 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
-import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -37,7 +37,7 @@ import java.security.Principal;
 public class ZeroTrustPageController {
 
     private final BlockMfaStateStore blockMfaStateStore;
-    private final BlockedUserJpaRepository blockedUserJpaRepository;
+    private final BlockedUserService blockedUserService;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     @GetMapping("/blocked")
@@ -49,10 +49,7 @@ public class ZeroTrustPageController {
         if (principal != null) {
             String userId = principal.getName();
 
-            mfaFailed = blockedUserJpaRepository
-                    .findFirstByUserIdOrderByBlockedAtDesc(userId)
-                    .map(bu -> bu.getStatus() == BlockedUserStatus.MFA_FAILED)
-                    .orElse(false);
+            mfaFailed = blockedUserService.hasLatestStatus(userId, BlockedUserStatus.MFA_FAILED);
 
             mfaVerified = blockMfaStateStore.isVerified(userId);
             mfaFailCount = blockMfaStateStore.getFailCount(userId);

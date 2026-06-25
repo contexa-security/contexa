@@ -22,13 +22,15 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.context.MessageSource;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.util.StringUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -57,6 +59,13 @@ public class RoleHierarchyService {
 
     public Optional<RoleHierarchyEntity> getRoleHierarchy(Long id) {
         return roleHierarchyRepository.findById(id);
+    }
+    public Page<RoleHierarchyEntity> searchRoleHierarchies(String keyword, Pageable pageable) {
+        if (StringUtils.hasText(keyword)) {
+            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            return roleHierarchyRepository.searchByKeyword(likePattern, pageable);
+        }
+        return roleHierarchyRepository.findAll(pageable);
     }
 
     public String getActiveRoleHierarchyString() {

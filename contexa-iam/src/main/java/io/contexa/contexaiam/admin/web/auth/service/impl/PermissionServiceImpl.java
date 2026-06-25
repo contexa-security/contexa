@@ -15,14 +15,15 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
-import io.contexa.contexacommon.annotation.Protectable;
-import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
-import io.contexa.contexaiam.domain.dto.PermissionDto;
-import io.contexa.contexaiam.repository.FunctionCatalogRepository;
-import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
+import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
+import io.contexa.contexaiam.domain.dto.PermissionDto;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -30,7 +31,10 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +44,7 @@ import java.util.Optional;
 public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
+    private final PolicyRepository policyRepository;
     private final MessageSource messageSource;
 
     private String msg(String key, Object... args) {
@@ -53,7 +58,6 @@ public class PermissionServiceImpl implements PermissionService {
     )
     @Override
     public Permission createPermission(Permission permission) {
-
         if (permissionRepository.findByName(permission.getName()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.permission.name.duplicate", permission.getName()));
         }
@@ -70,6 +74,34 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     public List<Permission> getAllPermissions() {
         return permissionRepository.findAll();
+    }
+
+    @Override
+    public Page<Permission> searchPermissions(String keyword, Pageable pageable) {
+        if (StringUtils.hasText(keyword)) {
+            String trimmedKeyword = keyword.trim();
+            return permissionRepository.findByNameContainingIgnoreCaseOrFriendlyNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+                    trimmedKeyword,
+                    trimmedKeyword,
+                    trimmedKeyword,
+                    pageable
+            );
+        }
+        return permissionRepository.findAll(pageable);
+    }
+
+    @Override
+    public Optional<AffectedPoliciesResponse> getAffectedPolicies(Long id) {
+        return permissionRepository.findById(id)
+                .map(permission -> {
+                    long roleCount = permissionRepository.countRoleAssignments(id);
+                    List<AffectedPolicyResponse> policyList = policyRepository
+                            .findActivePoliciesReferencingExpression(permission.getName())
+                            .stream()
+                            .map(AffectedPolicyResponse::from)
+                            .toList();
+                    return AffectedPoliciesResponse.forPermission(permission.getName(), policyList, roleCount);
+                });
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")

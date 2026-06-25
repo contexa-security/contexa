@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.net.InetAddress;
 import java.time.LocalDateTime;
@@ -67,6 +68,39 @@ public class IpAccessRuleService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<IpAccessRule> getAllRules(Pageable pageable) {
         return ipAccessRuleRepository.findAllByOrderByCreatedAtDesc(pageable);
+    }
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public Page<IpAccessRule> searchRules(String type, String keyword, Pageable pageable) {
+        IpAccessRule.RuleType ruleType = parseRuleType(type);
+        boolean hasKeyword = StringUtils.hasText(keyword);
+        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
+
+        if (hasKeyword && ruleType != null) {
+            return ipAccessRuleRepository.searchByTypeAndKeyword(ruleType, likePattern, pageable);
+        }
+        if (hasKeyword) {
+            return ipAccessRuleRepository.searchByKeyword(likePattern, pageable);
+        }
+        if (ruleType != null) {
+            return getRulesByType(ruleType, pageable);
+        }
+        return getAllRules(pageable);
+    }
+
+    public String normalizeRuleTypeFilter(String type) {
+        IpAccessRule.RuleType ruleType = parseRuleType(type);
+        return ruleType == null ? null : ruleType.name();
+    }
+
+    private IpAccessRule.RuleType parseRuleType(String type) {
+        if (!StringUtils.hasText(type)) {
+            return null;
+        }
+        try {
+            return IpAccessRule.RuleType.valueOf(type.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)

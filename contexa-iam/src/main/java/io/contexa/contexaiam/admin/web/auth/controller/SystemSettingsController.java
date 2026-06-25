@@ -15,9 +15,6 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.entity.Role;
-import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
@@ -36,8 +33,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.Comparator;
-import java.util.List;
 
 @Slf4j
 @Controller
@@ -47,7 +42,6 @@ import java.util.List;
 public class SystemSettingsController {
 
     private final SystemSettingsService systemSettingsService;
-    private final RoleRepository roleRepository;
     private final MessageSource messageSource;
     @Nullable
     private final CustomDynamicAuthorizationManager authorizationManager;
@@ -60,7 +54,7 @@ public class SystemSettingsController {
     public String showSettings(Model model) {
         model.addAttribute("activePage", "system-settings");
         model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings()));
-        model.addAttribute("roles", loadRoleOptions());
+        model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
         return "contexa/admin/system-settings";
     }
@@ -91,16 +85,4 @@ public class SystemSettingsController {
         return "redirect:/contexa/admin/system-settings";
     }
 
-    /**
-     * Builds the option list for the default-role drop-down. Disabled and expression-based
-     * roles are filtered out — operators must not be able to pick them as the default for
-     * new accounts.
-     */
-    private List<RoleOption> loadRoleOptions() {
-        return roleRepository.findAllRolesWithoutExpression().stream()
-                .filter(Role::isEnabled)
-                .sorted(Comparator.comparing(Role::getRoleName, String.CASE_INSENSITIVE_ORDER))
-                .map(role -> RoleOption.of(role.getRoleName(), role.getRoleDesc()))
-                .toList();
-    }
 }

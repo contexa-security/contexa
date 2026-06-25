@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
@@ -26,6 +28,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
 import lombok.RequiredArgsConstructor;
@@ -38,9 +41,10 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.util.StringUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -54,6 +58,7 @@ public class RoleServiceImpl implements RoleService {
     private final IntegrationEventBus eventBus;
     private final CentralAuditFacade centralAuditFacade;
     private final RoleHierarchyRepository roleHierarchyRepository;
+    private final PolicyRepository policyRepository;
     private final PolicySynchronizationService policySynchronizationService;
     private final MessageSource messageSource;
 
@@ -83,7 +88,21 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<Role> searchRoles(String keyword, Pageable pageable) {
-        return roleRepository.searchByKeyword(keyword, pageable);
+        String effectiveKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return roleRepository.searchByKeyword(effectiveKeyword, effectivePageable);
+    }
+    @Override
+    public Optional<AffectedPoliciesResponse> getAffectedPolicies(Long id) {
+        return roleRepository.findById(id)
+                .map(role -> {
+                    List<AffectedPolicyResponse> policyList = policyRepository
+                            .findActivePoliciesReferencingExpression(role.getRoleName())
+                            .stream()
+                            .map(AffectedPolicyResponse::from)
+                            .toList();
+                    return AffectedPoliciesResponse.forRole(role.getRoleName(), policyList);
+                });
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")

@@ -31,7 +31,8 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
 
     @Query(value = "SELECT * FROM role r WHERE r.expression = false " +
             "AND (CAST(:keyword AS text) IS NULL OR r.role_name ILIKE '%' || CAST(:keyword AS text) || '%' " +
-            "OR r.role_desc ILIKE '%' || CAST(:keyword AS text) || '%')",
+            "OR r.role_desc ILIKE '%' || CAST(:keyword AS text) || '%') " +
+            "ORDER BY r.role_id DESC",
             countQuery = "SELECT COUNT(*) FROM role r WHERE r.expression = false " +
             "AND (CAST(:keyword AS text) IS NULL OR r.role_name ILIKE '%' || CAST(:keyword AS text) || '%' " +
             "OR r.role_desc ILIKE '%' || CAST(:keyword AS text) || '%')",
@@ -64,3 +65,4 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
             "WHERE r.id = :id")
     Optional<Role> findByIdWithPermissionsAndResources(@Param("id") Long id);
 }
+

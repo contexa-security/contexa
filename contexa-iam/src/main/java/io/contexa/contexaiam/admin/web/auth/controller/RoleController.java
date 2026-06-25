@@ -16,14 +16,11 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
-import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
-import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexacommon.entity.Role;
-import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -53,8 +50,6 @@ public class RoleController {
 	private final RoleService roleService;
 	private final PermissionService permissionService;
 	private final ModelMapper modelMapper;
-	private final RoleRepository roleRepository;
-	private final PolicyRepository policyRepository;
 	private final MessageSource messageSource;
 
 	private String msg(String key, Object... args) {
@@ -65,12 +60,7 @@ public class RoleController {
 	public String getRoles(@RequestParam(required = false) String keyword,
 						   @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
 						   Model model) {
-		Page<Role> rolePage;
-		if (keyword != null && !keyword.isBlank()) {
-			rolePage = roleRepository.findByRoleNameContainingIgnoreCaseOrRoleDescContainingIgnoreCase(keyword, keyword, pageable);
-		} else {
-			rolePage = roleRepository.findAll(pageable);
-		}
+		Page<Role> rolePage = roleService.searchRoles(keyword, pageable);
 		Page<RoleDto> dtoPage = rolePage.map(role -> {
 			RoleDto dto = modelMapper.map(role, RoleDto.class);
 			dto.setPermissionCount(role.getRolePermissions() != null ? role.getRolePermissions().size() : 0);
@@ -130,16 +120,9 @@ public class RoleController {
 	@GetMapping("/api/{id}/affected-policies")
 	@ResponseBody
 	public ResponseEntity<AffectedPoliciesResponse> getAffectedPolicies(@PathVariable Long id) {
-		Role role = roleRepository.findById(id).orElse(null);
-		if (role == null) {
-			return ResponseEntity.notFound().build();
-		}
-		List<AffectedPolicyResponse> policyList = policyRepository
-				.findActivePoliciesReferencingExpression(role.getRoleName())
-				.stream()
-				.map(AffectedPolicyResponse::from)
-				.toList();
-		return ResponseEntity.ok(AffectedPoliciesResponse.forRole(role.getRoleName(), policyList));
+		return roleService.getAffectedPolicies(id)
+				.map(ResponseEntity::ok)
+				.orElseGet(() -> ResponseEntity.notFound().build());
 	}
 
 	@PostMapping("/delete/{id}")

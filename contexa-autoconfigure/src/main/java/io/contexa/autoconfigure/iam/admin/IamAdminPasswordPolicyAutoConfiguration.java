@@ -26,6 +26,7 @@ import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordPolicyController;
 import io.contexa.contexaiam.admin.web.auth.controller.SystemSettingsController;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,28 +57,37 @@ public class IamAdminPasswordPolicyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PasswordChangeController passwordChangeController(
+    public PasswordChangeService passwordChangeService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            PasswordPolicyService passwordPolicyService,
-            MessageSource messageSource) {
-        return new PasswordChangeController(userRepository, passwordEncoder, passwordPolicyService, messageSource);
+            PasswordPolicyService passwordPolicyService) {
+        return new PasswordChangeService(userRepository, passwordEncoder, passwordPolicyService);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public SystemSettingsService systemSettingsService(SystemSettingsRepository systemSettingsRepository) {
-        return new SystemSettingsService(systemSettingsRepository);
+    public PasswordChangeController passwordChangeController(
+            PasswordChangeService passwordChangeService,
+            PasswordPolicyService passwordPolicyService,
+            MessageSource messageSource) {
+        return new PasswordChangeController(passwordChangeService, passwordPolicyService, messageSource);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SystemSettingsService systemSettingsService(
+            SystemSettingsRepository systemSettingsRepository,
+            RoleRepository roleRepository) {
+        return new SystemSettingsService(systemSettingsRepository, roleRepository);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public SystemSettingsController systemSettingsController(
             SystemSettingsService systemSettingsService,
-            RoleRepository roleRepository,
             MessageSource messageSource,
             ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider) {
-        return new SystemSettingsController(systemSettingsService, roleRepository, messageSource,
+        return new SystemSettingsController(systemSettingsService, messageSource,
                 authManagerProvider.getIfAvailable());
     }
 

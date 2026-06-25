@@ -64,9 +64,9 @@ public class IamAiamWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustPageController zeroTrustPageController(BlockMfaStateStore blockMfaStateStore,
-                                                            BlockedUserJpaRepository blockedUserJpaRepository,
+                                                            BlockedUserService blockedUserService,
                                                             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustPageController(blockMfaStateStore, blockedUserJpaRepository, securityZeroTrustProperties);
+        return new ZeroTrustPageController(blockMfaStateStore, blockedUserService, securityZeroTrustProperties);
     }
 
     @Bean

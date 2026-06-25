@@ -27,9 +27,12 @@ import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -75,6 +78,18 @@ public class GroupServiceImpl implements GroupService {
 
     public List<Group> getAllGroups() {
         return groupRepository.findAllWithRolesAndUsers();
+    }
+    @Override
+    public Page<Group> searchGroups(String keyword, Pageable pageable) {
+        if (StringUtils.hasText(keyword)) {
+            String trimmedKeyword = keyword.trim();
+            return groupRepository.findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+                    trimmedKeyword,
+                    trimmedKeyword,
+                    pageable
+            );
+        }
+        return groupRepository.findAll(pageable);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")

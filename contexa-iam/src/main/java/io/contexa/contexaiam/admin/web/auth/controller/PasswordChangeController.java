@@ -15,15 +15,11 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.entity.Users;
-import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,15 +27,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
 @Controller
 @RequiredArgsConstructor
 public class PasswordChangeController {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordChangeService passwordChangeService;
     private final PasswordPolicyService passwordPolicyService;
     private final MessageSource messageSource;
 
@@ -55,55 +47,18 @@ public class PasswordChangeController {
     }
 
     @PostMapping("/contexa/password-change")
-    @Transactional(transactionManager = "contexaTransactionManager")
-    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public String processPasswordChange(
             @RequestParam String username,
             @RequestParam String currentPassword,
             @RequestParam String newPassword,
             @RequestParam String confirmPassword,
             RedirectAttributes ra) {
-
-        // Validate user exists
-        Users user = userRepository.findByUsername(username).orElse(null);
-        if (user == null) {
-            ra.addFlashAttribute("errorMessage", msg("msg.password.change.user.not.found"));
+        try {
+            passwordChangeService.changePassword(username, currentPassword, newPassword, confirmPassword);
+        } catch (PasswordChangeService.PasswordChangeException e) {
+            ra.addFlashAttribute("errorMessage", msg(e.getMessageKey(), e.getMessageArgs()));
             return "redirect:/contexa/password-change?username=" + username;
         }
-
-        // Validate current password
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            ra.addFlashAttribute("errorMessage", msg("msg.password.change.current.incorrect"));
-            return "redirect:/contexa/password-change?username=" + username;
-        }
-
-        // Validate new password confirmation
-        if (!newPassword.equals(confirmPassword)) {
-            ra.addFlashAttribute("errorMessage", msg("msg.password.change.mismatch"));
-            return "redirect:/contexa/password-change?username=" + username;
-        }
-
-        // Validate against password policy
-        List<String> violations = passwordPolicyService.validatePassword(newPassword);
-        if (!violations.isEmpty()) {
-            ra.addFlashAttribute("errorMessage", msg("msg.password.change.policy.violation", String.join(", ", violations)));
-            return "redirect:/contexa/password-change?username=" + username;
-        }
-
-        // Check password reuse
-        if (passwordPolicyService.isPasswordReused(user.getId(), newPassword)) {
-            ra.addFlashAttribute("errorMessage", msg("msg.password.change.reused"));
-            return "redirect:/contexa/password-change?username=" + username;
-        }
-
-        // Record current password in history before changing
-        passwordPolicyService.recordPasswordHistory(user.getId(), user.getPassword());
-
-        // Save new password
-        user.setPassword(passwordEncoder.encode(newPassword));
-        user.setPasswordChangedAt(LocalDateTime.now());
-        user.setCredentialsExpired(false);
-        userRepository.save(user);
 
         ra.addFlashAttribute("message", msg("msg.password.change.success"));
         return "redirect:/contexa/admin/mfa/login";

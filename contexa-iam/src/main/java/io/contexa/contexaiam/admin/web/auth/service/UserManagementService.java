@@ -17,6 +17,8 @@ package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -25,6 +27,7 @@ public interface UserManagementService {
     void createUser(UserDto userDto);
     void modifyUser(UserDto userDto);
     List<UserListDto> getUsers();
+    Page<UserListDto> getUsers(String keyword, Pageable pageable);
     UserDto getUser(Long id);
     void deleteUser(Long idx);
 
