@@ -82,6 +82,14 @@ public class SystemSettings {
     @Builder.Default
     private String mvcResourceScannerBasePackages = "io.contexa.contexaiam.";
 
+    @Column(name = "hcad_pre_trigger_mode", nullable = false, length = 20)
+    @Builder.Default
+    private String hcadPreTriggerMode = "SHADOW";
+
+    @Column(name = "security_zerotrust_mode", nullable = false, length = 20)
+    @Builder.Default
+    private String securityZeroTrustMode = "SHADOW";
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

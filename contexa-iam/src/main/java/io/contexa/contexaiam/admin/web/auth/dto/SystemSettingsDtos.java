@@ -44,6 +44,8 @@ public final class SystemSettingsDtos {
         private int hcadRequestBurstThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_REQUEST_BURST_THRESHOLD;
         private double hcadSemanticRiskSimilarityThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD;
         private double hcadSemanticNormalSimilarityThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD;
+        private String hcadPreTriggerMode = SystemRuntimeSettingsService.DEFAULT_HCAD_PRE_TRIGGER_MODE.name();
+        private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
 
         public static SystemSettingsForm from(SystemSettings entity) {
@@ -60,6 +62,8 @@ public final class SystemSettingsDtos {
             form.setHcadRequestBurstThreshold(source.getHcadRequestBurstThreshold());
             form.setHcadSemanticRiskSimilarityThreshold(source.getHcadSemanticRiskSimilarityThreshold());
             form.setHcadSemanticNormalSimilarityThreshold(source.getHcadSemanticNormalSimilarityThreshold());
+            form.setHcadPreTriggerMode(SystemRuntimeSettingsService.normalizeHcadPreTriggerModeForStorage(source.getHcadPreTriggerMode()));
+            form.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(source.getSecurityZeroTrustMode()));
             form.setMvcResourceScannerBasePackages(
                     SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(source.getMvcResourceScannerBasePackages()));
             return form;

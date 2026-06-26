@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.HcadRuntimeSettings;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class SystemSettingsRuntimeApplier implements ApplicationListener<Applica
 
     private final SystemRuntimeSettingsService runtimeSettingsService;
     private final ObjectProvider<HcadProperties> hcadPropertiesProvider;
+    private final ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider;
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
@@ -36,18 +38,22 @@ public class SystemSettingsRuntimeApplier implements ApplicationListener<Applica
     }
 
     public void apply() {
-        HcadProperties hcadProperties = hcadPropertiesProvider.getIfAvailable();
-        if (hcadProperties == null) {
-            return;
-        }
         HcadRuntimeSettings settings = runtimeSettingsService.getHcadRuntimeSettings();
-        applyHcadSettings(hcadProperties, settings);
+        HcadProperties hcadProperties = hcadPropertiesProvider.getIfAvailable();
+        if (hcadProperties != null) {
+            applyHcadSettings(hcadProperties, settings);
+        }
+        SecurityZeroTrustProperties zeroTrustProperties = zeroTrustPropertiesProvider.getIfAvailable();
+        if (zeroTrustProperties != null) {
+            applyZeroTrustSettings(zeroTrustProperties, runtimeSettingsService.getSecurityZeroTrustMode());
+        }
     }
 
     public static void applyHcadSettings(HcadProperties hcadProperties, HcadRuntimeSettings settings) {
         if (hcadProperties == null || settings == null) {
             return;
         }
+        hcadProperties.getPreTrigger().setMode(settings.preTriggerMode());
         hcadProperties.getPreTrigger().setMediumRiskScore(settings.mediumRiskScore());
         hcadProperties.getPreTrigger().setHighRiskScore(settings.highRiskScore());
         hcadProperties.getPreTrigger().setRedlineScore(settings.redlineScore());
@@ -55,7 +61,18 @@ public class SystemSettingsRuntimeApplier implements ApplicationListener<Applica
         hcadProperties.getPreTrigger().setRequestBurstThreshold(settings.requestBurstThreshold());
         hcadProperties.getSemanticEvidence().setRiskSimilarityThreshold(settings.semanticRiskSimilarityThreshold());
         hcadProperties.getSemanticEvidence().setNormalSimilarityThreshold(settings.semanticNormalSimilarityThreshold());
-        log.info("System runtime settings applied to HCAD thresholds: medium={}, high={}, redline={}",
-                settings.mediumRiskScore(), settings.highRiskScore(), settings.redlineScore());
+        log.info("System runtime settings applied to HCAD: mode={}, medium={}, high={}, redline={}",
+                settings.preTriggerMode(), settings.mediumRiskScore(), settings.highRiskScore(), settings.redlineScore());
     }
+
+    public static void applyZeroTrustSettings(
+            SecurityZeroTrustProperties zeroTrustProperties,
+            SecurityZeroTrustProperties.SecurityMode mode) {
+        if (zeroTrustProperties == null || mode == null) {
+            return;
+        }
+        zeroTrustProperties.setMode(mode);
+        log.info("System runtime settings applied to AI decision mode: {}", mode);
+    }
+
 }

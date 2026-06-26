@@ -17,6 +17,8 @@ package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,6 +26,7 @@ import org.springframework.util.StringUtils;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,6 +40,8 @@ public class SystemRuntimeSettingsService {
     public static final int DEFAULT_HCAD_REQUEST_BURST_THRESHOLD = 12;
     public static final double DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD = 0.80d;
     public static final double DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD = 0.85d;
+    public static final HcadPreTriggerMode DEFAULT_HCAD_PRE_TRIGGER_MODE = HcadPreTriggerMode.SHADOW;
+    public static final SecurityZeroTrustProperties.SecurityMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.SecurityMode.SHADOW;
     public static final String DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES = "io.contexa.contexaiam.";
 
     private final SystemSettingsRepository repository;
@@ -54,6 +59,11 @@ public class SystemRuntimeSettingsService {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public SecurityZeroTrustProperties.SecurityMode getSecurityZeroTrustMode() {
+        return normalizeSecurityZeroTrustMode(getSettings().getSecurityZeroTrustMode());
+    }
+
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<String> getMvcResourceScannerBasePackages() {
         return normalizePackagePrefixes(getSettings().getMvcResourceScannerBasePackages());
     }
@@ -67,8 +77,27 @@ public class SystemRuntimeSettingsService {
                 .hcadRequestBurstThreshold(DEFAULT_HCAD_REQUEST_BURST_THRESHOLD)
                 .hcadSemanticRiskSimilarityThreshold(DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD)
                 .hcadSemanticNormalSimilarityThreshold(DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD)
+                .hcadPreTriggerMode(DEFAULT_HCAD_PRE_TRIGGER_MODE.name())
+                .securityZeroTrustMode(DEFAULT_SECURITY_ZEROTRUST_MODE.name())
                 .mvcResourceScannerBasePackages(DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES)
                 .build();
+    }
+
+    public static HcadPreTriggerMode normalizeHcadPreTriggerMode(String rawValue) {
+        return HcadPreTriggerMode.from(StringUtils.hasText(rawValue) ? rawValue : DEFAULT_HCAD_PRE_TRIGGER_MODE.name());
+    }
+
+    public static String normalizeHcadPreTriggerModeForStorage(String rawValue) {
+        return normalizeHcadPreTriggerMode(rawValue).name();
+    }
+
+    public static SecurityZeroTrustProperties.SecurityMode normalizeSecurityZeroTrustMode(String rawValue) {
+        String value = StringUtils.hasText(rawValue) ? rawValue.trim() : DEFAULT_SECURITY_ZEROTRUST_MODE.name();
+        return SecurityZeroTrustProperties.SecurityMode.valueOf(value.replace('-', '_').toUpperCase(Locale.ROOT));
+    }
+
+    public static String normalizeSecurityZeroTrustModeForStorage(String rawValue) {
+        return normalizeSecurityZeroTrustMode(rawValue).name();
     }
 
     public static List<String> normalizePackagePrefixes(String rawValue) {
@@ -103,7 +132,8 @@ public class SystemRuntimeSettingsService {
             int failedLoginBurstThreshold,
             int requestBurstThreshold,
             double semanticRiskSimilarityThreshold,
-            double semanticNormalSimilarityThreshold) {
+            double semanticNormalSimilarityThreshold,
+            HcadPreTriggerMode preTriggerMode) {
 
         public static HcadRuntimeSettings from(SystemSettings settings) {
             SystemSettings source = settings == null ? defaultSettings() : settings;
@@ -114,7 +144,8 @@ public class SystemRuntimeSettingsService {
                     source.getHcadFailedLoginBurstThreshold(),
                     source.getHcadRequestBurstThreshold(),
                     source.getHcadSemanticRiskSimilarityThreshold(),
-                    source.getHcadSemanticNormalSimilarityThreshold());
+                    source.getHcadSemanticNormalSimilarityThreshold(),
+                    normalizeHcadPreTriggerMode(source.getHcadPreTriggerMode()));
         }
     }
 }

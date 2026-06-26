@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
@@ -58,6 +60,8 @@ public class SystemSettingsController {
         model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings()));
         model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
+        model.addAttribute("hcadModeOptions", HcadPreTriggerMode.values());
+        model.addAttribute("zeroTrustModeOptions", SecurityZeroTrustProperties.SecurityMode.values());
         return "contexa/admin/system-settings";
     }
 

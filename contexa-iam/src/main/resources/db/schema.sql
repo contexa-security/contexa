@@ -1257,6 +1257,8 @@ alter table system_settings add column if not exists hcad_failed_login_burst_thr
 alter table system_settings add column if not exists hcad_request_burst_threshold integer default 12 not null;
 alter table system_settings add column if not exists hcad_semantic_risk_similarity_threshold double precision default 0.80 not null;
 alter table system_settings add column if not exists hcad_semantic_normal_similarity_threshold double precision default 0.85 not null;
+alter table system_settings add column if not exists hcad_pre_trigger_mode varchar(20) default 'SHADOW' not null;
+alter table system_settings add column if not exists security_zerotrust_mode varchar(20) default 'SHADOW' not null;
 alter table system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
 
 

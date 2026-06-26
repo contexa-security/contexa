@@ -1,154 +1,210 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></head>
-<body>
-<link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+<body class="flex flex-col min-h-screen font-sans">
 <link rel="stylesheet" th:href="@{/css/system-settings.css}" />
 <div th:insert="~{contexa/fragments/header :: header}"></div>
-<div style="display: flex; min-height: 100vh;">
-    <div th:insert="~{contexa/fragments/admin-menu :: menu}"></div>
-    <main class="main-content system-settings-page" style="flex: 1; padding: 2rem;">
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
 
-        <div class="system-settings-container">
-            <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold system-settings-heading">
-                    <i class="fas fa-cogs mr-2 system-settings-heading-icon"></i>
-                    <span th:text="#{admin.system.settings.title}">System Settings</span>
-                </h1>
+<div class="flex flex-1">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+    <main class="flex-1 system-settings-page">
+        <div class="system-settings-panel">
+            <div class="system-settings-hero">
+                <div class="system-settings-hero-icon"><i class="fas fa-cogs"></i></div>
+                <div>
+                    <h1 th:text="#{admin.system.settings.title}">System Settings</h1>
+                    <p th:text="#{admin.system.settings.runtime.desc}">Configure runtime operation settings.</p>
+                </div>
             </div>
 
             <div th:if="${message}" class="system-settings-banner system-settings-banner-success" role="status">
-                <i class="fas fa-check-circle mr-2"></i><span th:text="${message}"></span>
+                <i class="fas fa-check-circle"></i><span th:text="${message}"></span>
             </div>
             <div th:if="${errorMessage}" class="system-settings-banner system-settings-banner-error" role="alert">
-                <i class="fas fa-exclamation-circle mr-2"></i><span th:text="${errorMessage}"></span>
+                <i class="fas fa-exclamation-circle"></i><span th:text="${errorMessage}"></span>
             </div>
 
-            <form th:action="@{/contexa/admin/system-settings}" method="post" th:object="${settings}">
+            <form th:action="@{/contexa/admin/system-settings}" method="post" th:object="${settings}" class="system-settings-form">
 
-                <section class="modern-card system-settings-section system-settings-section--audit">
-                    <header class="system-settings-section__header">
-                        <i class="fas fa-file-alt system-settings-section__icon system-settings-section__icon--audit"></i>
-                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.audit.title}">Audit &amp; Compliance</h3>
-                        <span class="system-settings-pill system-settings-pill--audit" th:text="#{admin.system.settings.scope.audit}">감사 영역</span>
-                    </header>
-                    <div class="system-settings-field">
-                        <label class="system-settings-label" th:text="#{admin.system.settings.audit.retention}">Audit Log Retention (days)</label>
-                        <input type="number" th:field="*{auditLogRetentionDays}" class="modern-input system-settings-input" min="30" max="3650" required />
-                        <p class="system-settings-help" th:text="#{admin.system.settings.audit.retention.desc}">Number of days to retain audit log entries. 0 for unlimited.</p>
-                    </div>
-                </section>
-
-                <section class="modern-card system-settings-section system-settings-section--access">
-                    <header class="system-settings-section__header">
-                        <i class="fas fa-shield-alt system-settings-section__icon system-settings-section__icon--access"></i>
-                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.access.title}">Access Control</h3>
-                        <span class="system-settings-pill system-settings-pill--access" th:text="#{admin.system.settings.scope.access}">접근 제어 영역</span>
+                <section class="system-settings-section system-settings-section--runtime">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-brain"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.runtime.title}">Runtime AI Security Modes</h2>
+                            <p th:text="#{admin.system.settings.runtime.desc}">Set runtime modes.</p>
+                        </div>
                     </header>
                     <div class="system-settings-grid">
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.default.role}">Default Role</label>
-                            <select th:field="*{defaultRole}" class="modern-input system-settings-input" required>
-                                <option th:each="role : ${roles}"
-                                        th:value="${role.value}"
-                                        th:text="${role.label}"></option>
+                            <label for="hcadPreTriggerMode" th:text="#{admin.system.settings.hcad.mode}">Early detection mode</label>
+                            <select id="hcadPreTriggerMode" th:field="*{hcadPreTriggerMode}" class="system-settings-input" required>
+                                <option th:each="mode : ${hcadModeOptions}"
+                                        th:value="${mode.name()}"
+                                        th:text="#{${'admin.system.settings.mode.' + #strings.toLowerCase(mode.name())}}"></option>
                             </select>
-                            <p class="system-settings-help" th:text="#{admin.system.settings.default.role.desc}">Role assigned to new users by default.</p>
+                            <p th:text="#{admin.system.settings.hcad.mode.desc}">Controls early detection mode.</p>
                         </div>
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.combining.algorithm}">Policy Combining Algorithm</label>
-                            <select th:field="*{policyCombiningAlgorithm}" class="modern-input system-settings-input">
+                            <label for="securityZeroTrustMode" th:text="#{admin.system.settings.llm.mode}">AI decision mode</label>
+                            <select id="securityZeroTrustMode" th:field="*{securityZeroTrustMode}" class="system-settings-input" required>
+                                <option th:each="mode : ${zeroTrustModeOptions}"
+                                        th:value="${mode.name()}"
+                                        th:text="#{${'admin.system.settings.mode.' + #strings.toLowerCase(mode.name())}}"></option>
+                            </select>
+                            <p th:text="#{admin.system.settings.llm.mode.desc}">Controls AI decision mode.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="system-settings-section system-settings-section--audit">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-file-alt"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.audit.title}">Audit &amp; Compliance</h2>
+                            <p th:text="#{admin.system.settings.audit.retention.desc}">Audit retention.</p>
+                        </div>
+                    </header>
+                    <div class="system-settings-grid system-settings-grid--single">
+                        <div class="system-settings-field">
+                            <label for="auditLogRetentionDays" th:text="#{admin.system.settings.audit.retention}">Audit Log Retention</label>
+                            <input id="auditLogRetentionDays" type="number" th:field="*{auditLogRetentionDays}" class="system-settings-input" min="0" max="3650" required />
+                            <p th:text="#{admin.system.settings.audit.retention.desc}">Number of days to retain audit log entries.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="system-settings-section system-settings-section--access">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-shield-alt"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.access.title}">Access Control</h2>
+                            <p th:text="#{admin.system.settings.combining.algorithm.desc}">Access policy behavior.</p>
+                        </div>
+                    </header>
+                    <div class="system-settings-grid">
+                        <div class="system-settings-field">
+                            <label for="defaultRole" th:text="#{admin.system.settings.default.role}">Default Role</label>
+                            <select id="defaultRole" th:field="*{defaultRole}" class="system-settings-input" required>
+                                <option th:each="role : ${roles}" th:value="${role.value}" th:text="${role.label}"></option>
+                            </select>
+                            <p th:text="#{admin.system.settings.default.role.desc}">Default role for new users.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label for="policyCombiningAlgorithm" th:text="#{admin.system.settings.combining.algorithm}">Policy Combining Algorithm</label>
+                            <select id="policyCombiningAlgorithm" th:field="*{policyCombiningAlgorithm}" class="system-settings-input" required>
                                 <option th:each="algo : ${algorithms}"
                                         th:value="${algo.name()}"
                                         th:text="#{${'admin.system.settings.combining.algorithm.' + #strings.toLowerCase(algo.name())}}"></option>
                             </select>
-                            <p class="system-settings-help" th:text="#{admin.system.settings.combining.algorithm.desc}">Algorithm used when multiple policies match a request.</p>
+                            <p th:text="#{admin.system.settings.combining.algorithm.desc}">Policy combining algorithm.</p>
                         </div>
                     </div>
                 </section>
 
-                <section class="modern-card system-settings-section system-settings-section--registration">
-                    <header class="system-settings-section__header">
-                        <i class="fas fa-user-plus system-settings-section__icon system-settings-section__icon--registration"></i>
-                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.registration.title}">User Registration</h3>
-                        <span class="system-settings-pill system-settings-pill--registration" th:text="#{admin.system.settings.scope.registration}">신규 가입 시점</span>
+                <section class="system-settings-section system-settings-section--registration">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-user-plus"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.registration.title}">User Registration</h2>
+                            <p th:text="#{admin.system.settings.registration.enabled.desc}">Registration control.</p>
+                        </div>
                     </header>
-                    <div class="system-settings-toggle">
-                        <input type="checkbox" th:field="*{registrationEnabled}" id="registrationEnabled" class="system-settings-toggle__input" />
-                        <label for="registrationEnabled" class="system-settings-toggle__label" th:text="#{admin.system.settings.registration.enabled}">Allow User Self-Registration</label>
-                    </div>
-                    <p class="system-settings-help" th:text="#{admin.system.settings.registration.enabled.desc}">If disabled, only administrators can create new user accounts.</p>
+                    <label class="system-settings-toggle" for="registrationEnabled">
+                        <input type="checkbox" th:field="*{registrationEnabled}" id="registrationEnabled" />
+                        <span class="system-settings-toggle-box"></span>
+                        <span>
+                            <strong th:text="#{admin.system.settings.registration.enabled}">Allow User Self-Registration</strong>
+                            <em th:text="#{admin.system.settings.registration.enabled.desc}">If disabled, only administrators can create new user accounts.</em>
+                        </span>
+                    </label>
                 </section>
 
-
-                <section class="modern-card system-settings-section system-settings-section--hcad">
-                    <header class="system-settings-section__header">
-                        <i class="fas fa-satellite-dish system-settings-section__icon system-settings-section__icon--hcad"></i>
-                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.hcad.title}">Early Detection</h3>
-                        <span class="system-settings-pill system-settings-pill--hcad" th:text="#{admin.system.settings.scope.hcad}">조기탐지</span>
+                <section class="system-settings-section system-settings-section--hcad">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-satellite-dish"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.hcad.title}">Early Detection Settings</h2>
+                            <p th:text="#{admin.system.settings.hcad.redline.score.desc}">Early detection score settings.</p>
+                        </div>
                     </header>
                     <div class="system-settings-grid system-settings-grid--three">
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.medium.score}">Medium risk score</label>
-                            <input type="number" th:field="*{hcadMediumRiskScore}" class="modern-input system-settings-input" min="0" max="100" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.medium.score.desc}">Minimum score for medium risk display.</p>
+                            <label for="hcadMediumRiskScore" th:text="#{admin.system.settings.hcad.medium.score}">Medium risk score</label>
+                            <input id="hcadMediumRiskScore" type="number" th:field="*{hcadMediumRiskScore}" class="system-settings-input" min="0" max="100" required />
+                            <p th:text="#{admin.system.settings.hcad.medium.score.desc}">Medium risk score.</p>
                         </div>
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.high.score}">High risk score</label>
-                            <input type="number" th:field="*{hcadHighRiskScore}" class="modern-input system-settings-input" min="0" max="100" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.high.score.desc}">Minimum score for high risk display.</p>
+                            <label for="hcadHighRiskScore" th:text="#{admin.system.settings.hcad.high.score}">High risk score</label>
+                            <input id="hcadHighRiskScore" type="number" th:field="*{hcadHighRiskScore}" class="system-settings-input" min="0" max="100" required />
+                            <p th:text="#{admin.system.settings.hcad.high.score.desc}">High risk score.</p>
                         </div>
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.redline.score}">Redline score</label>
-                            <input type="number" th:field="*{hcadRedlineScore}" class="modern-input system-settings-input" min="0" max="100" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.redline.score.desc}">Minimum score that can trigger AI analysis when quorum is met.</p>
+                            <label for="hcadRedlineScore" th:text="#{admin.system.settings.hcad.redline.score}">Redline score</label>
+                            <input id="hcadRedlineScore" type="number" th:field="*{hcadRedlineScore}" class="system-settings-input" min="0" max="100" required />
+                            <p th:text="#{admin.system.settings.hcad.redline.score.desc}">AI analysis threshold.</p>
                         </div>
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.failed.login.burst}">Failed login burst</label>
-                            <input type="number" th:field="*{hcadFailedLoginBurstThreshold}" class="modern-input system-settings-input" min="1" max="1000" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.failed.login.burst.desc}">Failed login count treated as an anchor signal.</p>
+                            <label for="hcadFailedLoginBurstThreshold" th:text="#{admin.system.settings.hcad.failed.login.burst}">Failed login burst</label>
+                            <input id="hcadFailedLoginBurstThreshold" type="number" th:field="*{hcadFailedLoginBurstThreshold}" class="system-settings-input" min="1" max="1000" required />
+                            <p th:text="#{admin.system.settings.hcad.failed.login.burst.desc}">Failed login threshold.</p>
                         </div>
                         <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.request.burst}">Request burst</label>
-                            <input type="number" th:field="*{hcadRequestBurstThreshold}" class="modern-input system-settings-input" min="1" max="10000" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.request.burst.desc}">Recent request count treated as a corroborating signal.</p>
-                        </div>
-                    </div>
-                    <div class="system-settings-grid mt-4">
-                        <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.semantic.risk}">Risk similarity threshold</label>
-                            <input type="number" th:field="*{hcadSemanticRiskSimilarityThreshold}" class="modern-input system-settings-input" min="0" max="1" step="0.01" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.semantic.risk.desc}">Risk evidence similarity used as a supporting signal.</p>
-                        </div>
-                        <div class="system-settings-field">
-                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.semantic.normal}">Normal similarity threshold</label>
-                            <input type="number" th:field="*{hcadSemanticNormalSimilarityThreshold}" class="modern-input system-settings-input" min="0" max="1" step="0.01" required />
-                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.semantic.normal.desc}">Normal evidence similarity used to suppress repeated safe flow.</p>
+                            <label for="hcadRequestBurstThreshold" th:text="#{admin.system.settings.hcad.request.burst}">Request burst</label>
+                            <input id="hcadRequestBurstThreshold" type="number" th:field="*{hcadRequestBurstThreshold}" class="system-settings-input" min="1" max="10000" required />
+                            <p th:text="#{admin.system.settings.hcad.request.burst.desc}">Request burst threshold.</p>
                         </div>
                     </div>
                 </section>
 
-                <section class="modern-card system-settings-section system-settings-section--resource-scan">
-                    <header class="system-settings-section__header">
-                        <i class="fas fa-route system-settings-section__icon system-settings-section__icon--resource-scan"></i>
-                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.resource.scan.title}">Resource Scan</h3>
-                        <span class="system-settings-pill system-settings-pill--resource-scan" th:text="#{admin.system.settings.scope.resource.scan}">리소스 스캔</span>
+                <section class="system-settings-section system-settings-section--semantic">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-vector-square"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.hcad.semantic.risk}">Semantic Evidence</h2>
+                            <p th:text="#{admin.system.settings.hcad.semantic.normal.desc}">Semantic evidence thresholds.</p>
+                        </div>
                     </header>
-                    <div class="system-settings-field">
-                        <label class="system-settings-label" th:text="#{admin.system.settings.resource.scan.base.packages}">Controller base packages</label>
-                        <textarea th:field="*{mvcResourceScannerBasePackages}" class="modern-input system-settings-input system-settings-textarea" rows="4" required></textarea>
-                        <p class="system-settings-help" th:text="#{admin.system.settings.resource.scan.base.packages.desc}">Enter one package prefix per line or separate values with commas.</p>
+                    <div class="system-settings-grid">
+                        <div class="system-settings-field">
+                            <label for="hcadSemanticRiskSimilarityThreshold" th:text="#{admin.system.settings.hcad.semantic.risk}">Risk similarity threshold</label>
+                            <input id="hcadSemanticRiskSimilarityThreshold" type="number" th:field="*{hcadSemanticRiskSimilarityThreshold}" class="system-settings-input" min="0" max="1" step="0.01" required />
+                            <p th:text="#{admin.system.settings.hcad.semantic.risk.desc}">Risk similarity threshold.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label for="hcadSemanticNormalSimilarityThreshold" th:text="#{admin.system.settings.hcad.semantic.normal}">Normal similarity threshold</label>
+                            <input id="hcadSemanticNormalSimilarityThreshold" type="number" th:field="*{hcadSemanticNormalSimilarityThreshold}" class="system-settings-input" min="0" max="1" step="0.01" required />
+                            <p th:text="#{admin.system.settings.hcad.semantic.normal.desc}">Normal similarity threshold.</p>
+                        </div>
                     </div>
                 </section>
-                <button type="submit" class="modern-btn-primary system-settings-save">
-                    <i class="fas fa-save mr-2"></i>
+
+                <section class="system-settings-section system-settings-section--resource-scan">
+                    <header class="system-settings-section-header">
+                        <i class="fas fa-route"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.resource.scan.title}">Resource Scan Settings</h2>
+                            <p th:text="#{admin.system.settings.resource.scan.base.packages.desc}">Controller package scan settings.</p>
+                        </div>
+                    </header>
+                    <div class="system-settings-grid system-settings-grid--single">
+                        <div class="system-settings-field">
+                            <label for="mvcResourceScannerBasePackages" th:text="#{admin.system.settings.resource.scan.base.packages}">Controller base packages</label>
+                            <textarea id="mvcResourceScannerBasePackages" th:field="*{mvcResourceScannerBasePackages}" class="system-settings-input system-settings-textarea" rows="4" required></textarea>
+                            <p th:text="#{admin.system.settings.resource.scan.base.packages.desc}">Enter one package prefix per line.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <button type="submit" class="system-settings-save">
+                    <i class="fas fa-save"></i>
                     <span th:text="#{admin.system.settings.save}">Save Settings</span>
                 </button>
             </form>
         </div>
-
     </main>
 </div>
+
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 <script th:src="@{/js/toast.js}"></script>
 <script th:src="@{/js/system-settings.js}"></script>

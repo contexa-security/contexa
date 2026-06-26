@@ -22,6 +22,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordPolicyController;
 import io.contexa.contexaiam.admin.web.auth.controller.SystemSettingsController;
@@ -85,8 +86,9 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public SystemSettingsRuntimeApplier systemSettingsRuntimeApplier(
             SystemRuntimeSettingsService systemRuntimeSettingsService,
-            ObjectProvider<HcadProperties> hcadPropertiesProvider) {
-        return new SystemSettingsRuntimeApplier(systemRuntimeSettingsService, hcadPropertiesProvider);
+            ObjectProvider<HcadProperties> hcadPropertiesProvider,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider) {
+        return new SystemSettingsRuntimeApplier(systemRuntimeSettingsService, hcadPropertiesProvider, zeroTrustPropertiesProvider);
     }
 
     @Bean

@@ -82,6 +82,8 @@ public class SystemSettingsService {
         existing.setHcadRequestBurstThreshold(form.getHcadRequestBurstThreshold());
         existing.setHcadSemanticRiskSimilarityThreshold(form.getHcadSemanticRiskSimilarityThreshold());
         existing.setHcadSemanticNormalSimilarityThreshold(form.getHcadSemanticNormalSimilarityThreshold());
+        existing.setHcadPreTriggerMode(SystemRuntimeSettingsService.normalizeHcadPreTriggerModeForStorage(form.getHcadPreTriggerMode()));
+        existing.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
         existing.setMvcResourceScannerBasePackages(
                 SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages()));
         repository.save(existing);
@@ -103,6 +105,8 @@ public class SystemSettingsService {
         validateRange("hcadRequestBurstThreshold", form.getHcadRequestBurstThreshold(), 1, 10000);
         validateRatio("hcadSemanticRiskSimilarityThreshold", form.getHcadSemanticRiskSimilarityThreshold());
         validateRatio("hcadSemanticNormalSimilarityThreshold", form.getHcadSemanticNormalSimilarityThreshold());
+        SystemRuntimeSettingsService.normalizeHcadPreTriggerModeForStorage(form.getHcadPreTriggerMode());
+        SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode());
         SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages());
     }
 
