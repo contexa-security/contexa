@@ -352,7 +352,8 @@ public class HcadProperties {
                 "/contexa/admin/api/ai-monitor/**",
                 "/contexa/admin/security-monitor/hcad",
                 "/contexa/admin/security-monitor/hcad/**",
-                "/contexa/admin/api/security-monitor/hcad/**"
+                "/contexa/admin/api/security-monitor/hcad/**",
+                "/contexa/test/hcad/seed/**"
         ));
     }
 

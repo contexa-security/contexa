@@ -244,6 +244,17 @@ public class AiSecurityDecisionObservationWriter {
                     finalAction,
                     testRunId,
                     now);
+            syncHcadEvaluationOutcome(
+                    jdbcOperations,
+                    hcadEvaluationId,
+                    event,
+                    result,
+                    finalAction,
+                    parserFailure,
+                    technicalFallback,
+                    failureType,
+                    outcomeClass,
+                    now);
             refreshSemanticEvidence(event, metadata, result, finalAction, failureType);
             return observationId;
         } catch (DataAccessException ex) {
@@ -253,6 +264,52 @@ public class AiSecurityDecisionObservationWriter {
         }
     }
 
+    private void syncHcadEvaluationOutcome(
+            JdbcOperations jdbcOperations,
+            String hcadEvaluationId,
+            SecurityEvent event,
+            ProcessingResult result,
+            ZeroTrustAction finalAction,
+            boolean parserFailure,
+            boolean technicalFallback,
+            String failureType,
+            String outcomeClass,
+            LocalDateTime now) {
+        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
+            return;
+        }
+        jdbcOperations.update("""
+                UPDATE hcad_detection_evaluation
+                   SET event_id = COALESCE(NULLIF(?, ''), event_id),
+                       llm_action = ?,
+                       llm_proposed_action = ?,
+                       llm_risk_score = ?,
+                       llm_confidence = ?,
+                       llm_latency_ms = ?,
+                       llm_reasoning_summary = ?,
+                       llm_parser_failure = ?,
+                       llm_technical_fallback = ?,
+                       llm_fallback_category = ?,
+                       llm_fallback_reason = ?,
+                       outcome_class = ?,
+                       decided_at = COALESCE(decided_at, ?)
+                 WHERE evaluation_id = ?
+                """,
+                event != null ? blankToEmpty(event.getEventId()) : "",
+                finalAction != null ? finalAction.name() : text(result != null ? result.getAction() : null),
+                result != null ? result.getProposedAction() : null,
+                result != null ? result.resolveAuditRiskScore() : null,
+                result != null ? result.resolveAuditConfidence() : null,
+                result != null && result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null,
+                result != null ? summarize(result.getReasoning(), 1024) : null,
+                parserFailure,
+                technicalFallback,
+                result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
+                result != null ? summarize(firstText(result.getTechnicalFallbackReason(), failureType), 1024) : null,
+                firstText(outcomeClass, HcadOutcomeClassifier.UNKNOWN),
+                now,
+                hcadEvaluationId);
+    }
     private void refreshSemanticEvidence(
             SecurityEvent event,
             Map<String, Object> metadata,
@@ -912,3 +969,4 @@ public class AiSecurityDecisionObservationWriter {
         return text == null ? null : truncate(text.replaceAll("\\s+", " "), maxLength);
     }
 }
+
