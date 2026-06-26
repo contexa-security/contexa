@@ -531,7 +531,7 @@ public class ZeroTrustEventPublisher {
             HcadPreProtectablePromotionAssessment assessment,
             Map<String, Object> payload,
             HcadPreTriggerMode mode) {
-        if (projection == null || assessment == null) {
+        if (projection == null || assessment == null || !assessment.eligible()) {
             return null;
         }
         String actorSessionKey = firstText(
@@ -541,7 +541,8 @@ public class ZeroTrustEventPublisher {
                 assessment.anchorSignals(),
                 assessment.corroboratingSignals());
         String triggerStateKey = PendingAnomalyKeyFactory.buildActorSessionDedupKey(actorSessionKey, riskSignature);
-        PendingAnomalyEvidenceReport report = PendingAnomalyEvidenceReport.noTrigger(
+        PendingAnomalyEvidenceReport report = new PendingAnomalyEvidenceReport(
+                true,
                 projection.userId(),
                 projection.contextBindingHash(),
                 triggerStateKey,
@@ -559,6 +560,7 @@ public class ZeroTrustEventPublisher {
                 assessment.corroboratingSignals(),
                 assessment.reasonCodes(),
                 assessment.summary(),
+                riskSignature,
                 assessment.rawSignalSnapshot());
         String evaluationId = hcadEvaluationWriter.recordCandidate(mode, report);
         if (StringUtils.hasText(evaluationId)) {
@@ -1254,19 +1256,3 @@ public class ZeroTrustEventPublisher {
         return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

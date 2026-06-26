@@ -56,6 +56,10 @@ DELETE FROM admin_menu_role r
 
 DELETE FROM admin_menu
  WHERE data_page = 'ai-monitor-operations';
+UPDATE admin_menu
+   SET name = 'menu.nav.aiMonitor'
+ WHERE data_page = 'ai-monitor'
+   AND name IN ('AI 보안 모니터', 'AI Security Monitor', 'AI Monitor', 'AI 모니터');
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_admin_menu_data_page
     ON admin_menu (data_page)

@@ -75,7 +75,7 @@ public class HcadEvaluationWriter {
     }
 
     public String recordCandidate(HcadPreTriggerMode mode, PendingAnomalyEvidenceReport report) {
-        if (report == null) {
+        if (report == null || !report.shouldTrigger()) {
             return null;
         }
         String evaluationId = UUID.randomUUID().toString();
@@ -556,127 +556,8 @@ public class HcadEvaluationWriter {
             String llmFallbackCategory,
             String llmFallbackReason,
             String outcomeClass) {
-        Map<String, Object> metadata = event != null && event.getMetadata() != null
-                ? event.getMetadata()
-                : Map.of();
-        if (!isHcadPreTriggerEvaluationPresent(metadata)) {
-            return null;
-        }
-
-        Object rawSignals = metadata.get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS);
-        Map<String, Object> rawSnapshot = rawSnapshotMap(rawSignals);
-        HcadBaselineComparison baselineComparison = baselineComparison(rawSnapshot);
-        List<String> anchorSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS));
-        List<String> corroboratingSignals = stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS));
-        List<String> evidenceGaps = evidenceGapCodes(anchorSignals, corroboratingSignals, baselineComparison, rawSignals);
-        String requestPath = firstText(metadata, "requestPath", "requestUri", "httpUri");
-        String normalizedPath = HcadRequestPathUtils.normalizePathText(requestPath);
-        String resourceId = resolveResourceId(rawSignals, normalizedPath);
-        String evaluationId = UUID.randomUUID().toString();
-        String evaluationEventId = event != null && event.getEventId() != null && !event.getEventId().isBlank()
-                ? event.getEventId()
-                : "hcad-" + evaluationId;
-        String requestId = firstNonBlank(
-                firstText(metadata, "requestId", "correlationId"),
-                evaluationEventId);
-        String correlationId = firstNonBlank(
-                firstText(metadata, "correlationId", "requestId"),
-                requestId);
-        PendingAnomalyEvidenceReport observedReport = PendingAnomalyEvidenceReport.noTrigger(
-                event != null ? event.getUserId() : firstText(metadata, "userId"),
-                text(metadata.get("contextBindingHash")),
-                firstNonBlank(text(metadata.get("triggerStateKey")), text(metadata.get("actorSessionKey"))),
-                requestId,
-                firstText(metadata, "sessionId", "actorSessionKey"),
-                requestPath,
-                firstText(metadata, "httpMethod"),
-                event != null ? event.getSourceIp() : text(metadata.get("clientIp")),
-                integerDefault(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE), 0),
-                text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_BAND)),
-                boolDefault(bool(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE)), false),
-                text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_VERSION)),
-                anchorSignals,
-                corroboratingSignals,
-                stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES)),
-                text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SUMMARY)),
-                rawSnapshot);
-        LocalDateTime now = LocalDateTime.now();
-        HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
-                .evaluationId(evaluationId)
-                .eventId(evaluationEventId)
-                .requestId(requestId)
-                .correlationId(correlationId)
-                .testRunId(testRunId(metadata, rawSignals))
-                .userId(event != null ? event.getUserId() : firstText(metadata, "userId"))
-                .contextBindingHash(text(metadata.get("contextBindingHash")))
-                .actorSessionKey(text(metadata.get("actorSessionKey")))
-                .windowId(text(metadata.get("windowId")))
-                .triggerScope(blankToDefault(text(metadata.get("triggerScope")), "SESSION_WINDOW"))
-                .requestCount(integerDefault(metadata.get("requestCount"), 1))
-                .httpMethod(firstText(metadata, "httpMethod"))
-                .requestPath(requestPath)
-                .normalizedPath(normalizedPath)
-                .resourceId(resourceId)
-                .clientIp(event != null ? event.getSourceIp() : text(metadata.get("clientIp")))
-                .mode(firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_MODE, "hcadMode"))
-                .earlyAnalysisScore(integer(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE)))
-                .band(text(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_BAND)))
-                .eligible(bool(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE)))
-                .triggeredLlm(false)
-                .duplicateSuppressed(false)
-                .duplicateSuppressedCount(integerDefault(metadata.get("duplicateSuppressedCount"), 0))
-                .negativeCacheHit(bool(metadata.get("negativeCacheHit")))
-                .negativeCacheHitCount(integerDefault(metadata.get("negativeCacheHitCount"), 0))
-                .resourceFamilies(writeJson(metadata.get("resourceFamilies")))
-                .samplePaths(writeJson(metadata.get("samplePaths")))
-                .anchorSignals(writeJson(anchorSignals))
-                .corroboratingSignals(writeJson(corroboratingSignals))
-                .reasonCodes(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES)))
-                .nonTriggerReason(nonTriggerReason(anchorSignals, corroboratingSignals, baselineComparison, evidenceGaps))
-                .evidenceGapCodes(writeJson(evidenceGaps))
-                .baselineAvailable(baselineComparison.available())
-                .baselineEstablished(baselineComparison.established())
-                .baselineUpdateCount(baselineComparison.updateCount())
-                .baselineMinSamples(baselineComparison.minSamples())
-                .baselineComparedDimensions(baselineComparison.comparedDimensions())
-                .baselineMismatchCount(baselineComparison.mismatchCount())
-                .baselineMatchRatio(baselineComparison.matchRatio())
-                .baselineMismatchedDimensions(writeJson(baselineComparison.mismatchedDimensions()))
-                .baselineCurrentValuesJson(writeJson(baselineComparison.currentValues()))
-                .baselineReferenceValuesJson(writeJson(baselineComparison.baselineValues()))
-                .triggerDecisionReason("OBSERVED_WITH_LLM_DECISION")
-                .signalSnapshotJson(writeJson(rawSignals))
-                .signalProvenanceJson(writeJson(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_PROVENANCE)))
-                .scoreBreakdownJson(writeJson(scoreBreakdown(observedReport, rawSnapshot)))
-                .signalExplanationsJson(writeJson(signalExplanations(observedReport, rawSnapshot, baselineComparison)))
-                .contextExplanationJson(writeJson(contextExplanation(observedReport, rawSnapshot, normalizedPath, resourceId, requestId)))
-                .baselineExplanationJson(writeJson(baselineExplanation(baselineComparison)))
-                .semanticEvidenceExplanationJson(writeJson(semanticEvidenceExplanation(rawSnapshot)))
-                .freshnessExplanationJson(writeJson(freshnessExplanation(rawSnapshot, baselineComparison)))
-                .triggerExplanationJson(writeJson(triggerExplanation(
-                        observedReport,
-                        nonTriggerReason(anchorSignals, corroboratingSignals, baselineComparison, evidenceGaps),
-                        "OBSERVED_WITH_LLM_DECISION",
-                        evidenceGaps)))
-                .llmAction(llmAction)
-                .llmProposedAction(llmProposedAction)
-                .llmRiskScore(llmRiskScore)
-                .llmConfidence(llmConfidence)
-                .llmLatencyMs(llmLatencyMs)
-                .llmReasoningSummary(summarize(llmReasoning, 1024))
-                .llmReasoningHash(sha256(llmReasoning))
-                .llmParserFailure(llmParserFailure)
-                .llmTechnicalFallback(llmTechnicalFallback)
-                .llmFallbackCategory(truncate(llmFallbackCategory, 128))
-                .llmFallbackReason(summarize(llmFallbackReason, 1024))
-                .outcomeClass(outcomeClass == null || outcomeClass.isBlank() ? HcadOutcomeClassifier.UNKNOWN : outcomeClass)
-                .createdAt(now)
-                .decidedAt(now)
-                .build();
-        save(evaluation);
-        return evaluationId;
+        return null;
     }
-
     private Map<String, Object> scoreBreakdown(
             PendingAnomalyEvidenceReport report,
             Map<String, Object> rawSnapshot) {

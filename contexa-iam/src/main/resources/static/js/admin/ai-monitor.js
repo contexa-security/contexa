@@ -122,13 +122,18 @@
             [label('labelUnknownRate'), formatMetricPercent(standard.unknownRate, metrics.unknownRate, metrics.comparisonAvailable), label('labelUnknownRateHelp')],
             [label('labelFailureRate'), formatMetricPercent(standard.failureRate, metrics.failureRate, (llm.totalDecisionCount || 0) > 0), label('labelFailureRateHelp')]
         ]);
+        const totalAiDecisions = llm.totalDecisionCount || 0;
+        const hcadTriggeredAiDecisions = llm.hcadPreTriggerDecisionCount || 0;
+        const nonTriggeredAiDecisions = Math.max(0, totalAiDecisions - hcadTriggeredAiDecisions);
         detailsEl.innerHTML = [
             flowPanel([
                 flowItem(label('labelObservedRequests'), hcad.observedRequestCount || 0, label('labelFlowBase'), 1, '#22d3ee'),
                 flowItem(label('labelHcadWindows'), hcad.candidateCount || 0, label('labelFlowObservedToHcad'), ratioValue(hcad.candidateCount || 0, hcad.observedRequestCount || 0), '#38bdf8'),
                 flowItem(label('labelHcadAiConnected'), hcad.triggeredLlmCount || 0, label('labelFlowHcadToLlm'), ratioValue(hcad.triggeredLlmCount || 0, hcad.candidateCount || 0), '#a78bfa'),
-                flowItem(label('labelLlmDecisions'), llm.totalDecisionCount || 0, label('labelFlowObservedToAi'), ratioValue(llm.totalDecisionCount || 0, Math.max(1, hcad.observedRequestCount || 0)), '#818cf8'),
-                flowItem(label('labelClearOutcome'), metrics.classified, label('labelFlowLlmToClear'), ratioValue(metrics.classified, llm.totalDecisionCount || 0), '#22c55e')
+                flowItem(label('labelHcadTriggeredAiDecisions'), hcadTriggeredAiDecisions, label('labelFlowAllAiDecisions'), ratioValue(hcadTriggeredAiDecisions, totalAiDecisions), '#8b5cf6'),
+                flowItem(label('labelNonTriggeredAiDecisions'), nonTriggeredAiDecisions, label('labelFlowAllAiDecisions'), ratioValue(nonTriggeredAiDecisions, totalAiDecisions), '#f59e0b'),
+                flowItem(label('labelLlmDecisions'), totalAiDecisions, label('labelFlowObservedToAi'), ratioValue(totalAiDecisions, Math.max(1, hcad.observedRequestCount || 0)), '#818cf8'),
+                flowItem(label('labelClearOutcome'), metrics.classified, label('labelFlowLlmToClear'), ratioValue(metrics.classified, totalAiDecisions), '#22c55e')
             ]),
             `<div class="ai-monitor-overview-grid">
                 ${agreementPanel(metrics)}
