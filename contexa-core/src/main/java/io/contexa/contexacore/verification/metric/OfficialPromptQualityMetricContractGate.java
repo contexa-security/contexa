@@ -1,6 +1,8 @@
 package io.contexa.contexacore.verification.metric;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
+import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class OfficialPromptQualityMetricContractGate {
 
-    public static final String CONTRACT_VERSION = "2026.05.01-pqa12-p1";
+    public static final String CONTRACT_VERSION = FinalPromptMetricContractCatalog.load(new ObjectMapper()).contractVersion();
 
     private static final Set<String> ALLOWED_STATES = Set.of(
             "success",

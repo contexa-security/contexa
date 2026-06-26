@@ -224,6 +224,27 @@ public final class FinalPromptMetricContractCatalog {
         return metrics.stream().map(metric -> normalize(metric.metricCode())).toList();
     }
 
+    public String contractVersion() {
+        String version = null;
+        for (FinalPromptMetricContract metric : metrics) {
+            String next = metric.version();
+            if (!StringUtils.hasText(next)) {
+                throw new IllegalStateException("Final prompt metric contract version is required. metricCode="
+                        + metric.metricCode());
+            }
+            if (version == null) {
+                version = next.trim();
+            } else if (!version.equals(next.trim())) {
+                throw new IllegalStateException("Final prompt metric contracts must use one active version."
+                        + " expected=" + version + ", actual=" + next + ", metricCode=" + metric.metricCode());
+            }
+        }
+        if (!StringUtils.hasText(version)) {
+            throw new IllegalStateException("Final prompt metric contract catalog is empty.");
+        }
+        return version;
+    }
+
     public FinalPromptMetricContract metric(String metricCode) {
         FinalPromptMetricContract metric = metricsByCode.get(normalize(metricCode));
         if (metric == null) {

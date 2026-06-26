@@ -80,6 +80,66 @@
                     <p class="system-settings-help" th:text="#{admin.system.settings.registration.enabled.desc}">If disabled, only administrators can create new user accounts.</p>
                 </section>
 
+
+                <section class="modern-card system-settings-section system-settings-section--hcad">
+                    <header class="system-settings-section__header">
+                        <i class="fas fa-satellite-dish system-settings-section__icon system-settings-section__icon--hcad"></i>
+                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.hcad.title}">Early Detection</h3>
+                        <span class="system-settings-pill system-settings-pill--hcad" th:text="#{admin.system.settings.scope.hcad}">조기탐지</span>
+                    </header>
+                    <div class="system-settings-grid system-settings-grid--three">
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.medium.score}">Medium risk score</label>
+                            <input type="number" th:field="*{hcadMediumRiskScore}" class="modern-input system-settings-input" min="0" max="100" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.medium.score.desc}">Minimum score for medium risk display.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.high.score}">High risk score</label>
+                            <input type="number" th:field="*{hcadHighRiskScore}" class="modern-input system-settings-input" min="0" max="100" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.high.score.desc}">Minimum score for high risk display.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.redline.score}">Redline score</label>
+                            <input type="number" th:field="*{hcadRedlineScore}" class="modern-input system-settings-input" min="0" max="100" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.redline.score.desc}">Minimum score that can trigger AI analysis when quorum is met.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.failed.login.burst}">Failed login burst</label>
+                            <input type="number" th:field="*{hcadFailedLoginBurstThreshold}" class="modern-input system-settings-input" min="1" max="1000" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.failed.login.burst.desc}">Failed login count treated as an anchor signal.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.request.burst}">Request burst</label>
+                            <input type="number" th:field="*{hcadRequestBurstThreshold}" class="modern-input system-settings-input" min="1" max="10000" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.request.burst.desc}">Recent request count treated as a corroborating signal.</p>
+                        </div>
+                    </div>
+                    <div class="system-settings-grid mt-4">
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.semantic.risk}">Risk similarity threshold</label>
+                            <input type="number" th:field="*{hcadSemanticRiskSimilarityThreshold}" class="modern-input system-settings-input" min="0" max="1" step="0.01" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.semantic.risk.desc}">Risk evidence similarity used as a supporting signal.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label class="system-settings-label" th:text="#{admin.system.settings.hcad.semantic.normal}">Normal similarity threshold</label>
+                            <input type="number" th:field="*{hcadSemanticNormalSimilarityThreshold}" class="modern-input system-settings-input" min="0" max="1" step="0.01" required />
+                            <p class="system-settings-help" th:text="#{admin.system.settings.hcad.semantic.normal.desc}">Normal evidence similarity used to suppress repeated safe flow.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="modern-card system-settings-section system-settings-section--resource-scan">
+                    <header class="system-settings-section__header">
+                        <i class="fas fa-route system-settings-section__icon system-settings-section__icon--resource-scan"></i>
+                        <h3 class="system-settings-section__title" th:text="#{admin.system.settings.resource.scan.title}">Resource Scan</h3>
+                        <span class="system-settings-pill system-settings-pill--resource-scan" th:text="#{admin.system.settings.scope.resource.scan}">리소스 스캔</span>
+                    </header>
+                    <div class="system-settings-field">
+                        <label class="system-settings-label" th:text="#{admin.system.settings.resource.scan.base.packages}">Controller base packages</label>
+                        <textarea th:field="*{mvcResourceScannerBasePackages}" class="modern-input system-settings-input system-settings-textarea" rows="4" required></textarea>
+                        <p class="system-settings-help" th:text="#{admin.system.settings.resource.scan.base.packages.desc}">Enter one package prefix per line or separate values with commas.</p>
+                    </div>
+                </section>
                 <button type="submit" class="modern-btn-primary system-settings-save">
                     <i class="fas fa-save mr-2"></i>
                     <span th:text="#{admin.system.settings.save}">Save Settings</span>

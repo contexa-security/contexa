@@ -1087,24 +1087,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
     }
 
     private String currentContractVersion(FinalPromptMetricContractCatalog catalog) {
-        String version = null;
-        for (String metricCode : catalog.metricCodesInOrder()) {
-            String next = catalog.metric(metricCode).version();
-            if (!StringUtils.hasText(next)) {
-                throw new IllegalStateException("Final prompt metric contract version is required. metricCode="
-                        + metricCode);
-            }
-            if (version == null) {
-                version = next.trim();
-            } else if (!version.equals(next.trim())) {
-                throw new IllegalStateException("Final prompt metric contracts must use one active version."
-                        + " expected=" + version + ", actual=" + next + ", metricCode=" + metricCode);
-            }
-        }
-        if (!StringUtils.hasText(version)) {
-            throw new IllegalStateException("Final prompt metric contract catalog is empty.");
-        }
-        return version;
+        return catalog.contractVersion();
     }
 
     private List<MetricInputRequirement> contractInputRequirements(FinalPromptMetricRule rule) {

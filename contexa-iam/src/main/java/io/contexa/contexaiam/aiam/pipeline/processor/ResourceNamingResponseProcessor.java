@@ -17,6 +17,7 @@ package io.contexa.contexaiam.aiam.pipeline.processor;
 
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
+import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingStructuredOutput;
 import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResponse;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,18 +33,26 @@ public class ResourceNamingResponseProcessor implements DomainResponseProcessor 
 
     @Override
     public boolean supportsType(Class<?> responseType) {
-        return false;
+        return ResourceNamingStructuredOutput.class.equals(responseType)
+                || ResourceNamingSuggestionResponse.class.equals(responseType);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object wrapResponse(Object parsedData, PipelineExecutionContext context) {
-        if (!(parsedData instanceof Map)) {
-            throw new IllegalArgumentException(
-                    "Expected Map but got: " + (parsedData != null ? parsedData.getClass().getName() : "null")
-            );
+        if (parsedData instanceof ResourceNamingSuggestionResponse response) {
+            return response;
         }
-        Map<String, Object> mapResponse = (Map<String, Object>) parsedData;
-        return ResourceNamingSuggestionResponse.fromMap(mapResponse);
+        if (parsedData instanceof ResourceNamingStructuredOutput output) {
+            return output.toSuggestionResponse();
+        }
+        if (parsedData instanceof Map<?, ?> map) {
+            return ResourceNamingSuggestionResponse.fromMap((Map<String, Object>) map);
+        }
+        throw new IllegalArgumentException(
+                "Expected ResourceNamingStructuredOutput, ResourceNamingSuggestionResponse or Map but got: "
+                        + (parsedData != null ? parsedData.getClass().getName() : "null")
+        );
     }
 
     @Override

@@ -15,9 +15,10 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -36,7 +37,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -53,12 +53,14 @@ class SystemSettingsControllerTest {
     @Mock
     private SystemSettingsService systemSettingsService;
 
-
     @Mock
     private MessageSource messageSource;
 
     @Mock
     private CustomDynamicAuthorizationManager authorizationManager;
+
+    @Mock
+    private SystemSettingsRuntimeApplier runtimeApplier;
 
     private SystemSettingsController controller;
 
@@ -67,7 +69,7 @@ class SystemSettingsControllerTest {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        controller = new SystemSettingsController(systemSettingsService, messageSource, authorizationManager);
+        controller = new SystemSettingsController(systemSettingsService, messageSource, authorizationManager, runtimeApplier);
     }
 
     @Nested
@@ -102,7 +104,7 @@ class SystemSettingsControllerTest {
     class UpdateSettings {
 
         @Test
-        @DisplayName("should update settings and reload authorizationManager CombiningAlgorithm")
+        @DisplayName("should update settings, apply runtime settings and reload authorizationManager CombiningAlgorithm")
         void success() {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             SystemSettingsForm form = new SystemSettingsForm();
@@ -114,6 +116,7 @@ class SystemSettingsControllerTest {
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("admin.system.settings.saved");
 
             verify(systemSettingsService).updateSettings(form);
+            verify(runtimeApplier).apply();
             verify(authorizationManager).setCombiningAlgorithm(CombiningAlgorithm.DENY_OVERRIDES);
             verify(authorizationManager).reload();
         }
@@ -129,6 +132,7 @@ class SystemSettingsControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
             verify(systemSettingsService).updateSettings(form);
+            verify(runtimeApplier).apply();
             verify(authorizationManager, never()).setCombiningAlgorithm(any());
             verify(authorizationManager, never()).reload();
         }
@@ -144,6 +148,7 @@ class SystemSettingsControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
+            verify(runtimeApplier, never()).apply();
         }
     }
 }

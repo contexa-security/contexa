@@ -46,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -108,7 +109,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
 
         if (!newResources.isEmpty()) {
-            int batchSize = 50;
+            int batchSize = 100;
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
             resourceBatches.forEach(this::processResourceBatch);
         }
@@ -166,7 +167,8 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
             Set<String> requestedIdentifiers = resourcesToSuggest.stream()
                     .map(resource -> resource.get("identifier"))
-                    .collect(Collectors.toSet());
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
             Map<String, ResourceNameSuggestion> suggestionsMap = suggestionResponse == null
                     ? Map.of()
                     : suggestionResponse.toResourceNameSuggestionMap().entrySet().stream()
@@ -178,10 +180,34 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                             LinkedHashMap::new
                     ));
 
+            Set<String> responseIdentifiers = suggestionResponse == null
+                    ? Set.of()
+                    : suggestionResponse.getSuggestions().stream()
+                    .map(ResourceNamingSuggestionResponse.ResourceNamingSuggestion::getIdentifier)
+                    .filter(Objects::nonNull)
+                    .filter(identifier -> !identifier.trim().isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            Set<String> missingIdentifiers = new LinkedHashSet<>(requestedIdentifiers);
+            missingIdentifiers.removeAll(suggestionsMap.keySet());
+            Set<String> unexpectedIdentifiers = new LinkedHashSet<>(responseIdentifiers);
+            unexpectedIdentifiers.removeAll(requestedIdentifiers);
+            List<String> failedIdentifiers = suggestionResponse == null
+                    ? List.of()
+                    : suggestionResponse.getFailedIdentifiers();
+
             if (suggestionResponse == null) {
                 log.error("AI did not return a resource naming response; applying fallback for requested resources");
-            } else if (!suggestionResponse.getFailedIdentifiers().isEmpty()) {
-                log.error("AI resource naming response contained invalid entries: {}", suggestionResponse.getFailedIdentifiers());
+            } else {
+                if (!failedIdentifiers.isEmpty()) {
+                    log.error("AI resource naming response contained invalid entries: {}", failedIdentifiers);
+                }
+                if (!unexpectedIdentifiers.isEmpty()) {
+                    log.error("AI resource naming response contained identifiers that were not requested: {}", unexpectedIdentifiers);
+                }
+                if (!missingIdentifiers.isEmpty()) {
+                    log.error("AI resource naming response missed {} of {} requested identifiers: {}",
+                            missingIdentifiers.size(), requestedIdentifiers.size(), missingIdentifiers);
+                }
             }
 
             for (ManagedResource resource : batch) {

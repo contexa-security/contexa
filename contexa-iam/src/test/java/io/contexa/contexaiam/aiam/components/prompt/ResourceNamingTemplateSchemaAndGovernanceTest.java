@@ -18,6 +18,7 @@ package io.contexa.contexaiam.aiam.components.prompt;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingStructuredOutput;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,12 @@ class ResourceNamingTemplateSchemaAndGovernanceTest {
     }
 
     @Test
+    @DisplayName("ResourceNaming uses DTO structured output, not dynamic top-level map keys")
+    void aiGenerationType_usesStructuredResponseDto() {
+        assertThat(template.getAIGenerationType()).isEqualTo(ResourceNamingStructuredOutput.class);
+    }
+
+    @Test
     @DisplayName("System prompt schema block communicates friendlyName/description length and confidence range")
     void systemPrompt_advertisesFieldConstraints() {
         String systemPrompt = template.generateSystemPrompt(request(List.of("/api/x")), null);
@@ -67,20 +74,30 @@ class ResourceNamingTemplateSchemaAndGovernanceTest {
     }
 
     @Test
-    @DisplayName("System prompt fixes the response contract to an identifier-keyed JSON object")
-    void systemPrompt_usesIdentifierKeyedContractWithoutFallbackText() {
+    @DisplayName("System prompt fixes the response contract to a suggestions array schema")
+    void systemPrompt_usesSuggestionsArrayContractWithoutFallbackText() {
         String systemPrompt = template.generateSystemPrompt(request(List.of("/api/x")), null);
 
         assertThat(systemPrompt)
-                .contains("identifier-keyed")
-                .contains("Do not add wrapper keys named")
-                .contains("\"suggestions\"")
-                .contains("\"failedIdentifiers\"")
-                .contains("\"stats\"");
-        assertThat(systemPrompt)
-                .doesNotContain("Required output:")
+                .contains("suggestions array")
+                .contains("identifier")
+                .contains("Do not use resource identifiers as top-level JSON keys")
+                .contains("failedIdentifiers")
+                .doesNotContain("identifier-keyed")
                 .doesNotContain("Resource that did not receive AI recommendation.")
                 .doesNotContain("[item name] feature");
+    }
+
+    @Test
+    @DisplayName("User prompt requires exact identifier matching inside suggestions array")
+    void userPrompt_requiresExactIdentifierMatchingInsideSuggestionsArray() {
+        String userPrompt = template.generateUserPrompt(request(List.of("/api/orders")), null);
+
+        assertThat(userPrompt)
+                .contains("suggestions array")
+                .contains("suggestions[].identifier")
+                .contains("/api/orders")
+                .contains("Do not use URL paths or method signatures as top-level JSON property names");
     }
 
     @Test

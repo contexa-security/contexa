@@ -77,12 +77,11 @@ class ResourceNamingTemplateLanguageTest {
         String systemPrompt = template.generateSystemPrompt(requestWithContext(context), null);
 
         long slashCount = systemPrompt.lines()
-                .filter(line -> line.contains("\"/"))
-                .filter(line -> line.contains("friendlyName") || line.trim().startsWith("\"/"))
+                .filter(line -> line.contains("\"identifier\"") && line.contains("\"/"))
                 .count();
 
         assertThat(slashCount)
-                .as("schema block should contain at least five path keys so the few-shot set covers GET/POST/PATCH/{id}/query variants")
+                .as("schema block should contain at least five path identifiers so the few-shot set covers list/detail/action variants")
                 .isGreaterThanOrEqualTo(5);
     }
 }

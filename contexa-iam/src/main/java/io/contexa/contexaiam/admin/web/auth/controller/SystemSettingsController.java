@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -33,7 +34,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-
 @Slf4j
 @Controller
 @RequestMapping("/contexa/admin/system-settings")
@@ -45,6 +45,8 @@ public class SystemSettingsController {
     private final MessageSource messageSource;
     @Nullable
     private final CustomDynamicAuthorizationManager authorizationManager;
+    @Nullable
+    private final SystemSettingsRuntimeApplier runtimeApplier;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -65,6 +67,10 @@ public class SystemSettingsController {
         try {
             systemSettingsService.updateSettings(form);
 
+            if (runtimeApplier != null) {
+                runtimeApplier.apply();
+            }
+
             // Apply combining-algorithm change at runtime so subsequent authorization decisions use it
             // immediately on this JVM instance. (Distributed propagation is tracked separately.)
             if (authorizationManager != null) {
@@ -84,5 +90,4 @@ public class SystemSettingsController {
         }
         return "redirect:/contexa/admin/system-settings";
     }
-
 }

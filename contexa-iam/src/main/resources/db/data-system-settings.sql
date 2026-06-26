@@ -1,11 +1,35 @@
 -- System Settings Singleton Seed
 -- Loaded by IamSeedDataAutoConfiguration after data.sql / data-menu.sql.
 -- WHERE NOT EXISTS makes it idempotent across restarts and re-applies.
--- Schema source-of-truth: contexa_tables.sql (operational DB dump 2026-05-07).
---   Required NOT NULL columns: audit_log_retention_days, registration_enabled,
---   created_at, policy_combining_algorithm, default_role.
-INSERT INTO system_settings (audit_log_retention_days, default_role, policy_combining_algorithm, registration_enabled, created_at)
-SELECT 90, 'ROLE_USER', 'FIRST_APPLICABLE', FALSE, CURRENT_TIMESTAMP
+-- Schema source-of-truth: db/schema.sql.
+INSERT INTO system_settings (
+    audit_log_retention_days,
+    default_role,
+    policy_combining_algorithm,
+    registration_enabled,
+    hcad_medium_risk_score,
+    hcad_high_risk_score,
+    hcad_redline_score,
+    hcad_failed_login_burst_threshold,
+    hcad_request_burst_threshold,
+    hcad_semantic_risk_similarity_threshold,
+    hcad_semantic_normal_similarity_threshold,
+    mvc_resource_scanner_base_packages,
+    created_at)
+SELECT
+    90,
+    'ROLE_USER',
+    'FIRST_APPLICABLE',
+    FALSE,
+    30,
+    50,
+    70,
+    3,
+    12,
+    0.80,
+    0.85,
+    'io.contexa.contexaiam.',
+    CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM system_settings);
 
 -- Keep future settings rows safe when manual data was loaded with explicit ids.

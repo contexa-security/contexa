@@ -15,8 +15,8 @@
  */
 package io.contexa.contexaiam.aiam.protocol.response;
 
-import io.contexa.contexaiam.aiam.protocol.request.ResourceNameSuggestion;
 import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexaiam.aiam.protocol.request.ResourceNameSuggestion;
 import lombok.*;
 
 import java.util.ArrayList;
@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Getter
 @Setter
 @NoArgsConstructor
 public class ResourceNamingSuggestionResponse extends AIResponse {
@@ -43,6 +42,14 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                                           List<String> failedIdentifiers) {
         this.suggestions = suggestions != null ? suggestions : List.of();
         this.failedIdentifiers = failedIdentifiers != null ? failedIdentifiers : List.of();
+    }
+
+    public List<ResourceNamingSuggestion> getSuggestions() {
+        return suggestions != null ? suggestions : List.of();
+    }
+
+    public List<String> getFailedIdentifiers() {
+        return failedIdentifiers != null ? failedIdentifiers : List.of();
     }
 
     @Data
@@ -71,7 +78,7 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
     }
 
     public Map<String, ResourceNameSuggestion> toResourceNameSuggestionMap() {
-        return suggestions.stream()
+        return getSuggestions().stream()
                 .filter(suggestion -> hasText(suggestion.getIdentifier()))
                 .collect(Collectors.toMap(
                         ResourceNamingSuggestion::getIdentifier,
@@ -86,8 +93,8 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
             return new ResourceNamingSuggestionResponse(List.of(), List.of());
         }
 
-        if (mapResponse.get("suggestions") instanceof List<?> legacySuggestions) {
-            return fromLegacySuggestionArray(legacySuggestions, mapResponse.get("failedIdentifiers"));
+        if (mapResponse.get("suggestions") instanceof List<?> suggestionsArray) {
+            return fromSuggestionArray(suggestionsArray, mapResponse.get("failedIdentifiers"));
         }
 
         List<String> failedIdentifiers = new ArrayList<>();
@@ -106,12 +113,12 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
         return new ResourceNamingSuggestionResponse(suggestions, failedIdentifiers);
     }
 
-    private static ResourceNamingSuggestionResponse fromLegacySuggestionArray(List<?> legacySuggestions, Object failedIdentifiersValue) {
+    private static ResourceNamingSuggestionResponse fromSuggestionArray(List<?> suggestionsArray, Object failedIdentifiersValue) {
         List<String> failedIdentifiers = new ArrayList<>();
         failedIdentifiers.addAll(parseFailedIdentifiers(failedIdentifiersValue));
         List<ResourceNamingSuggestion> suggestions = new ArrayList<>();
 
-        for (Object rawSuggestion : legacySuggestions) {
+        for (Object rawSuggestion : suggestionsArray) {
             if (!(rawSuggestion instanceof Map<?, ?> suggestionMap)) {
                 continue;
             }

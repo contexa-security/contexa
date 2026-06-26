@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
@@ -29,8 +30,8 @@ import io.contexa.contexaiam.resource.service.AutoConditionTemplateService;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryServiceImpl;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
@@ -76,8 +77,11 @@ public class IamResourceAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MvcResourceScanner mvcResourceScanner(ApplicationContext applicationContext, IamAdminProperties iamAdminProperties) {
-        return new MvcResourceScanner(applicationContext, iamAdminProperties);
+    public MvcResourceScanner mvcResourceScanner(
+            ApplicationContext applicationContext,
+            IamAdminProperties iamAdminProperties,
+            ObjectProvider<SystemRuntimeSettingsService> runtimeSettingsServiceProvider) {
+        return new MvcResourceScanner(applicationContext, iamAdminProperties, runtimeSettingsServiceProvider.getIfAvailable());
     }
 
     @Bean
@@ -88,4 +92,3 @@ public class IamResourceAutoConfiguration {
         return new MethodResourceScanner(applicationContext, objectMapper);
     }
 }
-

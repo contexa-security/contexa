@@ -49,6 +49,39 @@ public class SystemSettings {
     @Builder.Default
     private boolean registrationEnabled = false;
 
+
+    @Column(name = "hcad_medium_risk_score", nullable = false)
+    @Builder.Default
+    private int hcadMediumRiskScore = 30;
+
+    @Column(name = "hcad_high_risk_score", nullable = false)
+    @Builder.Default
+    private int hcadHighRiskScore = 50;
+
+    @Column(name = "hcad_redline_score", nullable = false)
+    @Builder.Default
+    private int hcadRedlineScore = 70;
+
+    @Column(name = "hcad_failed_login_burst_threshold", nullable = false)
+    @Builder.Default
+    private int hcadFailedLoginBurstThreshold = 3;
+
+    @Column(name = "hcad_request_burst_threshold", nullable = false)
+    @Builder.Default
+    private int hcadRequestBurstThreshold = 12;
+
+    @Column(name = "hcad_semantic_risk_similarity_threshold", nullable = false)
+    @Builder.Default
+    private double hcadSemanticRiskSimilarityThreshold = 0.80d;
+
+    @Column(name = "hcad_semantic_normal_similarity_threshold", nullable = false)
+    @Builder.Default
+    private double hcadSemanticNormalSimilarityThreshold = 0.85d;
+
+    @Column(name = "mvc_resource_scanner_base_packages", nullable = false, columnDefinition = "text")
+    @Builder.Default
+    private String mvcResourceScannerBasePackages = "io.contexa.contexaiam.";
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

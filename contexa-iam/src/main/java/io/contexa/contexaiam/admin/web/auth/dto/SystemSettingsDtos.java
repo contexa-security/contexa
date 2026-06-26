@@ -16,16 +16,15 @@
 package io.contexa.contexaiam.admin.web.auth.dto;
 
 import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import lombok.Data;
 
 /**
  * Form-binding DTOs for the {@code /contexa/admin/system-settings} screen.
  *
  * <p>Binding the form straight onto the {@link SystemSettings} entity exposes a
- * mass-assignment surface (the client could submit {@code id}, {@code createdAt},
- * {@code updatedAt}, or any future entity field that gains a setter). Restricting the
- * bindable fields to this DTO keeps the contract explicit: only the four operator-editable
- * settings are accepted, and any other form parameter is ignored by Spring's data binder.</p>
+ * mass-assignment surface. Restricting the bindable fields to this DTO keeps the
+ * contract explicit and ignores any other form parameter submitted by a client.</p>
  */
 public final class SystemSettingsDtos {
 
@@ -38,13 +37,31 @@ public final class SystemSettingsDtos {
         private String defaultRole = "ROLE_USER";
         private String policyCombiningAlgorithm = "FIRST_APPLICABLE";
         private boolean registrationEnabled = false;
+        private int hcadMediumRiskScore = SystemRuntimeSettingsService.DEFAULT_HCAD_MEDIUM_RISK_SCORE;
+        private int hcadHighRiskScore = SystemRuntimeSettingsService.DEFAULT_HCAD_HIGH_RISK_SCORE;
+        private int hcadRedlineScore = SystemRuntimeSettingsService.DEFAULT_HCAD_REDLINE_SCORE;
+        private int hcadFailedLoginBurstThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_FAILED_LOGIN_BURST_THRESHOLD;
+        private int hcadRequestBurstThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_REQUEST_BURST_THRESHOLD;
+        private double hcadSemanticRiskSimilarityThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD;
+        private double hcadSemanticNormalSimilarityThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD;
+        private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
 
         public static SystemSettingsForm from(SystemSettings entity) {
+            SystemSettings source = entity == null ? SystemRuntimeSettingsService.defaultSettings() : entity;
             SystemSettingsForm form = new SystemSettingsForm();
-            form.setAuditLogRetentionDays(entity.getAuditLogRetentionDays());
-            form.setDefaultRole(entity.getDefaultRole());
-            form.setPolicyCombiningAlgorithm(entity.getPolicyCombiningAlgorithm());
-            form.setRegistrationEnabled(entity.isRegistrationEnabled());
+            form.setAuditLogRetentionDays(source.getAuditLogRetentionDays());
+            form.setDefaultRole(source.getDefaultRole());
+            form.setPolicyCombiningAlgorithm(source.getPolicyCombiningAlgorithm());
+            form.setRegistrationEnabled(source.isRegistrationEnabled());
+            form.setHcadMediumRiskScore(source.getHcadMediumRiskScore());
+            form.setHcadHighRiskScore(source.getHcadHighRiskScore());
+            form.setHcadRedlineScore(source.getHcadRedlineScore());
+            form.setHcadFailedLoginBurstThreshold(source.getHcadFailedLoginBurstThreshold());
+            form.setHcadRequestBurstThreshold(source.getHcadRequestBurstThreshold());
+            form.setHcadSemanticRiskSimilarityThreshold(source.getHcadSemanticRiskSimilarityThreshold());
+            form.setHcadSemanticNormalSimilarityThreshold(source.getHcadSemanticNormalSimilarityThreshold());
+            form.setMvcResourceScannerBasePackages(
+                    SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(source.getMvcResourceScannerBasePackages()));
             return form;
         }
     }
@@ -52,8 +69,7 @@ public final class SystemSettingsDtos {
     /**
      * Single role option rendered in the default-role drop-down. {@code value} is the
      * canonical role name persisted in {@link SystemSettings#getDefaultRole()}; {@code label}
-     * is the human-readable text shown to the operator (role description with the canonical
-     * name in parentheses, falling back to the canonical name when no description exists).
+     * is the human-readable text shown to the operator.
      */
     public record RoleOption(String value, String label) {
         public static RoleOption of(String roleName, String roleDesc) {

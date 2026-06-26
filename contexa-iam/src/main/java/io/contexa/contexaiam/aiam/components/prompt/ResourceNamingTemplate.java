@@ -22,6 +22,7 @@ import io.contexa.contexacore.std.components.prompt.AbstractBasePromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
+import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingStructuredOutput;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -40,7 +41,7 @@ import java.util.stream.IntStream;
 @Slf4j
 public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
 
-    private static final int MAX_BATCH_SIZE = 50;
+    private static final int MAX_BATCH_SIZE = 100;
 
     @Override
     public TemplateType getSupportedType() {
@@ -66,7 +67,7 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
 
     @Override
     public Class<?> getAIGenerationType() {
-        return Map.class;
+        return ResourceNamingStructuredOutput.class;
     }
 
     @Override
@@ -79,7 +80,7 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
         prompt.append(domainPrompt.trim());
         prompt.append("\n\n");
         prompt.append("<output_format>\n");
-        prompt.append("The response must be one valid JSON object matching this identifier-keyed schema:\n");
+        prompt.append("The response must be one valid JSON object matching this fixed schema:\n");
         prompt.append(jsonSchema);
         prompt.append("\n</output_format>");
 
@@ -117,11 +118,13 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
             Required: Process every input resource exactly once.
 
             Output contract:
-            1. The top-level JSON object must use each original resource identifier as the key.
-            2. Each value must contain friendlyName, description, and confidence.
-            3. Do not add wrapper keys named "suggestions", "failedIdentifiers", "stats", "summary", or "metadata".
-            4. The output item count must match the input item count exactly.
-            5. Never output placeholder text or failure explanations as a successful resource name.
+            1. Return a JSON object with a suggestions array.
+            2. Each suggestions item must contain identifier, friendlyName, description, and confidence.
+            3. identifier must exactly match one original input identifier.
+            4. Do not use resource identifiers as top-level JSON keys.
+            5. Do not add top-level keys named failedIdentifiers, stats, summary, or metadata.
+            6. The suggestions item count must match the input item count exactly.
+            7. Never output placeholder text or failure explanations as a successful resource name.
 
             Naming rules:
             - Convert URL paths into clear feature names.
@@ -139,72 +142,88 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
         if ("Korean".equals(language)) {
             return """
                 {
-                  "/contexa/admin/users": {
-                    "friendlyName": "\uC0AC\uC6A9\uC790 \uAD00\uB9AC",
-                    "description": "\uC0AC\uC6A9\uC790 \uACC4\uC815\uC744 \uC870\uD68C\uD558\uACE0 \uAD00\uB9AC\uD558\uB294 \uD654\uBA74\uC785\uB2C8\uB2E4.",
-                    "confidence": 0.95
-                  },
-                  "/api/groups": {
-                    "friendlyName": "\uADF8\uB8F9 API",
-                    "description": "\uADF8\uB8F9 \uC815\uBCF4\uB97C \uAD00\uB9AC\uD558\uB294 API\uC785\uB2C8\uB2E4.",
-                    "confidence": 0.92
-                  },
-                  "/api/users/{id}": {
-                    "friendlyName": "\uC0AC\uC6A9\uC790 \uC0C1\uC138",
-                    "description": "\uC0AC\uC6A9\uC790 ID\uB85C \uB2E8\uC77C \uC0AC\uC6A9\uC790 \uC815\uBCF4\uB97C \uC870\uD68C\uD558\uAC70\uB098 \uBCC0\uACBD\uD569\uB2C8\uB2E4.",
-                    "confidence": 0.9
-                  },
-                  "/api/orders:POST": {
-                    "friendlyName": "\uC8FC\uBB38 \uC0DD\uC131",
-                    "description": "\uC0C8 \uC8FC\uBB38 \uC694\uCCAD\uC744 \uB4F1\uB85D\uD569\uB2C8\uB2E4.",
-                    "confidence": 0.88
-                  },
-                  "/api/permissions:PATCH": {
-                    "friendlyName": "\uAD8C\uD55C \uC218\uC815",
-                    "description": "\uAD8C\uD55C \uC815\uBCF4\uB97C \uBD80\uBD84 \uC218\uC815\uD569\uB2C8\uB2E4.",
-                    "confidence": 0.87
-                  },
-                  "io.contexa.example.UserService.updateUser(Long,UserForm)": {
-                    "friendlyName": "\uC0AC\uC6A9\uC790 \uC815\uBCF4 \uC218\uC815",
-                    "description": "\uC0AC\uC6A9\uC790 \uC815\uBCF4\uB97C \uAC31\uC2E0\uD558\uB294 \uC11C\uBE44\uC2A4 \uBA54\uC11C\uB4DC\uC785\uB2C8\uB2E4.",
-                    "confidence": 0.86
-                  }
+                  "suggestions": [
+                    {
+                      "identifier": "/contexa/admin/users",
+                      "friendlyName": "\uC0AC\uC6A9\uC790 \uAD00\uB9AC",
+                      "description": "\uC0AC\uC6A9\uC790 \uACC4\uC815\uC744 \uC870\uD68C\uD558\uACE0 \uAD00\uB9AC\uD558\uB294 \uD654\uBA74\uC785\uB2C8\uB2E4.",
+                      "confidence": 0.95
+                    },
+                    {
+                      "identifier": "/api/groups",
+                      "friendlyName": "\uADF8\uB8F9 API",
+                      "description": "\uADF8\uB8F9 \uC815\uBCF4\uB97C \uAD00\uB9AC\uD558\uB294 API\uC785\uB2C8\uB2E4.",
+                      "confidence": 0.92
+                    },
+                    {
+                      "identifier": "/api/users/{id}",
+                      "friendlyName": "\uC0AC\uC6A9\uC790 \uC0C1\uC138",
+                      "description": "\uC0AC\uC6A9\uC790 ID\uB85C \uB2E8\uC77C \uC0AC\uC6A9\uC790 \uC815\uBCF4\uB97C \uC870\uD68C\uD558\uAC70\uB098 \uBCC0\uACBD\uD569\uB2C8\uB2E4.",
+                      "confidence": 0.9
+                    },
+                    {
+                      "identifier": "/api/orders:POST",
+                      "friendlyName": "\uC8FC\uBB38 \uC0DD\uC131",
+                      "description": "\uC0C8 \uC8FC\uBB38 \uC694\uCCAD\uC744 \uB4F1\uB85D\uD569\uB2C8\uB2E4.",
+                      "confidence": 0.88
+                    },
+                    {
+                      "identifier": "/api/permissions:PATCH",
+                      "friendlyName": "\uAD8C\uD55C \uC218\uC815",
+                      "description": "\uAD8C\uD55C \uC815\uBCF4\uB97C \uBD80\uBD84 \uC218\uC815\uD569\uB2C8\uB2E4.",
+                      "confidence": 0.87
+                    },
+                    {
+                      "identifier": "io.contexa.example.UserService.updateUser(Long,UserForm)",
+                      "friendlyName": "\uC0AC\uC6A9\uC790 \uC815\uBCF4 \uC218\uC815",
+                      "description": "\uC0AC\uC6A9\uC790 \uC815\uBCF4\uB97C \uAC31\uC2E0\uD558\uB294 \uC11C\uBE44\uC2A4 \uBA54\uC11C\uB4DC\uC785\uB2C8\uB2E4.",
+                      "confidence": 0.86
+                    }
+                  ]
                 }
                 """;
         }
 
         return """
             {
-              "/contexa/admin/users": {
-                "friendlyName": "User Management",
-                "description": "Screen for administrators to view user accounts and start status or permission management.",
-                "confidence": 0.95
-              },
-              "/api/groups": {
-                "friendlyName": "Group API",
-                "description": "API endpoint for reading, creating, updating, and deleting user group information.",
-                "confidence": 0.92
-              },
-              "/api/users/{id}": {
-                "friendlyName": "User Detail",
-                "description": "Retrieve or update a single user account identified by the path parameter.",
-                "confidence": 0.9
-              },
-              "/api/orders:POST": {
-                "friendlyName": "Create Order",
-                "description": "Submit a new order request into the order processing flow.",
-                "confidence": 0.88
-              },
-              "/api/permissions:PATCH": {
-                "friendlyName": "Update Permissions",
-                "description": "Patch fine-grained permission grants on an existing subject.",
-                "confidence": 0.87
-              },
-              "io.contexa.example.UserService.updateUser(Long,UserForm)": {
-                "friendlyName": "Update User Information",
-                "description": "Service method that updates account information from a user identifier and input form.",
-                "confidence": 0.86
-              }
+              "suggestions": [
+                {
+                  "identifier": "/contexa/admin/users",
+                  "friendlyName": "User Management",
+                  "description": "Screen for administrators to view user accounts and start status or permission management.",
+                  "confidence": 0.95
+                },
+                {
+                  "identifier": "/api/groups",
+                  "friendlyName": "Group API",
+                  "description": "API endpoint for reading, creating, updating, and deleting user group information.",
+                  "confidence": 0.92
+                },
+                {
+                  "identifier": "/api/users/{id}",
+                  "friendlyName": "User Detail",
+                  "description": "Retrieve or update a single user account identified by the path parameter.",
+                  "confidence": 0.9
+                },
+                {
+                  "identifier": "/api/orders:POST",
+                  "friendlyName": "Create Order",
+                  "description": "Submit a new order request into the order processing flow.",
+                  "confidence": 0.88
+                },
+                {
+                  "identifier": "/api/permissions:PATCH",
+                  "friendlyName": "Update Permissions",
+                  "description": "Patch fine-grained permission grants on an existing subject.",
+                  "confidence": 0.87
+                },
+                {
+                  "identifier": "io.contexa.example.UserService.updateUser(Long,UserForm)",
+                  "friendlyName": "Update User Information",
+                  "description": "Service method that updates account information from a user identifier and input form.",
+                  "confidence": 0.86
+                }
+              ]
             }
             """;
     }
@@ -242,13 +261,14 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
         }
 
         userPrompt.append("Required: respond with exactly ").append(resources.size())
-                .append(" top-level JSON properties, one for each original identifier below.\n");
-        userPrompt.append("Do not add any top-level wrapper object around the identifier-keyed result.\n\n");
+                .append(" objects in the suggestions array, one for each original identifier below.\n");
+        userPrompt.append("Every suggestions[].identifier value must exactly match an input identifier.\n");
+        userPrompt.append("Do not use URL paths or method signatures as top-level JSON property names.\n\n");
 
         IntStream.range(0, resources.size())
                 .forEach(i -> appendResourceBlock(userPrompt, i + 1, resources.get(i)));
 
-        userPrompt.append("\nConfirm: every identifier above must appear exactly once as a top-level JSON key.");
+        userPrompt.append("\nConfirm: every identifier above must appear exactly once in suggestions[].identifier.");
 
         return userPrompt.toString();
     }

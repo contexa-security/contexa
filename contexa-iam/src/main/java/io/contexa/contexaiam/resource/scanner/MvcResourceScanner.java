@@ -16,10 +16,11 @@
 package io.contexa.contexaiam.resource.scanner;
 
 import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import io.contexa.contexaiam.properties.IamAdminProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
@@ -32,11 +33,25 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequiredArgsConstructor
 public class MvcResourceScanner implements ResourceScanner {
 
     private final ApplicationContext applicationContext;
     private final IamAdminProperties iamAdminProperties;
+    @Nullable
+    private final SystemRuntimeSettingsService runtimeSettingsService;
+
+    public MvcResourceScanner(ApplicationContext applicationContext, IamAdminProperties iamAdminProperties) {
+        this(applicationContext, iamAdminProperties, null);
+    }
+
+    public MvcResourceScanner(
+            ApplicationContext applicationContext,
+            IamAdminProperties iamAdminProperties,
+            @Nullable SystemRuntimeSettingsService runtimeSettingsService) {
+        this.applicationContext = applicationContext;
+        this.iamAdminProperties = iamAdminProperties;
+        this.runtimeSettingsService = runtimeSettingsService;
+    }
 
     @Override
     public List<ManagedResource> scan() {
@@ -44,13 +59,14 @@ public class MvcResourceScanner implements ResourceScanner {
         RequestMappingHandlerMapping handlerMapping = beansOfType.get("requestMappingHandlerMapping");
         final List<ManagedResource> resources = new ArrayList<>();
         final Map<RequestMappingInfo, HandlerMethod> handlerMethods = handlerMapping.getHandlerMethods();
+        List<String> basePackages = scannerBasePackages();
 
         for (Map.Entry<RequestMappingInfo, HandlerMethod> entry : handlerMethods.entrySet()) {
             final RequestMappingInfo mappingInfo = entry.getKey();
             final HandlerMethod handlerMethod = entry.getValue();
             final Class<?> beanType = handlerMethod.getBeanType();
 
-            if (!beanType.getPackageName().startsWith("io.contexa.contexaiam")) continue;
+            if (!isConfiguredScannerPackage(beanType, basePackages)) continue;
             if (!beanType.isAnnotationPresent(Controller.class) && !beanType.isAnnotationPresent(RestController.class))
                 continue;
 
@@ -86,5 +102,20 @@ public class MvcResourceScanner implements ResourceScanner {
                     .build());
         }
         return resources;
+    }
+
+    private List<String> scannerBasePackages() {
+        if (runtimeSettingsService == null) {
+            return SystemRuntimeSettingsService.normalizePackagePrefixes(null);
+        }
+        return runtimeSettingsService.getMvcResourceScannerBasePackages();
+    }
+
+    boolean isConfiguredScannerPackage(Class<?> beanType, List<String> basePackages) {
+        if (beanType == null) {
+            return false;
+        }
+        String packageName = beanType.getPackageName();
+        return basePackages.stream().anyMatch(packageName::startsWith);
     }
 }

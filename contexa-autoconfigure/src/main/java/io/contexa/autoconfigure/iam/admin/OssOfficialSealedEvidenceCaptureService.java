@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,6 +38,7 @@ public class OssOfficialSealedEvidenceCaptureService {
     private final SealedEvidencePackageRepository repository;
     private final SealedEvidencePackageIntegrity integrity;
     private final ObjectMapper objectMapper;
+    private final String contractVersion;
 
     public OssOfficialSealedEvidenceCaptureService(
             SealedEvidencePackageRepository repository,
@@ -45,6 +47,7 @@ public class OssOfficialSealedEvidenceCaptureService {
         this.repository = repository;
         this.integrity = integrity;
         this.objectMapper = objectMapper;
+        this.contractVersion = FinalPromptMetricContractCatalog.load(objectMapper).contractVersion();
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -223,7 +226,7 @@ public class OssOfficialSealedEvidenceCaptureService {
         metadata.put("requestId", correlationId);
         metadata.put("requestPath", requestPath);
         metadata.put("httpMethod", method);
-        metadata.put("contractVersion", "2026-05-14.final-user-prompt.v2");
+        metadata.put("contractVersion", contractVersion);
         metadata.put("promptVersion", "oss-official-inspection.v1");
         metadata.put("contextHashState", "OSS_SYNTHETIC_EVIDENCE");
         metadata.put("promptProjected", true);
@@ -265,7 +268,7 @@ public class OssOfficialSealedEvidenceCaptureService {
         Map<String, Object> manifest = new LinkedHashMap<>();
         manifest.put("packageId", packageId);
         manifest.put("requestId", correlationId);
-        manifest.put("contractVersion", "2026-05-14.final-user-prompt.v2");
+        manifest.put("contractVersion", contractVersion);
         manifest.put("promptVersion", "oss-official-inspection.v1");
         manifest.put("method", method);
         manifest.put("requestPath", requestPath);

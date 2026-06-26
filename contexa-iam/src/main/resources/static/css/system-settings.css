@@ -208,3 +208,44 @@
 .system-settings-banner.is-fading {
     opacity: 0;
 }
+
+.system-settings-section--hcad {
+    border-left-color: #22d3ee !important;
+}
+
+.system-settings-section--resource-scan {
+    border-left-color: #fb7185 !important;
+}
+
+.system-settings-section__icon--hcad {
+    color: #22d3ee;
+}
+
+.system-settings-section__icon--resource-scan {
+    color: #fb7185;
+}
+
+.system-settings-pill--hcad {
+    background: rgba(34, 211, 238, 0.18);
+    color: #67e8f9;
+}
+
+.system-settings-pill--resource-scan {
+    background: rgba(251, 113, 133, 0.18);
+    color: #fda4af;
+}
+
+.system-settings-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.system-settings-textarea {
+    min-height: 7rem;
+    resize: vertical;
+}
+
+@media (max-width: 960px) {
+    .system-settings-grid--three {
+        grid-template-columns: 1fr;
+    }
+}

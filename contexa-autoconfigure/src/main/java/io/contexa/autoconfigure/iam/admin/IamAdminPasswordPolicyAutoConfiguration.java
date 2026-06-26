@@ -21,17 +21,19 @@ import io.contexa.contexacommon.repository.PasswordPolicyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexaiam.admin.web.auth.service.AuditLogRetentionScheduler;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordPolicyController;
 import io.contexa.contexaiam.admin.web.auth.controller.SystemSettingsController;
-import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.AuditLogRetentionScheduler;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
@@ -75,6 +77,20 @@ public class IamAdminPasswordPolicyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public SystemRuntimeSettingsService systemRuntimeSettingsService(SystemSettingsRepository systemSettingsRepository) {
+        return new SystemRuntimeSettingsService(systemSettingsRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SystemSettingsRuntimeApplier systemSettingsRuntimeApplier(
+            SystemRuntimeSettingsService systemRuntimeSettingsService,
+            ObjectProvider<HcadProperties> hcadPropertiesProvider) {
+        return new SystemSettingsRuntimeApplier(systemRuntimeSettingsService, hcadPropertiesProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public SystemSettingsService systemSettingsService(
             SystemSettingsRepository systemSettingsRepository,
             RoleRepository roleRepository) {
@@ -86,9 +102,10 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public SystemSettingsController systemSettingsController(
             SystemSettingsService systemSettingsService,
             MessageSource messageSource,
-            ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider) {
+            ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider,
+            ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {
         return new SystemSettingsController(systemSettingsService, messageSource,
-                authManagerProvider.getIfAvailable());
+                authManagerProvider.getIfAvailable(), runtimeApplierProvider.getIfAvailable());
     }
 
     @Bean
@@ -99,4 +116,3 @@ public class IamAdminPasswordPolicyAutoConfiguration {
         return new AuditLogRetentionScheduler(auditLogRepository, systemSettingsService);
     }
 }
-
