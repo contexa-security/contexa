@@ -28,13 +28,13 @@
             <form th:action="@{/contexa/admin/system-settings}" method="post" th:object="${settings}" class="system-settings-form">
 
                 <section class="system-settings-section system-settings-section--runtime">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-brain"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.runtime.title}">Runtime AI Security Modes</h2>
                             <p th:text="#{admin.system.settings.runtime.desc}">Set runtime modes.</p>
                         </div>
-                    </header>
+                    </div>
                     <div class="system-settings-grid">
                         <div class="system-settings-field">
                             <label for="hcadPreTriggerMode" th:text="#{admin.system.settings.hcad.mode}">Early detection mode</label>
@@ -58,13 +58,13 @@
                 </section>
 
                 <section class="system-settings-section system-settings-section--audit">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-file-alt"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.audit.title}">Audit &amp; Compliance</h2>
                             <p th:text="#{admin.system.settings.audit.retention.desc}">Audit retention.</p>
                         </div>
-                    </header>
+                    </div>
                     <div class="system-settings-grid system-settings-grid--single">
                         <div class="system-settings-field">
                             <label for="auditLogRetentionDays" th:text="#{admin.system.settings.audit.retention}">Audit Log Retention</label>
@@ -75,13 +75,13 @@
                 </section>
 
                 <section class="system-settings-section system-settings-section--access">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-shield-alt"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.access.title}">Access Control</h2>
                             <p th:text="#{admin.system.settings.combining.algorithm.desc}">Access policy behavior.</p>
                         </div>
-                    </header>
+                    </div>
                     <div class="system-settings-grid">
                         <div class="system-settings-field">
                             <label for="defaultRole" th:text="#{admin.system.settings.default.role}">Default Role</label>
@@ -103,13 +103,13 @@
                 </section>
 
                 <section class="system-settings-section system-settings-section--registration">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-user-plus"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.registration.title}">User Registration</h2>
                             <p th:text="#{admin.system.settings.registration.enabled.desc}">Registration control.</p>
                         </div>
-                    </header>
+                    </div>
                     <label class="system-settings-toggle" for="registrationEnabled">
                         <input type="checkbox" th:field="*{registrationEnabled}" id="registrationEnabled" />
                         <span class="system-settings-toggle-box"></span>
@@ -121,13 +121,13 @@
                 </section>
 
                 <section class="system-settings-section system-settings-section--hcad">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-satellite-dish"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.hcad.title}">Early Detection Settings</h2>
                             <p th:text="#{admin.system.settings.hcad.redline.score.desc}">Early detection score settings.</p>
                         </div>
-                    </header>
+                    </div>
                     <div class="system-settings-grid system-settings-grid--three">
                         <div class="system-settings-field">
                             <label for="hcadMediumRiskScore" th:text="#{admin.system.settings.hcad.medium.score}">Medium risk score</label>
@@ -158,13 +158,13 @@
                 </section>
 
                 <section class="system-settings-section system-settings-section--semantic">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-vector-square"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.hcad.semantic.risk}">Semantic Evidence</h2>
                             <p th:text="#{admin.system.settings.hcad.semantic.normal.desc}">Semantic evidence thresholds.</p>
                         </div>
-                    </header>
+                    </div>
                     <div class="system-settings-grid">
                         <div class="system-settings-field">
                             <label for="hcadSemanticRiskSimilarityThreshold" th:text="#{admin.system.settings.hcad.semantic.risk}">Risk similarity threshold</label>
@@ -180,13 +180,13 @@
                 </section>
 
                 <section class="system-settings-section system-settings-section--resource-scan">
-                    <header class="system-settings-section-header">
+                    <div class="system-settings-section-header">
                         <i class="fas fa-route"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.resource.scan.title}">Resource Scan Settings</h2>
                             <p th:text="#{admin.system.settings.resource.scan.base.packages.desc}">Controller package scan settings.</p>
                         </div>
-                    </header>
+                    </div>
                     <div class="system-settings-grid system-settings-grid--single">
                         <div class="system-settings-field">
                             <label for="mvcResourceScannerBasePackages" th:text="#{admin.system.settings.resource.scan.base.packages}">Controller base packages</label>
