@@ -18,6 +18,10 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetRequest;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetResponse;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringSessionCurrent;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringSessionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSummary;
 import io.contexa.contexaiam.admin.web.monitoring.service.AiSecurityDecisionMonitoringService;
@@ -28,10 +32,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import java.security.Principal;
+import java.util.List;
 import java.util.Locale;
 
 @Controller
@@ -101,6 +110,34 @@ public class AiMonitorController {
         return aiSecurityDecisionMonitoringService.readiness(period);
     }
 
+
+    @ResponseBody
+    @GetMapping("/contexa/admin/api/ai-monitor/session/current")
+    public MonitoringSessionCurrent currentSession(@RequestParam(required = false, defaultValue = "day") String period) {
+        return aiSecurityDecisionMonitoringService.currentSession(period);
+    }
+
+    @ResponseBody
+    @GetMapping("/contexa/admin/api/ai-monitor/session/summaries")
+    public List<MonitoringSessionSummary> sessionSummaries() {
+        return aiSecurityDecisionMonitoringService.sessionSummaries();
+    }
+
+    @ResponseBody
+    @GetMapping("/contexa/admin/api/ai-monitor/session/summaries/{sessionId}")
+    public ResponseEntity<MonitoringSessionSummary> sessionSummary(@PathVariable String sessionId) {
+        MonitoringSessionSummary summary = aiSecurityDecisionMonitoringService.sessionSummary(sessionId);
+        return summary == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(summary);
+    }
+
+    @ResponseBody
+    @PostMapping("/contexa/admin/api/ai-monitor/reset")
+    public MonitoringResetResponse resetMonitoring(
+            @RequestBody(required = false) MonitoringResetRequest request,
+            Principal principal) {
+        String resetBy = principal == null ? null : principal.getName();
+        return aiSecurityDecisionMonitoringService.resetMonitoring(request, resetBy);
+    }
     @GetMapping(value = "/contexa/admin/api/ai-monitor/export.csv", produces = "text/csv")
     public ResponseEntity<String> exportCsv(
             @RequestParam(required = false, defaultValue = "day") String period,
@@ -129,3 +166,4 @@ public class AiMonitorController {
         return locale;
     }
 }
+

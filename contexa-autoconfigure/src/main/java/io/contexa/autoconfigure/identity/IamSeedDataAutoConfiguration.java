@@ -471,6 +471,7 @@ public class IamSeedDataAutoConfiguration {
                 .trim()
                 .toLowerCase();
         return normalized.matches("^alter table \\S+ .*\\badd column if not exists\\b.*")
+                || normalized.matches("^create table if not exists\\b.*")
                 || normalized.matches("^create (unique )?index if not exists\\b.*")
                 || normalized.matches("^create extension if not exists\\b.*");
     }

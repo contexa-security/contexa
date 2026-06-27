@@ -244,8 +244,14 @@
         renderKpis([]);
         detailsEl.innerHTML = [
             executiveDecisionPanel(summary.recommendation, blockers),
-            readinessVisualizationPanel(summary, criteria)
+            readinessVisualizationPanel(summary, criteria),
+            sessionControlPanel(summary),
+            previousSessionPanel(summary.previousSessions || [])
         ].join('');
+        const resetButton = document.getElementById('ai-monitor-reset-button');
+        if (resetButton) {
+            resetButton.addEventListener('click', handleMonitoringReset);
+        }
     }
 
     function executiveDecisionPanel(recommendation, blockers) {
@@ -650,6 +656,101 @@
             </div>`;
     }
 
+
+    function sessionControlPanel(summary) {
+        const current = summary.currentSession || {};
+        return `
+            <div class="ai-monitor-overview-grid">
+                <section class="ai-monitor-band">
+                    <div class="ai-monitor-band-title">${escapeHtml(label('labelCurrentMonitoringSession'))}</div>
+                    <div class="ai-monitor-session-facts">
+                        ${sessionFact(label('labelSessionStartedAt'), current.startedAt ? formatDate(current.startedAt) : '-')}
+                        ${sessionFact(label('labelSessionObserved'), formatNumber(current.observedRequestCount || 0))}
+                        ${sessionFact(label('labelSessionHcadCandidates'), formatNumber(current.hcadCandidateCount || 0))}
+                        ${sessionFact(label('labelSessionLlmDecisions'), formatNumber(current.llmDecisionCount || 0))}
+                        ${sessionFact(label('labelSessionRecommendation'), friendlyRecommendation(current.recommendation || summary.recommendation))}
+                    </div>
+                </section>
+                <section class="ai-monitor-band ai-monitor-reset-panel">
+                    <div>
+                        <div class="ai-monitor-band-title">${escapeHtml(label('labelMonitoringRestart'))}</div>
+                        <div class="ai-monitor-muted">${escapeHtml(label('labelMonitoringRestartDesc'))}</div>
+                    </div>
+                    <button type="button" id="ai-monitor-reset-button" class="ai-monitor-primary-button">
+                        ${escapeHtml(label('labelMonitoringRestartButton'))}
+                    </button>
+                </section>
+            </div>`;
+    }
+
+    function sessionFact(title, value) {
+        return `
+            <div class="ai-monitor-session-fact">
+                <span>${escapeHtml(title)}</span>
+                <strong>${escapeHtml(value)}</strong>
+            </div>`;
+    }
+
+    function previousSessionPanel(sessions) {
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelPreviousMonitoringSessions'))}</div>
+                ${sessions.length ? `
+                    <div class="ai-monitor-session-list">
+                        ${sessions.slice(0, 6).map(session => `
+                            <div class="ai-monitor-session-row">
+                                <div>
+                                    <strong>${escapeHtml(formatDate(session.endedAt))}</strong>
+                                    <span>${escapeHtml(session.resetReason || '-')}</span>
+                                </div>
+                                <div>${escapeHtml(friendlyRecommendation(session.recommendation))}</div>
+                                <div>${escapeHtml(label('labelHcadPrecision'))}: ${escapeHtml(formatPercent(session.hcadPrecision || 0))}</div>
+                                <div>${escapeHtml(label('labelMatchRate'))}: ${escapeHtml(formatPercent(session.matchRate || 0))}</div>
+                                <div>${escapeHtml(label('labelFailureRate'))}: ${escapeHtml(formatPercent(session.failureRate || 0))}</div>
+                            </div>`).join('')}
+                    </div>` : `<div class="ai-monitor-empty-note">${escapeHtml(label('labelNoPreviousMonitoringSession'))}</div>`}
+            </section>`;
+    }
+
+    function handleMonitoringReset() {
+        if (!window.confirm(label('labelMonitoringRestartConfirm'))) {
+            return;
+        }
+        const reason = window.prompt(label('labelMonitoringRestartReason'), '');
+        if (reason === null) {
+            return;
+        }
+        const headers = Object.assign({
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }, csrfHeaders());
+        fetch('/contexa/admin/api/ai-monitor/reset', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ reason, resetLearningEvidence: false })
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(() => window.location.reload())
+            .catch((error) => {
+                window.alert(`${label('labelMonitoringRestartFailed')} ${error.message}`);
+            });
+    }
+
+    function csrfHeaders() {
+        const token = document.querySelector('meta[name="_csrf"]')?.content
+                || document.querySelector('meta[name="csrf-token"]')?.content
+                || document.querySelector('input[name="_csrf"]')?.value;
+        if (!token) {
+            return {};
+        }
+        const header = document.querySelector('meta[name="_csrf_header"]')?.content
+                || document.querySelector('meta[name="csrf-header"]')?.content
+                || 'X-CSRF-TOKEN';
+        return { [header]: token };
+    }
     function readinessScore(criteria) {
         if (!criteria || !criteria.length) return 0;
         const total = criteria.reduce((sum, item) => sum + Math.max(0, Math.min(1, item.score || 0)), 0);
@@ -917,16 +1018,15 @@
     }
 
     function friendlyRecommendation(value) {
-        return displayKey(value || 'INSUFFICIENT_SAMPLE') || label('labelNoDecision');
+        return displayKey(value || 'INSUFFICIENT_DATA') || label('labelNoDecision');
     }
 
     function recommendationTone(value) {
-        if (value === 'DEFAULT_ENFORCE_CANDIDATE') return 'good';
-        if (value === 'LIMITED_ENFORCE_CANDIDATE' || value === 'SHADOW_STABLE') return 'warn';
-        if (value === 'DO_NOT_ENFORCE' || value === 'KEEP_SHADOW') return 'bad';
+        if (value === 'READY_FOR_ENFORCE_REVIEW') return 'good';
+        if (value === 'READY_FOR_LIMITED_REVIEW' || value === 'KEEP_MONITORING') return 'warn';
+        if (value === 'DO_NOT_RECOMMEND') return 'bad';
         return 'info';
     }
-
     function displayKey(value) {
         const key = String(value || '').trim();
         if (!key) return '-';
@@ -1061,3 +1161,5 @@
             .replaceAll("'", '&#039;');
     }
 })();
+
+

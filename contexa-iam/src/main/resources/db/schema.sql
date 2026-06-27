@@ -1697,6 +1697,78 @@ CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_llm_obs
 CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_test_run
     ON hcad_llm_decision_correlation (test_run_id, created_at);
 
+CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
+    session_id VARCHAR(64) PRIMARY KEY,
+    started_at TIMESTAMP(6) NOT NULL,
+    ended_at TIMESTAMP(6) NOT NULL,
+    period VARCHAR(32) NOT NULL DEFAULT 'current',
+    reset_by VARCHAR(160),
+    reset_reason VARCHAR(1024),
+    hcad_mode VARCHAR(32),
+    llm_mode VARCHAR(32),
+    llm_provider VARCHAR(128),
+    llm_model VARCHAR(160),
+    embedding_provider VARCHAR(128),
+    embedding_model VARCHAR(160),
+    prompt_template_version VARCHAR(160),
+    policy_version VARCHAR(160),
+    observed_request_count BIGINT NOT NULL DEFAULT 0,
+    hcad_candidate_count BIGINT NOT NULL DEFAULT 0,
+    hcad_triggered_llm_count BIGINT NOT NULL DEFAULT 0,
+    llm_decision_count BIGINT NOT NULL DEFAULT 0,
+    hcad_trigger_ai_decision_count BIGINT NOT NULL DEFAULT 0,
+    non_hcad_ai_decision_count BIGINT NOT NULL DEFAULT 0,
+    true_positive_count BIGINT NOT NULL DEFAULT 0,
+    false_positive_count BIGINT NOT NULL DEFAULT 0,
+    observable_false_negative_count BIGINT NOT NULL DEFAULT 0,
+    true_negative_count BIGINT NOT NULL DEFAULT 0,
+    unknown_count BIGINT NOT NULL DEFAULT 0,
+    hcad_precision DOUBLE PRECISION NOT NULL DEFAULT 0,
+    hcad_false_positive_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    match_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    mismatch_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    observable_false_negative_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    unknown_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    failure_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    timeout_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    parser_failure_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    model_unavailable_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    average_latency_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+    p95_latency_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+    recommendation VARCHAR(64) NOT NULL,
+    top_blockers_json TEXT,
+    summary_json TEXT,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE ai_security_monitoring_session_summary
+    ADD COLUMN IF NOT EXISTS reset_by VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS reset_reason VARCHAR(1024),
+    ADD COLUMN IF NOT EXISTS hcad_mode VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS llm_mode VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS llm_provider VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS llm_model VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS embedding_provider VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS prompt_template_version VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS policy_version VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS hcad_trigger_ai_decision_count BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS non_hcad_ai_decision_count BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS hcad_false_positive_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS mismatch_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS timeout_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS parser_failure_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS model_unavailable_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS p95_latency_ms DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS top_blockers_json TEXT,
+    ADD COLUMN IF NOT EXISTS summary_json TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_ai_security_monitoring_session_ended
+    ON ai_security_monitoring_session_summary (ended_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_security_monitoring_session_reset_by
+    ON ai_security_monitoring_session_summary (reset_by, ended_at DESC);
+
 create table shedlock
 (
     name       varchar(64)  not null
@@ -4541,4 +4613,5 @@ update official_prompt_field_definition
 
 create index idx_soar_approval_vote_decision
     on soar_approval_votes (decision);
+
 

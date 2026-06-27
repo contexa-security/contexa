@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public class RedisHcadSemanticEvidenceCache implements HcadSemanticEvidenceCache {
 
@@ -106,6 +107,14 @@ public class RedisHcadSemanticEvidenceCache implements HcadSemanticEvidenceCache
                 HcadSemanticEvidenceKeyFactory.cacheKey(namespace, key),
                 HcadSemanticEvidenceKeyFactory.compatibilityKey(namespace, key),
                 HcadSemanticEvidenceKeyFactory.negativeCacheKey(namespace, key)));
+    }
+
+    @Override
+    public void clear() {
+        Set<String> keys = stringRedisTemplate.keys(namespace + ":*");
+        if (keys != null && !keys.isEmpty()) {
+            stringRedisTemplate.delete(keys);
+        }
     }
 
     @Override

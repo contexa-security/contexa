@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
+import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
@@ -85,12 +86,14 @@ public class IamAdminMonitoringAutoConfiguration {
             HcadMonitoringService hcadMonitoringService,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             HcadProperties hcadProperties,
-            SecurityZeroTrustProperties zeroTrustProperties) {
+            SecurityZeroTrustProperties zeroTrustProperties,
+            ObjectProvider<HcadSemanticEvidenceCache> semanticEvidenceCacheProvider) {
         return new AiSecurityDecisionMonitoringService(
                 hcadMonitoringService,
                 jdbcOperationsProvider::getIfAvailable,
                 hcadProperties,
-                zeroTrustProperties);
+                zeroTrustProperties,
+                semanticEvidenceCacheProvider::getIfAvailable);
     }
 
     @Bean

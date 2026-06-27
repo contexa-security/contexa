@@ -210,7 +210,95 @@ public final class AiMonitorDtos {
             double averageLatencyMs,
             double p95LatencyMs,
             double estimatedWasteCostUsd,
-            double estimatedSavedCostUsd
+            double estimatedSavedCostUsd,
+            MonitoringSessionCurrent currentSession,
+            List<MonitoringSessionSummary> previousSessions,
+            List<ReadinessBlocker> blockers
+    ) {
+    }
+
+    public record MonitoringSessionCurrent(
+            String sessionId,
+            String startedAt,
+            String from,
+            String to,
+            long observedRequestCount,
+            long hcadCandidateCount,
+            long hcadTriggeredLlmCount,
+            long llmDecisionCount,
+            long hcadTriggerAiDecisionCount,
+            long nonHcadAiDecisionCount,
+            String recommendation
+    ) {
+    }
+
+    public record MonitoringSessionSummary(
+            String sessionId,
+            String startedAt,
+            String endedAt,
+            String period,
+            String resetBy,
+            String resetReason,
+            String hcadMode,
+            String llmMode,
+            String llmProvider,
+            String llmModel,
+            String embeddingProvider,
+            String embeddingModel,
+            String promptTemplateVersion,
+            String policyVersion,
+            long observedRequestCount,
+            long hcadCandidateCount,
+            long hcadTriggeredLlmCount,
+            long llmDecisionCount,
+            long hcadTriggerAiDecisionCount,
+            long nonHcadAiDecisionCount,
+            long truePositiveCount,
+            long falsePositiveCount,
+            long observableFalseNegativeCount,
+            long trueNegativeCount,
+            long unknownCount,
+            double hcadPrecision,
+            double hcadFalsePositiveRate,
+            double matchRate,
+            double mismatchRate,
+            double observableFalseNegativeRate,
+            double unknownRate,
+            double failureRate,
+            double timeoutRate,
+            double parserFailureRate,
+            double modelUnavailableRate,
+            double averageLatencyMs,
+            double p95LatencyMs,
+            String topBlockersJson,
+            String recommendation
+    ) {
+    }
+    public record ReadinessBlocker(
+            String key,
+            String title,
+            String current,
+            String required,
+            String action
+    ) {
+    }
+
+    public record MonitoringResetRequest(
+            String reason,
+            Boolean resetLearningEvidence
+    ) {
+    }
+
+    public record MonitoringResetResponse(
+            String sessionId,
+            String startedAt,
+            String endedAt,
+            long deletedHcadEvaluationCount,
+            long deletedLlmObservationCount,
+            long deletedCorrelationCount,
+            boolean learningEvidenceReset,
+            MonitoringSessionSummary archivedSummary,
+            MonitoringSessionCurrent newSession
     ) {
     }
 
@@ -264,3 +352,4 @@ public final class AiMonitorDtos {
     ) {
     }
 }
+

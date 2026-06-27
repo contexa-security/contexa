@@ -51,6 +51,10 @@ public class DisabledHcadSemanticEvidenceCache implements HcadSemanticEvidenceCa
     }
 
     @Override
+    public void clear() {
+    }
+
+    @Override
     public HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider provider() {
         return HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.DISABLED;
     }

@@ -138,6 +138,13 @@ class IamSeedDataAutoConfigurationTest {
         String sql = """
                 create table users (id bigint primary key);
 
+                create table if not exists ai_security_monitoring_session_summary (
+                    session_id varchar(64) primary key
+                );
+
+                alter table ai_security_monitoring_session_summary
+                    add column if not exists reset_by varchar(160);
+
                 alter table hcad_detection_evaluation
                     add column if not exists actor_session_key varchar(128),
                     add column if not exists window_id varchar(64);
@@ -154,12 +161,16 @@ class IamSeedDataAutoConfigurationTest {
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql));
 
         assertThat(maintenanceSql)
+                .contains("create table if not exists users")
+                .contains("create table if not exists ai_security_monitoring_session_summary")
+                .contains("alter table ai_security_monitoring_session_summary")
                 .contains("alter table hcad_detection_evaluation")
                 .contains("add column if not exists actor_session_key")
                 .contains("create index if not exists idx_hcad_eval_window")
-                .doesNotContain("create table users")
                 .doesNotContain("insert into admin_menu")
                 .doesNotContain("owner to");
+        assertThat(maintenanceSql.indexOf("create table if not exists ai_security_monitoring_session_summary"))
+                .isLessThan(maintenanceSql.indexOf("alter table ai_security_monitoring_session_summary"));
     }
 
     @Test

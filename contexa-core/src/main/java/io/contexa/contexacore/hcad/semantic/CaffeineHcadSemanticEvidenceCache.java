@@ -103,6 +103,12 @@ public class CaffeineHcadSemanticEvidenceCache implements HcadSemanticEvidenceCa
     }
 
     @Override
+    public void clear() {
+        evidenceCache.invalidateAll();
+        sourceAbsentCache.invalidateAll();
+    }
+
+    @Override
     public HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider provider() {
         return HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.CAFFEINE;
     }

@@ -141,6 +141,18 @@
         .ai-monitor-criterion strong { color: #e2e8f0; font-size: .98rem; }
         .ai-monitor-criterion span { color: #94a3b8; font-size: .88rem; }
         .ai-monitor-criterion em { color: #cbd5e1; font-style: normal; font-size: .88rem; }
+        .ai-monitor-muted { color: #94a3b8; font-size: .95rem; line-height: 1.55; }
+        .ai-monitor-reset-panel { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .ai-monitor-primary-button { border: 1px solid rgba(34,211,238,.42); border-radius: .55rem; background: rgba(8,145,178,.22); color: #cffafe; font-weight: 800; padding: .75rem 1rem; min-width: 11rem; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(103,232,249,.08); }
+        .ai-monitor-primary-button:hover { background: rgba(8,145,178,.34); border-color: rgba(103,232,249,.58); }
+        .ai-monitor-session-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-top: .85rem; }
+        .ai-monitor-session-fact { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .85rem; display: grid; gap: .35rem; background: rgba(15,23,42,.42); }
+        .ai-monitor-session-fact span { color: #94a3b8; font-size: .9rem; }
+        .ai-monitor-session-fact strong { color: #f8fafc; font-size: 1.12rem; overflow-wrap: anywhere; }
+        .ai-monitor-session-list { display: grid; gap: .65rem; margin-top: .85rem; }
+        .ai-monitor-session-row { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(120px, .8fr)); gap: .8rem; align-items: center; border: 1px solid rgba(71,85,105,.28); border-radius: .5rem; padding: .85rem; background: rgba(15,23,42,.36); color: #cbd5e1; }
+        .ai-monitor-session-row strong { color: #f8fafc; display: block; margin-bottom: .2rem; }
+        .ai-monitor-session-row span { color: #94a3b8; font-size: .88rem; line-height: 1.45; }
         @media (max-width: 1180px) {
             .ai-monitor-overview-top,
             .ai-monitor-overview-grid,
@@ -360,6 +372,20 @@
               th:data-label-or-less="#{admin.aiMonitor.readiness.orLess}"
               th:data-label-gap="#{admin.aiMonitor.readiness.gap}"
               th:data-label-readiness-score="#{admin.aiMonitor.readiness.score}"
+              th:data-label-current-monitoring-session="#{admin.aiMonitor.session.current}"
+              th:data-label-session-started-at="#{admin.aiMonitor.session.startedAt}"
+              th:data-label-session-observed="#{admin.aiMonitor.session.observed}"
+              th:data-label-session-hcad-candidates="#{admin.aiMonitor.session.hcadCandidates}"
+              th:data-label-session-llm-decisions="#{admin.aiMonitor.session.llmDecisions}"
+              th:data-label-session-recommendation="#{admin.aiMonitor.session.recommendation}"
+              th:data-label-monitoring-restart="#{admin.aiMonitor.session.restart}"
+              th:data-label-monitoring-restart-desc="#{admin.aiMonitor.session.restartDesc}"
+              th:data-label-monitoring-restart-button="#{admin.aiMonitor.session.restartButton}"
+              th:data-label-monitoring-restart-confirm="#{admin.aiMonitor.session.restartConfirm}"
+              th:data-label-monitoring-restart-reason="#{admin.aiMonitor.session.restartReason}"
+              th:data-label-monitoring-restart-failed="#{admin.aiMonitor.session.restartFailed}"
+              th:data-label-previous-monitoring-sessions="#{admin.aiMonitor.session.previous}"
+              th:data-label-no-previous-monitoring-session="#{admin.aiMonitor.session.noPrevious}"
              th:data-label-key-metrics="#{admin.aiMonitor.section.keyMetrics}"
             th:data-label-decision-path="#{admin.aiMonitor.section.decisionPath}"
             th:data-label-decision-result="#{admin.aiMonitor.section.decisionResult}"
@@ -375,6 +401,11 @@
             th:data-label-no-data-no-ai-risk-comparison="#{admin.aiMonitor.status.noAiRiskComparison}"
             th:data-label-no-data-no-comparison-data="#{admin.aiMonitor.status.noComparisonData}"
             th:data-label-no-data-no-decision-data="#{admin.aiMonitor.status.noDecisionData}"
+            th:data-label-enum-insufficient-data="#{admin.aiMonitor.enum.insufficientData}"
+            th:data-label-enum-do-not-recommend="#{admin.aiMonitor.enum.doNotRecommend}"
+            th:data-label-enum-keep-monitoring="#{admin.aiMonitor.enum.keepMonitoring}"
+            th:data-label-enum-ready-for-limited-review="#{admin.aiMonitor.enum.readyForLimitedReview}"
+            th:data-label-enum-ready-for-enforce-review="#{admin.aiMonitor.enum.readyForEnforceReview}"
             th:data-label-enum-insufficient-sample="#{admin.aiMonitor.enum.insufficientSample}"
              th:data-label-enum-do-not-enforce="#{admin.aiMonitor.enum.doNotEnforce}"
              th:data-label-enum-default-enforce-candidate="#{admin.aiMonitor.enum.defaultEnforceCandidate}"
@@ -480,3 +511,5 @@
 <script th:src="@{/js/admin/ai-monitor.js?v=20260622f}"></script>
 </body>
 </html>
+
+

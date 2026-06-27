@@ -32,5 +32,7 @@ public interface HcadSemanticEvidenceCache {
 
     void invalidate(HcadSemanticEvidenceKey key);
 
+    void clear();
+
     HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider provider();
 }
