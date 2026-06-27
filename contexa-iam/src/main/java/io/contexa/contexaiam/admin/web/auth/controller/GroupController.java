@@ -71,7 +71,7 @@ public class GroupController {
         model.addAttribute("keyword", keyword);
         return "contexa/admin/groups";
     }
-    @GetMapping("/contexa/register")
+    @GetMapping("/register")
     public String registerGroupForm(Model model) {
         GroupDto groupDto = new GroupDto();
         groupDto.setEnabled(true);
@@ -88,7 +88,7 @@ public class GroupController {
                               RedirectAttributes ra) {
         try {
             Group group = modelMapper.map(groupDto, Group.class);
-            groupService.createGroup(group, selectedRoleIds); 
+            groupService.createGroup(group, selectedRoleIds);
 
             ra.addFlashAttribute("message", msg("msg.group.created", group.getName()));
                     } catch (IllegalArgumentException e) {
@@ -140,9 +140,9 @@ public class GroupController {
                               @RequestParam(value = "selectedRoleIds", required = false) List<Long> selectedRoleIds,
                               RedirectAttributes ra) {
         try {
-            groupDto.setId(id); 
+            groupDto.setId(id);
             Group group = modelMapper.map(groupDto, Group.class);
-            groupService.updateGroup(group, selectedRoleIds); 
+            groupService.updateGroup(group, selectedRoleIds);
 
             ra.addFlashAttribute("message", msg("msg.group.updated", group.getName()));
                     } catch (IllegalArgumentException e) {

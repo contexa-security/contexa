@@ -72,7 +72,7 @@ public class RoleController {
 		return "contexa/admin/roles";
 	}
 
-	@GetMapping("/contexa/register")
+	@GetMapping("/register")
 	public String registerRoleForm(Model model) {
 		RoleDto roleDto = new RoleDto();
 		roleDto.setEnabled(true);
@@ -110,7 +110,7 @@ public class RoleController {
 	@PostMapping("/{id}/edit")
 	@Transactional(transactionManager = "contexaTransactionManager")
 	public String updateRole(@PathVariable Long id, @ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
-		roleDto.setId(id); 
+		roleDto.setId(id);
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.updateRole(role, roleDto.getPermissionIds());
 		ra.addFlashAttribute("message", msg("msg.role.updated"));

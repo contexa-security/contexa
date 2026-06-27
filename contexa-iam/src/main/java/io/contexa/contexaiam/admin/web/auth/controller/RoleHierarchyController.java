@@ -78,7 +78,7 @@ public class RoleHierarchyController {
         return "contexa/admin/role-hierarchies";
     }
 
-    @GetMapping("/contexa/register")
+    @GetMapping("/register")
     public String registerRoleHierarchyForm(Model model) {
         model.addAttribute("hierarchy", new RoleHierarchyDto());
         prepareHierarchyFormModel(model, new ArrayList<>(), null);

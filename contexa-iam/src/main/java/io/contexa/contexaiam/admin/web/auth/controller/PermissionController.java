@@ -65,10 +65,10 @@ public class PermissionController {
         return "contexa/admin/permissions";
     }
 
-    @GetMapping("/contexa/register")
+    @GetMapping("/register")
     public String registerPermissionForm(Model model) {
         model.addAttribute("permission", new PermissionDto());
-        
+
         return "contexa/admin/permissiondetails";
     }
 
@@ -87,7 +87,7 @@ public class PermissionController {
 
         PermissionDto permissionDto = convertToDto(permission);
         model.addAttribute("permission", permissionDto);
-        
+
         return "contexa/admin/permissiondetails";
     }
 
