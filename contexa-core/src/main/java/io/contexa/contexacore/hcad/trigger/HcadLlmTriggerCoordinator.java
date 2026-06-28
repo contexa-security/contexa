@@ -36,7 +36,7 @@ public class HcadLlmTriggerCoordinator {
     public TriggerLease tryAcquire(PendingAnomalyEvidenceReport report, String fallbackBaseKey) {
         String dedupKey = resolveDedupKey(report, fallbackBaseKey);
         if (!StringUtils.hasText(dedupKey)) {
-            return new TriggerLease(false, false, dedupKey, null);
+            return new TriggerLease(false, false, dedupKey, null, "MISSING_TRIGGER_KEY");
         }
         String escalationKey = resolveEscalationKey(report);
         Duration inFlightTtl = Duration.ofSeconds(hcadProperties.getPreTrigger().getInFlightTtlSeconds());
@@ -59,9 +59,9 @@ public class HcadLlmTriggerCoordinator {
         if (!tryAcquireRateLimit(report, dedupKey)) {
             stateRepository.releaseInFlight(dedupKey);
             releaseEscalationInFlight(escalationKey);
-            return new TriggerLease(false, false, dedupKey, escalationKey);
+            return new TriggerLease(false, false, dedupKey, escalationKey, "RATE_LIMIT_SUPPRESSED");
         }
-        return new TriggerLease(true, false, dedupKey, escalationKey);
+        return new TriggerLease(true, false, dedupKey, escalationKey, null);
     }
 
     public void markCooldown(String dedupKey) {
@@ -216,7 +216,11 @@ public class HcadLlmTriggerCoordinator {
             boolean acquired,
             boolean duplicateSuppressed,
             String dedupKey,
-            String escalationKey
+            String escalationKey,
+            String denialReason
     ) {
+        public TriggerLease(boolean acquired, boolean duplicateSuppressed, String dedupKey, String escalationKey) {
+            this(acquired, duplicateSuppressed, dedupKey, escalationKey, null);
+        }
     }
 }

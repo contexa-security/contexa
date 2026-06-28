@@ -127,6 +127,7 @@ public class PendingAnomalyTriggerOrchestrator {
             return;
         }
         if (eventTriggerService == null) {
+            markTriggerSuppressed(evaluationId, "TRIGGER_SERVICE_UNAVAILABLE");
             log.warn("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger candidate was recorded but no LLM event trigger service is configured");
             return;
         }
@@ -138,6 +139,8 @@ public class PendingAnomalyTriggerOrchestrator {
                 String activeEvaluationId = triggerCoordinator.findActiveEvaluation(triggerLease);
                 markDuplicateSuppressed(evaluationId);
                 markRequestSuppressed(request, report, triggerLease.dedupKey(), evaluationId, activeEvaluationId);
+            } else {
+                markTriggerSuppressed(evaluationId, triggerLease.denialReason());
             }
             return;
         }
@@ -151,6 +154,7 @@ public class PendingAnomalyTriggerOrchestrator {
             markRequestTriggered(request, report, triggerLease.dedupKey(), evaluationId);
             success = true;
         } catch (Exception ex) {
+            markTriggerSuppressed(evaluationId, "TRIGGER_PUBLICATION_FAILED");
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to publish pre-protectable threat event", ex);
         } finally {
             if (!success) {
