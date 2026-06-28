@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.HcadRuntimeSettings;
 import org.junit.jupiter.api.DisplayName;
@@ -51,7 +52,7 @@ class SystemRuntimeSettingsServiceTest {
     @DisplayName("should apply HCAD runtime settings to mutable properties")
     void applyHcadRuntimeSettings() {
         HcadProperties properties = new HcadProperties();
-        HcadRuntimeSettings settings = new HcadRuntimeSettings(31, 52, 73, 4, 18, 0.81d, 0.91d);
+        HcadRuntimeSettings settings = new HcadRuntimeSettings(31, 52, 73, 4, 18, 0.81d, 0.91d, HcadPreTriggerMode.SHADOW);
 
         SystemSettingsRuntimeApplier.applyHcadSettings(properties, settings);
 

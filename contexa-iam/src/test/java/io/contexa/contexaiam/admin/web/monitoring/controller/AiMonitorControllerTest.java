@@ -31,6 +31,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualificat
 import io.contexa.contexaiam.admin.web.monitoring.service.AiSecurityDecisionMonitoringService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -53,7 +54,7 @@ class AiMonitorControllerTest {
         when(service.overview("day")).thenReturn(summary());
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
 
-        mvc.perform(get("/contexa/admin/api/ai-monitor/overview").param("period", "day"))
+        mvc.perform(get("/contexa/admin/api/ai-monitor/overview").principal(admin()).param("period", "day"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.period").value("day"))
                 .andExpect(jsonPath("$.hcad.candidateCount").value(10))
@@ -63,7 +64,7 @@ class AiMonitorControllerTest {
                 .andExpect(jsonPath("$.correlation.truePositiveCount").value(3))
                 .andExpect(jsonPath("$.correlation.matrixRows[0].key").value("HCAD_EARLY_TRIGGER"))
                 .andExpect(jsonPath("$.operations.parserFailureCount").value(1))
-                .andExpect(jsonPath("$.readinessRecommendation").value("KEEP_SHADOW"));
+                .andExpect(jsonPath("$.readinessRecommendation").value("KEEP_MONITORING"));
     }
 
     @Test
@@ -98,7 +99,7 @@ class AiMonitorControllerTest {
                 summary.generatedAt(),
                 null,
                 null,
-                "KEEP_SHADOW",
+                "KEEP_MONITORING",
                 100L,
                 10L,
                 7L,
@@ -113,23 +114,26 @@ class AiMonitorControllerTest {
                 40.0d,
                 60.0d,
                 0.01d,
-                0.08d));
+                0.08d,
+                null,
+                List.of(),
+                List.of()));
         when(service.exportCsv("day", "overview", Locale.KOREAN)).thenReturn("\"항목\",\"값\"\n");
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
 
-        mvc.perform(get("/contexa/admin/api/ai-monitor/llm").param("period", "day"))
+        mvc.perform(get("/contexa/admin/api/ai-monitor/llm").principal(admin()).param("period", "day"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalDecisionCount").value(7));
-        mvc.perform(get("/contexa/admin/api/ai-monitor/correlation").param("period", "day"))
+        mvc.perform(get("/contexa/admin/api/ai-monitor/correlation").principal(admin()).param("period", "day"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.truePositiveCount").value(3));
-        mvc.perform(get("/contexa/admin/api/ai-monitor/failures").param("period", "day"))
+        mvc.perform(get("/contexa/admin/api/ai-monitor/failures").principal(admin()).param("period", "day"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.operations.timeoutCount").value(0));
-        mvc.perform(get("/contexa/admin/api/ai-monitor/readiness").param("period", "day"))
+        mvc.perform(get("/contexa/admin/api/ai-monitor/readiness").principal(admin()).param("period", "day"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.recommendation").value("KEEP_SHADOW"));
-        mvc.perform(get("/contexa/admin/api/ai-monitor/export.csv")
+                .andExpect(jsonPath("$.recommendation").value("KEEP_MONITORING"));
+        mvc.perform(get("/contexa/admin/api/ai-monitor/export.csv").principal(admin())
                         .param("period", "day")
                         .param("type", "overview")
                         .locale(Locale.KOREAN))
@@ -137,6 +141,21 @@ class AiMonitorControllerTest {
                 .andExpect(content().string("\"항목\",\"값\"\n"));
     }
 
+
+    @Test
+    @DisplayName("AI monitor APIs should reject non-admin users")
+    void apis_shouldRejectNonAdminUsers() throws Exception {
+        AiSecurityDecisionMonitoringService service = mock(AiSecurityDecisionMonitoringService.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
+
+        mvc.perform(get("/contexa/admin/api/ai-monitor/session/current")
+                        .principal(new TestingAuthenticationToken("user", "n/a", "ROLE_USER")))
+                .andExpect(status().isForbidden());
+    }
+
+    private TestingAuthenticationToken admin() {
+        return new TestingAuthenticationToken("admin", "n/a", "ROLE_ADMIN");
+    }
     private OverviewSummary summary() {
         HcadSummary hcad = new HcadSummary(
                 "day",
@@ -166,7 +185,7 @@ class AiMonitorControllerTest {
                 0.01d,
                 0.08d,
                 new Qualification(0.8d, 0.9d, 0.95d, 100, 0.01d),
-                "KEEP_SHADOW",
+                "KEEP_MONITORING",
                 List.of(),
                 List.of(),
                 List.of(new CountBreakdown("80", 4L)),
@@ -266,6 +285,6 @@ class AiMonitorControllerTest {
                         0.0d,
                         0.0d,
                         0.0d),
-                "KEEP_SHADOW");
+                "KEEP_MONITORING");
     }
 }

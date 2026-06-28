@@ -218,7 +218,7 @@
     }
 
     function renderReadiness(summary) {
-        const blockers = readinessBlockers({
+        const fallbackBlockers = readinessBlockers({
             observableFalseNegativeRate: summary.observableFalseNegativeRate,
             failureRate: summary.failureRate,
             recommendation: summary.recommendation,
@@ -236,8 +236,10 @@
                 modelUnavailableCount: Math.round((summary.modelUnavailableRate || 0) * (summary.llmDecisionCount || 0)),
                 averageLatencyMs: summary.averageLatencyMs
             },
-            correlation: { observableFalseNegativeCount: Math.round((summary.observableFalseNegativeRate || 0) * (summary.llmDecisionCount || 0)) }
+            correlation: { observableFalseNegativeCount: Math.round((summary.observableFalseNegativeRate || 0) * (summary.llmDecisionCount || 0)) }
         });
+        const apiBlockers = apiReadinessBlockers(summary.blockers || []);
+        const blockers = apiBlockers.length ? apiBlockers : fallbackBlockers;
         const criteria = readinessCriteria(summary);
 
         detailsEl.className = 'ai-monitor-dashboard';
@@ -804,6 +806,38 @@
         };
     }
 
+    function apiReadinessBlockers(rows) {
+        return (rows || [])
+            .filter(row => row)
+            .map(row => ({
+                title: blockerTitle(row),
+                detail: blockerDetail(row),
+                action: blockerAction(row),
+                tone: blockerTone(row.key)
+            }));
+    }
+
+    function blockerTitle(row) {
+        const key = row && row.key ? String(row.key) : '';
+        return root.dataset[`labelBlocker${toDatasetSuffix(key)}`] || row.title || displayKey(key || '-');
+    }
+
+    function blockerDetail(row) {
+        const current = row && row.current ? row.current : '-';
+        const required = row && row.required ? row.required : '-';
+        return `${current} / ${required}`;
+    }
+
+    function blockerAction(row) {
+        const key = row && row.key ? String(row.key) : '';
+        return root.dataset[`labelAction${toDatasetSuffix(key)}`] || row.action || '';
+    }
+
+    function blockerTone(key) {
+        const normalized = String(key || '').toUpperCase();
+        if (normalized === 'SAMPLE' || normalized === 'NO_LLM_DECISION') return 'warn';
+        return 'bad';
+    }
     function readinessBlockers(context) {
         const hcad = context.hcad || {};
         const llm = context.llm || {};

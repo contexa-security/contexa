@@ -27,8 +27,11 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSum
 import io.contexa.contexaiam.admin.web.monitoring.service.AiSecurityDecisionMonitoringService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,8 +41,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.security.Principal;
 import java.util.List;
 import java.util.Locale;
 
@@ -53,17 +56,29 @@ public class AiMonitorController {
             "/contexa/admin/ai-monitor",
             "/contexa/admin/ai-monitor/overview"
     })
-    public String overviewPage(@RequestParam(required = false, defaultValue = "day") String period, Model model) {
+    public String overviewPage(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Model model,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return page("overview", "ai-monitor-overview", "/contexa/admin/ai-monitor", period, model);
     }
 
     @GetMapping("/contexa/admin/ai-monitor/llm")
-    public String llmPage(@RequestParam(required = false, defaultValue = "day") String period, Model model) {
+    public String llmPage(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Model model,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return page("llm", "ai-monitor-llm", "/contexa/admin/ai-monitor/llm", period, model);
     }
 
     @GetMapping("/contexa/admin/ai-monitor/correlation")
-    public String correlationPage(@RequestParam(required = false, defaultValue = "day") String period, Model model) {
+    public String correlationPage(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Model model,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return page("correlation", "ai-monitor-correlation", "/contexa/admin/ai-monitor/correlation", period, model);
     }
 
@@ -71,61 +86,90 @@ public class AiMonitorController {
             "/contexa/admin/ai-monitor/failures",
             "/contexa/admin/ai-monitor/operations"
     })
-    public String failuresPage(@RequestParam(required = false, defaultValue = "day") String period, Model model) {
+    public String failuresPage(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Model model,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return page("failures", "ai-monitor-failures", "/contexa/admin/ai-monitor/failures", period, model);
     }
 
     @GetMapping("/contexa/admin/ai-monitor/readiness")
-    public String readinessPage(@RequestParam(required = false, defaultValue = "day") String period, Model model) {
+    public String readinessPage(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Model model,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return page("readiness", "ai-monitor-readiness", "/contexa/admin/ai-monitor/readiness", period, model);
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/overview")
-    public OverviewSummary overview(@RequestParam(required = false, defaultValue = "day") String period) {
+    public OverviewSummary overview(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.overview(period);
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/llm")
-    public LlmDecisionSummary llm(@RequestParam(required = false, defaultValue = "day") String period) {
+    public LlmDecisionSummary llm(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.llm(period);
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/correlation")
-    public CorrelationSummary correlation(@RequestParam(required = false, defaultValue = "day") String period) {
+    public CorrelationSummary correlation(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.correlation(period);
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/failures")
-    public FailureSummary failures(@RequestParam(required = false, defaultValue = "day") String period) {
+    public FailureSummary failures(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.failures(period);
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/readiness")
-    public ReadinessSummary readiness(@RequestParam(required = false, defaultValue = "day") String period) {
+    public ReadinessSummary readiness(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.readiness(period);
     }
 
-
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/session/current")
-    public MonitoringSessionCurrent currentSession(@RequestParam(required = false, defaultValue = "day") String period) {
+    public MonitoringSessionCurrent currentSession(
+            @RequestParam(required = false, defaultValue = "day") String period,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.currentSession(period);
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/session/summaries")
-    public List<MonitoringSessionSummary> sessionSummaries() {
+    public List<MonitoringSessionSummary> sessionSummaries(Authentication authentication) {
+        requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.sessionSummaries();
     }
 
     @ResponseBody
     @GetMapping("/contexa/admin/api/ai-monitor/session/summaries/{sessionId}")
-    public ResponseEntity<MonitoringSessionSummary> sessionSummary(@PathVariable String sessionId) {
+    public ResponseEntity<MonitoringSessionSummary> sessionSummary(
+            @PathVariable String sessionId,
+            Authentication authentication) {
+        requireAdmin(authentication);
         MonitoringSessionSummary summary = aiSecurityDecisionMonitoringService.sessionSummary(sessionId);
         return summary == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(summary);
     }
@@ -134,16 +178,20 @@ public class AiMonitorController {
     @PostMapping("/contexa/admin/api/ai-monitor/reset")
     public MonitoringResetResponse resetMonitoring(
             @RequestBody(required = false) MonitoringResetRequest request,
-            Principal principal) {
-        String resetBy = principal == null ? null : principal.getName();
+            Authentication authentication) {
+        requireAdmin(authentication);
+        String resetBy = authentication == null ? null : authentication.getName();
         return aiSecurityDecisionMonitoringService.resetMonitoring(request, resetBy);
     }
+
     @GetMapping(value = "/contexa/admin/api/ai-monitor/export.csv", produces = "text/csv")
     public ResponseEntity<String> exportCsv(
             @RequestParam(required = false, defaultValue = "day") String period,
             @RequestParam(required = false, defaultValue = "overview") String type,
             @RequestHeader(value = HttpHeaders.ACCEPT_LANGUAGE, required = false) String acceptLanguage,
-            Locale locale) {
+            Locale locale,
+            Authentication authentication) {
+        requireAdmin(authentication);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -159,6 +207,18 @@ public class AiMonitorController {
         return "contexa/admin/ai-monitor";
     }
 
+    private void requireAdmin(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        boolean admin = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_ADMIN"::equals);
+        if (!admin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+    }
+
     private Locale resolveLocale(Locale locale, String acceptLanguage) {
         if (acceptLanguage != null && acceptLanguage.toLowerCase(Locale.ROOT).contains("ko")) {
             return Locale.KOREAN;
@@ -166,4 +226,3 @@ public class AiMonitorController {
         return locale;
     }
 }
-

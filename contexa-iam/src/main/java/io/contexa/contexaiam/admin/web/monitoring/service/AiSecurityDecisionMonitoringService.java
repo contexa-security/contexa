@@ -66,6 +66,7 @@ public class AiSecurityDecisionMonitoringService {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final int BREAKDOWN_LIMIT = 12;
+    private static final int TELEMETRY_DELETE_BATCH_SIZE = 5000;
     private static final String MONITORABLE_PATH_CONDITION = """
             not (
                 lower(coalesce(@PATH@, '')) in (
@@ -399,9 +400,18 @@ public class AiSecurityDecisionMonitoringService {
         MonitoringSessionSummary archived = sessionSummary(sessionId, data, normalizedResetBy, reason);
         insertSessionSummary(jdbcOperations, archived, summaryJson(data));
         boolean learningEvidenceReset = clearLearningEvidenceCache(resetLearningEvidence);
-        long deletedCorrelation = jdbcOperations.update("delete from hcad_llm_decision_correlation");
-        long deletedAi = jdbcOperations.update("delete from ai_security_decision_observation");
-        long deletedHcad = jdbcOperations.update("delete from hcad_detection_evaluation");
+        long deletedCorrelation = deleteTelemetryInBatches(
+                jdbcOperations,
+                "hcad_llm_decision_correlation",
+                "correlation_id");
+        long deletedAi = deleteTelemetryInBatches(
+                jdbcOperations,
+                "ai_security_decision_observation",
+                "observation_id");
+        long deletedHcad = deleteTelemetryInBatches(
+                jdbcOperations,
+                "hcad_detection_evaluation",
+                "evaluation_id");
         writeResetAudit(jdbcOperations, normalizedResetBy, reason, sessionId, deletedHcad, deletedAi, deletedCorrelation);
         MonitoringSessionCurrent newSession = new MonitoringSessionCurrent(
                 "current",
@@ -425,6 +435,18 @@ public class AiSecurityDecisionMonitoringService {
                 learningEvidenceReset,
                 archived,
                 newSession);
+    }
+    private long deleteTelemetryInBatches(JdbcOperations jdbcOperations, String tableName, String idColumn) {
+        long total = 0L;
+        int deleted;
+        String sql = "delete from " + tableName
+                + " where " + idColumn + " in (select " + idColumn + " from " + tableName
+                + " order by created_at, " + idColumn + " limit ?)";
+        do {
+            deleted = jdbcOperations.update(sql, TELEMETRY_DELETE_BATCH_SIZE);
+            total += deleted;
+        } while (deleted == TELEMETRY_DELETE_BATCH_SIZE);
+        return total;
     }
     private boolean clearLearningEvidenceCache(boolean requested) {
         if (!requested) {
@@ -751,7 +773,37 @@ public class AiSecurityDecisionMonitoringService {
                     "10% or less",
                     "Fix timeout, parser failure, and model unavailable causes first."));
         }
+        addFailureBlocker(blockers, "TIMEOUT", data.llm().timeoutCount(), data.llm().timeoutRate(),
+                "AI analysis timed out",
+                "Inspect OpenAI latency, network, prompt size, and timeout settings before switching modes.");
+        addFailureBlocker(blockers, "PARSER_FAILURE", data.llm().parserFailureCount(), data.llm().parserFailureRate(),
+                "AI response parsing failed",
+                "Check the decision prompt contract, response schema, and parser logs.");
+        addFailureBlocker(blockers, "MODEL_UNAVAILABLE", data.llm().modelUnavailableCount(), data.llm().modelUnavailableRate(),
+                "AI model was unavailable",
+                "Check provider/model configuration and runtime LLM client availability.");
+        addFailureBlocker(blockers, "TECHNICAL_FALLBACK", data.llm().technicalFallbackCount(), data.llm().technicalFallbackRate(),
+                "Technical fallback was used",
+                "Remove fallback causes before trusting transition recommendations.");
         return blockers;
+    }
+
+    private void addFailureBlocker(
+            List<ReadinessBlocker> blockers,
+            String key,
+            long count,
+            double rate,
+            String title,
+            String action) {
+        if (count <= 0L && rate <= 0.0d) {
+            return;
+        }
+        blockers.add(new ReadinessBlocker(
+                key,
+                title,
+                count + " / " + percentText(rate),
+                "0",
+                action));
     }
 
     private LocalDateTime currentSessionStart(LocalDateTime fallbackNow) {
@@ -1899,6 +1951,9 @@ public class AiSecurityDecisionMonitoringService {
         }
     }
 }
+
+
+
 
 
 
