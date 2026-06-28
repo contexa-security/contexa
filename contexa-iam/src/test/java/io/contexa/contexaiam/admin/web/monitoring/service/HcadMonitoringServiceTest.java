@@ -55,7 +55,7 @@ class HcadMonitoringServiceTest {
         when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("TN"), any(), any())).thenReturn(2L);
         when(repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween(eq("UNKNOWN"), any(), any())).thenReturn(17L);
         when(repository.averageMonitorableLlmLatencyMsBetween(any(), any())).thenReturn(42.5d);
-        when(repository.countMonitorableByModeBetween(any(), any())).thenReturn(List.<Object[]>of(new Object[]{"SHADOW", 120L}));
+        when(repository.countMonitorableByModeBetween(any(), any())).thenReturn(List.<Object[]>of(new Object[]{"SHADOW", 120L, 114L, 5L, 1L}));
         when(repository.countByScoreBetween(any(), any()))
                 .thenReturn(List.<Object[]>of(new Object[]{"80", 70L}, new Object[]{"20", 50L}));
         when(repository.countByBandBetween(any(), any()))

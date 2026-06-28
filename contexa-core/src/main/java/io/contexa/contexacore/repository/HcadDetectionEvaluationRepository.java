@@ -318,7 +318,10 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
 
     @Query(value = """
             select coalesce(e.mode, 'UNKNOWN') as mode,
-                   count(*) as count
+                   count(*) as count,
+                   sum(case when e.outcome_class = 'TP' then 1 else 0 end) as tp_count,
+                   sum(case when e.outcome_class = 'FP' then 1 else 0 end) as fp_count,
+                   sum(case when e.outcome_class = 'UNKNOWN' then 1 else 0 end) as unknown_count
               from hcad_detection_evaluation e
              where e.created_at between :from and :to
             """ + MONITORABLE_REQUEST_CONDITION + """

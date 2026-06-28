@@ -360,7 +360,11 @@ public class HcadMonitoringService {
 
     private List<Breakdown> modeBreakdown(LocalDateTime from, LocalDateTime to) {
         return repository.countMonitorableByModeBetween(from, to).stream()
-                .map(row -> new Breakdown(text(row, 0), number(row, 1), 0, 0, 0, 0.0d))
+                .map(row -> {
+                    long tp = number(row, 2);
+                    long fp = number(row, 3);
+                    return new Breakdown(text(row, 0), number(row, 1), tp, fp, number(row, 4), precision(tp, fp));
+                })
                 .toList();
     }
 
@@ -614,18 +618,18 @@ public class HcadMonitoringService {
         Object missingDimensions = baseline.get("missingDimensions");
         if (!Boolean.TRUE.equals(available) && !"true".equalsIgnoreCase(String.valueOf(available))) {
             if (missingDimensions != null && missingDimensions.toString().contains("personalBaselineInsufficientSamples")) {
-                return "개인 기준선 표본이 아직 부족함";
+                return "\uAC1C\uC778 \uAE30\uC900\uC120 \uD45C\uBCF8\uC774 \uC544\uC9C1 \uBD80\uC871\uD568";
             }
-            return "개인 기준선 없음";
+            return "\uAC1C\uC778 \uAE30\uC900\uC120 \uC5C6\uC74C";
         }
         boolean mismatch = Boolean.TRUE.equals(baseline.get("materialMismatch"));
         String ratioText = baseline.get("matchRatio") == null ? "-" : baseline.get("matchRatio").toString();
         String countText = baseline.get("mismatchCount") == null ? "0" : baseline.get("mismatchCount").toString();
         if (!mismatch) {
-            return "평소 패턴과 큰 차이 없음";
+            return "\uD3C9\uC18C \uD328\uD134\uACFC \uD070 \uCC28\uC774 \uC5C6\uC74C";
         }
-        return "평소 패턴과 다른 항목 " + countText + "건, 일치율 " + ratioText
-                + ", 항목 " + baseline.get("mismatchedDimensions");
+        return "\uD3C9\uC18C \uD328\uD134\uACFC \uB2E4\uB978 \uD56D\uBAA9 " + countText + "\uAC74, \uC77C\uCE58\uC728 " + ratioText
+                + ", \uD56D\uBAA9 " + baseline.get("mismatchedDimensions");
     }
     private String baselineComparisonSummary(String json) {
         MapSnapshot snapshot = readSnapshot(json);
@@ -641,10 +645,10 @@ public class HcadMonitoringService {
         String ratioText = matchRatio == null ? "-" : matchRatio.toString();
         String countText = mismatchCount == null ? "0" : mismatchCount.toString();
         if (!mismatch) {
-            return "평소 패턴과 큰 차이 없음";
+            return "\uD3C9\uC18C \uD328\uD134\uACFC \uD070 \uCC28\uC774 \uC5C6\uC74C";
         }
-        return "평소 패턴과 다른 항목 " + countText + "건, 일치율 " + ratioText
-                + ", 항목 " + mismatchedDimensions;
+        return "\uD3C9\uC18C \uD328\uD134\uACFC \uB2E4\uB978 \uD56D\uBAA9 " + countText + "\uAC74, \uC77C\uCE58\uC728 " + ratioText
+                + ", \uD56D\uBAA9 " + mismatchedDimensions;
     }
     private MapSnapshot readSnapshot(String json) {
         if (json == null || json.isBlank() || "null".equalsIgnoreCase(json.trim())) {
