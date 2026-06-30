@@ -237,7 +237,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .userId("admin")
                 .metadata(metadata(Map.of(
                         "protectableDeclared", true,
-                        "protectableResourceId", "orders.read",
+                        "requestPath", "/contexa/admin/orders",
+                        "httpMethod", "GET",
                         "hcadEvaluationId", "eval-2",
                         "requestId", "req-2",
                         HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true,
@@ -313,8 +314,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .metadata(metadata(Map.of(
                         "triggerSource", "HCAD_PRE_TRIGGER",
                         "protectableDeclared", true,
-                        "protectableResourceId", "hcad.extreme.allow",
-                        "protectableResourceUrl", "/contexa/test/hcad/protectable/allow",
+                        "requestPath", "/contexa/test/hcad/protectable/allow",
+                        "httpMethod", "GET",
                         "hcadEvaluationId", "eval-combined-fp",
                         "testRunId", "run-evidence-combined-fp",
                         "requestId", "req-combined-fp",
@@ -359,8 +360,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .metadata(metadata(Map.ofEntries(
                         Map.entry("triggerSource", "PROTECTABLE"),
                         Map.entry("protectableDeclared", true),
-                        Map.entry("protectableResourceId", "hcad.live.vendor.export"),
-                        Map.entry("protectableResourceUrl", "/contexa/test/hcad/live/vendors/{vendorId}/export"),
+                        Map.entry("requestPath", "/contexa/test/hcad/live/vendors/42/export"),
+                        Map.entry("httpMethod", "GET"),
                         Map.entry("hcadEvaluationId", "eval-protectable-combined-fp"),
                         Map.entry("testRunId", "run-protectable-combined-fp"),
                         Map.entry("requestId", "req-protectable-combined-fp"),
@@ -405,8 +406,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .metadata(metadata(Map.ofEntries(
                         Map.entry("triggerSource", "PROTECTABLE"),
                         Map.entry("protectableDeclared", true),
-                        Map.entry("protectableResourceId", "hcad.live.finance.invoice"),
-                        Map.entry("protectableResourceUrl", "/contexa/test/hcad/live/finance/invoices/{invoiceId}"),
+                        Map.entry("requestPath", "/contexa/test/hcad/live/finance/invoices/INV-1001"),
+                        Map.entry("httpMethod", "POST"),
                         Map.entry("hcadEvaluationId", "eval-protectable-combined-tp"),
                         Map.entry("testRunId", "run-protectable-combined-tp"),
                         Map.entry("requestId", "req-protectable-combined-tp"),
@@ -456,8 +457,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .metadata(metadata(Map.of(
                         "triggerSource", "PROTECTABLE",
                         "protectableDeclared", true,
-                        "protectableResourceId", "hcad.live.vendor.export",
-                        "protectableResourceUrl", "/contexa/test/hcad/live/vendors/{vendorId}/export",
+                        "requestPath", "/contexa/test/hcad/live/vendors/42/export",
+                        "httpMethod", "GET",
                         "hcadEvaluationId", "eval-durable-combined",
                         "testRunId", "run-durable-combined",
                         "requestId", "req-durable-combined",
@@ -548,7 +549,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .userId("admin")
                 .metadata(metadata(Map.of(
                         "protectableDeclared", true,
-                        "protectableResourceId", "hcad.extreme.challenge",
+                        "requestPath", "/contexa/test/hcad/protectable/challenge",
+                        "httpMethod", "GET",
                         "hcadEvaluationId", "eval-fn",
                         "requestId", "req-fn",
                         HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true,

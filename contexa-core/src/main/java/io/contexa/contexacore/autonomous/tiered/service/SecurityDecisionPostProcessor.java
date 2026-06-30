@@ -465,8 +465,6 @@ public class SecurityDecisionPostProcessor {
             copyIfPresent(eventMeta, metadata, "organization_id");
             copyIfPresent(eventMeta, metadata, "orgId");
             copyIfPresent(eventMeta, metadata, "resourceId");
-            copyIfPresent(eventMeta, metadata, "requestedResourceId");
-            copyIfPresent(eventMeta, metadata, "protectedResourceId");
             copyIfPresent(eventMeta, metadata, "resourceType");
             copyIfPresent(eventMeta, metadata, "resourceCategory");
             copyIfPresent(eventMeta, metadata, "resourceSensitivity");

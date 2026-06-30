@@ -127,7 +127,7 @@ public record CachedSemanticEvidenceProjection(
         snapshot.put("type", entry.key().type().name());
         snapshot.put("status", entry.status().name());
         snapshot.put("sourceVersion", entry.sourceVersion());
-        snapshot.put("sourceTable", entry.sourceVersion());
+        snapshot.put("sourceTable", textFromSummary(entry.summaryJson(), "sourceTable"));
         snapshot.put("evidenceVersion", entry.evidenceVersion());
         snapshot.put("embeddingModel", entry.embeddingModel());
         snapshot.put("dimension", entry.dimension());

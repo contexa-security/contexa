@@ -173,7 +173,7 @@ public class PromptContextAuditPayloadMapper {
     }
 
     private String resolveResourceId(SecurityEvent event) {
-        return resolveText(metadata(event), "resourceId", "requestedResourceId", "protectedResourceId");
+        return resolveText(metadata(event), "resourceId");
     }
 
     private String resolveRequestPath(SecurityEvent event) {

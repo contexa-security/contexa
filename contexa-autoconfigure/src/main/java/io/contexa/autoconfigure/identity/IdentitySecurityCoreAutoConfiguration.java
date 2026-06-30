@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.filter.HCADFilter;
@@ -312,15 +313,15 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthResponseWriter authResponseWriter,
             MfaSessionRepository mfaSessionRepository,
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRepository actionRedisRepository,
             AuthContextProperties authContextProperties,
             IBlockedUserRecorder blockedUserRecorder,
             @Autowired(required = false) CentralAuditFacade centralAuditFacade,
-            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
+            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler,
+            @Autowired(required = false) HCADDataStore hcadDataStore) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
-                mfaSessionRepository, zeroTrustEventPublisher, actionRedisRepository,
-                authContextProperties.getMfa(), blockedUserRecorder, centralAuditFacade, loginPolicyHandler);
+                mfaSessionRepository, actionRedisRepository, authContextProperties.getMfa(),
+                blockedUserRecorder, centralAuditFacade, loginPolicyHandler, hcadDataStore);
     }
 
     @Bean

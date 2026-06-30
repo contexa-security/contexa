@@ -17,17 +17,15 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -45,7 +43,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 
 
@@ -53,34 +50,35 @@ import org.springframework.util.StringUtils;
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
+    private static final String UNKNOWN_USER = "UnknownUser";
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
-    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final MfaSettings mfaSettings;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final CentralAuditFacade centralAuditFacade;
     private final LoginPolicyHandler loginPolicyService;
+    private final HCADDataStore hcadDataStore;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository,
-                                               ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                ZeroTrustActionRepository actionRedisRepository,
                                                MfaSettings mfaSettings,
                                                IBlockedUserRecorder blockedUserRecorder,
                                                CentralAuditFacade centralAuditFacade,
-                                               @Nullable LoginPolicyHandler loginPolicyService) {
+                                               @Nullable LoginPolicyHandler loginPolicyService,
+                                               @Nullable HCADDataStore hcadDataStore) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
-        this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.actionRedisRepository = actionRedisRepository;
         this.mfaSettings = mfaSettings;
         this.blockedUserRecorder = blockedUserRecorder;
         this.centralAuditFacade = centralAuditFacade;
         this.loginPolicyService = loginPolicyService;
+        this.hcadDataStore = hcadDataStore;
     }
 
     @Override
@@ -96,8 +94,9 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         long failureStartTime = System.currentTimeMillis();
 
         FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
-        String usernameForLog = extractUsernameForLogging(factorContext, exception);
+        String usernameForLog = extractUsernameForLogging(request, factorContext);
         String sessionIdForLog = extractSessionIdForLogging(factorContext);
+        recordHcadAuthenticationFailure(request, usernameForLog);
 
         AuthType currentProcessingFactor = (factorContext != null) ? factorContext.getCurrentProcessingFactor() : null;
 
@@ -169,7 +168,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         log.error("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
                 sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog, exception.getMessage());
 
-        if (loginPolicyService != null && StringUtils.hasText(usernameForLog) && !"UnknownUser".equals(usernameForLog)) {
+        if (loginPolicyService != null && isKnownUsername(usernameForLog)) {
             try {
                 loginPolicyService.onLoginFailure(usernameForLog);
             } catch (Exception e) {
@@ -316,11 +315,19 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         return errorDetails;
     }
 
-    private String extractUsernameForLogging(FactorContext factorContext, AuthenticationException exception) {
+    private String extractUsernameForLogging(HttpServletRequest request, FactorContext factorContext) {
         if (factorContext != null && StringUtils.hasText(factorContext.getUsername())) {
             return factorContext.getUsername();
         }
-        return "UnknownUser";
+        String submittedUsername = request.getParameter("username");
+        if (StringUtils.hasText(submittedUsername)) {
+            return submittedUsername.trim();
+        }
+        String submittedEmail = request.getParameter("email");
+        if (StringUtils.hasText(submittedEmail)) {
+            return submittedEmail.trim();
+        }
+        return UNKNOWN_USER;
     }
 
     private String extractSessionIdForLogging(FactorContext factorContext) {
@@ -355,6 +362,20 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 currentState == MfaState.FACTOR_VERIFICATION_PENDING;
     }
 
+    private void recordHcadAuthenticationFailure(HttpServletRequest request, String username) {
+        if (hcadDataStore == null || !isKnownUsername(username)) {
+            return;
+        }
+        try {
+            hcadDataStore.recordLoginFailure(username.trim(), null, System.currentTimeMillis());
+        } catch (Exception e) {
+            log.error("Failed to record HCAD authentication failure counter for user: {}", username, e);
+        }
+    }
+
+    private boolean isKnownUsername(String username) {
+        return StringUtils.hasText(username) && !UNKNOWN_USER.equals(username);
+    }
     private Map<String, String> getClientInfo(HttpServletRequest request) {
         Map<String, String> clientInfo = new HashMap<>();
         clientInfo.put("userAgent", request.getHeader("User-Agent"));
@@ -410,84 +431,4 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    private void publishAuthenticationFailureEvent(HttpServletRequest request,
-                                                   AuthenticationException exception,
-                                                   @Nullable FactorContext factorContext) {
-        try {
-            if (zeroTrustEventPublisher == null) {
-                return;
-            }
-
-            String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            Integer failureCount = extractFailureCount(factorContext);
-
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("requestPath", request.getRequestURI());
-            payload.put("httpMethod", request.getMethod());
-            payload.put("failureReason", exception.getMessage());
-            payload.put("exceptionClass", exception.getClass().getName());
-            payload.put("failureCount", failureCount);
-            payload.put("riskScore", calculateFailureRiskScore(failureCount, exception));
-
-            if (factorContext != null) {
-                payload.put("authenticationType", factorContext.getCurrentProcessingFactor() != null ?
-                        factorContext.getCurrentProcessingFactor().toString() : "PRIMARY");
-                payload.put("deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
-            } else {
-                payload.put("authenticationType", "PRIMARY");
-            }
-
-            if (actionRedisRepository != null && username != null) {
-                ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(username);
-                if (currentAction != null) {
-                    payload.put("action", currentAction.name());
-                }
-            }
-
-            zeroTrustEventPublisher.publishAuthenticationFailure(
-                    username,
-                    request.getSession(false) != null ? request.getSession().getId() : null,
-                    extractClientIp(request),
-                    request.getHeader("User-Agent"),
-                    payload
-            );
-
-        } catch (Exception e) {
-            log.error("Failed to publish authentication failure event", e);
-        }
-    }
-
-    private Integer extractFailureCount(FactorContext factorContext) {
-        if (factorContext == null) {
-            return 1;
-        }
-
-        Object failCount = factorContext.getAttribute(FactorContextAttributes.StateControl.FAILURE_COUNT);
-        if (failCount instanceof Integer) {
-            return (Integer) failCount;
-        }
-
-        return 1;
-    }
-
-    private Double calculateFailureRiskScore(Integer failureCount, AuthenticationException exception) {
-        double score = 0.3;
-
-        if (failureCount != null) {
-            if (failureCount > 10) {
-                score = 0.9;
-            } else if (failureCount > 5) {
-                score = 0.7;
-            } else if (failureCount > 3) {
-                score = 0.5;
-            }
-        }
-
-        String exceptionName = exception.getClass().getSimpleName();
-        if (exceptionName.contains("Locked") || exceptionName.contains("Disabled")) {
-            score = Math.min(1.0, score + 0.2);
-        }
-
-        return score;
-    }
 }

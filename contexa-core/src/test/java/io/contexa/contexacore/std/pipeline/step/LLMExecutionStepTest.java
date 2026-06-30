@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
@@ -55,6 +56,8 @@ class LLMExecutionStepTest {
         request.withParameter("topP", 0.2d);
         request.withParameter("seed", 7);
         request.withParameter("maxTokens", 96);
+        request.withParameter("openAiReasoningEffort", "minimal");
+        request.withParameter("openAiVerbosity", "low");
         request.withParameter("disableRetries", true);
         request.withParameter("disableOllamaThinking", true);
         request.withParameter("decisionBoundaryMode", "RUNTIME_MODEL_SELECTION");
@@ -155,6 +158,82 @@ class LLMExecutionStepTest {
     }
 
     @Test
+    void securityDecisionShouldIgnoreRuntimeModelAndOptionsUnlessOfficialVerificationPinned() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-runtime-override-blocked");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponse.class);
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("responseType", SecurityDecisionResponse.class);
+        request.withParameter("requestedModelId", "client-selected-model");
+        request.withParameter("temperature", 0.0d);
+        request.withParameter("topP", 0.2d);
+        request.withParameter("seed", 7);
+        request.withParameter("maxTokens", 96);
+        request.withParameter("openAiReasoningEffort", "minimal");
+        request.withParameter("openAiVerbosity", "low");
+        request.withParameter("disableRetries", true);
+        request.withParameter("disableOllamaThinking", true);
+        request.withParameter("decisionBoundaryMode", "RUNTIME_MODEL_SELECTION");
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("raw-response");
+        assertThat(llmClient.lastExecutionContext).isNotNull();
+        assertThat(llmClient.lastExecutionContext.getPreferredModel()).isNull();
+        assertThat(llmClient.lastExecutionContext.getTemperature()).isNull();
+        assertThat(llmClient.lastExecutionContext.getTopP()).isNull();
+        assertThat(llmClient.lastExecutionContext.getSeed()).isNull();
+        assertThat(llmClient.lastExecutionContext.getMaxTokens()).isNull();
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry("openAiReasoningEffort", "minimal")
+                .containsEntry("openAiVerbosity", "low");
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .doesNotContainKeys("requestedModelId", "preferredModel", "runtimeModelId", "temperature", "topP", "seed", "maxTokens");
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.preferredModel", String.class)).isEqualTo("requestedModelId");
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.temperature", String.class)).isEqualTo("temperature");
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.decisionBoundaryMode", String.class)).isEqualTo("decisionBoundaryMode");
+    }
+
+    @Test
+    void securityDecisionShouldAllowOfficialVerificationPinnedModelOnly() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-official-pinned-model");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+
+        TestContext domainContext = new TestContext();
+        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("requestedModelId", "client-selected-model");
+        request.withParameter("officialVerificationPinnedModelId", "gpt-5-nano");
+        request.withParameter("temperature", 0.0d);
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("raw-response");
+        assertThat(llmClient.lastExecutionContext).isNotNull();
+        assertThat(llmClient.lastExecutionContext.getPreferredModel()).isEqualTo("gpt-5-nano");
+        assertThat(llmClient.lastExecutionContext.getTemperature()).isNull();
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry("requestedModelId", "gpt-5-nano")
+                .containsEntry("preferredModel", "gpt-5-nano")
+                .containsEntry("runtimeModelId", "gpt-5-nano")
+                .containsEntry("requestedModelSourceKey", "officialVerificationPinnedModelId")
+                .doesNotContainKey("temperature");
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.preferredModel", String.class)).isEqualTo("requestedModelId");
+        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.temperature", String.class)).isEqualTo("temperature");
+    }
+    @Test
     void executeShouldDeriveActualPromptBudgetTelemetryFromProviderUsage() {
         ObservedPromptTokenUsageRegistry.clear();
         RecordingLlmClient llmClient = new RecordingLlmClient();
@@ -175,7 +254,7 @@ class LLMExecutionStepTest {
 
         TestContext domainContext = new TestContext();
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("requestedModelId", "gpt-4o-mini");
+        request.withParameter("officialVerificationPinnedModelId", "gpt-4o-mini");
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
 
         try {
@@ -264,7 +343,7 @@ class LLMExecutionStepTest {
 
         TestContext domainContext = new TestContext();
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("requestedModelId", "gpt-4o-mini");
+        request.withParameter("officialVerificationPinnedModelId", "gpt-4o-mini");
         request.withParameter("nativeStructuredOutputEnabled", false);
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
 

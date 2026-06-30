@@ -99,7 +99,7 @@ public class SynchronousProtectableDecisionService {
 
         if (zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
             if (isPreProtectableAnalysisAlreadyStarted(event, contextBindingHash)) {
-                scheduleProtectableMerge(event);
+                markProtectableMerge(event);
                 return currentResult(event, userId, contextBindingHash, null);
             }
             SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
@@ -216,7 +216,7 @@ public class SynchronousProtectableDecisionService {
         }
     }
 
-    private void scheduleProtectableMerge(ZeroTrustSpringEvent event) {
+    private void markProtectableMerge(ZeroTrustSpringEvent event) {
         String evaluationId = firstText(
                 currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MERGE_EVALUATION_ID),
                 currentRequestAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID));
@@ -227,8 +227,6 @@ public class SynchronousProtectableDecisionService {
         Map<String, Object> payload = event != null && event.getPayload() != null ? event.getPayload() : Map.of();
         String resourceId = firstText(
                 payload.get("resourceId"),
-                payload.get("requestedResourceId"),
-                payload.get("protectedResourceId"),
                 payload.get("requestPath"),
                 payload.get("requestUri"),
                 event != null ? event.getResource() : null,
@@ -242,19 +240,7 @@ public class SynchronousProtectableDecisionService {
                 payload.get("httpMethod"),
                 payload.get("method"));
 
-        CompletableFuture.runAsync(() -> {
-            for (int attempt = 0; attempt < 60; attempt++) {
-                if (writer.markProtectableMerged(evaluationId, resourceId, resourceUrl, httpMethod)) {
-                    return;
-                }
-                try {
-                    Thread.sleep(100L);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        });
+        writer.markProtectableMerged(evaluationId, resourceId, resourceUrl, httpMethod);
     }
 
     private void markProtectableAnalysisStarted() {

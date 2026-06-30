@@ -50,16 +50,17 @@ public final class RequestInfoExtractor {
         }
 
         String requestId = extractRequestId(request);
+        boolean runtimeOverrideHeadersAllowed = isOfficialVerificationRequest(request);
         String requestedModelId = firstNonBlankText(
-                extractHeaderOrAttribute(request, "X-Contexa-Model-Id", "requestedModelId"),
-                extractHeaderOrAttribute(request, "X-Contexa-Preferred-Model", "preferredModel"),
-                extractHeaderOrAttribute(request, "X-Contexa-Runtime-Model-Id", "runtimeModelId"));
-        Double runtimeTemperature = extractDoubleHeaderOrAttribute(request, "X-Contexa-Temperature", "temperature", "runtimeTemperature");
-        Double runtimeTopP = extractDoubleHeaderOrAttribute(request, "X-Contexa-Top-P", "topP", "runtimeTopP");
-        Integer runtimeSeed = extractIntegerHeaderOrAttribute(request, "X-Contexa-Seed", "seed", "runtimeSeed");
-        Integer runtimeMaxTokens = extractIntegerHeaderOrAttribute(request, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
-        Boolean runtimeDisableRetries = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Retries", "disableRetries");
-        Boolean runtimeDisableOllamaThinking = extractBooleanHeaderOrAttribute(request, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
+                extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Model-Id", "requestedModelId"),
+                extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Preferred-Model", "preferredModel"),
+                extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Runtime-Model-Id", "runtimeModelId"));
+        Double runtimeTemperature = extractDoubleRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Temperature", "temperature", "runtimeTemperature");
+        Double runtimeTopP = extractDoubleRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Top-P", "topP", "runtimeTopP");
+        Integer runtimeSeed = extractIntegerRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Seed", "seed", "runtimeSeed");
+        Integer runtimeMaxTokens = extractIntegerRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
+        Boolean runtimeDisableRetries = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Retries", "disableRetries");
+        Boolean runtimeDisableOllamaThinking = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String tenantId = firstNonBlankText(
@@ -86,6 +87,7 @@ public final class RequestInfoExtractor {
                         "hcad.orgId"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
+                runtimeOverrideHeadersAllowed,
                 requestedModelId,
                 runtimeTemperature,
                 runtimeTopP,
@@ -147,10 +149,7 @@ public final class RequestInfoExtractor {
                         "businessLabel"))
                 .resourceId(extractAttributeText(request,
                         "hcad.resource_id",
-                        "hcad.resourceId",
-                        "resourceId",
-                        "requestedResourceId",
-                        "protectedResourceId"))
+                        "hcad.resourceId"))
                 .currentResourceFamily(extractAttributeText(request,
                         "currentResourceFamily",
                         "current_resource_family"))
@@ -469,6 +468,7 @@ public final class RequestInfoExtractor {
 
     private static String deriveDecisionBoundaryMode(
             HttpServletRequest request,
+            boolean runtimeOverrideHeadersAllowed,
             String requestedModelId,
             Double runtimeTemperature,
             Double runtimeTopP,
@@ -476,8 +476,9 @@ public final class RequestInfoExtractor {
             Integer runtimeMaxTokens,
             Boolean runtimeDisableRetries,
             Boolean runtimeDisableOllamaThinking) {
-        String explicitBoundaryMode = extractHeaderOrAttribute(
+        String explicitBoundaryMode = extractRuntimeHeaderOrAttribute(
                 request,
+                runtimeOverrideHeadersAllowed,
                 "X-Contexa-Decision-Boundary-Mode",
                 "decisionBoundaryMode");
         if (explicitBoundaryMode != null && !explicitBoundaryMode.isBlank()) {
@@ -495,6 +496,61 @@ public final class RequestInfoExtractor {
         return null;
     }
 
+
+    private static String extractRuntimeHeaderOrAttribute(
+            HttpServletRequest request,
+            boolean runtimeOverrideHeadersAllowed,
+            String headerName,
+            String... attributeNames) {
+        if (runtimeOverrideHeadersAllowed) {
+            return extractHeaderOrAttribute(request, headerName, attributeNames);
+        }
+        return extractAttributeText(request, attributeNames);
+    }
+
+    private static Double extractDoubleRuntimeHeaderOrAttribute(
+            HttpServletRequest request,
+            boolean runtimeOverrideHeadersAllowed,
+            String headerName,
+            String... attributeNames) {
+        String value = extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, headerName, attributeNames);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Integer extractIntegerRuntimeHeaderOrAttribute(
+            HttpServletRequest request,
+            boolean runtimeOverrideHeadersAllowed,
+            String headerName,
+            String... attributeNames) {
+        String value = extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, headerName, attributeNames);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Boolean extractBooleanRuntimeHeaderOrAttribute(
+            HttpServletRequest request,
+            boolean runtimeOverrideHeadersAllowed,
+            String headerName,
+            String... attributeNames) {
+        String value = extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, headerName, attributeNames);
+        if (value == null) {
+            return null;
+        }
+        return Boolean.parseBoolean(value);
+    }
     private static Integer extractIntegerHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
         String value = extractHeaderOrAttribute(request, headerName, attributeNames);
         if (value == null) {

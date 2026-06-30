@@ -152,11 +152,13 @@ public class TieredStrategyProperties {
         @Data
         public static class Timeout {
 
-            private long totalMs = 12000;
+            private long totalMs = 120000;
 
-            private long llmMs = 6500;
+            private long llmMs = 90000;
 
             private long ragMs = 8000;
+
+            private long interactiveRagWaitMs = 1200;
         }
 
         @Data
@@ -219,5 +221,3 @@ public class TieredStrategyProperties {
     }
 
 }
-
-

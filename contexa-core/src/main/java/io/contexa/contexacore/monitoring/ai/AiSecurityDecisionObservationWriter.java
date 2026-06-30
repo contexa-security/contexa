@@ -99,7 +99,7 @@ public class AiSecurityDecisionObservationWriter {
             markProtectableObserved(
                     jdbcOperations,
                     hcadEvaluationId,
-                    firstText(metadata, "resourceId", "requestedResourceId", "protectedResourceId"),
+                    firstText(metadata, "resourceId"),
                     firstText(metadata, "requestPath", "requestUri", "httpUri"),
                     firstText(metadata, "httpMethod", "method"));
         }
@@ -219,7 +219,7 @@ public class AiSecurityDecisionObservationWriter {
                     hcadEligible,
                     firstText(metadata, "httpMethod", "method"),
                     firstText(metadata, "requestPath", "requestUri", "httpUri"),
-                    firstText(metadata, "resourceId", "requestedResourceId", "protectedResourceId"),
+                    firstText(metadata, "resourceId"),
                     modelProvider,
                     modelId,
                     firstText(metadata, "templateKey", "promptTemplateKey"),

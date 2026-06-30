@@ -27,6 +27,14 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionOutputParser;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.List;
@@ -47,7 +55,8 @@ import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
-
+
+
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClient {
@@ -63,6 +72,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private final SecurityDecisionOutputParser securityDecisionOutputParser = new SecurityDecisionOutputParser();
     private volatile List<Advisor> cachedAdvisorSnapshot = List.of();
     private final ProviderThrottle providerThrottle = new ProviderThrottle();
+    private static final AtomicInteger PROVIDER_CALL_THREAD_SEQUENCE = new AtomicInteger();
+    private static final ExecutorService PROVIDER_CALL_EXECUTOR = Executors.newCachedThreadPool(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "contexa-llm-provider-call-" + PROVIDER_CALL_THREAD_SEQUENCE.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        }
+    });
 
     private static final List<String> SECURITY_DECISION_PARSER_METADATA_KEYS = List.of(
             "securityDecisionParsingMode",
@@ -262,7 +280,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         long providerCallStart = System.currentTimeMillis();
         ChatResponse chatResponse;
         try {
-            chatResponse = promptSpec.call().chatResponse();
+            chatResponse = executeProviderCallWithinTimeout(context, selectedModel, () -> promptSpec.call().chatResponse());
         } catch (RuntimeException ex) {
             long providerCallMs = System.currentTimeMillis() - providerCallStart;
             recordProviderFailure(context, selectedModel, providerCallMs, ex);
@@ -310,7 +328,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         long providerCallStart = System.currentTimeMillis();
         ResponseEntity<ChatResponse, T> responseEntity;
         try {
-            responseEntity = promptSpec.call().responseEntity(targetType);
+            responseEntity = executeProviderCallWithinTimeout(context, selectedModel, () -> promptSpec.call().responseEntity(targetType));
         } catch (RuntimeException ex) {
             long providerCallMs = System.currentTimeMillis() - providerCallStart;
             recordProviderFailure(context, selectedModel, providerCallMs, ex);
@@ -336,6 +354,61 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 providerCallMs,
                 responseMetadataMs);
         return responseEntity;
+    }
+
+    private <T> T executeProviderCallWithinTimeout(
+            ExecutionContext context,
+            ChatModel selectedModel,
+            Callable<T> providerCall) {
+        long timeoutMs = providerCallTimeoutMs();
+        if (context != null && timeoutMs > 0L) {
+            context.addMetadata("providerCallTimeoutMs", timeoutMs);
+        }
+        if (timeoutMs <= 0L) {
+            return callProviderDirectly(providerCall);
+        }
+        Future<T> future = PROVIDER_CALL_EXECUTOR.submit(providerCall);
+        try {
+            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            future.cancel(true);
+            throw new ProviderCallTimeoutException(providerTimeoutMessage(selectedModel, timeoutMs), ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            throw new ProviderCallTimeoutException("LLM provider call interrupted: model=" + providerModelName(selectedModel), ex);
+        } catch (ExecutionException ex) {
+            throw unwrapProviderExecutionException(ex);
+        }
+    }
+
+    private <T> T callProviderDirectly(Callable<T> providerCall) {
+        try {
+            return providerCall.call();
+        } catch (RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("LLM provider call failed", ex);
+        }
+    }
+
+    private RuntimeException unwrapProviderExecutionException(ExecutionException ex) {
+        Throwable cause = ex.getCause();
+        if (cause instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        }
+        if (cause instanceof Error error) {
+            throw error;
+        }
+        return new IllegalStateException("LLM provider call failed", cause);
+    }
+
+    private String providerTimeoutMessage(ChatModel selectedModel, long timeoutMs) {
+        return "LLM provider call exceeded timeout before completion: " + timeoutMs + "ms, model=" + providerModelName(selectedModel);
+    }
+
+    private String providerModelName(ChatModel selectedModel) {
+        return selectedModel != null ? selectedModel.getClass().getName() : "unknown";
     }
 
     private void recordProviderTiming(ExecutionContext context, String key, long elapsedMs) {
@@ -658,6 +731,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private static final class ProviderCallTimeoutException extends RuntimeException {
         private ProviderCallTimeoutException(String message) {
             super(message);
+        }
+
+        private ProviderCallTimeoutException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

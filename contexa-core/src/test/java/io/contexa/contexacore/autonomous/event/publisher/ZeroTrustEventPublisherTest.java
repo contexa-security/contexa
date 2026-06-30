@@ -274,9 +274,9 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getPayload()).containsEntry("promptBudgetProfile", "CORTEX_L1_COMPACT");
     }
 
-        @Test
-    @DisplayName("generic requested model header should propagate into authorization event payload")
-    void shouldPropagateRequestedModelHeaderIntoAuthorizationEventPayload() throws Exception {
+    @Test
+    @DisplayName("generic requested model header should not propagate into ordinary authorization event payload")
+    void shouldIgnoreRequestedModelHeaderForOrdinaryAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-generic-model");
         request.addHeader("User-Agent", "JUnit");
@@ -297,12 +297,12 @@ class ZeroTrustEventPublisherTest {
         );
 
         assertThat(event.getPayload())
-                .containsEntry("requestedModelId", "qwen2.5:7b")
-                .containsEntry("preferredModel", "qwen2.5:7b");
+                .doesNotContainKeys("requestedModelId", "preferredModel");
     }
+
     @Test
-    @DisplayName("canonical runtime headers should propagate into authorization event payload")
-    void shouldPropagateCanonicalRuntimeHeadersIntoAuthorizationEventPayload() throws Exception {
+    @DisplayName("canonical runtime headers should not propagate into ordinary authorization event payload")
+    void shouldIgnoreCanonicalRuntimeHeadersForOrdinaryAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-runtime-selection");
         request.addHeader("User-Agent", "JUnit");
@@ -329,15 +329,16 @@ class ZeroTrustEventPublisherTest {
         );
 
         assertThat(event.getPayload())
-                .containsEntry("decisionBoundaryMode", "RUNTIME_MODEL_SELECTION")
-                .containsEntry("requestedModelId", "qwen3:8b")
-                .containsEntry("preferredModel", "qwen3:8b")
-                .containsEntry("temperature", 0.0d)
-                .containsEntry("topP", 0.2d)
-                .containsEntry("seed", 7)
-                .containsEntry("maxTokens", 96)
-                .containsEntry("disableRetries", true)
-                .containsEntry("disableOllamaThinking", true);
+                .doesNotContainKeys(
+                        "decisionBoundaryMode",
+                        "requestedModelId",
+                        "preferredModel",
+                        "temperature",
+                        "topP",
+                        "seed",
+                        "maxTokens",
+                        "disableRetries",
+                        "disableOllamaThinking");
     }
 
     @Test
@@ -479,21 +480,13 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
-                .containsEntry("hcadEvaluationId", "eval-protectable-observed");
-        ArgumentCaptor<PendingAnomalyEvidenceReport> reportCaptor =
-                ArgumentCaptor.forClass(PendingAnomalyEvidenceReport.class);
-        verify(writer).recordCandidate(eq(HcadPreTriggerMode.SHADOW), reportCaptor.capture());
-        assertThat(reportCaptor.getValue().shouldTrigger()).isFalse();
-        assertThat(reportCaptor.getValue().rawSignalSnapshot())
-                .containsEntry("actorSessionKey", "actor-window-1")
-                .containsEntry("windowId", "window-1")
-                .containsEntry("triggerScope", "PROTECTABLE_OBSERVATION")
-                .containsEntry("protectableObserved", true);
+                .doesNotContainKey("hcadEvaluationId");
+        verify(writer, never()).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class));
     }
 
     @Test
-    @DisplayName("already evaluated Protectable request should persist HCAD observation before LLM event")
-    void shouldPersistAlreadyEvaluatedProtectableObservationBeforeMethodEvent() throws Exception {
+    @DisplayName("already evaluated ineligible Protectable request should not persist HCAD candidate")
+    void shouldNotPersistAlreadyEvaluatedIneligibleProtectableObservationBeforeMethodEvent() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/test/hcad/live/accounts/123");
         request.setRemoteAddr("127.0.0.1");
         request.addHeader("User-Agent", "JUnit");
@@ -582,20 +575,13 @@ class ZeroTrustEventPublisherTest {
                 null);
 
         assertThat(event.getPayload())
-                .containsEntry("hcadEvaluationId", "eval-existing-observation")
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false);
+                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
+                .doesNotContainKey("hcadEvaluationId");
         verify(scorer, never()).score(any());
-        ArgumentCaptor<PendingAnomalyEvidenceReport> reportCaptor =
-                ArgumentCaptor.forClass(PendingAnomalyEvidenceReport.class);
-        verify(writer).recordCandidate(eq(HcadPreTriggerMode.SHADOW), reportCaptor.capture());
-        assertThat(reportCaptor.getValue().shouldTrigger()).isFalse();
-        assertThat(reportCaptor.getValue().rawSignalSnapshot())
-                .containsEntry("actorSessionKey", "actor-window-existing")
-                .containsEntry("windowId", "window-existing")
-                .containsEntry("protectableObserved", true);
+        verify(writer, never()).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class));
     }
     @Test
     @DisplayName("pre-protectable threat publication should include bridge metadata when available")

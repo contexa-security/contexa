@@ -36,7 +36,6 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
     private static final long serialVersionUID = 1L;
 
     public static final String TYPE_AUTHENTICATION_SUCCESS = "SUCCESS";
-    public static final String TYPE_AUTHENTICATION_FAILURE = "FAILURE";
     public static final String TYPE_AUTHENTICATION_MFA = "MFA";
     public static final String TYPE_AUTHORIZATION_METHOD = "METHOD";
     public static final String TYPE_PRE_PROTECTABLE_REDLINE = "PRE_PROTECTABLE_REDLINE";

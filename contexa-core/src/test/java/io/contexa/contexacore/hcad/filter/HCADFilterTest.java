@@ -300,7 +300,7 @@ class HCADFilterTest {
         verify(preProtectablePromotionScorer).score(eq(projection), evidenceCaptor.capture());
         assertThat(evidenceCaptor.getValue().hasUsableEvidence()).isTrue();
         assertThat(evidenceCaptor.getValue().maxSimilarityToRisk()).isEqualTo(0.91d);
-        verify(semanticEvidenceCache, times(2)).get(any());
+        verify(semanticEvidenceCache, times(3)).get(any());
         assertThat(filterChain.getRequest()).isNotNull();
     }
 
@@ -345,9 +345,9 @@ class HCADFilterTest {
         assertThat(evidenceCaptor.getValue().hasUsableEvidence()).isFalse();
         assertThat(evidenceCaptor.getValue().evidenceGapCodes())
                 .contains("SEMANTIC_EVIDENCE_CACHE_MISS", "WARMUP_QUEUED");
-        verify(semanticEvidenceCache, times(2)).get(any());
+        verify(semanticEvidenceCache, times(3)).get(any());
         verify(semanticEvidenceCache, never()).put(any(), any());
-        verify(warmupService, times(2)).requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache));
+        verify(warmupService, times(3)).requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache));
         assertThat(filterChain.getRequest()).isNotNull();
     }
 
@@ -442,7 +442,7 @@ class HCADFilterTest {
         assertThat(evidenceCaptor.getValue().hasUsableEvidence()).isFalse();
         assertThat(evidenceCaptor.getValue().evidenceGapCodes())
                 .contains("VERSION_MISMATCH", "WARMUP_QUEUED");
-        verify(warmupService, times(2))
+        verify(warmupService, times(3))
                 .requestWarmup(any(HcadSemanticEvidenceWarmupRequest.class), eq(semanticEvidenceCache));
     }
 

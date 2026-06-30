@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
@@ -363,6 +364,7 @@ public class LLMExecutionStep implements PipelineStep {
             StructuredOutputPolicy structuredOutputPolicy) {
         ExecutionContext executionContext = ExecutionContext.from(prompt);
         executionContext.setRequestId(request != null ? request.getRequestId() : null);
+        boolean securityDecisionTarget = isSecurityDecisionTarget(request, context, targetType);
 
         ResolvedValue<String> requestedModel = resolveStringParameter(request, context,
                 "preferredModel",
@@ -389,8 +391,20 @@ public class LLMExecutionStep implements PipelineStep {
         ResolvedValue<Boolean> disableRetries = resolveBooleanParameter(request, context, "disableRetries");
         ResolvedValue<Boolean> disableOllamaThinking = resolveBooleanParameter(request, context, "disableOllamaThinking");
         ResolvedValue<String> boundaryMode = resolveStringParameter(request, context, "decisionBoundaryMode");
+        if (securityDecisionTarget) {
+            requestedModel = resolveOfficialVerificationPinnedModel(request, context, requestedModel);
+            temperature = nullIfSecurityOverride(context, "temperature", temperature);
+            topP = nullIfSecurityOverride(context, "topP", topP);
+            seed = nullIfSecurityOverride(context, "seed", seed);
+            maxTokens = nullIfSecurityOverride(context, "maxTokens", maxTokens);
+            disableRetries = nullIfSecurityOverride(context, "disableRetries", disableRetries);
+            disableOllamaThinking = nullIfSecurityOverride(context, "disableOllamaThinking", disableOllamaThinking);
+            boundaryMode = nullIfSecurityOverride(context, "decisionBoundaryMode", boundaryMode);
+        }
 
-        if (boundaryMode == null && hasAnyRuntimeOverrides(requestedModel, temperature, topP, seed, maxTokens, openAiReasoningEffort, openAiVerbosity, disableRetries, disableOllamaThinking)) {
+        ResolvedValue<String> boundaryReasoningEffort = securityDecisionTarget ? null : openAiReasoningEffort;
+        ResolvedValue<String> boundaryVerbosity = securityDecisionTarget ? null : openAiVerbosity;
+        if (boundaryMode == null && hasAnyRuntimeOverrides(requestedModel, temperature, topP, seed, maxTokens, boundaryReasoningEffort, boundaryVerbosity, disableRetries, disableOllamaThinking)) {
             boundaryMode = new ResolvedValue<>("RUNTIME_MODEL_SELECTION", "derived.runtimeSelection");
         }
 
@@ -464,6 +478,37 @@ public class LLMExecutionStep implements PipelineStep {
         return executionContext;
     }
 
+    private <T extends DomainContext> ResolvedValue<String> resolveOfficialVerificationPinnedModel(
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            ResolvedValue<String> blockedRuntimeModel) {
+        ResolvedValue<String> pinnedModel = resolveStringParameter(request, context, "officialVerificationPinnedModelId");
+        if (pinnedModel != null) {
+            recordIgnoredSecurityOverride(context, "preferredModel", blockedRuntimeModel);
+            return new ResolvedValue<>(pinnedModel.value(), "officialVerificationPinnedModelId");
+        }
+        return nullIfSecurityOverride(context, "preferredModel", blockedRuntimeModel);
+    }
+
+    private <T> ResolvedValue<T> nullIfSecurityOverride(
+            PipelineExecutionContext context,
+            String canonicalKey,
+            ResolvedValue<T> value) {
+        recordIgnoredSecurityOverride(context, canonicalKey, value);
+        return null;
+    }
+
+    private void recordIgnoredSecurityOverride(
+            PipelineExecutionContext context,
+            String canonicalKey,
+            ResolvedValue<?> value) {
+        if (context == null || value == null) {
+            return;
+        }
+        context.addMetadata("securityDecisionRuntimeOverrideIgnored", true);
+        context.addMetadata("securityDecisionRuntimeOverrideIgnored." + canonicalKey, value.sourceKey());
+    }
+
     private <T extends DomainContext> StructuredOutputMode resolveStructuredOutputMode(
             AIRequest<T> request,
             PipelineExecutionContext context,
@@ -491,11 +536,13 @@ public class LLMExecutionStep implements PipelineStep {
             PipelineExecutionContext context,
             Class<?> targetType) {
         String modelHint = null;
-        ResolvedValue<String> requestedModel = resolveStringParameter(request, context,
-                "requestedModelId",
-                "preferredModel",
-                "runtimeModelId",
-                "officialVerificationPinnedModelId");
+        ResolvedValue<String> requestedModel = isSecurityDecisionTarget(targetType)
+                ? resolveStringParameter(request, context, "officialVerificationPinnedModelId")
+                : resolveStringParameter(request, context,
+                        "requestedModelId",
+                        "preferredModel",
+                        "runtimeModelId",
+                        "officialVerificationPinnedModelId");
         if (requestedModel != null) {
             modelHint = requestedModel.value();
         }
@@ -509,8 +556,27 @@ public class LLMExecutionStep implements PipelineStep {
         return structuredOutputCapabilityRegistry.resolve(modelHint, providerHint, targetType != null);
     }
 
+    private <T extends DomainContext> boolean isSecurityDecisionTarget(
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            Class<?> targetType) {
+        if (isSecurityDecisionTarget(targetType)) {
+            return true;
+        }
+        if (context != null) {
+            if (isSecurityDecisionTarget(context.getMetadata("aiGenerationType", Class.class))) {
+                return true;
+            }
+            if (isSecurityDecisionTarget(context.getMetadata("targetResponseType", Class.class))) {
+                return true;
+            }
+        }
+        return request != null && isSecurityDecisionTarget(request.getParameter("responseType", Class.class));
+    }
+
     private boolean isSecurityDecisionTarget(Class<?> targetType) {
-        return SecurityDecisionResponseLite.class.equals(targetType);
+        return SecurityDecisionResponseLite.class.equals(targetType)
+                || SecurityDecisionResponse.class.equals(targetType);
     }
 
     private <T extends DomainContext> StructuredOutputPolicy resolveStructuredOutputPolicy(

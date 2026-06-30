@@ -120,26 +120,6 @@ public class ZeroTrustEventPublisher {
 
     }
 
-    public void publishAuthenticationFailure(
-            String userId,
-            String sessionId,
-            String clientIp,
-            String userAgent,
-            Map<String, Object> payload) {
-
-        publish(
-                ZeroTrustEventCategory.AUTHENTICATION,
-                ZeroTrustSpringEvent.TYPE_AUTHENTICATION_FAILURE,
-                userId,
-                sessionId,
-                clientIp,
-                userAgent,
-                null,
-                payload
-        );
-
-    }
-
     public void publishPreProtectableThreat(String userId, Map<String, Object> payload) {
         RequestInfo requestInfo = extractRequestInfoFromContext();
         Map<String, Object> mergedPayload = new HashMap<>();
@@ -308,8 +288,6 @@ public class ZeroTrustEventPublisher {
             }
             if (requestInfo.getResourceId() != null) {
                 payload.put("resourceId", requestInfo.getResourceId());
-                payload.put("requestedResourceId", requestInfo.getResourceId());
-                payload.put("protectedResourceId", requestInfo.getResourceId());
             }
             if (requestInfo.getTenantId() != null) {
                 payload.put("tenantId", requestInfo.getTenantId());
@@ -569,8 +547,6 @@ public class ZeroTrustEventPublisher {
             hcadEvaluationWriter.markProtectableObserved(
                     evaluationId,
                     firstText(payload == null ? null : payload.get("resourceId"),
-                            payload == null ? null : payload.get("requestedResourceId"),
-                            payload == null ? null : payload.get("protectedResourceId"),
                             projection.normalizedPath()),
                     firstText(payload == null ? null : payload.get("requestPath"),
                             payload == null ? null : payload.get("requestUri"),

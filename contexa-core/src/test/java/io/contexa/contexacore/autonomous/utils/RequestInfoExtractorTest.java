@@ -174,8 +174,8 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("generic requested model header should flow into request info")
-    void extractShouldIncludeRequestedModelIdFromGenericHeader() {
+    @DisplayName("generic requested model header should be ignored for ordinary security requests")
+    void extractShouldIgnoreRequestedModelIdFromGenericHeader() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-generic-model");
         request.addHeader("X-Contexa-Model-Id", "qwen2.5:7b");
@@ -183,14 +183,40 @@ class RequestInfoExtractorTest {
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
-        assertThat(requestInfo.getRequestedModelId()).isEqualTo("qwen2.5:7b");
+        assertThat(requestInfo.getRequestedModelId()).isNull();
     }
 
     @Test
-    @DisplayName("canonical runtime headers should flow into request info")
-    void extractShouldIncludeCanonicalRuntimeHeaders() {
+    @DisplayName("canonical runtime headers should be ignored for ordinary security requests")
+    void extractShouldIgnoreCanonicalRuntimeHeaders() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-runtime-selection");
+        request.addHeader("X-Contexa-Model-Id", "qwen3:8b");
+        request.addHeader("X-Contexa-Temperature", "0.0");
+        request.addHeader("X-Contexa-Top-P", "0.2");
+        request.addHeader("X-Contexa-Seed", "7");
+        request.addHeader("X-Contexa-Max-Tokens", "96");
+        request.addHeader("X-Contexa-Disable-Retries", "true");
+        request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getDecisionBoundaryMode()).isNull();
+        assertThat(requestInfo.getRequestedModelId()).isNull();
+        assertThat(requestInfo.getRuntimeTemperature()).isNull();
+        assertThat(requestInfo.getRuntimeTopP()).isNull();
+        assertThat(requestInfo.getRuntimeSeed()).isNull();
+        assertThat(requestInfo.getRuntimeMaxTokens()).isNull();
+        assertThat(requestInfo.getRuntimeDisableRetries()).isNull();
+        assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isNull();
+    }
+
+    @Test
+    @DisplayName("canonical runtime headers should be allowed for official verification probes")
+    void extractShouldAllowCanonicalRuntimeHeadersForOfficialVerificationProbe() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        request.addHeader("X-Request-ID", "req-runtime-selection-official");
         request.addHeader("X-Contexa-Model-Id", "qwen3:8b");
         request.addHeader("X-Contexa-Temperature", "0.0");
         request.addHeader("X-Contexa-Top-P", "0.2");
@@ -253,8 +279,8 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("tenant and organization scope should remain separate request facts")
-    void extractShouldKeepTenantAndOrganizationScopeSeparate() {
+    @DisplayName("client tenant and organization headers should not become trusted request facts")
+    void extractShouldIgnoreClientTenantAndOrganizationHeaders() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-scope");
         request.addHeader("X-Contexa-Tenant-Id", "tenant-acme");
@@ -263,8 +289,8 @@ class RequestInfoExtractorTest {
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
-        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-acme");
-        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-finance");
+        assertThat(requestInfo.getTenantId()).isNull();
+        assertThat(requestInfo.getOrganizationId()).isNull();
     }
 
     @Test

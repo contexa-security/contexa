@@ -28,6 +28,7 @@ import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,6 +111,31 @@ class SynchronousProtectableDecisionServiceTest {
         verify(securityPlaneAgent, never()).processSecurityEvent(any(SecurityEvent.class));
     }
 
+    @Test
+    @DisplayName("same-request HCAD pre-trigger marker synchronously marks Protectable merge without polling")
+    void analyze_sameRequestPreTriggered_shouldMarkProtectableMergeSynchronously() {
+        AiSecurityDecisionObservationWriter observationWriter = mock(AiSecurityDecisionObservationWriter.class);
+        service = new SynchronousProtectableDecisionService(
+                eventPublisher,
+                eventListener,
+                securityPlaneAgent,
+                actionRepository,
+                triggerStateRepository,
+                () -> observationWriter);
+        MockHttpServletRequest request = request("/admin/reports");
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED, true);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, "eval-sync");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+
+        SynchronousProtectableDecisionService.SyncDecisionResult result =
+                service.analyze(methodInvocation, authentication);
+
+        assertThat(result.action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        verify(observationWriter).markProtectableMerged("eval-sync", "/admin/reports", "/admin/reports", "GET");
+        verify(securityPlaneAgent, never()).processSecurityEvent(any(SecurityEvent.class));
+    }
     @Test
     @DisplayName("HCAD in-flight state suppresses sync protectable LLM execution across equivalent request scope")
     void analyze_hcadInFlight_shouldNotProcessSecondLlmEvent() {

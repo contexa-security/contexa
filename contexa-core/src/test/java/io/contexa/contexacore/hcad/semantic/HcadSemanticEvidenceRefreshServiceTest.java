@@ -82,8 +82,8 @@ class HcadSemanticEvidenceRefreshServiceTest {
     }
 
     @Test
-    @DisplayName("Decision refresh should target both protectable resource id and path family")
-    void decisionEvidenceKeys_shouldTargetProtectableIdAndPathFamily() {
+    @DisplayName("Decision refresh should target server-derived path family without protectable attributes")
+    void decisionEvidenceKeys_shouldTargetPathFamilyWithoutProtectableAttributes() {
         HcadSemanticEvidenceRefreshService service = service();
         Map<String, Object> metadata = Map.of(
                 "tenantId", "tenant-a",
@@ -94,11 +94,9 @@ class HcadSemanticEvidenceRefreshServiceTest {
 
         List<HcadSemanticEvidenceKey> keys = service.decisionEvidenceKeys(event(), metadata, "CHALLENGE");
 
-        assertThat(keys).hasSize(4);
+        assertThat(keys).hasSize(2);
         assertThat(keys).extracting(key -> key.resourceId() + ":" + key.type())
                 .containsExactly(
-                        "hcad.live.vendor.export:RISK_REQUEST_SIMILARITY",
-                        "hcad.live.vendor.export:RESOURCE_LLM_DECISION_SUMMARY",
                         "/contexa/test/hcad/live/vendors/{id}/export:RISK_REQUEST_SIMILARITY",
                         "/contexa/test/hcad/live/vendors/{id}/export:RESOURCE_LLM_DECISION_SUMMARY");
     }

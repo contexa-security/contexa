@@ -87,6 +87,7 @@ class Layer1ContextualStrategyTest {
     @DisplayName("evaluate should return shouldEscalate=false when pipeline decides ALLOW")
     void evaluate_allowDecision_shouldEscalateFalse() {
         SecurityEvent event = buildTestEvent();
+
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.1);
         response.setConfidence(0.9);
@@ -108,6 +109,7 @@ class Layer1ContextualStrategyTest {
     @DisplayName("evaluate should return shouldEscalate=true when pipeline decides ESCALATE")
     void evaluate_escalateDecision_shouldEscalateTrue() {
         SecurityEvent event = buildTestEvent();
+
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.7);
         response.setConfidence(0.5);
@@ -146,7 +148,7 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
-    @DisplayName("RAG summary 생성이 실패해도 빈 relatedDocuments로 계속 진행하고 prompt 분석은 유지되어야 한다")
+    @DisplayName("RAG summary failure should continue with empty related documents")
     void analyzeWithContext_ragSummaryFailure_shouldContinueWithEmptyRelatedDocuments() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
@@ -162,6 +164,10 @@ class Layer1ContextualStrategyTest {
                         "security_investigation",
                         List.of()));
         when(brokenDocument.getMetadata()).thenThrow(new IllegalStateException("broken metadata"));
+
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
+        properties.getLayer1().getRag().setSupportingSearchEnabled(true);
 
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.12);
@@ -223,6 +229,10 @@ class Layer1ContextualStrategyTest {
                         1,
                         "security_investigation",
                         List.of("DENIED_TENANT_SCOPE")));
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
+        properties.getLayer1().getRag().setSupportingSearchEnabled(true);
+
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.22);
         response.setConfidence(0.77);
@@ -287,6 +297,10 @@ class Layer1ContextualStrategyTest {
                 .thenReturn(List.of())
                 .thenReturn(List.of());
 
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
+        properties.getLayer1().getRag().setSupportingSearchEnabled(true);
+
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.18);
         response.setConfidence(0.82);
@@ -299,7 +313,7 @@ class Layer1ContextualStrategyTest {
                 vectorService,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
                 null,
                 null,
                 null,
@@ -309,7 +323,7 @@ class Layer1ContextualStrategyTest {
                 new PromptContextAuthorizationService(),
                 null,
                 pipelineOrchestrator,
-                new TieredStrategyProperties()
+                properties
         );
 
         SecurityEvent event = buildTestEvent();
@@ -330,13 +344,14 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
-    @DisplayName("RAG search timeout should preserve timeout metadata and continue analysis")
-    void analyzeWithContext_ragTimeout_shouldContinueWithEmptyRelatedDocuments() {
+    @DisplayName("Runtime RAG timeout should use short hot-path wait and cancel slow lookup")
+    void analyzeWithContext_runtimeRagTimeout_shouldCancelSlowLookup() throws InterruptedException {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
         TieredStrategyProperties properties = new TieredStrategyProperties();
         AtomicBoolean interrupted = new AtomicBoolean(false);
-        properties.getLayer1().getTimeout().setRagMs(50);
+        properties.getLayer1().getTimeout().setRagMs(500);
+        properties.getLayer1().getTimeout().setInteractiveRagWaitMs(50);
 
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenAnswer(invocation -> {
             try {
@@ -391,9 +406,14 @@ class Layer1ContextualStrategyTest {
             assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
             assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
             assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
+            assertThat(event.getMetadata()).containsEntry("ragInteractiveWaitMs", 50L);
+            assertThat(event.getMetadata()).containsEntry("ragFullTimeoutMs", 500L);
+            assertThat(event.getMetadata()).containsEntry("ragRuntimeBudgetPolicy", "INTERACTIVE_WAIT_CANCEL_ON_TIMEOUT");
+            assertThat(event.getMetadata()).doesNotContainKey("ragBackgroundWarmup");
             assertThat(event.getMetadata()).containsEntry("relatedDocumentsCount", 0);
             assertThat(event.getMetadata()).containsKey("ragFailureType");
             assertThat(event.getMetadata()).containsKey("ragFailureMessage");
+            Thread.sleep(25L);
             assertThat(interrupted.get()).isTrue();
             verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
         } finally {
@@ -401,6 +421,80 @@ class Layer1ContextualStrategyTest {
         }
     }
 
+    @Test
+    @DisplayName("Official verification RAG timeout should keep full budget cancellation semantics")
+    void analyzeWithContext_officialVerificationRagTimeout_shouldCancelTimedOutLookup() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        AtomicBoolean interrupted = new AtomicBoolean(false);
+        properties.getLayer1().getTimeout().setRagMs(50);
+        properties.getLayer1().getTimeout().setInteractiveRagWaitMs(10);
+
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenAnswer(invocation -> {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException interruptedException) {
+                interrupted.set(true);
+                Thread.currentThread().interrupt();
+            }
+            return List.of();
+        });
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.18);
+        response.setConfidence(0.82);
+        response.setAction("ALLOW");
+        response.setReasoning("Official verification keeps full timeout semantics");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        ExecutorService ragExecutor = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>());
+        try {
+            Layer1ContextualStrategy ragTimeoutStrategy = new Layer1ContextualStrategy(
+                    vectorService,
+                    null,
+                    new SecurityEventEnricher(),
+                    new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    authorizationService,
+                    null,
+                    pipelineOrchestrator,
+                    properties,
+                    null,
+                    ragExecutor
+            );
+
+            SecurityEvent event = buildTestEvent();
+            event.getMetadata().put("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+            event.getMetadata().put("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+
+            ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
+
+            assertThat(assessment).isNotNull();
+            assertThat(assessment.getAction()).isEqualTo("ALLOW");
+            assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
+            assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
+            assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
+            assertThat(event.getMetadata()).containsEntry("ragInteractiveWaitMs", 50L);
+            assertThat(event.getMetadata()).containsEntry("ragFullTimeoutMs", 50L);
+            assertThat(event.getMetadata()).doesNotContainKey("ragBackgroundWarmup");
+            assertThat(interrupted.get()).isTrue();
+            verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+        } finally {
+            ragExecutor.shutdownNow();
+        }
+    }
     private SecurityEvent buildTestEvent() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("httpMethod", "GET");
@@ -417,3 +511,7 @@ class Layer1ContextualStrategyTest {
                 .build();
     }
 }
+
+
+
+
