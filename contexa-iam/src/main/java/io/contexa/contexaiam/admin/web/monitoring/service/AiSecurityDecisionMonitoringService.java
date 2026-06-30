@@ -67,6 +67,7 @@ public class AiSecurityDecisionMonitoringService {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final int BREAKDOWN_LIMIT = 12;
+    public static final String RESET_CONFIRMATION_TEXT = "RESET";
     private static final int TELEMETRY_DELETE_BATCH_SIZE = 5000;
     private static final String MONITORABLE_PATH_CONDITION = """
             not (
@@ -386,6 +387,7 @@ public class AiSecurityDecisionMonitoringService {
     }
     @Transactional(transactionManager = "contexaTransactionManager")
     public MonitoringResetResponse resetMonitoring(MonitoringResetRequest request, String resetBy) {
+        validateResetConfirmation(request);
         boolean resetLearningEvidence = request != null && Boolean.TRUE.equals(request.resetLearningEvidence());
         JdbcOperations jdbcOperations = jdbcOperations();
         if (jdbcOperations == null) {
@@ -437,6 +439,19 @@ public class AiSecurityDecisionMonitoringService {
                 learningEvidenceReset,
                 archived,
                 newSession);
+    }
+    public static boolean isResetConfirmationAccepted(MonitoringResetRequest request) {
+        if (request == null || request.confirmationText() == null) {
+            return false;
+        }
+        return RESET_CONFIRMATION_TEXT.equals(request.confirmationText().trim());
+    }
+
+    private static void validateResetConfirmation(MonitoringResetRequest request) {
+        if (!isResetConfirmationAccepted(request)) {
+            throw new IllegalArgumentException("AI security monitoring reset requires confirmation text: "
+                    + RESET_CONFIRMATION_TEXT);
+        }
     }
     private long deleteTelemetryInBatches(JdbcOperations jdbcOperations, String tableName, String idColumn) {
         long total = 0L;

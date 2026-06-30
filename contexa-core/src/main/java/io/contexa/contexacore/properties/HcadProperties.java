@@ -205,6 +205,9 @@ public class HcadProperties {
         private int similarityTtlMinutes = 30;
         private int sourceAbsentNegativeTtlSeconds = 300;
         private int warmupRetryTtlSeconds = 30;
+        private int warmupCorePoolSize = 2;
+        private int warmupMaxPoolSize = 4;
+        private int warmupQueueCapacity = 256;
         private String embeddingModel = "default";
         private String evidenceVersion = "hcad-semantic-evidence-v1";
         private String baselineVersion = "hcad-baseline-v1";

@@ -25,13 +25,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
 
 @Slf4j
 public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEvidenceWarmupService {
 
-    private static final Executor DEFAULT_EXECUTOR = ForkJoinPool.commonPool();
 
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final HcadProperties hcadProperties;
@@ -43,7 +41,7 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
             Executor executor) {
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.hcadProperties = hcadProperties;
-        this.executor = executor == null ? DEFAULT_EXECUTOR : executor;
+        this.executor = executor;
     }
 
     @Override
@@ -57,8 +55,17 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         if (jdbcOperations == null) {
             return HcadSemanticEvidenceWarmupResult.unavailable("JDBC_UNAVAILABLE");
         }
-        executor.execute(() -> materialize(jdbcOperations, request, cache));
-        return HcadSemanticEvidenceWarmupResult.queued();
+        if (executor == null) {
+            return HcadSemanticEvidenceWarmupResult.unavailable("WARMUP_EXECUTOR_UNAVAILABLE");
+        }
+        try {
+            executor.execute(() -> materialize(jdbcOperations, request, cache));
+            return HcadSemanticEvidenceWarmupResult.queued();
+        } catch (RuntimeException ex) {
+            log.debug("[HCAD] semantic evidence warm-up rejected: type={}, resourceId={}",
+                    request.key().type(), request.key().resourceId(), ex);
+            return HcadSemanticEvidenceWarmupResult.unavailable("WARMUP_REJECTED");
+        }
     }
 
     private void materialize(
@@ -335,4 +342,3 @@ public class JdbcHcadSemanticEvidenceWarmupService implements HcadSemanticEviden
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
-

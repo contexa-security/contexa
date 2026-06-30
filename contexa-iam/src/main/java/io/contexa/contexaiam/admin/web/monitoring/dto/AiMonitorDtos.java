@@ -293,7 +293,8 @@ public final class AiMonitorDtos {
 
     public record MonitoringResetRequest(
             String reason,
-            Boolean resetLearningEvidence
+            Boolean resetLearningEvidence,
+            String confirmationText
     ) {
     }
 

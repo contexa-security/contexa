@@ -143,6 +143,8 @@
         .ai-monitor-criterion em { color: #cbd5e1; font-style: normal; font-size: .88rem; }
         .ai-monitor-muted { color: #94a3b8; font-size: .95rem; line-height: 1.55; }
         .ai-monitor-reset-panel { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .ai-monitor-reset-scope { margin: .75rem 0 0; padding-left: 1.15rem; color: #cbd5e1; font-size: .94rem; line-height: 1.55; }
+        .ai-monitor-reset-scope li + li { margin-top: .2rem; }
         .ai-monitor-primary-button { border: 1px solid rgba(34,211,238,.42); border-radius: .55rem; background: rgba(8,145,178,.22); color: #cffafe; font-weight: 800; padding: .75rem 1rem; min-width: 11rem; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(103,232,249,.08); }
         .ai-monitor-primary-button:hover { background: rgba(8,145,178,.34); border-color: rgba(103,232,249,.58); }
         .ai-monitor-session-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-top: .85rem; }
@@ -392,6 +394,10 @@
               th:data-label-monitoring-restart-desc="#{admin.aiMonitor.session.restartDesc}"
               th:data-label-monitoring-restart-button="#{admin.aiMonitor.session.restartButton}"
               th:data-label-monitoring-restart-confirm="#{admin.aiMonitor.session.restartConfirm}"
+              th:data-label-monitoring-restart-deletes="#{admin.aiMonitor.session.restartDeletes}"
+              th:data-label-monitoring-restart-preserves="#{admin.aiMonitor.session.restartPreserves}"
+              th:data-label-monitoring-restart-type-confirm="#{admin.aiMonitor.session.restartTypeConfirm}"
+              th:data-label-monitoring-restart-confirmation-mismatch="#{admin.aiMonitor.session.restartConfirmationMismatch}"
               th:data-label-monitoring-restart-reason="#{admin.aiMonitor.session.restartReason}"
               th:data-label-monitoring-restart-failed="#{admin.aiMonitor.session.restartFailed}"
               th:data-label-previous-monitoring-sessions="#{admin.aiMonitor.session.previous}"

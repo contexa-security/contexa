@@ -703,6 +703,10 @@
                     <div>
                         <div class="ai-monitor-band-title">${escapeHtml(label('labelMonitoringRestart'))}</div>
                         <div class="ai-monitor-muted">${escapeHtml(label('labelMonitoringRestartDesc'))}</div>
+                        <ul class="ai-monitor-reset-scope">
+                            <li>${escapeHtml(label('labelMonitoringRestartDeletes'))}</li>
+                            <li>${escapeHtml(label('labelMonitoringRestartPreserves'))}</li>
+                        </ul>
                     </div>
                     <button type="button" id="ai-monitor-reset-button" class="ai-monitor-primary-button">
                         ${escapeHtml(label('labelMonitoringRestartButton'))}
@@ -744,6 +748,14 @@
         if (!window.confirm(label('labelMonitoringRestartConfirm'))) {
             return;
         }
+        const confirmationText = window.prompt(label('labelMonitoringRestartTypeConfirm'), '');
+        if (confirmationText === null) {
+            return;
+        }
+        if (confirmationText.trim() !== 'RESET') {
+            window.alert(label('labelMonitoringRestartConfirmationMismatch'));
+            return;
+        }
         const reason = window.prompt(label('labelMonitoringRestartReason'), '');
         if (reason === null) {
             return;
@@ -755,7 +767,7 @@
         fetch('/contexa/admin/api/ai-monitor/reset', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ reason, resetLearningEvidence: false })
+            body: JSON.stringify({ reason, resetLearningEvidence: false, confirmationText: confirmationText.trim() })
         })
             .then((response) => {
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);

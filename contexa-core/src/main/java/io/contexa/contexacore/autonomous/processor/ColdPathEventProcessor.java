@@ -235,10 +235,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
             if (expertStrategy != null) {
 
+                String layer2EntryReasonType = resolveLayer2EntryReasonType(layer1Assessment);
+                if (event.getMetadata() != null) {
+                    event.addMetadata("layer2EntryReasonType", layer2EntryReasonType);
+                }
                 String escalationReason = layer1Assessment != null
                         ? "Layer1 requested expert review based on contextual ambiguity"
                         : "Direct escalation to expert analysis";
-                publishLayer2Start(userId, requestPath, escalationReason, listenerMetadata);
+                publishLayer2Start(userId, requestPath, escalationReason,
+                        currentListenerMetadata(event, requestPath, listenerMetadata));
 
                 long layer2StartTime = System.currentTimeMillis();
                 ThreatAssessment layer2Assessment = expertStrategy.evaluate(event);
@@ -586,6 +591,20 @@ public class ColdPathEventProcessor implements IPathProcessor {
         llmAnalysisEventListener.onBehaviorAnalysisComplete(userId, metadata);
     }
 
+    private String resolveLayer2EntryReasonType(ThreatAssessment layer1Assessment) {
+        if (layer1Assessment == null) {
+            return "DIRECT_LAYER2";
+        }
+        boolean technicalFallback = Boolean.TRUE.equals(layer1Assessment.getTechnicalFallbackApplied());
+        boolean escalated = layer1Assessment.isShouldEscalate();
+        if (technicalFallback && escalated) {
+            return "TECHNICAL_FALLBACK_ESCALATE";
+        }
+        if (escalated) {
+            return "MODEL_DECIDED_ESCALATE";
+        }
+        return "NOT_ESCALATED";
+    }
     private Map<String, Object> buildPipelineMetadata(SecurityEvent event, String requestPath) {
         Map<String, Object> metadata = new LinkedHashMap<>(buildListenerMetadata(event, requestPath));
         if (!metadata.containsKey("requestCount") && metadata.containsKey("recentRequestCount")) {

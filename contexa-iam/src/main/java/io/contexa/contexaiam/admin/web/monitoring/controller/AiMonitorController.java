@@ -180,6 +180,10 @@ public class AiMonitorController {
             @RequestBody(required = false) MonitoringResetRequest request,
             Authentication authentication) {
         requireAdmin(authentication);
+        if (!AiSecurityDecisionMonitoringService.isResetConfirmationAccepted(request)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "AI security monitoring reset confirmation is required.");
+        }
         String resetBy = authentication == null ? null : authentication.getName();
         return aiSecurityDecisionMonitoringService.resetMonitoring(request, resetBy);
     }

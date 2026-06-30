@@ -810,7 +810,7 @@ public class AiSecurityDecisionObservationWriter {
             return "REJECTED_BACKPRESSURE";
         }
         if (containsProviderTimeout(structuredFailure) || containsProviderTimeout(failureReason)) {
-            return "PROVIDER_TIMEOUT";
+            return "PROVIDER_CALL_TIMEOUT";
         }
         if (containsQueueTimeout(structuredFailure) || containsQueueTimeout(failureReason)) {
             return "QUEUE_TIMEOUT";
@@ -908,7 +908,8 @@ public class AiSecurityDecisionObservationWriter {
     }
     private boolean containsProviderTimeout(String value) {
         String normalized = normalize(value);
-        return normalized != null && (normalized.contains("provider_timeout")
+        return normalized != null && (normalized.contains("provider_call_timeout")
+                || normalized.contains("provider_timeout")
                 || normalized.contains("provider call exceeded timeout")
                 || normalized.contains("llm provider call exceeded timeout"));
     }
@@ -1189,5 +1190,3 @@ public class AiSecurityDecisionObservationWriter {
         return text == null ? null : truncate(text.replaceAll("\\s+", " "), maxLength);
     }
 }
-
-

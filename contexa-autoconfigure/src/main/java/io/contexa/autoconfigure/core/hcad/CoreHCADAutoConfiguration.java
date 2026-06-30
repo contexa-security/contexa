@@ -69,6 +69,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.ThreadPoolExecutor;
 
 @AutoConfiguration
 @AutoConfigureAfter(value = CoreInfrastructureAutoConfiguration.class, name = {
@@ -114,12 +117,26 @@ public class CoreHCADAutoConfiguration {
                 objectMapper);
     }
 
+    @Bean(name = "hcadSemanticEvidenceWarmupExecutor")
+    @ConditionalOnMissingBean(name = "hcadSemanticEvidenceWarmupExecutor")
+    public TaskExecutor hcadSemanticEvidenceWarmupExecutor(HcadProperties hcadProperties) {
+        HcadProperties.SemanticEvidenceSettings settings = hcadProperties.getSemanticEvidence();
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(Math.max(1, settings.getWarmupCorePoolSize()));
+        executor.setMaxPoolSize(Math.max(executor.getCorePoolSize(), settings.getWarmupMaxPoolSize()));
+        executor.setQueueCapacity(Math.max(0, settings.getWarmupQueueCapacity()));
+        executor.setThreadNamePrefix("HCAD-Semantic-Warmup-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.initialize();
+        return executor;
+    }
     @Bean
     @ConditionalOnMissingBean
     public HcadSemanticEvidenceWarmupService hcadSemanticEvidenceWarmupService(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             HcadProperties hcadProperties,
-            ObjectProvider<TaskExecutor> taskExecutorProvider) {
+            @Qualifier("hcadSemanticEvidenceWarmupExecutor") ObjectProvider<TaskExecutor> taskExecutorProvider) {
         TaskExecutor taskExecutor = taskExecutorProvider.getIfAvailable();
         return new JdbcHcadSemanticEvidenceWarmupService(
                 jdbcOperationsProvider::getIfAvailable,
@@ -277,7 +294,7 @@ public class CoreHCADAutoConfiguration {
 
         @Bean
         @ConditionalOnMissingBean(HCADDataStore.class)
-        public RedisHCADDataStore hcadDataStore(RedisTemplate<String, Object> redisTemplate) {
+        public RedisHCADDataStore hcadDataStore(@Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisHCADDataStore(redisTemplate);
         }
 

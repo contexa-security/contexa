@@ -1584,7 +1584,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         PromptBudgetProfile promptBudgetProfile = resolvePromptBudgetProfile(event);
         request.withParameter("responseType", SecurityDecisionResponse.class);
         request.withParameter("promptBudgetProfile", promptBudgetProfile.profileKey());
-        request.withParameter("maxTokens", resolveMaxOutputTokens(promptBudgetProfile));
         applyOpenAiRuntimeOptions(request, event);
         StructuredOutputCapability structuredOutputCapability = resolveStructuredOutputCapability(event);
         request.withParameter("structuredOutputMode", resolveStructuredOutputMode(event, structuredOutputCapability).name());

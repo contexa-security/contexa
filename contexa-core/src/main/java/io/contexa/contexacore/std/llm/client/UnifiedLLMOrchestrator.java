@@ -442,10 +442,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         if (context != null) {
             context.addMetadata("providerCallExceededTimeout", true);
-            context.addMetadata("providerCallFailureCategory", "PROVIDER_TIMEOUT");
-            context.addMetadata("decisionFailureCategory", "PROVIDER_TIMEOUT");
-            context.addMetadata("structuredOutputFailureCategory", "PROVIDER_TIMEOUT");
-            context.addMetadata("securityDecisionParseFailureCategory", "PROVIDER_TIMEOUT");
+            context.addMetadata("providerCallFailureCategory", "PROVIDER_CALL_TIMEOUT");
+            context.addMetadata("decisionFailureCategory", "PROVIDER_CALL_TIMEOUT");
+            context.addMetadata("structuredOutputFailureCategory", "PROVIDER_CALL_TIMEOUT");
+            context.addMetadata("securityDecisionParseFailureCategory", "PROVIDER_CALL_TIMEOUT");
         }
         String modelName = selectedModel != null ? selectedModel.getClass().getName() : "unknown";
         throw new ProviderCallTimeoutException("LLM provider call exceeded timeout: "
@@ -462,17 +462,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (context == null) {
             return;
         }
-        String failureCategory = isTimeoutFailure(error) ? "PROVIDER_TIMEOUT" : "PROVIDER_CALL_FAILED";
+        String failureCategory = isTimeoutFailure(error) ? "PROVIDER_CALL_TIMEOUT" : "PROVIDER_CALL_FAILED";
         context.addMetadata("providerCallFailed", true);
         context.addMetadata("providerCallFailureCategory", failureCategory);
         context.addMetadata("providerCallFailureClass", error.getClass().getName());
         context.addMetadata("providerCallFailureMessage", error.getMessage());
         context.addMetadata("providerCallTimeoutMs", providerCallTimeoutMs());
-        if ("PROVIDER_TIMEOUT".equals(failureCategory)) {
+        if ("PROVIDER_CALL_TIMEOUT".equals(failureCategory)) {
             context.addMetadata("providerCallExceededTimeout", true);
-            context.addMetadata("decisionFailureCategory", "PROVIDER_TIMEOUT");
-            context.addMetadata("structuredOutputFailureCategory", "PROVIDER_TIMEOUT");
-            context.addMetadata("securityDecisionParseFailureCategory", "PROVIDER_TIMEOUT");
+            context.addMetadata("decisionFailureCategory", "PROVIDER_CALL_TIMEOUT");
+            context.addMetadata("structuredOutputFailureCategory", "PROVIDER_CALL_TIMEOUT");
+            context.addMetadata("securityDecisionParseFailureCategory", "PROVIDER_CALL_TIMEOUT");
         }
     }
 
@@ -507,7 +507,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 return category.toString();
             }
         }
-        return "PROVIDER_TIMEOUT";
+        return "PROVIDER_CALL_TIMEOUT";
     }
     private boolean isOpenAiModel(ExecutionContext context, ChatModel selectedModel) {
         if (selectedModel != null) {
@@ -1180,5 +1180,3 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         return false;
     }}
-
-

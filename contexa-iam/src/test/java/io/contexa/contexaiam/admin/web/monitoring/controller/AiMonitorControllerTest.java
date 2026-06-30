@@ -31,6 +31,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualificat
 import io.contexa.contexaiam.admin.web.monitoring.service.AiSecurityDecisionMonitoringService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -41,6 +42,7 @@ import java.util.Locale;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -140,6 +142,20 @@ class AiMonitorControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("\"metric\",\"count\"\n"));
     }
+
+    @Test
+    @DisplayName("Monitoring reset API should require explicit confirmation text")
+    void resetApi_shouldRequireExplicitConfirmation() throws Exception {
+        AiSecurityDecisionMonitoringService service = mock(AiSecurityDecisionMonitoringService.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
+
+        mvc.perform(post("/contexa/admin/api/ai-monitor/reset")
+                        .principal(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"test\",\"resetLearningEvidence\":false}"))
+                .andExpect(status().isBadRequest());
+    }
+
 
 
     @Test

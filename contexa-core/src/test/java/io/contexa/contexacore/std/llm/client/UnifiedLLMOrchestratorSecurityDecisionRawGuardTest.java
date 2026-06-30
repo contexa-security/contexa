@@ -80,7 +80,7 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
         assertThat(result.getAction()).isEqualTo("CHALLENGE");
         assertThat(context.getMetadata())
                 .containsEntry("rawExecutionSucceeded", false)
-                .containsEntry("securityDecisionParseFailureCategory", "PROVIDER_TIMEOUT")
+                .containsEntry("securityDecisionParseFailureCategory", "PROVIDER_CALL_TIMEOUT")
                 .containsEntry("securityDecisionFallbackAction", "CHALLENGE")
                 .containsEntry("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
     }

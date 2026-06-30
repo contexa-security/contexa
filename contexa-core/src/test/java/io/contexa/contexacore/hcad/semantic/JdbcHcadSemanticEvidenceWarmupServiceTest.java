@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.RejectedExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -116,6 +117,46 @@ class JdbcHcadSemanticEvidenceWarmupServiceTest {
         verify(cache, never()).put(any(), any(Duration.class));
     }
 
+    @Test
+    @DisplayName("Warm-up executor rejection should not fail the request thread")
+    void requestWarmup_rejectedExecutor_shouldReturnRejectedWithoutCacheMutation() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadSemanticEvidenceCache cache = mock(HcadSemanticEvidenceCache.class);
+        HcadProperties properties = new HcadProperties();
+        JdbcHcadSemanticEvidenceWarmupService service = new JdbcHcadSemanticEvidenceWarmupService(
+                () -> jdbcOperations,
+                properties,
+                runnable -> { throw new RejectedExecutionException("queue full"); });
+
+        HcadSemanticEvidenceWarmupResult result = service.requestWarmup(
+                new HcadSemanticEvidenceWarmupRequest(null, riskKey()),
+                cache);
+
+        assertThat(result.status()).isEqualTo(HcadSemanticEvidenceCacheStatus.CACHE_MISS_SOURCE_UNKNOWN);
+        assertThat(result.reasonCode()).isEqualTo("WARMUP_REJECTED");
+        verify(cache, never()).put(any(), any(Duration.class));
+        verify(cache, never()).putSourceAbsent(any(), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("Missing warm-up executor should be explicit and should not use common pool")
+    void requestWarmup_missingExecutor_shouldReturnExecutorUnavailable() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        HcadSemanticEvidenceCache cache = mock(HcadSemanticEvidenceCache.class);
+        JdbcHcadSemanticEvidenceWarmupService service = new JdbcHcadSemanticEvidenceWarmupService(
+                () -> jdbcOperations,
+                new HcadProperties(),
+                null);
+
+        HcadSemanticEvidenceWarmupResult result = service.requestWarmup(
+                new HcadSemanticEvidenceWarmupRequest(null, riskKey()),
+                cache);
+
+        assertThat(result.status()).isEqualTo(HcadSemanticEvidenceCacheStatus.CACHE_MISS_SOURCE_UNKNOWN);
+        assertThat(result.reasonCode()).isEqualTo("WARMUP_EXECUTOR_UNAVAILABLE");
+        verify(cache, never()).put(any(), any(Duration.class));
+        verify(cache, never()).putSourceAbsent(any(), any(Duration.class));
+    }
     private JdbcHcadSemanticEvidenceWarmupService service(JdbcOperations jdbcOperations) {
         HcadProperties properties = new HcadProperties();
         properties.getSemanticEvidence().setEmbeddingModel("text-embedding-3-small");
