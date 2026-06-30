@@ -177,20 +177,19 @@ public class IamAdminMonitoringAutoConfiguration {
     public AutoConfiguredAdminEnterpriseModelAdvice adminEnterpriseModelAdvice(
             ContexaProperties contexaProperties,
             ObjectProvider<AdminMenuService> adminMenuServiceProvider) {
-        return new AutoConfiguredAdminEnterpriseModelAdvice(
-                contexaProperties.getEnterprise().isEnabled(),
-                contexaProperties.getSaas().isEnabled(),
-                adminMenuServiceProvider.getIfAvailable());
+        return new AutoConfiguredAdminEnterpriseModelAdvice(contexaProperties, adminMenuServiceProvider);
     }
 
     @ControllerAdvice(basePackages = "io.contexa")
     public static class AutoConfiguredAdminEnterpriseModelAdvice extends AdminEnterpriseModelAdvice {
 
         public AutoConfiguredAdminEnterpriseModelAdvice(
-                boolean enterpriseEnabled,
-                boolean saasEnabled,
-                AdminMenuService adminMenuService) {
-            super(enterpriseEnabled, saasEnabled, adminMenuService);
+                ContexaProperties contexaProperties,
+                ObjectProvider<AdminMenuService> adminMenuServiceProvider) {
+            super(
+                    contexaProperties.getEnterprise().isEnabled(),
+                    contexaProperties.getSaas().isEnabled(),
+                    adminMenuServiceProvider.getIfAvailable());
         }
     }
     @Bean
