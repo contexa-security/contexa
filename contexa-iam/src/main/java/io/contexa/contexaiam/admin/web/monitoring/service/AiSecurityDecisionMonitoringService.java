@@ -151,29 +151,30 @@ public class AiSecurityDecisionMonitoringService {
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public LlmDecisionSummary llm(String period) {
-        SnapshotData data = snapshotData(period);
-        return withMetrics(data.llm(), data.snapshot(), data.metrics());
+        TimeWindow window = window(period);
+        return withMetrics(llmSummary(window.from(), window.to()), monitorSnapshot(window), null);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public CorrelationSummary correlation(String period) {
-        SnapshotData data = snapshotData(period);
-        return withMetrics(data.correlation(), data.snapshot(), data.metrics());
+        TimeWindow window = window(period);
+        return withMetrics(correlationSummary(window.from(), window.to()), monitorSnapshot(window), null);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public FailureSummary failures(String period) {
-        SnapshotData data = snapshotData(period);
-        TimeWindow window = data.window();
+        TimeWindow window = window(period);
+        MonitorSnapshot snapshot = monitorSnapshot(window);
+        OperationsSummary operations = operationsSummary(window.from(), window.to(), null);
         List<NamedCount> canonicalFailures = explicitFailureBreakdown(window.from(), window.to());
         return new FailureSummary(
                 window.period(),
                 ISO.format(window.from()),
                 ISO.format(window.to()),
-                data.snapshot().generatedAt(),
-                data.snapshot(),
-                data.metrics(),
-                data.operations(),
+                snapshot.generatedAt(),
+                snapshot,
+                null,
+                operations,
                 canonicalFailures,
                 canonicalFailures,
                 nonEmptyBreakdown("fallback_category", window.from(), window.to()),
@@ -468,12 +469,7 @@ public class AiSecurityDecisionMonitoringService {
     }
 
     private SnapshotData snapshotData(TimeWindow window) {
-        MonitorSnapshot snapshot = new MonitorSnapshot(
-                window.period(),
-                ISO.format(window.from()),
-                ISO.format(window.to()),
-                ISO.format(window.generatedAt()),
-                runtimeModeSummary());
+        MonitorSnapshot snapshot = monitorSnapshot(window);
         HcadSummary hcad = hcadMonitoringService.summarize(window.period(), window.from(), window.to());
         LlmDecisionSummary llm = llmSummary(window.from(), window.to());
         CorrelationSummary correlation = correlationSummary(window.from(), window.to());
@@ -490,6 +486,15 @@ public class AiSecurityDecisionMonitoringService {
                 feedbackLearning,
                 metrics,
                 readinessRecommendation(hcad, llm, correlation, operations));
+    }
+
+    private MonitorSnapshot monitorSnapshot(TimeWindow window) {
+        return new MonitorSnapshot(
+                window.period(),
+                ISO.format(window.from()),
+                ISO.format(window.to()),
+                ISO.format(window.generatedAt()),
+                runtimeModeSummary());
     }
 
 
@@ -1131,9 +1136,9 @@ public class AiSecurityDecisionMonitoringService {
                 technicalFallbacks,
                 timeouts,
                 modelUnavailable,
-                hcad.falsePositiveCount(),
-                hcad.falsePositiveCount() * cost,
-                hcad.duplicateSuppressedCount() * cost,
+                hcad == null ? 0L : hcad.falsePositiveCount(),
+                hcad == null ? 0.0d : hcad.falsePositiveCount() * cost,
+                hcad == null ? 0.0d : hcad.duplicateSuppressedCount() * cost,
                 latencyBreakdown(from, to));
     }
 
@@ -1843,41 +1848,48 @@ public class AiSecurityDecisionMonitoringService {
     }
 
     private double averageLatencyMetadata(String jsonKey, LocalDateTime from, LocalDateTime to) {
-        JdbcOperations jdbcOperations = jdbcOperations();
-        if (jdbcOperations == null) {
+        String columnName = latencyColumn(jsonKey);
+        if (columnName == null) {
             return 0.0d;
         }
-        String expression = latencyJsonNumberExpression(jsonKey);
-        Double value = jdbcOperations.queryForObject(
-                "select avg(value) from (select " + expression + " as value "
-                        + "from ai_security_decision_observation "
-                        + "where created_at between ? and ? and " + monitorablePath("request_path") + ") latency_values where value is not null",
-                Double.class,
-                from,
-                to);
-        return value == null ? 0.0d : value;
+        return averageAi(columnName, from, to);
     }
 
     private double p95LatencyMetadata(String jsonKey, LocalDateTime from, LocalDateTime to) {
+        String columnName = latencyColumn(jsonKey);
+        if (columnName == null) {
+            return 0.0d;
+        }
+        return p95LatencyColumn(columnName, from, to);
+    }
+
+    private double p95LatencyColumn(String columnName, LocalDateTime from, LocalDateTime to) {
         JdbcOperations jdbcOperations = jdbcOperations();
         if (jdbcOperations == null) {
             return 0.0d;
         }
-        String expression = latencyJsonNumberExpression(jsonKey);
         Double value = jdbcOperations.queryForObject(
-                "select percentile_cont(0.95) within group (order by value) "
-                        + "from (select " + expression + " as value "
-                        + "from ai_security_decision_observation "
-                        + "where created_at between ? and ? and " + monitorablePath("request_path") + ") latency_values where value is not null",
+                "select percentile_cont(0.95) within group (order by " + columnName + ") "
+                        + "from ai_security_decision_observation"
+                        + " where created_at between ? and ? and " + columnName + " is not null"
+                        + " and " + monitorablePath("request_path"),
                 Double.class,
                 from,
                 to);
         return value == null ? 0.0d : value;
     }
 
-    private String latencyJsonNumberExpression(String jsonKey) {
-        String raw = "(metadata_json::jsonb #>> '{latencyBreakdown," + jsonKey + "}')";
-        return "case when " + raw + " ~ '^-?[0-9]+(\\.[0-9]+)?$' then (" + raw + ")::double precision end";
+    private String latencyColumn(String jsonKey) {
+        return switch (jsonKey) {
+            case "queueWaitMs" -> "queue_wait_ms";
+            case "promptBuildMs" -> "prompt_build_ms";
+            case "ragVectorMs" -> "rag_vector_ms";
+            case "openAiCallMs" -> "openai_call_ms";
+            case "parseMs" -> "parse_ms";
+            case "persistMs" -> "persist_ms";
+            case "totalAnalysisMs" -> "total_analysis_ms";
+            default -> null;
+        };
     }
     private double p95Latency(String from, String to) {
         return p95Latency(LocalDateTime.parse(from, ISO), LocalDateTime.parse(to, ISO));

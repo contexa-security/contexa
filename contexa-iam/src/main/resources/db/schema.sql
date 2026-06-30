@@ -1584,6 +1584,13 @@ CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
     llm_risk_score DOUBLE PRECISION,
     llm_confidence DOUBLE PRECISION,
     llm_latency_ms BIGINT,
+    queue_wait_ms BIGINT,
+    prompt_build_ms BIGINT,
+    rag_vector_ms BIGINT,
+    openai_call_ms BIGINT,
+    parse_ms BIGINT,
+    persist_ms BIGINT,
+    total_analysis_ms BIGINT,
     llm_decision_present BOOLEAN,
     parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
     technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
@@ -1617,7 +1624,14 @@ ALTER TABLE ai_security_decision_observation
     ADD COLUMN IF NOT EXISTS model_unavailable BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS failure_type VARCHAR(64),
     ADD COLUMN IF NOT EXISTS outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
-    ADD COLUMN IF NOT EXISTS metadata_json TEXT;
+    ADD COLUMN IF NOT EXISTS metadata_json TEXT,
+    ADD COLUMN IF NOT EXISTS queue_wait_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS prompt_build_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS rag_vector_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS openai_call_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS parse_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS persist_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS total_analysis_ms BIGINT;
 
 CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_created
     ON ai_security_decision_observation (created_at);

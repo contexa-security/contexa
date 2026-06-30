@@ -136,6 +136,7 @@ public class AiSecurityDecisionObservationWriter {
             modelProvider = firstText(defaultModelProvider, inferProviderFromModelId(modelId));
         }
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
+        Map<String, Object> latencyBreakdown = latencyBreakdownMetadata(storedMetadata);
         LocalDateTime now = LocalDateTime.now();
 
         long persistStart = System.currentTimeMillis();
@@ -171,6 +172,13 @@ public class AiSecurityDecisionObservationWriter {
                         llm_risk_score,
                         llm_confidence,
                         llm_latency_ms,
+                        queue_wait_ms,
+                        prompt_build_ms,
+                        rag_vector_ms,
+                        openai_call_ms,
+                        parse_ms,
+                        persist_ms,
+                        total_analysis_ms,
                         llm_decision_present,
                         parser_failure,
                         technical_fallback,
@@ -185,7 +193,7 @@ public class AiSecurityDecisionObservationWriter {
                         created_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     observationId,
@@ -220,6 +228,13 @@ public class AiSecurityDecisionObservationWriter {
                     result != null ? result.resolveAuditRiskScore() : null,
                     result != null ? result.resolveAuditConfidence() : null,
                     result != null && result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null,
+                    longValue(latencyBreakdown.get("queueWaitMs")),
+                    longValue(latencyBreakdown.get("promptBuildMs")),
+                    longValue(latencyBreakdown.get("ragVectorMs")),
+                    longValue(latencyBreakdown.get("openAiCallMs")),
+                    longValue(latencyBreakdown.get("parseMs")),
+                    longValue(latencyBreakdown.get("persistMs")),
+                    longValue(latencyBreakdown.get("totalAnalysisMs")),
                     llmDecisionPresent,
                     parserFailure,
                     technicalFallback,
@@ -301,6 +316,17 @@ public class AiSecurityDecisionObservationWriter {
         return copy;
     }
 
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> latencyBreakdownMetadata(Map<String, Object> metadata) {
+        Object value = metadata == null ? null : metadata.get("latencyBreakdown");
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            map.forEach((key, mapValue) -> result.put(String.valueOf(key), mapValue));
+            return result;
+        }
+        return Map.of();
+    }
     private Map<String, Object> latencyBreakdown(Map<String, Object> metadata, ProcessingResult result) {
         Map<String, Object> breakdown = new LinkedHashMap<>();
         Long monitorQueueWaitMs = durationBetween(metadata, "queuedAt", "dequeuedAt");
@@ -347,8 +373,9 @@ public class AiSecurityDecisionObservationWriter {
                 "responseExtractMs",
                 "layer1ResponseValidateMs"));
         breakdown.put("persistMs", firstLong(metadata, "persistMs", "decisionPersistMs"));
-        Long total = result != null && result.getProcessingTimeMs() > 0
-                ? result.getProcessingTimeMs()
+        Long processingTimeMs = result == null ? null : result.getProcessingTimeMs();
+        Long total = processingTimeMs != null && processingTimeMs > 0
+                ? processingTimeMs
                 : durationBetween(metadata, "analysisQueuedAt", "analysisCompletedAt");
         breakdown.put("totalAnalysisMs", total);
         return breakdown;
@@ -1162,4 +1189,5 @@ public class AiSecurityDecisionObservationWriter {
         return text == null ? null : truncate(text.replaceAll("\\s+", " "), maxLength);
     }
 }
+
 

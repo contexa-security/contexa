@@ -223,7 +223,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[4]).isEqualTo("run-evidence-1");
         assertThat(args[11]).isEqualTo("HCAD_PRE_TRIGGER");
         assertThat(args[12]).isEqualTo("HCAD_ONLY");
-        assertThat(args[37]).isEqualTo("TP");
+        assertThat(args[44]).isEqualTo("TP");
     }
 
     @Test
@@ -262,7 +262,7 @@ class AiSecurityDecisionObservationWriterTest {
         Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
         assertThat(args[11]).isEqualTo("PROTECTABLE");
         assertThat(args[12]).isEqualTo("PROTECTABLE_ONLY");
-        assertThat(args[37]).isEqualTo("TN");
+        assertThat(args[44]).isEqualTo("TN");
     }
 
     @Test
@@ -298,7 +298,7 @@ class AiSecurityDecisionObservationWriterTest {
         Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
         assertThat(args[11]).isEqualTo("HCAD_PRE_TRIGGER");
         assertThat(args[12]).isEqualTo("HCAD_ONLY");
-        assertThat(args[37]).isEqualTo("FP");
+        assertThat(args[44]).isEqualTo("FP");
     }
 
     @Test
@@ -339,8 +339,8 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[4]).isEqualTo("run-evidence-combined-fp");
         assertThat(args[11]).isEqualTo("HCAD_PRE_TRIGGER");
         assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
-        assertThat(args[20]).isEqualTo("hcad.extreme.allow");
-        assertThat(args[37]).isEqualTo("FP");
+        assertThat(args[20]).isNull();
+        assertThat(args[44]).isEqualTo("FP");
         Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
         assertThat(correlationArgs[5]).isEqualTo("run-evidence-combined-fp");
         assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
@@ -386,7 +386,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[4]).isEqualTo("run-protectable-combined-fp");
         assertThat(args[11]).isEqualTo("PROTECTABLE");
         assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
-        assertThat(args[37]).isEqualTo("FP");
+        assertThat(args[44]).isEqualTo("FP");
         Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
         assertThat(correlationArgs[5]).isEqualTo("run-protectable-combined-fp");
         assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
@@ -432,7 +432,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[4]).isEqualTo("run-protectable-combined-tp");
         assertThat(args[11]).isEqualTo("PROTECTABLE");
         assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
-        assertThat(args[37]).isEqualTo("TP");
+        assertThat(args[44]).isEqualTo("TP");
         Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
         assertThat(correlationArgs[5]).isEqualTo("run-protectable-combined-tp");
         assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
@@ -483,7 +483,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[11]).isEqualTo("PROTECTABLE");
         assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
         assertThat(args[17]).isEqualTo(true);
-        assertThat(args[37]).isEqualTo("FP");
+        assertThat(args[44]).isEqualTo("FP");
         Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
         assertThat(correlationArgs[5]).isEqualTo("run-durable-combined");
         assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
@@ -531,7 +531,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[4]).isEqualTo("run-evidence-delayed-combined");
         assertThat(args[11]).isEqualTo("HCAD_PRE_TRIGGER");
         assertThat(args[12]).isEqualTo("HCAD_AND_PROTECTABLE");
-        assertThat(args[37]).isEqualTo("FP");
+        assertThat(args[44]).isEqualTo("FP");
         Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
         assertThat(correlationArgs[5]).isEqualTo("run-evidence-delayed-combined");
         assertThat(correlationArgs[9]).isEqualTo("HCAD_AND_PROTECTABLE");
@@ -572,7 +572,7 @@ class AiSecurityDecisionObservationWriterTest {
         Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
         assertThat(args[11]).isEqualTo("PROTECTABLE");
         assertThat(args[12]).isEqualTo("PROTECTABLE_ONLY");
-        assertThat(args[37]).isEqualTo("FN");
+        assertThat(args[44]).isEqualTo("FN");
     }
 
     @Test
@@ -622,8 +622,8 @@ class AiSecurityDecisionObservationWriterTest {
 
         assertThat(observationId).isNotBlank();
         Object[] args = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
-        assertThat(args[34]).isEqualTo(expectedFailureType);
-        assertThat(args[37]).isEqualTo(expectedOutcome);
+        assertThat(args[41]).isEqualTo(expectedFailureType);
+        assertThat(args[44]).isEqualTo(expectedOutcome);
     }
 
     private Map<String, Object> metadata(Map<String, Object> source) {
@@ -644,3 +644,4 @@ class AiSecurityDecisionObservationWriterTest {
         throw new AssertionError("No insert captured for table " + tableName);
     }
 }
+

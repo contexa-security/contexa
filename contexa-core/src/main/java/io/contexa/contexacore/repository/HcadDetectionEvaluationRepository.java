@@ -305,6 +305,63 @@ public interface HcadDetectionEvaluationRepository extends JpaRepository<HcadDet
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
 
+
+    @Query(value = """
+            select count(*) as candidate_count,
+                   coalesce(sum(coalesce(e.request_count, 1)), 0) as observed_request_count,
+                   coalesce(sum(case when coalesce(e.triggered_llm, false) = true then 1 else 0 end), 0) as triggered_llm_count,
+                   coalesce(sum(coalesce(e.duplicate_suppressed_count, case when coalesce(e.duplicate_suppressed, false) = true then 1 else 0 end)), 0) as duplicate_suppressed_count,
+                   coalesce(sum(case when coalesce(e.eligible, false) = true then 1 else 0 end), 0) as eligible_count,
+                   coalesce(sum(case when e.eligible = false then 1 else 0 end), 0) as not_eligible_count,
+                   coalesce(sum(coalesce(e.negative_cache_hit_count, case when coalesce(e.negative_cache_hit, false) = true then 1 else 0 end)), 0) as negative_cache_hit_count,
+                   coalesce(sum(case when e.anchor_signals is not null and trim(e.anchor_signals) not in ('', '[]', 'null') then 1 else 0 end), 0) as escalation_count,
+                   coalesce(sum(case when e.outcome_class = 'TP' and (
+                                      e.decided_at is not null
+                                   or coalesce(e.triggered_llm, false) = true
+                                   or e.llm_action is not null
+                                   or e.llm_risk_score is not null
+                                   or coalesce(e.llm_parser_failure, false) = true
+                                   or coalesce(e.llm_technical_fallback, false) = true
+                                ) then 1 else 0 end), 0) as tp_count,
+                   coalesce(sum(case when e.outcome_class = 'FP' and (
+                                      e.decided_at is not null
+                                   or coalesce(e.triggered_llm, false) = true
+                                   or e.llm_action is not null
+                                   or e.llm_risk_score is not null
+                                   or coalesce(e.llm_parser_failure, false) = true
+                                   or coalesce(e.llm_technical_fallback, false) = true
+                                ) then 1 else 0 end), 0) as fp_count,
+                   coalesce(sum(case when e.outcome_class = 'FN' and (
+                                      e.decided_at is not null
+                                   or coalesce(e.triggered_llm, false) = true
+                                   or e.llm_action is not null
+                                   or e.llm_risk_score is not null
+                                   or coalesce(e.llm_parser_failure, false) = true
+                                   or coalesce(e.llm_technical_fallback, false) = true
+                                ) then 1 else 0 end), 0) as fn_count,
+                   coalesce(sum(case when e.outcome_class = 'TN' and (
+                                      e.decided_at is not null
+                                   or coalesce(e.triggered_llm, false) = true
+                                   or e.llm_action is not null
+                                   or e.llm_risk_score is not null
+                                   or coalesce(e.llm_parser_failure, false) = true
+                                   or coalesce(e.llm_technical_fallback, false) = true
+                                ) then 1 else 0 end), 0) as tn_count,
+                   coalesce(sum(case when e.outcome_class = 'UNKNOWN' and (
+                                      e.decided_at is not null
+                                   or coalesce(e.triggered_llm, false) = true
+                                   or e.llm_action is not null
+                                   or e.llm_risk_score is not null
+                                   or coalesce(e.llm_parser_failure, false) = true
+                                   or coalesce(e.llm_technical_fallback, false) = true
+                                ) then 1 else 0 end), 0) as unknown_count,
+                   avg(e.llm_latency_ms) as average_latency_ms
+              from hcad_detection_evaluation e
+             where e.created_at between :from and :to
+            """ + MONITORABLE_REQUEST_CONDITION, nativeQuery = true)
+    List<Object[]> summarizeMonitorableBaseBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
     @Query("""
             select e.mode, count(e)
               from HcadDetectionEvaluation e

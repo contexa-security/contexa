@@ -100,23 +100,26 @@ public class HcadMonitoringService {
     public HcadSummary summarize(String period, LocalDateTime from, LocalDateTime to) {
         String normalizedPeriod = normalizePeriod(period);
 
-        long candidateCount = repository.countMonitorableByCreatedAtBetween(from, to);
-        long observedRequestCount = longValue(repository.sumMonitorableRequestCountBetween(from, to));
-        long triggeredLlmCount = repository.countMonitorableByTriggeredLlmTrueAndCreatedAtBetween(from, to);
-        long duplicateSuppressedCount = longValue(repository.sumMonitorableDuplicateSuppressedCountBetween(from, to));
-        long eligibleCount = repository.countMonitorableByEligibleTrueAndCreatedAtBetween(from, to);
-        long notEligibleCount = repository.countMonitorableByEligibleFalseAndCreatedAtBetween(from, to);
-        long negativeCacheHitCount = longValue(repository.sumMonitorableNegativeCacheHitCountBetween(from, to));
-        long escalationCount = repository.countMonitorableEscalationBetween(from, to);
-        long tp = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("TP", from, to);
-        long fp = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("FP", from, to);
-        long fn = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("FN", from, to);
-        long tn = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("TN", from, to);
-        long unknown = repository.countMonitorableComparableByOutcomeClassAndCreatedAtBetween("UNKNOWN", from, to);
+        Object[] base = repository.summarizeMonitorableBaseBetween(from, to).stream()
+                .findFirst()
+                .orElse(new Object[0]);
+        long candidateCount = number(base, 0);
+        long observedRequestCount = number(base, 1);
+        long triggeredLlmCount = number(base, 2);
+        long duplicateSuppressedCount = number(base, 3);
+        long eligibleCount = number(base, 4);
+        long notEligibleCount = number(base, 5);
+        long negativeCacheHitCount = number(base, 6);
+        long escalationCount = number(base, 7);
+        long tp = number(base, 8);
+        long fp = number(base, 9);
+        long fn = number(base, 10);
+        long tn = number(base, 11);
+        long unknown = number(base, 12);
         double precision = precision(tp, fp);
         double unknownRate = ratio(unknown, tp + fp + fn + tn + unknown);
         double triggerRate = ratio(triggeredLlmCount, candidateCount);
-        double averageLatency = doubleValue(repository.averageMonitorableLlmLatencyMsBetween(from, to));
+        double averageLatency = doubleNumber(base, 13);
 
         HcadProperties.PreTriggerSettings.QualificationSettings q =
                 hcadProperties.getPreTrigger().getQualification();
@@ -747,6 +750,16 @@ public class HcadMonitoringService {
         return Long.parseLong(row[index].toString());
     }
 
+
+    private double doubleNumber(Object[] row, int index) {
+        if (row == null || row.length <= index || row[index] == null) {
+            return 0.0d;
+        }
+        if (row[index] instanceof Number number) {
+            return number.doubleValue();
+        }
+        return Double.parseDouble(row[index].toString());
+    }
     private double doubleValue(Number value) {
         return value == null ? 0.0d : value.doubleValue();
     }
