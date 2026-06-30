@@ -18,7 +18,6 @@ import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactReleaseSt
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactTypeNames;
 import io.contexa.contexacore.autonomous.saas.learning.registry.LearningArtifactRegistryEntry;
 import io.contexa.contexacore.autonomous.saas.learning.registry.LearningArtifactRegistryService;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,21 +26,18 @@ import java.util.stream.Collectors;
 /**
  * Applies runtime conflict downgrade rules when local truth overrides promoted SaaS artifacts.
  */
-@Service
 public class LearningArtifactRuntimeConflictService {
     private static final String RUNTIME_CONFLICT_GUARD_ACTOR = "RUNTIME_CONFLICT_GUARD";
     private final LearningArtifactReleaseLedgerService ledgerService;
     private final LearningArtifactRegistryService registryService;
     private final LearningArtifactRuntimeConflictThresholds thresholds;
-    public LearningArtifactRuntimeConflictService(LearningArtifactReleaseLedgerService ledgerService) {
-        this(ledgerService, null, LearningArtifactRuntimeConflictThresholds.defaults());
-    }
     public LearningArtifactRuntimeConflictService(
             LearningArtifactReleaseLedgerService ledgerService,
-            LearningArtifactRuntimeConflictThresholds thresholds) {
-        this(ledgerService, null, thresholds);
+            LearningArtifactRegistryService registryService) {
+        this(ledgerService, registryService, LearningArtifactRuntimeConflictThresholds.defaults());
     }
-    public LearningArtifactRuntimeConflictService(
+
+    LearningArtifactRuntimeConflictService(
             LearningArtifactReleaseLedgerService ledgerService,
             LearningArtifactRegistryService registryService,
             LearningArtifactRuntimeConflictThresholds thresholds) {
@@ -49,6 +45,7 @@ public class LearningArtifactRuntimeConflictService {
         this.registryService = registryService;
         this.thresholds = thresholds == null ? LearningArtifactRuntimeConflictThresholds.defaults() : thresholds;
     }
+
     public boolean isRuntimeSuppressed(String tenantId, String artifactType, String artifactKey) {
         validateRequired(tenantId, "tenantId");
         validateRequired(artifactType, "artifactType");

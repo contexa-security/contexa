@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.saas.learning.roi;
 import io.contexa.contexacore.autonomous.saas.learning.release.LearningArtifactReleaseLedgerService;
-import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -23,7 +22,6 @@ import java.util.List;
 /**
  * Computes ROI scoreboard across promoted learning artifacts.
  */
-@Service
 public class LearningRoiScoreboardService {
     private final List<LearningRoiArtifactScorer> scorers;
     public LearningRoiScoreboardService(LearningArtifactReleaseLedgerService ledgerService) {

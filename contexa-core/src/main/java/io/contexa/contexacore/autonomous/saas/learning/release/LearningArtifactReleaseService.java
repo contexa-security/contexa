@@ -17,7 +17,6 @@ package io.contexa.contexacore.autonomous.saas.learning.release;
 
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactMetadata;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactReleaseState;
-import org.springframework.stereotype.Service;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -28,7 +27,6 @@ import java.util.Objects;
 /**
  * Enforces the shared release lifecycle for learning artifacts.
  */
-@Service
 public class LearningArtifactReleaseService {
 
     private static final Map<LearningArtifactReleaseState, EnumSet<LearningArtifactReleaseState>> ALLOWED_TARGETS = createAllowedTargets();

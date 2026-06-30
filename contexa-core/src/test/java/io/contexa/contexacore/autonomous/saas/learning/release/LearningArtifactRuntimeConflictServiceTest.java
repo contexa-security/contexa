@@ -28,7 +28,7 @@ class LearningArtifactRuntimeConflictServiceTest {
     private final InMemoryLearningArtifactReleaseLedgerStore store = new InMemoryLearningArtifactReleaseLedgerStore();
     private final LearningArtifactReleaseLedgerService ledgerService = new LearningArtifactReleaseLedgerService(store);
     private final LearningArtifactRuntimeConflictService runtimeConflictService =
-            new LearningArtifactRuntimeConflictService(ledgerService);
+            new LearningArtifactRuntimeConflictService(ledgerService, null);
 
     @Test
     void recordsReviewOnlyRollbackAndSuppressesRuntimeReuse() {

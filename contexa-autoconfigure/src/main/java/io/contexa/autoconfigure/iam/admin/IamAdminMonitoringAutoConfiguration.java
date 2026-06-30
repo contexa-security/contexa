@@ -47,6 +47,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcOperations;
 
@@ -172,16 +173,26 @@ public class IamAdminMonitoringAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
-    public AdminEnterpriseModelAdvice adminEnterpriseModelAdvice(
+    @ConditionalOnMissingBean(AdminEnterpriseModelAdvice.class)
+    public AutoConfiguredAdminEnterpriseModelAdvice adminEnterpriseModelAdvice(
             ContexaProperties contexaProperties,
             ObjectProvider<AdminMenuService> adminMenuServiceProvider) {
-        return new AdminEnterpriseModelAdvice(
+        return new AutoConfiguredAdminEnterpriseModelAdvice(
                 contexaProperties.getEnterprise().isEnabled(),
                 contexaProperties.getSaas().isEnabled(),
                 adminMenuServiceProvider.getIfAvailable());
     }
 
+    @ControllerAdvice(basePackages = "io.contexa")
+    public static class AutoConfiguredAdminEnterpriseModelAdvice extends AdminEnterpriseModelAdvice {
+
+        public AutoConfiguredAdminEnterpriseModelAdvice(
+                boolean enterpriseEnabled,
+                boolean saasEnabled,
+                AdminMenuService adminMenuService) {
+            super(enterpriseEnabled, saasEnabled, adminMenuService);
+        }
+    }
     @Bean
     @ConditionalOnMissingBean
     public AdminMenuQueryCache adminMenuQueryCache(AdminMenuRepository adminMenuRepository) {

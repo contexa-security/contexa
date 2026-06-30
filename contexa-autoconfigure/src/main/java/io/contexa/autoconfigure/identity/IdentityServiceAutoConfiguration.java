@@ -44,7 +44,6 @@ public class IdentityServiceAutoConfiguration {
 
     public IdentityServiceAutoConfiguration() {
     }
-
     @Bean
     @ConditionalOnMissingBean
     public AuthUrlProvider authUrlProvider(AuthContextProperties properties) {

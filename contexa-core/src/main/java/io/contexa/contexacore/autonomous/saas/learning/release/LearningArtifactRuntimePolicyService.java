@@ -17,7 +17,6 @@ package io.contexa.contexacore.autonomous.saas.learning.release;
 
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactMetadata;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactReleaseState;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +24,6 @@ import java.util.List;
 /**
  * Evaluates common runtime policy for learning artifacts.
  */
-@Service
 public class LearningArtifactRuntimePolicyService {
 
     public LearningArtifactRuntimePolicyDecision evaluate(

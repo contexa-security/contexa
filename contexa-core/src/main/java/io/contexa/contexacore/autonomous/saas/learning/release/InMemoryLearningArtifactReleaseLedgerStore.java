@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.saas.learning.release;
 
-import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
@@ -28,7 +27,6 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * In-memory release ledger storage used as the default implementation.
  */
-@Component
 public class InMemoryLearningArtifactReleaseLedgerStore implements LearningArtifactReleaseLedgerStore {
 
     private static final Comparator<StoredLedgerEntry> CHRONOLOGICAL_ORDER =

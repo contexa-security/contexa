@@ -17,8 +17,6 @@ io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 # Core LLM
 io.contexa.autoconfigure.core.llm.OpenAiChatModelOptionsAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration
-io.contexa.autoconfigure.core.hcad.HcadExtremeTestAutoConfiguration
-io.contexa.autoconfigure.core.hcad.HcadLiveVerificationAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
 
 # Core Advisor
@@ -40,6 +38,7 @@ io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
+io.contexa.autoconfigure.core.autonomous.CoreSaasLearningAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreSaasForwardingAutoConfiguration
 
 # Capability diagnostics

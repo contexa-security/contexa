@@ -18,7 +18,6 @@ package io.contexa.contexacore.autonomous.saas.learning.release;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactReleaseState;
 import io.contexa.contexacore.autonomous.saas.learning.registry.LearningArtifactRegistryEntry;
 import io.contexa.contexacore.autonomous.saas.learning.registry.LearningArtifactRegistryService;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -29,7 +28,6 @@ import java.util.UUID;
 /**
  * Records and queries learning artifact release ledger history.
  */
-@Service
 public class LearningArtifactReleaseLedgerService {
 
     private final LearningArtifactReleaseLedgerStore store;

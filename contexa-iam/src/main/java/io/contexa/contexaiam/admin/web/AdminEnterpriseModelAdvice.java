@@ -19,13 +19,11 @@ import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 import java.util.Collections;
 import java.util.List;
 
-@ControllerAdvice(basePackages = "io.contexa")
 public class AdminEnterpriseModelAdvice {
 
     private final boolean enterpriseEnabled;
