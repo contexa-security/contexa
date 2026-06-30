@@ -171,8 +171,15 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
                     return actualStep.execute(request, ctx)
                             .thenReturn(ctx)
+                            .doOnSuccess(ignored -> {
+                                long stepTime = System.currentTimeMillis() - stepStart;
+                                ctx.addMetadata("pipelineStep." + stepName + ".ms", stepTime);
+                                log.info("[{}] STEP {} completed: {} ({}ms) - Request: {}",
+                                        logPrefix, stepOrder, stepName, stepTime, request.getRequestId());
+                            })
                             .doOnError(error -> {
                                 long stepTime = System.currentTimeMillis() - stepStart;
+                                ctx.addMetadata("pipelineStep." + stepName + ".ms", stepTime);
                                 log.error("[{}] STEP {} failed: {} ({}ms) - {}",
                                         logPrefix, stepOrder, stepName, stepTime, error.getMessage());
                             });

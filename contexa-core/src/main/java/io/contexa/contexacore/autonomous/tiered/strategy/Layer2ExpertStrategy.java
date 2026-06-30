@@ -204,16 +204,35 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
 
         long startTime = System.currentTimeMillis();
+        long ragSearchMs = 0L;
+        long sessionContextMs = 0L;
+        long behaviorAnalysisMs = 0L;
+        long threatContextMs = 0L;
+        long pipelineBlockMs = 0L;
+        long responseValidateMs = 0L;
+        long postProcessMs = 0L;
         try {
+            long segmentStart = System.currentTimeMillis();
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
+            ragSearchMs = System.currentTimeMillis() - segmentStart;
+
+            segmentStart = System.currentTimeMillis();
             SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
+            sessionContextMs = System.currentTimeMillis() - segmentStart;
+
+            segmentStart = System.currentTimeMillis();
             SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event, relatedDocuments);
+            behaviorAnalysisMs = System.currentTimeMillis() - segmentStart;
+
+            segmentStart = System.currentTimeMillis();
             annotateThreatKnowledgeContext(event, behaviorCtx);
+            threatContextMs = System.currentTimeMillis() - segmentStart;
 
             SecurityResponse response;
             SecurityDecisionResponse pipelineResponse = null;
             clearPromptRuntimeTelemetry(event);
             if (pipelineOrchestrator != null) {
+                long pipelineStart = System.currentTimeMillis();
                 pipelineResponse = executeSecurityDecisionPipeline(
                                 pipelineOrchestrator,
                                 event,
@@ -222,10 +241,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 relatedDocuments)
                         .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .block();
+                pipelineBlockMs = System.currentTimeMillis() - pipelineStart;
                 if (pipelineResponse == null) {
                     throw new IllegalStateException("Layer2 structured security decision pipeline returned null");
                 }
+                long responseValidateStart = System.currentTimeMillis();
                 response = validateAndFixResponse(pipelineResponse.toSecurityResponse());
+                responseValidateMs = System.currentTimeMillis() - responseValidateStart;
                 capturePromptRuntimeTelemetry(event, pipelineResponse);
             } else {
                 throw new IllegalStateException("Layer2 PipelineOrchestrator not available");
@@ -246,11 +268,24 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             }
 
             if (securityLearningService != null) {
+                long postProcessStart = System.currentTimeMillis();
                 securityLearningService.postProcessDecision(event, expertDecision);
+                postProcessMs = System.currentTimeMillis() - postProcessStart;
             }
 
-            expertDecision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+            long totalMs = System.currentTimeMillis() - startTime;
+            expertDecision.setProcessingTimeMs(totalMs);
             expertDecision.setProcessingLayer(2);
+            recordLayer2TimingMetadata(
+                    event,
+                    sessionContextMs,
+                    ragSearchMs,
+                    behaviorAnalysisMs,
+                    threatContextMs,
+                    pipelineBlockMs,
+                    responseValidateMs,
+                    postProcessMs,
+                    totalMs);
 
             return expertDecision;
 
@@ -269,7 +304,28 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                     return Mono.just(createFailsafeDecision(event, startTime, resolveTechnicalFailureCategory(throwable)));
                 });
     }
-
+    private void recordLayer2TimingMetadata(
+            SecurityEvent event,
+            long sessionContextMs,
+            long ragSearchMs,
+            long behaviorAnalysisMs,
+            long threatContextMs,
+            long pipelineBlockMs,
+            long responseValidateMs,
+            long postProcessMs,
+            long totalMs) {
+        if (event == null) {
+            return;
+        }
+        event.addMetadata("layer2SessionContextMs", sessionContextMs);
+        event.addMetadata("layer2RagSearchMs", ragSearchMs);
+        event.addMetadata("layer2BehaviorAnalysisMs", behaviorAnalysisMs);
+        event.addMetadata("layer2ThreatContextMs", threatContextMs);
+        event.addMetadata("layer2PipelineBlockMs", pipelineBlockMs);
+        event.addMetadata("layer2ResponseValidateMs", responseValidateMs);
+        event.addMetadata("layer2PostProcessMs", postProcessMs);
+        event.addMetadata("layer2TotalMs", totalMs);
+    }
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer2().getRag().getSimilarityThreshold();
         return searchRelatedContextBase(event, tieredStrategyProperties.getLayer2().getRagTopK(), similarityThreshold);

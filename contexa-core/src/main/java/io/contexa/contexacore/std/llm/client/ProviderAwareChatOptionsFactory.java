@@ -112,14 +112,14 @@ public final class ProviderAwareChatOptionsFactory {
 
         Integer maxTokens = readInteger(options, "getMaxTokens");
         Integer maxCompletionTokens = readInteger(options, "getMaxCompletionTokens");
-        if (maxTokens == null || maxCompletionTokens != null) {
-            return (ChatOptions) copy;
+        if (maxTokens != null && maxCompletionTokens == null) {
+            try {
+                invokeSetter(copy, "setMaxCompletionTokens", Integer.class, maxTokens);
+                invokeSetter(copy, "setMaxTokens", Integer.class, null);
+            } catch (Exception ignored) {
+            }
         }
-        try {
-            invokeSetter(copy, "setMaxCompletionTokens", Integer.class, maxTokens);
-            invokeSetter(copy, "setMaxTokens", Integer.class, null);
-        } catch (Exception ignored) {
-        }
+        applyOpenAiRuntimeOptions(copy, context);
         return (ChatOptions) copy;
     }
 
@@ -337,9 +337,30 @@ public final class ProviderAwareChatOptionsFactory {
             }
             invokeBuilder(builder, "maxTokens", Integer.class, null);
         }
-        return (ChatOptions) invokeNoArg(builder, "build");
+        ChatOptions options = (ChatOptions) invokeNoArg(builder, "build");
+        applyOpenAiRuntimeOptions(options, context);
+        return options;
     }
 
+    private static void applyOpenAiRuntimeOptions(Object options, ExecutionContext context) {
+        if (!isOpenAiOptions(options) || context == null) {
+            return;
+        }
+        String reasoningEffort = firstNonBlank(
+                metadataText(context, "openAiReasoningEffort"),
+                metadataText(context, "runtimeOpenAiReasoningEffort"));
+        if (reasoningEffort != null) {
+            invokeSetter(options, "setReasoningEffort", String.class, reasoningEffort);
+            context.addMetadata("openAiReasoningEffort", reasoningEffort);
+        }
+        String verbosity = firstNonBlank(
+                metadataText(context, "openAiVerbosity"),
+                metadataText(context, "runtimeOpenAiVerbosity"));
+        if (verbosity != null) {
+            invokeSetter(options, "setVerbosity", String.class, verbosity);
+            context.addMetadata("openAiVerbosity", verbosity);
+        }
+    }
     private static Object openAiBuilderFromDefaultOptions(ChatModel selectedModel) {
         ChatOptions defaultOptions = selectedModel != null ? selectedModel.getDefaultOptions() : null;
         if (isOpenAiOptions(defaultOptions)) {

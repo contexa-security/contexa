@@ -323,7 +323,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -763,7 +762,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -804,7 +802,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -845,7 +842,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -892,7 +888,6 @@ class SecurityDecisionStandardPromptTemplateTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),

@@ -261,8 +261,10 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptGenerationStep promptGenerationStep(PromptGenerator promptGenerator) {
-        return new PromptGenerationStep(promptGenerator);
+    public PromptGenerationStep promptGenerationStep(
+            PromptGenerator promptGenerator,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new PromptGenerationStep(promptGenerator, tieredStrategyProperties);
     }
 
     @Bean
@@ -330,3 +332,5 @@ public class CoreStdComponentsAutoConfiguration {
         return new ApprovalPolicyRepository(jpaRepository);
     }
 }
+
+

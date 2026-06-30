@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.hcad.trigger;
 
+import io.contexa.contexacore.autonomous.LlmAnalysisBackpressureMonitor;
 import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 
 import java.time.Duration;
+import java.util.function.Supplier;
 
 @Slf4j
 public class PendingAnomalyTriggerOrchestrator {
@@ -35,6 +37,7 @@ public class PendingAnomalyTriggerOrchestrator {
     private final HcadProperties hcadProperties;
     private final HcadEvaluationWriter hcadEvaluationWriter;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private final Supplier<LlmAnalysisBackpressureMonitor> backpressureMonitorSupplier;
     private final HcadLlmTriggerCoordinator triggerCoordinator;
 
     public PendingAnomalyTriggerOrchestrator(
@@ -43,7 +46,14 @@ public class PendingAnomalyTriggerOrchestrator {
             PendingAnomalyEventTriggerService eventTriggerService,
             AnalysisTriggerStateRepository analysisTriggerStateRepository,
             HcadProperties hcadProperties) {
-        this(eligibilityGate, evidenceCheckService, eventTriggerService, analysisTriggerStateRepository, hcadProperties, null, null);
+        this(eligibilityGate,
+                evidenceCheckService,
+                eventTriggerService,
+                analysisTriggerStateRepository,
+                hcadProperties,
+                null,
+                null,
+                null);
     }
 
     public PendingAnomalyTriggerOrchestrator(
@@ -59,6 +69,7 @@ public class PendingAnomalyTriggerOrchestrator {
                 analysisTriggerStateRepository,
                 hcadProperties,
                 hcadEvaluationWriter,
+                null,
                 null);
     }
 
@@ -70,6 +81,25 @@ public class PendingAnomalyTriggerOrchestrator {
             HcadProperties hcadProperties,
             HcadEvaluationWriter hcadEvaluationWriter,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
+        this(eligibilityGate,
+                evidenceCheckService,
+                eventTriggerService,
+                analysisTriggerStateRepository,
+                hcadProperties,
+                hcadEvaluationWriter,
+                securityZeroTrustProperties,
+                null);
+    }
+
+    public PendingAnomalyTriggerOrchestrator(
+            PendingAnomalyEligibilityGate eligibilityGate,
+            PendingAnomalyEvidenceCheckService evidenceCheckService,
+            PendingAnomalyEventTriggerService eventTriggerService,
+            AnalysisTriggerStateRepository analysisTriggerStateRepository,
+            HcadProperties hcadProperties,
+            HcadEvaluationWriter hcadEvaluationWriter,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Supplier<LlmAnalysisBackpressureMonitor> backpressureMonitorSupplier) {
         this.eligibilityGate = eligibilityGate;
         this.evidenceCheckService = evidenceCheckService;
         this.eventTriggerService = eventTriggerService;
@@ -77,6 +107,7 @@ public class PendingAnomalyTriggerOrchestrator {
         this.hcadProperties = hcadProperties;
         this.hcadEvaluationWriter = hcadEvaluationWriter;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
+        this.backpressureMonitorSupplier = backpressureMonitorSupplier == null ? () -> null : backpressureMonitorSupplier;
         this.triggerCoordinator = new HcadLlmTriggerCoordinator(analysisTriggerStateRepository, hcadProperties);
     }
 
@@ -129,6 +160,14 @@ public class PendingAnomalyTriggerOrchestrator {
         if (eventTriggerService == null) {
             markTriggerSuppressed(evaluationId, "TRIGGER_SERVICE_UNAVAILABLE");
             log.warn("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger candidate was recorded but no LLM event trigger service is configured");
+            return;
+        }
+
+                if (hcadPreTriggerBackpressured()) {
+            String reason = hcadBackpressureReason();
+            markTriggerSuppressed(evaluationId, reason);
+            log.warn("[PendingAnomalyTriggerOrchestrator] HCAD-only pre-trigger deferred because LLM analysis queue is under backpressure. reason={}",
+                    reason);
             return;
         }
 
@@ -266,6 +305,28 @@ public class PendingAnomalyTriggerOrchestrator {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_RISK_SIGNATURE, report.riskSignature());
             }
         }
+    }
+
+    private boolean hcadPreTriggerBackpressured() {
+        try {
+            LlmAnalysisBackpressureMonitor monitor = backpressureMonitorSupplier.get();
+            return monitor != null && monitor.hcadPreTriggerBackpressured();
+        } catch (Exception ex) {
+            log.debug("[PendingAnomalyTriggerOrchestrator] Failed to inspect LLM backpressure state", ex);
+            return false;
+        }
+    }
+
+    private String hcadBackpressureReason() {
+        try {
+            LlmAnalysisBackpressureMonitor monitor = backpressureMonitorSupplier.get();
+            if (monitor != null) {
+                return monitor.hcadDeferredReason();
+            }
+        } catch (Exception ex) {
+            log.debug("[PendingAnomalyTriggerOrchestrator] Failed to resolve HCAD backpressure reason", ex);
+        }
+        return "TRIGGER_DEFERRED_BACKPRESSURE";
     }
 
     private boolean protectableAnalysisAlreadyStarted(HttpServletRequest request) {

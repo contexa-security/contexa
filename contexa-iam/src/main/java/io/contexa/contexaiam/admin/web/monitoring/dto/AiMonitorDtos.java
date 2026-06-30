@@ -133,6 +133,13 @@ public final class AiMonitorDtos {
     ) {
     }
 
+    public record LatencyBreakdownMetric(
+            String key,
+            double averageMs,
+            double p95Ms
+    ) {
+    }
+
     public record OperationsSummary(
             double averageLatencyMs,
             long parserFailureCount,
@@ -141,7 +148,8 @@ public final class AiMonitorDtos {
             long modelUnavailableCount,
             long estimatedWastedLlmCalls,
             double estimatedWasteCostUsd,
-            double estimatedSavedCostUsd
+            double estimatedSavedCostUsd,
+            List<LatencyBreakdownMetric> latencyBreakdown
     ) {
     }
 

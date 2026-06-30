@@ -30,7 +30,6 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
-import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.repository.*;
 import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
@@ -242,7 +241,6 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
@@ -250,24 +248,37 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityDecisionStandardPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider.getIfAvailable(),
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
                 promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none));
     }
 
+    @Bean(destroyMethod = "shutdown")
+    @ConditionalOnMissingBean(name = "securityLearningPostProcessExecutor")
+    public ExecutorService securityLearningPostProcessExecutor() {
+        return new ThreadPoolExecutor(
+                2,
+                4,
+                60L,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(1000),
+                namedThreadFactory("Security-Learning-"),
+                new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public SecurityLearningService securityLearningService(
             ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
-            ObjectProvider<SecurityDecisionPostProcessor> postProcessorProvider) {
+            ObjectProvider<SecurityDecisionPostProcessor> postProcessorProvider,
+            @Qualifier("securityLearningPostProcessExecutor") ExecutorService securityLearningPostProcessExecutor) {
         return new SecurityLearningService(
                 baselineLearningServiceProvider.getIfAvailable(),
-                postProcessorProvider.getIfAvailable());
+                postProcessorProvider.getIfAvailable(),
+                securityLearningPostProcessExecutor);
     }
-
-    @Bean
+@Bean
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
             SecurityLearningService securityLearningService,

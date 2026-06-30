@@ -53,6 +53,12 @@ public class TieredStrategyProperties {
 
     @Data
     public static class PromptRuntime {
+        public enum PromptLineageCaptureMode {
+            ALWAYS,
+            OFFICIAL_VERIFICATION,
+            DISABLED
+        }
+
         /**
          * When disabled, runtime falls back to validated converter mode but never re-enables raw semantic fallback.
          */
@@ -62,6 +68,11 @@ public class TieredStrategyProperties {
          * Prompt runtime telemetry remains on by default for official verification and rollout diagnostics.
          */
         private boolean telemetryEnabled = true;
+        /**
+         * Full prompt lineage is expensive and is intended for official verification evidence.
+         * Runtime security decisions keep lightweight prompt telemetry by default.
+         */
+        private PromptLineageCaptureMode lineageCaptureMode = PromptLineageCaptureMode.OFFICIAL_VERIFICATION;
 
         public boolean isNativeStructuredOutputEnabledForProfile(String profileKey) {
             if (!nativeStructuredOutputEnabled) {
@@ -106,6 +117,7 @@ public class TieredStrategyProperties {
         private int expireMinutes = 5;
         private boolean enabled = true;
         private boolean recordStats = true;
+        private boolean invalidateOnWrite = false;
     }
 
     @Data
@@ -115,15 +127,18 @@ public class TieredStrategyProperties {
         private Cache cache = new Cache();
         private Timeout timeout = new Timeout();
         private Prompt prompt = new Prompt();
-        private int vectorSearchLimit = 3;
+        private int vectorSearchLimit = 12;
         private String defaultBudgetProfile = "CORTEX_L1_INTERACTIVE_STRICT";
+        private int maxOutputTokens = 1024;
+        private String openAiReasoningEffort = "minimal";
+        private String openAiVerbosity = "low";
 
         @Data
         public static class Prompt {
 
             private int maxSimilarEvents = 2;
 
-            private int maxRagDocuments = 3;
+            private int maxRagDocuments = 12;
 
             private boolean includeEventId = false;
 
@@ -141,13 +156,21 @@ public class TieredStrategyProperties {
 
             private long llmMs = 6500;
 
-            private long ragMs = 5000;
+            private long ragMs = 8000;
         }
 
         @Data
         public static class Rag {
 
             private double similarityThreshold = 0.5;
+        
+            /**
+             * Layer1 is the interactive hot path. Keep one user-scoped vector lookup by default;
+             * broader/baseline/supporting lookups can be enabled for diagnostics or offline analysis.
+             */
+            private boolean multiQuerySearchEnabled = false;
+
+            private boolean supportingSearchEnabled = false;
         }
 
         @Data
@@ -176,6 +199,9 @@ public class TieredStrategyProperties {
         private ZeroTrustAction escalateFallbackAction = ZeroTrustAction.CHALLENGE;
         private int ragTopK = 5;
         private String defaultBudgetProfile = "CORTEX_L2_EXPERT_STRICT";
+        private int maxOutputTokens = 1536;
+        private String openAiReasoningEffort = "minimal";
+        private String openAiVerbosity = "low";
 
         @Data
         public static class Cache {
@@ -193,4 +219,5 @@ public class TieredStrategyProperties {
     }
 
 }
+
 

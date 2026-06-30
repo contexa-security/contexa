@@ -45,7 +45,15 @@ public record PromptCompressionLedger(
     }
 
     public boolean compressionApplied() {
-        return !rawPromptParity || !records.isEmpty() || savedCharacters > 0 || savedEstimatedTokens > 0;
+        for (PromptCompressionRecord record : records) {
+            if (record.action() == PromptCompressionAction.DEDUPLICATED
+                    || record.action() == PromptCompressionAction.SUMMARIZED
+                    || record.action() == PromptCompressionAction.FUSED
+                    || record.action() == PromptCompressionAction.OMITTED) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int rawTotalPromptLength() {

@@ -19,6 +19,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptFieldLineageAnalysis;
 import io.contexa.contexacore.std.components.prompt.PromptFieldLineageAnalyzer;
 import io.contexa.contexacore.std.components.prompt.PromptFieldStateLedger;
@@ -39,9 +40,17 @@ import java.util.Map;
 public class PromptEvidenceComposer {
 
     private final PromptGenerator promptGenerator;
+    private final TieredStrategyProperties tieredStrategyProperties;
 
     public PromptEvidenceComposer(PromptGenerator promptGenerator) {
+        this(promptGenerator, new TieredStrategyProperties());
+    }
+
+    public PromptEvidenceComposer(PromptGenerator promptGenerator, TieredStrategyProperties tieredStrategyProperties) {
         this.promptGenerator = promptGenerator;
+        this.tieredStrategyProperties = tieredStrategyProperties != null
+                ? tieredStrategyProperties
+                : new TieredStrategyProperties();
     }
 
     public <T extends DomainContext> PromptEvidenceComposition compose(
@@ -116,6 +125,22 @@ public class PromptEvidenceComposer {
         Map<String, Object> metadata = ensureMutableMetadata(securityEvent);
         log.info("[PromptEvidenceComposer.lineage] ensureMutableMetadata completed in {} ms", System.currentTimeMillis() - t);
 
+        copyPromptMetadata(promptResult, metadata, context);
+        putPromptLength(metadata, context, "systemPromptLength", promptResult.getSystemPrompt());
+        putPromptLength(metadata, context, "userPromptLength", promptResult.getUserPrompt());
+        putPromptLength(metadata, context, "totalPromptLength", joinPrompts(promptResult.getSystemPrompt(), promptResult.getUserPrompt()));
+        putPromptLength(metadata, context, "rawSystemPromptLength", promptResult.getRawSystemPrompt());
+        putPromptLength(metadata, context, "rawUserPromptLength", promptResult.getRawUserPrompt());
+        putPromptLength(metadata, context, "rawTotalPromptLength", joinPrompts(promptResult.getRawSystemPrompt(), promptResult.getRawUserPrompt()));
+
+        if (!shouldCaptureFullLineage(metadata)) {
+            putMetadataValue(metadata, context, "promptLineageCaptureMode", "LIGHTWEIGHT_RUNTIME");
+            putMetadataValue(metadata, context, "promptRuntimeTelemetryLinked", Boolean.TRUE);
+            putMetadataValue(metadata, context, "promptRuntimeTelemetryLayer", "LIGHTWEIGHT_RUNTIME");
+            return;
+        }
+        putMetadataValue(metadata, context, "promptLineageCaptureMode", "FULL_OFFICIAL_VERIFICATION");
+
         t = System.currentTimeMillis();
         PromptSourceContextSnapshot sourceSnapshot = PromptSourceContextSnapshotFactory.capture(securityDecisionContext);
         log.info("[PromptEvidenceComposer.lineage] PromptSourceContextSnapshotFactory.capture completed in {} ms", System.currentTimeMillis() - t);
@@ -146,23 +171,93 @@ public class PromptEvidenceComposer {
         t = System.currentTimeMillis();
         putMetadataMap(metadata, context, fieldStateLedger.toMetadataMap());
         log.info("[PromptEvidenceComposer.lineage] putMetadataMap (fieldStateLedger) completed in {} ms", System.currentTimeMillis() - t);
+    }
 
-        if (promptResult.getMetadata() != null) {
-            copyIfPresent(promptResult.getMetadata(), metadata, "promptKey");
-            copyIfPresent(promptResult.getMetadata(), metadata, "templateKey");
-            copyIfPresent(promptResult.getMetadata(), metadata, "promptVersion");
-            copyIfPresent(promptResult.getMetadata(), metadata, "promptHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "systemPromptHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "userPromptHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "rawPromptHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "rawSystemPromptHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "rawUserPromptHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "promptCacheSystemStable");
-            copyIfPresent(promptResult.getMetadata(), metadata, "promptCacheSystemHash");
-            copyIfPresent(promptResult.getMetadata(), metadata, "promptCacheContextMode");
-            copyIfPresent(promptResult.getMetadata(), metadata, "pqaReferencePrompt");
-            copyIfPresent(promptResult.getMetadata(), metadata, "pqaRawPromptRole");
-            copyIfPresent(promptResult.getMetadata(), metadata, "pqaPromptCachePolicy");
+    private boolean shouldCaptureFullLineage(Map<String, Object> metadata) {
+        TieredStrategyProperties.PromptRuntime promptRuntime = tieredStrategyProperties.getPromptRuntime();
+        if (promptRuntime == null || !promptRuntime.isTelemetryEnabled()) {
+            return false;
+        }
+        TieredStrategyProperties.PromptRuntime.PromptLineageCaptureMode mode = promptRuntime.getLineageCaptureMode();
+        if (mode == null) {
+            mode = TieredStrategyProperties.PromptRuntime.PromptLineageCaptureMode.OFFICIAL_VERIFICATION;
+        }
+        return switch (mode) {
+            case ALWAYS -> true;
+            case DISABLED -> false;
+            case OFFICIAL_VERIFICATION -> hasOfficialVerificationMarker(metadata);
+        };
+    }
+
+    private boolean hasOfficialVerificationMarker(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return false;
+        }
+        return metadata.keySet().stream()
+                .filter(key -> key != null && !key.isBlank())
+                .anyMatch(this::isOfficialVerificationMarker);
+    }
+
+    private boolean isOfficialVerificationMarker(String key) {
+        if (key.startsWith("officialVerification") || key.contains("OfficialVerification")) {
+            return true;
+        }
+        return key.startsWith("pqaOfficial")
+                || key.startsWith("pqaRuntimeOfficial")
+                || key.startsWith("pqaVerificationRun")
+                || key.startsWith("pqaOfficialVerification");
+    }
+
+    private void copyPromptMetadata(
+            PromptGenerationResult promptResult,
+            Map<String, Object> eventMetadata,
+            PipelineExecutionContext context) {
+        if (promptResult == null || promptResult.getMetadata() == null || promptResult.getMetadata().isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : promptResult.getMetadata().entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            eventMetadata.putIfAbsent(entry.getKey(), entry.getValue());
+            if (context != null) {
+                context.addMetadata(entry.getKey(), eventMetadata.get(entry.getKey()));
+            }
+        }
+    }
+
+    private String joinPrompts(String first, String second) {
+        if (first == null || first.isBlank()) {
+            return second;
+        }
+        if (second == null || second.isBlank()) {
+            return first;
+        }
+        return first + "\n" + second;
+    }
+
+    private void putPromptLength(
+            Map<String, Object> eventMetadata,
+            PipelineExecutionContext context,
+            String key,
+            String prompt) {
+        if (prompt == null) {
+            return;
+        }
+        putMetadataValue(eventMetadata, context, key, prompt.length());
+    }
+
+    private void putMetadataValue(
+            Map<String, Object> eventMetadata,
+            PipelineExecutionContext context,
+            String key,
+            Object value) {
+        if (eventMetadata == null || key == null || value == null) {
+            return;
+        }
+        eventMetadata.put(key, value);
+        if (context != null) {
+            context.addMetadata(key, value);
         }
     }
 
@@ -179,16 +274,6 @@ public class PromptEvidenceComposer {
         Map<String, Object> copied = new LinkedHashMap<>(current);
         securityEvent.setMetadata(copied);
         return copied;
-    }
-
-    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
-        if (source == null || target == null || key == null) {
-            return;
-        }
-        Object value = source.get(key);
-        if (value != null) {
-            target.putIfAbsent(key, value);
-        }
     }
 
     private void putIfPresent(Map<String, Object> target, String key, String value) {
@@ -222,3 +307,4 @@ public class PromptEvidenceComposer {
     ) {
     }
 }
+

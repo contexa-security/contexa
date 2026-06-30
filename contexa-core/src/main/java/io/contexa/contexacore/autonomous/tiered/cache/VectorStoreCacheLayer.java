@@ -72,18 +72,10 @@ public class VectorStoreCacheLayer {
         try {
             String cacheKey = generateCacheKey(request);
 
-            List<Document> cachedResult = cache.getIfPresent(cacheKey);
-            if (cachedResult != null) {
-                return cachedResult;
-            }
-
-            List<Document> result = vectorStore.similaritySearch(request);
-
-            if (!result.isEmpty()) {
-                cache.put(cacheKey, result);
-            }
-
-            return result;
+            return cache.get(cacheKey, ignored -> {
+                List<Document> result = vectorStore.similaritySearch(request);
+                return result != null ? List.copyOf(result) : List.of();
+            });
 
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Error during similarity search", e);
@@ -105,10 +97,14 @@ public class VectorStoreCacheLayer {
 
         if (request.getFilterExpression() != null) {
 
-            keyBuilder.append("|f:").append(request.getFilterExpression().hashCode());
+            keyBuilder.append("|f:").append(stableFilterExpression(request.getFilterExpression()));
         }
 
         return keyBuilder.toString();
+    }
+
+    private String stableFilterExpression(Object filterExpression) {
+        return String.valueOf(filterExpression);
     }
 
     private List<Document> searchWithoutCache(SearchRequest request) {
@@ -148,6 +144,15 @@ public class VectorStoreCacheLayer {
                 .filter(key -> key.startsWith("q:" + query))
                 .forEach(cache::invalidate);
 
+    }
+
+    public void invalidateAfterWrite() {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled()
+                || !tieredStrategyProperties.getVectorCache().isInvalidateOnWrite()) {
+            return;
+        }
+
+        cache.invalidateAll();
     }
 
     public void invalidateAll() {
@@ -316,4 +321,5 @@ public class VectorStoreCacheLayer {
         }
     }
 }
+
 

@@ -128,19 +128,19 @@ class ProtectableRapidReentryGuardTest {
     }
 
     @Nested
-    @DisplayName("Context binding hash + userId + resourceKey")
+    @DisplayName("Context binding hash + userId + actor-session scope")
     class ContextBindingTests {
 
         @Test
-        @DisplayName("Should build resourceKey from method and request")
-        void shouldBuildCorrectResourceKey() {
+        @DisplayName("Should use actor-session scope instead of method or URI")
+        void shouldUseActorSessionScopeKey() {
             try (MockedStatic<SessionFingerprintUtil> fingerprint = mockStatic(SessionFingerprintUtil.class)) {
                 fingerprint.when(() -> SessionFingerprintUtil.generateContextBindingHash(request))
                         .thenReturn("ctxHash");
                 when(repository.tryAcquire(
                         eq("user1"),
                         eq("ctxHash"),
-                        eq("TestController.doAction|POST /api/resource"),
+                        eq("PROTECTABLE_ACTOR_SESSION"),
                         eq(Duration.ofSeconds(5))
                 )).thenReturn(true);
 
@@ -150,40 +150,40 @@ class ProtectableRapidReentryGuardTest {
                 verify(repository).tryAcquire(
                         eq("user1"),
                         eq("ctxHash"),
-                        eq("TestController.doAction|POST /api/resource"),
+                        eq("PROTECTABLE_ACTOR_SESSION"),
                         eq(Duration.ofSeconds(5)));
             }
         }
     }
 
     @Nested
-    @DisplayName("Different resources should be allowed")
+    @DisplayName("Different resources in the same actor session should be coalesced")
     class DifferentResourceTests {
 
         @Test
-        @DisplayName("Should allow access to different URIs independently")
-        void shouldAllowDifferentResources() throws Exception {
+        @DisplayName("Should suppress different URIs within the same actor-session window")
+        void shouldSuppressDifferentResourcesInSameActorSession() throws Exception {
             try (MockedStatic<SessionFingerprintUtil> fingerprint = mockStatic(SessionFingerprintUtil.class)) {
                 fingerprint.when(() -> SessionFingerprintUtil.generateContextBindingHash(request))
                         .thenReturn("hash1");
 
-                // First resource allowed
+                when(repository.tryAcquire(eq("user1"), eq("hash1"),
+                        eq("PROTECTABLE_ACTOR_SESSION"), eq(Duration.ofSeconds(5))))
+                        .thenReturn(true)
+                        .thenReturn(false);
+
                 when(request.getRequestURI()).thenReturn("/api/resource-a");
-                when(repository.tryAcquire(eq("user1"), eq("hash1"),
-                        eq("TestController.doAction|POST /api/resource-a"), eq(Duration.ofSeconds(5))))
-                        .thenReturn(true);
-
                 assertThatCode(() -> guard.check(authentication, methodInvocation))
                         .doesNotThrowAnyException();
 
-                // Second resource also allowed (different resourceKey)
                 when(request.getRequestURI()).thenReturn("/api/resource-b");
-                when(repository.tryAcquire(eq("user1"), eq("hash1"),
-                        eq("TestController.doAction|POST /api/resource-b"), eq(Duration.ofSeconds(5))))
-                        .thenReturn(true);
+                Assertions.assertThat(guard.tryAcquire(authentication, methodInvocation)).isFalse();
 
-                assertThatCode(() -> guard.check(authentication, methodInvocation))
-                        .doesNotThrowAnyException();
+                verify(repository, times(2)).tryAcquire(
+                        eq("user1"),
+                        eq("hash1"),
+                        eq("PROTECTABLE_ACTOR_SESSION"),
+                        eq(Duration.ofSeconds(5)));
             }
         }
     }

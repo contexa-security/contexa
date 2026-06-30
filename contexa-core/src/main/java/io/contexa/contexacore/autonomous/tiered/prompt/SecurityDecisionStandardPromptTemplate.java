@@ -24,7 +24,6 @@ import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEviden
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacommon.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.DetectionStrategyPackSnapshot;
 import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyRuntimePack;
@@ -74,12 +73,10 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public SecurityDecisionStandardPromptTemplate(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer) {
         this(eventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 null);
@@ -88,13 +85,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public SecurityDecisionStandardPromptTemplate(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver) {
         this(eventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 promptGovernanceDescriptorResolver,
@@ -104,7 +99,6 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public SecurityDecisionStandardPromptTemplate(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
@@ -112,7 +106,6 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         this(new SecurityDecisionPromptSections(
                 eventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 SECURITY_DECISION_PROMPT_GOVERNANCE,
@@ -123,16 +116,8 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public SecurityDecisionStandardPromptTemplate(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties) {
-        this(eventEnricher, tieredStrategyProperties, null, null, null);
+        this(eventEnricher, tieredStrategyProperties, null, null);
     }
-
-    public SecurityDecisionStandardPromptTemplate(
-            SecurityEventEnricher eventEnricher,
-            TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider) {
-        this(eventEnricher, tieredStrategyProperties, mcpSecurityContextProvider, null, null);
-    }
-
     public SecurityDecisionStandardPromptTemplate(SecurityDecisionPromptSections promptSections) {
         super(SecurityDecisionResponseLite.class);
         this.promptSections = promptSections;

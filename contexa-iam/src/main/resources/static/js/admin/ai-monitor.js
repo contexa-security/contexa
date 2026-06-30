@@ -203,15 +203,18 @@
                 ${trendPanel(label('labelFailureTrend'), summary.failureTrend || [])}
             </div>`,
             `<div class="ai-monitor-overview-grid">
-                ${recentFailurePanel(summary.recentFailures || [])}
+                ${latencyBreakdownPanel(operations.latencyBreakdown || [])}
                 ${slowRequestPanel(summary.slowRequests || [])}
             </div>`,
             `<div class="ai-monitor-overview-grid">
+                ${recentFailurePanel(summary.recentFailures || [])}
                 ${affectedRequestPanel(summary.affectedRequests || [])}
-                ${optionalBreakdownPanel(label('labelProvider'), summary.providerBreakdown || [], label('labelProviderUnknownHelp'))}
             </div>`,
             `<div class="ai-monitor-overview-grid">
+                ${optionalBreakdownPanel(label('labelProvider'), summary.providerBreakdown || [], label('labelProviderUnknownHelp'))}
                 ${optionalBreakdownPanel(label('labelModel'), summary.modelBreakdown || [], label('labelProviderUnknownHelp'))}
+            </div>`,
+            `<div class="ai-monitor-overview-grid">
                 ${optionalBreakdownPanel(label('labelPromptTemplate'), summary.promptTemplateBreakdown || [], label('labelNoData'))}
             </div>`
         ].join('');
@@ -236,7 +239,8 @@
                 modelUnavailableCount: Math.round((summary.modelUnavailableRate || 0) * (summary.llmDecisionCount || 0)),
                 averageLatencyMs: summary.averageLatencyMs
             },
-            correlation: { observableFalseNegativeCount: Math.round((summary.observableFalseNegativeRate || 0) * (summary.llmDecisionCount || 0)) }
+            correlation: { observableFalseNegativeCount: Math.round((summary.observableFalseNegativeRate || 0) * (summary.llmDecisionCount || 0)) }
+
         });
         const apiBlockers = apiReadinessBlockers(summary.blockers || []);
         const blockers = apiBlockers.length ? apiBlockers : fallbackBlockers;
@@ -520,6 +524,28 @@
                     <thead><tr><th>${escapeHtml(label('labelCreatedAt'))}</th><th>${escapeHtml(label('labelUser'))}</th><th>${escapeHtml(label('labelOutcome'))}</th><th>${escapeHtml(label('labelHcadScore'))}</th><th>${escapeHtml(label('labelFinalAction'))}</th></tr></thead>
                     <tbody>${body}</tbody>
                 </table>
+            </section>`;
+    }
+
+    function latencyBreakdownPanel(rows) {
+        const safeRows = (rows || []).filter(row => (row.averageMs || 0) > 0 || (row.p95Ms || 0) > 0);
+        const max = Math.max(1, ...safeRows.map(row => Math.max(row.averageMs || 0, row.p95Ms || 0)));
+        return `
+            <section class="ai-monitor-band">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelLatencyBreakdown'))}</div>
+                <div class="ai-monitor-band-help">${escapeHtml(label('labelLatencyBreakdownHelp'))}</div>
+                <div class="ai-monitor-bars">
+                    ${(safeRows.length ? safeRows : [{ key: 'NO_DATA', averageMs: 0, p95Ms: 0 }]).map(row => `
+                        <div class="ai-monitor-bar-row">
+                            <div class="ai-monitor-bar-head">
+                                <span>${escapeHtml(displayKey(row.key))}</span>
+                                <strong>${escapeHtml(formatMs(row.averageMs || 0))} / P95 ${escapeHtml(formatMs(row.p95Ms || 0))}</strong>
+                            </div>
+                            <div class="ai-monitor-bar-track">
+                                <span class="ai-monitor-bar-fill" style="width:${percentWidth((row.averageMs || 0) / max)}%;"></span>
+                            </div>
+                        </div>`).join('')}
+                </div>
             </section>`;
     }
 

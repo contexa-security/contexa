@@ -26,6 +26,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationS
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.AffectedRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FeedbackLearningSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LatencyBreakdownMetric;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetRequest;
@@ -1132,7 +1133,8 @@ public class AiSecurityDecisionMonitoringService {
                 modelUnavailable,
                 hcad.falsePositiveCount(),
                 hcad.falsePositiveCount() * cost,
-                hcad.duplicateSuppressedCount() * cost);
+                hcad.duplicateSuppressedCount() * cost,
+                latencyBreakdown(from, to));
     }
 
 
@@ -1822,6 +1824,61 @@ public class AiSecurityDecisionMonitoringService {
         return value == null ? 0.0d : value;
     }
 
+    private List<LatencyBreakdownMetric> latencyBreakdown(LocalDateTime from, LocalDateTime to) {
+        return List.of(
+                latencyMetric("QUEUE_WAIT_MS", "queueWaitMs", from, to),
+                latencyMetric("PROMPT_BUILD_MS", "promptBuildMs", from, to),
+                latencyMetric("RAG_VECTOR_MS", "ragVectorMs", from, to),
+                latencyMetric("OPENAI_CALL_MS", "openAiCallMs", from, to),
+                latencyMetric("PARSE_MS", "parseMs", from, to),
+                latencyMetric("PERSIST_MS", "persistMs", from, to),
+                latencyMetric("TOTAL_ANALYSIS_MS", "totalAnalysisMs", from, to));
+    }
+
+    private LatencyBreakdownMetric latencyMetric(String key, String jsonKey, LocalDateTime from, LocalDateTime to) {
+        return new LatencyBreakdownMetric(
+                key,
+                averageLatencyMetadata(jsonKey, from, to),
+                p95LatencyMetadata(jsonKey, from, to));
+    }
+
+    private double averageLatencyMetadata(String jsonKey, LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return 0.0d;
+        }
+        String expression = latencyJsonNumberExpression(jsonKey);
+        Double value = jdbcOperations.queryForObject(
+                "select avg(value) from (select " + expression + " as value "
+                        + "from ai_security_decision_observation "
+                        + "where created_at between ? and ? and " + monitorablePath("request_path") + ") latency_values where value is not null",
+                Double.class,
+                from,
+                to);
+        return value == null ? 0.0d : value;
+    }
+
+    private double p95LatencyMetadata(String jsonKey, LocalDateTime from, LocalDateTime to) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null) {
+            return 0.0d;
+        }
+        String expression = latencyJsonNumberExpression(jsonKey);
+        Double value = jdbcOperations.queryForObject(
+                "select percentile_cont(0.95) within group (order by value) "
+                        + "from (select " + expression + " as value "
+                        + "from ai_security_decision_observation "
+                        + "where created_at between ? and ? and " + monitorablePath("request_path") + ") latency_values where value is not null",
+                Double.class,
+                from,
+                to);
+        return value == null ? 0.0d : value;
+    }
+
+    private String latencyJsonNumberExpression(String jsonKey) {
+        String raw = "(metadata_json::jsonb #>> '{latencyBreakdown," + jsonKey + "}')";
+        return "case when " + raw + " ~ '^-?[0-9]+(\\.[0-9]+)?$' then (" + raw + ")::double precision end";
+    }
     private double p95Latency(String from, String to) {
         return p95Latency(LocalDateTime.parse(from, ISO), LocalDateTime.parse(to, ISO));
     }

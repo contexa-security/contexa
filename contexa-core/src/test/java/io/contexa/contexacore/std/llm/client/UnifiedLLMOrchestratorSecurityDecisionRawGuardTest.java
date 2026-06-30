@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.llm.client;
 
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
@@ -28,6 +29,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -65,6 +67,24 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
     }
 
     @Test
+    void executeEntityShouldFailClosedWithProviderTimeoutCategory() {
+        UnifiedLLMOrchestrator orchestrator = orchestratorFailing(new RuntimeException(new TimeoutException("provider timeout")));
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setRequestId("security-raw-timeout");
+
+        SecurityDecisionResponseLite result = orchestrator
+                .executeEntity(context, SecurityDecisionResponseLite.class)
+                .block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata())
+                .containsEntry("rawExecutionSucceeded", false)
+                .containsEntry("securityDecisionParseFailureCategory", "PROVIDER_TIMEOUT")
+                .containsEntry("securityDecisionFallbackAction", "CHALLENGE")
+                .containsEntry("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
+    }
+    @Test
     void executeEntityShouldFailClosedWhenSecurityDecisionRawExecutionFails() {
         UnifiedLLMOrchestrator orchestrator = orchestratorFailing(new IllegalStateException("connection refused"));
         ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
@@ -85,7 +105,7 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
     }
 
     private UnifiedLLMOrchestrator orchestratorReturning(String rawResponse) {
-        return new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(), new TieredLLMProperties(), new AdvisorRegistry()) {
+        return new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(), new TieredLLMProperties(), new AdvisorRegistry(), new SecurityPlaneProperties()) {
             @Override
             public Mono<String> execute(ExecutionContext context) {
                 return Mono.just(rawResponse);
@@ -94,7 +114,7 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
     }
 
     private UnifiedLLMOrchestrator orchestratorFailing(RuntimeException error) {
-        return new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(), new TieredLLMProperties(), new AdvisorRegistry()) {
+        return new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(), new TieredLLMProperties(), new AdvisorRegistry(), new SecurityPlaneProperties()) {
             @Override
             public Mono<String> execute(ExecutionContext context) {
                 return Mono.error(error);

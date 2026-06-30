@@ -28,6 +28,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -113,7 +114,7 @@ public class AiSecurityDecisionObservationWriter {
                 || Boolean.TRUE.equals(bool(metadata.get("syntheticSecurityDecisionApplied")))
                 || Boolean.FALSE.equals(bool(metadata.get("rawExecutionSucceeded")));
         String failureReason = failureReason(result, metadata);
-        String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent);
+        String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent, finalAction);
         String triggerSource = triggerSource(metadata, hcadTriggered, hcadObserved, protectable);
         String triggerRelation = triggerRelation(hcadTriggered, hcadObserved, protectable);
         String outcomeClass = outcomeClass(result, finalAction, hcadTriggered, hcadObserved, failureType);
@@ -134,8 +135,10 @@ public class AiSecurityDecisionObservationWriter {
         if (isUnknown(modelProvider)) {
             modelProvider = firstText(defaultModelProvider, inferProviderFromModelId(modelId));
         }
+        Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
         LocalDateTime now = LocalDateTime.now();
 
+        long persistStart = System.currentTimeMillis();
         try {
             jdbcOperations.update("""
                     INSERT INTO ai_security_decision_observation (
@@ -226,11 +229,13 @@ public class AiSecurityDecisionObservationWriter {
                     result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
                     result != null ? summarize(result.getTechnicalFallbackReason(), 1024) : null,
                     outcomeClass,
-                    writeJson(metadata),
+                    writeJson(storedMetadata),
                     result != null && result.isSuccess() && failureType == null,
                     now,
                     now);
 
+            long observationInsertMs = System.currentTimeMillis() - persistStart;
+            long correlationStart = System.currentTimeMillis();
             recordCorrelation(
                     jdbcOperations,
                     observationId,
@@ -244,6 +249,8 @@ public class AiSecurityDecisionObservationWriter {
                     finalAction,
                     testRunId,
                     now);
+            long correlationPersistMs = System.currentTimeMillis() - correlationStart;
+            long hcadSyncStart = System.currentTimeMillis();
             syncHcadEvaluationOutcome(
                     jdbcOperations,
                     hcadEvaluationId,
@@ -255,7 +262,18 @@ public class AiSecurityDecisionObservationWriter {
                     failureType,
                     outcomeClass,
                     now);
+            long hcadSyncPersistMs = System.currentTimeMillis() - hcadSyncStart;
+            long semanticRefreshStart = System.currentTimeMillis();
             refreshSemanticEvidence(event, metadata, result, finalAction, failureType);
+            long semanticRefreshMs = System.currentTimeMillis() - semanticRefreshStart;
+            log.info("[AiSecurityDecisionObservationWriter.timing] eventId={} observationId={} insertMs={} correlationMs={} hcadSyncMs={} semanticRefreshMs={} totalPersistMs={}",
+                    event.getEventId(),
+                    observationId,
+                    observationInsertMs,
+                    correlationPersistMs,
+                    hcadSyncPersistMs,
+                    semanticRefreshMs,
+                    System.currentTimeMillis() - persistStart);
             return observationId;
         } catch (DataAccessException ex) {
             log.error("[AiSecurityDecisionObservationWriter] Failed to record AI security decision observation: eventId={}",
@@ -264,6 +282,132 @@ public class AiSecurityDecisionObservationWriter {
         }
     }
 
+    private Map<String, Object> metadataWithLatencyBreakdown(Map<String, Object> metadata, ProcessingResult result, long observationRecordedAtMs) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        if (metadata != null) {
+            copy.putAll(metadata);
+        }
+        copy.putIfAbsent("analysisObservationRecordedAt", observationRecordedAtMs);
+        Long executionStartedAt = longValue(copy.get("analysisExecutionStartedAt"));
+        if (executionStartedAt != null && result != null && result.getProcessingTimeMs() > 0) {
+            copy.putIfAbsent("analysisExecutionFinishedAt", executionStartedAt + result.getProcessingTimeMs());
+            copy.putIfAbsent("analysisCompletedAt", executionStartedAt + result.getProcessingTimeMs());
+        } else {
+            copy.putIfAbsent("analysisCompletedAt", observationRecordedAtMs);
+        }
+        Map<String, Object> latencyBreakdown = latencyBreakdown(copy, result);
+        copy.put("latencyBreakdown", latencyBreakdown);
+        latencyBreakdown.forEach((key, value) -> copy.put("latency" + Character.toUpperCase(key.charAt(0)) + key.substring(1), value));
+        return copy;
+    }
+
+    private Map<String, Object> latencyBreakdown(Map<String, Object> metadata, ProcessingResult result) {
+        Map<String, Object> breakdown = new LinkedHashMap<>();
+        Long monitorQueueWaitMs = durationBetween(metadata, "queuedAt", "dequeuedAt");
+        Long stripeQueueWaitMs = durationBetween(metadata, "analysisQueuedAt", "analysisStartedAt");
+        Long executorQueueWaitMs = durationBetween(metadata, "analysisSubmittedAt", "analysisExecutionStartedAt");
+        breakdown.put("monitorQueueWaitMs", monitorQueueWaitMs);
+        breakdown.put("stripeQueueWaitMs", stripeQueueWaitMs);
+        breakdown.put("executorQueueWaitMs", executorQueueWaitMs);
+        breakdown.put("queueWaitMs", sum(monitorQueueWaitMs, stripeQueueWaitMs, executorQueueWaitMs));
+        breakdown.put("providerThrottleWaitMs", firstLong(metadata,
+                "providerThrottleWaitMs",
+                "layer1ProviderThrottleWaitMs",
+                "layer2ProviderThrottleWaitMs"));
+        breakdown.put("promptBuildMs", firstLong(metadata,
+                "pipelinePromptGenerationMs",
+                "promptBuildLatencyMs",
+                "promptCompositionMs",
+                "promptViewCompositionMs",
+                "promptRenderMs"));
+        breakdown.put("layerPreparationMs", firstLong(metadata,
+                "layer1PromptPreparationMs",
+                "promptBuildMs"));
+        breakdown.put("ragVectorMs", firstLong(metadata,
+                "ragVectorMs",
+                "vectorSearchMs",
+                "vectorLookupMs",
+                "embeddingAcquireMs",
+                "semanticEvidenceLookupMs",
+                "contextRetrievalMs",
+                "layer1RagSearchMs"));
+        breakdown.put("openAiCallMs", firstLong(metadata,
+                "openAiCallMs",
+                "providerCallMs"));
+        breakdown.put("providerCallTimeoutMs", firstLong(metadata,
+                "providerCallTimeoutMs",
+                "layer1ProviderCallTimeoutMs",
+                "layer2ProviderCallTimeoutMs"));
+        breakdown.put("parseMs", firstLong(metadata,
+                "parseMs",
+                "responseParseMs",
+                "securityDecisionParseMs",
+                "structuredOutputParseMs",
+                "responseParsingMs",
+                "responseExtractMs",
+                "layer1ResponseValidateMs"));
+        breakdown.put("persistMs", firstLong(metadata, "persistMs", "decisionPersistMs"));
+        Long total = result != null && result.getProcessingTimeMs() > 0
+                ? result.getProcessingTimeMs()
+                : durationBetween(metadata, "analysisQueuedAt", "analysisCompletedAt");
+        breakdown.put("totalAnalysisMs", total);
+        return breakdown;
+    }
+    private Long sum(Long... values) {
+        if (values == null) {
+            return null;
+        }
+        long total = 0L;
+        boolean present = false;
+        for (Long value : values) {
+            if (value != null) {
+                total += value;
+                present = true;
+            }
+        }
+        return present ? total : null;
+    }
+
+    private Long durationBetween(Map<String, Object> metadata, String startKey, String endKey) {
+        Long start = firstLong(metadata, startKey);
+        Long end = firstLong(metadata, endKey);
+        if (start == null || end == null || end < start) {
+            return null;
+        }
+        return end - start;
+    }
+
+    private Long firstLong(Map<String, Object> metadata, String... keys) {
+        if (metadata == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Long value = longValue(metadata.get(key));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Long longValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        String text = text(value);
+        if (text == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException ex) {
+            try {
+                return Math.round(Double.parseDouble(text));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+    }
     private void syncHcadEvaluationOutcome(
             JdbcOperations jdbcOperations,
             String hcadEvaluationId,
@@ -627,12 +771,26 @@ public class AiSecurityDecisionObservationWriter {
             boolean parserFailure,
             boolean technicalFallback,
             String failureReason,
-            Boolean llmDecisionPresent) {
+            Boolean llmDecisionPresent,
+            ZeroTrustAction finalAction) {
         String structuredFailure = firstText(
                 metadata,
                 "structuredOutputFailureCategory",
                 "securityDecisionParseFailureCategory",
-                "decisionFailureCategory");
+                "decisionFailureCategory",
+                "providerCallFailureCategory");
+        if (containsBackpressure(structuredFailure) || containsBackpressure(failureReason)) {
+            return "REJECTED_BACKPRESSURE";
+        }
+        if (containsProviderTimeout(structuredFailure) || containsProviderTimeout(failureReason)) {
+            return "PROVIDER_TIMEOUT";
+        }
+        if (containsQueueTimeout(structuredFailure) || containsQueueTimeout(failureReason)) {
+            return "QUEUE_TIMEOUT";
+        }
+        if (containsEventTimeout(structuredFailure) || containsEventTimeout(failureReason)) {
+            return "EVENT_TIMEOUT";
+        }
         if (containsTimeout(structuredFailure) || containsTimeout(failureReason)) {
             return "TIMEOUT";
         }
@@ -663,7 +821,7 @@ public class AiSecurityDecisionObservationWriter {
         if (containsLlmExecutionFailure(structuredFailure) || containsLlmExecutionFailure(failureReason)) {
             return "MODEL_UNAVAILABLE";
         }
-        if (Boolean.FALSE.equals(llmDecisionPresent)) {
+        if (Boolean.FALSE.equals(llmDecisionPresent) && !isConcreteLlmDecision(finalAction)) {
             return "LLM_DECISION_MISSING";
         }
         if (technicalFallback) {
@@ -675,6 +833,12 @@ public class AiSecurityDecisionObservationWriter {
         return null;
     }
 
+
+    private boolean isConcreteLlmDecision(ZeroTrustAction finalAction) {
+        return finalAction == ZeroTrustAction.ALLOW
+                || finalAction == ZeroTrustAction.CHALLENGE
+                || finalAction == ZeroTrustAction.BLOCK;
+    }
     private String failureReason(ProcessingResult result, Map<String, Object> metadata) {
         return firstText(
                 result != null ? result.getErrorMessage() : null,
@@ -685,7 +849,8 @@ public class AiSecurityDecisionObservationWriter {
                 firstText(metadata, "securityDecisionFallbackReason"),
                 firstText(metadata, "decisionFailureMessage"),
                 firstText(metadata, "structuredOutputFailureCategory"),
-                firstText(metadata, "securityDecisionParseFailureCategory"));
+                firstText(metadata, "securityDecisionParseFailureCategory"),
+                firstText(metadata, "providerCallFailureCategory"));
     }
 
     private boolean containsParserFailure(String value) {
@@ -697,7 +862,8 @@ public class AiSecurityDecisionObservationWriter {
         String category = firstText(
                 metadata,
                 "structuredOutputFailureCategory",
-                "securityDecisionParseFailureCategory");
+                "securityDecisionParseFailureCategory",
+                "providerCallFailureCategory");
         String normalized = normalize(category);
         return normalized != null && !"none".equals(normalized)
                 && (normalized.contains("json")
@@ -705,6 +871,33 @@ public class AiSecurityDecisionObservationWriter {
                 || normalized.contains("parse")
                 || normalized.contains("missing_action")
                 || normalized.contains("empty_response"));
+    }
+
+    private boolean containsBackpressure(String value) {
+        String normalized = normalize(value);
+        return normalized != null && (normalized.contains("rejected_backpressure")
+                || normalized.contains("backpressure")
+                || normalized.contains("queue rejected"));
+    }
+    private boolean containsProviderTimeout(String value) {
+        String normalized = normalize(value);
+        return normalized != null && (normalized.contains("provider_timeout")
+                || normalized.contains("provider call exceeded timeout")
+                || normalized.contains("llm provider call exceeded timeout"));
+    }
+
+    private boolean containsQueueTimeout(String value) {
+        String normalized = normalize(value);
+        return normalized != null && (normalized.contains("queue_timeout")
+                || normalized.contains("executor queue timeout")
+                || normalized.contains("llm executor queue timeout"));
+    }
+
+    private boolean containsEventTimeout(String value) {
+        String normalized = normalize(value);
+        return normalized != null && (normalized.contains("event_timeout")
+                || normalized.contains("event processing timeout")
+                || normalized.contains("budget exceeded"));
     }
 
     private boolean containsTimeout(String value) {

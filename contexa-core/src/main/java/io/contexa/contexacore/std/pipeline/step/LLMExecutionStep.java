@@ -55,6 +55,8 @@ public class LLMExecutionStep implements PipelineStep {
             "topP",
             "seed",
             "maxTokens",
+            "openAiReasoningEffort",
+            "openAiVerbosity",
             "disableRetries",
             "disableOllamaThinking",
             "decisionBoundaryMode",
@@ -68,7 +70,28 @@ public class LLMExecutionStep implements PipelineStep {
             "actualTotalTokens",
             "actualTokenUsageAvailable",
             "promptCacheHit",
-            "cachedPromptTokens"
+            "cachedPromptTokens",
+            "chatModelClass",
+            "providerModelSelectionMs",
+            "providerChatClientBuildMs",
+            "providerPromptSpecPrepareMs",
+            "providerThrottleEnabled",
+            "providerThrottleSkippedReason",
+            "providerThrottleWaitMs",
+            "providerThrottleEstimatedTokens",
+            "providerThrottleRequestsPerMinute",
+            "providerThrottleTokensPerMinute",
+            "providerThrottleMaxWaitMs",
+            "providerCallMs",
+            "providerCallTimeoutMs",
+            "providerCallExceededTimeout",
+            "providerCallFailed",
+            "providerCallFailureCategory",
+            "providerCallFailureClass",
+            "providerCallFailureMessage",
+            "openAiCallMs",
+            "providerResponseMetadataMs",
+            "responseExtractMs"
     );
 
     private final LLMClient llmClient;
@@ -126,11 +149,17 @@ public class LLMExecutionStep implements PipelineStep {
                             }))
                     .cast(Object.class)
                     .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
-                    .doFinally(signalType -> context.addMetadata("llmExecutionLatencyMs", System.currentTimeMillis() - stepStartTime))
+                    .doFinally(signalType -> {
+                        long elapsedMs = System.currentTimeMillis() - stepStartTime;
+                        context.addMetadata("llmExecutionLatencyMs", elapsedMs);
+                        context.addMetadata("llmStepMs", elapsedMs);
+                        log.info("[PIPELINE-STEP] LLM execution completed - Request: {}, Signal: {}, Duration: {}ms",
+                                request.getRequestId(), signalType, elapsedMs);
+                    })
                     .onErrorResume(error -> {
                         log.error("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}",
                                 request.getRequestId(), error);
-                        String failureCategory = isTimeout(error) ? "TIMEOUT" : "MODEL_UNAVAILABLE";
+                        String failureCategory = timeoutFailureCategory(context, error);
                         context.addMetadata("rawExecutionSucceeded", false);
                         context.addMetadata("structuredOutputFailureCategory", failureCategory);
                         context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
@@ -173,7 +202,13 @@ public class LLMExecutionStep implements PipelineStep {
                                         .cast(Object.class);
                             }))
                     .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
-                    .doFinally(signalType -> context.addMetadata("llmExecutionLatencyMs", System.currentTimeMillis() - stepStartTime))
+                    .doFinally(signalType -> {
+                        long elapsedMs = System.currentTimeMillis() - stepStartTime;
+                        context.addMetadata("llmExecutionLatencyMs", elapsedMs);
+                        context.addMetadata("llmStepMs", elapsedMs);
+                        log.info("[PIPELINE-STEP] LLM execution completed - Request: {}, Signal: {}, Duration: {}ms",
+                                request.getRequestId(), signalType, elapsedMs);
+                    })
                     .onErrorResume(Mono::error);
         }
 
@@ -188,13 +223,44 @@ public class LLMExecutionStep implements PipelineStep {
                 .doOnSuccess(response -> context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response))
                 .cast(Object.class)
                 .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
-                .doFinally(signalType -> context.addMetadata("llmExecutionLatencyMs", System.currentTimeMillis() - stepStartTime))
+                .doFinally(signalType -> {
+                        long elapsedMs = System.currentTimeMillis() - stepStartTime;
+                        context.addMetadata("llmExecutionLatencyMs", elapsedMs);
+                        context.addMetadata("llmStepMs", elapsedMs);
+                        log.info("[PIPELINE-STEP] LLM execution completed - Request: {}, Signal: {}, Duration: {}ms",
+                                request.getRequestId(), signalType, elapsedMs);
+                    })
                 .onErrorResume(error -> {
                     log.error("[PIPELINE-STEP] LLM execution failed. Request: {}", request.getRequestId());
                     return Mono.error(error);
                 });
     }
 
+    private String timeoutFailureCategory(PipelineExecutionContext context, Throwable error) {
+        String explicit = firstNonBlankMetadata(
+                context,
+                "providerCallFailureCategory",
+                "decisionFailureCategory",
+                "structuredOutputFailureCategory",
+                "securityDecisionParseFailureCategory");
+        if (explicit != null && explicit.toUpperCase().contains("TIMEOUT")) {
+            return explicit.toUpperCase();
+        }
+        return isTimeout(error) ? "TIMEOUT" : "MODEL_UNAVAILABLE";
+    }
+
+    private String firstNonBlankMetadata(PipelineExecutionContext context, String... keys) {
+        if (context == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = context.getMetadata(key, Object.class);
+            if (value != null && !value.toString().isBlank()) {
+                return value.toString().trim();
+            }
+        }
+        return null;
+    }
     private boolean isTimeout(Throwable error) {
         Throwable current = error;
         while (current != null) {
@@ -244,7 +310,8 @@ public class LLMExecutionStep implements PipelineStep {
         ExecutionContext executionContext = buildExecutionContext(prompt, request, context, targetType, structuredOutputMode, structuredOutputPolicy);
         if (llmClient instanceof LLMOperations operations) {
             return operations.executeEntity(executionContext, targetType)
-                    .doOnSuccess(response -> syncExecutionMetadata(context, executionContext));
+                    .doOnSuccess(response -> syncExecutionMetadata(context, executionContext))
+                    .doOnError(error -> syncExecutionMetadata(context, executionContext));
         }
         return llmClient.entity(prompt, targetType);
     }
@@ -262,7 +329,8 @@ public class LLMExecutionStep implements PipelineStep {
                 StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
         if (llmClient instanceof LLMOperations operations) {
             return operations.execute(executionContext)
-                    .doOnSuccess(response -> syncExecutionMetadata(context, executionContext));
+                    .doOnSuccess(response -> syncExecutionMetadata(context, executionContext))
+                    .doOnError(error -> syncExecutionMetadata(context, executionContext));
         }
         return llmClient.call(prompt);
     }
@@ -280,7 +348,8 @@ public class LLMExecutionStep implements PipelineStep {
                 StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
         if (llmClient instanceof LLMOperations operations) {
             return operations.stream(executionContext)
-                    .doOnNext(chunk -> syncExecutionMetadata(context, executionContext));
+                    .doOnNext(chunk -> syncExecutionMetadata(context, executionContext))
+                    .doOnError(error -> syncExecutionMetadata(context, executionContext));
         }
         return llmClient.stream(prompt);
     }
@@ -311,11 +380,17 @@ public class LLMExecutionStep implements PipelineStep {
         ResolvedValue<Integer> maxTokens = resolveIntegerParameter(request, context,
                 "maxTokens",
                 "runtimeMaxTokens");
+        ResolvedValue<String> openAiReasoningEffort = resolveStringParameter(request, context,
+                "openAiReasoningEffort",
+                "runtimeOpenAiReasoningEffort");
+        ResolvedValue<String> openAiVerbosity = resolveStringParameter(request, context,
+                "openAiVerbosity",
+                "runtimeOpenAiVerbosity");
         ResolvedValue<Boolean> disableRetries = resolveBooleanParameter(request, context, "disableRetries");
         ResolvedValue<Boolean> disableOllamaThinking = resolveBooleanParameter(request, context, "disableOllamaThinking");
         ResolvedValue<String> boundaryMode = resolveStringParameter(request, context, "decisionBoundaryMode");
 
-        if (boundaryMode == null && hasAnyRuntimeOverrides(requestedModel, temperature, topP, seed, maxTokens, disableRetries, disableOllamaThinking)) {
+        if (boundaryMode == null && hasAnyRuntimeOverrides(requestedModel, temperature, topP, seed, maxTokens, openAiReasoningEffort, openAiVerbosity, disableRetries, disableOllamaThinking)) {
             boundaryMode = new ResolvedValue<>("RUNTIME_MODEL_SELECTION", "derived.runtimeSelection");
         }
 
@@ -341,6 +416,12 @@ public class LLMExecutionStep implements PipelineStep {
         if (maxTokens != null) {
             executionContext.setMaxTokens(maxTokens.value());
             recordMetadata(context, executionContext, "maxTokens", maxTokens.value());
+        }
+        if (openAiReasoningEffort != null) {
+            recordMetadata(context, executionContext, "openAiReasoningEffort", openAiReasoningEffort.value());
+        }
+        if (openAiVerbosity != null) {
+            recordMetadata(context, executionContext, "openAiVerbosity", openAiVerbosity.value());
         }
         if (disableRetries != null) {
             executionContext.addMetadata("disableRetries", disableRetries.value());

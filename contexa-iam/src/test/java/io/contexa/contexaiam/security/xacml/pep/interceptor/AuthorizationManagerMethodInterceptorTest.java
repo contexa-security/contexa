@@ -17,7 +17,6 @@ package io.contexa.contexaiam.security.xacml.pep.interceptor;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
@@ -156,19 +155,38 @@ class AuthorizationManagerMethodInterceptorTest {
         }
 
         @Test
-        @DisplayName("Should keep blocking sync protectable when rapid re-entry is detected")
-        void shouldBlockSyncProtectableOnRapidReentry() throws Throwable {
+        @DisplayName("ENFORCE should not create another sync LLM decision on actor-session rapid re-entry")
+        void enforceSyncProtectableShouldRejectWithoutDuplicateLlmOnRapidReentry() throws Throwable {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
             when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
             when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
-            RapidProtectableReentryDeniedException exception =
-                    new RapidProtectableReentryDeniedException("SyncProtectableService.protectedMethod", 5);
-            doThrow(exception).when(rapidReentryGuard).check(authentication, methodInvocation);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
-                    .isInstanceOf(RapidProtectableReentryDeniedException.class);
+                    .isInstanceOf(ZeroTrustAccessDeniedException.class);
 
+            verify(rapidReentryGuard, never()).check(any(), any());
+            verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+        }
+
+        @Test
+        @DisplayName("SHADOW should proceed and skip duplicate sync LLM decision on actor-session rapid re-entry")
+        void shadowSyncProtectableShouldProceedWithoutDuplicateLlmOnRapidReentry() throws Throwable {
+            SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+            properties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            interceptor.setSecurityZeroTrustProperties(properties);
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
+            when(methodInvocation.proceed()).thenReturn("success");
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("success");
+            verify(rapidReentryGuard, never()).check(any(), any());
+            verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
             verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
         }
     }

@@ -17,17 +17,24 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 public class PromptGenerationStep implements PipelineStep {
 
     private final PromptEvidenceComposer promptEvidenceComposer;
 
     public PromptGenerationStep(PromptGenerator promptGenerator) {
-        this.promptEvidenceComposer = new PromptEvidenceComposer(promptGenerator);
+        this(promptGenerator, new TieredStrategyProperties());
+    }
+
+    public PromptGenerationStep(PromptGenerator promptGenerator, TieredStrategyProperties tieredStrategyProperties) {
+        this.promptEvidenceComposer = new PromptEvidenceComposer(promptGenerator, tieredStrategyProperties);
     }
 
     @Override
@@ -35,7 +42,15 @@ public class PromptGenerationStep implements PipelineStep {
             AIRequest<T> request,
             PipelineExecutionContext context) {
 
-        return Mono.fromCallable(() -> promptEvidenceComposer.compose(request, context).promptResult());
+        long stepStartTime = System.currentTimeMillis();
+        return Mono.fromCallable(() -> promptEvidenceComposer.compose(request, context).promptResult())
+                .cast(Object.class)
+                .doFinally(signalType -> {
+                    long elapsedMs = System.currentTimeMillis() - stepStartTime;
+                    context.addMetadata("pipelinePromptGenerationMs", elapsedMs);
+                    log.info("[PIPELINE-STEP] Prompt generation completed - Request: {}, Signal: {}, Duration: {}ms",
+                            request.getRequestId(), signalType, elapsedMs);
+                });
     }
 
     @Override

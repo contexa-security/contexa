@@ -42,6 +42,12 @@ public class SecurityPlaneProperties {
     private LlmExecutorSettings llmExecutor = new LlmExecutorSettings();
 
     @NestedConfigurationProperty
+    private LlmTimeoutSettings llmTimeout = new LlmTimeoutSettings();
+
+    @NestedConfigurationProperty
+    private LlmProviderThrottleSettings llmProviderThrottle = new LlmProviderThrottleSettings();
+
+    @NestedConfigurationProperty
     private DeduplicationSettings deduplication = new DeduplicationSettings();
 
     @Data
@@ -52,8 +58,9 @@ public class SecurityPlaneProperties {
         private String organizationId = "default-org";
         private String executionMode = "ASYNC";
         private boolean autoApproveLowRisk = false;
-        private long eventTimeoutMs = 30000L;
+        private long eventTimeoutMs = 180000L;
         private int maxDeferredRetries = 3;
+        private int analysisStripes = 256;
     }
 
     @Data
@@ -115,11 +122,39 @@ public class SecurityPlaneProperties {
     @Data
     public static class LlmExecutorSettings {
 
-        private int corePoolSize = 2;
+        private int corePoolSize = 8;
 
-        private int maxPoolSize = 2;
+        private int maxPoolSize = 16;
 
-        private int queueCapacity = 50;
+        private int queueCapacity = 128;
+
+        private long queueTimeoutMs = 60000L;
+    }
+
+    @Data
+    public static class LlmTimeoutSettings {
+
+        private long providerCallTimeoutMs = 60000L;
+    }
+
+    @Data
+    public static class LlmProviderThrottleSettings {
+
+        private boolean enabled = false;
+
+        private boolean openAiOnly = true;
+
+        private int requestsPerMinute = 0;
+
+        private int tokensPerMinute = 0;
+
+        private int maxBurstRequests = 0;
+
+        private int maxBurstTokens = 0;
+
+        private int estimatedOutputTokens = 1024;
+
+        private long maxWaitMs = 120000L;
     }
 
     @Data
@@ -132,3 +167,5 @@ public class SecurityPlaneProperties {
         private int cacheSize = 10000;
     }
 }
+
+

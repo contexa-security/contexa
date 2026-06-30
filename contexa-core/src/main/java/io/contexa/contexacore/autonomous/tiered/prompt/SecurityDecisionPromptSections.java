@@ -38,7 +38,6 @@ import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEviden
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidenceAssembler;
 import io.contexa.contexacore.autonomous.learning.evidence.ObservedPatternSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.RetrievedBehaviorEvidence;
-import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.saas.dto.*;
 import io.contexa.contexacore.autonomous.saas.learning.strategy.DetectionStrategyRuntimePack;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate.BehaviorAnalysis;
@@ -133,7 +132,6 @@ public class SecurityDecisionPromptSections {
 
     private final SecurityEventEnricher eventEnricher;
     private final TieredStrategyProperties tieredStrategyProperties;
-    private final McpSecurityContextProvider mcpSecurityContextProvider;
     private final CanonicalSecurityContextProvider canonicalSecurityContextProvider;
     private final PromptContextComposer promptContextComposer;
     private final PromptGovernanceDescriptor promptGovernanceDescriptor;
@@ -149,13 +147,11 @@ public class SecurityDecisionPromptSections {
     public SecurityDecisionPromptSections(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptor promptGovernanceDescriptor) {
         this(eventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 promptGovernanceDescriptor,
@@ -165,14 +161,12 @@ public class SecurityDecisionPromptSections {
     public SecurityDecisionPromptSections(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptor promptGovernanceDescriptor,
             PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver) {
         this(eventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 promptGovernanceDescriptor,
@@ -183,7 +177,6 @@ public class SecurityDecisionPromptSections {
     public SecurityDecisionPromptSections(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptor promptGovernanceDescriptor,
@@ -191,7 +184,6 @@ public class SecurityDecisionPromptSections {
             PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null ? tieredStrategyProperties : new TieredStrategyProperties();
-        this.mcpSecurityContextProvider = mcpSecurityContextProvider;
         this.canonicalSecurityContextProvider = canonicalSecurityContextProvider;
         this.promptContextComposer = promptContextComposer;
         this.promptGovernanceDescriptor = promptGovernanceDescriptor;
@@ -239,15 +231,7 @@ public class SecurityDecisionPromptSections {
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
             PromptGovernanceDescriptor promptGovernanceDescriptor) {
-        this(eventEnricher, tieredStrategyProperties, null, null, null, promptGovernanceDescriptor);
-    }
-
-    public SecurityDecisionPromptSections(
-            SecurityEventEnricher eventEnricher,
-            TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider,
-            PromptGovernanceDescriptor promptGovernanceDescriptor) {
-        this(eventEnricher, tieredStrategyProperties, mcpSecurityContextProvider, null, null, promptGovernanceDescriptor);
+        this(eventEnricher, tieredStrategyProperties, null, null, promptGovernanceDescriptor);
     }
 
     /**
@@ -3209,59 +3193,6 @@ public class SecurityDecisionPromptSections {
         Object value = metadata.get(metadataKey);
         if (value != null) {
             sb.append(promptLabel).append(": ").append(value).append("\n");
-        }
-    }
-
-    String buildMcpSecurityContextSection(SecurityEvent event) {
-        if (mcpSecurityContextProvider == null || event == null) {
-            return null;
-        }
-
-        try {
-            McpSecurityContextProvider.McpSecurityContext context = mcpSecurityContextProvider.resolve(event);
-            if (context == null || !context.hasEntries()) {
-                return null;
-            }
-
-            StringBuilder section = new StringBuilder();
-            section.append("\n=== MCP SECURITY CONTEXT ===\n");
-            appendMcpEntries(section, "Resources", context.resources());
-            appendMcpEntries(section, "Prompts", context.prompts());
-            return section.toString();
-        }
-        catch (Exception e) {
-            log.error("Failed to resolve MCP security context", e);
-            return null;
-        }
-    }
-
-    private void appendMcpEntries(StringBuilder section, String label,
-            List<McpSecurityContextProvider.ContextEntry> entries) {
-        if (entries == null || entries.isEmpty()) {
-            return;
-        }
-
-        section.append(label).append(":\n");
-        for (McpSecurityContextProvider.ContextEntry entry : entries) {
-            if (entry == null) {
-                continue;
-            }
-
-            String name = PromptTemplateUtils.sanitizeAndTruncate(entry.name(), 120);
-            String description = PromptTemplateUtils.sanitizeAndTruncate(entry.description(), 200);
-            String content = PromptTemplateUtils.sanitizeAndTruncate(entry.content(), 800);
-
-            if (name != null) {
-                section.append("- ").append(name);
-                if (description != null) {
-                    section.append(" (").append(description).append(")");
-                }
-                section.append(":\n");
-            }
-
-            if (content != null) {
-                section.append(content).append("\n");
-            }
         }
     }
 

@@ -67,6 +67,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private ExecutorService[] stripeExecutors = new ExecutorService[0];
     private static final String PROCESSING_BUDGET_MS = "processingBudgetMs";
     private static final String PROCESSING_TIMEOUT_MS = "processingTimeoutMs";
+    private static final String PROCESSING_QUEUE_TIMEOUT_MS = "processingQueueTimeoutMs";
+    private static final String PROCESSING_QUEUE_TIMEOUT_AT = "processingQueueTimeoutAt";
     private static final String PROCESSING_TIMEOUT_AT = "processingTimeoutAt";
     private static final String PROCESSING_TIMEOUT_CANCELLATION_REQUESTED = "processingTimeoutCancellationRequested";
     private static final String LATE_PROCESSING_RESULT_DISCARDED = "lateProcessingResultDiscarded";
@@ -290,7 +292,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private void initializeStripedExecutors() {
-        int stripeCount = Math.max(1, securityPlaneProperties.getLlmExecutor().getCorePoolSize());
+        int stripeCount = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
         stripeExecutors = new ExecutorService[stripeCount];
         for (int i = 0; i < stripeCount; i++) {
             stripeExecutors[i] = Executors.newSingleThreadExecutor(new StripeThreadFactory(i));
@@ -354,16 +356,41 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         event.addMetadata(PROCESSING_BUDGET_MS, timeoutMs);
         event.addMetadata(SecurityEventProcessor.PROCESSING_DEADLINE_AT, deadlineAt);
 
-        llmAnalysisExecutor.execute(() -> {
+        try {
+            llmAnalysisExecutor.execute(() -> {
             try (SecurityEventTelemetryContext.Scope ignored = SecurityEventTelemetryContext.open(event)) {
+                long executionStartedAt = System.currentTimeMillis();
+                event.addMetadata("analysisExecutionStartedAt", executionStartedAt);
+                long executorQueueWaitMs = Math.max(0L, executionStartedAt - submittedAt);
+                event.addMetadata("executorQueueWaitMs", executorQueueWaitMs);
+                long queueTimeoutMs = Math.max(0L, securityPlaneProperties.getLlmExecutor().getQueueTimeoutMs());
+                if (queueTimeoutMs > 0L && executorQueueWaitMs > queueTimeoutMs) {
+                    event.addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, true);
+                    event.addMetadata("decisionFailureCategory", "QUEUE_TIMEOUT");
+                    event.addMetadata(PROCESSING_QUEUE_TIMEOUT_MS, queueTimeoutMs);
+                    event.addMetadata(PROCESSING_QUEUE_TIMEOUT_AT, executionStartedAt);
+                    recordTimeoutObservation(event, "LLM executor queue timeout: waited "
+                            + executorQueueWaitMs + "ms > " + queueTimeoutMs + "ms");
+                    processingFuture.completeExceptionally(new TimeoutException("LLM executor queue timeout"));
+                    return;
+                }
                 SecurityEventTelemetryContext.putIfAbsent("chatAcquireMs", 0L);
                 SecurityEventTelemetryContext.putIfAbsent("embeddingAcquireMs", 0L);
                 SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
                 processingFuture.complete(processSecurityEvent(event));
             } catch (Throwable throwable) {
                 processingFuture.completeExceptionally(throwable);
+            } finally {
+                event.addMetadata("analysisExecutionFinishedAt", System.currentTimeMillis());
             }
         });
+        } catch (RejectedExecutionException rejectedExecutionException) {
+            event.addMetadata("llmExecutorRejected", true);
+            event.addMetadata("llmExecutorRejectedAt", System.currentTimeMillis());
+            event.addMetadata("decisionFailureCategory", "REJECTED_BACKPRESSURE");
+            recordRejectedObservation(event);
+            throw rejectedExecutionException;
+        }
 
         try {
             SecurityEventContext context = processingFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
@@ -379,6 +406,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             processingFuture.cancel(true);
             event.addMetadata("analysisCompletedAt", System.currentTimeMillis());
             event.addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, true);
+            event.addMetadata("decisionFailureCategory", "EVENT_TIMEOUT");
             event.addMetadata(PROCESSING_TIMEOUT_MS, timeoutMs);
             event.addMetadata(PROCESSING_TIMEOUT_AT, System.currentTimeMillis());
             event.addMetadata(PROCESSING_TIMEOUT_CANCELLATION_REQUESTED, true);
@@ -412,7 +440,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 .processedAt(LocalDateTime.now())
                 .build();
         try {
-            String observationId = writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
+            event.addMetadata("timeoutFailClosedAction", ZeroTrustAction.CHALLENGE.name());
+            event.addMetadata("llmDecisionPresent", false);
+            String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
             if (observationId != null && !observationId.isBlank()) {
                 event.addMetadata(TIMEOUT_OBSERVATION_ID, observationId);
             }
@@ -421,6 +451,31 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
+
+    private void recordRejectedObservation(SecurityEvent event) {
+        if (event == null) {
+            return;
+        }
+        AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
+        if (writer == null) {
+            return;
+        }
+        ProcessingResult result = ProcessingResult.builder()
+                .success(false)
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
+                .status(ProcessingResult.ProcessingStatus.FAILED)
+                .message("LLM executor rejected analysis due to backpressure")
+                .errorMessage("REJECTED_BACKPRESSURE")
+                .processedAt(LocalDateTime.now())
+                .build();
+        try {
+            event.addMetadata("backpressureFailClosedAction", ZeroTrustAction.CHALLENGE.name());
+            event.addMetadata("llmDecisionPresent", false);
+            writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+        } catch (Exception ex) {
+            log.error("[SecurityPlaneAgent] Failed to record backpressure rejection observation: eventId={}", event.getEventId(), ex);
+        }
+    }
     private boolean deferForRetry(SecurityEvent event, String reason, Exception exception) {
         int deferredCount = getIntegerMetadata(event, "deferredCount");
         int maxDeferredRetries = Math.max(0, securityPlaneProperties.getAgent().getMaxDeferredRetries());
@@ -488,3 +543,4 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 }
+

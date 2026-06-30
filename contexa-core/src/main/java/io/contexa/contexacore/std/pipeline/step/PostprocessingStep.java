@@ -80,7 +80,10 @@ public class PostprocessingStep implements PipelineStep {
             }
 
             enrichWithMetadata(wrappedResponse, request, context);
-            context.addMetadata("postprocessingLatencyMs", System.currentTimeMillis() - stepStartTime);
+            long elapsedMs = System.currentTimeMillis() - stepStartTime;
+            context.addMetadata("postprocessingLatencyMs", elapsedMs);
+            log.info("[PIPELINE-STEP] Postprocessing completed - Request: {}, Duration: {}ms",
+                    request.getRequestId(), elapsedMs);
             context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, wrappedResponse);
             return wrappedResponse;
 

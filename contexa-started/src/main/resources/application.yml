@@ -57,6 +57,13 @@ contexa:
   security:
     zerotrust:
       mode: ENFORCE
+    plane:
+      agent:
+        event-timeout-ms: ${CONTEXA_SECURITY_PLANE_AGENT_EVENT_TIMEOUT_MS:180000}
+      llm-executor:
+        queue-timeout-ms: ${CONTEXA_SECURITY_PLANE_LLM_EXECUTOR_QUEUE_TIMEOUT_MS:60000}
+      llm-timeout:
+        provider-call-timeout-ms: ${CONTEXA_SECURITY_PLANE_LLM_TIMEOUT_PROVIDER_CALL_TIMEOUT_MS:60000}
   identity:
     ott:
       fail-on-email-error: false

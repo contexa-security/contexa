@@ -15,14 +15,23 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacore.autonomous.LlmAnalysisBackpressureMonitor;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
@@ -89,10 +98,10 @@ public class AsyncConfig {
     }
 
     @Bean(name = "llmAnalysisExecutor")
-    public Executor llmAnalysisExecutor() {
+    public ThreadPoolTaskExecutor llmAnalysisExecutor() {
         SecurityPlaneProperties.LlmExecutorSettings settings = securityPlaneProperties.getLlmExecutor();
 
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        ScalingThreadPoolTaskExecutor executor = new ScalingThreadPoolTaskExecutor();
         
         executor.setCorePoolSize(settings.getCorePoolSize());
         executor.setMaxPoolSize(settings.getMaxPoolSize());
@@ -105,6 +114,67 @@ public class AsyncConfig {
         return executor;
     }
 
+
+    @Bean
+    public LlmAnalysisBackpressureMonitor llmAnalysisBackpressureMonitor(
+            @Qualifier("llmAnalysisExecutor") ThreadPoolTaskExecutor llmAnalysisExecutor,
+            ObjectProvider<HcadProperties> hcadPropertiesProvider) {
+        return new LlmAnalysisBackpressureMonitor(
+                llmAnalysisExecutor,
+                securityPlaneProperties,
+                hcadPropertiesProvider.getIfAvailable());
+    }
+
+    private static final class ScalingThreadPoolTaskExecutor extends ThreadPoolTaskExecutor {
+
+        private ScalingQueue scalingQueue;
+
+        @Override
+        protected BlockingQueue<Runnable> createQueue(int queueCapacity) {
+            if (queueCapacity > 0) {
+                this.scalingQueue = new ScalingQueue(queueCapacity);
+                return this.scalingQueue;
+            }
+            return super.createQueue(queueCapacity);
+        }
+
+        @Override
+        protected ExecutorService initializeExecutor(
+                ThreadFactory threadFactory,
+                RejectedExecutionHandler rejectedExecutionHandler) {
+            ExecutorService executorService = super.initializeExecutor(threadFactory, rejectedExecutionHandler);
+            if (this.scalingQueue != null) {
+                this.scalingQueue.setExecutor(getThreadPoolExecutor());
+            }
+            return executorService;
+        }
+    }
+
+    private static final class ScalingQueue extends LinkedBlockingQueue<Runnable> {
+
+        private transient ThreadPoolExecutor executor;
+
+        private ScalingQueue(int capacity) {
+            super(capacity);
+        }
+
+        private void setExecutor(ThreadPoolExecutor executor) {
+            this.executor = executor;
+        }
+
+        @Override
+        public boolean offer(Runnable runnable) {
+            ThreadPoolExecutor currentExecutor = this.executor;
+            if (currentExecutor == null) {
+                return super.offer(runnable);
+            }
+            if (currentExecutor.getPoolSize() < currentExecutor.getMaximumPoolSize()
+                    && currentExecutor.getActiveCount() >= currentExecutor.getPoolSize()) {
+                return false;
+            }
+            return super.offer(runnable);
+        }
+    }
     @Bean(name = "saasForwardingExecutor")
     public Executor saasForwardingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -119,3 +189,4 @@ public class AsyncConfig {
         return executor;
     }
 }
+

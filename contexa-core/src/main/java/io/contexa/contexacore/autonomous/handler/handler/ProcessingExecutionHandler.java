@@ -59,6 +59,12 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         try {
             ProcessingResult result = strategy.process(context);
             long executionTime = System.currentTimeMillis() - startTime;
+            context.addMetadata("processingStrategyMs", executionTime);
+            context.addMetadata("processingStrategyMode", mode.name());
+            event.addMetadata("processingStrategyMs", executionTime);
+            event.addMetadata("processingStrategyMode", mode.name());
+            log.info("[ProcessingExecutionHandler.timing] eventId={} mode={} strategy={} durationMs={}",
+                    event.getEventId(), mode, strategy.getClass().getName(), executionTime);
 
             handleProcessingResult(context, result, executionTime);
 
@@ -77,6 +83,13 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
                     .processedAt(LocalDateTime.now())
                     .build();
             context.addMetadata("processingExceptionType", e.getClass().getName());
+            context.addMetadata("processingStrategyMs", executionTime);
+            context.addMetadata("processingStrategyMode", mode.name());
+            event.addMetadata("processingExceptionType", e.getClass().getName());
+            event.addMetadata("processingStrategyMs", executionTime);
+            event.addMetadata("processingStrategyMode", mode.name());
+            log.info("[ProcessingExecutionHandler.timing] eventId={} mode={} strategy={} durationMs={} failed=true",
+                    event.getEventId(), mode, strategy.getClass().getName(), executionTime);
             handleProcessingResult(context, failedResult, executionTime);
             return true;
         }

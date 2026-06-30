@@ -426,6 +426,49 @@ class AbstractTieredStrategyTest {
                 .isEqualTo(PromptBudgetProfile.CORTEX_L2_COMPACT.profileKey());
     }
     @Test
+    @DisplayName("buildSecurityDecisionRequest should apply layer OpenAI runtime options for normal runtime decisions")
+    void buildSecurityDecisionRequest_shouldApplyLayerOpenAiRuntimeOptionsForNormalRuntimeDecision() {
+        tieredStrategyProperties.getLayer1().setOpenAiReasoningEffort("minimal");
+        tieredStrategyProperties.getLayer1().setOpenAiVerbosity("low");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-openai-options")
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("openAiReasoningEffort", String.class)).isEqualTo("minimal");
+        assertThat(request.getParameter("openAiVerbosity", String.class)).isEqualTo("low");
+    }
+
+    @Test
+    @DisplayName("buildSecurityDecisionRequest should not auto apply layer OpenAI options for official verification runtime")
+    void buildSecurityDecisionRequest_shouldNotAutoApplyLayerOpenAiOptionsForOfficialVerificationRuntime() {
+        tieredStrategyProperties.getLayer1().setOpenAiReasoningEffort("minimal");
+        tieredStrategyProperties.getLayer1().setOpenAiVerbosity("low");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-official-runtime-openai-options")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "officialVerificationPinnedModelId", "qwen3:8b",
+                        "officialVerificationMaxTokens", 96)))
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("openAiReasoningEffort", String.class)).isNull();
+        assertThat(request.getParameter("openAiVerbosity", String.class)).isNull();
+        assertThat(request.getParameter("officialVerificationDecisionBoundaryMode", String.class))
+                .isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
+    }
+    @Test
     @DisplayName("buildSecurityDecisionRequest should copy official verification runtime options into AI request parameters")
     void buildSecurityDecisionRequest_shouldCopyOfficialVerificationRuntimeOptions() {
         SecurityEvent event = SecurityEvent.builder()

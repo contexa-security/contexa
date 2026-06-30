@@ -50,6 +50,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -336,6 +337,16 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     llmExecutionMs,
                     responseParseMs,
                     postProcessMs);
+            recordLayer1TimingMetadata(
+                    event,
+                    sessionContextMs,
+                    ragSearchMs,
+                    behaviorAnalysisMs,
+                    promptBuildMs,
+                    llmExecutionMs,
+                    responseParseMs,
+                    postProcessMs,
+                    System.currentTimeMillis() - startTime);
 
             log.info("[Layer1ContextualStrategy.analyzeWithContext] End. SessionContext: {} ms, RAG Search: {} ms, Behavior Analysis: {} ms, Prompt Build: {} ms, LLM Execution: {} ms, Response Parse: {} ms, Post Process: {} ms. Total: {} ms",
                     sessionContextMs, ragSearchMs, behaviorAnalysisMs, promptBuildMs, llmExecutionMs, responseParseMs, postProcessMs, (System.currentTimeMillis() - startTime));
@@ -444,9 +455,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 return new RagRetrievalOutcome(relatedDocuments, similarEvents);
             });
 
+            long retrievalStartedAt = System.currentTimeMillis();
             RagRetrievalOutcome outcome = future.get(ragTimeoutMs, TimeUnit.MILLISECONDS);
+            long retrievalElapsedMs = System.currentTimeMillis() - retrievalStartedAt;
             if (!hasRagUnavailableMetadata(event)) {
                 annotateRagRetrievalResult(event, outcome.relatedDocuments(), false, null, false);
+            } else if (isRagBudgetInterrupted(event) || retrievalElapsedMs >= Math.max(1L, ragTimeoutMs - 25L)) {
+                annotateRagBudgetExpired(event, ragTimeoutMs, retrievalElapsedMs);
             }
             return outcome;
         } catch (TimeoutException timeoutException) {
@@ -544,6 +559,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             event.setMetadata(metadata);
         }
 
+        if (ragUnavailable && !ragTimedOut && isRagBudgetFailure(ragFailure)) {
+            long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());
+            annotateRagBudgetExpired(event, ragTimeoutMs, ragTimeoutMs);
+            return;
+        }
+
         metadata.put("ragUnavailable", ragUnavailable);
         metadata.put("ragTimedOut", ragTimedOut);
         int relatedDocumentCount = relatedDocuments != null ? relatedDocuments.size() : 0;
@@ -611,12 +632,91 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return relatedDocumentCount > 0 ? "AVAILABLE" : "ZERO_RESULTS";
     }
 
+    
+    private void annotateRagBudgetExpired(SecurityEvent event, long ragTimeoutMs, long elapsedMs) {
+        if (event == null) {
+            return;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null) {
+            metadata = new LinkedHashMap<>();
+            event.setMetadata(metadata);
+        }
+        metadata.put("ragUnavailable", false);
+        metadata.put("ragTimedOut", true);
+        metadata.put("ragSearchExecuted", true);
+        metadata.put("ragRetrievalState", "BUDGET_EXPIRED");
+        metadata.put("ragAbsenceReason", "BUDGET_EXPIRED");
+        metadata.put("ragProjectionState", "BUDGET_EXPIRED_DECLARED");
+        metadata.put("ragProjectedToFinalPrompt", false);
+        metadata.put("ragStatusProjectedToFinalPrompt", true);
+        metadata.put("relatedDocumentCount", 0);
+        metadata.put("relatedDocumentsCount", 0);
+        metadata.put("ragTimeoutMs", Math.max(1L, ragTimeoutMs));
+        metadata.put("ragElapsedMs", Math.max(0L, elapsedMs));
+        metadata.remove("ragFailureType");
+        metadata.remove("ragFailureMessage");
+    }
+    private boolean isRagBudgetFailure(Exception ragFailure) {
+        if (ragFailure == null || ragFailure.getMessage() == null) {
+            return false;
+        }
+        String normalized = ragFailure.getMessage().toLowerCase(Locale.ROOT);
+        return normalized.contains("interrupted") || normalized.contains("timed out");
+    }
+
+    private boolean isRagBudgetInterrupted(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return false;
+        }
+        Object failureMessage = event.getMetadata().get("ragFailureMessage");
+        if (!(failureMessage instanceof String message)) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return normalized.contains("interrupted") || normalized.contains("timed out");
+    }
+
     private boolean hasRagUnavailableMetadata(SecurityEvent event) {
         return event != null
                 && event.getMetadata() != null
                 && Boolean.TRUE.equals(event.getMetadata().get("ragUnavailable"));
     }
 
+    private void recordLayer1TimingMetadata(
+            SecurityEvent event,
+            long sessionContextMs,
+            long ragSearchMs,
+            long behaviorAnalysisMs,
+            long promptBuildMs,
+            long pipelineBlockMs,
+            long responseValidateMs,
+            long postProcessMs,
+            long totalMs) {
+        if (event == null) {
+            return;
+        }
+        event.addMetadata("layer1SessionContextMs", sessionContextMs);
+        event.addMetadata("layer1RagSearchMs", ragSearchMs);
+        event.addMetadata("layer1BehaviorAnalysisMs", behaviorAnalysisMs);
+        event.addMetadata("layer1PromptPreparationMs", promptBuildMs);
+        event.addMetadata("layer1PipelineBlockMs", pipelineBlockMs);
+        event.addMetadata("layer1ResponseValidateMs", responseValidateMs);
+        event.addMetadata("layer1PostProcessMs", postProcessMs);
+        event.addMetadata("layer1TotalMs", totalMs);
+        event.addMetadata("ragVectorMs", ragSearchMs);
+        event.addMetadata("pipelineBlockMs", pipelineBlockMs);
+        log.info("[Layer1ContextualStrategy.timing] eventId={} sessionContextMs={} ragSearchMs={} behaviorAnalysisMs={} promptPreparationMs={} pipelineBlockMs={} responseValidateMs={} postProcessMs={} totalMs={}",
+                event.getEventId(),
+                sessionContextMs,
+                ragSearchMs,
+                behaviorAnalysisMs,
+                promptBuildMs,
+                pipelineBlockMs,
+                responseValidateMs,
+                postProcessMs,
+                totalMs);
+    }
     private void enrichDecisionWithContext(SecurityDecision decision,
                                            SessionContext sessionContext,
                                            BaseBehaviorAnalysis behaviorAnalysis,

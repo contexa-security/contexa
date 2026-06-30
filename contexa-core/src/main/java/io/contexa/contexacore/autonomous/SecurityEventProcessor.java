@@ -133,7 +133,16 @@ public class SecurityEventProcessor {
             boolean continueChain = handler.handle(context);
 
             long handlerTime = System.currentTimeMillis() - handlerStartTime;
-            context.addMetadata(handler.getName() + "_executionTime", handlerTime);
+            String timingKey = handler.getName() + "_executionTime";
+            context.addMetadata(timingKey, handlerTime);
+            if (context.getSecurityEvent() != null) {
+                context.getSecurityEvent().addMetadata(timingKey, handlerTime);
+            }
+            log.info("[SecurityEventProcessor.timing] eventId={} handler={} durationMs={} continue={}",
+                    context.getSecurityEvent() != null ? context.getSecurityEvent().getEventId() : "unknown",
+                    handler.getName(),
+                    handlerTime,
+                    continueChain);
 
             return continueChain;
 

@@ -92,7 +92,12 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                     publishEvent = false;
                     log.debug("[ZeroTrust] Rapid re-entry detected for async protectable. Access will proceed and analysis will be skipped.");
                 } else if (!rapidReentryAllowed) {
-                    rapidReentryGuard.check(authentication, mi);
+                    publishEvent = false;
+                    if (isEnforcementDisabled()) {
+                        log.debug("[ZeroTrust][SHADOW] Actor-session protectable analysis is already in progress. Access will proceed and duplicate analysis will be skipped.");
+                    } else {
+                        throw ZeroTrustAccessDeniedException.analysisRequired(actorSessionDecisionScopeId());
+                    }
                 }
             }
 
@@ -101,7 +106,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 enforcePromptQualityCertificateGate(mi, authentication, protectable);
             }
 
-            if (llmAnalysisAllowed && isSyncProtectable(protectable)) {
+            if (llmAnalysisAllowed && rapidReentryAllowed && isSyncProtectable(protectable)) {
                 SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {
                     if (isEnforcementDisabled()) {
@@ -251,6 +256,10 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
     private String buildResourceId(MethodInvocation mi, Protectable protectable) {
         return mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
+    }
+
+    private String actorSessionDecisionScopeId() {
+        return "ACTOR_SESSION_CONTEXT";
     }
 
     @Override

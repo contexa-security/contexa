@@ -206,7 +206,6 @@ class PromptGeneratorTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -303,7 +302,6 @@ class PromptGeneratorTest {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
-                null,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -491,7 +489,7 @@ class PromptGeneratorTest {
         event.addMetadata("httpMethod", "GET");
         event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         event.addMetadata("resourceId", "resource-001");
-        event.addMetadata("resourceLabel", "표준 공식 검증 리소스 resource-001");
+        event.addMetadata("resourceLabel", "Official verification resource resource-001");
         event.addMetadata("resourceSensitivity", "MEDIUM");
         event.addMetadata("authorizationEffect", "ALLOW");
         event.addMetadata("effectiveRoles", List.of("USER", "DEVELOPER", "INFRA", "PENDING_ANALYSIS", "ADMIN", "MANAGER", "DEMO_PERSONA", "PREVIOUS_ADMINISTRATOR"));

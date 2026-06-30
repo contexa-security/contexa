@@ -118,7 +118,7 @@ class AiMonitorControllerTest {
                 null,
                 List.of(),
                 List.of()));
-        when(service.exportCsv("day", "overview", Locale.KOREAN)).thenReturn("\"항목\",\"값\"\n");
+        when(service.exportCsv("day", "overview", Locale.KOREAN)).thenReturn("\"metric\",\"count\"\n");
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
 
         mvc.perform(get("/contexa/admin/api/ai-monitor/llm").principal(admin()).param("period", "day"))
@@ -138,7 +138,7 @@ class AiMonitorControllerTest {
                         .param("type", "overview")
                         .locale(Locale.KOREAN))
                 .andExpect(status().isOk())
-                .andExpect(content().string("\"항목\",\"값\"\n"));
+                .andExpect(content().string("\"metric\",\"count\"\n"));
     }
 
 
@@ -272,7 +272,8 @@ class AiMonitorControllerTest {
                         0L,
                         1L,
                         0.01d,
-                        0.08d),
+                        0.08d,
+                        List.of()),
                 new FeedbackLearningSummary(
                         0L,
                         0L,

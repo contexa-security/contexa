@@ -385,6 +385,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     protected ZeroTrustAction mapStringToAction(String action) {
+        if (!StringUtils.hasText(action)) {
+            return ZeroTrustAction.ESCALATE;
+        }
         ZeroTrustAction zta = ZeroTrustAction.fromString(action);
         if (zta == ZeroTrustAction.ESCALATE && action != null && !action.isBlank()) {
             String upper = action.trim().toUpperCase();
@@ -769,12 +772,31 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 return Collections.emptyList();
             }
 
-            // 1. 기본 개인 검색 비동기 실행
+            if (isLayer1SingleUserRagSearchEnabled()) {
+                List<Document> documents = searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
+                        buildBehaviorFilterForUser(userId, retrievalPurpose));
+                annotateRagSearchPlan(event, "LAYER1_SINGLE_USER_QUERY", 1,
+                        List.of("BROAD_QUERY", "BASELINE_QUERY", "SUPPORTING_QUERY"));
+
+                AuthorizedPromptContext limitedAuthorizedPromptContext;
+                if (documents == null || documents.isEmpty()) {
+                    limitedAuthorizedPromptContext = limitAuthorizedPromptContext(null, requestedTopK);
+                } else {
+                    AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
+                            .authorize(event, retrievalPurpose, documents);
+                    limitedAuthorizedPromptContext =
+                            limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
+                }
+                capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
+                annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
+                return limitedAuthorizedPromptContext.documents();
+            }
+            // 1. 疫꿸퀡??揶쏆뮇??野꺜????쑬猷욄묾???쎈뻬
             CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
                     searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
                             buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR);
 
-            // 2. 확장 검색 비동기 준비
+            // 2. ?類ㅼ삢 野꺜????쑬猷욄묾?餓Β??
             String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
             final double broadThreshold = Math.min(similarityThreshold, 0.35d);
             boolean runBroad = StringUtils.hasText(broadQuery) && !broadQuery.equals(query);
@@ -784,7 +806,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 3. Baseline 검색 비동기 준비
+            // 3. Baseline 野꺜????쑬猷욄묾?餓Β??
             String userBaselineQuery = buildUserBaselineContextQuery(event);
             boolean runBaseline = StringUtils.hasText(userBaselineQuery)
                     && !userBaselineQuery.equals(query)
@@ -795,7 +817,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 4. Supporting Documents 검색 비동기 준비 (Baseline 미수립 시 병렬 수행)
+            // 4. Supporting Documents 野꺜????쑬猷욄묾?餓Β??(Baseline 沃섎챷?붺뵳???癰귣쵎????묐뻬)
             boolean personalBaselineEstablished = false;
             if (baselineLearningService != null) {
                 var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event));
@@ -805,7 +827,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             }
             boolean predictNeedSupporting = !personalBaselineEstablished;
             String organizationId = resolveOrganizationId(event);
-            boolean runSupporting = predictNeedSupporting && StringUtils.hasText(organizationId);
+            boolean runSupporting = predictNeedSupporting && isLayer1SupportingRagSearchEnabled() && StringUtils.hasText(organizationId);
 
             CompletableFuture<List<Document>> supportingFuture = runSupporting
                     ? CompletableFuture.supplyAsync(() -> {
@@ -820,7 +842,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         }, RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 5. 모든 비동기 검색 병렬 실행 및 조인
+            // 5. 筌뤴뫀諭???쑬猷욄묾?野꺜??癰귣쵎????쎈뻬 獄?鈺곌퀣??
             CompletableFuture.allOf(personalFuture, broadFuture, baselineFuture, supportingFuture).join();
 
             List<Document> personalDocuments = personalFuture.get();
@@ -836,10 +858,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 mergedDocuments.addAll(userBaselineDocuments);
             }
 
-            // 하이브리드 예외 처리: Baseline이 수립되었으나 문서 수가 부족하여 supporting이 순차적으로 필요한 경우
+            // ??륁뵠?됰슢?????됱뇚 筌ｌ꼶?? Baseline????롡뵲??뤿???곌돌 ?얜챷苑???? ?봔鈺곌퉲釉??supporting????뽮컧?怨몄몵嚥??袁⑹뒄??野껋럩??
             boolean needSupportingEvidence = personalDocuments.size() < 3 || !personalBaselineEstablished;
             if (needSupportingEvidence) {
-                if (!runSupporting && StringUtils.hasText(organizationId)) {
+                if (!runSupporting && isLayer1SupportingRagSearchEnabled() && StringUtils.hasText(organizationId)) {
                     int supportingTopK = Math.max(1, Math.min(requestedTopK, 2));
                     supportingDocuments = searchSupportingBehaviorDocuments(
                             query,
@@ -886,6 +908,37 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
 
+    private boolean isLayer1SingleUserRagSearchEnabled() {
+        if (!"Layer1".equalsIgnoreCase(getLayerName())) {
+            return false;
+        }
+        TieredStrategyProperties.Layer1 layer1 = tieredStrategyProperties != null
+                ? tieredStrategyProperties.getLayer1()
+                : null;
+        TieredStrategyProperties.Layer1.Rag rag = layer1 != null ? layer1.getRag() : null;
+        return rag == null || !rag.isMultiQuerySearchEnabled();
+    }
+
+    private boolean isLayer1SupportingRagSearchEnabled() {
+        if (!"Layer1".equalsIgnoreCase(getLayerName())) {
+            return true;
+        }
+        TieredStrategyProperties.Layer1 layer1 = tieredStrategyProperties != null
+                ? tieredStrategyProperties.getLayer1()
+                : null;
+        TieredStrategyProperties.Layer1.Rag rag = layer1 != null ? layer1.getRag() : null;
+        return rag != null && rag.isSupportingSearchEnabled();
+    }
+
+    private void annotateRagSearchPlan(SecurityEvent event, String searchMode, int executedQueryCount, List<String> skippedQueries) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null) {
+            return;
+        }
+        metadata.put("ragSearchMode", searchMode);
+        metadata.put("ragSearchQueryCount", Math.max(0, executedQueryCount));
+        metadata.put("ragSkippedQueries", skippedQueries != null ? List.copyOf(skippedQueries) : List.of());
+    }
     private void markRagRetrievalUnavailable(SecurityEvent event, int requestedTopK, Exception exception) {
         if (event == null) {
             return;
@@ -894,6 +947,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (metadata == null) {
             metadata = new LinkedHashMap<>();
             event.setMetadata(metadata);
+        }
+        if (isRagBudgetFailure(exception)) {
+            markRagRetrievalBudgetExpired(event, requestedTopK);
+            return;
         }
         metadata.put("ragUnavailable", true);
         metadata.put("ragTimedOut", false);
@@ -918,6 +975,44 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.put("requestedDocumentCount", Math.max(0, requestedTopK));
         metadata.put("allowedDocumentCount", 0);
         metadata.put("deniedDocumentCount", 0);
+    }
+
+    private boolean isRagBudgetFailure(Exception exception) {
+        if (exception == null || exception.getMessage() == null) {
+            return false;
+        }
+        String normalized = exception.getMessage().toLowerCase(Locale.ROOT);
+        return normalized.contains("interrupted") || normalized.contains("timed out");
+    }
+
+    private void markRagRetrievalBudgetExpired(SecurityEvent event, int requestedTopK) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null) {
+            return;
+        }
+        metadata.put("ragUnavailable", false);
+        metadata.put("ragTimedOut", true);
+        metadata.put("ragSearchExecuted", true);
+        metadata.put("ragRetrievalState", "BUDGET_EXPIRED");
+        metadata.put("ragAbsenceReason", "BUDGET_EXPIRED");
+        metadata.put("ragProjectionState", "BUDGET_EXPIRED_DECLARED");
+        metadata.put("ragProjectedToFinalPrompt", false);
+        metadata.put("ragStatusProjectedToFinalPrompt", true);
+        metadata.put("relatedDocumentCount", 0);
+        metadata.put("relatedDocumentsCount", 0);
+        metadata.put("ragCandidateDocumentCount", 0);
+        metadata.put("ragAuthorizedDocumentCount", 0);
+        metadata.put("ragDeniedDocumentCount", 0);
+        metadata.put("ragPermissionFiltered", false);
+        metadata.put("ragRequestedTopK", Math.max(0, requestedTopK));
+        metadata.put("requestedDocumentCount", Math.max(0, requestedTopK));
+        metadata.put("allowedDocumentCount", 0);
+        metadata.put("deniedDocumentCount", 0);
+        if (tieredStrategyProperties != null && "Layer1".equalsIgnoreCase(getLayerName())) {
+            metadata.put("ragTimeoutMs", Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs()));
+        }
+        metadata.remove("ragFailureType");
+        metadata.remove("ragFailureMessage");
     }
 
     private void markRagRetrievalNotExecuted(SecurityEvent event, int requestedTopK, String absenceReason) {
@@ -1489,6 +1584,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         PromptBudgetProfile promptBudgetProfile = resolvePromptBudgetProfile(event);
         request.withParameter("responseType", SecurityDecisionResponse.class);
         request.withParameter("promptBudgetProfile", promptBudgetProfile.profileKey());
+        request.withParameter("maxTokens", resolveMaxOutputTokens(promptBudgetProfile));
+        applyOpenAiRuntimeOptions(request, event);
         StructuredOutputCapability structuredOutputCapability = resolveStructuredOutputCapability(event);
         request.withParameter("structuredOutputMode", resolveStructuredOutputMode(event, structuredOutputCapability).name());
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
@@ -1636,6 +1733,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         copyRuntimeSelectionOption(metadata, request, "disableRetries");
         copyRuntimeSelectionOption(metadata, request, "disableOllamaThinking");
         copyRuntimeSelectionOption(metadata, request, "decisionBoundaryMode");
+        copyRuntimeSelectionOption(metadata, request, "openAiReasoningEffort");
+        copyRuntimeSelectionOption(metadata, request, "openAiVerbosity");
         copyRuntimeSelectionOption(metadata, request, "officialVerificationDecisionBoundaryMode");
         copyRuntimeSelectionOption(metadata, request, "officialVerificationPinnedModelId");
         copyRuntimeSelectionOption(metadata, request, "officialVerificationTemperature");
@@ -1650,6 +1749,47 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
 
+    protected void applyOpenAiRuntimeOptions(SecurityDecisionRequest request, SecurityEvent event) {
+        if (request == null) {
+            return;
+        }
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (hasOfficialVerificationRuntimeOption(metadata)) {
+            return;
+        }
+        String reasoningEffort = resolveOpenAiReasoningEffort();
+        if (StringUtils.hasText(reasoningEffort)) {
+            request.withParameter("openAiReasoningEffort", reasoningEffort.trim());
+        }
+        String verbosity = resolveOpenAiVerbosity();
+        if (StringUtils.hasText(verbosity)) {
+            request.withParameter("openAiVerbosity", verbosity.trim());
+        }
+    }
+
+    protected String resolveOpenAiReasoningEffort() {
+        String layerName = getLayerName();
+        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
+            return tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
+                    ? tieredStrategyProperties.getLayer2().getOpenAiReasoningEffort()
+                    : null;
+        }
+        return tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                ? tieredStrategyProperties.getLayer1().getOpenAiReasoningEffort()
+                : null;
+    }
+
+    protected String resolveOpenAiVerbosity() {
+        String layerName = getLayerName();
+        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
+            return tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
+                    ? tieredStrategyProperties.getLayer2().getOpenAiVerbosity()
+                    : null;
+        }
+        return tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                ? tieredStrategyProperties.getLayer1().getOpenAiVerbosity()
+                : null;
+    }
     private void copyRuntimeSelectionOption(
             Map<String, Object> metadata,
             SecurityDecisionRequest request,
@@ -1690,6 +1830,23 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return resolvePromptBudgetProfile();
     }
 
+    protected int resolveMaxOutputTokens(PromptBudgetProfile promptBudgetProfile) {
+        int configuredMaxOutputTokens = 0;
+        String layerName = getLayerName();
+        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
+            configuredMaxOutputTokens = tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
+                    ? tieredStrategyProperties.getLayer2().getMaxOutputTokens()
+                    : 0;
+        } else {
+            configuredMaxOutputTokens = tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                    ? tieredStrategyProperties.getLayer1().getMaxOutputTokens()
+                    : 0;
+        }
+        if (configuredMaxOutputTokens > 0) {
+            return configuredMaxOutputTokens;
+        }
+        return promptBudgetProfile == null ? 0 : promptBudgetProfile.outputReserveTokens();
+    }
     protected PromptBudgetProfile resolvePromptBudgetProfile() {
         String layerName = getLayerName();
         if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
@@ -1737,6 +1894,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(responseMetadata);
         if (!telemetry.isEmpty()) {
             metadata.putAll(telemetry);
+            copyLayerScopedTimingTelemetry(metadata, telemetry);
             metadata.put("promptRuntimeTelemetryLinked", true);
             metadata.put("promptRuntimeTelemetryLayer", getLayerName());
         }
@@ -1749,6 +1907,58 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
 
+    private void copyLayerScopedTimingTelemetry(Map<String, Object> target, Map<String, Object> telemetry) {
+        if (target == null || telemetry == null || telemetry.isEmpty()) {
+            return;
+        }
+        String layer = getLayerName();
+        if (!StringUtils.hasText(layer)) {
+            return;
+        }
+        String prefix = layer.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "");
+        if (!StringUtils.hasText(prefix)) {
+            return;
+        }
+        copyLayerScopedTiming(target, telemetry, prefix, "providerCallMs", "OpenAiCallMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "providerCallTimeoutMs", "ProviderCallTimeoutMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "openAiCallMs", "OpenAiCallMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "providerModelSelectionMs", "ProviderModelSelectionMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "providerChatClientBuildMs", "ProviderChatClientBuildMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "providerPromptSpecPrepareMs", "ProviderPromptSpecPrepareMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "providerThrottleWaitMs", "ProviderThrottleWaitMs");
+        copyLayerScopedValue(target, telemetry, prefix, "providerCallExceededTimeout", "ProviderCallExceededTimeout");
+        copyLayerScopedValue(target, telemetry, prefix, "providerCallFailureCategory", "ProviderCallFailureCategory");
+        copyLayerScopedTiming(target, telemetry, prefix, "providerResponseMetadataMs", "ProviderResponseMetadataMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "pipelinePromptGenerationMs", "PromptGenerationMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "promptBuildLatencyMs", "PromptBuildMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "securityDecisionParseMs", "ParseMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "responseExtractMs", "ResponseExtractMs");
+        copyLayerScopedTiming(target, telemetry, prefix, "actualPromptTokens", "ActualPromptTokens");
+    }
+
+
+    private void copyLayerScopedValue(
+            Map<String, Object> target,
+            Map<String, Object> telemetry,
+            String prefix,
+            String sourceKey,
+            String targetSuffix) {
+        Object value = telemetry.get(sourceKey);
+        if (value != null) {
+            target.put(prefix + targetSuffix, value);
+        }
+    }
+    private void copyLayerScopedTiming(
+            Map<String, Object> target,
+            Map<String, Object> telemetry,
+            String prefix,
+            String sourceKey,
+            String targetSuffix) {
+        Object value = telemetry.get(sourceKey);
+        if (value != null) {
+            target.put(prefix + targetSuffix, value);
+        }
+    }
     private void copyPromptTextIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
         if (source == null || target == null || !StringUtils.hasText(key)) {
             return;

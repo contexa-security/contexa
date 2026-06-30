@@ -134,7 +134,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                 properties.getStoreTimeoutMs(),
                 "store document",
                 "Failed to store document");
-        cacheLayer.invalidateAll();
+        cacheLayer.invalidateAfterWrite();
     }
 
     @Override
@@ -164,7 +164,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                     "Failed to store document batch");
         }
 
-        cacheLayer.invalidateAll();
+        cacheLayer.invalidateAfterWrite();
     }
 
 
@@ -242,7 +242,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
 
         try {
             vectorStore.delete(documentIds);
-            cacheLayer.invalidateAll();
+            cacheLayer.invalidateAfterWrite();
         } catch (Exception e) {
             log.error("[UnifiedVectorService] Failed to delete documents", e);
             throw new VectorStoreException("Failed to delete documents", e);
@@ -354,6 +354,9 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
             }
             throw new VectorStoreException("Vector store " + operationLabel + " failed", cause);
         } catch (InterruptedException interruptedException) {
+            if (future != null) {
+                future.cancel(true);
+            }
             Thread.currentThread().interrupt();
             throw new VectorStoreException("Vector store " + operationLabel + " interrupted", interruptedException);
         }

@@ -406,6 +406,9 @@ public class HcadProperties {
         private LlmRateLimitSettings llmRateLimit = new LlmRateLimitSettings();
 
         @NestedConfigurationProperty
+        private BackpressureSettings backpressure = new BackpressureSettings();
+
+        @NestedConfigurationProperty
         private QualificationSettings qualification = new QualificationSettings();
 
         public HcadPreTriggerMode effectiveMode() {
@@ -429,6 +432,13 @@ public class HcadProperties {
         }
 
         @Data
+        public static class BackpressureSettings {
+            private boolean enabled = true;
+            private int maxQueuedLlmTasks = 96;
+            private String deferredReason = "TRIGGER_DEFERRED_BACKPRESSURE";
+        }
+
+        @Data
         public static class QualificationSettings {
             private double shadowMinPrecision = 0.80;
             private double limitedEnforceMinPrecision = 0.90;
@@ -438,3 +448,4 @@ public class HcadProperties {
         }
     }
 }
+

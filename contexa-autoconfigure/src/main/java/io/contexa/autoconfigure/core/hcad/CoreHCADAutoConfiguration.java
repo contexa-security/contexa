@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.core.hcad;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.autonomous.LlmAnalysisBackpressureMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;

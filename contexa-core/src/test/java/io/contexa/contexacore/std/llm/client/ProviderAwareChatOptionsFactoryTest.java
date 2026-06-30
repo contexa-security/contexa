@@ -61,6 +61,31 @@ class ProviderAwareChatOptionsFactoryTest {
     }
 
     @Test
+    void buildRuntimeOptionsShouldApplyRuntimeOpenAiReasoningAndVerbosity() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.addMetadata("selectedModelProvider", "openai");
+        context.addMetadata("openAiReasoningEffort", "minimal");
+        context.addMetadata("openAiVerbosity", "low");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+
+        ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                context,
+                new StubChatModel(OpenAiChatOptions.builder()
+                        .model(CAPABILITY_MODEL)
+                        .temperature(0.7d)
+                        .topP(0.9d)
+                        .build()));
+
+        assertThat(options).isInstanceOf(OpenAiChatOptions.class);
+        OpenAiChatOptions openAiOptions = (OpenAiChatOptions) options;
+        assertThat(openAiOptions.getReasoningEffort()).isEqualTo("minimal");
+        assertThat(openAiOptions.getVerbosity()).isEqualTo("low");
+        assertThat(openAiOptions.getMaxTokens()).isNull();
+        assertThat(openAiOptions.getMaxCompletionTokens()).isEqualTo(96);
+        clearOpenAiCapabilities();
+    }
+    @Test
     void normalizeExplicitOptionsShouldApplyConfiguredOpenAiCapabilities() {
         ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
         configureOpenAiCapabilities(CAPABILITY_MODEL);

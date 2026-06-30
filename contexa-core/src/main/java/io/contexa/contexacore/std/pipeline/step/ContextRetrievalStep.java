@@ -36,15 +36,19 @@ public class ContextRetrievalStep implements PipelineStep {
 
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
+        long stepStartTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> {
-            
             ContextRetriever contextRetriever = contextRetrieverRegistry.getRetriever(request.getContext());
             ContextRetriever.ContextRetrievalResult contextResult = contextRetriever.retrieveContext(request);
             context.addStepResult(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL, contextResult);
             return contextResult;
+        }).cast(Object.class).doFinally(signalType -> {
+            long elapsedMs = System.currentTimeMillis() - stepStartTime;
+            context.addMetadata("contextRetrievalMs", elapsedMs);
+            log.info("[PIPELINE-STEP] Context retrieval completed - Request: {}, Signal: {}, Duration: {}ms",
+                    request.getRequestId(), signalType, elapsedMs);
         });
     }
-
     @Override
     public PipelineConfiguration.PipelineStep getConfigStep() {
         return PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL;

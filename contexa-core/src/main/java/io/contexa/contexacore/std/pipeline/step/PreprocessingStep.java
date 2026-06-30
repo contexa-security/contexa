@@ -28,16 +28,18 @@ public class PreprocessingStep implements PipelineStep {
     
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
+        long stepStartTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> {
-
             String systemMetadata = buildSystemMetadata(request);
-
             context.addStepResult(PipelineConfiguration.PipelineStep.PREPROCESSING, systemMetadata);
-
             return systemMetadata;
+        }).cast(Object.class).doFinally(signalType -> {
+            long elapsedMs = System.currentTimeMillis() - stepStartTime;
+            context.addMetadata("preprocessingMs", elapsedMs);
+            log.info("[PIPELINE-STEP] Preprocessing completed - Request: {}, Signal: {}, Duration: {}ms",
+                    request.getRequestId(), signalType, elapsedMs);
         });
     }
-
     protected <T extends DomainContext> String buildSystemMetadata(AIRequest<T> request) {
         return "";
     }

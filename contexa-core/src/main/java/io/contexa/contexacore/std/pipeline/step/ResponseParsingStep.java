@@ -44,6 +44,7 @@ public class ResponseParsingStep implements PipelineStep {
 
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
+        long stepStartTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> {
             String finalResponse = context.getStepResult(PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION, String.class);
             if (finalResponse != null) {
@@ -115,9 +116,13 @@ public class ResponseParsingStep implements PipelineStep {
             context.addMetadata("parsedResponseType", result != null ? result.getClass() : null);
             context.addMetadata("responseType", result != null ? result.getClass().getSimpleName() : "unknown");
             return result;
+        }).doFinally(signalType -> {
+            long elapsedMs = System.currentTimeMillis() - stepStartTime;
+            context.addMetadata("responseParsingMs", elapsedMs);
+            log.info("[PIPELINE-STEP] Response parsing completed - Request: {}, Signal: {}, Duration: {}ms",
+                    request.getRequestId(), signalType, elapsedMs);
         });
     }
-
     private Object parseSecurityDecisionResult(Object llmExecutionResult, PipelineExecutionContext context) {
         context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
         if (llmExecutionResult instanceof SecurityDecisionResponseLite lite) {
@@ -128,13 +133,19 @@ public class ResponseParsingStep implements PipelineStep {
             context.addMetadata("syntheticSecurityDecisionApplied", false);
             context.addMetadata("securityDecisionOutputRepairApplied", false);
             context.addMetadata("securityDecisionParseFailureCategory", "NONE");
+            context.addMetadata("securityDecisionParseMs", 0L);
             return lite;
         }
         String rawResponse = llmExecutionResult instanceof String text
                 ? text
                 : llmExecutionResult != null ? String.valueOf(llmExecutionResult) : "";
+        long parseStart = System.currentTimeMillis();
         SecurityDecisionResponseLite parsed = securityDecisionOutputParser.parse(rawResponse, context);
+        long parseMs = System.currentTimeMillis() - parseStart;
+        context.addMetadata("securityDecisionParseMs", parseMs);
         context.addMetadata("structuredOutputComplete", true);
+        log.info("[PIPELINE-STEP] Security decision parse completed - Request: {}, Duration: {}ms, RawLength: {}",
+                context.getExecutionId(), parseMs, rawResponse.length());
         return parsed;
     }
 

@@ -20,6 +20,7 @@ import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.config.LLMClient;
@@ -86,7 +87,7 @@ import org.springframework.web.reactive.function.client.WebClient;
         "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.llm", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class, ContexaLlmBindingProperties.class})
+@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class, ContexaLlmBindingProperties.class, SecurityPlaneProperties.class})
 public class CoreLLMTieredAutoConfiguration {
 
     private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
@@ -100,6 +101,9 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Autowired
     private ContexaLlmSelectionProperties contexaLlmSelectionProperties;
+
+    @Autowired
+    private SecurityPlaneProperties securityPlaneProperties;
 
     @Bean
     @ConditionalOnMissingBean
@@ -214,7 +218,7 @@ public class CoreLLMTieredAutoConfiguration {
             throw new IllegalStateException(missingChatRuntimeConfigurationMessage());
         }
 
-        return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties, advisorRegistry);
+        return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties, advisorRegistry, securityPlaneProperties);
     }
 
     @Bean(name = "llmClient")

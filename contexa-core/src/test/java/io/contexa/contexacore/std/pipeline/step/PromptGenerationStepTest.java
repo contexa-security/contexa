@@ -91,13 +91,7 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isNotNull();
         assertThat(context.getMetadata("rawPromptHash", String.class)).startsWith("sha256:");
         assertThat(context.getMetadata("promptExecutionMetadata", Object.class)).isNotNull();
-        assertThat(context.getMetadata("promptSourceContextFieldCount", Integer.class)).isPositive();
-        assertThat(context.getMetadata("promptRawUserFieldCount", Integer.class)).isPositive();
-        assertThat(context.getMetadata("promptFinalUserFieldCount", Integer.class)).isPositive();
-        assertThat(context.getMetadata("promptUserFieldDiffCount", Integer.class)).isNotNull();
-        assertThat(context.getMetadata("promptSourceContextExhaustive", Boolean.class)).isNotNull();
-        assertThat(context.getMetadata("promptFieldStateCount", Integer.class)).isPositive();
-        assertThat(context.getMetadata("promptBlockingFieldStateCount", Integer.class)).isNotNull();
+
         assertThat(context.getMetadata("promptCacheSystemStable", Boolean.class)).isTrue();
         assertThat(context.getMetadata("promptCacheSystemHash", String.class)).startsWith("sha256:");
         assertThat(context.getMetadata("promptCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
@@ -108,6 +102,73 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("promptCompressionApplied", Boolean.class))
                 .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
         Map<String, Object> eventMetadata = event.getMetadata();
+        assertThat(eventMetadata)
+                .containsEntry("promptLineageCaptureMode", "LIGHTWEIGHT_RUNTIME")
+                .containsEntry("promptRuntimeTelemetryLinked", true)
+                .containsEntry("promptRuntimeTelemetryLayer", "LIGHTWEIGHT_RUNTIME")
+                .containsEntry("promptCacheSystemStable", true)
+                .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
+                .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT")
+                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY");
+        assertThat(eventMetadata.get("promptCacheSystemHash")).asString().startsWith("sha256:");
+        assertThat(eventMetadata).doesNotContainKeys(
+                "promptSourceContextLedger",
+                "promptRawUserFieldLedger",
+                "promptFinalUserFieldLedger",
+                "promptUserFieldDiffLedger",
+                "promptFieldStateLedger",
+                "promptFieldStateSummary",
+                "systemPrompt",
+                "userPrompt",
+                "rawSystemPrompt",
+                "rawUserPrompt");
+    }
+
+    @Test
+    void executeShouldKeepFullLineageForOfficialVerificationMarkers() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+        PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
+        promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
+        PromptGenerationStep step = new PromptGenerationStep(promptGenerator);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-prompt-step-official-001")
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .userId("persona_fin_lead")
+                .sessionId("official-verification-session:persona_fin_lead")
+                .sourceIp("0:0:0:0:0:0:0:1")
+                .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
+                .build();
+        event.addMetadata("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+        event.addMetadata("officialVerificationMaxTokens", 4096);
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        event.addMetadata("resourceId", "resource-001");
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("persona_fin_lead");
+        sessionContext.setSessionId("official-verification-session:persona_fin_lead");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PREPROCESSING,
+                "systemMetadata");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
+                new ContextRetriever.ContextRetrievalResult("contextInfo", List.<Document>of(), Map.of()));
+
+        Object result = step.execute(request, context).block();
+
+        assertThat(result).isNotNull();
+        Map<String, Object> eventMetadata = event.getMetadata();
         assertThat(eventMetadata).containsKeys(
                 "promptSourceContextLedger",
                 "promptRawUserFieldLedger",
@@ -116,21 +177,24 @@ class PromptGenerationStepTest {
                 "promptFieldStateLedger",
                 "promptFieldStateSummary");
         assertThat(eventMetadata)
+                .containsEntry("promptLineageCaptureMode", "FULL_OFFICIAL_VERIFICATION")
                 .containsEntry("promptCacheSystemStable", true)
                 .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
                 .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT")
-                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY");
+                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY")
+                .containsEntry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")
+                .containsEntry("officialVerificationMaxTokens", 4096);
         assertThat(eventMetadata.get("promptCacheSystemHash")).asString().startsWith("sha256:");
         assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
                         .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "securityEvent.metadata.requestPath")
-                        .containsEntry("valueText", "/admin/api/security-test/sensitive/resource-001"));
+                        .containsEntry("valueText", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001"));
         assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
                 .anySatisfy(item -> assertThat(item)
                         .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "sessionContext.userId")
-                        .containsEntry("valueText", "alice"))
+                        .containsEntry("valueText", "persona_fin_lead"))
                 .anySatisfy(item -> assertThat(item)
                         .asInstanceOf(InstanceOfAssertFactories.MAP)
                         .containsEntry("sourcePath", "behaviorAnalysis.personalBaselineEvidence.scope"))
@@ -192,6 +256,7 @@ class PromptGenerationStepTest {
         event.addMetadata("authenticationType", "PASSWORD");
         event.addMetadata("mfaVerified", false);
         event.addMetadata("currentAccessHour", 16);
+        event.addMetadata("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
 
         SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
         sessionContext.setUserId("persona_fin_lead");
@@ -229,15 +294,16 @@ class PromptGenerationStepTest {
         assertThat(eventMetadata.get("rawUserPrompt")).isEqualTo(promptResult.getRawUserPrompt());
         assertThat(eventMetadata.get("systemPrompt")).isEqualTo(promptResult.getSystemPrompt());
         assertThat(eventMetadata.get("userPrompt")).isEqualTo(promptResult.getUserPrompt());
-        assertThat(eventMetadata).containsKeys(
-                "promptFieldStateLedger",
-                "promptSourceContextLedger",
-                "rawSystemPromptHash",
-                "rawUserPromptHash",
-                "systemPromptHash",
-                "userPromptHash");
+        assertThat(eventMetadata)
+                .containsEntry("promptLineageCaptureMode", "FULL_OFFICIAL_VERIFICATION")
+                .containsKeys(
+                        "promptFieldStateLedger",
+                        "promptSourceContextLedger",
+                        "rawSystemPromptHash",
+                        "rawUserPromptHash",
+                        "systemPromptHash",
+                        "userPromptHash");
     }
-
     private BaselineEvidenceSnapshot noDataBaselineEvidence() {
         return new BaselineEvidenceSnapshot(
                 LearningEvidenceScope.PERSONAL,

@@ -47,11 +47,11 @@ public class ProtectableRapidReentryGuard {
 
     public void check(Authentication authentication, MethodInvocation methodInvocation) {
         if (!tryAcquire(authentication, methodInvocation)) {
-            String resourceKey = resolveResourceKey(methodInvocation);
-            log.error("[ProtectableRapidReentryGuard] Rapid protected re-entry denied: userId={}, resource={}",
+            String scopeKey = buildActorSessionScopeKey();
+            log.error("[ProtectableRapidReentryGuard] Rapid protected re-entry denied: userId={}, scope={}",
                     authentication != null ? authentication.getName() : null,
-                    resourceKey);
-            throw new RapidProtectableReentryDeniedException(resourceKey, Math.max(0L, window.toSeconds()));
+                    scopeKey);
+            throw new RapidProtectableReentryDeniedException(scopeKey, Math.max(0L, window.toSeconds()));
         }
     }
 
@@ -79,8 +79,8 @@ public class ProtectableRapidReentryGuard {
             return true;
         }
 
-        String resourceKey = buildResourceKey(methodInvocation, request);
-        return repository.tryAcquire(userId, contextBindingHash, resourceKey, window);
+        String scopeKey = buildActorSessionScopeKey();
+        return repository.tryAcquire(userId, contextBindingHash, scopeKey, window);
     }
 
     private HttpServletRequest resolveCurrentRequest() {
@@ -91,26 +91,7 @@ public class ProtectableRapidReentryGuard {
             return null;
         }
     }
-
-    private String resolveResourceKey(MethodInvocation methodInvocation) {
-        HttpServletRequest request = resolveCurrentRequest();
-        if (request == null) {
-            return methodInvocation.getMethod().getDeclaringClass().getSimpleName()
-                    + "."
-                    + methodInvocation.getMethod().getName();
-        }
-        return buildResourceKey(methodInvocation, request);
-    }
-
-    private String buildResourceKey(MethodInvocation methodInvocation, HttpServletRequest request) {
-        String methodKey = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
-                + "."
-                + methodInvocation.getMethod().getName();
-        Object[] args = methodInvocation.getArguments();
-        if (args.length > 0 && args[0] != null) {
-            methodKey += "[" + args[0].hashCode() + "]";
-        }
-        String requestKey = request.getMethod() + " " + request.getRequestURI();
-        return methodKey + "|" + requestKey;
+    private String buildActorSessionScopeKey() {
+        return "PROTECTABLE_ACTOR_SESSION";
     }
 }

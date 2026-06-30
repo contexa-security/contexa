@@ -25,9 +25,9 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
-import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
+import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -270,23 +270,10 @@ public class SynchronousProtectableDecisionService {
 
     private String buildSharedStateKey(ZeroTrustSpringEvent event, String contextBindingHash) {
         String userId = event.getUserId();
-        String method = firstText(event.getPayload().get("httpMethod"));
-        String path = firstText(
-                currentRequestNormalizedPath(),
-                event.getPayload().get("requestPath"),
-                event.getPayload().get("requestUri"),
-                event.getResource());
-        if (!StringUtils.hasText(userId)
-                || !StringUtils.hasText(contextBindingHash)
-                || !StringUtils.hasText(method)
-                || !StringUtils.hasText(path)) {
+        if (!StringUtils.hasText(userId) || !StringUtils.hasText(contextBindingHash)) {
             return null;
         }
-        return PendingAnomalyKeyFactory.buildBaseKey(
-                userId,
-                contextBindingHash,
-                method,
-                HcadRequestPathUtils.normalizePathText(path));
+        return PendingAnomalyKeyFactory.buildBaseKey(userId, contextBindingHash);
     }
 
     private String currentRequestNormalizedPath() {

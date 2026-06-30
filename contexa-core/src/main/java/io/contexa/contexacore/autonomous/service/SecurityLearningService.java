@@ -21,16 +21,26 @@ import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProc
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.Executor;
+
 @Slf4j
 public class SecurityLearningService {
 
     private final BaselineLearningService baselineLearningService;
     private final SecurityDecisionPostProcessor postProcessor;
+    private final Executor postProcessExecutor;
 
     public SecurityLearningService(BaselineLearningService baselineLearningService,
                                    SecurityDecisionPostProcessor postProcessor) {
+        this(baselineLearningService, postProcessor, Runnable::run);
+    }
+
+    public SecurityLearningService(BaselineLearningService baselineLearningService,
+                                   SecurityDecisionPostProcessor postProcessor,
+                                   Executor postProcessExecutor) {
         this.baselineLearningService = baselineLearningService;
         this.postProcessor = postProcessor;
+        this.postProcessExecutor = postProcessExecutor != null ? postProcessExecutor : Runnable::run;
     }
 
     /**
@@ -75,7 +85,9 @@ public class SecurityLearningService {
         if (postProcessor == null) {
             return;
         }
-        postProcessor.updateSessionContext(event, decision);
-        postProcessor.storeInVectorDatabase(event, decision);
+        postProcessExecutor.execute(() -> {
+            postProcessor.updateSessionContext(event, decision);
+            postProcessor.storeInVectorDatabase(event, decision);
+        });
     }
 }
