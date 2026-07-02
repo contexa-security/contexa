@@ -989,7 +989,7 @@ public class PromptRuntimeGovernanceRuleApplier {
         String normalized = resourceId.trim().toLowerCase(Locale.ROOT);
         return normalized.contains("{resourceid}")
                 || normalized.contains("{resource_id}")
-                || normalized.contains("official.verification.normal.");
+                || normalized.contains("contexa.official-verification.normal.");
     }
 
     private String lastPathSegment(String requestPath) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
@@ -275,6 +276,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    @Protectable(verificationRequired = false)
     public List<BlockedUser> findBlockedUsers(String filter, String keyword) {
         String safeFilter = filter != null ? filter : "all";
         if (StringUtils.hasText(keyword)) {

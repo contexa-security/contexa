@@ -287,6 +287,8 @@ class AiMonitorControllerTest {
                         0L,
                         0L,
                         1L,
+                        0L,
+                        0L,
                         0.01d,
                         0.08d,
                         List.of()),

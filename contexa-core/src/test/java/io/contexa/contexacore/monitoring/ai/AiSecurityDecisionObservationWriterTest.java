@@ -25,12 +25,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.jdbc.core.RowMapper;
 
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -226,6 +229,117 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[44]).isEqualTo("TP");
     }
 
+    @Test
+    @DisplayName("HCAD linked LLM decision should copy actor window context from HCAD evaluation row")
+    void recordDecision_hcadLinkedDecision_shouldCopyActorWindowFromEvaluationRow() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        when(jdbcOperations.queryForObject(
+                        contains("actor_session_key"),
+                        any(RowMapper.class),
+                        eq("eval-link-context")))
+                .thenAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
+                    RowMapper<Object> mapper = (RowMapper<Object>) invocation.getArgument(1, RowMapper.class);
+                    ResultSet resultSet = mock(ResultSet.class);
+                    when(resultSet.getString("user_id")).thenReturn("admin");
+                    when(resultSet.getString("actor_session_key")).thenReturn("actor-session-1");
+                    when(resultSet.getString("window_id")).thenReturn("window-1");
+                    when(resultSet.getString("request_id")).thenReturn("request-from-hcad");
+                    when(resultSet.getObject("early_analysis_score")).thenReturn(80);
+                    when(resultSet.getString("band")).thenReturn("REDLINE");
+                    when(resultSet.getObject("eligible")).thenReturn(true);
+                    return mapper.mapRow(resultSet, 0);
+                });
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-link-context")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "hcadEvaluationId", "eval-link-context"
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("CHALLENGE")
+                .proposedAction("CHALLENGE")
+                .llmAuditRiskScore(0.82d)
+                .llmAuditConfidence(0.9d)
+                .llmDecisionPresent(true)
+                .processingTimeMs(120L)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        assertThat(observationId).isNotBlank();
+        Object[] observationArgs = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(observationArgs[2]).isEqualTo("request-from-hcad");
+        assertThat(observationArgs[5]).isEqualTo("admin");
+        assertThat(observationArgs[8]).isEqualTo("actor-session-1");
+        assertThat(observationArgs[9]).isEqualTo("window-1");
+        assertThat(observationArgs[15]).isEqualTo(80);
+        assertThat(observationArgs[16]).isEqualTo("REDLINE");
+        assertThat(observationArgs[17]).isEqualTo(true);
+        Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
+        assertThat(correlationArgs[4]).isEqualTo("request-from-hcad");
+        assertThat(correlationArgs[6]).isEqualTo("admin");
+        assertThat(correlationArgs[7]).isEqualTo("actor-session-1");
+        assertThat(correlationArgs[8]).isEqualTo("window-1");
+        assertThat(correlationArgs[11]).isEqualTo(80);
+        assertThat(correlationArgs[12]).isEqualTo("REDLINE");
+        assertThat(correlationArgs[13]).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("Protectable decision without persisted HCAD evaluation should not be stored as HCAD combined")
+    void recordDecision_protectableWithHcadMetadataButNoEvaluationId_shouldStoreProtectableOnly() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-no-hcad-id")
+                .userId("admin")
+                .metadata(metadata(Map.of(
+                        "triggerSource", "HCAD_PRE_TRIGGER",
+                        "protectableDeclared", true,
+                        "requestId", "req-no-hcad-id",
+                        "requestPath", "/contexa/admin/users",
+                        "httpMethod", "GET",
+                        HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 70,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND, "REDLINE",
+                        HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, true
+                )))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action("CHALLENGE")
+                .proposedAction("CHALLENGE")
+                .llmAuditRiskScore(0.82d)
+                .llmAuditConfidence(0.9d)
+                .llmDecisionPresent(true)
+                .processingTimeMs(120L)
+                .build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        assertThat(observationId).isNotBlank();
+        Object[] observationArgs = firstInsertArgs(jdbcOperations, "ai_security_decision_observation");
+        assertThat(observationArgs[10]).isNull();
+        assertThat(observationArgs[11]).isEqualTo("PROTECTABLE");
+        assertThat(observationArgs[12]).isEqualTo("PROTECTABLE_ONLY");
+        assertThat(observationArgs[15]).isNull();
+        assertThat(observationArgs[16]).isNull();
+        assertThat(observationArgs[17]).isNull();
+        assertThat(observationArgs[44]).isEqualTo("FN");
+        Object[] correlationArgs = firstInsertArgs(jdbcOperations, "hcad_llm_decision_correlation");
+        assertThat(correlationArgs[1]).isNull();
+        assertThat(correlationArgs[9]).isEqualTo("PROTECTABLE_ONLY");
+        assertThat(correlationArgs[10]).isEqualTo("FN");
+        assertThat(correlationArgs[11]).isNull();
+        assertThat(correlationArgs[12]).isNull();
+        assertThat(correlationArgs[13]).isNull();
+    }
     @Test
     @DisplayName("Protectable LLM decision with prior HCAD observation should be stored as PROTECTABLE_ONLY TN when allowed")
     void recordDecision_protectableObservedAllow_shouldStoreProtectableOnlyTrueNegative() {
@@ -646,4 +760,5 @@ class AiSecurityDecisionObservationWriterTest {
         throw new AssertionError("No insert captured for table " + tableName);
     }
 }
+
 

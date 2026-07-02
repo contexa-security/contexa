@@ -31,6 +31,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -103,14 +104,21 @@ public class AsyncConfig {
 
         ScalingThreadPoolTaskExecutor executor = new ScalingThreadPoolTaskExecutor();
         
-        executor.setCorePoolSize(settings.getCorePoolSize());
-        executor.setMaxPoolSize(settings.getMaxPoolSize());
-        executor.setQueueCapacity(settings.getQueueCapacity());
+        int corePoolSize = Math.max(1, settings.getCorePoolSize());
+        int maxPoolSize = Math.max(corePoolSize, settings.getMaxPoolSize());
+        int queueCapacity = Math.max(0, settings.getQueueCapacity());
+
+        executor.setCorePoolSize(corePoolSize);
+        executor.setMaxPoolSize(maxPoolSize);
+        executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("LLM-Analysis-");
 
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setRejectedExecutionHandler(new BlockingQueueRejectedExecutionHandler());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.initialize();
+        if (settings.isPrestartCoreThreads()) {
+            executor.getThreadPoolExecutor().prestartAllCoreThreads();
+        }
         return executor;
     }
 
@@ -125,6 +133,21 @@ public class AsyncConfig {
                 hcadPropertiesProvider.getIfAvailable());
     }
 
+    private static final class BlockingQueueRejectedExecutionHandler implements RejectedExecutionHandler {
+
+        @Override
+        public void rejectedExecution(Runnable runnable, ThreadPoolExecutor executor) {
+            if (executor == null || executor.isShutdown()) {
+                throw new RejectedExecutionException("LLM analysis executor is shut down");
+            }
+            try {
+                executor.getQueue().put(runnable);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                throw new RejectedExecutionException("Interrupted while waiting for LLM analysis queue capacity", interruptedException);
+            }
+        }
+    }
     private static final class ScalingThreadPoolTaskExecutor extends ThreadPoolTaskExecutor {
 
         private ScalingQueue scalingQueue;

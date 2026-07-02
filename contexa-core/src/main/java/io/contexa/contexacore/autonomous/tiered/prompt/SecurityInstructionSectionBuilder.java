@@ -19,6 +19,6 @@ public class SecurityInstructionSectionBuilder implements SecurityPromptSectionB
 
     @Override
     public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
-        return template.buildSystemInstruction();
+        return template.buildSystemInstruction(context);
     }
 }

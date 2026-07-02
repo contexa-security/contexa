@@ -191,27 +191,29 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     public SecurityEventContext processSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
+        SecurityContextDataStore.EventProcessingClaim claim = claimEventProcessing(event.getEventId());
+        if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
+            log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+            SecurityEventContext skippedContext = SecurityEventContext.builder()
+                    .securityEvent(event)
+                    .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
+                    .build();
+            skippedContext.addMetadata("skipReason", "duplicate_event");
+            return skippedContext;
+        }
+        if (claim == SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT) {
+            SecurityEventContext skippedContext = SecurityEventContext.builder()
+                    .securityEvent(event)
+                    .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
+                    .build();
+            skippedContext.addMetadata("skipReason", "event_processing_in_flight");
+            return skippedContext;
+        }
+        return processClaimedSecurityEvent(event, startTime);
+    }
 
+    private SecurityEventContext processClaimedSecurityEvent(SecurityEvent event, long startTime) {
         try {
-            SecurityContextDataStore.EventProcessingClaim claim = claimEventProcessing(event.getEventId());
-            if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
-                log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
-                SecurityEventContext skippedContext = SecurityEventContext.builder()
-                        .securityEvent(event)
-                        .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
-                        .build();
-                skippedContext.addMetadata("skipReason", "duplicate_event");
-                return skippedContext;
-            }
-            if (claim == SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT) {
-                SecurityEventContext skippedContext = SecurityEventContext.builder()
-                        .securityEvent(event)
-                        .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
-                        .build();
-                skippedContext.addMetadata("skipReason", "event_processing_in_flight");
-                return skippedContext;
-            }
-
             SecurityEventContext context = securityEventProcessor.process(event);
             if (SecurityEventProcessor.hasProcessingDeadlineExceeded(event)) {
                 event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED, true);
@@ -241,7 +243,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
         }
     }
-
     private void auditError(String component, String operation, Exception exception,
                             Map<String, Object> errorContext) {
         try {
@@ -349,6 +350,20 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     private SecurityEventContext processSecurityEventWithinBudget(SecurityEvent event) throws Exception {
         long timeoutMs = Math.max(1000L, securityPlaneProperties.getAgent().getEventTimeoutMs());
+        SecurityContextDataStore.EventProcessingClaim claim = claimEventProcessing(event.getEventId());
+        if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
+            log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+            SecurityEventContext skippedContext = SecurityEventContext.builder()
+                    .securityEvent(event)
+                    .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
+                    .build();
+            skippedContext.addMetadata("skipReason", "duplicate_event");
+            return skippedContext;
+        }
+        if (claim == SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT) {
+            throw new EventProcessingInFlightException(event.getEventId());
+        }
+
         CompletableFuture<SecurityEventContext> processingFuture = new CompletableFuture<>();
         long submittedAt = System.currentTimeMillis();
         long deadlineAt = submittedAt + timeoutMs;
@@ -371,13 +386,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     event.addMetadata(PROCESSING_QUEUE_TIMEOUT_AT, executionStartedAt);
                     recordTimeoutObservation(event, "LLM executor queue timeout: waited "
                             + executorQueueWaitMs + "ms > " + queueTimeoutMs + "ms");
+                    releaseEventProcessing(event.getEventId());
                     processingFuture.completeExceptionally(new TimeoutException("LLM executor queue timeout"));
                     return;
                 }
                 SecurityEventTelemetryContext.putIfAbsent("chatAcquireMs", 0L);
                 SecurityEventTelemetryContext.putIfAbsent("embeddingAcquireMs", 0L);
                 SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
-                processingFuture.complete(processSecurityEvent(event));
+                processingFuture.complete(processClaimedSecurityEvent(event, executionStartedAt));
             } catch (Throwable throwable) {
                 processingFuture.completeExceptionally(throwable);
             } finally {
@@ -389,6 +405,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("llmExecutorRejectedAt", System.currentTimeMillis());
             event.addMetadata("decisionFailureCategory", "REJECTED_BACKPRESSURE");
             recordRejectedObservation(event);
+            releaseEventProcessing(event.getEventId());
             throw rejectedExecutionException;
         }
 
@@ -440,9 +457,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 .processedAt(LocalDateTime.now())
                 .build();
         try {
-            event.addMetadata("timeoutFailClosedAction", ZeroTrustAction.CHALLENGE.name());
+            event.addMetadata("timeoutObservationAction", ZeroTrustAction.PENDING_ANALYSIS.name());
             event.addMetadata("llmDecisionPresent", false);
-            String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+            String observationId = writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
             if (observationId != null && !observationId.isBlank()) {
                 event.addMetadata(TIMEOUT_OBSERVATION_ID, observationId);
             }
@@ -469,9 +486,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 .processedAt(LocalDateTime.now())
                 .build();
         try {
-            event.addMetadata("backpressureFailClosedAction", ZeroTrustAction.CHALLENGE.name());
+            event.addMetadata("backpressureObservationAction", ZeroTrustAction.PENDING_ANALYSIS.name());
             event.addMetadata("llmDecisionPresent", false);
-            writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+            writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
         } catch (Exception ex) {
             log.error("[SecurityPlaneAgent] Failed to record backpressure rejection observation: eventId={}", event.getEventId(), ex);
         }
@@ -543,4 +560,3 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 }
-

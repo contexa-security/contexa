@@ -133,7 +133,6 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
         SecurityRouterProperties.class,
         SecurityPipelineProperties.class,
         TieredStrategyProperties.class,
-        TieredStrategyProperties.class,
         ContexaRagProperties.class
 })
 public class CoreAutonomousAutoConfiguration {

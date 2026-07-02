@@ -793,10 +793,13 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
         int rawTotal = rawSystemPrompt.length() + rawUserPrompt.length();
         int llmTotal = llmSystemPrompt.length() + llmUserPrompt.length();
         int savedChars = Math.max(0, rawTotal - llmTotal);
-        int savedTokens = Math.max(
-                0,
-                estimateTokens(rawSystemPrompt + "\n---\n" + rawUserPrompt)
-                        - estimateTokens(llmSystemPrompt + "\n---\n" + llmUserPrompt));
+        int savedTokens = estimateSavedTokensForLedger(
+                rawSystemPrompt,
+                rawUserPrompt,
+                llmSystemPrompt,
+                llmUserPrompt,
+                savedChars,
+                records);
         boolean parity = records.isEmpty();
         return new PromptCompressionLedger(
                 resolveTransformationMode(records),
@@ -810,6 +813,39 @@ public final class SafePromptNormalizationLLMViewComposer implements LLMViewComp
                 records);
     }
 
+    private int estimateSavedTokensForLedger(
+            String rawSystemPrompt,
+            String rawUserPrompt,
+            String llmSystemPrompt,
+            String llmUserPrompt,
+            int savedChars,
+            List<PromptCompressionRecord> records) {
+        if (savedChars <= 0 || !hasTokenSavingCompression(records)) {
+            return 0;
+        }
+        return Math.max(
+                0,
+                estimateTokens(rawSystemPrompt + "\n---\n" + rawUserPrompt)
+                        - estimateTokens(llmSystemPrompt + "\n---\n" + llmUserPrompt));
+    }
+
+    private boolean hasTokenSavingCompression(List<PromptCompressionRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return false;
+        }
+        for (PromptCompressionRecord record : records) {
+            if (record == null || record.action() == null) {
+                continue;
+            }
+            if (record.action() == PromptCompressionAction.DEDUPLICATED
+                    || record.action() == PromptCompressionAction.SUMMARIZED
+                    || record.action() == PromptCompressionAction.FUSED
+                    || record.action() == PromptCompressionAction.OMITTED) {
+                return true;
+            }
+        }
+        return false;
+    }
     private PromptTransformResult removeResolvedAuthorizationEffectMissingContext(String prompt) {
         if (prompt == null || prompt.isBlank()
                 || !prompt.contains("Bridge missing context: AUTHORIZATION_EFFECT.")

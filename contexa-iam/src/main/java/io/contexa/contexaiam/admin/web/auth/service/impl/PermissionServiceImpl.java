@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -77,6 +78,7 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     @Override
+    @Protectable(verificationRequired = false)
     public Page<Permission> searchPermissions(String keyword, Pageable pageable) {
         if (StringUtils.hasText(keyword)) {
             String trimmedKeyword = keyword.trim();

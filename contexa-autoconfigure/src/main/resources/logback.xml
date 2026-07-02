@@ -13,13 +13,13 @@
         <appender-ref ref="CONSOLE"/>
     </root>
 
-    <logger name="io.contexa" level="DEBUG"/>
-    <logger name="io.contexa.contexacore.autonomous" level="DEBUG"/>
-    <logger name="io.contexa.contexaidentity.security.statemachine" level="DEBUG"/>
+    <logger name="io.contexa" level="INFO"/>
+    <logger name="io.contexa.contexacore.autonomous" level="INFO"/>
+    <logger name="io.contexa.contexaidentity.security.statemachine" level="INFO"/>
 
-    <logger name="org.springframework.statemachine" level="DEBUG"/>
+    <logger name="org.springframework.statemachine" level="WARN"/>
     <logger name="org.springframework.security" level="INFO"/>
     <logger name="org.springframework.context.support.PostProcessorRegistrationDelegate$BeanPostProcessorChecker" level="ERROR"/>
 
-    <logger name="org.hibernate.SQL" level="DEBUG"/>
+    <logger name="org.hibernate.SQL" level="WARN"/>
 </configuration>

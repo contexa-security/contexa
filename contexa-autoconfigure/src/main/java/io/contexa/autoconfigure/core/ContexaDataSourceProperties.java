@@ -19,6 +19,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.util.StringUtils;
 
+import javax.sql.DataSource;
+import java.lang.reflect.Method;
+
 @ConfigurationProperties("contexa.datasource")
 public class ContexaDataSourceProperties {
 
@@ -28,6 +31,7 @@ public class ContexaDataSourceProperties {
     private String driverClassName;
 
     private final Isolation isolation = new Isolation();
+    private final Hikari hikari = new Hikari();
 
     public DataSourceBuilder<?> initializeDataSourceBuilder() {
         DataSourceBuilder<?> builder = DataSourceBuilder.create();
@@ -44,6 +48,12 @@ public class ContexaDataSourceProperties {
             builder.password(password);
         }
         return builder;
+    }
+
+    public DataSource initializeDataSource() {
+        DataSource dataSource = initializeDataSourceBuilder().build();
+        hikari.applyTo(dataSource);
+        return dataSource;
     }
 
     public String getUrl() {
@@ -82,6 +92,10 @@ public class ContexaDataSourceProperties {
         return isolation;
     }
 
+    public Hikari getHikari() {
+        return hikari;
+    }
+
     public static class Isolation {
         private boolean allowSharedApplicationDatasource;
         private boolean sharedApplicationDatasourceRiskAccepted;
@@ -109,6 +123,92 @@ public class ContexaDataSourceProperties {
 
         public void setContexaOwnedApplication(boolean contexaOwnedApplication) {
             this.contexaOwnedApplication = contexaOwnedApplication;
+        }
+    }
+    public static class Hikari {
+        private int maximumPoolSize = 48;
+        private int minimumIdle = 8;
+        private long connectionTimeoutMs = 60000L;
+        private long validationTimeoutMs = 5000L;
+        private long idleTimeoutMs = 600000L;
+        private long maxLifetimeMs = 1800000L;
+
+        void applyTo(DataSource dataSource) {
+            if (dataSource == null) {
+                return;
+            }
+            invokeIntSetter(dataSource, "setMaximumPoolSize", maximumPoolSize);
+            invokeIntSetter(dataSource, "setMinimumIdle", Math.min(minimumIdle, maximumPoolSize));
+            invokeLongSetter(dataSource, "setConnectionTimeout", connectionTimeoutMs);
+            invokeLongSetter(dataSource, "setValidationTimeout", validationTimeoutMs);
+            invokeLongSetter(dataSource, "setIdleTimeout", idleTimeoutMs);
+            invokeLongSetter(dataSource, "setMaxLifetime", maxLifetimeMs);
+        }
+
+        private static void invokeIntSetter(DataSource dataSource, String methodName, int value) {
+            try {
+                Method method = dataSource.getClass().getMethod(methodName, int.class);
+                method.invoke(dataSource, value);
+            } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+                // Non-Hikari DataSource implementations simply ignore Hikari-specific settings.
+            }
+        }
+
+        private static void invokeLongSetter(DataSource dataSource, String methodName, long value) {
+            try {
+                Method method = dataSource.getClass().getMethod(methodName, long.class);
+                method.invoke(dataSource, value);
+            } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+                // Non-Hikari DataSource implementations simply ignore Hikari-specific settings.
+            }
+        }
+
+        public int getMaximumPoolSize() {
+            return maximumPoolSize;
+        }
+
+        public void setMaximumPoolSize(int maximumPoolSize) {
+            this.maximumPoolSize = maximumPoolSize;
+        }
+
+        public int getMinimumIdle() {
+            return minimumIdle;
+        }
+
+        public void setMinimumIdle(int minimumIdle) {
+            this.minimumIdle = minimumIdle;
+        }
+
+        public long getConnectionTimeoutMs() {
+            return connectionTimeoutMs;
+        }
+
+        public void setConnectionTimeoutMs(long connectionTimeoutMs) {
+            this.connectionTimeoutMs = connectionTimeoutMs;
+        }
+
+        public long getValidationTimeoutMs() {
+            return validationTimeoutMs;
+        }
+
+        public void setValidationTimeoutMs(long validationTimeoutMs) {
+            this.validationTimeoutMs = validationTimeoutMs;
+        }
+
+        public long getIdleTimeoutMs() {
+            return idleTimeoutMs;
+        }
+
+        public void setIdleTimeoutMs(long idleTimeoutMs) {
+            this.idleTimeoutMs = idleTimeoutMs;
+        }
+
+        public long getMaxLifetimeMs() {
+            return maxLifetimeMs;
+        }
+
+        public void setMaxLifetimeMs(long maxLifetimeMs) {
+            this.maxLifetimeMs = maxLifetimeMs;
         }
     }
 }

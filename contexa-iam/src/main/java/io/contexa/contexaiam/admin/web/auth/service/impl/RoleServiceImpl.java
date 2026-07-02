@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
@@ -87,6 +88,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    @Protectable(verificationRequired = false)
     public Page<Role> searchRoles(String keyword, Pageable pageable) {
         String effectiveKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
         Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());

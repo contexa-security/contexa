@@ -122,13 +122,15 @@ public class SecurityPlaneProperties {
     @Data
     public static class LlmExecutorSettings {
 
-        private int corePoolSize = 8;
+        private int corePoolSize = 32;
 
-        private int maxPoolSize = 16;
+        private int maxPoolSize = 64;
 
-        private int queueCapacity = 128;
+        private int queueCapacity = 256;
 
         private long queueTimeoutMs = 60000L;
+
+        private boolean prestartCoreThreads = true;
     }
 
     @Data

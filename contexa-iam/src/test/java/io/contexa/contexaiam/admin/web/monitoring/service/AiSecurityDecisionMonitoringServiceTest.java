@@ -67,6 +67,7 @@ class AiSecurityDecisionMonitoringServiceTest {
                 () -> jdbcTemplate,
                 properties,
                 new SecurityZeroTrustProperties(),
+                () -> null,
                 () -> null);
     }
 

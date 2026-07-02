@@ -52,6 +52,13 @@ contexa:
     username: ${CONTEXA_DB_USERNAME:${DB_USERNAME:contexa_sim}}
     password: ${CONTEXA_DB_PASSWORD:${DB_PASSWORD:contexa_sim_pw}}
     driver-class-name: ${CONTEXA_DB_DRIVER:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: ${CONTEXA_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:48}
+      minimum-idle: ${CONTEXA_DATASOURCE_HIKARI_MINIMUM_IDLE:8}
+      connection-timeout-ms: ${CONTEXA_DATASOURCE_HIKARI_CONNECTION_TIMEOUT_MS:60000}
+      validation-timeout-ms: ${CONTEXA_DATASOURCE_HIKARI_VALIDATION_TIMEOUT_MS:5000}
+      idle-timeout-ms: ${CONTEXA_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS:600000}
+      max-lifetime-ms: ${CONTEXA_DATASOURCE_HIKARI_MAX_LIFETIME_MS:1800000}
     isolation:
       contexa-owned-application: true
   security:
@@ -64,6 +71,12 @@ contexa:
         queue-timeout-ms: ${CONTEXA_SECURITY_PLANE_LLM_EXECUTOR_QUEUE_TIMEOUT_MS:60000}
       llm-timeout:
         provider-call-timeout-ms: ${CONTEXA_SECURITY_PLANE_LLM_TIMEOUT_PROVIDER_CALL_TIMEOUT_MS:60000}
+    tiered:
+      prompt-compression:
+        enabled: false
+      layer1:
+        timeout:
+          interactive-rag-wait-ms: ${CONTEXA_SECURITY_TIERED_LAYER1_INTERACTIVE_RAG_WAIT_MS:500}
   identity:
     ott:
       fail-on-email-error: false

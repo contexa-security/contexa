@@ -35,6 +35,7 @@ import io.contexa.contexacore.hcad.trigger.HcadActorSessionKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
+import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
@@ -189,8 +190,27 @@ public class HCADFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuthenticated = this.trustResolver.isAuthenticated(authentication);
+        diagnostic(
+                request,
+                "ENTRY",
+                "method={} path={} enabled={} preTriggerEvaluate={} mode={} authenticated={} principal={}",
+                request == null ? null : request.getMethod(),
+                HcadRequestPathUtils.normalizedPath(request),
+                hcadProperties.isEnabled(),
+                hcadProperties.getPreTrigger().shouldEvaluate(),
+                hcadProperties.getPreTrigger().effectiveMode(),
+                isAuthenticated,
+                authentication == null ? null : authentication.getName());
 
         if (!hcadProperties.isEnabled() || !hcadProperties.getPreTrigger().shouldEvaluate() || !isAuthenticated) {
+            diagnostic(
+                    request,
+                    "SKIP",
+                    "reason={} enabled={} preTriggerEvaluate={} authenticated={}",
+                    skipReason(isAuthenticated),
+                    hcadProperties.isEnabled(),
+                    hcadProperties.getPreTrigger().shouldEvaluate(),
+                    isAuthenticated);
             if (log.isTraceEnabled()) {
                 log.trace("[HCADFilter] Skipped: path={}, enabled={}, preTrigger={}, authenticated={}",
                         HcadRequestPathUtils.normalizedPath(request),
@@ -202,6 +222,7 @@ public class HCADFilter extends OncePerRequestFilter {
             return;
         }
 
+        boolean chainInvoked = false;
         try {
             String actorSessionKey = HcadActorSessionKeyFactory.fromRequest(request, authentication);
             trustedProjectionFactory.recordLightweightRequestCounter(request, authentication);
@@ -211,10 +232,29 @@ public class HCADFilter extends OncePerRequestFilter {
             request.setAttribute("hcad.windowRequestCount", windowLease.requestCount());
             boolean nonUserInteraction = HcadRequestPathUtils.isNonUserInteractionRequest(request);
             boolean deepEvaluationOwner = windowLease.deepEvaluationOwner();
+            diagnostic(
+                    request,
+                    "WINDOW",
+                    "actorSessionKeyHash={} windowId={} requestCount={} deepOwner={} nonUserInteraction={} resourceFamilies={} samplePaths={}",
+                    safeHash(actorSessionKey),
+                    windowLease.windowId(),
+                    windowLease.requestCount(),
+                    deepEvaluationOwner,
+                    nonUserInteraction,
+                    windowLease.resourceFamilies(),
+                    windowLease.samplePaths());
             HcadTrustedAnchorSignalProbe anchorProbe = nonUserInteraction
                     ? null
                     : trustedProjectionFactory.probeAnchorSignals(request, authentication);
             String trustedContextSignature = trustedContextSignature(anchorProbe);
+            diagnostic(
+                    request,
+                    "ANCHOR_PROBE",
+                    "hasProbe={} hasReEvaluationSignature={} reEvaluationSignals={} signatureHash={}",
+                    anchorProbe != null,
+                    anchorProbe != null && anchorProbe.hasReEvaluationSignature(),
+                    anchorProbe == null ? List.of() : anchorProbe.reEvaluationSignals(),
+                    safeHash(trustedContextSignature));
             if (!deepEvaluationOwner && !nonUserInteraction) {
                 if (anchorProbe != null
                         && anchorProbe.hasReEvaluationSignature()
@@ -251,7 +291,9 @@ public class HCADFilter extends OncePerRequestFilter {
                             HcadRequestPathUtils.normalizedPath(request),
                             trustedContextSignature);
                 }
+                chainInvoked = true;
                 filterChain.doFilter(request, response);
+                markProtectableObservedAfterChain(request);
                 return;
             }
             if (!deepEvaluationOwner || nonUserInteraction) {
@@ -264,14 +306,43 @@ public class HCADFilter extends OncePerRequestFilter {
                             HcadRequestPathUtils.normalizedPath(request),
                             windowLease.deepEvaluationOwner());
                 }
+                chainInvoked = true;
                 filterChain.doFilter(request, response);
+                markProtectableObservedAfterChain(request);
                 return;
             }
 
             TrustedHcadContextProjection projection = trustedProjectionFactory.project(request, authentication);
+            diagnostic(
+                    request,
+                    "PROJECTION",
+                    "userId={} tenantId={} method={} path={} contextBindingHash={} failedLoginBurst={} requestBurst={} rapidSequence={} previousPath={} baselineEstablished={} baselineConfidence={} ignoredInputs={}",
+                    projection == null ? null : projection.userId(),
+                    projection == null ? null : projection.tenantId(),
+                    projection == null ? null : projection.method(),
+                    projection == null ? null : projection.normalizedPath(),
+                    projection == null ? null : projection.contextBindingHash(),
+                    projection == null ? null : projection.failedLoginBurst(),
+                    projection == null ? null : projection.requestBurst(),
+                    projection == null ? null : projection.rapidSequence(),
+                    projection == null ? null : projection.previousPath(),
+                    projection == null ? null : projection.baselineEstablished(),
+                    projection == null ? null : projection.baselineConfidence(),
+                    projection == null ? null : projection.ignoredInputs().keySet());
             CachedSemanticEvidenceProjection semanticEvidence = semanticEvidenceCacheSupplier == null
                     ? null
                     : resolveSemanticEvidence(request, projection);
+            diagnostic(
+                    request,
+                    "SEMANTIC_EVIDENCE",
+                    "available={} freshHit={} staleHit={} gaps={} normalSimilarity={} riskSimilarity={} mismatch={}",
+                    semanticEvidence != null && semanticEvidence.hasUsableEvidence(),
+                    semanticEvidence != null && semanticEvidence.hasFreshHit(),
+                    semanticEvidence != null && semanticEvidence.hasStaleHit(),
+                    semanticEvidence == null ? List.of("SEMANTIC_EVIDENCE_SUPPLIER_UNAVAILABLE") : semanticEvidence.evidenceGapCodes(),
+                    semanticEvidence == null ? null : semanticEvidence.maxSimilarityToNormal(),
+                    semanticEvidence == null ? null : semanticEvidence.maxSimilarityToRisk(),
+                    semanticEvidence == null ? null : semanticEvidence.maxMismatchScore());
             HcadPreProtectablePromotionAssessment assessment = semanticEvidence == null
                     ? preProtectablePromotionScorer.score(projection)
                     : preProtectablePromotionScorer.score(projection, semanticEvidence);
@@ -302,6 +373,18 @@ public class HCADFilter extends OncePerRequestFilter {
                         assessment.band().serializedValue(),
                         assessment.eligible());
             }
+            diagnostic(
+                    request,
+                    "SCORE",
+                    "score={} band={} eligible={} anchors={} corroborating={} reasonCodes={} falseReasons={} thresholds={}",
+                    assessment.score(),
+                    assessment.band().serializedValue(),
+                    assessment.eligible(),
+                    assessment.anchorSignals(),
+                    assessment.corroboratingSignals(),
+                    assessment.reasonCodes(),
+                    assessment.rawSignalSnapshot().get("eligibleFalseReasons"),
+                    assessment.rawSignalSnapshot().get("scoringThresholds"));
             HcadPreProtectablePromotionRequestProjector.project(
                     request,
                     assessment,
@@ -318,8 +401,13 @@ public class HCADFilter extends OncePerRequestFilter {
             }
             maybeTriggerPendingAnomaly(request, authentication, projection, assessment);
 
+            chainInvoked = true;
             filterChain.doFilter(request, response);
+            markProtectableObservedAfterChain(request);
         } catch (Exception e) {
+            if (chainInvoked) {
+                rethrowFilterChainException(e);
+            }
             log.error("[HCADFilter] Error during processing", e);
             request.setAttribute("hcad.analysisStatus", "FAILED");
             request.setAttribute("hcad.failReason", e.getClass().getSimpleName());
@@ -327,6 +415,45 @@ public class HCADFilter extends OncePerRequestFilter {
         }
     }
 
+    private void markProtectableObservedAfterChain(HttpServletRequest request) {
+        if (request == null || !Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_OBSERVED))) {
+            return;
+        }
+        HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
+        if (writer == null) {
+            return;
+        }
+        String evaluationId = firstText(
+                attributeText(request, PendingAnomalyTriggerAttributes.PRE_TRIGGER_MERGE_EVALUATION_ID),
+                attributeText(request, PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID));
+        if (evaluationId == null) {
+            return;
+        }
+        writer.markProtectableObserved(
+                evaluationId,
+                attributeText(request, PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_ID),
+                attributeText(request, PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_URL),
+                firstText(attributeText(request, PendingAnomalyTriggerAttributes.PROTECTABLE_HTTP_METHOD), request.getMethod()),
+                Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_LLM_REUSED)));
+    }
+
+    private void rethrowFilterChainException(Exception e) throws ServletException, IOException {
+        if (e instanceof ServletException servletException) {
+            throw servletException;
+        }
+        if (e instanceof IOException ioException) {
+            throw ioException;
+        }
+        if (e instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+        throw new ServletException(e);
+    }
+
+    private String attributeText(HttpServletRequest request, String attributeName) {
+        Object value = request == null || attributeName == null ? null : request.getAttribute(attributeName);
+        return value == null ? null : String.valueOf(value);
+    }
     private HcadObservationWindowLease observeRequest(String actorSessionKey, HttpServletRequest request) {
         HcadRequestObservation observation = new HcadRequestObservation(
                 request != null ? request.getHeader("X-Request-Id") : null,
@@ -635,14 +762,28 @@ public class HCADFilter extends OncePerRequestFilter {
             return;
         }
         if (Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED))) {
+            diagnostic(request, "TRIGGER_SKIP", "reason=ALREADY_EVALUATED");
             return;
         }
         request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATED, true);
         if (pendingAnomalyTriggerOrchestrator != null) {
+            diagnostic(
+                    request,
+                    "TRIGGER_ORCHESTRATOR",
+                    "available=true score={} eligible={} mode={}",
+                    assessment == null ? null : assessment.score(),
+                    assessment != null && assessment.eligible(),
+                    hcadProperties.getPreTrigger().effectiveMode());
             pendingAnomalyTriggerOrchestrator.maybeTrigger(request, authentication);
             refreshRecordedWindowObservation(assessment);
             return;
         }
+        diagnostic(
+                request,
+                "TRIGGER_ORCHESTRATOR",
+                "available=false score={} eligible={} fallbackRecordCandidate=true",
+                assessment == null ? null : assessment.score(),
+                assessment != null && assessment.eligible());
         recordCandidateWithoutPublisher(request, projection, assessment);
     }
 
@@ -652,9 +793,25 @@ public class HCADFilter extends OncePerRequestFilter {
             HcadPreProtectablePromotionAssessment assessment) {
         HcadEvaluationWriter writer = hcadEvaluationWriterSupplier == null ? null : hcadEvaluationWriterSupplier.get();
         if (writer == null || projection == null || assessment == null) {
+            diagnostic(
+                    request,
+                    "CANDIDATE_RECORD_SKIP",
+                    "reason={} writerAvailable={} projectionAvailable={} assessmentAvailable={}",
+                    writer == null ? "WRITER_UNAVAILABLE" : projection == null ? "PROJECTION_UNAVAILABLE" : "ASSESSMENT_UNAVAILABLE",
+                    writer != null,
+                    projection != null,
+                    assessment != null);
             return;
         }
         if (!shouldPersistEvaluation(assessment)) {
+            diagnostic(
+                    request,
+                    "CANDIDATE_RECORD_SKIP",
+                    "reason=NOT_ELIGIBLE score={} band={} eligible={} falseReasons={}",
+                    assessment.score(),
+                    assessment.band().serializedValue(),
+                    assessment.eligible(),
+                    assessment.rawSignalSnapshot().get("eligibleFalseReasons"));
             return;
         }
         String requestPath = projection.normalizedPath();
@@ -687,6 +844,16 @@ public class HCADFilter extends OncePerRequestFilter {
                 riskSignature,
                 assessment.rawSignalSnapshot());
         String evaluationId = writer.recordCandidate(hcadProperties.getPreTrigger().effectiveMode(), report);
+        diagnostic(
+                request,
+                "CANDIDATE_RECORD",
+                "evaluationId={} score={} band={} eligible={} triggerStateKeyHash={} riskSignature={}",
+                evaluationId,
+                assessment.score(),
+                assessment.band().serializedValue(),
+                assessment.eligible(),
+                safeHash(triggerStateKey),
+                riskSignature);
         if (evaluationId != null && request != null) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
             if (Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_NEGATIVE_CACHE_HIT))) {
@@ -698,6 +865,10 @@ public class HCADFilter extends OncePerRequestFilter {
 
     private boolean shouldPersistEvaluation(HcadPreProtectablePromotionAssessment assessment) {
         if (assessment == null) {
+            return false;
+        }
+        HcadPreTriggerMode mode = hcadProperties.getPreTrigger().effectiveMode();
+        if (mode == HcadPreTriggerMode.OBSERVE || mode == HcadPreTriggerMode.DISABLED) {
             return false;
         }
         return assessment.eligible();
@@ -730,6 +901,49 @@ public class HCADFilter extends OncePerRequestFilter {
         return null;
     }
 
+    private void diagnostic(HttpServletRequest request, String stage, String message, Object... args) {
+        if (!diagnosticEnabled(request)) {
+            return;
+        }
+        Object[] logArgs = new Object[(args == null ? 0 : args.length) + 2];
+        logArgs[0] = requestId(request);
+        logArgs[1] = stage;
+        if (args != null && args.length > 0) {
+            System.arraycopy(args, 0, logArgs, 2, args.length);
+        }
+        log.info("[HCAD-DIAG] requestId={} stage={} " + message, logArgs);
+    }
+
+    private boolean diagnosticEnabled(HttpServletRequest request) {
+        String enabled = request == null ? null : request.getHeader("X-Contexa-HCAD-Diagnostic");
+        if ("true".equalsIgnoreCase(enabled) || "1".equals(enabled)) {
+            return true;
+        }
+        String requestId = requestId(request);
+        return requestId != null && (requestId.startsWith("opq-") || requestId.startsWith("hcad-"));
+    }
+
+    private String requestId(HttpServletRequest request) {
+        return request == null ? null : firstText(request.getHeader("X-Request-Id"), request.getParameter("requestId"));
+    }
+
+    private String skipReason(boolean isAuthenticated) {
+        if (!hcadProperties.isEnabled()) {
+            return "HCAD_DISABLED";
+        }
+        if (!hcadProperties.getPreTrigger().shouldEvaluate()) {
+            return "PRE_TRIGGER_NOT_EVALUATED_BY_MODE";
+        }
+        if (!isAuthenticated) {
+            return "UNAUTHENTICATED";
+        }
+        return "UNKNOWN";
+    }
+
+    private String safeHash(String value) {
+        return value == null ? null : Integer.toHexString(value.hashCode());
+    }
+
     private String valueAsText(Object value) {
         if (value == null) {
             return null;
@@ -741,9 +955,20 @@ public class HCADFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = HcadRequestPathUtils.normalizedPath(request);
-        return !hcadProperties.getPreTrigger().shouldEvaluate() ||
-               HcadRequestPathUtils.isNonActionableMonitoringPath(path) ||
-               matchesExcludedPattern(path);
+        boolean shouldEvaluate = hcadProperties.getPreTrigger().shouldEvaluate();
+        boolean nonActionable = HcadRequestPathUtils.isNonActionableMonitoringPath(path);
+        boolean excluded = matchesExcludedPattern(path);
+        boolean result = !shouldEvaluate || nonActionable || excluded;
+        diagnostic(
+                request,
+                "SHOULD_NOT_FILTER",
+                "result={} path={} shouldEvaluate={} nonActionable={} excluded={}",
+                result,
+                path,
+                shouldEvaluate,
+                nonActionable,
+                excluded);
+        return result;
     }
 
     private boolean matchesExcludedPattern(String path) {

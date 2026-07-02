@@ -136,7 +136,8 @@ public final class AiMonitorDtos {
     public record LatencyBreakdownMetric(
             String key,
             double averageMs,
-            double p95Ms
+            double p95Ms,
+            double p99Ms
     ) {
     }
 
@@ -147,6 +148,8 @@ public final class AiMonitorDtos {
             long timeoutCount,
             long modelUnavailableCount,
             long estimatedWastedLlmCalls,
+            long suppressedLlmTriggerCount,
+            long providerThrottleWaitCount,
             double estimatedWasteCostUsd,
             double estimatedSavedCostUsd,
             List<LatencyBreakdownMetric> latencyBreakdown
@@ -305,6 +308,7 @@ public final class AiMonitorDtos {
             long deletedHcadEvaluationCount,
             long deletedLlmObservationCount,
             long deletedCorrelationCount,
+            long deletedSuppressedTriggerCount,
             boolean learningEvidenceReset,
             MonitoringSessionSummary archivedSummary,
             MonitoringSessionCurrent newSession

@@ -153,6 +153,12 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     }
 
     @Override
+    public void clearTransientCounters() {
+        requestCounters.invalidateAll();
+        loginFailureCounters.invalidateAll();
+    }
+
+    @Override
     public boolean isUserRegistered(String userId) {
         return registeredUsers.contains(userId);
     }

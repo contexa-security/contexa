@@ -75,7 +75,12 @@ import java.util.concurrent.ThreadPoolExecutor;
         "io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties(SecurityPlaneProperties.class)
+@EnableConfigurationProperties({
+        SecurityPlaneProperties.class,
+        SecurityKafkaProperties.class,
+        SecurityZeroTrustProperties.class,
+        TieredStrategyProperties.class
+})
 public class CoreAutonomousEventAutoConfiguration {
 
     @Configuration(proxyBeanMethods = false)
@@ -184,8 +189,9 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityEventProcessor securityEventProcessingOrchestrator(
-            List<SecurityEventHandler> handlers) {
-        return new SecurityEventProcessor(handlers);
+            List<SecurityEventHandler> handlers,
+            SecurityPlaneProperties securityPlaneProperties) {
+        return new SecurityEventProcessor(handlers, securityPlaneProperties.getAgent().getName());
     }
 
     @Bean

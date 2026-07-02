@@ -123,18 +123,22 @@
             [label('labelFailureRate'), formatMetricPercent(standard.failureRate, metrics.failureRate, (llm.totalDecisionCount || 0) > 0), label('labelFailureRateHelp')]
         ]);
         const totalAiDecisions = llm.totalDecisionCount || 0;
-        const hcadTriggeredAiDecisions = llm.hcadPreTriggerDecisionCount || 0;
-        const nonTriggeredAiDecisions = Math.max(0, totalAiDecisions - hcadTriggeredAiDecisions);
+        const suppressedLlmTriggers = operations.suppressedLlmTriggerCount || 0;
+        const providerThrottleWaits = operations.providerThrottleWaitCount || 0;
+        const failedLlmObservations = failureCount(operations);
+        const acceptedLlmTriggers = totalAiDecisions + suppressedLlmTriggers;
+        const observedRequests = hcad.observedRequestCount || metricValue(standard.observedRequests, 0) || 0;
         detailsEl.innerHTML = [
             flowPanel([
-                flowItem(label('labelObservedRequests'), hcad.observedRequestCount || 0, label('labelFlowBase'), 1, '#22d3ee'),
-                flowItem(label('labelHcadWindows'), hcad.candidateCount || 0, label('labelFlowObservedToHcad'), ratioValue(hcad.candidateCount || 0, hcad.observedRequestCount || 0), '#38bdf8'),
-                flowItem(label('labelHcadAiConnected'), hcad.triggeredLlmCount || 0, label('labelFlowHcadToLlm'), ratioValue(hcad.triggeredLlmCount || 0, hcad.candidateCount || 0), '#a78bfa'),
-                flowItem(label('labelHcadTriggeredAiDecisions'), hcadTriggeredAiDecisions, label('labelFlowAllAiDecisions'), ratioValue(hcadTriggeredAiDecisions, totalAiDecisions), '#8b5cf6'),
-                flowItem(label('labelNonTriggeredAiDecisions'), nonTriggeredAiDecisions, label('labelFlowAllAiDecisions'), ratioValue(nonTriggeredAiDecisions, totalAiDecisions), '#f59e0b'),
-                flowItem(label('labelLlmDecisions'), totalAiDecisions, label('labelFlowObservedToAi'), ratioValue(totalAiDecisions, Math.max(1, hcad.observedRequestCount || 0)), '#818cf8'),
+                flowItem(label('labelObservedRequests'), observedRequests, label('labelFlowBase'), 1, '#22d3ee'),
+                flowItem(label('labelAcceptedLlmTriggers'), acceptedLlmTriggers, label('labelFlowObservedToAi'), ratioValue(acceptedLlmTriggers, observedRequests), '#818cf8'),
+                flowItem(label('labelSuppressedLlmTriggers'), suppressedLlmTriggers, label('labelSuppressedLlmTriggersHelp'), ratioValue(suppressedLlmTriggers, acceptedLlmTriggers), '#f59e0b'),
+                flowItem(label('labelProviderThrottleWaits'), providerThrottleWaits, label('labelProviderThrottleWaitsHelp'), ratioValue(providerThrottleWaits, totalAiDecisions), '#fb7185'),
+                flowItem(label('labelLlmDecisions'), totalAiDecisions, label('labelFlowAcceptedToCompleted'), ratioValue(totalAiDecisions, acceptedLlmTriggers), '#8b5cf6'),
+                flowItem(label('labelFailureRate'), failedLlmObservations, label('labelFailureRateHelp'), ratioValue(failedLlmObservations, totalAiDecisions), '#ef4444'),
                 flowItem(label('labelClearOutcome'), metrics.classified, label('labelFlowLlmToClear'), ratioValue(metrics.classified, totalAiDecisions), '#22c55e')
             ]),
+            hcadContributionPanel(hcad, llm),
             `<div class="ai-monitor-overview-grid">
                 ${agreementPanel(metrics)}
                 ${qualitySignalPanel(hcad, llm, operations, metrics, standard)}
@@ -143,6 +147,39 @@
         ].join('');
     }
 
+    function hcadContributionPanel(hcad, llm) {
+        const candidates = hcad.candidateCount || 0;
+        const observed = hcad.observedRequestCount || 0;
+        const decisions = llm.totalDecisionCount || 0;
+        const triggered = hcad.triggeredLlmCount || 0;
+        let title = label('labelHcadContributionNormal');
+        let detail = label('labelHcadContributionNormalHelp');
+        let tone = 'good';
+        if (candidates === 0 && decisions > 0) {
+            title = label('labelHcadContributionNone');
+            detail = label('labelHcadContributionNoneHelp');
+            tone = 'warn';
+        } else if (observed === 0 && decisions === 0) {
+            title = label('labelHcadContributionNoData');
+            detail = label('labelHcadContributionNoDataHelp');
+            tone = 'warn';
+        } else if (candidates > 0 && triggered === 0) {
+            title = label('labelHcadContributionCandidateOnly');
+            detail = label('labelHcadContributionCandidateOnlyHelp');
+            tone = 'warn';
+        }
+        return `
+            <section class="ai-monitor-band ai-monitor-contribution ${escapeHtml(tone)}">
+                <div class="ai-monitor-band-title">${escapeHtml(label('labelHcadContributionTitle'))}</div>
+                <div class="ai-monitor-cause-card">
+                    <div>
+                        <strong>${escapeHtml(title)}</strong>
+                        <span>${escapeHtml(detail)}</span>
+                    </div>
+                    <b>${escapeHtml(formatNumber(triggered))} / ${escapeHtml(formatNumber(candidates))}</b>
+                </div>
+            </section>`;
+    }
     function renderLlm(summary) {
         detailsEl.className = 'ai-monitor-dashboard';
         const confirmedDecisions = confirmedDecisionCount(summary.finalActionBreakdown || []);
@@ -195,6 +232,8 @@
             [label('labelTimeouts'), operations.timeoutCount, label('labelTimeoutsHelp')],
             [label('labelParserFailures'), operations.parserFailureCount, label('labelParserFailuresHelp')],
             [label('labelModelUnavailable'), operations.modelUnavailableCount, label('labelModelUnavailableHelp')],
+            [label('labelProviderThrottleWaits'), operations.providerThrottleWaitCount, label('labelProviderThrottleWaitsHelp')],
+            [label('labelSuppressedLlmTriggers'), operations.suppressedLlmTriggerCount, label('labelSuppressedLlmTriggersHelp')],
             [label('labelAverageLatency'), formatMs(operations.averageLatencyMs), label('labelAverageLatencyHelp')]
         ]);
         detailsEl.innerHTML = [
@@ -528,18 +567,19 @@
     }
 
     function latencyBreakdownPanel(rows) {
-        const safeRows = (rows || []).filter(row => (row.averageMs || 0) > 0 || (row.p95Ms || 0) > 0);
-        const max = Math.max(1, ...safeRows.map(row => Math.max(row.averageMs || 0, row.p95Ms || 0)));
+        const expandedRows = latencyRowsWithUnattributed(rows || []);
+        const safeRows = expandedRows.filter(row => (row.averageMs || 0) > 0 || (row.p95Ms || 0) > 0 || (row.p99Ms || 0) > 0);
+        const max = Math.max(1, ...safeRows.map(row => Math.max(row.averageMs || 0, row.p95Ms || 0, row.p99Ms || 0)));
         return `
             <section class="ai-monitor-band">
                 <div class="ai-monitor-band-title">${escapeHtml(label('labelLatencyBreakdown'))}</div>
                 <div class="ai-monitor-band-help">${escapeHtml(label('labelLatencyBreakdownHelp'))}</div>
                 <div class="ai-monitor-bars">
-                    ${(safeRows.length ? safeRows : [{ key: 'NO_DATA', averageMs: 0, p95Ms: 0 }]).map(row => `
+                    ${(safeRows.length ? safeRows : [{ key: 'NO_DATA', averageMs: 0, p95Ms: 0, p99Ms: 0 }]).map(row => `
                         <div class="ai-monitor-bar-row">
                             <div class="ai-monitor-bar-head">
                                 <span>${escapeHtml(displayKey(row.key))}</span>
-                                <strong>${escapeHtml(formatMs(row.averageMs || 0))} / P95 ${escapeHtml(formatMs(row.p95Ms || 0))}</strong>
+                                <strong>${escapeHtml(formatMs(row.averageMs || 0))} / P95 ${escapeHtml(formatMs(row.p95Ms || 0))} / P99 ${escapeHtml(formatMs(row.p99Ms || 0))}</strong>
                             </div>
                             <div class="ai-monitor-bar-track">
                                 <span class="ai-monitor-bar-fill" style="width:${percentWidth((row.averageMs || 0) / max)}%;"></span>
@@ -547,6 +587,23 @@
                         </div>`).join('')}
                 </div>
             </section>`;
+    }
+
+    function latencyRowsWithUnattributed(rows) {
+        const total = rows.find(row => row.key === 'TOTAL_ANALYSIS_MS');
+        if (!total) return rows;
+        const parts = rows.filter(row => row.key !== 'TOTAL_ANALYSIS_MS');
+        const sum = (field) => parts.reduce((acc, row) => acc + (row[field] || 0), 0);
+        const unattributed = {
+            key: 'UNATTRIBUTED_LATENCY_MS',
+            averageMs: Math.max(0, (total.averageMs || 0) - sum('averageMs')),
+            p95Ms: Math.max(0, (total.p95Ms || 0) - sum('p95Ms')),
+            p99Ms: Math.max(0, (total.p99Ms || 0) - sum('p99Ms'))
+        };
+        if (unattributed.averageMs < 1 && unattributed.p95Ms < 1 && unattributed.p99Ms < 1) {
+            return rows;
+        }
+        return rows.concat(unattributed);
     }
 
     function failureCausePanel(rows, failureTotal) {
@@ -780,14 +837,17 @@
     }
 
     function csrfHeaders() {
+        const root = document.getElementById('ai-monitor');
         const token = document.querySelector('meta[name="_csrf"]')?.content
                 || document.querySelector('meta[name="csrf-token"]')?.content
-                || document.querySelector('input[name="_csrf"]')?.value;
+                || document.querySelector('input[name="_csrf"]')?.value
+                || root?.dataset?.csrfToken;
         if (!token) {
             return {};
         }
         const header = document.querySelector('meta[name="_csrf_header"]')?.content
                 || document.querySelector('meta[name="csrf-header"]')?.content
+                || root?.dataset?.csrfHeader
                 || 'X-CSRF-TOKEN';
         return { [header]: token };
     }

@@ -171,6 +171,7 @@ public class ZeroTrustEventPublisher {
             boolean granted,
             String denialReason) {
         if (shouldSuppressMethodAuthorizationEvent()) {
+            markSuppressedProtectableObservation(methodInvocation);
             log.debug("[ZeroTrustEventPublisher] Suppressing same-request METHOD authorization event after pre-trigger analysis start");
             return;
         }
@@ -182,6 +183,21 @@ public class ZeroTrustEventPublisher {
                 denialReason
         );
         eventPublisher.publishEvent(event);
+    }
+
+    private void markSuppressedProtectableObservation(MethodInvocation methodInvocation) {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null || attrs.getRequest() == null) {
+            return;
+        }
+        HttpServletRequest request = attrs.getRequest();
+        String requestPath = HcadRequestPathUtils.normalizedPath(request);
+        String method = request.getMethod();
+        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_OBSERVED, true);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_ID, requestPath);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_URL, requestPath);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_HTTP_METHOD, method);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_LLM_REUSED, false);
     }
 
     public ZeroTrustSpringEvent buildMethodAuthorizationEvent(
@@ -1234,3 +1250,4 @@ public class ZeroTrustEventPublisher {
         return AnnotationUtils.findAnnotation(methodInvocation.getMethod().getDeclaringClass(), Protectable.class);
     }
 }
+

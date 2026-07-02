@@ -18,7 +18,6 @@ package io.contexa.contexacore.autonomous;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
@@ -28,7 +27,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-@RequiredArgsConstructor
 public class SecurityEventProcessor {
 
     static final String PROCESSING_DEADLINE_AT = "processingDeadlineAt";
@@ -38,7 +36,17 @@ public class SecurityEventProcessor {
     static final String PROCESSING_DEADLINE_EXCEEDED_BEFORE_HANDLER = "processingDeadlineExceededBeforeHandler";
 
     private final List<SecurityEventHandler> handlers;
+    private final String nodeId;
     private final AtomicBoolean handlerTopologyLogged = new AtomicBoolean(false);
+
+    public SecurityEventProcessor(List<SecurityEventHandler> handlers) {
+        this(handlers, "security-plane-agent");
+    }
+
+    public SecurityEventProcessor(List<SecurityEventHandler> handlers, String nodeId) {
+        this.handlers = handlers == null ? List.of() : List.copyOf(handlers);
+        this.nodeId = nodeId == null || nodeId.isBlank() ? "security-plane-agent" : nodeId.trim();
+    }
 
     public SecurityEventContext process(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
@@ -179,6 +187,6 @@ public class SecurityEventProcessor {
         }
 
         metrics.setTotalTimeMs(totalTime);
-        metrics.setProcessingNode(System.getProperty("node.id", "local"));
+        metrics.setProcessingNode(nodeId);
     }
 }

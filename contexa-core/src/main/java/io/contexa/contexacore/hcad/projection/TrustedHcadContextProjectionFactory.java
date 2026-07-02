@@ -348,6 +348,15 @@ public class TrustedHcadContextProjectionFactory {
         if (isFreshMfaRequiredButNotFresh(verificationRequired, mfaVerified, mfaFreshnessSeconds)) {
             anchors.add(HcadPreProtectablePromotionSignal.FRESH_MFA_REQUIRED.name());
         }
+        if (!anchors.isEmpty()) {
+            int requestBurst = requestBurst(userId, now);
+            if (requestBurst >= hcadProperties.getPreTrigger().getRequestBurstThreshold()) {
+                reEvaluationSignals.add(HcadPreProtectablePromotionSignal.REQUEST_BURST.name());
+            }
+            if (Boolean.TRUE.equals(rapidSequence(sessionId, userId, now))) {
+                reEvaluationSignals.add(HcadPreProtectablePromotionSignal.RAPID_SEQUENCE.name());
+            }
+        }
         Object semanticStateSignature = request == null ? null : request.getAttribute("hcad.semanticEvidenceStateSignature");
         if (semanticStateSignature instanceof String text && StringUtils.hasText(text)) {
             reEvaluationSignals.add("SEMANTIC_EVIDENCE_STATE:" + text.trim());

@@ -32,6 +32,11 @@ public final class PendingAnomalyTriggerAttributes {
     public static final String PRE_TRIGGER_EVALUATED = "ctxa.pretrigger.evaluated";
     public static final String PRE_TRIGGER_ESCALATION_EVALUATION = "ctxa.pretrigger.escalationEvaluation";
     public static final String PROTECTABLE_TRIGGER_STARTED = "ctxa.protectable.trigger.started";
+    public static final String PROTECTABLE_OBSERVED = "ctxa.protectable.observed";
+    public static final String PROTECTABLE_RESOURCE_ID = "ctxa.protectable.resourceId";
+    public static final String PROTECTABLE_RESOURCE_URL = "ctxa.protectable.resourceUrl";
+    public static final String PROTECTABLE_HTTP_METHOD = "ctxa.protectable.httpMethod";
+    public static final String PROTECTABLE_LLM_REUSED = "ctxa.protectable.llmReused";
 
     private PendingAnomalyTriggerAttributes() {
     }

@@ -60,6 +60,7 @@ public class RoleHierarchyService {
     public Optional<RoleHierarchyEntity> getRoleHierarchy(Long id) {
         return roleHierarchyRepository.findById(id);
     }
+    @Protectable(verificationRequired = false)
     public Page<RoleHierarchyEntity> searchRoleHierarchies(String keyword, Pageable pageable) {
         if (StringUtils.hasText(keyword)) {
             String likePattern = "%" + keyword.trim().toLowerCase() + "%";

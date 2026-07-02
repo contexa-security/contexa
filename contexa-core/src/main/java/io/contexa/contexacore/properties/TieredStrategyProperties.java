@@ -45,10 +45,10 @@ public class TieredStrategyProperties {
     @Data
     public static class PromptCompression {
         /**
-         * Runtime compression is enabled by default so governed prompt compaction protects structured output reliability
-         * when the configured budget would otherwise be exceeded.
+         * Runtime compression is opt-in. Official metric inspection and security decision prompts must keep their
+         * configured content unless an operator explicitly enables governed compaction.
          */
-        private boolean enabled = true;
+        private boolean enabled = false;
     }
 
     @Data
@@ -158,7 +158,9 @@ public class TieredStrategyProperties {
 
             private long ragMs = 8000;
 
-            private long interactiveRagWaitMs = 1200;
+            private long interactiveRagWaitMs = 500;
+
+            private boolean backgroundRagWarmupOnInteractiveTimeout = true;
         }
 
         @Data

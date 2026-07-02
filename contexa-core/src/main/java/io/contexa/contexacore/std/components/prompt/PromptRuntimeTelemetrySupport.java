@@ -230,6 +230,7 @@ public final class PromptRuntimeTelemetrySupport {
             "providerThrottleRequestsPerMinute",
             "providerThrottleTokensPerMinute",
             "providerThrottleMaxWaitMs",
+            "providerRetryCount",
             "providerCallMs",
             "providerCallTimeoutMs",
             "providerCallExceededTimeout",
@@ -285,3 +286,4 @@ public final class PromptRuntimeTelemetrySupport {
         return telemetry;
     }
 }
+

@@ -70,6 +70,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -201,11 +204,24 @@ public class CoreHCADAutoConfiguration {
     public HcadEvaluationWriter hcadEvaluationWriter(
             ObjectProvider<HcadDetectionEvaluationRepository> hcadDetectionEvaluationRepositoryProvider,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            ObjectProvider<PlatformTransactionManager> transactionManagerProvider,
             ObjectMapper objectMapper) {
+        TransactionTemplate hcadWriteTransaction = hcadWriteTransaction(transactionManagerProvider.getIfAvailable());
         return new HcadEvaluationWriter(
                 hcadDetectionEvaluationRepositoryProvider::getIfAvailable,
                 jdbcOperationsProvider::getIfAvailable,
+                () -> hcadWriteTransaction,
                 objectMapper);
+    }
+
+    private static TransactionTemplate hcadWriteTransaction(PlatformTransactionManager transactionManager) {
+        if (transactionManager == null) {
+            return null;
+        }
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        transactionTemplate.setReadOnly(false);
+        return transactionTemplate;
     }
 
     @Bean

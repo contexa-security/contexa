@@ -86,7 +86,15 @@ import org.springframework.context.ConfigurableApplicationContext;
         "org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.std", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ContexaProperties.class, ContexaLlmBindingProperties.class, StreamingProperties.class, ContexaAdvisorProperties.class})
+@EnableConfigurationProperties({
+        ContexaProperties.class,
+        ContexaLlmBindingProperties.class,
+        StreamingProperties.class,
+        ContexaAdvisorProperties.class,
+        TieredLLMProperties.class,
+        TieredStrategyProperties.class,
+        ContexaRagProperties.class
+})
 public class CoreStdComponentsAutoConfiguration {
 
     @Bean

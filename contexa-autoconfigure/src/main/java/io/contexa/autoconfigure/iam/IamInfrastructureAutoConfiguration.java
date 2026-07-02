@@ -15,14 +15,17 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
+import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
@@ -45,6 +48,8 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
@@ -52,7 +57,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
-
+
 @Slf4j
 @AutoConfiguration
 @EnableCaching
@@ -107,6 +112,7 @@ public class IamInfrastructureAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider,
             ObjectProvider<ProtectableResourceCertificationGate> protectableResourceCertificationGateProvider,
+            ObjectProvider<ProtectableLlmSuppressionWriter> protectableLlmSuppressionWriterProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
@@ -123,8 +129,27 @@ public class IamInfrastructureAutoConfiguration {
         if (protectableResourceCertificationGate != null) {
             interceptor.setProtectableResourceCertificationGate(protectableResourceCertificationGate);
         }
+        ProtectableLlmSuppressionWriter suppressionWriter = protectableLlmSuppressionWriterProvider.getIfAvailable();
+        if (suppressionWriter != null) {
+            interceptor.setProtectableLlmSuppressionWriter(suppressionWriter);
+        }
         interceptor.setSecurityZeroTrustProperties(securityZeroTrustProperties);
         return interceptor;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter(
+            ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            ObjectProvider<ObjectMapper> objectMapperProvider,
+            ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider,
+            @Qualifier("contexaTransactionManager") PlatformTransactionManager transactionManager) {
+        ObjectMapper objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
+        return new ProtectableLlmSuppressionWriter(
+                jdbcOperationsProvider::getIfAvailable,
+                objectMapper,
+                transactionManager,
+                hcadEvaluationWriterProvider.getIfAvailable());
     }
 
     private static Pointcut classOrMethod() {
@@ -151,4 +176,5 @@ public class IamInfrastructureAutoConfiguration {
         return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
     }
 }
+
 

@@ -83,6 +83,7 @@ public class LLMExecutionStep implements PipelineStep {
             "providerThrottleRequestsPerMinute",
             "providerThrottleTokensPerMinute",
             "providerThrottleMaxWaitMs",
+            "providerRetryCount",
             "providerCallMs",
             "providerCallTimeoutMs",
             "providerCallExceededTimeout",
@@ -805,3 +806,4 @@ public class LLMExecutionStep implements PipelineStep {
     private record ResolvedValue<T>(T value, String sourceKey) {
     }
 }
+

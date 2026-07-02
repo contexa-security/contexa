@@ -39,7 +39,7 @@ public class ContexaOwnedDataSourceAutoConfiguration implements EnvironmentAware
     @ConditionalOnMissingBean(DataSource.class)
     public DataSource contexaOwnedDataSource(ContexaDataSourceProperties properties) {
         ContexaDataSourceIsolation.validate(properties, environment);
-        return properties.initializeDataSourceBuilder().build();
+        return properties.initializeDataSource();
     }
 
     @Override

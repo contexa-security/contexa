@@ -82,15 +82,21 @@ public class AiSecurityDecisionObservationWriter {
         String observationId = UUID.randomUUID().toString();
         String hcadEvaluationId = firstText(metadata, "hcadEvaluationId");
         String testRunId = testRunId(metadata);
-        boolean hcadTriggered = isHcadTriggered(metadata);
-        boolean hcadObserved = isHcadObserved(metadata, hcadEvaluationId);
+        boolean hcadObserved = durableHcadObserved(jdbcOperations, hcadEvaluationId);
+        HcadEvaluationContext hcadContext = hcadObserved ? hcadEvaluationContext(jdbcOperations, hcadEvaluationId) : null;
+        Boolean durableHcadTriggered = hcadObserved ? durableHcadTriggered(jdbcOperations, hcadEvaluationId) : null;
+        boolean metadataHcadTriggered = isHcadTriggered(metadata);
+        boolean hcadTriggered = hcadObserved
+                && metadataHcadTriggered
+                && !Boolean.FALSE.equals(durableHcadTriggered);
         boolean protectable = isProtectable(metadata);
-        Boolean hcadEligible = firstBoolean(
+        Boolean hcadEligible = hcadObserved
+                ? firstBoolean(
                 hcadEligible(metadata),
-                durableHcadEligible(jdbcOperations, hcadEvaluationId));
-        if (!hcadTriggered && protectable && hcadObserved && Boolean.TRUE.equals(hcadEligible)) {
-            hcadTriggered = true;
-        }
+                hcadContext != null ? hcadContext.eligible() : null,
+                durableHcadEligible(jdbcOperations, hcadEvaluationId))
+                : null;
+        boolean hcadCandidate = hcadObserved && Boolean.TRUE.equals(hcadEligible);
         if (!protectable && hcadTriggered && hcadObserved
                 && isProtectableMergePending(jdbcOperations, hcadEvaluationId)) {
             protectable = true;
@@ -116,8 +122,8 @@ public class AiSecurityDecisionObservationWriter {
         String failureReason = failureReason(result, metadata);
         String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent, finalAction);
         String triggerSource = triggerSource(metadata, hcadTriggered, hcadObserved, protectable);
-        String triggerRelation = triggerRelation(hcadTriggered, hcadObserved, protectable);
-        String outcomeClass = outcomeClass(result, finalAction, hcadTriggered, hcadObserved, failureType);
+        String triggerRelation = triggerRelation(hcadTriggered, hcadCandidate, hcadObserved, protectable);
+        String outcomeClass = outcomeClass(result, finalAction, hcadTriggered, hcadCandidate, hcadObserved, protectable, failureType);
         String modelId = firstTextWithFallback(metadata, defaultModelId,
                 "selectedModelId",
                 "modelId",
@@ -138,6 +144,22 @@ public class AiSecurityDecisionObservationWriter {
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
         Map<String, Object> latencyBreakdown = latencyBreakdownMetadata(storedMetadata);
         LocalDateTime now = LocalDateTime.now();
+        Integer hcadScore = hcadObserved ? integer(
+                metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE),
+                metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SCORE),
+                metadata.get("earlyAnalysisScore"),
+                metadata.get("hcadEscalationScore"),
+                hcadContext != null ? hcadContext.earlyAnalysisScore() : null) : null;
+        String hcadBand = hcadObserved ? firstText(
+                firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_BAND, "hcadBand", "hcadEscalationBand"),
+                hcadContext != null ? hcadContext.band() : null) : null;
+        String requestId = firstText(
+                firstText(metadata, "requestId", "correlationId"),
+                hcadContext != null ? hcadContext.requestId() : null);
+        String correlationId = firstText(firstText(metadata, "correlationId", "requestId"), requestId);
+        String userId = firstText(event.getUserId(), text(metadata.get("userId")), hcadContext != null ? hcadContext.userId() : null);
+        String actorSessionKey = firstText(firstText(metadata, "actorSessionKey"), hcadContext != null ? hcadContext.actorSessionKey() : null);
+        String windowId = firstText(firstText(metadata, "windowId"), hcadContext != null ? hcadContext.windowId() : null);
 
         long persistStart = System.currentTimeMillis();
         try {
@@ -198,24 +220,21 @@ public class AiSecurityDecisionObservationWriter {
                     """,
                     observationId,
                     event.getEventId(),
-                    firstText(metadata, "requestId", "correlationId"),
-                    firstText(metadata, "correlationId", "requestId"),
+                    requestId,
+                    correlationId,
                     testRunId,
-                    firstText(event.getUserId(), text(metadata.get("userId"))),
+                    userId,
                     event.getSessionId(),
                     firstText(metadata, "contextBindingHash"),
-                    firstText(metadata, "actorSessionKey"),
-                    firstText(metadata, "windowId"),
-                    hcadEvaluationId,
+                    actorSessionKey,
+                    windowId,
+                    hcadObserved ? hcadEvaluationId : null,
                     triggerSource,
                     triggerRelation,
                     firstText(metadata, "decisionBoundaryMode"),
                     firstText(metadata, "hcadMode", HcadPreProtectablePromotionAttributes.METADATA_MODE),
-                    integer(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE),
-                            metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SCORE),
-                            metadata.get("earlyAnalysisScore"),
-                            metadata.get("hcadEscalationScore")),
-                    firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_BAND, "hcadBand", "hcadEscalationBand"),
+                    hcadScore,
+                    hcadBand,
                     hcadEligible,
                     firstText(metadata, "httpMethod", "method"),
                     firstText(metadata, "requestPath", "requestUri", "httpUri"),
@@ -256,10 +275,16 @@ public class AiSecurityDecisionObservationWriter {
                     observationId,
                     event,
                     metadata,
-                    hcadEvaluationId,
+                    hcadObserved ? hcadEvaluationId : null,
                     triggerRelation,
                     outcomeClass,
+                    hcadScore,
+                    hcadBand,
                     hcadEligible,
+                    requestId,
+                    userId,
+                    actorSessionKey,
+                    windowId,
                     result,
                     finalAction,
                     testRunId,
@@ -268,7 +293,7 @@ public class AiSecurityDecisionObservationWriter {
             long hcadSyncStart = System.currentTimeMillis();
             syncHcadEvaluationOutcome(
                     jdbcOperations,
-                    hcadEvaluationId,
+                    hcadObserved ? hcadEvaluationId : null,
                     event,
                     result,
                     finalAction,
@@ -341,11 +366,11 @@ public class AiSecurityDecisionObservationWriter {
                 "layer1ProviderThrottleWaitMs",
                 "layer2ProviderThrottleWaitMs"));
         breakdown.put("promptBuildMs", firstLong(metadata,
-                "pipelinePromptGenerationMs",
                 "promptBuildLatencyMs",
                 "promptCompositionMs",
                 "promptViewCompositionMs",
-                "promptRenderMs"));
+                "promptRenderMs",
+                "pipelinePromptGenerationMs"));
         breakdown.put("layerPreparationMs", firstLong(metadata,
                 "layer1PromptPreparationMs",
                 "promptBuildMs"));
@@ -620,7 +645,13 @@ public class AiSecurityDecisionObservationWriter {
             String hcadEvaluationId,
             String triggerRelation,
             String outcomeClass,
+            Integer hcadScore,
+            String hcadBand,
             Boolean hcadEligible,
+            String requestId,
+            String userId,
+            String actorSessionKey,
+            String windowId,
             ProcessingResult result,
             ZeroTrustAction finalAction,
             String testRunId,
@@ -655,18 +686,15 @@ public class AiSecurityDecisionObservationWriter {
                 hcadEvaluationId,
                 observationId,
                 event.getEventId(),
-                firstText(metadata, "requestId", "correlationId"),
+                requestId,
                 testRunId,
-                firstText(event.getUserId(), text(metadata.get("userId"))),
-                firstText(metadata, "actorSessionKey"),
-                firstText(metadata, "windowId"),
+                userId,
+                actorSessionKey,
+                windowId,
                 triggerRelation,
                 outcomeClass,
-                integer(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE),
-                        metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SCORE),
-                        metadata.get("earlyAnalysisScore"),
-                        metadata.get("hcadEscalationScore")),
-                firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_BAND, "hcadBand", "hcadEscalationBand"),
+                hcadScore,
+                hcadBand,
                 hcadEligible,
                 finalAction != null ? finalAction.name() : text(result != null ? result.getAction() : null),
                 result != null ? result.getProposedAction() : null,
@@ -683,7 +711,18 @@ public class AiSecurityDecisionObservationWriter {
             boolean protectable) {
         String explicit = firstText(metadata, "triggerSource");
         if (explicit != null) {
-            return explicit;
+            boolean hcadPreTriggerExplicit = "HCAD_PRE_TRIGGER".equalsIgnoreCase(explicit)
+                    || "PENDING_REDLINE".equalsIgnoreCase(explicit);
+            boolean hcadObservedExplicit = "HCAD_OBSERVED".equalsIgnoreCase(explicit);
+            if (!hcadPreTriggerExplicit && !hcadObservedExplicit) {
+                return explicit;
+            }
+            if (hcadPreTriggerExplicit && hcadTriggered) {
+                return explicit;
+            }
+            if (hcadObservedExplicit && hcadObserved && !protectable) {
+                return explicit;
+            }
         }
         if (hcadTriggered) {
             return "HCAD_PRE_TRIGGER";
@@ -694,8 +733,8 @@ public class AiSecurityDecisionObservationWriter {
         return hcadObserved ? "HCAD_OBSERVED" : "UNKNOWN";
     }
 
-    private String triggerRelation(boolean hcadTriggered, boolean hcadObserved, boolean protectable) {
-        if (hcadTriggered && protectable) {
+    private String triggerRelation(boolean hcadTriggered, boolean hcadCandidate, boolean hcadObserved, boolean protectable) {
+        if ((hcadTriggered || hcadCandidate) && protectable) {
             return "HCAD_AND_PROTECTABLE";
         }
         if (hcadTriggered) {
@@ -704,7 +743,7 @@ public class AiSecurityDecisionObservationWriter {
         if (protectable) {
             return "PROTECTABLE_ONLY";
         }
-        if (hcadObserved) {
+        if (hcadCandidate || hcadObserved) {
             return "OBSERVED_ONLY";
         }
         return "UNMATCHED_LLM";
@@ -730,18 +769,70 @@ public class AiSecurityDecisionObservationWriter {
             ProcessingResult result,
             ZeroTrustAction finalAction,
             boolean hcadTriggered,
+            boolean hcadCandidate,
             boolean hcadObserved,
+            boolean protectable,
             String failureType) {
         if (failureType != null) {
             return HcadOutcomeClassifier.UNKNOWN;
         }
-        if (hcadTriggered) {
+        if (hcadTriggered || hcadCandidate) {
             return HcadOutcomeClassifier.classifyHcadTriggered(result, finalAction);
         }
-        if (hcadObserved) {
+        if (hcadObserved || protectable) {
             return HcadOutcomeClassifier.classifyHcadObservation(result, finalAction);
         }
         return "UNOBSERVED";
+    }
+
+    private boolean durableHcadObserved(JdbcOperations jdbcOperations, String hcadEvaluationId) {
+        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
+            return false;
+        }
+        try {
+            Boolean exists = jdbcOperations.queryForObject("""
+                    SELECT EXISTS (
+                        SELECT 1
+                          FROM hcad_detection_evaluation
+                         WHERE evaluation_id = ?
+                    )
+                    """, Boolean.class, hcadEvaluationId);
+            return exists == null || Boolean.TRUE.equals(exists);
+        } catch (DataAccessException ex) {
+            return false;
+        }
+    }
+    private HcadEvaluationContext hcadEvaluationContext(JdbcOperations jdbcOperations, String hcadEvaluationId) {
+        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
+            return null;
+        }
+        try {
+            return jdbcOperations.queryForObject("""
+                    SELECT user_id, actor_session_key, window_id, request_id, early_analysis_score, band, eligible
+                      FROM hcad_detection_evaluation
+                     WHERE evaluation_id = ?
+                    """, (rs, rowNum) -> new HcadEvaluationContext(
+                    text(rs.getString("user_id")),
+                    text(rs.getString("actor_session_key")),
+                    text(rs.getString("window_id")),
+                    text(rs.getString("request_id")),
+                    integer(rs.getObject("early_analysis_score")),
+                    text(rs.getString("band")),
+                    bool(rs.getObject("eligible"))),
+                    hcadEvaluationId);
+        } catch (DataAccessException ex) {
+            return null;
+        }
+    }
+
+    private record HcadEvaluationContext(
+            String userId,
+            String actorSessionKey,
+            String windowId,
+            String requestId,
+            Integer earlyAnalysisScore,
+            String band,
+            Boolean eligible) {
     }
 
     private boolean isHcadTriggered(Map<String, Object> metadata) {
@@ -761,6 +852,22 @@ public class AiSecurityDecisionObservationWriter {
         return bool(
                 metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE),
                 metadata.get("hcadEscalationEligible"));
+    }
+
+    private Boolean durableHcadTriggered(JdbcOperations jdbcOperations, String hcadEvaluationId) {
+        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
+            return null;
+        }
+        try {
+            return jdbcOperations.queryForObject("""
+                    SELECT COALESCE(triggered_llm, false)
+                            OR trigger_decision_reason IN ('TRIGGER_PUBLISHED', 'PROTECTABLE_LLM_REUSED')
+                      FROM hcad_detection_evaluation
+                     WHERE evaluation_id = ?
+                    """, Boolean.class, hcadEvaluationId);
+        } catch (DataAccessException ex) {
+            return null;
+        }
     }
 
     private Boolean durableHcadEligible(JdbcOperations jdbcOperations, String hcadEvaluationId) {

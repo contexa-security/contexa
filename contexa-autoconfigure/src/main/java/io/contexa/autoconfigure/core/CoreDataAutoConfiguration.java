@@ -81,7 +81,7 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
     @ConditionalOnMissingBean(name = "contexaDataSource")
     public DataSource contexaDataSource(ContexaDataSourceProperties properties) {
         ContexaDataSourceIsolation.validate(properties, environment);
-        return properties.initializeDataSourceBuilder().build();
+        return properties.initializeDataSource();
     }
 
     @Bean(name = "contexaEntityManagerFactory", defaultCandidate = false)

@@ -1587,6 +1587,12 @@ CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
     queue_wait_ms BIGINT,
     prompt_build_ms BIGINT,
     rag_vector_ms BIGINT,
+    provider_throttle_wait_ms BIGINT,
+    provider_throttle_acquired BOOLEAN,
+    provider_throttle_reason VARCHAR(128),
+    provider_estimated_tokens BIGINT,
+    provider_throttle_budget_before BIGINT,
+    provider_throttle_budget_after BIGINT,
     openai_call_ms BIGINT,
     parse_ms BIGINT,
     persist_ms BIGINT,
@@ -1628,11 +1634,64 @@ ALTER TABLE ai_security_decision_observation
     ADD COLUMN IF NOT EXISTS queue_wait_ms BIGINT,
     ADD COLUMN IF NOT EXISTS prompt_build_ms BIGINT,
     ADD COLUMN IF NOT EXISTS rag_vector_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS provider_throttle_wait_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS provider_throttle_acquired BOOLEAN,
+    ADD COLUMN IF NOT EXISTS provider_throttle_reason VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS provider_estimated_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS provider_throttle_budget_before BIGINT,
+    ADD COLUMN IF NOT EXISTS provider_throttle_budget_after BIGINT,
     ADD COLUMN IF NOT EXISTS openai_call_ms BIGINT,
     ADD COLUMN IF NOT EXISTS parse_ms BIGINT,
     ADD COLUMN IF NOT EXISTS persist_ms BIGINT,
     ADD COLUMN IF NOT EXISTS total_analysis_ms BIGINT;
 
+CREATE TABLE IF NOT EXISTS ai_security_llm_trigger_suppression (
+    suppression_id VARCHAR(64) PRIMARY KEY,
+    event_id VARCHAR(128),
+    request_id VARCHAR(160),
+    correlation_id VARCHAR(160),
+    test_run_id VARCHAR(160),
+    user_id VARCHAR(160),
+    session_id VARCHAR(160),
+    context_binding_hash VARCHAR(128),
+    actor_session_key VARCHAR(128),
+    suppression_key VARCHAR(256),
+    suppression_reason VARCHAR(128) NOT NULL,
+    trigger_source VARCHAR(64) NOT NULL DEFAULT 'PROTECTABLE',
+    trigger_relation VARCHAR(64) NOT NULL DEFAULT 'PROTECTABLE_SUPPRESSED',
+    http_method VARCHAR(16),
+    request_path VARCHAR(2048),
+    resource_id VARCHAR(512),
+    metadata_json TEXT,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE ai_security_llm_trigger_suppression
+    ADD COLUMN IF NOT EXISTS event_id VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS request_id VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS correlation_id VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS test_run_id VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS user_id VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS session_id VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS context_binding_hash VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS suppression_key VARCHAR(256),
+    ADD COLUMN IF NOT EXISTS suppression_reason VARCHAR(128) NOT NULL DEFAULT 'UNKNOWN',
+    ADD COLUMN IF NOT EXISTS trigger_source VARCHAR(64) NOT NULL DEFAULT 'PROTECTABLE',
+    ADD COLUMN IF NOT EXISTS trigger_relation VARCHAR(64) NOT NULL DEFAULT 'PROTECTABLE_SUPPRESSED',
+    ADD COLUMN IF NOT EXISTS http_method VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS request_path VARCHAR(2048),
+    ADD COLUMN IF NOT EXISTS resource_id VARCHAR(512),
+    ADD COLUMN IF NOT EXISTS metadata_json TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_created
+    ON ai_security_llm_trigger_suppression (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_reason_created
+    ON ai_security_llm_trigger_suppression (suppression_reason, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_user_created
+    ON ai_security_llm_trigger_suppression (user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_created
     ON ai_security_decision_observation (created_at);
 

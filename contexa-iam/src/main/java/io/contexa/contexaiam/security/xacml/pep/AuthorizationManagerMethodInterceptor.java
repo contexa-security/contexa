@@ -60,6 +60,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private SynchronousProtectableDecisionService synchronousProtectableDecisionService;
     private SecurityZeroTrustProperties securityZeroTrustProperties;
     private ProtectableResourceCertificationGate protectableResourceCertificationGate;
+    private ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter;
     private AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
 
     public AuthorizationManagerMethodInterceptor(
@@ -90,9 +91,11 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi);
                 if (!rapidReentryAllowed && (protectable == null || !protectable.sync())) {
                     publishEvent = false;
+                    recordSuppressedProtectable(authentication, mi, "RAPID_REENTRY_ACTOR_SESSION");
                     log.debug("[ZeroTrust] Rapid re-entry detected for async protectable. Access will proceed and analysis will be skipped.");
                 } else if (!rapidReentryAllowed) {
                     publishEvent = false;
+                    recordSuppressedProtectable(authentication, mi, "RAPID_REENTRY_ACTOR_SESSION_SYNC");
                     if (isEnforcementDisabled()) {
                         log.debug("[ZeroTrust][SHADOW] Actor-session protectable analysis is already in progress. Access will proceed and duplicate analysis will be skipped.");
                     } else {
@@ -291,6 +294,17 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
     public void setSecurityZeroTrustProperties(SecurityZeroTrustProperties securityZeroTrustProperties) {
         this.securityZeroTrustProperties = securityZeroTrustProperties;
+    }
+
+    public void setProtectableLlmSuppressionWriter(ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter) {
+        this.protectableLlmSuppressionWriter = protectableLlmSuppressionWriter;
+    }
+
+    private void recordSuppressedProtectable(Authentication authentication, MethodInvocation mi, String reason) {
+        if (protectableLlmSuppressionWriter == null) {
+            return;
+        }
+        protectableLlmSuppressionWriter.recordSuppressed(authentication, mi, reason, securityZeroTrustMode());
     }
 
     private boolean isEnforcementDisabled() {

@@ -1150,11 +1150,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return Retry.backoff(4, Duration.ofSeconds(2))
                 .maxBackoff(Duration.ofSeconds(12))
                 .filter(this::isRetryableProviderFailure)
-                .doBeforeRetry(retrySignal -> log.warn("{} Retry #{} - RequestId: {}, Error: {}",
-                        operation,
-                        retrySignal.totalRetries() + 1,
-                        context != null ? context.getRequestId() : "unknown",
-                        retrySignal.failure() != null ? retrySignal.failure().getMessage() : "unknown"));
+                .doBeforeRetry(retrySignal -> {
+                    long retryCount = retrySignal.totalRetries() + 1;
+                    if (context != null) {
+                        context.addMetadata("providerRetryCount", retryCount);
+                    }
+                    log.warn("{} Retry #{} - RequestId: {}, Error: {}",
+                            operation,
+                            retryCount,
+                            context != null ? context.getRequestId() : "unknown",
+                            retrySignal.failure() != null ? retrySignal.failure().getMessage() : "unknown");
+                });
     }
 
     private boolean isRetryableProviderFailure(Throwable throwable) {
@@ -1167,16 +1173,31 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             String message = current.getMessage();
             String normalized = message != null ? message.toLowerCase(Locale.ROOT) : "";
             if (normalized.contains("http 429")
+                    || normalized.contains("http 408")
+                    || normalized.contains("http 502")
+                    || normalized.contains("http 503")
+                    || normalized.contains("http 504")
+                    || normalized.contains("bad gateway")
+                    || normalized.contains("service unavailable")
+                    || normalized.contains("gateway timeout")
+                    || normalized.contains("upstream connect")
+                    || normalized.contains("disconnect/reset")
+                    || normalized.contains("connection termination")
+                    || normalized.contains("connection reset")
+                    || normalized.contains("connection refused")
+                    || normalized.contains("temporarily unavailable")
                     || normalized.contains("429 too many requests")
                     || normalized.contains("rate limit")
                     || normalized.contains("rate_limit_exceeded")
                     || normalized.contains("requests per min")
                     || normalized.contains("tokens per min")
                     || normalized.contains("try again in")
-                    || className != null && className.toLowerCase(Locale.ROOT).contains("ratelimit")) {
+                    || (className != null && className.toLowerCase(Locale.ROOT).contains("transientai"))
+                    || (className != null && className.toLowerCase(Locale.ROOT).contains("ratelimit"))) {
                 return true;
             }
             current = current.getCause();
         }
         return false;
     }}
+

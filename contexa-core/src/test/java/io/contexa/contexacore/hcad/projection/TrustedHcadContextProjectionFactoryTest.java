@@ -170,6 +170,25 @@ class TrustedHcadContextProjectionFactoryTest {
     }
 
     @Test
+    @DisplayName("failed-login anchor plus request burst should create same-window re-evaluation signal")
+    void probeAnchorSignals_failedLoginAndRequestBurst_shouldCreateReEvaluationSignal() {
+        MockHttpServletRequest request = baseRequest();
+        when(hcadDataStore.getRecentLoginFailureCount(eq("alice"), eq("203.0.113.10"), anyLong(), anyLong()))
+                .thenReturn(properties.getPreTrigger().getFailedLoginBurstThreshold());
+        when(hcadDataStore.getRecentRequestCount(anyString(), anyLong(), anyLong()))
+                .thenReturn(properties.getPreTrigger().getRequestBurstThreshold());
+
+        factory.project(request, authentication());
+
+        HcadTrustedAnchorSignalProbe probe = factory.probeAnchorSignals(request, authentication());
+
+        assertThat(probe.anchorSignals()).contains("FAILED_LOGIN_BURST");
+        assertThat(probe.reEvaluationSignals()).contains("FAILED_LOGIN_BURST", "REQUEST_BURST");
+        assertThat(probe.hasReEvaluationSignature()).isTrue();
+    }
+
+
+    @Test
     @DisplayName("request burst alone should not create same-window re-evaluation signal")
     void probeAnchorSignals_requestBurstOnly_shouldNotCreateReEvaluationSignal() {
         MockHttpServletRequest request = baseRequest();

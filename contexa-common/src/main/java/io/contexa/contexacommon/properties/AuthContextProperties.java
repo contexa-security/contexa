@@ -36,7 +36,10 @@ public class AuthContextProperties {
     private AuthUrlConfig urls = new AuthUrlConfig();
 
     @NestedConfigurationProperty
-    private MfaSettings mfa = new MfaSettings(); 
+    private MfaSettings mfa = new MfaSettings();
+
+    @NestedConfigurationProperty
+    private OttSettings ott = new OttSettings();
 
     @NestedConfigurationProperty
     private JwtsTokenSettings internal = new JwtsTokenSettings();
@@ -59,5 +62,10 @@ public class AuthContextProperties {
     private String rolesClaim = "roles";
     private String scopesClaim = "scopes";
     private boolean oauth2Csrf = false;
+
+    @Data
+    public static class OttSettings {
+        private boolean failOnEmailError = true;
+    }
 
 }

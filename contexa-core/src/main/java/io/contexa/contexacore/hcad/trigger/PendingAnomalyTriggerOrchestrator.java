@@ -113,24 +113,48 @@ public class PendingAnomalyTriggerOrchestrator {
 
     public void maybeTrigger(HttpServletRequest request, Authentication authentication) {
         HcadPreTriggerMode mode = hcadProperties.getPreTrigger().effectiveMode();
+        diagnostic(request, "ENTRY", "mode={} evaluates={} principal={}",
+                mode,
+                mode.evaluatesRequest(),
+                authentication == null ? null : authentication.getName());
         if (!mode.evaluatesRequest()) {
+            diagnostic(request, "SKIP", "reason=MODE_DOES_NOT_EVALUATE mode={}", mode);
             return;
         }
 
         PendingAnomalyEligibility eligibility = eligibilityGate.evaluate(request, authentication);
         if (eligibility == null) {
+            diagnostic(request, "SKIP", "reason=ELIGIBILITY_NULL");
             return;
         }
+        diagnostic(request, "ELIGIBILITY", "userId={} contextBindingHash={} actorSessionKeyHash={} baseKeyHash={}",
+                eligibility.userId(),
+                eligibility.contextBindingHash(),
+                safeHash(eligibility.actorSessionKey()),
+                safeHash(eligibility.baseKey()));
 
         PendingAnomalyEvidenceReport report = evidenceCheckService.evaluate(request, eligibility);
         if (report == null) {
+            diagnostic(request, "SKIP", "reason=EVIDENCE_REPORT_NULL");
             return;
         }
-        String evaluationId = shouldPersistEvaluation(report) ? recordCandidate(mode, report) : null;
+        diagnostic(request, "REPORT", "shouldTrigger={} score={} band={} eligible={} anchors={} corroborating={} riskSignature={} triggerStateKeyHash={}",
+                report.shouldTrigger(),
+                report.escalationScore(),
+                report.escalationBand(),
+                report.escalationEligible(),
+                report.anchorSignals(),
+                report.corroboratingSignals(),
+                report.riskSignature(),
+                safeHash(report.triggerStateKey()));
+        boolean shouldPersist = shouldPersistEvaluation(mode, report);
+        String evaluationId = shouldPersist ? recordCandidate(mode, report) : null;
+        diagnostic(request, "PERSIST", "shouldPersist={} evaluationId={}", shouldPersist, evaluationId);
         if (request != null && evaluationId != null) {
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
         }
         if (!report.shouldTrigger()) {
+            diagnostic(request, "NO_TRIGGER", "reason=REPORT_SHOULD_TRIGGER_FALSE baseKeyHash={}", safeHash(eligibility.baseKey()));
             analysisTriggerStateRepository.markNegative(
                     eligibility.baseKey(),
                     Duration.ofSeconds(hcadProperties.getPreTrigger().getNegativeCacheSeconds()));
@@ -139,12 +163,14 @@ public class PendingAnomalyTriggerOrchestrator {
 
         if (protectableAnalysisAlreadyStarted(request)) {
             String activeEvaluationId = triggerCoordinator.findActiveEvaluation(report.triggerStateKey());
+            diagnostic(request, "SUPPRESS", "reason=PROTECTABLE_ANALYSIS_ALREADY_STARTED evaluationId={} activeEvaluationId={}", evaluationId, activeEvaluationId);
             markDuplicateSuppressed(evaluationId);
             markRequestSuppressed(request, report, report.triggerStateKey(), evaluationId, activeEvaluationId);
             return;
         }
 
         if (!mode.publishesLlmEvent()) {
+            diagnostic(request, "SUPPRESS", "reason=HCAD_MODE_DOES_NOT_PUBLISH mode={} evaluationId={}", mode, evaluationId);
             markTriggerSuppressed(evaluationId, "HCAD_MODE_" + mode.name());
             log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger matched but LLM publication is disabled by HCAD mode. mode={}",
                     mode);
@@ -152,19 +178,22 @@ public class PendingAnomalyTriggerOrchestrator {
         }
         if (!llmAnalysisAllowed()) {
             String llmMode = securityZeroTrustMode();
+            diagnostic(request, "SUPPRESS", "reason=LLM_MODE_DOES_NOT_ALLOW_ANALYSIS llmMode={} evaluationId={}", llmMode, evaluationId);
             markTriggerSuppressed(evaluationId, "LLM_MODE_" + llmMode);
             log.debug("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger matched but LLM publication is disabled by AI decision mode. mode={}",
                     llmMode);
             return;
         }
         if (eventTriggerService == null) {
+            diagnostic(request, "SUPPRESS", "reason=TRIGGER_SERVICE_UNAVAILABLE evaluationId={}", evaluationId);
             markTriggerSuppressed(evaluationId, "TRIGGER_SERVICE_UNAVAILABLE");
             log.warn("[PendingAnomalyTriggerOrchestrator] HCAD pre-trigger candidate was recorded but no LLM event trigger service is configured");
             return;
         }
 
-                if (hcadPreTriggerBackpressured()) {
+        if (hcadPreTriggerBackpressured()) {
             String reason = hcadBackpressureReason();
+            diagnostic(request, "SUPPRESS", "reason={} evaluationId={}", reason, evaluationId);
             markTriggerSuppressed(evaluationId, reason);
             log.warn("[PendingAnomalyTriggerOrchestrator] HCAD-only pre-trigger deferred because LLM analysis queue is under backpressure. reason={}",
                     reason);
@@ -174,6 +203,11 @@ public class PendingAnomalyTriggerOrchestrator {
         HcadLlmTriggerCoordinator.TriggerLease triggerLease =
                 triggerCoordinator.tryAcquire(report, eligibility.baseKey());
         if (!triggerLease.acquired()) {
+            diagnostic(request, "LEASE_DENIED", "duplicateSuppressed={} denialReason={} evaluationId={} dedupKeyHash={}",
+                    triggerLease.duplicateSuppressed(),
+                    triggerLease.denialReason(),
+                    evaluationId,
+                    safeHash(triggerLease.dedupKey()));
             if (triggerLease.duplicateSuppressed()) {
                 String activeEvaluationId = triggerCoordinator.findActiveEvaluation(triggerLease);
                 markDuplicateSuppressed(evaluationId);
@@ -183,6 +217,7 @@ public class PendingAnomalyTriggerOrchestrator {
             }
             return;
         }
+        diagnostic(request, "LEASE_ACQUIRED", "evaluationId={} dedupKeyHash={}", evaluationId, safeHash(triggerLease.dedupKey()));
 
         boolean success = false;
         try {
@@ -191,8 +226,10 @@ public class PendingAnomalyTriggerOrchestrator {
             triggerCoordinator.rememberEvaluation(triggerLease, evaluationId);
             markTriggered(evaluationId);
             markRequestTriggered(request, report, triggerLease.dedupKey(), evaluationId);
+            diagnostic(request, "PUBLISHED", "evaluationId={} llmMode={} dedupKeyHash={}", evaluationId, securityZeroTrustMode(), safeHash(triggerLease.dedupKey()));
             success = true;
         } catch (Exception ex) {
+            diagnostic(request, "PUBLISH_FAILED", "evaluationId={} error={}", evaluationId, ex.getClass().getSimpleName());
             markTriggerSuppressed(evaluationId, "TRIGGER_PUBLICATION_FAILED");
             log.error("[PendingAnomalyTriggerOrchestrator] Failed to publish pre-protectable threat event", ex);
         } finally {
@@ -214,8 +251,11 @@ public class PendingAnomalyTriggerOrchestrator {
         }
     }
 
-    private boolean shouldPersistEvaluation(PendingAnomalyEvidenceReport report) {
+    private boolean shouldPersistEvaluation(HcadPreTriggerMode mode, PendingAnomalyEvidenceReport report) {
         if (report == null) {
+            return false;
+        }
+        if (mode == HcadPreTriggerMode.OBSERVE || mode == HcadPreTriggerMode.DISABLED) {
             return false;
         }
         return report.shouldTrigger();
@@ -327,6 +367,48 @@ public class PendingAnomalyTriggerOrchestrator {
             log.debug("[PendingAnomalyTriggerOrchestrator] Failed to resolve HCAD backpressure reason", ex);
         }
         return "TRIGGER_DEFERRED_BACKPRESSURE";
+    }
+
+    private void diagnostic(HttpServletRequest request, String stage, String message, Object... args) {
+        if (!diagnosticEnabled(request)) {
+            return;
+        }
+        Object[] logArgs = new Object[(args == null ? 0 : args.length) + 2];
+        logArgs[0] = requestId(request);
+        logArgs[1] = stage;
+        if (args != null && args.length > 0) {
+            System.arraycopy(args, 0, logArgs, 2, args.length);
+        }
+        log.info("[HCAD-ORCH-DIAG] requestId={} stage={} " + message, logArgs);
+    }
+
+    private boolean diagnosticEnabled(HttpServletRequest request) {
+        String enabled = request == null ? null : request.getHeader("X-Contexa-HCAD-Diagnostic");
+        if ("true".equalsIgnoreCase(enabled) || "1".equals(enabled)) {
+            return true;
+        }
+        String requestId = requestId(request);
+        return requestId != null && (requestId.startsWith("opq-") || requestId.startsWith("hcad-"));
+    }
+
+    private String requestId(HttpServletRequest request) {
+        return request == null ? null : firstText(request.getHeader("X-Request-Id"), request.getParameter("requestId"));
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String safeHash(String value) {
+        return value == null ? null : Integer.toHexString(value.hashCode());
     }
 
     private boolean protectableAnalysisAlreadyStarted(HttpServletRequest request) {

@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -146,6 +147,24 @@ public class RedisHCADDataStore implements HCADDataStore {
                 ? countLoginFailureCounter(ZeroTrustRedisKeys.hcadLoginFailuresByIp(clientIp.trim()), windowStartMs, currentTimeMs)
                 : 0;
         return Math.max(userCount, ipCount);
+    }
+
+    @Override
+    public void clearTransientCounters() {
+        deleteByPattern("hcad:request:counter:*");
+        deleteByPattern("hcad:login:failure:user:*");
+        deleteByPattern("hcad:login:failure:ip:*");
+    }
+
+    private void deleteByPattern(String pattern) {
+        try {
+            Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            log.error("[HCADDataStore] Failed to clear transient counter keys: pattern={}", pattern, e);
+        }
     }
 
     @Override

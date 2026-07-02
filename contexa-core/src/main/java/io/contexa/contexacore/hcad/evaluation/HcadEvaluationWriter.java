@@ -32,6 +32,7 @@ import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
 import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowLease;
 import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -51,30 +52,44 @@ public class HcadEvaluationWriter {
 
     private final Supplier<HcadDetectionEvaluationRepository> repositorySupplier;
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
+    private final Supplier<TransactionOperations> transactionOperationsSupplier;
     private final ObjectMapper objectMapper;
+    private final ThreadLocal<Boolean> writeTransactionActive = ThreadLocal.withInitial(() -> false);
 
     public HcadEvaluationWriter(
             HcadDetectionEvaluationRepository repository,
             ObjectMapper objectMapper) {
-        this(() -> repository, () -> null, objectMapper);
+        this(() -> repository, () -> null, () -> null, objectMapper);
     }
 
     public HcadEvaluationWriter(
             JdbcOperations jdbcOperations,
             ObjectMapper objectMapper) {
-        this(() -> null, () -> jdbcOperations, objectMapper);
+        this(() -> null, () -> jdbcOperations, () -> null, objectMapper);
     }
 
     public HcadEvaluationWriter(
             Supplier<HcadDetectionEvaluationRepository> repositorySupplier,
             Supplier<JdbcOperations> jdbcOperationsSupplier,
             ObjectMapper objectMapper) {
+        this(repositorySupplier, jdbcOperationsSupplier, () -> null, objectMapper);
+    }
+
+    public HcadEvaluationWriter(
+            Supplier<HcadDetectionEvaluationRepository> repositorySupplier,
+            Supplier<JdbcOperations> jdbcOperationsSupplier,
+            Supplier<TransactionOperations> transactionOperationsSupplier,
+            ObjectMapper objectMapper) {
         this.repositorySupplier = repositorySupplier == null ? () -> null : repositorySupplier;
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
+        this.transactionOperationsSupplier = transactionOperationsSupplier == null ? () -> null : transactionOperationsSupplier;
         this.objectMapper = objectMapper;
     }
 
     public String recordCandidate(HcadPreTriggerMode mode, PendingAnomalyEvidenceReport report) {
+        if (!isWriteTransactionActive()) {
+            return inWriteTransaction(() -> recordCandidate(mode, report));
+        }
         if (report == null || !report.shouldTrigger()) {
             return null;
         }
@@ -163,6 +178,10 @@ public class HcadEvaluationWriter {
     }
 
     public void updateWindowObservation(String actorSessionKey, String windowId, HcadObservationWindowLease windowLease) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> updateWindowObservation(actorSessionKey, windowId, windowLease));
+            return;
+        }
         if (actorSessionKey == null || actorSessionKey.isBlank()
                 || windowId == null || windowId.isBlank()
                 || windowLease == null) {
@@ -208,6 +227,10 @@ public class HcadEvaluationWriter {
     }
 
     public void markTriggered(String evaluationId) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> markTriggered(evaluationId));
+            return;
+        }
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
@@ -248,6 +271,10 @@ public class HcadEvaluationWriter {
     }
 
     public void markDuplicateSuppressed(String evaluationId) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> markDuplicateSuppressed(evaluationId));
+            return;
+        }
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
@@ -286,6 +313,10 @@ public class HcadEvaluationWriter {
     }
 
     public void markTriggerSuppressed(String evaluationId, String reason) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> markTriggerSuppressed(evaluationId, reason));
+            return;
+        }
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
@@ -333,6 +364,15 @@ public class HcadEvaluationWriter {
             String resourceUrl,
             String httpMethod,
             boolean protectableLlmReused) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> markProtectableObserved(
+                    evaluationId,
+                    resourceId,
+                    resourceUrl,
+                    httpMethod,
+                    protectableLlmReused));
+            return;
+        }
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
@@ -383,6 +423,10 @@ public class HcadEvaluationWriter {
     }
 
     public void markNegativeCacheHit(String evaluationId) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> markNegativeCacheHit(evaluationId));
+            return;
+        }
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
@@ -453,6 +497,23 @@ public class HcadEvaluationWriter {
             String llmFallbackCategory,
             String llmFallbackReason,
             String outcomeClass) {
+        if (!isWriteTransactionActive()) {
+            inWriteTransaction(() -> markDecided(
+                    evaluationId,
+                    eventId,
+                    llmAction,
+                    llmProposedAction,
+                    llmRiskScore,
+                    llmConfidence,
+                    llmLatencyMs,
+                    llmReasoning,
+                    llmParserFailure,
+                    llmTechnicalFallback,
+                    llmFallbackCategory,
+                    llmFallbackReason,
+                    outcomeClass));
+            return;
+        }
         if (evaluationId == null || evaluationId.isBlank()) {
             return;
         }
@@ -1454,6 +1515,42 @@ public class HcadEvaluationWriter {
 
     private JdbcOperations jdbcOperations() {
         return jdbcOperationsSupplier == null ? null : jdbcOperationsSupplier.get();
+    }
+
+    private TransactionOperations transactionOperations() {
+        return transactionOperationsSupplier == null ? null : transactionOperationsSupplier.get();
+    }
+
+    private boolean isWriteTransactionActive() {
+        return Boolean.TRUE.equals(writeTransactionActive.get());
+    }
+
+    private <T> T inWriteTransaction(Supplier<T> action) {
+        if (action == null) {
+            return null;
+        }
+        TransactionOperations transactionOperations = transactionOperations();
+        if (transactionOperations == null) {
+            return action.get();
+        }
+        return transactionOperations.execute(status -> {
+            writeTransactionActive.set(true);
+            try {
+                return action.get();
+            } finally {
+                writeTransactionActive.remove();
+            }
+        });
+    }
+
+    private void inWriteTransaction(Runnable action) {
+        if (action == null) {
+            return;
+        }
+        inWriteTransaction(() -> {
+            action.run();
+            return null;
+        });
     }
 
     private boolean isHcadPreTriggerEvaluationPresent(Map<String, Object> metadata) {

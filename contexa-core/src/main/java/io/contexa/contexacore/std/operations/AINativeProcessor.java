@@ -48,10 +48,19 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
     public AINativeProcessor(AuditLogger auditLogger,
                              DistributedLockService distributedLockService,
                              DistributedStrategyExecutor<T> distributedStrategyExecutor) {
+        this(auditLogger, distributedLockService, distributedStrategyExecutor, null);
+    }
+
+    public AINativeProcessor(AuditLogger auditLogger,
+                             DistributedLockService distributedLockService,
+                             DistributedStrategyExecutor<T> distributedStrategyExecutor,
+                             String nodeId) {
         this.auditLogger = auditLogger;
         this.distributedLockService = distributedLockService;
         this.distributedStrategyExecutor = distributedStrategyExecutor;
-        this.nodeId = System.getProperty("node.id", "master-" + UUID.randomUUID().toString().substring(0, 8));
+        this.nodeId = nodeId == null || nodeId.isBlank()
+                ? "master-" + UUID.randomUUID().toString().substring(0, 8)
+                : nodeId.trim();
     }
 
     @Override

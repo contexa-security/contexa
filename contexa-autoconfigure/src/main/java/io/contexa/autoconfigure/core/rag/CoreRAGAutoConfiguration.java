@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.properties.ContexaRagProperties;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -77,6 +78,7 @@ import java.util.concurrent.atomic.AtomicInteger;
         ContexaLlmSelectionProperties.class,
         PgVectorStoreProperties.class,
         ContexaRagProperties.class,
+        SecurityPlaneProperties.class,
         TieredStrategyProperties.class
 })
 public class CoreRAGAutoConfiguration {
@@ -167,8 +169,10 @@ public class CoreRAGAutoConfiguration {
     public AICoreOperations aiNativeProcessor(
             AuditLogger auditLogger,
             DistributedLockService distributedLockService,
-            DistributedStrategyExecutor distributedStrategyExecutor) {
-        return new AINativeProcessor(auditLogger, distributedLockService, distributedStrategyExecutor);
+            DistributedStrategyExecutor distributedStrategyExecutor,
+            SecurityPlaneProperties securityPlaneProperties) {
+        return new AINativeProcessor(auditLogger, distributedLockService, distributedStrategyExecutor,
+                securityPlaneProperties.getAgent().getName());
     }
 
     @Bean

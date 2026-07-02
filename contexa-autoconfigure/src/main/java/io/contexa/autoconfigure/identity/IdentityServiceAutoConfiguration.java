@@ -25,7 +25,6 @@ import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -69,14 +68,13 @@ public class IdentityServiceAutoConfiguration {
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             // one_time_tokens is JDBC-owned; the shared Contexa transaction manager keeps the boundary explicit.
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
-            AuthContextProperties authContextProperties,
-            @Value("${contexa.identity.ott.fail-on-email-error:true}") boolean failOnEmailError) {
+            AuthContextProperties authContextProperties) {
         return new EmailOneTimeTokenService(
                 emailService,
                 jdbcTemplate,
                 transactionTemplate,
                 authContextProperties,
-                failOnEmailError);
+                authContextProperties.getOtt().isFailOnEmailError());
     }
 
     @Bean

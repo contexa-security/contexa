@@ -25,7 +25,7 @@ public class SecurityCanonicalContextUserSectionBuilder implements SecurityPromp
     public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
         StringBuilder section = new StringBuilder();
         template.appendIfPresent(section, template.buildBridgeResolutionSection(context.getCanonicalSecurityContext()));
-        String coverageSection = template.buildCoverageSection(context.getCanonicalSecurityContext());
+        String coverageSection = template.buildCoverageSection(context);
         template.appendIfPresent(section, reconcileCoverageSection(coverageSection, context));
         return section.toString();
     }

@@ -80,6 +80,7 @@ public class GroupServiceImpl implements GroupService {
         return groupRepository.findAllWithRolesAndUsers();
     }
     @Override
+    @Protectable(verificationRequired = false)
     public Page<Group> searchGroups(String keyword, Pageable pageable) {
         if (StringUtils.hasText(keyword)) {
             String trimmedKeyword = keyword.trim();

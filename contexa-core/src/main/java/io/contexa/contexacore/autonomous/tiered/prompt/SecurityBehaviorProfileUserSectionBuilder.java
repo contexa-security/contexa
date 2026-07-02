@@ -21,16 +21,20 @@ public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPrompt
     public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
         StringBuilder section = new StringBuilder();
         String observedWorkPatternSection = template.buildObservedWorkPatternContextSection(context.getCanonicalSecurityContext());
-        String personalWorkProfileSection = template.buildPersonalWorkProfileContextSection(context.getCanonicalSecurityContext());
-        String historicalBaselineSupport = template.buildSupportingPromptBlock(
-                "HistoricalBaselineSupport",
-                template.buildUserProfileNarrative(
-                        context.getEvent(),
-                        context.getDetectedPatterns(),
-                        context.getBehaviorAnalysis(),
-                        context.getBaselineStatus()
-                )
-        );
+        String personalWorkProfileSection = template.buildPersonalWorkProfileContextSection(context);
+        boolean runtimeCompactPrompt = template.shouldUseRuntimeCompactPrompt(context);
+        String historicalBaselineSupport = null;
+        if (!runtimeCompactPrompt) {
+            historicalBaselineSupport = template.buildSupportingPromptBlock(
+                    "HistoricalBaselineSupport",
+                    template.buildUserProfileNarrative(
+                            context.getEvent(),
+                            context.getDetectedPatterns(),
+                            context.getBehaviorAnalysis(),
+                            context.getBaselineStatus()
+                    )
+            );
+        }
 
         template.appendIfPresent(section, observedWorkPatternSection);
         if (personalWorkProfileSection == null && historicalBaselineSupport != null) {
@@ -41,3 +45,7 @@ public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPrompt
         return section.toString();
     }
 }
+
+
+
+

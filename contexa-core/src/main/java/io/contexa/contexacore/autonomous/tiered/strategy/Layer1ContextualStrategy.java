@@ -474,10 +474,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());
         long ragWaitMs = resolveLayer1RagWaitMs(event, ragTimeoutMs);
         boolean officialVerification = isOfficialVerificationEvent(event);
+        SecurityEvent retrievalEvent = officialVerification ? event : copyEventForRagRetrieval(event);
         Future<RagRetrievalOutcome> future = null;
         try {
             future = ragRetrievalExecutor.submit(() -> {
-                List<Document> relatedDocuments = searchRelatedContext(event);
+                List<Document> relatedDocuments = searchRelatedContext(retrievalEvent);
                 List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
                 return new RagRetrievalOutcome(relatedDocuments, similarEvents);
             });
@@ -485,6 +486,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             long retrievalStartedAt = System.currentTimeMillis();
             RagRetrievalOutcome outcome = future.get(ragWaitMs, TimeUnit.MILLISECONDS);
             long retrievalElapsedMs = System.currentTimeMillis() - retrievalStartedAt;
+            if (retrievalEvent != event) {
+                copyRagRetrievalMetadata(retrievalEvent, event);
+            }
             annotateRagInteractiveBudget(event, ragWaitMs, ragTimeoutMs, false);
             if (!hasRagUnavailableMetadata(event)) {
                 annotateRagRetrievalResult(event, outcome.relatedDocuments(), false, null, false);
@@ -493,15 +497,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
             return outcome;
         } catch (TimeoutException timeoutException) {
-            if (future != null) {
+            boolean backgroundWarmup = shouldContinueRagWarmupAfterInteractiveTimeout(event);
+            if (!backgroundWarmup && future != null) {
                 future.cancel(true);
             }
             annotateRagRetrievalResult(event, List.of(), true, timeoutException, true);
-            annotateRagInteractiveBudget(event, ragWaitMs, ragTimeoutMs, false);
-            log.warn("[Layer1] RAG retrieval exceeded hot-path wait budget after {}ms for event {}. fullTimeoutMs={}, cancelled=true",
+            annotateRagInteractiveBudget(event, ragWaitMs, ragTimeoutMs, backgroundWarmup);
+            log.warn("[Layer1] RAG retrieval exceeded hot-path wait budget after {}ms for event {}. fullTimeoutMs={}, backgroundWarmup={}",
                     ragWaitMs,
                     event != null ? event.getEventId() : "unknown",
                     ragTimeoutMs,
+                    backgroundWarmup,
                     timeoutException);
             return RagRetrievalOutcome.empty();
         } catch (ExecutionException executionException) {
@@ -537,6 +543,60 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return Math.min(fullTimeoutMs, Math.max(1L, interactiveWaitMs));
     }
 
+    private boolean shouldContinueRagWarmupAfterInteractiveTimeout(SecurityEvent event) {
+        if (isOfficialVerificationEvent(event)) {
+            return false;
+        }
+        TieredStrategyProperties.Layer1.Timeout timeout = tieredStrategyProperties.getLayer1().getTimeout();
+        return timeout != null && timeout.isBackgroundRagWarmupOnInteractiveTimeout();
+    }
+
+    private SecurityEvent copyEventForRagRetrieval(SecurityEvent source) {
+        if (source == null) {
+            return null;
+        }
+        return SecurityEvent.builder()
+                .eventId(source.getEventId())
+                .source(source.getSource())
+                .timestamp(source.getTimestamp())
+                .severity(source.getSeverity())
+                .description(source.getDescription())
+                .sourceIp(source.getSourceIp())
+                .userId(source.getUserId())
+                .userName(source.getUserName())
+                .sessionId(source.getSessionId())
+                .userAgent(source.getUserAgent())
+                .metadata(source.getMetadata() != null ? new LinkedHashMap<>(source.getMetadata()) : new LinkedHashMap<>())
+                .blocked(source.isBlocked())
+                .build();
+    }
+
+    private void copyRagRetrievalMetadata(SecurityEvent source, SecurityEvent target) {
+        if (source == null || target == null || source.getMetadata() == null) {
+            return;
+        }
+        Map<String, Object> targetMetadata = mutableMetadata(target);
+        for (Map.Entry<String, Object> entry : source.getMetadata().entrySet()) {
+            String key = entry.getKey();
+            if (isRagRetrievalMetadataKey(key)) {
+                targetMetadata.put(key, entry.getValue());
+            }
+        }
+    }
+
+    private boolean isRagRetrievalMetadataKey(String key) {
+        if (!StringUtils.hasText(key)) {
+            return false;
+        }
+        return key.startsWith("rag")
+                || key.startsWith("relatedDocument")
+                || key.endsWith("DocumentCount")
+                || key.equals("requestedDocumentCount")
+                || key.equals("allowedDocumentCount")
+                || key.equals("deniedDocumentCount")
+                || key.equals("promptContextAuditPayload")
+                || key.equals("promptContextAuditForwarded");
+    }
     private boolean isOfficialVerificationEvent(SecurityEvent event) {
         if (event == null || event.getMetadata() == null) {
             return false;

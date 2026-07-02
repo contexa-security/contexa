@@ -46,4 +46,8 @@ public interface HCADDataStore {
     Map<Object, Object> getHcadAnalysis(String userId);
 
     void saveHcadAnalysis(String userId, Map<String, Object> analysisData);
+
+    default void clearTransientCounters() {
+        // Optional for stores that keep only durable state.
+    }
 }
