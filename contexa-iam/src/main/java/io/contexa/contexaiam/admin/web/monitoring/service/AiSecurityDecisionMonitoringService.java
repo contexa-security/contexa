@@ -869,6 +869,8 @@ public class AiSecurityDecisionMonitoringService {
                                 union all
                                 select min(created_at) as created_at from ai_security_decision_observation
                                 union all
+                                select min(created_at) as created_at from ai_security_llm_trigger_suppression
+                                union all
                                 select min(created_at) as created_at from hcad_llm_decision_correlation
                                ) s
                         """);
@@ -945,9 +947,9 @@ public class AiSecurityDecisionMonitoringService {
                 + operations.modelUnavailableCount();
 
         return new StandardMetrics(
-                countMetric("observedRequests", "Observed requests", "Monitorable requests in the selected period.",
+                countMetric("observedRequests", "Stored HCAD candidate scope requests", "Requests represented by stored HCAD candidate windows; low-risk general traffic is not persisted.",
                         hcad.observedRequestCount()),
-                countMetric("hcadEvaluations", "HCAD evaluations", "Requests or windows evaluated by HCAD.",
+                countMetric("hcadEvaluations", "Stored HCAD candidates", "HCAD risk candidates or diagnostic windows persisted for monitoring.",
                         hcad.candidateCount()),
                 countMetric("hcadAiConnected", "HCAD to AI", "HCAD candidates connected to AI analysis.",
                         hcad.triggeredLlmCount()),

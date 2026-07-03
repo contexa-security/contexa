@@ -33,6 +33,8 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
 
     private static final String[] EXCLUDE_PATTERNS = {"redis", "kafka", "redisson"};
     private static final String CONTEXA_PACKAGE_PREFIX = "io.contexa.";
+    private static final String CONTEXA_OWNED_DATASOURCE_AUTO_CONFIGURATION =
+            "io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration";
 
     private Environment environment;
 
@@ -51,13 +53,17 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             }
 
             if (!contexaPlatformActive) {
-                if (isContexaAutoConfiguration(autoConfigurationClass)) {
+                if (isContexaOwnedDataSourceAutoConfiguration(autoConfigurationClass)) {
+                    result[i] = hasContexaOwnedDataSource();
+                } else if (isContexaAutoConfiguration(autoConfigurationClass)) {
+                    result[i] = false;
+                } else if (isDefaultSecurityAutoConfiguration(autoConfigurationClass)) {
                     result[i] = false;
                 } else if ("org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
                            "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
                            "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration".equals(autoConfigurationClass) ||
                            "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration".equals(autoConfigurationClass)) {
-                    boolean hasUrl = environment.containsProperty("spring.datasource.url");
+                    boolean hasUrl = environment.containsProperty("spring.datasource.url") || hasContexaOwnedDataSource();
                     boolean hasEmbedded = EmbeddedDatabaseConnection.get(getClass().getClassLoader()) != EmbeddedDatabaseConnection.NONE;
                     result[i] = hasUrl || hasEmbedded;
                 } else {
@@ -89,6 +95,25 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
 
     private boolean isContexaAutoConfiguration(String autoConfigurationClass) {
         return autoConfigurationClass.startsWith(CONTEXA_PACKAGE_PREFIX);
+    }
+
+    private boolean isContexaOwnedDataSourceAutoConfiguration(String autoConfigurationClass) {
+        return CONTEXA_OWNED_DATASOURCE_AUTO_CONFIGURATION.equals(autoConfigurationClass);
+    }
+
+    private boolean hasContexaOwnedDataSource() {
+        return environment != null
+                && environment.containsProperty("contexa.datasource.url")
+                && environment.getProperty(
+                        "contexa.datasource.isolation.contexa-owned-application",
+                        Boolean.class,
+                        false);
+    }
+
+    private boolean isDefaultSecurityAutoConfiguration(String autoConfigurationClass) {
+        return "org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration".equals(autoConfigurationClass)
+                || "org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration".equals(autoConfigurationClass)
+                || "org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration".equals(autoConfigurationClass);
     }
 
     @Override

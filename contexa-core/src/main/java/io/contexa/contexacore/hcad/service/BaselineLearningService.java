@@ -598,6 +598,12 @@ public class BaselineLearningService {
     public BaselineMaturitySnapshot describeBaselineMaturity(String userId, String organizationId) {
         BaselineVector personalBaseline = getPersonalBaseline(userId);
         BaselineVector organizationBaseline = resolveOrganizationBaseline(userId, organizationId);
+        return describeBaselineMaturity(personalBaseline, organizationBaseline);
+    }
+
+    private BaselineMaturitySnapshot describeBaselineMaturity(
+            BaselineVector personalBaseline,
+            BaselineVector organizationBaseline) {
         boolean personalAvailable = personalBaseline != null;
         boolean organizationAvailable = organizationBaseline != null;
         boolean personalEstablished = isPersonalBaselineEstablished(personalBaseline);
@@ -623,7 +629,32 @@ public class BaselineLearningService {
                 supportingDimensions);
     }
 
+    public PromptBaselineEvidence buildPromptBaselineEvidenceSnapshot(String userId, SecurityEvent currentEvent) {
+        String organizationId = resolveOrganizationId(currentEvent, userId);
+        BaselineVector personalBaseline = getPersonalBaseline(userId);
+        BaselineVector organizationBaseline = resolveOrganizationBaseline(userId, organizationId);
+        BaselineMaturitySnapshot maturity = describeBaselineMaturity(personalBaseline, organizationBaseline);
+        return new PromptBaselineEvidence(
+                maturity,
+                personalBaseline,
+                organizationBaseline,
+                buildBaselineEvidenceSnapshot(userId, currentEvent, personalBaseline, maturity),
+                buildSupportingBaselineEvidenceSnapshot(organizationBaseline, maturity));
+    }
+
     public BaselineEvidenceSnapshot buildBaselineEvidenceSnapshot(String userId, SecurityEvent currentEvent) {
+        BaselineVector personalBaseline = getPersonalBaseline(userId);
+        BaselineMaturitySnapshot maturity = describeBaselineMaturity(
+                personalBaseline,
+                resolveOrganizationBaseline(userId, resolveOrganizationId(currentEvent, userId)));
+        return buildBaselineEvidenceSnapshot(userId, currentEvent, personalBaseline, maturity);
+    }
+
+    private BaselineEvidenceSnapshot buildBaselineEvidenceSnapshot(
+            String userId,
+            SecurityEvent currentEvent,
+            BaselineVector personalBaseline,
+            BaselineMaturitySnapshot maturity) {
         if (!StringUtils.hasText(userId)) {
             return new BaselineEvidenceSnapshot(
                     LearningEvidenceScope.PERSONAL,
@@ -644,8 +675,6 @@ public class BaselineLearningService {
                     BaselineEvidenceStatus.MISSING_USER_ID,
                     "Cannot lookup baseline without user identifier");
         }
-        BaselineVector personalBaseline = getPersonalBaseline(userId);
-        BaselineMaturitySnapshot maturity = describeBaselineMaturity(userId, resolveOrganizationId(currentEvent, userId));
         if (personalBaseline == null) {
             return new BaselineEvidenceSnapshot(
                     LearningEvidenceScope.PERSONAL,
@@ -694,7 +723,15 @@ public class BaselineLearningService {
 
     public BaselineEvidenceSnapshot buildSupportingBaselineEvidenceSnapshot(String userId, String organizationId) {
         BaselineVector organizationBaseline = resolveOrganizationBaseline(userId, organizationId);
-        BaselineMaturitySnapshot maturity = describeBaselineMaturity(userId, organizationId);
+        BaselineMaturitySnapshot maturity = describeBaselineMaturity(
+                getPersonalBaseline(userId),
+                organizationBaseline);
+        return buildSupportingBaselineEvidenceSnapshot(organizationBaseline, maturity);
+    }
+
+    private BaselineEvidenceSnapshot buildSupportingBaselineEvidenceSnapshot(
+            BaselineVector organizationBaseline,
+            BaselineMaturitySnapshot maturity) {
         if (organizationBaseline == null) {
             return new BaselineEvidenceSnapshot(
                     LearningEvidenceScope.SUPPORTING,
@@ -1235,5 +1272,13 @@ public class BaselineLearningService {
         public BaselineMaturitySnapshot {
             supportingDimensions = supportingDimensions == null ? List.of() : List.copyOf(supportingDimensions);
         }
+    }
+
+    public record PromptBaselineEvidence(
+            BaselineMaturitySnapshot maturity,
+            BaselineVector personalBaseline,
+            BaselineVector organizationBaseline,
+            BaselineEvidenceSnapshot personal,
+            BaselineEvidenceSnapshot supporting) {
     }
 }

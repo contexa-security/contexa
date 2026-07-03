@@ -547,7 +547,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         event.addMetadata("personalBaselineEstablished", false);
         event.addMetadata("organizationBaselineEstablished", false);
         try {
-            BaselineVector personalBaseline = baselineLearningService.getPersonalBaseline(event.getUserId());
+            BaselineLearningService.PromptBaselineEvidence baselineEvidence =
+                    baselineLearningService.buildPromptBaselineEvidenceSnapshot(event.getUserId(), event);
+            BaselineVector personalBaseline = baselineEvidence.personalBaseline();
             if (personalBaseline != null) {
                 context.setBaselineIpRanges(personalBaseline.getNormalIpRanges());
                 context.setBaselineOperatingSystems(personalBaseline.getNormalOperatingSystems());
@@ -566,8 +568,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     context.setPreviousUserAgentBrowser(personalBaseline.getNormalUserAgents()[0]);
                 }
             }
-            BaselineLearningService.BaselineMaturitySnapshot maturity =
-                    baselineLearningService.describeBaselineMaturity(event.getUserId(), resolveOrganizationId(event));
+            BaselineLearningService.BaselineMaturitySnapshot maturity = baselineEvidence.maturity();
             if (maturity == null) {
                 applyUnavailableBaselineEvidence(
                         context,
@@ -575,12 +576,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         "baseline analysis unavailable");
                 return;
             }
-            context.setPersonalBaselineEvidence(
-                    baselineLearningService.buildBaselineEvidenceSnapshot(event.getUserId(), event));
-            context.setSupportingBaselineEvidence(
-                    baselineLearningService.buildSupportingBaselineEvidenceSnapshot(
-                            event.getUserId(),
-                            resolveOrganizationId(event)));
+            context.setPersonalBaselineEvidence(baselineEvidence.personal());
+            context.setSupportingBaselineEvidence(baselineEvidence.supporting());
             context.setPersonalBaselineAvailable(maturity.personalBaselineAvailable());
             context.setPersonalBaselineEstablished(maturity.personalBaselineEstablished());
             context.setOrganizationBaselineAvailable(maturity.organizationBaselineAvailable());
@@ -791,12 +788,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
                 return limitedAuthorizedPromptContext.documents();
             }
-            // 1. 疫꿸퀡??揶쏆뮇??野꺜????쑬猷욄묾???쎈뻬
+            // 1. ?リ옇????띠룇裕???롪틵??????х뙴?꾨Ь????덈뺄
             CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
                     searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
                             buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR);
 
-            // 2. ?類ㅼ삢 野꺜????쑬猷욄묾?餓Β??
+            // 2. ?筌먦끉???롪틵??????х뙴?꾨Ь?繞벿뮻??
             String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
             final double broadThreshold = Math.min(similarityThreshold, 0.35d);
             boolean runBroad = StringUtils.hasText(broadQuery) && !broadQuery.equals(query);
@@ -806,7 +803,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 3. Baseline 野꺜????쑬猷욄묾?餓Β??
+            // 3. Baseline ?롪틵??????х뙴?꾨Ь?繞벿뮻??
             String userBaselineQuery = buildUserBaselineContextQuery(event);
             boolean runBaseline = StringUtils.hasText(userBaselineQuery)
                     && !userBaselineQuery.equals(query)
@@ -817,7 +814,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 4. Supporting Documents 野꺜????쑬猷욄묾?餓Β??(Baseline 沃섎챷?붺뵳???癰귣쵎????묐뻬)
+            // 4. Supporting Documents ?롪틵??????х뙴?꾨Ь?繞벿뮻??(Baseline 亦껋꼶梨?遺븍뎨????곌랜理????臾먮뺄)
             boolean personalBaselineEstablished = false;
             if (baselineLearningService != null) {
                 var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event));
@@ -842,7 +839,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         }, RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 5. 筌뤴뫀諭???쑬猷욄묾?野꺜??癰귣쵎????쎈뻬 獄?鈺곌퀣??
+            // 5. 嶺뚮ㅄ維獄????х뙴?꾨Ь??롪틵????곌랜理?????덈뺄 ???브퀗???
             CompletableFuture.allOf(personalFuture, broadFuture, baselineFuture, supportingFuture).join();
 
             List<Document> personalDocuments = personalFuture.get();
@@ -858,7 +855,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 mergedDocuments.addAll(userBaselineDocuments);
             }
 
-            // ??륁뵠?됰슢?????됱뇚 筌ｌ꼶?? Baseline????롡뵲??뤿???곌돌 ?얜챷苑???? ?봔鈺곌퉲釉??supporting????뽮컧?怨몄몵嚥??袁⑹뒄??野껋럩??
+            // ??瑜곷턄??곗뒧??????깅뇶 嶺뚳퐣瑗?? Baseline????濡〓뎡??琉???怨뚮룎 ??쒖굣????? ?遊붋?브퀗?꿴뇡??supporting????戮?빵??⑤챷紐드슖??熬곣뫗????롪퍔???
             boolean needSupportingEvidence = personalDocuments.size() < 3 || !personalBaselineEstablished;
             if (needSupportingEvidence) {
                 if (!runSupporting && isLayer1SupportingRagSearchEnabled() && StringUtils.hasText(organizationId)) {

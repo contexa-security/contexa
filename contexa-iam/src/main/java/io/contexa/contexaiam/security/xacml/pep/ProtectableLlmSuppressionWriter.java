@@ -167,6 +167,7 @@ public class ProtectableLlmSuppressionWriter {
             return;
         }
         request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_OBSERVED, true);
+        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_SUPPRESSED, true);
         request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_ID, path);
         request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_URL, path);
         request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_HTTP_METHOD, method);

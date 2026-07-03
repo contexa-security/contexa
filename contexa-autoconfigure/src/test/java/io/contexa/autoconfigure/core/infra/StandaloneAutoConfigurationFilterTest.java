@@ -187,6 +187,22 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
+        @DisplayName("Should exclude Spring Boot default security auto-configurations when @EnableAISecurity did not activate the platform")
+        void shouldExcludeDefaultSecurityAutoConfigurationsWhenPlatformIsInactive() {
+            StandaloneAutoConfigurationFilter filter = createFilter("standalone");
+            String[] classes = {
+                    "org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration",
+                    "org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(false, false, false, true);
+        }
+
+        @Test
         @DisplayName("Should not filter customer Redis/Kafka auto-configurations when @EnableAISecurity did not activate the platform")
         void shouldNotFilterCustomerInfrastructureAutoConfigurationsWhenPlatformIsInactive() {
             StandaloneAutoConfigurationFilter filter = createFilter("standalone");
@@ -199,6 +215,42 @@ class StandaloneAutoConfigurationFilterTest {
             boolean[] result = filter.match(classes, metadata);
 
             assertThat(result).containsExactly(true, true, true);
+        }
+
+        @Test
+        @DisplayName("Should allow Contexa-owned DataSource auto-configuration when platform is inactive")
+        void shouldAllowContexaOwnedDataSourceWhenPlatformIsInactive() {
+            StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
+            MockEnvironment env = new MockEnvironment()
+                    .withProperty("contexa.datasource.url", "jdbc:h2:mem:customer")
+                    .withProperty("contexa.datasource.isolation.contexa-owned-application", "true");
+            filter.setEnvironment(env);
+            String[] classes = {
+                    "io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration",
+                    "io.contexa.autoconfigure.core.CoreDataAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(true, false);
+        }
+
+        @Test
+        @DisplayName("Should allow Boot DataSource and JPA auto-configurations for Contexa-owned applications")
+        void shouldAllowBootDataSourceAndJpaForContexaOwnedApplication() {
+            StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
+            MockEnvironment env = new MockEnvironment()
+                    .withProperty("contexa.datasource.url", "jdbc:h2:mem:customer")
+                    .withProperty("contexa.datasource.isolation.contexa-owned-application", "true");
+            filter.setEnvironment(env);
+            String[] classes = {
+                    "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(true, true);
         }
 
         @Test

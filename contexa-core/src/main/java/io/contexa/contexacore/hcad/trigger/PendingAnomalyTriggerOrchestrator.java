@@ -413,7 +413,8 @@ public class PendingAnomalyTriggerOrchestrator {
 
     private boolean protectableAnalysisAlreadyStarted(HttpServletRequest request) {
         return request != null
-                && Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED));
+                && (Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED))
+                || Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_SUPPRESSED)));
     }
 
     private boolean llmAnalysisAllowed() {

@@ -30,9 +30,12 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
@@ -43,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +68,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
-    private ExecutorService[] stripeExecutors = new ExecutorService[0];
+    private KeyedSerialExecutor actorSerialExecutor;
     private static final String PROCESSING_BUDGET_MS = "processingBudgetMs";
     private static final String PROCESSING_TIMEOUT_MS = "processingTimeoutMs";
     private static final String PROCESSING_QUEUE_TIMEOUT_MS = "processingQueueTimeoutMs";
@@ -106,7 +110,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("stripeId", stripeId);
             event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
 
-            stripeExecutors[stripeId].execute(() -> {
+            actorSerialExecutor.execute(analysisKey, () -> {
                 try {
                     event.addMetadata("analysisStartedAt", System.currentTimeMillis());
                     processSecurityEventWithinBudget(event);
@@ -293,11 +297,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private void initializeStripedExecutors() {
-        int stripeCount = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
-        stripeExecutors = new ExecutorService[stripeCount];
-        for (int i = 0; i < stripeCount; i++) {
-            stripeExecutors[i] = Executors.newSingleThreadExecutor(new StripeThreadFactory(i));
-        }
+        int workerCount = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
+        actorSerialExecutor = new KeyedSerialExecutor(
+                Executors.newFixedThreadPool(workerCount, new ActorSerialThreadFactory()),
+                workerCount);
     }
 
     private String resolveAnalysisKey(SecurityEvent event) {
@@ -325,26 +328,17 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private int resolveStripeId(String analysisKey) {
-        if (stripeExecutors.length == 0) {
-            throw new IllegalStateException("SecurityPlaneAgent stripes not initialized");
+        KeyedSerialExecutor executor = actorSerialExecutor;
+        if (executor == null || executor.parallelism() <= 0) {
+            throw new IllegalStateException("SecurityPlaneAgent actor serial executor is not initialized");
         }
-        return Math.floorMod(analysisKey.hashCode(), stripeExecutors.length);
+        return Math.floorMod(analysisKey.hashCode(), executor.parallelism());
     }
 
     private void shutdownStripedExecutors() {
-        for (ExecutorService stripeExecutor : stripeExecutors) {
-            if (stripeExecutor == null) {
-                continue;
-            }
-            stripeExecutor.shutdown();
-            try {
-                if (!stripeExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-                    stripeExecutor.shutdownNow();
-                }
-            } catch (InterruptedException interruptedException) {
-                Thread.currentThread().interrupt();
-                stripeExecutor.shutdownNow();
-            }
+        KeyedSerialExecutor executor = actorSerialExecutor;
+        if (executor != null) {
+            executor.shutdown();
         }
     }
 
@@ -527,18 +521,90 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         return 0;
     }
 
-    private final class StripeThreadFactory implements ThreadFactory {
-        private final int stripeId;
-
-        private StripeThreadFactory(int stripeId) {
-            this.stripeId = stripeId;
-        }
+    private final class ActorSerialThreadFactory implements ThreadFactory {
+        private final AtomicLong threadIds = new AtomicLong();
 
         @Override
         public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "SecurityPlane-Stripe-" + stripeId);
+            Thread thread = new Thread(runnable, "SecurityPlane-Actor-" + threadIds.incrementAndGet());
             thread.setDaemon(true);
             return thread;
+        }
+    }
+
+    private final class KeyedSerialExecutor {
+        private final ExecutorService workerPool;
+        private final ConcurrentMap<String, SerialTaskQueue> queues = new ConcurrentHashMap<>();
+        private final int parallelism;
+
+        private KeyedSerialExecutor(ExecutorService workerPool, int parallelism) {
+            this.workerPool = workerPool;
+            this.parallelism = parallelism;
+        }
+
+        private int parallelism() {
+            return parallelism;
+        }
+
+        private void execute(String key, Runnable task) {
+            String queueKey = key == null || key.isBlank() ? "unknown" : key;
+            queues.computeIfAbsent(queueKey, SerialTaskQueue::new).submit(task);
+        }
+
+        private void shutdown() {
+            workerPool.shutdown();
+            try {
+                if (!workerPool.awaitTermination(30, TimeUnit.SECONDS)) {
+                    workerPool.shutdownNow();
+                }
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                workerPool.shutdownNow();
+            }
+        }
+
+        private final class SerialTaskQueue implements Runnable {
+            private final String key;
+            private final Queue<Runnable> tasks = new ArrayDeque<>();
+            private boolean running;
+
+            private SerialTaskQueue(String key) {
+                this.key = key;
+            }
+
+            private void submit(Runnable task) {
+                boolean shouldSchedule = false;
+                synchronized (this) {
+                    tasks.add(task);
+                    if (!running) {
+                        running = true;
+                        shouldSchedule = true;
+                    }
+                }
+                if (shouldSchedule) {
+                    workerPool.execute(this);
+                }
+            }
+
+            @Override
+            public void run() {
+                while (true) {
+                    Runnable next;
+                    synchronized (this) {
+                        next = tasks.poll();
+                        if (next == null) {
+                            running = false;
+                            queues.remove(key, this);
+                            return;
+                        }
+                    }
+                    try {
+                        next.run();
+                    } catch (Throwable throwable) {
+                        log.error("[SecurityPlaneAgent] Actor serial task failed: key={}", key, throwable);
+                    }
+                }
+            }
         }
     }
 
