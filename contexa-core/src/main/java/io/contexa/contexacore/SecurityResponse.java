@@ -42,6 +42,8 @@ public class SecurityResponse {
 
     private String mitre;
 
+    private List<String> evidenceRefs;
+
     public static SecurityResponse fromJson(String json) {
         if (json == null || json.isBlank()) {
             return null;

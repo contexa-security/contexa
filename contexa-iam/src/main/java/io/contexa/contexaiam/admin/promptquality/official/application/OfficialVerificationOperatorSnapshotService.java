@@ -229,8 +229,15 @@ public class OfficialVerificationOperatorSnapshotService {
         if (!StringUtils.hasText(aggregateRunId) || evidencePackage == null || metrics == null || metrics.isEmpty()) {
             return;
         }
-        if (metrics.size() != 12) {
-            throw new IllegalStateException("Official prompt quality inspection must store exactly 12 metric results (12\uAC1C \uC9C0\uD45C). actual=" + metrics.size());
+        Set<String> metricCodes = new LinkedHashSet<>();
+        for (RuntimeEvidenceMetricResult metric : metrics) {
+            if (metric == null || !StringUtils.hasText(metric.metricCode())) {
+                throw new IllegalStateException("Official prompt quality inspection metric result must provide a metric code.");
+            }
+            String metricCode = metric.metricCode().trim().toUpperCase(Locale.ROOT);
+            if (!metricCodes.add(metricCode)) {
+                throw new IllegalStateException("Official prompt quality inspection metric results must be unique. duplicate=" + metricCode);
+            }
         }
         requirePersistedSealedEvidencePackage(evidencePackage.getPackageId());
         try {
@@ -353,7 +360,12 @@ public class OfficialVerificationOperatorSnapshotService {
                 "select count(*) from official_verification_metric_snapshot where aggregate_run_id = ?",
                 Integer.class,
                 aggregateRunId);
-        if (metricCount == null || metricCount != 12) {
+        Integer expectedMetricCount = jdbcTemplate.queryForObject(
+                "select max(expected_metric_count) from official_verification_run_batch where aggregate_run_id = ?",
+                Integer.class,
+                aggregateRunId);
+        if (metricCount == null || expectedMetricCount == null || expectedMetricCount <= 0
+                || metricCount.intValue() != expectedMetricCount.intValue()) {
             return false;
         }
         Integer expectedCustomerDisplayPayloadRows = jdbcTemplate.queryForObject("""
@@ -1275,13 +1287,15 @@ public class OfficialVerificationOperatorSnapshotService {
                 .filter(metric -> actualPromptMetricBlocked(metric, problemsByMetric))
                 .count();
         int notApplicable = (int) metrics.stream().filter(metric -> state(metric).equals("NOT_APPLICABLE")).count();
+        int passed = (int) metrics.stream()
+                .filter(metric -> state(metric).equals("SUCCESS"))
+                .count();
         int insufficient = (int) metrics.stream()
                 .filter(metric -> !actualPromptMetricBlocked(metric, problemsByMetric))
-                .filter(metric -> metricInputReadinessNotReady(metric)
-                        || internalGateMetric(metric == null ? null : metric.metricCode()) && metricFailed(metric))
+                .filter(metric -> !state(metric).equals("NOT_APPLICABLE"))
+                .filter(metric -> !state(metric).equals("SUCCESS"))
                 .count();
-        int passed = Math.max(total - failed - insufficient - notApplicable, 0);
-        boolean blocked = failed > 0 || insufficient > 0 || total < 12;
+        boolean blocked = failed > 0 || insufficient > 0 || total <= 0;
         String finalDecision = blocked ? "BLOCKED" : "CERTIFIABLE";
         Map<String, Object> requestFacts = jsonMap(evidencePackage.getRequestFactsJson());
         Map<String, Object> promptMetadata = jsonMap(evidencePackage.getPromptExecutionMetadataJson());
@@ -1313,7 +1327,7 @@ public class OfficialVerificationOperatorSnapshotService {
                 fit(certificateId, 256),
                 fit(caseId, 256),
                 "PROMPT_QUALITY",
-                12,
+                total,
                 total,
                 passed,
                 failed,
@@ -1409,10 +1423,11 @@ public class OfficialVerificationOperatorSnapshotService {
         int totalChecks = totalCheckCount(metric);
         int passedChecks = passedCheckCount(metric);
         double storedScore = metric.score();
-        FinalPromptMetricContract metricContract = finalPromptMetricContract(metricCode);
+        FinalPromptMetricContract metricContract = finalPromptMetricContractOrNull(metricCode);
         String metricPurpose = firstNonBlank(
-                metricContract.qualityQuestion(),
-                metricContract.purpose(),
+                metricContract == null ? null : metricContract.qualityQuestion(),
+                metricContract == null ? null : metricContract.purpose(),
+                metric.metricName(),
                 narrativeCatalog.metricPurpose(metricCode));
         String contractOperatorTitle = blockedByActualPrompt ? actualPromptProblemTitle(firstProblem) : metricName;
         String contractOperatorSummary = !blocked
@@ -3312,7 +3327,7 @@ public class OfficialVerificationOperatorSnapshotService {
                 boolean inputNotReady = inputReadinessNotReady(check);
                 boolean contradictoryPassedMetricFailure = passed(metric) && !check.pass();
                 FinalPromptMetricCheckContract checkContract = StringUtils.hasText(purposeVersion)
-                        ? finalPromptMetricCheckContract(metricCode, check)
+                        ? finalPromptMetricCheckContractOrNull(metricCode, check)
                         : null;
                 boolean customerVisible = customerDisplayEligible(checkContract)
                         && !inputNotReady
@@ -4382,12 +4397,155 @@ public class OfficialVerificationOperatorSnapshotService {
             String metricCode,
             RuntimeEvidenceMetricResult metric,
             RuntimeEvidenceCheckResult check) {
-        if (!StringUtils.hasText(purposeVersion)) {
+        if (!StringUtils.hasText(purposeVersion) || metric == null || check == null) {
             return;
         }
-        FinalPromptMetricContract metricContract = finalPromptMetricContract(metricCode);
-        FinalPromptMetricCheckContract checkContract = finalPromptMetricCheckContract(metricCode, check);
-        upsertMetricPurposeContract(purposeVersion, metricCode, metricContract, checkContract);
+        FinalPromptMetricCheckContract checkContract = finalPromptMetricCheckContractOrNull(metricCode, check);
+        if (checkContract != null) {
+            FinalPromptMetricContract metricContract = finalPromptMetricContract(metricCode);
+            upsertMetricPurposeContract(purposeVersion, metricCode, metricContract, checkContract);
+            return;
+        }
+        upsertRuntimeMetricPurposeContract(purposeVersion, metricCode, metric, check);
+    }
+
+    private FinalPromptMetricCheckContract finalPromptMetricCheckContractOrNull(
+            String metricCode,
+            RuntimeEvidenceCheckResult check) {
+        try {
+            return finalPromptMetricCheckContract(metricCode, check);
+        }
+        catch (IllegalStateException ex) {
+            return null;
+        }
+    }
+
+    private void upsertRuntimeMetricPurposeContracts(List<RuntimeEvidenceMetricResult> metrics) {
+        if (metrics == null) {
+            return;
+        }
+        for (RuntimeEvidenceMetricResult metric : metrics) {
+            if (metric == null || metric.checks() == null) {
+                continue;
+            }
+            String metricCode = normalize(metric.metricCode());
+            for (RuntimeEvidenceCheckResult check : metric.checks()) {
+                if (check == null) {
+                    continue;
+                }
+                upsertMetricPurposeContract(firstNonBlank(check.purposeVersion(), "runtime-official-v1"), metricCode, metric, check);
+            }
+        }
+    }
+
+    private void upsertRuntimeMetricPurposeContract(
+            String purposeVersion,
+            String metricCode,
+            RuntimeEvidenceMetricResult metric,
+            RuntimeEvidenceCheckResult check) {
+        String checkCode = firstNonBlank(canonicalMetricCheckCode(metricCode, check), check.checkCode(), check.label(), "CHECK");
+        String issueKey = firstNonBlank(check.issueKey(), check.source(), checkCode);
+        String readinessScope = firstNonBlank(check.readinessScope(), "OFFICIAL_VERIFICATION");
+        String purpose = firstNonBlank(metric.metricName(), narrativeCatalog.metricPurpose(metricCode), metricCode + " official metric");
+        String question = firstNonBlank(check.whyItMatters(), check.label(), metric.metricName(), metricCode + " official check");
+        String passMessage = firstNonBlank(check.operatorReason(), check.expectedValue(), "Official runtime check passed.");
+        String failureMessage = firstNonBlank(check.operatorReason(), check.actualValue(), "Official runtime check failed.");
+        jdbcTemplate.update("""
+                        insert into official_metric_contract_version (
+                            contract_version, source_artifact, active, created_at
+                        ) values (?, ?, ?, ?)
+                        on conflict (contract_version) do update
+                           set source_artifact = excluded.source_artifact,
+                               active = excluded.active
+                        """,
+                fit(purposeVersion, 128),
+                "runtime:official-verification-metric-results",
+                true,
+                nowTimestamp());
+        jdbcTemplate.update("""
+                        insert into official_metric_purpose_contract (
+                            contract_version, metric_code, purpose_statement, decision_question,
+                            customer_visible, metric_role, blocks_llm_submission, blocks_certificate, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        on conflict (contract_version, metric_code) do update
+                           set purpose_statement = excluded.purpose_statement,
+                               decision_question = excluded.decision_question,
+                               customer_visible = excluded.customer_visible,
+                               metric_role = excluded.metric_role,
+                               blocks_llm_submission = excluded.blocks_llm_submission,
+                               blocks_certificate = excluded.blocks_certificate
+                        """,
+                fit(purposeVersion, 128),
+                fit(metricCode, 32),
+                purpose,
+                question,
+                metric.checks().stream().anyMatch(RuntimeEvidenceCheckResult::customerVisible),
+                fit(readinessScope, 128),
+                false,
+                false,
+                nowTimestamp());
+        jdbcTemplate.update("""
+                        insert into official_metric_evaluation_contract (
+                            contract_version, metric_code, check_code, purpose_question,
+                            pass_condition, fail_condition, issue_key, customer_visible,
+                            readiness_scope, problem_title, short_problem, expected_message,
+                            pass_message, failure_message, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        on conflict (contract_version, metric_code, check_code) do update
+                           set purpose_question = excluded.purpose_question,
+                               pass_condition = excluded.pass_condition,
+                               fail_condition = excluded.fail_condition,
+                               issue_key = excluded.issue_key,
+                               customer_visible = excluded.customer_visible,
+                               readiness_scope = excluded.readiness_scope,
+                               problem_title = excluded.problem_title,
+                               short_problem = excluded.short_problem,
+                               expected_message = excluded.expected_message,
+                               pass_message = excluded.pass_message,
+                               failure_message = excluded.failure_message
+                        """,
+                fit(purposeVersion, 128),
+                fit(metricCode, 32),
+                fit(checkCode, 128),
+                question,
+                firstNonBlank(check.expectedValue(), passMessage),
+                firstNonBlank(check.actualValue(), failureMessage),
+                fit(issueKey, 512),
+                check.customerVisible(),
+                fit(readinessScope, 128),
+                firstNonBlank(check.label(), checkCode),
+                firstNonBlank(check.operatorReason(), check.label(), checkCode),
+                firstNonBlank(check.expectedValue(), question),
+                passMessage,
+                failureMessage,
+                nowTimestamp());
+        jdbcTemplate.update("""
+                        insert into official_metric_customer_message_contract (
+                            contract_version, metric_code, check_code,
+                            problem_title, short_problem, why_it_matters,
+                            fix_action, reverify_criterion, metric_purpose,
+                            blocked_reason, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        on conflict (contract_version, metric_code, check_code) do update
+                           set problem_title = excluded.problem_title,
+                               short_problem = excluded.short_problem,
+                               why_it_matters = excluded.why_it_matters,
+                               fix_action = excluded.fix_action,
+                               reverify_criterion = excluded.reverify_criterion,
+                               metric_purpose = excluded.metric_purpose,
+                               blocked_reason = excluded.blocked_reason
+                        """,
+                fit(purposeVersion, 128),
+                fit(metricCode, 32),
+                fit(checkCode, 128),
+                firstNonBlank(check.label(), checkCode),
+                firstNonBlank(check.operatorReason(), check.label(), checkCode),
+                firstNonBlank(check.whyItMatters(), question),
+                firstNonBlank(check.nextAction(), "Review the official runtime metric evidence and rerun verification."),
+                firstNonBlank(check.reverifyCriterion(), "Rerun official verification with the same sealed evidence."),
+                purpose,
+                failureMessage,
+                nowTimestamp());
     }
 
     private void upsertFullMetricContractCatalog() {
@@ -4784,6 +4942,15 @@ public class OfficialVerificationOperatorSnapshotService {
 
     private FinalPromptMetricContract finalPromptMetricContract(String metricCode) {
         return finalPromptMetricContractCatalog().metric(metricCode);
+    }
+
+    private FinalPromptMetricContract finalPromptMetricContractOrNull(String metricCode) {
+        try {
+            return finalPromptMetricContract(metricCode);
+        }
+        catch (IllegalStateException ex) {
+            return null;
+        }
     }
 
     private FinalPromptMetricCheckContract finalPromptMetricCheckContract(
@@ -6057,9 +6224,14 @@ public class OfficialVerificationOperatorSnapshotService {
                 "select count(*) from official_verification_metric_snapshot where aggregate_run_id = ?",
                 Integer.class,
                 aggregateRunId);
-        if (count == null || count != 12) {
-            throw new IllegalStateException("공식검사 지표 스냅샷은 12개 지표를 모두 저장해야 합니다. aggregateRunId="
-                    + aggregateRunId + ", actual=" + count);
+        Integer expectedMetricCount = jdbcTemplate.queryForObject(
+                "select max(expected_metric_count) from official_verification_run_batch where aggregate_run_id = ?",
+                Integer.class,
+                aggregateRunId);
+        if (count == null || expectedMetricCount == null || expectedMetricCount <= 0
+                || count.intValue() != expectedMetricCount.intValue()) {
+            throw new IllegalStateException("Official verification metric snapshot count does not match expected metric count. aggregateRunId="
+                    + aggregateRunId + ", expected=" + expectedMetricCount + ", actual=" + count);
         }
     }
 
@@ -6708,6 +6880,7 @@ public class OfficialVerificationOperatorSnapshotService {
             }
         }
         upsertFullMetricContractCatalog();
+        upsertRuntimeMetricPurposeContracts(metrics);
         assertFullMetricContractCatalogPersisted();
         List<String> registeredRows = jdbcTemplate.queryForList("""
                         select p.metric_code
@@ -7103,13 +7276,16 @@ public class OfficialVerificationOperatorSnapshotService {
 
     private String nextAction(String metricCode, RuntimeEvidenceCheckResult check) {
         if (check != null && StringUtils.hasText(check.purposeVersion()) && StringUtils.hasText(check.checkCode())) {
-            String contractAction = finalPromptMetricCheckContract(metricCode, check).nextAction();
-            if (StringUtils.hasText(contractAction)) {
-                return conciseCustomerText(contractAction, CUSTOMER_OPERATOR_TEXT_MAX);
+            FinalPromptMetricCheckContract contract = finalPromptMetricCheckContractOrNull(metricCode, check);
+            if (contract != null) {
+                String contractAction = contract.nextAction();
+                if (StringUtils.hasText(contractAction)) {
+                    return conciseCustomerText(contractAction, CUSTOMER_OPERATOR_TEXT_MAX);
+                }
+                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Metric check contract is missing next action. metricCode="
+                        + safe(metricCode)
+                        + ", checkCode=" + safe(check.checkCode()));
             }
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Metric check contract is missing next action. metricCode="
-                    + safe(metricCode)
-                    + ", checkCode=" + safe(check.checkCode()));
         }
         String action = check == null ? null : check.nextAction();
         if (StringUtils.hasText(action)) {
@@ -7122,13 +7298,16 @@ public class OfficialVerificationOperatorSnapshotService {
 
     private String reverifyCriterion(String metricCode, RuntimeEvidenceCheckResult check) {
         if (check != null && StringUtils.hasText(check.purposeVersion()) && StringUtils.hasText(check.checkCode())) {
-            String contractCriterion = finalPromptMetricCheckContract(metricCode, check).reverifyCriterion();
-            if (StringUtils.hasText(contractCriterion)) {
-                return conciseCustomerText(contractCriterion, CUSTOMER_OPERATOR_TEXT_MAX);
+            FinalPromptMetricCheckContract contract = finalPromptMetricCheckContractOrNull(metricCode, check);
+            if (contract != null) {
+                String contractCriterion = contract.reverifyCriterion();
+                if (StringUtils.hasText(contractCriterion)) {
+                    return conciseCustomerText(contractCriterion, CUSTOMER_OPERATOR_TEXT_MAX);
+                }
+                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Metric check contract is missing reverify criterion. metricCode="
+                        + safe(metricCode)
+                        + ", checkCode=" + safe(check.checkCode()));
             }
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Metric check contract is missing reverify criterion. metricCode="
-                    + safe(metricCode)
-                    + ", checkCode=" + safe(check.checkCode()));
         }
         String criterion = check == null ? null : check.reverifyCriterion();
         if (StringUtils.hasText(criterion)) {

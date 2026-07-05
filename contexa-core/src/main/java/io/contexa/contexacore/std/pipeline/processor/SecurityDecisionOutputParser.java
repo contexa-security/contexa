@@ -61,13 +61,14 @@ public class SecurityDecisionOutputParser {
                 parseFailureCategory = "EMPTY_RESPONSE";
             }
             fallbackActionApplied = true;
-            repairedFields.addAll(List.of("action", "reasoning", "riskScore", "confidence", "mitre"));
+            repairedFields.addAll(List.of("action", "reasoning", "riskScore", "confidence", "mitre", "evidenceRefs"));
             SecurityDecisionResponseLite fallback = buildResponse(
                     FALLBACK_ACTION,
                     defaultReasoning(FALLBACK_ACTION),
                     defaultNumericScore("riskScore", FALLBACK_ACTION),
                     defaultNumericScore("confidence", FALLBACK_ACTION),
-                    DEFAULT_MITRE);
+                    DEFAULT_MITRE,
+                    List.of());
             recordMetadata(context, false, fallbackActionApplied, repairedFields, parseFailureCategory, FALLBACK_ACTION);
             return fallback;
         }
@@ -134,8 +135,16 @@ public class SecurityDecisionOutputParser {
             mitre = DEFAULT_MITRE;
         }
 
-        boolean coreFieldsPresent = !actionResult.fallbackApplied() && reasoningPresent;
-        SecurityDecisionResponseLite parsed = buildResponse(actionResult.action(), reasoning, riskScore, confidence, mitre);
+        List<String> evidenceRefs = normalizeEvidenceRefs(firstNonNull(
+                asStringList(getCaseInsensitive(fields, "evidenceRefs")),
+                asStringList(getCaseInsensitive(fields, "evidenceReferences")),
+                extractJsonStringArray(raw, "evidenceRefs")), reasoning);
+        if (evidenceRefs.isEmpty()) {
+            repairedFields.add("evidenceRefs");
+        }
+
+        boolean coreFieldsPresent = !actionResult.fallbackApplied() && reasoningPresent && !evidenceRefs.isEmpty();
+        SecurityDecisionResponseLite parsed = buildResponse(actionResult.action(), reasoning, riskScore, confidence, mitre, evidenceRefs);
         recordMetadata(context, coreFieldsPresent, fallbackActionApplied, repairedFields, parseFailureCategory, actionResult.fallbackApplied() ? actionResult.action() : null);
         return parsed;
     }
@@ -145,13 +154,15 @@ public class SecurityDecisionOutputParser {
             String reasoning,
             Double riskScore,
             Double confidence,
-            String mitre) {
+            String mitre,
+            List<String> evidenceRefs) {
         SecurityDecisionResponseLite response = new SecurityDecisionResponseLite();
         response.setAction(action);
         response.setReasoning(reasoning);
         response.setRiskScore(riskScore);
         response.setConfidence(confidence);
         response.setMitre(mitre);
+        response.setEvidenceRefs(evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs));
         return response;
     }
 
@@ -169,6 +180,7 @@ public class SecurityDecisionOutputParser {
         addMetadata(context, "securityDecisionFallbackApplied", fallbackActionApplied);
         addMetadata(context, "securityDecisionOutputRepairApplied", !repairedFields.isEmpty());
         addMetadata(context, "securityDecisionOutputRepairFields", new ArrayList<>(repairedFields));
+        addMetadata(context, "securityDecisionEvidenceRefsPresent", !repairedFields.contains("evidenceRefs"));
         addMetadata(context, "securityDecisionParseFailureCategory", parseFailureCategory);
         if (fallbackAction != null) {
             addMetadata(context, "securityDecisionFallbackAction", fallbackAction);
@@ -189,6 +201,118 @@ public class SecurityDecisionOutputParser {
         }
     }
 
+    private List<String> asStringList(Object value) {
+        if (value == null) {
+            return null;
+        }
+        List<String> refs = new ArrayList<>();
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                String text = asString(item);
+                if (text != null) {
+                    refs.add(text);
+                }
+            }
+            return refs;
+        }
+        String text = asString(value);
+        if (text == null) {
+            return null;
+        }
+        if (text.contains(",")) {
+            for (String token : text.split(",")) {
+                String trimmed = firstNonBlank(token);
+                if (trimmed != null) {
+                    refs.add(trimmed);
+                }
+            }
+        } else {
+            refs.add(text);
+        }
+        return refs;
+    }
+
+    private List<String> extractJsonStringArray(String raw, String fieldName) {
+        if (raw == null || fieldName == null) {
+            return null;
+        }
+        Pattern pattern = Pattern.compile("(?is)\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*(\\[[^\\]]*\\])");
+        Matcher matcher = pattern.matcher(raw);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return OBJECT_MAPPER.readValue(matcher.group(1), new TypeReference<List<String>>() {
+            });
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private List<String> normalizeEvidenceRefs(List<String> refs, String reasoning) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (refs != null) {
+            for (String ref : refs) {
+                String text = firstNonBlank(ref);
+                if (text == null) {
+                    continue;
+                }
+                String canonical = canonicalEvidenceRef(text);
+                if (canonical != null) {
+                    normalized.add(canonical);
+                }
+            }
+        }
+        if (mentionsSensitivityEvidence(reasoning)) {
+            normalized.add("sensitivity");
+        }
+        if (mentionsBaselineEvidence(reasoning)) {
+            normalized.add("baseline");
+        }
+        return List.copyOf(normalized);
+    }
+
+    private String canonicalEvidenceRef(String ref) {
+        String normalized = ref.trim().toLowerCase(Locale.ROOT)
+                .replace('_', '-')
+                .replace(' ', '-');
+        return switch (normalized) {
+            case "baseline", "work-profile", "history", "normal-behavior" -> "baseline";
+            case "sensitivity", "high-sensitivity", "resource-sensitivity", "critical-sensitivity", "business-impact" -> "sensitivity";
+            case "authorization", "authz", "auth", "authorization-effect", "permission", "permissions", "mfa" -> "authorization";
+            case "resource", "session", "device", "location", "rag", "threat", "approval", "delegation" -> normalized;
+            default -> null;
+        };
+    }
+
+    private boolean mentionsSensitivityEvidence(String reasoning) {
+        if (reasoning == null || reasoning.isBlank()) {
+            return false;
+        }
+        String lower = reasoning.toLowerCase(Locale.ROOT);
+        return lower.contains("high-sensitivity")
+                || lower.contains("high sensitivity")
+                || lower.contains("sensitive-resource")
+                || lower.contains("sensitive resource")
+                || lower.contains("sensitive res")
+                || lower.contains("resource sensitivity")
+                || lower.contains("critical resource")
+                || lower.contains("critical sensitivity")
+                || lower.contains("business impact");
+    }
+
+    private boolean mentionsBaselineEvidence(String reasoning) {
+        if (reasoning == null || reasoning.isBlank()) {
+            return false;
+        }
+        String lower = reasoning.toLowerCase(Locale.ROOT);
+        return lower.contains("limited baseline")
+                || lower.contains("baseline")
+                || lower.contains("work profile")
+                || lower.contains("work-profile")
+                || lower.contains("history")
+                || lower.contains("historical");
+    }
     private String extractJsonCandidate(String raw) {
         String cleaned = stripCodeFence(raw);
         int start = cleaned.indexOf('{');

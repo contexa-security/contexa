@@ -33,7 +33,8 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
-
+import org.springframework.mock.env.MockEnvironment;
+
 class SpringLlmRuntimeCatalogTest {
 
     @Test
@@ -68,6 +69,34 @@ class SpringLlmRuntimeCatalogTest {
         verify(applicationContext, never()).getBean("openAiChatModel", ChatModel.class);
     }
 
+    @Test
+    void shouldExposeSpringOpenAiConfiguredModelsAsBindingIds() {
+        ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);
+        ConfigurableListableBeanFactory beanFactory = mock(ConfigurableListableBeanFactory.class);
+        when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
+        when(applicationContext.getEnvironment()).thenReturn(new MockEnvironment()
+                .withProperty("spring.ai.openai.chat.options.model", "gpt-5-nano")
+                .withProperty("spring.ai.openai.embedding.options.model", "text-embedding-3-small"));
+        when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"openAiChatModel"});
+        when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[]{"openAiEmbeddingModel"});
+        Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
+        Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiEmbeddingModel", false);
+        when(beanFactory.containsBeanDefinition("openAiChatModel")).thenReturn(false);
+        when(beanFactory.containsBeanDefinition("openAiEmbeddingModel")).thenReturn(false);
+
+        SpringLlmRuntimeCatalog catalog = new SpringLlmRuntimeCatalog(
+                applicationContext,
+                new ContexaProperties(),
+                new ContexaLlmBindingProperties());
+
+        LlmRuntimeBinding chatBinding = catalog.findChatBinding("gpt-5-nano").orElseThrow();
+        LlmRuntimeBinding embeddingBinding = catalog.findEmbeddingBinding("text-embedding-3-small").orElseThrow();
+
+        assertThat(chatBinding.getProvider()).isEqualTo("openai");
+        assertThat(chatBinding.getModelId()).isEqualTo("gpt-5-nano");
+        assertThat(embeddingBinding.getProvider()).isEqualTo("openai");
+        assertThat(embeddingBinding.getModelId()).isEqualTo("text-embedding-3-small");
+    }
     @Test
     void shouldExposeConfiguredAliasBinding() {
         ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);

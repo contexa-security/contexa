@@ -788,12 +788,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
                 return limitedAuthorizedPromptContext.documents();
             }
-            // 1. ?リ옇????띠룇裕???롪틵??????х뙴?꾨Ь????덈뺄
+            // 1. ??れ삀?????좊즵獒???濡ろ떟?????????袁ⓓ?????덈틖
             CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
                     searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
                             buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR);
 
-            // 2. ?筌먦끉???롪틵??????х뙴?꾨Ь?繞벿뮻??
+            // 2. ?嶺뚮Ĳ????濡ろ떟?????????袁ⓓ?濚욌꼬裕뼘??
             String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
             final double broadThreshold = Math.min(similarityThreshold, 0.35d);
             boolean runBroad = StringUtils.hasText(broadQuery) && !broadQuery.equals(query);
@@ -803,7 +803,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 3. Baseline ?롪틵??????х뙴?꾨Ь?繞벿뮻??
+            // 3. Baseline ?濡ろ떟?????????袁ⓓ?濚욌꼬裕뼘??
             String userBaselineQuery = buildUserBaselineContextQuery(event);
             boolean runBaseline = StringUtils.hasText(userBaselineQuery)
                     && !userBaselineQuery.equals(query)
@@ -814,7 +814,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 4. Supporting Documents ?롪틵??????х뙴?꾨Ь?繞벿뮻??(Baseline 亦껋꼶梨?遺븍뎨????곌랜理????臾먮뺄)
+            // 4. Supporting Documents ?濡ろ떟?????????袁ⓓ?濚욌꼬裕뼘??(Baseline 雅?퍔瑗띰㎖??븍툖?????怨뚮옖筌?????얜Ŧ類?
             boolean personalBaselineEstablished = false;
             if (baselineLearningService != null) {
                 var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event));
@@ -839,7 +839,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         }, RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 5. 嶺뚮ㅄ維獄????х뙴?꾨Ь??롪틵????곌랜理?????덈뺄 ???브퀗???
+            // 5. 癲ル슢?꾤땟?????????袁ⓓ??濡ろ떟????怨뚮옖筌??????덈틖 ???釉뚰???
             CompletableFuture.allOf(personalFuture, broadFuture, baselineFuture, supportingFuture).join();
 
             List<Document> personalDocuments = personalFuture.get();
@@ -855,7 +855,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 mergedDocuments.addAll(userBaselineDocuments);
             }
 
-            // ??瑜곷턄??곗뒧??????깅뇶 嶺뚳퐣瑗?? Baseline????濡〓뎡??琉???怨뚮룎 ??쒖굣????? ?遊붋?브퀗?꿴뇡??supporting????戮?빵??⑤챷紐드슖??熬곣뫗????롪퍔???
+            // ???쒓낮???怨쀫뮛??????源낅눞 癲ル슪?ｇ몭?? Baseline????嚥▲볥렊??筌????⑤슢猷????뽮덫????? ??딅텑??釉뚰?轅대눀??supporting????筌?鍮???ㅼ굣筌뤿뱶????ш끽維????濡ろ뜑???
             boolean needSupportingEvidence = personalDocuments.size() < 3 || !personalBaselineEstablished;
             if (needSupportingEvidence) {
                 if (!runSupporting && isLayer1SupportingRagSearchEnabled() && StringUtils.hasText(organizationId)) {
@@ -1893,6 +1893,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             copyLayerScopedTimingTelemetry(metadata, telemetry);
             metadata.put("promptRuntimeTelemetryLinked", true);
             metadata.put("promptRuntimeTelemetryLayer", getLayerName());
+        }
+        if (pipelineResponse.getEvidenceRefs() != null && !pipelineResponse.getEvidenceRefs().isEmpty()) {
+            metadata.put("evidenceRefs", List.copyOf(pipelineResponse.getEvidenceRefs()));
+        }
+        Object evidenceRefs = responseMetadata.get("evidenceRefs");
+        if (evidenceRefs != null && !metadata.containsKey("evidenceRefs")) {
+            metadata.put("evidenceRefs", evidenceRefs);
         }
         copyPromptTextIfPresent(responseMetadata, metadata, "systemPrompt");
         copyPromptTextIfPresent(responseMetadata, metadata, "userPrompt");

@@ -82,9 +82,14 @@ public class PromptQualityAssurancePageController {
 
     @GetMapping("/verification")
     public String verification() {
-        return "redirect:/contexa/admin/prompt-quality/verification/readiness";
+        return "redirect:/contexa/admin/prompt-quality/verification/summary";
     }
 
+    @GetMapping("/verification/summary")
+    public String verificationSummary(Model model) {
+        model.addAttribute("verificationStage", "summary");
+        return page(model, "verification-summary", message("enterprise.pqa.pageTitle.verification", "공식 검사"), "contexa/admin/prompt-quality/verification");
+    }
     @GetMapping("/verification/readiness")
     public String verificationReadiness(Model model) {
         model.addAttribute("verificationStage", "readiness");
@@ -105,13 +110,36 @@ public class PromptQualityAssurancePageController {
 
     @GetMapping("/verification/metrics")
     public String verificationMetrics(Model model) {
-        model.addAttribute("verificationStage", "metrics");
+        model.addAttribute("verificationStage", "prompt-metrics");
         return page(model, "verification-metrics", message("enterprise.pqa.pageTitle.metrics", "12지표 상세"), "contexa/admin/prompt-quality/verification");
     }
 
+    @GetMapping("/verification/llm-metrics")
+    public String verificationLlmMetrics(Model model) {
+        model.addAttribute("verificationStage", "llm-metrics");
+        return page(model, "verification-llm-metrics", message("enterprise.pqa.pageTitle.metrics", "LLM 판정 6지표"), "contexa/admin/prompt-quality/verification");
+    }
+
+    @GetMapping("/verification/failures")
+    public String verificationFailures(Model model) {
+        model.addAttribute("verificationStage", "failures");
+        return page(model, "verification-failures", message("enterprise.pqa.pageTitle.metrics", "실패 원인"), "contexa/admin/prompt-quality/verification");
+    }
+
+    @GetMapping("/verification/evidence-package")
+    public String verificationEvidencePackage(Model model) {
+        model.addAttribute("verificationStage", "evidence-package");
+        return page(model, "verification-evidence-package", message("enterprise.pqa.pageTitle.metrics", "증거 패키지"), "contexa/admin/prompt-quality/verification");
+    }
+
+    @GetMapping("/verification/reverify")
+    public String verificationReverify(Model model) {
+        model.addAttribute("verificationStage", "reverify");
+        return page(model, "verification-reverify", message("enterprise.pqa.pageTitle.metrics", "재검증"), "contexa/admin/prompt-quality/verification");
+    }
     @GetMapping("/verification/handoff")
     public String verificationHandoff() {
-        return "redirect:/contexa/admin/prompt-quality/verification/metrics";
+        return "redirect:/contexa/admin/prompt-quality/verification/failures";
     }
 
     private String page(Model model, String activeKey, String pageTitle, String viewName) {
@@ -126,32 +154,43 @@ public class PromptQualityAssurancePageController {
 
     private List<PromptQualityNavigationItem> navigation(String activeKey) {
         return List.of(
-                item(message("enterprise.pqa.nav.resources", "보호 대상 리소스"), "/contexa/admin/prompt-quality/resources",
-                        message("enterprise.pqa.nav.resources.desc", "공식검사 대상 리소스를 확인합니다."),
+                item(message("enterprise.pqa.nav.resources", "Protected resources"), "/contexa/admin/prompt-quality/resources",
+                        message("enterprise.pqa.nav.resources.desc", "Review official inspection target resources."),
                         "resources".equals(activeKey)),
-                item(message("enterprise.pqa.nav.runtimeEvidence", "요청 증거 자료"), "/contexa/admin/prompt-quality/runtime-evidence",
-                        message("enterprise.pqa.nav.runtimeEvidence.desc", "봉인된 실제 요청 증거를 확인합니다."),
+                item(message("enterprise.pqa.nav.runtimeEvidence", "Request evidence"), "/contexa/admin/prompt-quality/runtime-evidence",
+                        message("enterprise.pqa.nav.runtimeEvidence.desc", "Review sealed actual request evidence."),
                         "runtime-evidence".equals(activeKey)),
-                item(message("enterprise.pqa.nav.verification", "공식 검사"), "/contexa/admin/prompt-quality/verification/readiness",
-                        message("enterprise.pqa.nav.verification.desc", "선택한 요청 증거로 12지표 공식검사를 실행하고 결과를 확인합니다."),
+                item(message("enterprise.pqa.nav.verification", "Official inspection"), "/contexa/admin/prompt-quality/verification/summary",
+                        message("enterprise.pqa.nav.verification.desc", "Run and review prompt and LLM official inspections."),
                         activeKey != null && activeKey.startsWith("verification"),
                         List.of(
-                                item(message("enterprise.pqa.nav.readiness", "증거 확인"), "/contexa/admin/prompt-quality/verification/readiness",
-                                        message("enterprise.pqa.nav.readiness.desc", "검사할 요청 증거를 확인합니다."),
+                                item(message("enterprise.pqa.nav.summary", "Integrated result"), "/contexa/admin/prompt-quality/verification/summary",
+                                        message("enterprise.pqa.nav.summary.desc", "Review prompt and LLM official inspection results together."),
+                                        "verification-summary".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.readiness", "Evidence check"), "/contexa/admin/prompt-quality/verification/readiness",
+                                        message("enterprise.pqa.nav.readiness.desc", "Check request evidence to inspect."),
                                         "verification-readiness".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.run", "검사 실행"), "/contexa/admin/prompt-quality/verification/run",
-                                        message("enterprise.pqa.nav.run.desc", "선택한 요청 증거로 공식검사를 실행합니다."),
+                                item(message("enterprise.pqa.nav.run", "Inspection run"), "/contexa/admin/prompt-quality/verification/run",
+                                        message("enterprise.pqa.nav.run.desc", "Run official inspection with selected request evidence."),
                                         "verification-run".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.comparison", "Prompt 비교"), "/contexa/admin/prompt-quality/verification/prompt-comparison",
-                                        message("enterprise.pqa.nav.comparison.desc", "저장된 프롬프트와 검사 근거를 비교합니다."),
-                                        "verification-comparison".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.metrics", "12지표 상세"), "/contexa/admin/prompt-quality/verification/metrics",
-                                        message("enterprise.pqa.nav.metrics.desc", "12개 지표별 결과와 상세 근거를 확인합니다."),
-                                        "verification-metrics".equals(activeKey))
+                                item(message("enterprise.pqa.nav.promptMetrics", "Prompt 12 metrics"), "/contexa/admin/prompt-quality/verification/metrics",
+                                        message("enterprise.pqa.nav.promptMetrics.desc", "Review 12 prompt and context quality metrics."),
+                                        "verification-metrics".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.llmMetrics", "LLM decision 6 metrics"), "/contexa/admin/prompt-quality/verification/llm-metrics",
+                                        message("enterprise.pqa.nav.llmMetrics.desc", "Review LLM decision action, evidence, and stability."),
+                                        "verification-llm-metrics".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.failures", "Failure causes"), "/contexa/admin/prompt-quality/verification/failures",
+                                        message("enterprise.pqa.nav.failures.desc", "Review official inspection failure causes and remediation targets."),
+                                        "verification-failures".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.evidencePackage", "Evidence package"), "/contexa/admin/prompt-quality/verification/evidence-package",
+                                        message("enterprise.pqa.nav.evidencePackage.desc", "Review sealed evidence and decision payload."),
+                                        "verification-evidence-package".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.reverify", "Reverification"), "/contexa/admin/prompt-quality/verification/reverify",
+                                        message("enterprise.pqa.nav.reverify.desc", "Review prompt, LLM, and full reverification scopes."),
+                                        "verification-reverify".equals(activeKey))
                         ))
         );
     }
-
     private static PromptQualityNavigationItem item(
             String label,
             String href,
@@ -187,3 +226,5 @@ public class PromptQualityAssurancePageController {
         return resolved;
     }
 }
+
+

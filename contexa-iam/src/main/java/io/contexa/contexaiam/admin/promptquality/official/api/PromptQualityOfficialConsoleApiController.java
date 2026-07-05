@@ -19,6 +19,9 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPacka
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationExecutionStatus;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageDetail;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceReverifyRequest;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceReverifyResult;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRequest;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRun;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
@@ -65,6 +68,9 @@ import java.util.Set;
 public class PromptQualityOfficialConsoleApiController {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final Set<String> LLM_DECISION_METRIC_CODES = Set.of("CDC", "ERA", "SUHR", "OCR", "DSS", "ARR");
+    private static final Set<String> PROMPT_OFFICIAL_METRIC_CODES = Set.of(
+            "EIR", "CCR", "CCSR", "PFR", "MTR", "COR", "RAP", "RPI", "BMA", "USNS", "BSR", "PRE");
 
     private final SealedEvidencePackageLookupService evidenceLookupService;
     private final PromptQualityRuntimeVerificationService verificationService;
@@ -296,6 +302,81 @@ public class PromptQualityOfficialConsoleApiController {
         return officialRunDetailService.findPackageSummary(packageId, aggregateRunId);
     }
 
+    @GetMapping("/verification/runtime-runs/package/{packageId}/metric-families")
+    public Map<String, Object> packageMetricFamilies(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        OfficialRunPackageDetail detail = officialRunDetailService.findPackageDetail(packageId, aggregateRunId);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("packageId", detail.packageId());
+        payload.put("aggregateRunId", detail.aggregateRunId());
+        payload.put("prompt", metricFamilyPayload(detail, "prompt"));
+        payload.put("decision", metricFamilyPayload(detail, "decision"));
+        payload.put("other", metricFamilyPayload(detail, "other"));
+        payload.put("finalDecision", detail.finalDecision());
+        payload.put("blocked", detail.blocked());
+        payload.put("blockReasonSummary", detail.blockReasonSummary());
+        return payload;
+    }
+
+    @GetMapping("/verification/runtime-runs/package/{packageId}/metrics/prompt")
+    public Map<String, Object> packagePromptMetrics(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        return metricFamilyPayload(officialRunDetailService.findPackageDetail(packageId, aggregateRunId), "prompt");
+    }
+
+    @GetMapping("/verification/runtime-runs/package/{packageId}/metrics/llm-decision")
+    public Map<String, Object> packageLlmDecisionMetrics(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        return metricFamilyPayload(officialRunDetailService.findPackageDetail(packageId, aggregateRunId), "decision");
+    }
+
+    @GetMapping("/verification/runtime-runs/package/{packageId}/metrics/{metricCode}/failure-details")
+    public List<OfficialRunFailureCause> packageMetricFailureDetails(
+            @PathVariable String packageId,
+            @PathVariable String metricCode,
+            @RequestParam(required = false) String aggregateRunId) {
+        String normalizedMetric = normalizeMetricCode(metricCode);
+        return officialRunDetailService.findFailureDetails(packageId, aggregateRunId).stream()
+                .filter(failure -> normalizeMetricCode(failure.metricCode()).equals(normalizedMetric))
+                .toList();
+    }
+
+    @GetMapping("/verification/runtime-runs/package/{packageId}/evidence-package")
+    public RuntimeEvidencePackageDetail packageEvidencePackage(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        return officialRunDetailService.findPackageDetail(packageId, aggregateRunId).sealedEvidence();
+    }
+
+    @GetMapping("/verification/runtime-runs/package/{packageId}/reverify-options")
+    public Map<String, Object> packageReverifyOptions(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        return reverifyOptionsPayload(officialRunDetailService.findPackageDetail(packageId, aggregateRunId));
+    }
+
+    @PostMapping("/verification/runtime-runs/package/{packageId}/reverify")
+    public RuntimeEvidenceReverifyResult reverifyPackage(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId,
+            @RequestBody(required = false) Map<String, Object> body,
+            Authentication authentication) {
+        String operator = authentication != null && StringUtils.hasText(authentication.getName())
+                ? authentication.getName()
+                : firstText(stringValue(body, "operatorId"), "oss-admin");
+        String reason = firstText(stringValue(body, "reason"), stringValue(body, "reverificationReason"), "official verification recheck");
+        return verificationService.reverify(new RuntimeEvidenceReverifyRequest(
+                packageId,
+                operator,
+                reason,
+                stringValue(body, "sourcePackageId"),
+                firstText(aggregateRunId, stringValue(body, "sourceAggregateRunId")),
+                stringList(body == null ? null : body.get("findingIds")),
+                stringList(body == null ? null : body.get("issueIds"))));
+    }
     @GetMapping("/verification/runtime-runs/package/{packageId}/technical-ledger")
     public OfficialRunPackageDetail packageTechnicalLedger(
             @PathVariable String packageId,
@@ -346,6 +427,90 @@ public class PromptQualityOfficialConsoleApiController {
         return officialRunDetailService.findActualPromptProblems(packageId, aggregateRunId);
     }
 
+    private Map<String, Object> metricFamilyPayload(OfficialRunPackageDetail detail, String family) {
+        List<OfficialVerificationMetricTrace> runs = detail.runs().stream()
+                .filter(run -> family.equals(metricFamily(run)))
+                .toList();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("packageId", detail.packageId());
+        payload.put("aggregateRunId", detail.aggregateRunId());
+        payload.put("family", family);
+        payload.put("label", metricFamilyLabel(family));
+        payload.put("totalRunCount", runs.size());
+        payload.put("passedRunCount", (int) runs.stream().filter(run -> passState(run.state())).count());
+        payload.put("failedRunCount", (int) runs.stream().filter(run -> !passState(run.state())).count());
+        payload.put("runs", runs);
+        payload.put("failureCauses", detail.failureCauses().stream()
+                .filter(failure -> runs.stream().anyMatch(run -> normalizeMetricCode(run.metricCode()).equals(normalizeMetricCode(failure.metricCode()))))
+                .toList());
+        return payload;
+    }
+
+    private Map<String, Object> reverifyOptionsPayload(OfficialRunPackageDetail detail) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("packageId", detail.packageId());
+        payload.put("aggregateRunId", detail.aggregateRunId());
+        payload.put("prompt", reverifyOption(detail, "prompt"));
+        payload.put("decision", reverifyOption(detail, "decision"));
+        payload.put("full", reverifyOption(detail, "full"));
+        return payload;
+    }
+
+    private Map<String, Object> reverifyOption(OfficialRunPackageDetail detail, String scope) {
+        List<OfficialVerificationMetricTrace> scopedRuns = "full".equals(scope)
+                ? detail.runs()
+                : detail.runs().stream().filter(run -> scope.equals(metricFamily(run))).toList();
+        Map<String, Object> option = new LinkedHashMap<>();
+        option.put("scope", scope);
+        option.put("label", switch (scope) {
+            case "prompt" -> "\uD504\uB86C\uD504\uD2B8\uB9CC \uC7AC\uAC80\uC99D";
+            case "decision" -> "LLM \uD310\uC815\uB9CC \uC7AC\uAC80\uC99D";
+            default -> "\uC804\uCCB4 \uC7AC\uAC80\uC99D";
+        });
+        option.put("totalRunCount", scopedRuns.size());
+        option.put("passedRunCount", (int) scopedRuns.stream().filter(run -> passState(run.state())).count());
+        option.put("failedRunCount", (int) scopedRuns.stream().filter(run -> !passState(run.state())).count());
+        option.put("endpoint", "/contexa/admin/api/prompt-quality/verification/runtime-runs/package/" + detail.packageId() + "/reverify");
+        return option;
+    }
+
+    private String metricFamily(OfficialVerificationMetricTrace run) {
+        String code = normalizeMetricCode(run == null ? null : run.metricCode());
+        String group = normalizeMetricCode(run == null ? null : run.groupName());
+        if (LLM_DECISION_METRIC_CODES.contains(code) || "LLM_DECISION".equals(group) || "DECISION_OFFICIAL".equals(group)) {
+            return "decision";
+        }
+        if (PROMPT_OFFICIAL_METRIC_CODES.contains(code)
+                || Set.of("IMPLEMENTATION_ALIGNMENT", "RAG_AND_BASELINE", "BEHAVIORAL_CONTEXT", "RESOURCE_ELIGIBILITY").contains(group)) {
+            return "prompt";
+        }
+        return "other";
+    }
+
+    private String metricFamilyLabel(String family) {
+        return switch (family) {
+            case "prompt" -> "\uD504\uB86C\uD504\uD2B8 12\uC9C0\uD45C";
+            case "decision" -> "LLM \uD310\uC815 6\uC9C0\uD45C";
+            default -> "\uAE30\uD0C0 \uACF5\uC2DD\uAC80\uC0AC";
+        };
+    }
+
+    private String normalizeMetricCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private List<String> stringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .map(item -> item == null ? "" : String.valueOf(item).trim())
+                    .filter(StringUtils::hasText)
+                    .toList();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return List.of(text.trim());
+        }
+        return List.of();
+    }
     private void loadProperties(Properties properties, String pattern) {
         try {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();

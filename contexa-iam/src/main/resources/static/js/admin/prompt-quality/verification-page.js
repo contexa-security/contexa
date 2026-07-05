@@ -18,6 +18,33 @@ const OFFICIAL_EXECUTION_RUNNING_STATES = new Set([
     'SNAPSHOT_WRITING',
     'RUNNING'
 ]);
+const LLM_DECISION_OFFICIAL_METRICS = new Set(['CDC', 'ERA', 'SUHR', 'OCR', 'DSS', 'ARR']);
+const RESOURCE_ELIGIBILITY_OFFICIAL_METRICS = new Set(['PRE']);
+const PROMPT_OFFICIAL_METRICS = new Set([
+    'EIR', 'CCR', 'CCSR', 'PFR', 'MTR', 'COR', 'RAP', 'RPI', 'BMA', 'USNS', 'BSR', 'PRE'
+]);
+const OFFICIAL_METRIC_FAMILY_LABELS = {
+    prompt: '프롬프트 12지표',
+    decision: 'LLM 판정 6지표',
+    other: '기타 공식검사'
+};
+const OFFICIAL_FAILURE_DOMAIN_LABELS = {
+    prompt: '프롬프트 입력',
+    context: '컨텍스트',
+    evidence: '증거 패키지',
+    model: 'LLM 판정',
+    outputContract: '출력 계약',
+    resource: '보호 리소스',
+    other: '기타'
+};
+const LLM_DECISION_METRIC_PURPOSES = {
+    CDC: '최종 액션이 보안 컨텍스트와 증거 기준에 맞는지 확인합니다.',
+    ERA: '판정 사유가 봉인 증거와 evidenceRefs로 추적 가능한지 확인합니다.',
+    SUHR: '불확실하거나 증거가 부족한 경우 안전한 처리로 이어지는지 확인합니다.',
+    OCR: 'ALLOW/CHALLENGE/BLOCK, riskScore, confidence, evidenceRefs가 출력 계약을 지키는지 확인합니다.',
+    DSS: '같은 봉인 증거를 반복 검증해도 판정 방향이 안정적인지 확인합니다.',
+    ARR: '주입, 위조, 오래된 증거, 충돌 증거가 있어도 안전 기준을 벗어나지 않는지 확인합니다.'
+};
 const PROMPT_CONSISTENCY_LABEL_KEYS = {
     'LLM system/user prompt captured': 'enterprise.pqa.promptConsistency.label.llmPromptCaptured',
     'promptHash recalculates from LLM prompt': 'enterprise.pqa.promptConsistency.label.promptHashRecalculated',
@@ -232,7 +259,7 @@ async function initializeReadOnlyStage(pageRoot, stage, packageId) {
         pageRoot.__selectedPackageId = packageId;
         updateSubrouteLinks(pageRoot, routeOnlyEvidence);
     }
-    if ((stage === 'comparison' || stage === 'metrics') && packageId) {
+    if (isStoredVerificationResultRoute(stage) && packageId) {
         setStatus(pageRoot,
                 'loading',
                 t('enterprise.pqa.verification.readonly.loading.title'),
@@ -287,22 +314,8 @@ function bindRun(pageRoot) {
 }
 
 function bindSubrouteGate(pageRoot) {
-    if (pageRoot.dataset.pqaSubrouteGateBound === 'true') {
-        return;
-    }
-    pageRoot.dataset.pqaSubrouteGateBound = 'true';
-    pageRoot.addEventListener('click', event => {
-        const link = event.target.closest('[data-pqa-verification-subroute][aria-disabled="true"]');
-        if (!link) {
-            return;
-        }
-        event.preventDefault();
-        explainAction(
-                pageRoot,
-                link,
-                link.dataset.pqaGateTitle || t('enterprise.pqa.verification.readonly.blocked.title'),
-                link.dataset.pqaGateDetail || t('enterprise.pqa.verification.readonly.blocked.detail'));
-    });
+    // Verification tabs are navigation, not destructive actions. Let the target
+    // page explain missing result data instead of blocking movement with a toast.
 }
 
 function explainAction(pageRoot, anchor, title, detail) {
@@ -1094,22 +1107,304 @@ function hideRunProgress(pageRoot) {
     panel.removeAttribute('data-mode');
 }
 
+function officialMetricFamily(run = {}) {
+    const code = upperText(run?.metricCode);
+    const group = upperText(run?.groupName || run?.metricGroup);
+    if (LLM_DECISION_OFFICIAL_METRICS.has(code) || group === 'LLM_DECISION') {
+        return 'decision';
+    }
+    if (PROMPT_OFFICIAL_METRICS.has(code)
+            || RESOURCE_ELIGIBILITY_OFFICIAL_METRICS.has(code)
+            || ['IMPLEMENTATION_ALIGNMENT', 'RAG_AND_BASELINE', 'BEHAVIORAL_CONTEXT', 'RESOURCE_ELIGIBILITY'].includes(group)) {
+        return 'prompt';
+    }
+    return 'other';
+}
+
+function splitOfficialMetricRuns(runs = []) {
+    return ensureArray(runs).reduce((acc, run) => {
+        acc[officialMetricFamily(run)].push(run);
+        return acc;
+    }, { prompt: [], decision: [], other: [] });
+}
+
+function officialMetricFamilyStats(runs = [], detail = {}) {
+    const safeRuns = ensureArray(runs);
+    const failed = safeRuns.filter(run => {
+        const counts = metricCheckCounts(run, [], detail);
+        return !passState(run?.state) || counts.actualProblemCount > 0 || counts.technicalFailed > 0 || counts.inputReview;
+    }).length;
+    const total = safeRuns.length;
+    const passed = Math.max(total - failed, 0);
+    return { total, passed, failed };
+}
+
+function officialMetricFamilySummary(runs = [], detail = {}) {
+    const families = detail?.metricFamilies || {};
+    if (families.prompt || families.decision || families.other) {
+        return {
+            prompt: officialMetricFamilyStatsFromApi(families.prompt),
+            decision: officialMetricFamilyStatsFromApi(families.decision),
+            other: officialMetricFamilyStatsFromApi(families.other)
+        };
+    }
+    const split = splitOfficialMetricRuns(runs);
+    return {
+        prompt: officialMetricFamilyStats(split.prompt, detail),
+        decision: officialMetricFamilyStats(split.decision, detail),
+        other: officialMetricFamilyStats(split.other, detail)
+    };
+}
+
+function officialMetricFamilyTotals(summary = {}) {
+    const families = ['prompt', 'decision', 'other'].map(key => summary[key] || {});
+    const total = families.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const passed = families.reduce((sum, item) => sum + Number(item.passed || 0), 0);
+    const failed = families.reduce((sum, item) => sum + Number(item.failed || 0), 0);
+    return { total, passed, failed, hasFamilies: total > 0 };
+}
+
+function officialMetricFamilyStatsFromApi(payload = {}) {
+    const total = Number(payload?.totalRunCount || 0);
+    const passed = Number(payload?.passedRunCount || 0);
+    const failed = Number(payload?.failedRunCount || Math.max(total - passed, 0));
+    return { total, passed, failed };
+}
+
+function renderOfficialMetricFamilyOverview(summary = {}) {
+    const cards = [
+        { key: 'prompt', label: OFFICIAL_METRIC_FAMILY_LABELS.prompt, hint: '프롬프트, 컨텍스트, 증거 패키지가 LLM 판단 입력으로 충분한지 확인합니다.' },
+        { key: 'decision', label: OFFICIAL_METRIC_FAMILY_LABELS.decision, hint: 'LLM 판정의 액션, 근거, 출력 계약, 안정성, 공격 저항성을 확인합니다.' }
+    ];
+    if (Number(summary?.other?.total || 0) > 0) {
+        cards.push({ key: 'other', label: OFFICIAL_METRIC_FAMILY_LABELS.other, hint: '분류되지 않은 공식검사 지표입니다.' });
+    }
+    return `
+        <section class="pqa-official-family-overview" aria-label="공식검사 지표 영역 요약">
+            ${cards.map(card => {
+                const stats = summary[card.key] || { total: 0, passed: 0, failed: 0 };
+                const tone = stats.failed ? 'blocked' : stats.total ? 'ready' : 'neutral';
+                return `
+                    <article class="${escapeHtml(tone)}">
+                        <span>${escapeHtml(card.label)}</span>
+                        <strong>${escapeHtml(`${stats.passed} / ${stats.total}`)}</strong>
+                        <small>${escapeHtml(stats.failed ? `${stats.failed}개 실패` : card.hint)}</small>
+                    </article>
+                `;
+            }).join('')}
+        </section>
+    `;
+}
+
+function officialMetricFamilySection(title, description, runs, detail = {}) {
+    const cards = renderOfficialMetricRunCards(runs, detail);
+    const stats = officialMetricFamilyStats(runs, detail);
+    return `
+        <section class="pqa-official-metric-family-section">
+            <div class="pqa-official-ops-head">
+                <strong>${escapeHtml(title)}</strong>
+                <span>${escapeHtml(description)}</span>
+            </div>
+            <div class="pqa-official-family-section-summary">
+                ${comparisonKpi('통과', `${stats.passed} / ${stats.total}`, stats.failed ? 'warning' : 'ready')}
+                ${comparisonKpi('실패', String(stats.failed), stats.failed ? 'blocked' : 'ready')}
+            </div>
+            ${cards.length
+                    ? `<div class="pqa-metric-run-grid">${cards.join('')}</div>`
+                    : `<div class="pqa-empty"><p>${escapeHtml('표시할 지표 결과가 없습니다.')}</p></div>`}
+        </section>
+    `;
+}
+
+function officialEvidenceRefsFromDecision(decision = {}) {
+    const candidates = [
+        decision.evidenceRefs,
+        decision.evidenceReferences,
+        decision.evidenceReferenceIds,
+        decision.supportingEvidenceRefs,
+        decision.metadata?.evidenceRefs
+    ];
+    for (const candidate of candidates) {
+        if (Array.isArray(candidate)) {
+            return distinctText(candidate);
+        }
+        if (rawText(candidate)) {
+            return splitListValue(candidate);
+        }
+    }
+    return [];
+}
+
+function officialEvidencePackageSnapshot(detail = {}) {
+    const sealed = detail?.sealedEvidence || {};
+    const summary = sealed.summary || {};
+    const promptMetadata = sealed.promptMetadata || {};
+    const decision = sealed.decision || {};
+    const promptHash = firstCleanText(summary.promptHash, promptMetadata.promptHash, promptMetadata.userPromptHash, detail?.promptHash);
+    const contextHash = firstCleanText(promptMetadata.contextHash, promptMetadata.contextBindingHash, promptMetadata.canonicalContextHash, detail?.contextHash);
+    return {
+        sealed: sealed.summary?.sealed ?? summary.sealed ?? detail?.sealed,
+        integrityValid: sealed.summary?.integrityValid ?? summary.integrityValid ?? detail?.integrityValid,
+        promptHash,
+        contextHash,
+        decisionAction: firstCleanText(summary.decisionAction, decision.finalAction, decision.action, decision.autonomousAction, decision.proposedAction),
+        decisionRiskScore: firstCleanText(decision.riskScore, decision.risk_score, decision.risk),
+        decisionConfidence: firstCleanText(summary.decisionConfidence, decision.confidence),
+        evidenceRefs: officialEvidenceRefsFromDecision(decision),
+        provider: firstCleanText(promptMetadata.provider, promptMetadata.llmProvider, decision.provider),
+        model: firstCleanText(promptMetadata.model, promptMetadata.runtimeModelId, decision.model)
+    };
+}
+
+function renderOfficialEvidencePackageOverview(detail = {}) {
+    const snapshot = officialEvidencePackageSnapshot(detail);
+    const evidenceRefs = snapshot.evidenceRefs.length ? snapshot.evidenceRefs.join(', ') : '없음';
+    return `
+        <section class="pqa-official-summary-section pqa-official-evidence-overview">
+            <div class="pqa-official-ops-head">
+                <strong>${escapeHtml('증거 패키지와 판정 payload')}</strong>
+                <span>${escapeHtml('봉인 증거, prompt/context hash, LLM 판정 payload, evidenceRefs를 함께 확인합니다.')}</span>
+            </div>
+            <dl class="pqa-registration-meta">
+                <div><dt>${escapeHtml('봉인 상태')}</dt><dd>${badge(snapshot.sealed ? '봉인됨' : '확인 필요', { tone: snapshot.sealed ? 'ready' : 'warning' })}</dd></div>
+                <div><dt>${escapeHtml('무결성')}</dt><dd>${badge(snapshot.integrityValid ? '정상' : '확인 필요', { tone: snapshot.integrityValid ? 'ready' : 'blocked' })}</dd></div>
+                <div><dt>${escapeHtml('promptHash')}</dt><dd><code>${escapeHtml(shortHash(snapshot.promptHash) || text(snapshot.promptHash))}</code></dd></div>
+                <div><dt>${escapeHtml('contextHash')}</dt><dd><code>${escapeHtml(shortHash(snapshot.contextHash) || text(snapshot.contextHash))}</code></dd></div>
+                <div><dt>${escapeHtml('LLM 판정')}</dt><dd>${escapeHtml(llmDecisionActionLabel(snapshot.decisionAction) || '없음')}</dd></div>
+                <div><dt>${escapeHtml('위험/신뢰도')}</dt><dd>${escapeHtml([snapshot.decisionRiskScore, snapshot.decisionConfidence].filter(Boolean).join(' / ') || '없음')}</dd></div>
+                <div><dt>${escapeHtml('provider/model')}</dt><dd>${escapeHtml([snapshot.provider, snapshot.model].filter(Boolean).join(' / ') || '없음')}</dd></div>
+                <div><dt>${escapeHtml('evidenceRefs')}</dt><dd><code>${escapeHtml(evidenceRefs)}</code></dd></div>
+            </dl>
+        </section>
+    `;
+}
+
+function officialReverifyScopeHref(detail = {}, scope = 'full') {
+    const params = new URLSearchParams();
+    setParam(params, 'packageId', detail.packageId);
+    setParam(params, 'aggregateRunId', detail.aggregateRunId);
+    setParam(params, 'reverifyScope', scope);
+    const query = params.toString();
+    return appPath(`/contexa/admin/prompt-quality/verification/metrics${query ? `?${query}` : ''}`);
+}
+
+function renderOfficialReverifyOptions(detail = {}, summary = {}) {
+    const prompt = summary.prompt || { total: 0, passed: 0, failed: 0 };
+    const decision = summary.decision || { total: 0, passed: 0, failed: 0 };
+    const fullTotal = Number(prompt.total || 0) + Number(decision.total || 0) + Number(summary.other?.total || 0);
+    const fullPassed = Number(prompt.passed || 0) + Number(decision.passed || 0) + Number(summary.other?.passed || 0);
+    const options = [
+        {
+            scope: 'prompt',
+            title: '프롬프트만 재검증',
+            count: `${prompt.passed} / ${prompt.total}`,
+            detail: '프롬프트, 컨텍스트, 증거 입력 품질 12지표를 다시 확인합니다.'
+        },
+        {
+            scope: 'decision',
+            title: 'LLM 판정만 재검증',
+            count: `${decision.passed} / ${decision.total}`,
+            detail: 'LLM 판정의 액션, 근거, 출력 계약, 안정성, 공격 저항성 6지표를 다시 확인합니다.'
+        },
+        {
+            scope: 'full',
+            title: '전체 재검증',
+            count: `${fullPassed} / ${fullTotal}`,
+            detail: '프롬프트 품질 12지표와 LLM 판정 6지표를 같은 증거 패키지 기준으로 함께 확인합니다.'
+        }
+    ];
+    return `
+        <section class="pqa-official-reverify-options" aria-label="재검증 범위 선택">
+            <div class="pqa-official-ops-head">
+                <strong>${escapeHtml('재검증 범위')}</strong>
+                <span>${escapeHtml('문제 원인에 따라 프롬프트 입력, LLM 판정, 전체 흐름을 나누어 다시 확인합니다.')}</span>
+            </div>
+            <div class="pqa-official-reverify-grid">
+                ${options.map(option => `
+                    <article>
+                        <div>
+                            <span>${escapeHtml(option.title)}</span>
+                            <strong>${escapeHtml(option.count)}</strong>
+                            <p>${escapeHtml(option.detail)}</p>
+                        </div>
+                        <a class="pqa-action-button compact"
+                           href="${escapeHtml(officialReverifyScopeHref(detail, option.scope))}"
+                           data-pqa-reverify-scope="${escapeHtml(option.scope)}">
+                            ${escapeHtml('범위 선택')}
+                        </a>
+                    </article>
+                `).join('')}
+            </div>
+        </section>
+    `;
+}
+function officialFailureDomain(item = {}, detail = {}) {
+    const metricCode = upperText(item?.metricCode);
+    const run = ensureArray(detail?.runs).find(candidate => upperText(candidate?.metricCode) === metricCode) || {};
+    const group = upperText(run?.groupName || run?.metricGroup);
+    const source = `${text(item?.source)} ${text(item?.checkCode)} ${text(item?.checkLabel)} ${text(item?.problemStatement)} ${text(item?.rootCause)}`.toLowerCase();
+    if (metricCode === 'OCR' || source.includes('schema') || source.includes('output') || source.includes('contract')) {
+        return 'outputContract';
+    }
+    if (['CDC', 'SUHR', 'DSS', 'ARR'].includes(metricCode) || group === 'LLM_DECISION') {
+        return 'model';
+    }
+    if (metricCode === 'ERA' || source.includes('evidence') || source.includes('evidenceref')) {
+        return 'evidence';
+    }
+    if (metricCode === 'PFR' || source.includes('prompt')) {
+        return 'prompt';
+    }
+    if (metricCode === 'PRE' || group === 'RESOURCE_ELIGIBILITY' || source.includes('protectable') || source.includes('resource')) {
+        return 'resource';
+    }
+    if (['CCR', 'CCSR', 'COR', 'RAP', 'RPI', 'BMA', 'USNS', 'BSR', 'EIR', 'MTR'].includes(metricCode)) {
+        return 'context';
+    }
+    return 'other';
+}
+
+function renderOfficialFailureDomainSummary(items = [], detail = {}) {
+    const counts = ensureArray(items).reduce((acc, item) => {
+        const domain = officialFailureDomain(item, detail);
+        acc[domain] = (acc[domain] || 0) + 1;
+        return acc;
+    }, {});
+    const order = ['prompt', 'context', 'evidence', 'model', 'outputContract', 'resource', 'other'];
+    return `
+        <section class="pqa-official-failure-domain-summary" aria-label="실패 원인 영역별 요약">
+            ${order.filter(key => counts[key]).map(key => `
+                <article>
+                    <span>${escapeHtml(OFFICIAL_FAILURE_DOMAIN_LABELS[key] || key)}</span>
+                    <strong>${escapeHtml(String(counts[key]))}</strong>
+                </article>
+            `).join('') || `<article><span>${escapeHtml('실패 원인')}</span><strong>0</strong></article>`}
+        </section>
+    `;
+}
 function renderRun(pageRoot, run) {
     const scopedRun = withRouteIdentity(pageRoot, run || {});
-    const runTotals = metricCheckTotals(ensureArray(scopedRun.metrics), scopedRun);
-    const totalMetricCount = Number(scopedRun.totalMetricCount || 0);
-    const blockedMetricCount = Number(runTotals.blockedMetrics || 0);
-    const gateMetricCount = Number(runTotals.gateMetrics || 0);
+    const metricRuns = ensureArray(scopedRun.metrics);
+    const runTotals = metricCheckTotals(metricRuns, scopedRun);
+    const familyCounts = officialMetricFamilyTotals(officialMetricFamilySummary(metricRuns, scopedRun));
+    const totalMetricCount = familyCounts.hasFamilies
+            ? familyCounts.total
+            : Number(scopedRun.totalMetricCount || 0);
+    const blockedMetricCount = familyCounts.hasFamilies
+            ? familyCounts.failed
+            : Number(runTotals.blockedMetrics || 0);
     const gateConditionCount = Number(runTotals.gateConditions || 0);
     const inputReviewCount = Number(runTotals.inputReviewMetrics || 0);
     const notApplicableMetricCount = Number(runTotals.notApplicableMetrics || 0);
     const rawPassedMetricCount = Number(scopedRun.passedMetricCount || 0);
     const derivedPassedMetricCount = Math.max(
-            totalMetricCount - blockedMetricCount - gateMetricCount - inputReviewCount - notApplicableMetricCount,
+            totalMetricCount - blockedMetricCount - inputReviewCount - notApplicableMetricCount,
             0);
-    const passedMetricCount = totalMetricCount > 0
-            ? Math.min(rawPassedMetricCount || derivedPassedMetricCount, derivedPassedMetricCount)
-            : rawPassedMetricCount;
+    const passedMetricCount = familyCounts.hasFamilies
+            ? familyCounts.passed
+            : totalMetricCount > 0
+                    ? Math.min(rawPassedMetricCount || derivedPassedMetricCount, derivedPassedMetricCount)
+                    : rawPassedMetricCount;
     renderRunSummary(pageRoot, scopedRun);
     updateHandoffLinks(pageRoot, scopedRun);
     renderStatusChart(
@@ -1131,18 +1426,25 @@ function renderRunSummary(pageRoot, run) {
     }
     const metrics = ensureArray(run.metrics);
     const totals = metricCheckTotals(metrics, run);
-    const total = Number(run.totalMetricCount || metrics.length || 12);
+    const familySummary = officialMetricFamilySummary(metrics, run);
+    const familyCounts = officialMetricFamilyTotals(familySummary);
+    const fallbackTotal = Number(run.totalMetricCount || metrics.length || 12);
+    const total = familyCounts.hasFamilies ? familyCounts.total : fallbackTotal;
     const actualProblems = Number(totals.actualProblems || visibleActualPromptProblems(run.actualPromptProblems).length || 0);
     const blockedMetrics = Number(totals.blockedMetrics || 0);
+    const familyFailedMetrics = familyCounts.hasFamilies ? familyCounts.failed : 0;
     const gateMetrics = Number(totals.gateMetrics || 0);
     const gateConditions = Number(totals.gateConditions || 0);
     const inputReviewMetrics = Number(totals.inputReviewMetrics || 0);
     const notApplicableMetrics = Number(totals.notApplicableMetrics || 0);
-    const passed = Math.max(total - blockedMetrics - gateMetrics - inputReviewMetrics - notApplicableMetrics, 0);
+    const passed = familyCounts.hasFamilies
+            ? familyCounts.passed
+            : Math.max(total - blockedMetrics - gateMetrics - inputReviewMetrics - notApplicableMetrics, 0);
+    const failed = familyCounts.hasFamilies ? familyCounts.failed : blockedMetrics;
     const officialPassed = officialVerificationPassedForDisplay(run, {
         totalMetricCount: total,
         passedMetricCount: passed,
-        failedMetricCount: blockedMetrics,
+        failedMetricCount: failed,
         actualProblems
     });
     const resultTone = officialPassed || run.certificateIssued
@@ -1170,7 +1472,7 @@ function renderRunSummary(pageRoot, run) {
             <article class="pqa-run-hero-card ${escapeHtml(resultTone)}">
                 <div class="pqa-run-hero-main">
                     <div class="pqa-run-hero-copy">
-                        <span class="pqa-run-kicker">Official Prompt Assurance</span>
+                        <span class="pqa-run-kicker">공식검사 통합 결과</span>
                         <strong>${escapeHtml(resultTitle)}</strong>
                         <p>${escapeHtml(runResultOneLine(run))}</p>
                     </div>
@@ -1181,7 +1483,8 @@ function renderRunSummary(pageRoot, run) {
                     <small>${escapeHtml(runResultOneLine(run))}</small>
                 </div>
             </article>
-            <section class="pqa-run-result-panel" aria-label=t('enterprise.pqa.verification.result.titleAlt')>
+                        ${renderOfficialMetricFamilyOverview(familySummary)}
+<section class="pqa-run-result-panel" aria-label="${escapeHtml(t('enterprise.pqa.verification.result.titleAlt'))}">
                 <div class="pqa-run-panel-title">
                     <span>${escapeHtml(t('enterprise.pqa.verification.summaryTitle'))}</span>
                     <strong>${escapeHtml(t('enterprise.pqa.verification.currentStatus'))}</strong>
@@ -1194,7 +1497,7 @@ function renderRunSummary(pageRoot, run) {
                     ${runKpiCard('', t('enterprise.pqa.runtimeVerification.metric.state.notApplicable'), notApplicableMetrics ? `${notApplicableMetrics}개` : t('enterprise.pqa.verification.value.none'), notApplicableMetrics ? '이번 요청 제외' : t('enterprise.pqa.verification.value.none'), notApplicableMetrics ? 'neutral' : 'ready')}
                 </div>
             </section>
-            <section class="pqa-run-info-panel" aria-label=t('enterprise.pqa.verification.executionInfo')>
+            <section class="pqa-run-info-panel" aria-label="${escapeHtml(t('enterprise.pqa.verification.executionInfo'))}">
                 <div class="pqa-run-panel-title">
                     <span>${escapeHtml(t('enterprise.pqa.verification.executionInfo'))}</span>
                     <strong>${escapeHtml(t('enterprise.pqa.verification.selectedEvidenceShort'))}</strong>
@@ -1774,8 +2077,21 @@ function setParam(params, name, value) {
     }
 }
 
+function storedVerificationResultRoutes() {
+    return new Set([
+        'summary',
+        'comparison',
+        'prompt-metrics',
+        'metrics',
+        'llm-metrics',
+        'failures',
+        'evidence-package',
+        'reverify'
+    ]);
+}
+
 function isStoredVerificationResultRoute(route) {
-    return route === 'comparison' || route === 'metrics';
+    return storedVerificationResultRoutes().has(route);
 }
 
 function runtimeEvidenceHref(source = {}) {
@@ -1801,10 +2117,16 @@ function verificationStageHref(route, source = {}) {
             || (typeof source === 'string' ? rawText(source) : null);
     const identity = identityFromSource(source, routeIdentityFromLocation());
     const paths = {
+        summary: '/contexa/admin/prompt-quality/verification/summary',
         readiness: '/contexa/admin/prompt-quality/verification/readiness',
         run: '/contexa/admin/prompt-quality/verification/run',
         comparison: '/contexa/admin/prompt-quality/verification/prompt-comparison',
-        metrics: '/contexa/admin/prompt-quality/verification/metrics'
+        'prompt-metrics': '/contexa/admin/prompt-quality/verification/metrics',
+        metrics: '/contexa/admin/prompt-quality/verification/metrics',
+        'llm-metrics': '/contexa/admin/prompt-quality/verification/llm-metrics',
+        failures: '/contexa/admin/prompt-quality/verification/failures',
+        'evidence-package': '/contexa/admin/prompt-quality/verification/evidence-package',
+        reverify: '/contexa/admin/prompt-quality/verification/reverify'
     };
     const params = new URLSearchParams();
     setParam(params, 'packageId', packageId);
@@ -1869,6 +2191,7 @@ async function renderOfficialLedger(pageRoot, packageId) {
     const prompt = $(pageRoot, '[data-pqa-official-ledger-prompt]');
     const failures = $(pageRoot, '[data-pqa-official-ledger-failures]');
     const remediation = $(pageRoot, '[data-pqa-official-ledger-remediation]');
+    const reverify = $(pageRoot, '[data-pqa-official-ledger-reverify]');
     const runs = $(pageRoot, '[data-pqa-official-ledger-runs]');
     const raw = $(pageRoot, '[data-pqa-official-ledger-raw]');
     if (summary) {
@@ -1889,6 +2212,7 @@ async function renderOfficialLedger(pageRoot, packageId) {
         }
         renderOfficialFailures(failures, detail);
         renderOfficialRemediationGroups(remediation, detail);
+        renderOfficialReverifySummary(reverify, detail);
         renderOfficialRuns(runs, detail);
         renderOfficialRaw(raw, detail);
         updateSubrouteLinks(pageRoot, {
@@ -1910,7 +2234,7 @@ async function renderOfficialLedger(pageRoot, packageId) {
         if (summary) {
             summary.innerHTML = errorHtml;
         }
-        [prompt, runs, process, audit, failures, remediation, raw].filter(Boolean).forEach(target => {
+        [prompt, runs, process, audit, failures, remediation, reverify, raw].filter(Boolean).forEach(target => {
             target.innerHTML = errorHtml;
         });
         const runSummary = $(pageRoot, '[data-pqa-run-summary]');
@@ -2125,46 +2449,80 @@ function renderOfficialLedgerSummary(target, detail) {
     }
     const runs = ensureArray(detail?.runs);
     const metrics = ensureArray(detail?.metrics);
-    const totalCount = Number(detail?.totalRunCount ?? detail?.actualMetricCount ?? metrics.length ?? runs.length ?? 0);
-    const passedCount = Number(detail?.passedRunCount ?? detail?.passedMetricCount ?? runs.filter(run => passState(run.state)).length ?? metrics.filter(run => passState(run.state)).length ?? 0);
-    const failedCount = Number(detail?.failedRunCount ?? detail?.failedMetricCount ?? Math.max(totalCount - passedCount, 0));
-    const certificateIssued = Boolean(detail?.certificateIssued);
     const promptTotals = metricCheckTotals(runs, detail);
+    const familySummary = officialMetricFamilySummary(runs, detail);
+    const familyCounts = officialMetricFamilyTotals(familySummary);
+    const fallbackTotalCount = Number(detail?.totalRunCount ?? detail?.actualMetricCount ?? metrics.length ?? runs.length ?? 0);
+    const totalCount = familyCounts.hasFamilies ? familyCounts.total : fallbackTotalCount;
+    const passedCount = familyCounts.hasFamilies
+            ? familyCounts.passed
+            : Number(detail?.passedRunCount ?? detail?.passedMetricCount ?? runs.filter(run => passState(run.state)).length ?? metrics.filter(run => passState(run.state)).length ?? 0);
+    const failedCount = familyCounts.hasFamilies
+            ? familyCounts.failed
+            : Number(detail?.failedRunCount ?? detail?.failedMetricCount ?? Math.max(totalCount - passedCount, 0));
     const verdict = officialVerdict(detail, totalCount, passedCount, failedCount, promptTotals);
     const failures = sortFailuresProblemFirst(ensureArray(detail?.failureCauses));
     const actionGroups = dedupeRemediationGroups(ensureArray(detail?.remediationGroups))
             .filter(Boolean)
             .sort((left, right) => Number(right.findingCount || 0) - Number(left.findingCount || 0));
-    const passedRuns = sortMetricRunsProblemFirst(runs).filter(run => passState(run.state));
-    target.innerHTML = `
-        <section class="pqa-official-result-dashboard">
-            <article class="pqa-official-verdict-card ${escapeHtml(verdict.tone)}">
-                <div>
-                    <span class="pqa-official-kicker">${escapeHtml(t('enterprise.pqa.verification.finalVerdict'))}</span>
-                    <strong>${escapeHtml(verdict.title)}</strong>
-                    <p>${escapeHtml(verdict.detail)}</p>
-                </div>
-                ${badge(verdict.badge, { tone: verdict.tone })}
-            </article>
-            <div class="pqa-official-decision-grid">
-                ${comparisonKpi(t('enterprise.pqa.resolutionHub.type.PROMPT'), promptTotals.actualProblems, promptTotals.actualProblems ? 'blocked' : 'ready')}
-                ${comparisonKpi(t('enterprise.pqa.issue.resource.metricList'), promptTotals.blockedMetrics, promptTotals.blockedMetrics ? 'blocked' : 'ready')}
-                ${comparisonKpi(t('enterprise.pqa.verification.additionalConfirmation'), promptTotals.gateConditions ? `${promptTotals.gateConditions}개` : t('enterprise.pqa.verification.value.none'), promptTotals.gateConditions ? 'warning' : 'ready')}
-                ${comparisonKpi(t('enterprise.pqa.resolutionHub.meta.check'), criteriaProgressText(promptTotals), promptTotals.gateMetrics ? 'warning' : 'ready')}
-            </div>
-            ${renderOfficialNextStepOverview(detail, runs, promptTotals, failures, actionGroups, passedRuns)}
-            <details class="pqa-official-summary-evidence">
-                <summary>${escapeHtml(t('enterprise.pqa.verification.inspectionId'))}</summary>
-                <dl class="pqa-registration-meta">
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.dt.requestEvidenceId'))}</dt><dd><code>${escapeHtml(detail.packageId)}</code></dd></div>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.ledger.aggregateRun'))}</dt><dd><code>${escapeHtml(text(detail.aggregateRunId))}</code></dd></div>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.ledger.integrity'))}</dt><dd>${badge(detail.integrityValid ? t('enterprise.pqa.runtimeEvidence.badge.integrityOk') : t('enterprise.pqa.runtimeEvidence.badge.integrityError'), { tone: detail.integrityValid ? 'ready' : 'blocked' })}</dd></div>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.ledger.runCount'))}</dt><dd>${escapeHtml(passedCount)} / ${escapeHtml(totalCount)}</dd></div>
-                </dl>
-                ${renderLedgerConsistency(detail.ledgerConsistency)}
-            </details>
-        </section>
-    `;
+    const promptFamily = familySummary.prompt || { total: 0, passed: 0, failed: 0 };
+    const llmFamily = familySummary.decision || { total: 0, passed: 0, failed: 0 };
+    const promptTone = Number(promptFamily.failed || 0) > 0 ? 'blocked' : Number(promptFamily.total || 0) > 0 ? 'ready' : 'neutral';
+    const llmTone = Number(llmFamily.failed || 0) > 0 ? 'blocked' : Number(llmFamily.total || 0) > 0 ? 'ready' : 'neutral';
+    const blockerCount = Number(promptTotals.actualProblems || 0) + Number(promptTotals.blockedMetrics || 0) + Number(llmFamily.failed || 0);
+    const additionalReview = Number(promptTotals.gateConditions || 0) + Number(promptTotals.inputReviewMetrics || 0) + Number(promptTotals.notApplicableMetrics || 0);
+    const failureItems = failures.slice(0, 4).map(failure => {
+        const title = firstCleanText(failure?.title, failure?.metricLabel, failure?.metricCode, failure?.reasonCode, failure?.category, failure?.code);
+        const detailText = firstCleanText(failure?.summary, failure?.message, failure?.reason, failure?.detail);
+        return [
+            '<li>',
+            '<strong>' + escapeHtml(title || t('enterprise.pqa.verification.failure.unknown')) + '</strong>',
+            detailText ? '<span>' + escapeHtml(detailText) + '</span>' : '',
+            '</li>'
+        ].join('');
+    }).join('');
+    const remediationText = actionGroups.length
+            ? actionGroups.length + '개 개선 항목'
+            : failures.length
+                    ? '실패 원인 화면에서 개선 항목 확인'
+                    : '추가 개선 항목 없음';
+    target.innerHTML = [
+        '<section class="pqa-official-result-dashboard pqa-official-result-dashboard-clean">',
+            '<article class="pqa-official-verdict-card pqa-official-verdict-card-clean ' + escapeHtml(verdict.tone) + '">',
+                '<div>',
+                    '<span class="pqa-official-kicker">공식검사 최종 판정</span>',
+                    '<strong>' + escapeHtml(verdict.title || '-') + '</strong>',
+                    '<p>' + escapeHtml(verdict.detail || '프롬프트 12지표와 LLM 판정 6지표를 같은 봉인 증거 기준으로 판정한 결과입니다.') + '</p>',
+                '</div>',
+            '</article>',
+            '<section class="pqa-official-summary-lanes" aria-label="공식검사 영역별 결과">',
+                '<article class="pqa-official-summary-lane ' + escapeHtml(promptTone) + '">',
+                    '<span>프롬프트 공식검사</span>',
+                    '<strong>' + escapeHtml(String(promptFamily.passed || 0) + ' / ' + String(promptFamily.total || 0)) + '</strong>',
+                    '<p>프롬프트, 컨텍스트, 증거 패키지가 LLM 판정 입력으로 충분한지 확인합니다.</p>',
+                '</article>',
+                '<article class="pqa-official-summary-lane ' + escapeHtml(llmTone) + '">',
+                    '<span>LLM 판정 공식검사</span>',
+                    '<strong>' + escapeHtml(String(llmFamily.passed || 0) + ' / ' + String(llmFamily.total || 0)) + '</strong>',
+                    '<p>LLM 판정의 액션, 근거, 출력 계약, 안정성, 공격 저항성을 확인합니다.</p>',
+                '</article>',
+            '</section>',
+            '<section class="pqa-official-summary-check-grid" aria-label="공식검사 확인 항목">',
+                comparisonKpi('프롬프트 문제', promptTotals.actualProblems || 0, promptTotals.actualProblems ? 'blocked' : 'ready'),
+                comparisonKpi('프롬프트 실패 지표', promptTotals.blockedMetrics || 0, promptTotals.blockedMetrics ? 'blocked' : 'ready'),
+                comparisonKpi('LLM 판정 실패 지표', llmFamily.failed || 0, llmFamily.failed ? 'blocked' : 'ready'),
+                comparisonKpi('추가 확인 항목', additionalReview ? additionalReview + '개' : t('enterprise.pqa.verification.value.none'), additionalReview ? 'warning' : 'ready'),
+            '</section>',
+            '<section class="pqa-official-summary-guidance ' + (blockerCount ? 'blocked' : 'ready') + '">',
+                '<div>',
+                    '<span>다음 확인</span>',
+                    '<strong>' + escapeHtml(blockerCount ? '실패 원인과 증거 패키지를 확인하십시오.' : '공식검사 기준을 충족했습니다.') + '</strong>',
+                    '<p>' + escapeHtml(remediationText) + '</p>',
+                '</div>',
+            '</section>',
+            failureItems ? '<section class="pqa-official-summary-failures"><h3>주요 실패 원인</h3><ul>' + failureItems + '</ul></section>' : '',
+        '</section>'
+    ].join('');
 }
 
 function officialVerdict(detail, totalCount, passedCount, failedCount, promptTotals = {}) {
@@ -3603,53 +3961,24 @@ function subrouteReadyTooltip(route) {
     const keys = {
         readiness: 'enterprise.pqa.verification.subnav.tooltip.readiness',
         run: 'enterprise.pqa.verification.subnav.tooltip.run',
+        summary: 'enterprise.pqa.verification.subnav.tooltip.summary',
         comparison: 'enterprise.pqa.verification.subnav.tooltip.comparison',
-        metrics: 'enterprise.pqa.verification.subnav.tooltip.metrics'
+        'prompt-metrics': 'enterprise.pqa.verification.subnav.tooltip.promptMetrics',
+        metrics: 'enterprise.pqa.verification.subnav.tooltip.promptMetrics',
+        'llm-metrics': 'enterprise.pqa.verification.subnav.tooltip.llmMetrics',
+        failures: 'enterprise.pqa.verification.subnav.tooltip.failures',
+        'evidence-package': 'enterprise.pqa.verification.subnav.tooltip.evidencePackage',
+        reverify: 'enterprise.pqa.verification.subnav.tooltip.reverify'
     };
     return t(keys[route] || 'enterprise.pqa.verification.subnav.tooltip.default');
 }
 
 function subrouteContract(pageRoot, route, packageId) {
-    if (route === 'readiness') {
-        return { allowed: true };
-    }
-    if (!packageId) {
-        return {
-            allowed: false,
-            title: t('enterprise.pqa.verification.run.needEvidence.title'),
-            detail: t('enterprise.pqa.verification.subnav.disabled.needEvidence')
-        };
-    }
-    const hasLoadedEvidence = Boolean(pageRoot.__selectedEvidence?.packageId);
-    if (!hasLoadedEvidence) {
-        return {
-            allowed: false,
-            title: t('enterprise.pqa.verification.run.selection.loading.title'),
-            detail: t('enterprise.pqa.verification.subnav.disabled.loading')
-        };
-    }
-    if (requiresOfficialLedger(route) && pageRoot.__officialLedgerAvailable !== true) {
-        return {
-            allowed: false,
-            title: t('enterprise.pqa.verification.readonly.ledgerMissing.title'),
-            detail: t('enterprise.pqa.verification.readonly.ledgerMissing.detail')
-        };
-    }
-    if (route === 'run') {
-        const gate = processGate(pageRoot);
-        if (!gate.allowed) {
-            return {
-                allowed: false,
-                title: gate.title,
-                detail: t('enterprise.pqa.verification.subnav.disabled.readiness')
-            };
-        }
-    }
     return { allowed: true };
 }
 
 function requiresOfficialLedger(route) {
-    return route === 'comparison' || route === 'metrics';
+    return isStoredVerificationResultRoute(route);
 }
 
 function packageIdFromLocation() {
@@ -3808,6 +4137,28 @@ function officialRunBlockingItems(detail) {
     });
 }
 
+function officialFailureFamily(item = {}, detail = {}) {
+    const metricCode = upperText(item?.metricCode);
+    const run = ensureArray(detail?.runs).find(candidate => upperText(candidate?.metricCode) === metricCode) || {};
+    if (rawText(run?.metricCode) || rawText(run?.metricGroup) || rawText(run?.groupName)) {
+        return officialMetricFamily(run);
+    }
+    if (LLM_DECISION_OFFICIAL_METRICS.has(metricCode)) {
+        return 'decision';
+    }
+    if (PROMPT_OFFICIAL_METRICS.has(metricCode) || RESOURCE_ELIGIBILITY_OFFICIAL_METRICS.has(metricCode)) {
+        return 'prompt';
+    }
+    const domain = officialFailureDomain(item, detail);
+    if (domain === 'model' || domain === 'outputContract') {
+        return 'decision';
+    }
+    if (domain === 'prompt' || domain === 'context' || domain === 'resource') {
+        return 'prompt';
+    }
+    return 'other';
+}
+
 function renderOfficialFailures(target, detail) {
     if (!target) {
         return;
@@ -3818,25 +4169,63 @@ function renderOfficialFailures(target, detail) {
             ? `<section class="pqa-official-priority-block">
                     <div class="pqa-official-ops-head">
                         <strong>${escapeHtml(t('enterprise.pqa.verification.problemsToSolve'))}</strong>
-                        <span>${escapeHtml(t('enterprise.pqa.verification.problemsToSolveGuide'))}</span>
+                        <span>${escapeHtml(t('enterprise.pqa.verification.failures.description'))}</span>
                     </div>
                     ${renderPqaProcessRail()}
-                    <ul class="pqa-official-failure-list">${items.slice(0, 8).map(item => renderFailureItem(item, detail)).join('')}</ul>
-                    ${items.length > 8 ? `<p class="pqa-cell-meta">나머지 ${items.length - 8}개 항목은 t('enterprise.pqa.verification.metricDetail.pill')에서 확인하십시오.</p>` : ''}
+                    ${renderOfficialFailureDomainSummary(items, detail)}
+                    ${renderOfficialFailureFamilySections(items, detail)}
                     ${renderOfficialNextActions(detail)}
                </section>`
             : `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.failure.empty'))}</p></div>`;
 }
 
+function renderOfficialFailureFamilySections(items = [], detail = {}) {
+    const grouped = ensureArray(items).reduce((acc, item) => {
+        const family = officialFailureFamily(item, detail);
+        acc[family] = acc[family] || [];
+        acc[family].push(item);
+        return acc;
+    }, { prompt: [], decision: [], other: [] });
+    return ['prompt', 'decision', 'other']
+            .filter(family => ensureArray(grouped[family]).length)
+            .map(family => renderOfficialFailureFamilySection(family, grouped[family], detail))
+            .join('');
+}
+
+function renderOfficialFailureFamilySection(family, items = [], detail = {}) {
+    const labelKey = family === 'decision'
+            ? 'enterprise.pqa.verification.failure.family.llm'
+            : family === 'prompt'
+                    ? 'enterprise.pqa.verification.failure.family.prompt'
+                    : 'enterprise.pqa.verification.failure.family.other';
+    const detailKey = family === 'decision'
+            ? 'enterprise.pqa.verification.failure.family.llm.detail'
+            : family === 'prompt'
+                    ? 'enterprise.pqa.verification.failure.family.prompt.detail'
+                    : 'enterprise.pqa.verification.failure.family.other.detail';
+    const safeItems = sortFailuresProblemFirst(items);
+    return `
+        <section class="pqa-official-failure-family-section">
+            <header>
+                <div>
+                    <strong>${escapeHtml(t(labelKey))}</strong>
+                    <p>${escapeHtml(t(detailKey))}</p>
+                </div>
+                ${badge(String(safeItems.length), { tone: safeItems.length ? 'blocked' : 'ready' })}
+            </header>
+            <ul class="pqa-official-failure-list">${safeItems.slice(0, 8).map(item => renderFailureItem(item, detail)).join('')}</ul>
+            ${safeItems.length > 8 ? `<p class="pqa-cell-meta">${escapeHtml(t('enterprise.pqa.verification.failure.family.more', safeItems.length - 8))}</p>` : ''}
+        </section>`;
+}
 function renderPqaProcessRail() {
     const steps = [
-        ['1', t('enterprise.pqa.nav.verification'), '차단 원인 식별'],
-        ['2', t('enterprise.pqa.verification.followupAction'), '컨텍스트와 프롬프트 근거 보강'],
-        ['3', '확장 관리', '보강 결과 적용 범위 확인'],
-        ['4', t('enterprise.pqa.recipeDetail.diff.item.reverify'), '같은 증거 흐름으로 통과 확인']
+        ['1', t('enterprise.pqa.nav.verification'), '공식검사로 차단 원인을 확인합니다.'],
+        ['2', t('enterprise.pqa.verification.followupAction'), '프롬프트 계약, 봉인 증거, 판정 payload를 보강합니다.'],
+        ['3', '적용 범위 확인', '보강 결과가 같은 증거 흐름에 반영되는지 확인합니다.'],
+        ['4', t('enterprise.pqa.recipeDetail.diff.item.reverify'), '같은 증거 기준으로 재검증합니다.']
     ];
     return `
-        <ol class="pqa-official-process-rail" aria-label="공식 품질 검사 이후 후속 조치 흐름">
+        <ol class="pqa-official-process-rail" aria-label="공식검사 실패 후속 처리 흐름">
             ${steps.map(([number, label, description]) => `
                 <li>
                     <span class="pqa-rail-icon" aria-hidden="true">${escapeHtml(number)}</span>
@@ -3847,16 +4236,18 @@ function renderPqaProcessRail() {
         </ol>
     `;
 }
-
 function renderFailureItem(item, detail) {
-    const title = conciseProblemTitle(item);
-    const cause = conciseCause(item);
-    const action = conciseAction(item);
-    const owner = rawText(item.remediationOwner) || rawText(item.affectedTarget) || rawText(item.metricName) || '담당 확인 필요';
-    const actual = operatorFullText(item.actualValue);
-    const reverify = operatorFullText(item.reverifyCriterion);
-    const expected = operatorFullText(item.expectedValue);
-    const reasonKind = remediationKind(item);
+    const title = officialFailureTitle(item);
+    const explanation = officialFailureExplanation(item);
+    const cause = explanation.cause || conciseCause(item);
+    const action = explanation.action || conciseAction(item);
+    const owner = explanation.owner || friendlyRemediationOwner(rawText(item.remediationOwner) || rawText(item.affectedTarget) || rawText(item.metricName)) || '담당 확인 필요';
+    const actual = officialFailureActual(item);
+    const reverify = explanation.reverify || operatorFullText(item.reverifyCriterion);
+    const expected = officialFailureExpected(item);
+    const reasonKind = explanation.kind || remediationKind(item);
+    const sourceLabel = officialFailureEvidenceLocation(item);
+    const sourceGuidance = explanation.sourceGuidance || '실제 저장값, 기대 기준, 공식검사 지표 상세를 함께 확인해 소스 수정인지 데이터/프롬프트 보강인지 판단해야 합니다.';
     return `
         <li class="pqa-official-failure-item">
             <div class="pqa-finding-card-head">
@@ -3869,45 +4260,49 @@ function renderFailureItem(item, detail) {
             </div>
             <div class="pqa-finding-decision-grid">
                 <section class="pqa-finding-panel problem">
-                    <span class="pqa-official-kicker">${escapeHtml(t('enterprise.pqa.verification.problemCause'))}</span>
+                    <span class="pqa-official-kicker">문제 원인</span>
                     <p>${escapeHtml(cause)}</p>
                 </section>
                 <section class="pqa-finding-panel action">
-                    <span class="pqa-official-kicker">${escapeHtml(t('enterprise.pqa.verification.toDoInFollowup'))}</span>
+                    <span class="pqa-official-kicker">후속 처리 항목</span>
                     <p>${escapeHtml(action)}</p>
                 </section>
                 <section class="pqa-finding-panel verify">
-                    <span class="pqa-official-kicker">${escapeHtml(t('enterprise.pqa.verification.completionCriteria'))}</span>
+                    <span class="pqa-official-kicker">완료 기준</span>
                     <p>${escapeHtml(reverify)}</p>
+                </section>
+                <section class="pqa-finding-panel source">
+                    <span class="pqa-official-kicker">수정 필요 여부</span>
+                    <p>${escapeHtml(sourceGuidance)}</p>
                 </section>
             </div>
             <dl class="pqa-finding-meta-grid">
                 <div>
-                    <dt>${escapeHtml(t('enterprise.pqa.verification.ledger.value.owner'))}</dt>
+                    <dt>담당 영역</dt>
                     <dd>${escapeHtml(owner)}</dd>
                 </div>
                 <div>
-                    <dt>${escapeHtml(t('enterprise.pqa.issueDetail.fix.currentTitle'))}</dt>
+                    <dt>현재 저장값</dt>
                     <dd>${escapeHtml(actual)}</dd>
                 </div>
                 <div>
-                    <dt>${escapeHtml(t('enterprise.pqa.verification.handoff.pill'))}</dt>
+                    <dt>다음 처리</dt>
                     <dd>${escapeHtml(t('enterprise.pqa.verification.reverifyAfterFix'))}</dd>
                 </div>
             </dl>
             <details class="pqa-official-technical-evidence">
                 <summary>${escapeHtml(t('enterprise.pqa.verification.verdictCriteriaAndEvidence'))}</summary>
                 <dl>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.resolutionHub.meta.metric'))}</dt><dd><code>${escapeHtml(text(item.metricCode))}</code></dd></div>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.evidenceLocation'))}</dt><dd><code>${escapeHtml(text(item.source))}</code></dd></div>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.metricCheck.expected'))}</dt><dd>${escapeHtml(expected)}</dd></div>
-                    <div><dt>${escapeHtml(t('enterprise.pqa.verification.metricCheck.actual'))}</dt><dd>${escapeHtml(actual)}</dd></div>
+                    <div><dt>지표</dt><dd><code>${escapeHtml(officialFailureMetricLabel(item))}</code></dd></div>
+                    <div><dt>증거 위치</dt><dd><code>${escapeHtml(sourceLabel)}</code></dd></div>
+                    <div><dt>기대 기준</dt><dd>${escapeHtml(expected)}</dd></div>
+                    <div><dt>실제 값</dt><dd>${escapeHtml(actual)}</dd></div>
+                    <div><dt>검증 기준 코드</dt><dd><code>${escapeHtml(text(item.checkCode || item.criterionCode || item.source))}</code></dd></div>
                 </dl>
             </details>
         </li>
     `;
 }
-
 function renderOfficialNextActions(detail) {
     return '';
 }
@@ -3993,12 +4388,141 @@ function remediationKind(item) {
     if (metric === 'PFR' || /프롬프트/.test(owner)) {
         return '프롬프트 구성 보강이 필요한 항목입니다.';
     }
-    if (/기준선|행동|검색|컨텍스트|권한/.test(owner)) {
-        return '후속 공정에서 운영 근거를 보강할 항목입니다.';
+    if (/기준선|행동|검사|컨텍스트|권한/.test(owner)) {
+        return '후속 공정에서 운영 근거를 보강해야 하는 항목입니다.';
     }
-    return '후속 공정에서 담당 영역과 보강 방식을 확정할 항목입니다.';
+    return '후속 공정에서 담당 영역과 보강 방식을 확정해야 하는 항목입니다.';
 }
 
+function officialFailureTitle(item) {
+    const metric = upperText(item?.metricCode);
+    const source = rawText(item?.source);
+    if (metric === 'CDC' && source === 'decision.riskScore') {
+        return '위험 점수 누락';
+    }
+    if (metric === 'ERA' && source === 'decision.reasoning') {
+        return '판단 근거 누락';
+    }
+    if (metric === 'OCR' && source === 'decision.riskScore') {
+        return '출력 계약 위반: 위험 점수';
+    }
+    if (metric === 'OCR' && source === 'decision.reasoning') {
+        return '출력 계약 위반: 판단 근거';
+    }
+    if (metric === 'SUHR' && source === 'decision.action') {
+        return '불확실 상황에서 허용 판정';
+    }
+    return conciseProblemTitle(item);
+}
+
+function officialFailureMetricLabel(item) {
+    const metric = upperText(item?.metricCode);
+    const labels = {
+        CDC: 'CDC: 컨텍스트-판정 보정',
+        ERA: 'ERA: 증거-근거 정렬',
+        OCR: 'OCR: 출력 계약 신뢰성',
+        SUHR: 'SUHR: 불확실성 안전 처리',
+        DSS: 'DSS: 판정 안정성',
+        ARR: 'ARR: 공격 저항성'
+    };
+    return labels[metric] || text(item?.metricCode);
+}
+
+function officialFailureEvidenceLocation(item) {
+    const source = rawText(item?.source);
+    const labels = {
+        'decision.riskScore': 'LLM 판정 payload > riskScore',
+        'decision.reasoning': 'LLM 판정 payload > reasoning',
+        'decision.action': 'LLM 판정 payload > action',
+        'decision.confidence': 'LLM 판정 payload > confidence',
+        'decision.evidenceRefs': 'LLM 판정 payload > evidenceRefs',
+        'sealedEvidencePackage.decisionJson': '봉인 증거 패키지 > decisionJson',
+        'sealedEvidencePackage': '봉인 증거 패키지'
+    };
+    return labels[source] || source || '증거 위치 없음';
+}
+
+function officialFailureExpected(item) {
+    const expected = operatorFullText(item.expectedValue);
+    const normalized = expected.toLowerCase();
+    if (normalized === '0.0 to 1.0') {
+        return '0.0 이상 1.0 이하의 숫자 값';
+    }
+    if (normalized === 'riskscore') {
+        return 'riskScore 필드가 존재하고 숫자 범위를 만족해야 합니다.';
+    }
+    if (normalized === 'reasoning') {
+        return 'reasoning 필드가 존재해야 합니다.';
+    }
+    if (normalized === 'reasoning with at least 20 characters') {
+        return '20자 이상의 판단 근거가 있어야 합니다.';
+    }
+    if (normalized === 'uncertainty requires challenge or block') {
+        return '불확실성이 있으면 ALLOW가 아니라 CHALLENGE 또는 BLOCK이어야 합니다.';
+    }
+    return expected;
+}
+
+function officialFailureActual(item) {
+    const actual = operatorFullText(item.actualValue);
+    const normalized = actual.trim().toLowerCase();
+    if (!normalized || normalized === 'missing' || normalized === 'null' || normalized === 'not available' || actual === '값 없음') {
+        return '저장된 LLM 판정 payload에 값이 없습니다.';
+    }
+    if (normalized === 'allow') {
+        return 'ALLOW(허용)';
+    }
+    if (normalized === 'challenge') {
+        return 'CHALLENGE(추가 인증)';
+    }
+    if (normalized === 'block') {
+        return 'BLOCK(차단)';
+    }
+    return actual;
+}
+
+function officialFailureExplanation(item) {
+    const metric = upperText(item?.metricCode);
+    const source = rawText(item?.source);
+    if ((metric === 'CDC' || metric === 'OCR') && source === 'decision.riskScore') {
+        return {
+            kind: 'LLM 판정 payload의 위험 점수가 공식 기준을 충족하지 못했습니다.',
+            cause: '봉인된 LLM 판정 결과에서 riskScore가 비어 있거나 0.0~1.0 숫자 값으로 저장되지 않았습니다.',
+            action: '실제 OpenAI 응답에 riskScore가 있었는지 먼저 확인하십시오. 응답에는 있었는데 봉인 증거에 없다면 parser 또는 sealed evidence 저장 매핑을 수정해야 합니다. 응답에도 없다면 프롬프트 출력 계약에 riskScore 필수를 반영해야 합니다.',
+            reverify: '수정 후 같은 증거 패키지로 공식검사를 다시 실행해 riskScore가 저장되고 CDC/OCR이 통과하는지 확인하십시오.',
+            owner: 'LLM 출력 계약 / 판정 저장 매핑',
+            sourceGuidance: '실제 응답에는 값이 있었는지에 따라 소스 수정 대상이 달라집니다. 저장 매핑 누락이면 소스 수정, 응답 누락이면 프롬프트 계약 수정이 필요합니다.'
+        };
+    }
+    if ((metric === 'ERA' || metric === 'OCR') && source === 'decision.reasoning') {
+        return {
+            kind: 'LLM 판정 payload의 판단 근거가 공식 기준을 충족하지 못했습니다.',
+            cause: '봉인된 LLM 판정 결과에서 reasoning이 없거나 ERA 기준인 20자 이상의 근거 설명을 만족하지 못했습니다.',
+            action: '실제 LLM 응답의 reasoning/reason/explanation 필드가 봉인 증거의 decision.reasoning으로 저장되는지 확인하십시오. 응답 자체가 짧거나 없다면 프롬프트 출력 계약에 판단 근거와 증거 연결을 필수로 강화해야 합니다.',
+            reverify: '수정 후 같은 요청 흐름으로 재검증해 decision.reasoning이 저장되고 ERA/OCR이 통과하는지 확인하십시오.',
+            owner: 'LLM 판단 근거 / 봉인 증거 매핑',
+            sourceGuidance: '응답 필드명과 봉인 저장 필드명이 어긋났다면 소스 수정이 필요합니다. LLM이 근거를 생성하지 않았다면 프롬프트 계약 보강이 필요합니다.'
+        };
+    }
+    if (metric === 'SUHR' && source === 'decision.action') {
+        return {
+            kind: '불확실성이 있는 판정을 안전하게 처리하지 못했습니다.',
+            cause: '공식검사는 confidence/riskScore 누락 또는 불충분한 증거를 불확실 상황으로 보았지만, 최종 action이 ALLOW로 저장되었습니다.',
+            action: '불확실성 조건에서 CHALLENGE 또는 BLOCK을 선택하도록 프롬프트 계약과 post-decision safety gate를 확인하십시오. riskScore/reasoning 누락 때문에 불확실로 분류된 것이라면 해당 누락부터 먼저 해결해야 합니다.',
+            reverify: 'riskScore와 reasoning을 정상 저장한 뒤, 불확실 케이스에서 ALLOW가 나오지 않는지 같은 증거 흐름으로 다시 검사하십시오.',
+            owner: '판정 정책 / 안전 후처리',
+            sourceGuidance: 'LLM 판정 정책 문제일 수 있습니다. 단, riskScore 누락으로 불확실성이 생긴 경우에는 출력 계약과 저장 매핑 문제가 먼저입니다.'
+        };
+    }
+    return {
+        kind: remediationKind(item),
+        cause: conciseCause(item),
+        action: conciseAction(item),
+        reverify: operatorFullText(item.reverifyCriterion),
+        owner: friendlyRemediationOwner(rawText(item.remediationOwner) || rawText(item.affectedTarget) || rawText(item.metricName)) || '담당 확인 필요',
+        sourceGuidance: '실제 저장값, 기대 기준, 공식검사 지표 상세를 함께 확인해 소스 수정인지 데이터/프롬프트 보강인지 판단해야 합니다.'
+    };
+}
 function dedupeRemediationGroups(groups) {
     const merged = new Map();
     ensureArray(groups).filter(Boolean).forEach(group => {
@@ -4062,15 +4586,9 @@ function sortChecksProblemFirst(items) {
     });
 }
 
-function renderOfficialRuns(target, detail) {
-    if (!target) {
-        return;
-    }
-    const sourceRuns = ensureArray(detail.runs).length
-            ? ensureArray(detail.runs)
-            : ensureArray(detail.metrics);
+function renderOfficialMetricRunCards(sourceRuns, detail = {}) {
     const officialFailures = officialFailureCauses(detail);
-    const cards = sortMetricRunsProblemFirst(sourceRuns).map(run => {
+    return sortMetricRunsProblemFirst(sourceRuns).map(run => {
         const officialRunId = rawText(run.officialRunId) || '';
         const disabledReason = t('enterprise.pqa.verification.metricDetail.missingRunId');
         const checkCounts = metricCheckCounts(run, officialFailures, detail);
@@ -4089,7 +4607,10 @@ function renderOfficialRuns(target, detail) {
                 ? promptProblemItems
                 : rowFailures.length ? rowFailures : ensureArray(run.failureCauses);
         const gateSummary = metricGateSummaryText(run, checkCounts);
-        const failureText = truncateForOperator(metricRunSummaryText(run, checkCounts, displayedFailures, gateSummary), 120);
+        const fallbackPurpose = LLM_DECISION_METRIC_PURPOSES[upperText(run?.metricCode)];
+        const failureText = truncateForOperator(
+                metricRunSummaryText(run, checkCounts, displayedFailures, gateSummary) || fallbackPurpose,
+                120);
         return `
         <article class="pqa-metric-run-card ${escapeHtml(metricDisplayStateTone(run, checkCounts))}">
             <header>
@@ -4103,7 +4624,7 @@ function renderOfficialRuns(target, detail) {
             ${renderMetricCheckSummary(checkCounts)}
             <p class="pqa-metric-run-cause">${escapeHtml(failureText)}</p>
             <footer>
-                <span>판정 ${escapeHtml(metricScoreDisplay(run, checkCounts))}</span>
+                <span>점수 ${escapeHtml(metricScoreDisplay(run, checkCounts))}</span>
                 <button type="button"
                         class="pqa-action-button compact ${officialRunId ? '' : 'is-disabled'}"
                         data-pqa-official-run-id="${escapeHtml(officialRunId)}"
@@ -4117,10 +4638,159 @@ function renderOfficialRuns(target, detail) {
         </article>
     `;
     });
-    target.innerHTML = cards.length
-            ? `${renderMetricCheckTotals(sourceRuns, detail)}
-               <div class="pqa-metric-run-grid">${cards.join('')}</div>`
-            : `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.runs.empty'))}</p></div>`;
+}
+
+function renderOfficialReverifySummary(target, detail) {
+    if (!target) {
+        return;
+    }
+    const sourceRuns = ensureArray(detail.runs).length
+            ? ensureArray(detail.runs)
+            : ensureArray(detail.metrics);
+    if (!sourceRuns.length) {
+        target.innerHTML = `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.runs.empty'))}</p></div>`;
+        return;
+    }
+    const split = detail?.metricFamilies
+            ? {
+                prompt: ensureArray(detail.metricFamilies.prompt?.runs),
+                decision: ensureArray(detail.metricFamilies.decision?.runs),
+                other: ensureArray(detail.metricFamilies.other?.runs)
+            }
+            : splitOfficialMetricRuns(sourceRuns);
+    const promptBlocked = split.prompt.filter(run => !officialRunPassed(run)).length;
+    const decisionBlocked = split.decision.filter(run => !officialRunPassed(run)).length;
+    const allBlocked = sourceRuns.filter(run => !officialRunPassed(run)).length;
+    const summary = officialMetricFamilySummary(sourceRuns, detail);
+    target.innerHTML = `
+        <section class="pqa-metric-check-total-summary" aria-label="\uacf5\uc2dd\uac80\uc0ac \uc9c0\ud45c \uae30\uc900 \uc694\uc57d">
+            <article class="${promptBlocked ? 'is-blocked' : 'is-ready'}">
+                <span>${escapeHtml(t('enterprise.pqa.verification.reverify.option.prompt'))}</span>
+                <strong>${escapeHtml(String(promptBlocked))}</strong>
+                <small>${escapeHtml(t('enterprise.pqa.verification.reverify.option.prompt.detail'))}</small>
+            </article>
+            <article class="${decisionBlocked ? 'is-blocked' : 'is-ready'}">
+                <span>${escapeHtml(t('enterprise.pqa.verification.reverify.option.llm'))}</span>
+                <strong>${escapeHtml(String(decisionBlocked))}</strong>
+                <small>${escapeHtml(t('enterprise.pqa.verification.reverify.option.llm.detail'))}</small>
+            </article>
+            <article class="${allBlocked ? 'is-pending' : 'is-ready'}">
+                <span>${escapeHtml(t('enterprise.pqa.verification.reverify.option.all'))}</span>
+                <strong>${escapeHtml(String(sourceRuns.length))}</strong>
+                <small>${escapeHtml(t('enterprise.pqa.verification.reverify.option.all.detail'))}</small>
+            </article>
+        </section>
+        ${renderOfficialReverifyOptions(detail, summary)}
+        <section class="pqa-official-reverify-result" data-pqa-official-reverify-result aria-live="polite"></section>
+    `;
+    bindOfficialReverifyActions(target, detail);
+}
+
+function bindOfficialReverifyActions(target, detail = {}) {
+    target.querySelectorAll('[data-pqa-reverify-scope]').forEach(button => {
+        button.addEventListener('click', async event => {
+            event.preventDefault();
+            const scope = rawText(event.currentTarget.dataset.pqaReverifyScope) || 'full';
+            const packageId = rawText(detail.packageId);
+            if (!packageId) {
+                renderOfficialReverifyResult(target, {
+                    ok: false,
+                    message: t('enterprise.pqa.verification.reverify.error.noPackage', 'No evidence package was selected for reverification.')
+                });
+                return;
+            }
+            event.currentTarget.setAttribute('aria-busy', 'true');
+            event.currentTarget.setAttribute('aria-disabled', 'true');
+            renderOfficialReverifyResult(target, {
+                ok: true,
+                pending: true,
+                message: t('enterprise.pqa.verification.reverify.running', 'Reverification is running.')
+            });
+            try {
+                const result = await postJson('/contexa/admin/api/prompt-quality/runtime-evidence/reverify', {
+                    packageId,
+                    operatorId: rawText(document.body?.dataset?.currentUser) || 'admin',
+                    reason: `official-verification-ui:${scope}`,
+                    sourcePackageId: packageId,
+                    sourceAggregateRunId: rawText(detail.aggregateRunId),
+                    findingIds: [],
+                    issueIds: []
+                });
+                renderOfficialReverifyResult(target, {
+                    ok: true,
+                    message: t('enterprise.pqa.verification.reverify.success', 'Reverification result was saved.'),
+                    result
+                });
+            } catch (error) {
+                renderOfficialReverifyResult(target, {
+                    ok: false,
+                    message: publicError(error),
+                    detail: publicErrorGuidance(error)
+                });
+            } finally {
+                event.currentTarget.removeAttribute('aria-busy');
+                event.currentTarget.removeAttribute('aria-disabled');
+            }
+        });
+    });
+}
+
+function renderOfficialReverifyResult(target, payload = {}) {
+    const resultTarget = target.querySelector('[data-pqa-official-reverify-result]');
+    if (!resultTarget) {
+        return;
+    }
+    const tone = payload.pending ? 'is-pending' : (payload.ok ? 'is-ready' : 'is-blocked');
+    const result = payload.result || {};
+    const run = result.run || {};
+    const lines = [
+        rawText(result.packageId) ? `${t('enterprise.pqa.verification.reverify.result.package', 'Evidence package')}: ${result.packageId}` : null,
+        rawText(run.runId) ? `${t('enterprise.pqa.verification.reverify.result.run', 'Reverification run')}: ${run.runId}` : null,
+        rawText(result.nextRequestInstruction) ? result.nextRequestInstruction : null,
+        rawText(payload.detail)
+    ].filter(Boolean);
+    resultTarget.innerHTML = `
+        <article class="pqa-official-reverify-result-card ${tone}">
+            <strong>${escapeHtml(payload.message || '')}</strong>
+            ${lines.length ? `<ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : ''}
+        </article>
+    `;
+}
+
+function renderOfficialRuns(target, detail) {
+    if (!target) {
+        return;
+    }
+    const sourceRuns = ensureArray(detail.runs).length
+            ? ensureArray(detail.runs)
+            : ensureArray(detail.metrics);
+    const split = detail?.metricFamilies
+            ? {
+                prompt: ensureArray(detail.metricFamilies.prompt?.runs),
+                decision: ensureArray(detail.metricFamilies.decision?.runs),
+                other: ensureArray(detail.metricFamilies.other?.runs)
+            }
+            : splitOfficialMetricRuns(sourceRuns);
+    const requestedFamily = rawText(target.dataset.pqaOfficialLedgerRunsFamily);
+    if (requestedFamily && split[requestedFamily]) {
+        const selectedRuns = split[requestedFamily];
+        const selectedDetail = detailScopedToMetricRuns(detail, selectedRuns);
+        const description = requestedFamily === 'decision'
+                ? t('enterprise.pqa.verification.llmMetrics.description')
+                : t('enterprise.pqa.verification.metrics.description');
+        target.innerHTML = selectedRuns.length
+                ? `${renderMetricCheckTotals(selectedRuns, selectedDetail, requestedFamily)}
+                   ${officialMetricFamilySection(OFFICIAL_METRIC_FAMILY_LABELS[requestedFamily] || requestedFamily, description, selectedRuns, selectedDetail)}`
+                : `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.runs.empty'))}</p></div>`;
+    }
+    else {
+        target.innerHTML = sourceRuns.length
+                ? `${renderMetricCheckTotals(sourceRuns, detail, 'all')}
+                   ${officialMetricFamilySection(OFFICIAL_METRIC_FAMILY_LABELS.prompt, t('enterprise.pqa.verification.metrics.description'), split.prompt, detail)}
+                   ${officialMetricFamilySection(OFFICIAL_METRIC_FAMILY_LABELS.decision, t('enterprise.pqa.verification.llmMetrics.description'), split.decision, detail)}
+                   ${split.other.length ? officialMetricFamilySection(OFFICIAL_METRIC_FAMILY_LABELS.other, t('enterprise.pqa.verification.metrics.other.description'), split.other, detail) : ''}`
+                : `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.runs.empty'))}</p></div>`;
+    }
     target.querySelectorAll('[data-pqa-official-run-id]').forEach(button => {
         button.addEventListener('click', () => showOfficialRunDetail(
                 target,
@@ -4129,10 +4799,50 @@ function renderOfficialRuns(target, detail) {
     });
 }
 
-function renderMetricCheckTotals(runs, detail = {}) {
+function detailScopedToMetricRuns(detail = {}, runs = []) {
+    const metricCodes = new Set(ensureArray(runs)
+            .map(run => upperText(run?.metricCode))
+            .filter(Boolean));
+    const scopedActualProblems = visibleActualPromptProblems(detail?.actualPromptProblems)
+            .filter(problem => actualProblemMatchesMetricCodes(problem, metricCodes));
+    return {
+        ...detail,
+        summaryCounts: null,
+        metricSummaryCounts: null,
+        officialSummaryCounts: null,
+        actualPromptProblems: scopedActualProblems
+    };
+}
+
+function actualProblemMatchesMetricCodes(problem, metricCodes) {
+    if (!metricCodes || metricCodes.size === 0) {
+        return false;
+    }
+    const problemCodes = distinctText([
+        problem?.metricCode,
+        ...ensureArray(problem?.metricCodes)
+    ]).map(upperText).filter(Boolean);
+    if (!problemCodes.length) {
+        return true;
+    }
+    return problemCodes.some(code => metricCodes.has(code));
+}
+
+function renderMetricCheckTotals(runs, detail = {}, family = '') {
     const totals = metricCheckTotals(runs, detail);
+    const resolvedFamily = officialMetricTotalsFamily(runs, family);
+    if (resolvedFamily === 'decision') {
+        return renderLlmDecisionMetricCheckTotals(runs, totals);
+    }
+    if (resolvedFamily === 'all') {
+        return renderIntegratedMetricCheckTotals(runs, totals);
+    }
+    return renderPromptMetricCheckTotals(totals);
+}
+
+function renderPromptMetricCheckTotals(totals) {
     return `
-        <section class="pqa-metric-check-total-summary" aria-label="12개 프롬프트 품질 지표 집계">
+        <section class="pqa-metric-check-total-summary" aria-label="공식검사 지표 기준 요약">
             <article class="${totals.actualProblems ? 'is-blocked' : 'is-ready'}">
                 <span>${escapeHtml(t('enterprise.pqa.resolutionHub.type.PROMPT'))}</span>
                 <strong>${escapeHtml(String(totals.actualProblems))}</strong>
@@ -4143,7 +4853,7 @@ function renderMetricCheckTotals(runs, detail = {}) {
                 <strong>${escapeHtml(String(totals.blockedMetrics))}</strong>
                 <small>${escapeHtml(t('enterprise.pqa.verification.metricsBlockedByProblem'))}</small>
             </article>
-            <article class="is-ready">
+            <article class="${metricFailedOfficialCheckCount(totals) ? 'is-blocked' : 'is-ready'}">
                 <span>${escapeHtml(t('enterprise.pqa.resolutionHub.meta.check'))}</span>
                 <strong>${escapeHtml(criteriaProgressText(totals))}</strong>
                 <small>${escapeHtml(criteriaIssueSplitText(totals))}</small>
@@ -4155,6 +4865,101 @@ function renderMetricCheckTotals(runs, detail = {}) {
             </article>
         </section>
     `;
+}
+
+function renderLlmDecisionMetricCheckTotals(runs, totals) {
+    const failedChecks = metricFailedOfficialCheckCount(totals);
+    const failedMetrics = failedOfficialMetricCount(runs);
+    return `
+        <section class="pqa-metric-check-total-summary" aria-label="LLM 판정 공식검사 기준 요약">
+            <article class="${failedChecks ? 'is-blocked' : 'is-ready'}">
+                <span>LLM 판정 문제</span>
+                <strong>${escapeHtml(String(failedChecks))}</strong>
+                <small>판정 출력, 근거, 안정성 기준에서 실패한 항목입니다.</small>
+            </article>
+            <article class="${failedMetrics ? 'is-blocked' : 'is-ready'}">
+                <span>실패 지표</span>
+                <strong>${escapeHtml(String(failedMetrics))}</strong>
+                <small>6개 LLM 판정 지표 중 공식 기준을 충족하지 못한 지표입니다.</small>
+            </article>
+            <article class="${failedChecks ? 'is-blocked' : 'is-ready'}">
+                <span>판정 기준</span>
+                <strong>${escapeHtml(criteriaProgressText(totals))}</strong>
+                <small>${escapeHtml(failedChecks ? `실패 기준 ${failedChecks}개` : '모든 기준 충족')}</small>
+            </article>
+            <article class="${failedChecks ? 'is-blocked' : 'is-ready'}">
+                <span>재검증 필요</span>
+                <strong>${escapeHtml(failedChecks ? `${failedChecks}개 기준` : t('enterprise.pqa.verification.value.none'))}</strong>
+                <small>${escapeHtml(failedChecks ? '실패 원인을 확인하고 같은 증거로 다시 검사해야 합니다.' : '추가 재검증이 필요하지 않습니다.')}</small>
+            </article>
+        </section>
+    `;
+}
+
+function renderIntegratedMetricCheckTotals(runs, totals) {
+    const split = splitOfficialMetricRuns(runs);
+    const llmTotals = metricCheckTotals(split.decision, {});
+    const llmFailedChecks = metricFailedOfficialCheckCount(llmTotals);
+    const llmFailedMetrics = failedOfficialMetricCount(split.decision);
+    return `
+        <section class="pqa-metric-check-total-summary" aria-label="통합 공식검사 기준 요약">
+            <article class="${totals.actualProblems ? 'is-blocked' : 'is-ready'}">
+                <span>프롬프트 문제</span>
+                <strong>${escapeHtml(String(totals.actualProblems))}</strong>
+                <small>${escapeHtml(t('enterprise.pqa.verification.promptProblemsToSolve'))}</small>
+            </article>
+            <article class="${llmFailedChecks ? 'is-blocked' : 'is-ready'}">
+                <span>LLM 판정 문제</span>
+                <strong>${escapeHtml(String(llmFailedChecks))}</strong>
+                <small>${escapeHtml(llmFailedMetrics ? `실패 지표 ${llmFailedMetrics}개` : '실패 지표 없음')}</small>
+            </article>
+            <article class="${metricFailedOfficialCheckCount(totals) ? 'is-blocked' : 'is-ready'}">
+                <span>판정 기준</span>
+                <strong>${escapeHtml(criteriaProgressText(totals))}</strong>
+                <small>${escapeHtml(criteriaIssueSplitText(totals))}</small>
+            </article>
+            <article class="${totals.gateMetrics ? 'is-pending' : 'is-ready'}">
+                <span>${escapeHtml(t('enterprise.pqa.verification.additionalConfirmation'))}</span>
+                <strong>${escapeHtml(totals.gateConditions ? t('enterprise.pqa.verification.totals.gateConditionsCount', totals.gateConditions) : t('enterprise.pqa.verification.value.none'))}</strong>
+                <small>${escapeHtml(totals.gateMetrics ? t('enterprise.pqa.verification.gateMetricsNeeded', totals.gateMetrics) : t('enterprise.pqa.verification.noAdditionalConfirmation'))}</small>
+            </article>
+        </section>
+    `;
+}
+
+function officialMetricTotalsFamily(runs, family = '') {
+    const requested = rawText(family).toLowerCase();
+    if (requested === 'decision' || requested === 'prompt' || requested === 'all') {
+        return requested;
+    }
+    const families = distinctText(ensureArray(runs).map(officialMetricFamily).filter(Boolean));
+    return families.length === 1 ? families[0] : 'all';
+}
+
+function metricFailedOfficialCheckCount(counts = {}) {
+    const totalFailed = Number(counts.criteriaFailed ?? counts.technicalFailed ?? 0);
+    if (totalFailed > 0) {
+        return totalFailed;
+    }
+    return Number(counts.gateConditions || 0)
+            + Number(counts.inputReadinessChecks || 0)
+            + Number(counts.otherFailed || 0);
+}
+
+function failedOfficialMetricCount(runs) {
+    return ensureArray(runs).filter(run => {
+        const counts = metricCheckCounts(run, [], { actualPromptProblems: run?.actualPromptProblems || [] });
+        return metricHasOfficialFailure(run, counts);
+    }).length;
+}
+
+function metricHasOfficialFailure(run, counts = {}) {
+    return Number(counts.actualProblemCount || 0) > 0
+            || Number(counts.criteriaFailed || 0) > 0
+            || Number(counts.gateFailed || 0) > 0
+            || Number(counts.inputFailed || 0) > 0
+            || Number(counts.otherFailed || 0) > 0
+            || (!metricNotApplicable(run) && !passState(run?.state) && Boolean(rawText(run?.state)));
 }
 function metricCheckTotals(runs, detail = {}) {
     const safeRuns = ensureArray(runs);
@@ -4444,22 +5249,29 @@ function renderMetricCheckSummary(countsOrPassed, failed, total) {
                 actualProblemCount: Number(failed || 0),
                 technicalPassed: Number(countsOrPassed || 0),
                 technicalFailed: 0,
-                technicalTotal: Number(total || 0)
+                technicalTotal: Number(total || 0),
+                criteriaFailed: Number(failed || 0)
             };
+    const failedChecks = metricFailedOfficialCheckCount(counts);
+    const primaryLabel = counts.actualProblemCount
+            ? `프롬프트 문제 ${counts.actualProblemCount}개`
+            : failedChecks
+                    ? `실패 기준 ${failedChecks}개`
+                    : '문제 0개';
     return `
         <div class="pqa-metric-check-summary">
-            <span class="${counts.actualProblemCount ? 'is-blocked' : 'is-ready'}">문제 ${escapeHtml(String(counts.actualProblemCount || 0))}개</span>
+            <span class="${counts.actualProblemCount || failedChecks ? 'is-blocked' : 'is-ready'}">${escapeHtml(primaryLabel)}</span>
             <span>${escapeHtml(criteriaProgressText(counts))}</span>
-            ${counts.inputFailed ? `<span class="is-pending">사전 입력 문제 ${escapeHtml(String(counts.inputFailed))}개</span>` : ''}
-            ${counts.gateFailed ? `<span class="is-pending">추가 확인 ${escapeHtml(String(counts.gateFailed))}개</span>` : ''}
-            ${counts.otherFailed ? `<span class="is-pending">확인 필요 ${escapeHtml(String(counts.otherFailed))}개</span>` : ''}
+            ${counts.inputFailed ? `<span class="is-pending">입력 미준비 ${escapeHtml(String(counts.inputFailed))}개</span>` : ''}
+            ${counts.gateFailed ? `<span class="is-blocked">실패 기준 ${escapeHtml(String(counts.gateFailed))}개</span>` : ''}
+            ${counts.otherFailed ? `<span class="is-blocked">기준 미충족 ${escapeHtml(String(counts.otherFailed))}개</span>` : ''}
         </div>
     `;
 }
 
 function criteriaProgressText(counts = {}) {
     if (counts.notApplicable) {
-        return '적용 기준 없음';
+        return '검사 대상 아님';
     }
     const total = Number(counts.technicalTotal || 0);
     const passed = Number(counts.technicalPassed || 0);
@@ -4471,41 +5283,30 @@ function criteriaProgressText(counts = {}) {
 
 function criteriaIssueSplitText(counts = {}) {
     const promptProblems = Number(counts.actualProblems ?? counts.actualProblemCount ?? counts.failed ?? 0);
-    const certificateChecks = Number(counts.gateFailed ?? counts.technicalFailed ?? 0);
-    const gateChecks = Number(counts.gateConditions ?? 0);
+    const totalFailed = metricFailedOfficialCheckCount(counts);
     const inputChecks = Number(counts.inputFailed ?? counts.inputReadinessChecks ?? 0);
     const otherChecks = Number(counts.otherFailed ?? 0);
     const parts = [];
     if (promptProblems > 0) {
         parts.push(`프롬프트 문제 ${promptProblems}개`);
     }
-    if (gateChecks > 0 || certificateChecks > 0) {
-        parts.push(`추가 확인 ${gateChecks || certificateChecks}개`);
+    if (totalFailed > 0) {
+        parts.push(`실패 기준 ${totalFailed}개`);
     }
     if (inputChecks > 0) {
-        parts.push(`사전 입력 문제 ${inputChecks}개`);
+        parts.push(`입력 미준비 ${inputChecks}개`);
     }
-    if (otherChecks > 0) {
-        parts.push(`확인 필요 ${otherChecks}개`);
+    if (otherChecks > 0 && otherChecks !== totalFailed) {
+        parts.push(`기준 미충족 ${otherChecks}개`);
     }
-    return parts.length ? parts.join(' · ') : '모두 충족';
+    return parts.length ? parts.join(' · ') : '모든 기준 충족';
 }
-
 function metricScoreDisplay(run, counts = {}) {
     if (metricNotApplicable(run)) {
-        return '대상 아님';
+        return '검사 대상 아님';
     }
-    if (counts.actualProblemCount > 0) {
-        return t('enterprise.pqa.verification.blocked');
-    }
-    if (counts.inputFailed > 0 || counts.inputReview || metricInputReadinessReview(run)) {
-        return '사전 입력 문제';
-    }
-    if (counts.gateFailed > 0 || counts.gateReview || metricGateReview(run, { actualPromptProblems: run?.actualPromptProblems || [] })) {
-        return t('enterprise.pqa.verification.additionalConfirmation');
-    }
-    if (counts.otherFailed > 0) {
-        return t('enterprise.pqa.governance.tone.pending');
+    if (metricHasOfficialFailure(run, counts)) {
+        return '실패';
     }
     return Number(run?.score || 0).toFixed(1);
 }
@@ -4518,17 +5319,13 @@ function metricDisplayStateLabel(run, counts = {}) {
         return t('enterprise.pqa.verification.blocked');
     }
     if (counts.inputFailed > 0 || metricInputReadinessReview(run)) {
-        return '사전 입력 문제';
+        return '입력 미준비';
     }
-    if (counts.gateFailed > 0 || metricGateReview(run, { actualPromptProblems: run?.actualPromptProblems || [] })) {
-        return t('enterprise.pqa.verification.additionalConfirmation');
-    }
-    if (counts.otherFailed > 0 || (!passState(run?.state) && rawText(run?.state))) {
-        return t('enterprise.pqa.governance.tone.pending');
+    if (metricHasOfficialFailure(run, counts)) {
+        return '실패';
     }
     return t('enterprise.pqa.state.passed');
 }
-
 function metricGateSummaryText(run, counts = {}) {
     const summary = counts && Object.prototype.hasOwnProperty.call(counts, 'gateFailed')
             ? counts
@@ -4550,15 +5347,14 @@ function metricDisplayStateTone(run, counts = {}) {
     if (metricNotApplicable(run)) {
         return 'neutral';
     }
-    if (counts.actualProblemCount > 0) {
+    if (counts.actualProblemCount > 0 || metricHasOfficialFailure(run, counts)) {
         return 'blocked';
     }
-    if (counts.technicalFailed > 0 || counts.inputReview || metricInputReadinessReview(run)) {
+    if (counts.inputReview || metricInputReadinessReview(run)) {
         return 'pending';
     }
     return passState(run?.state) ? 'ready' : 'pending';
 }
-
 function metricNotApplicable(run) {
     return upperText(run?.state) === 'NOT_APPLICABLE'
             || (ensureArray(run?.checks).some(check => isNotApplicableMetricCheck(run, check))
@@ -5857,6 +6653,26 @@ function officialDecisionLabel(decision) {
     }
 }
 
+function llmDecisionActionLabel(action) {
+    switch (upperText(action)) {
+        case 'ALLOW':
+            return '허용';
+        case 'CHALLENGE':
+            return '추가 인증';
+        case 'BLOCK':
+        case 'BLOCKED':
+            return '차단';
+        case 'ESCALATE':
+            return '추가 분석';
+        case 'PENDING_ANALYSIS':
+        case 'PENDING':
+            return '분석 대기';
+        case 'UNKNOWN':
+            return '불명확';
+        default:
+            return rawText(action) || '';
+    }
+}
 function displayValue(value) {
     return rawText(value) ?? t('enterprise.pqa.verification.value.notAvailable');
 }

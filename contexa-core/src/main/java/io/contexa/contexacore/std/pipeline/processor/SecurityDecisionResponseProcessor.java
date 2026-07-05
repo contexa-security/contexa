@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-
+
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 
     private static final int MAX_REASONING_WORDS = 40;
@@ -50,7 +50,12 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
                     "Expected SecurityDecisionResponseLite but got: "
                             + (parsedData != null ? parsedData.getClass().getName() : "null"));
         }
-        return SecurityDecisionResponse.fromLite(normalizeAndValidate(liteResponse, context));
+        SecurityDecisionResponseLite normalized = normalizeAndValidate(liteResponse, context);
+        SecurityDecisionResponse response = SecurityDecisionResponse.fromLite(normalized);
+        if (normalized.getEvidenceRefs() != null && !normalized.getEvidenceRefs().isEmpty()) {
+            response.withMetadata("evidenceRefs", normalized.getEvidenceRefs());
+        }
+        return response;
     }
 
     @Override
@@ -67,8 +72,10 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         normalized.setRiskScore(normalizedRiskScore);
         normalized.setConfidence(normalizedConfidence);
         normalized.setAction(normalizedAction);
-        normalized.setReasoning(normalizeReasoning(lite.getReasoning(), normalizedAction, repairedFields));
+        String normalizedReasoning = normalizeReasoning(lite.getReasoning(), normalizedAction, repairedFields);
+        normalized.setReasoning(normalizedReasoning);
         normalized.setMitre(normalizeMitre(lite.getMitre(), repairedFields));
+        normalized.setEvidenceRefs(normalizeEvidenceRefs(lite.getEvidenceRefs(), normalizedReasoning, repairedFields));
         recordSemanticConsistency(context, normalizedAction, normalizedRiskScore);
         recordRepairMetadata(context, repairedFields);
         return normalized;
@@ -141,6 +148,72 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         return normalized.isBlank() ? defaultReasoning(action) : normalized;
     }
 
+    private List<String> normalizeEvidenceRefs(List<String> evidenceRefs, String reasoning, List<String> repairedFields) {
+        List<String> normalized = new ArrayList<>();
+        if (evidenceRefs != null) {
+            for (String ref : evidenceRefs) {
+                if (ref == null || ref.isBlank()) {
+                    continue;
+                }
+                String canonical = canonicalEvidenceRef(ref);
+                if (canonical != null && !normalized.contains(canonical)) {
+                    normalized.add(canonical);
+                }
+            }
+        }
+        if (mentionsSensitivityEvidence(reasoning) && !normalized.contains("sensitivity")) {
+            normalized.add("sensitivity");
+        }
+        if (mentionsBaselineEvidence(reasoning) && !normalized.contains("baseline")) {
+            normalized.add("baseline");
+        }
+        if (normalized.isEmpty()) {
+            repairedFields.add("evidenceRefs");
+        }
+        return normalized;
+    }
+
+    private String canonicalEvidenceRef(String ref) {
+        String normalized = ref.trim().toLowerCase(Locale.ROOT)
+                .replace('_', '-')
+                .replace(' ', '-');
+        return switch (normalized) {
+            case "baseline", "work-profile", "history", "normal-behavior" -> "baseline";
+            case "sensitivity", "high-sensitivity", "resource-sensitivity", "critical-sensitivity", "business-impact" -> "sensitivity";
+            case "authorization", "authz", "auth", "authorization-effect", "permission", "permissions", "mfa" -> "authorization";
+            case "resource", "session", "device", "location", "rag", "threat", "approval", "delegation" -> normalized;
+            default -> null;
+        };
+    }
+
+    private boolean mentionsSensitivityEvidence(String reasoning) {
+        if (reasoning == null || reasoning.isBlank()) {
+            return false;
+        }
+        String lower = reasoning.toLowerCase(Locale.ROOT);
+        return lower.contains("high-sensitivity")
+                || lower.contains("high sensitivity")
+                || lower.contains("sensitive-resource")
+                || lower.contains("sensitive resource")
+                || lower.contains("sensitive res")
+                || lower.contains("resource sensitivity")
+                || lower.contains("critical resource")
+                || lower.contains("critical sensitivity")
+                || lower.contains("business impact");
+    }
+
+    private boolean mentionsBaselineEvidence(String reasoning) {
+        if (reasoning == null || reasoning.isBlank()) {
+            return false;
+        }
+        String lower = reasoning.toLowerCase(Locale.ROOT);
+        return lower.contains("limited baseline")
+                || lower.contains("baseline")
+                || lower.contains("work profile")
+                || lower.contains("work-profile")
+                || lower.contains("history")
+                || lower.contains("historical");
+    }
     private String normalizeMitre(String mitre, List<String> repairedFields) {
         if (mitre == null || mitre.isBlank()) {
             repairedFields.add("mitre");

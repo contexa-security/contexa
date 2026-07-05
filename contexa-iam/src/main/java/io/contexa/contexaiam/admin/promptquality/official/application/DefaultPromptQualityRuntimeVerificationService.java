@@ -520,7 +520,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                     : List.of();
         }
         int officialPromptFailed = actualPromptProblemMetricCount(actualPromptProblems);
-        int officialPromptPassed = Math.max(metrics.size() - officialPromptFailed, 0);
+        int officialPromptPassed = officialPassedMetricCount(metrics);
         recordVerificationProcess(processScope, certificate, pkg, runId, officialPromptFailed, officialNextActions);
         recordOfficialAuditSnapshot(
                 processScope,
@@ -2292,7 +2292,8 @@ public class DefaultPromptQualityRuntimeVerificationService
         String source = check.source().trim();
         return source.startsWith("finalUserPrompt.")
                 || source.startsWith("finalSystemPrompt.")
-                || source.startsWith("internalGate.");
+                || source.startsWith("internalGate.")
+                || "LLM_DECISION_QUALITY".equalsIgnoreCase(check.readinessScope());
     }
 
     private boolean internalGateMetric(String metricCode) {
@@ -2826,6 +2827,15 @@ public class DefaultPromptQualityRuntimeVerificationService
                 .map(this::normalizedCode)
                 .filter(metricCode -> !internalGateMetric(metricCode))
                 .distinct()
+                .count();
+    }
+
+    private int officialPassedMetricCount(List<RuntimeEvidenceMetricResult> metrics) {
+        if (metrics == null || metrics.isEmpty()) {
+            return 0;
+        }
+        return (int) metrics.stream()
+                .filter(this::metricPassed)
                 .count();
     }
 

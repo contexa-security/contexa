@@ -2189,14 +2189,26 @@ public class SecurityDecisionPromptSections {
                 No markdown, no extra keys, no comments.
 
                 Required key order:
-                action, riskScore, confidence, mitre, reasoning
+                action, riskScore, confidence, mitre, reasoning, evidenceRefs
 
                 Schema:
-                {"action":"ALLOW|CHALLENGE|ESCALATE|BLOCK","riskScore":0.0,"confidence":0.0,"mitre":"UNKNOWN","reasoning":"short evidence-based sentence"}
+                {"action":"ALLOW|CHALLENGE|ESCALATE|BLOCK","riskScore":0.0,"confidence":0.0,"mitre":"UNKNOWN","reasoning":"short evidence-based sentence","evidenceRefs":["baseline","sensitivity"]}
 
                 riskScore and confidence must be JSON numbers between 0.0 and 1.0.
                 mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.
                 reasoning must be one short sentence, maximum 12 words.
+                reasoning must cite concrete evidence tokens, not abstract labels.
+                If baseline evidence is unknown, provisional, thin, sparse, partial, or not established, reasoning must contain the exact phrase "limited baseline".
+                Do not use unsupported generic phrases such as "provisional context", "provisional signals", "risk context", or "security context".
+                Do not claim "missing authorization effect" when AuthorizationEffect is present; express uncertainty as "limited baseline" instead.
+                evidenceRefs must be a non-empty JSON array of lower-case canonical evidence categories used by reasoning.
+                Use only these canonical evidenceRefs when supported: baseline, sensitivity, authorization, resource, session, device, location, rag, threat, approval, delegation.
+                If any baseline/work-profile section, baseline status, learned pattern, history, or normal behavior facts are present and relevant, include baseline.
+                For high-sensitivity access with unverified MFA, cite sensitivity plus baseline/work-profile uncertainty when available.
+                If baseline/work-profile evidence is partial, thin, provisional, unknown, or limited, reasoning must include the exact phrase "limited baseline" even when the main risk is MFA or sensitivity.
+                If resource sensitivity, high sensitivity, critical resource, privileged scope, or business impact facts influenced the decision, include sensitivity.
+                Do not abbreviate sensitivity evidence as "sensitive res"; use high-sensitivity, sensitive-resource, or resource sensitivity.
+                Do not replace sensitivity with resource, risk, or threat when the deciding fact is resource sensitivity or business impact.
                 Do not pre-compensate for downstream enforcement systems.
 
                 """;

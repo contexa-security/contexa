@@ -19,6 +19,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,4 +31,5 @@ public class SecurityDecisionResponseLite {
     private String action;
     private String reasoning;
     private String mitre;
+    private List<String> evidenceRefs;
 }

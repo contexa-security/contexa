@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
     <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
-    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260520-readiness-redesign-v2')}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260705-main-sub-nav-v1')}">
 </head>
 <body class="page-shell">
 <div th:replace="~{contexa/fragments/header :: header}"></div>
@@ -19,27 +19,109 @@
 
         <nav class="pqa-verification-subnav"
              data-pqa-verification-subnav
+             aria-label="Official quality inspection screens"
              th:aria-label="#{enterprise.pqa.verification.subnav.aria}">
-            <a class="pqa-verification-subnav-link active"
-               data-pqa-verification-subroute="readiness"
-               th:href="${promptQualityRouteRoot + '/verification/readiness'}">
-                <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">Evidence and prompt consistency</span>
-            </a>
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="run"
-               th:href="${promptQualityRouteRoot + '/verification/run'}">
-                <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">Inspection run</span>
-            </a>
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="comparison"
-               th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}">
-                <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">Actual prompt comparison</span>
-            </a>
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="metrics"
-               th:href="${promptQualityRouteRoot + '/verification/metrics'}">
-                <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12 prompt-quality metric detail</span>
-            </a>
+            <div class="pqa-verification-nav-section-label" th:text="#{enterprise.pqa.verification.subnav.mainLabel}">Inspection areas</div>
+            <div class="pqa-verification-mainnav"
+                 aria-label="Official inspection areas"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.mainAria}">
+                <a class="pqa-verification-mainnav-link active"
+                   data-pqa-verification-subroute="readiness"
+                   data-pqa-nav-family="execution"
+                   th:href="${promptQualityRouteRoot + '/verification/readiness'}">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.execution}">Integrated official inspection</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.execution.detail}">Evidence check - integrated result - 12+6 run</small>
+                </a>
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="comparison"
+                   data-pqa-nav-family="prompt"
+                   th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.prompt}">Prompt official inspection</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.prompt.detail}">Actual prompt comparison - 12 metrics</small>
+                </a>
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="llm-metrics"
+                   data-pqa-nav-family="llm"
+                   th:href="${promptQualityRouteRoot + '/verification/llm-metrics'}">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.llm}">LLM decision official inspection</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.llm.detail}">LLM decision 6 metrics</small>
+                </a>
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="failures"
+                   data-pqa-nav-family="diagnosis"
+                   th:href="${promptQualityRouteRoot + '/verification/failures'}">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.diagnosis}">Shared evidence and diagnosis</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.diagnosis.detail}">Failures - evidence package - reverify</small>
+                </a>
+            </div>
+
+            <div class="pqa-verification-subnav-row"
+                 aria-label="Official inspection execution screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link active"
+                   data-pqa-verification-subroute="readiness"
+                   th:href="${promptQualityRouteRoot + '/verification/readiness'}">
+                    <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">Evidence and prompt consistency</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="summary"
+                   th:href="${promptQualityRouteRoot + '/verification/summary'}">
+                    <i class="fa-solid fa-gauge-high" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.summary}">Integrated result</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="run"
+                   th:href="${promptQualityRouteRoot + '/verification/run'}">
+                    <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">Run integrated inspection</span>
+                </a>
+                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.executionNote}">The integrated official inspection runs the prompt 12 metrics and LLM decision 6 metrics against the same sealed evidence.</span>
+            </div>
+            <div class="pqa-verification-subnav-row" hidden
+                 aria-label="Prompt official inspection screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="comparison"
+                   th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}">
+                    <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">Actual prompt comparison</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="prompt-metrics"
+                   th:href="${promptQualityRouteRoot + '/verification/metrics'}">
+                    <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">Prompt 12 metrics</span>
+                </a>
+            </div>
+            <div class="pqa-verification-subnav-row" hidden
+                 aria-label="LLM decision official inspection screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="llm-metrics"
+                   th:href="${promptQualityRouteRoot + '/verification/llm-metrics'}">
+                    <i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM decision 6 metrics</span>
+                </a>
+                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.llmNote}">The LLM 6 metrics are inspected by the integrated official run, not by a separate run button.</span>
+            </div>
+            <div class="pqa-verification-subnav-row" hidden
+                 aria-label="Shared evidence and diagnosis screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="failures"
+                   th:href="${promptQualityRouteRoot + '/verification/failures'}">
+                    <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.failures}">Failure causes</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="evidence-package"
+                   th:href="${promptQualityRouteRoot + '/verification/evidence-package'}">
+                    <i class="fa-solid fa-box-archive" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">Evidence package</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="reverify"
+                   th:href="${promptQualityRouteRoot + '/verification/reverify'}">
+                    <i class="fa-solid fa-rotate" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.reverify}">Reverification</span>
+                </a>
+            </div>
         </nav>
 
         <section class="pqa-panel pqa-readiness-gate" data-pqa-readiness-stage>

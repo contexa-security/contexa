@@ -282,8 +282,9 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
         if (!hasText(rawSystemPrompt) || !hasText(rawUserPrompt) || !hasText(systemPrompt) || !hasText(userPrompt)) {
             return false;
         }
-        boolean same = rawSystemPrompt.equals(systemPrompt) && rawUserPrompt.equals(userPrompt);
-        return same || bool(promptMetadata, "promptCompressionApplied");
+        boolean same = promptParityEquals(rawSystemPrompt, systemPrompt)
+                && promptParityEquals(rawUserPrompt, userPrompt);
+        return same || bool(promptMetadata, "promptCompressionApplied") || layoutOnlyNormalizationRecorded(promptMetadata);
     }
 
     private String rawPromptDiffLabel(
@@ -298,10 +299,47 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
         if (!hasText(systemPrompt) || !hasText(userPrompt)) {
             return "LLM prompt missing";
         }
-        boolean same = rawSystemPrompt.equals(systemPrompt) && rawUserPrompt.equals(userPrompt);
-        return same
-                ? "same"
-                : "different, compressionApplied=" + bool(promptMetadata, "promptCompressionApplied");
+        boolean same = promptParityEquals(rawSystemPrompt, systemPrompt)
+                && promptParityEquals(rawUserPrompt, userPrompt);
+        if (same) {
+            return "same";
+        }
+        if (layoutOnlyNormalizationRecorded(promptMetadata)) {
+            return "layout-only normalization";
+        }
+        return "different, compressionApplied=" + bool(promptMetadata, "promptCompressionApplied");
+    }
+
+    private boolean layoutOnlyNormalizationRecorded(Map<String, Object> promptMetadata) {
+        Object ledger = promptMetadata == null ? null : promptMetadata.get("promptCompressionLedger");
+        if (!(ledger instanceof List<?> records) || records.isEmpty()) {
+            return false;
+        }
+        for (Object record : records) {
+            if (!(record instanceof Map<?, ?> map)) {
+                return false;
+            }
+            String action = String.valueOf(map.get("action"));
+            String scopeKey = String.valueOf(map.get("scopeKey"));
+            String reason = String.valueOf(map.get("reason"));
+            boolean layoutScope = "SYSTEM_PROMPT_LAYOUT".equals(scopeKey) || "USER_PROMPT_LAYOUT".equals(scopeKey);
+            boolean whitespaceOnly = reason.toLowerCase(Locale.ROOT).contains("whitespace-only normalization");
+            if (!"TRIMMED".equals(action) || !layoutScope || !whitespaceOnly) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean promptParityEquals(String left, String right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return normalizePromptForParity(left).equals(normalizePromptForParity(right));
+    }
+
+    private String normalizePromptForParity(String value) {
+        return value == null ? "" : value.replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
     }
 
     private EvidenceFact fact(Map<String, Object> facts, String source, String... keys) {

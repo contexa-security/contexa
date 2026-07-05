@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
     <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
-    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260522-contract-context-items')}">
+    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260705-main-sub-nav-v1')}">
 </head>
 <body class="page-shell">
 <div th:replace="~{contexa/fragments/header :: header}"></div>
@@ -33,7 +33,7 @@
                 <h1>실제 프롬프트에서 발견된 문제를 먼저 확인합니다.</h1>
                 <p>공식 검사에서 발견한 문제와 영향을 받은 지표를 보여줍니다.</p>
             </div>
-            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'metrics'}">
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'prompt-metrics'}">
                 <span>공식 프롬프트 검사</span>
                 <h1>지표별 판정 이유를 구분해서 확인합니다.</h1>
                 <p>발견된 문제, 영향 지표, 검사 기준을 한 화면에서 확인합니다.</p>
@@ -46,6 +46,11 @@
         </section>
 
         <section class="pqa-verification-stage-hero">
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'summary'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.summary}">통합 결과</h1>
+                <p th:text="#{enterprise.pqa.verification.summary.description}">프롬프트 12지표와 LLM 판정 6지표를 같은 증거 기준으로 함께 확인합니다.</p>
+            </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
                 <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
                 <h1 th:text="#{enterprise.pqa.verification.hero.readiness.title}">검사할 요청 증거를 확인합니다.</h1>
@@ -61,10 +66,30 @@
                 <h1 th:text="#{enterprise.pqa.verification.hero.comparison.title}">실제 프롬프트에서 발견된 문제를 먼저 확인합니다.</h1>
                 <p th:text="#{enterprise.pqa.verification.hero.comparison.description}">공식 검사에서 발견한 문제와 영향을 받은 지표를 보여줍니다.</p>
             </div>
-            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'metrics'}">
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'prompt-metrics'}">
                 <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
-                <h1 th:text="#{enterprise.pqa.verification.hero.metrics.title}">지표별 판정 이유를 구분해서 확인합니다.</h1>
-                <p th:text="#{enterprise.pqa.verification.hero.metrics.description}">발견된 문제, 영향 지표, 검사 기준을 한 화면에서 확인합니다.</p>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">프롬프트 12지표</h1>
+                <p th:text="#{enterprise.pqa.verification.metrics.description}">지표별 통과, 프롬프트 문제, 사전 입력 문제, 추가 확인을 구분합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'llm-metrics'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM 판정 6지표</h1>
+                <p th:text="#{enterprise.pqa.verification.llmMetrics.description}">LLM 판정의 액션, 근거, 출력 계약, 안정성, 공격 저항성을 확인합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'failures'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.failures}">실패 원인</h1>
+                <p th:text="#{enterprise.pqa.verification.failures.description}">prompt, context, evidence, model, output contract 기준으로 실패 원인을 구분합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'evidence-package'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">증거 패키지</h1>
+                <p th:text="#{enterprise.pqa.verification.evidencePackage.description}">봉인 증거, prompt/context hash, provider/model, decision payload, evidenceRefs를 확인합니다.</p>
+            </div>
+            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'reverify'}">
+                <span th:text="#{enterprise.pqa.verification.stage.label}">공식 프롬프트 검사</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.reverify}">재검증</h1>
+                <p th:text="#{enterprise.pqa.verification.reverify.description}">프롬프트만, LLM 판정만, 전체 재검증을 분리해 실행합니다.</p>
             </div>
             <div class="pqa-verification-stage-rules">
                 <article><strong th:text="#{enterprise.pqa.verification.rule.input.label}">기준</strong><span th:text="#{enterprise.pqa.verification.rule.input.value}">LLM 사용자 입력</span></article>
@@ -75,32 +100,127 @@
 
         <nav class="pqa-verification-subnav"
              data-pqa-verification-subnav
-             aria-label="공식 품질 검사 하위 화면"
+             th:if="${verificationStage != 'readiness'}"
+             aria-label="Official quality inspection screens"
              th:aria-label="#{enterprise.pqa.verification.subnav.aria}">
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="readiness"
-               th:href="${promptQualityRouteRoot + '/verification/readiness'}"
-               th:classappend="${verificationStage == 'readiness'} ? ' active' : ''">
-                <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">증거·프롬프트 일치성</span>
-            </a>
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="run"
-               th:href="${promptQualityRouteRoot + '/verification/run'}"
-               th:classappend="${verificationStage == 'run'} ? ' active' : ''">
-                <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">검사 실행</span>
-            </a>
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="comparison"
-               th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}"
-               th:classappend="${verificationStage == 'comparison'} ? ' active' : ''">
-                <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">실제 프롬프트 비교</span>
-            </a>
-            <a class="pqa-verification-subnav-link"
-               data-pqa-verification-subroute="metrics"
-               th:href="${promptQualityRouteRoot + '/verification/metrics'}"
-               th:classappend="${verificationStage == 'metrics'} ? ' active' : ''">
-                <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12개 프롬프트 품질 지표 상세</span>
-            </a>
+            <div class="pqa-verification-nav-section-label" th:text="#{enterprise.pqa.verification.subnav.mainLabel}">Inspection areas</div>
+            <div class="pqa-verification-mainnav"
+                 aria-label="Official inspection areas"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.mainAria}">
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="readiness"
+                   data-pqa-nav-family="execution"
+                   th:href="${promptQualityRouteRoot + '/verification/readiness'}"
+                   th:classappend="${verificationStage == 'readiness' or verificationStage == 'summary' or verificationStage == 'run'} ? ' active' : ''">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.execution}">Integrated official inspection</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.execution.detail}">Evidence check - integrated result - 12+6 run</small>
+                </a>
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="comparison"
+                   data-pqa-nav-family="prompt"
+                   th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}"
+                   th:classappend="${verificationStage == 'comparison' or verificationStage == 'prompt-metrics'} ? ' active' : ''">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.prompt}">Prompt official inspection</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.prompt.detail}">Actual prompt comparison - 12 metrics</small>
+                </a>
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="llm-metrics"
+                   data-pqa-nav-family="llm"
+                   th:href="${promptQualityRouteRoot + '/verification/llm-metrics'}"
+                   th:classappend="${verificationStage == 'llm-metrics'} ? ' active' : ''">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.llm}">LLM decision official inspection</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.llm.detail}">LLM decision 6 metrics</small>
+                </a>
+                <a class="pqa-verification-mainnav-link"
+                   data-pqa-verification-subroute="failures"
+                   data-pqa-nav-family="diagnosis"
+                   th:href="${promptQualityRouteRoot + '/verification/failures'}"
+                   th:classappend="${verificationStage == 'failures' or verificationStage == 'evidence-package' or verificationStage == 'reverify'} ? ' active' : ''">
+                    <strong th:text="#{enterprise.pqa.verification.subnav.group.diagnosis}">Shared evidence and diagnosis</strong>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.diagnosis.detail}">Failures - evidence package - reverify</small>
+                </a>
+            </div>
+
+            <div class="pqa-verification-subnav-row"
+                 th:if="${verificationStage == 'readiness' or verificationStage == 'summary' or verificationStage == 'run'}"
+                 aria-label="Official inspection execution screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="readiness"
+                   th:href="${promptQualityRouteRoot + '/verification/readiness'}"
+                   th:classappend="${verificationStage == 'readiness'} ? ' active' : ''">
+                    <i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.readiness}">Evidence and prompt consistency</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="summary"
+                   th:href="${promptQualityRouteRoot + '/verification/summary'}"
+                   th:classappend="${verificationStage == 'summary'} ? ' active' : ''">
+                    <i class="fa-solid fa-gauge-high" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.summary}">Integrated result</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="run"
+                   th:href="${promptQualityRouteRoot + '/verification/run'}"
+                   th:classappend="${verificationStage == 'run'} ? ' active' : ''">
+                    <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">Run integrated inspection</span>
+                </a>
+                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.executionNote}">The integrated official inspection runs the prompt 12 metrics and LLM decision 6 metrics against the same sealed evidence.</span>
+            </div>
+            <div class="pqa-verification-subnav-row"
+                 th:if="${verificationStage == 'comparison' or verificationStage == 'prompt-metrics'}"
+                 aria-label="Prompt official inspection screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="comparison"
+                   th:href="${promptQualityRouteRoot + '/verification/prompt-comparison'}"
+                   th:classappend="${verificationStage == 'comparison'} ? ' active' : ''">
+                    <i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">Actual prompt comparison</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="prompt-metrics"
+                   th:href="${promptQualityRouteRoot + '/verification/metrics'}"
+                   th:classappend="${verificationStage == 'prompt-metrics'} ? ' active' : ''">
+                    <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">Prompt 12 metrics</span>
+                </a>
+            </div>
+            <div class="pqa-verification-subnav-row"
+                 th:if="${verificationStage == 'llm-metrics'}"
+                 aria-label="LLM decision official inspection screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="llm-metrics"
+                   th:href="${promptQualityRouteRoot + '/verification/llm-metrics'}"
+                   th:classappend="${verificationStage == 'llm-metrics'} ? ' active' : ''">
+                    <i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM decision 6 metrics</span>
+                </a>
+                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.llmNote}">The LLM 6 metrics are inspected by the integrated official run, not by a separate run button.</span>
+            </div>
+            <div class="pqa-verification-subnav-row"
+                 th:if="${verificationStage == 'failures' or verificationStage == 'evidence-package' or verificationStage == 'reverify'}"
+                 aria-label="Shared evidence and diagnosis screens"
+                 th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
+                <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="failures"
+                   th:href="${promptQualityRouteRoot + '/verification/failures'}"
+                   th:classappend="${verificationStage == 'failures'} ? ' active' : ''">
+                    <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.failures}">Failure causes</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="evidence-package"
+                   th:href="${promptQualityRouteRoot + '/verification/evidence-package'}"
+                   th:classappend="${verificationStage == 'evidence-package'} ? ' active' : ''">
+                    <i class="fa-solid fa-box-archive" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">Evidence package</span>
+                </a>
+                <a class="pqa-verification-subnav-link"
+                   data-pqa-verification-subroute="reverify"
+                   th:href="${promptQualityRouteRoot + '/verification/reverify'}"
+                   th:classappend="${verificationStage == 'reverify'} ? ' active' : ''">
+                    <i class="fa-solid fa-rotate" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.reverify}">Reverification</span>
+                </a>
+            </div>
         </nav>
 
         <section class="pqa-summary-strip" data-pqa-verification-summary th:if="${verificationStage == 'readiness'}"></section>
@@ -206,17 +326,27 @@
             <div class="pqa-panel-head">
                 <div>
                     <h2><i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.titleAlt}">공식 검사 실행</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.run.description}">선택한 실제 요청 증거를 12개 프롬프트 품질 지표로 검사합니다.</p>
+                    <p th:text="#{enterprise.pqa.verification.run.description}">선택한 실제 요청 증거를 프롬프트 12지표와 LLM 판정 6지표로 함께 공식검사합니다.</p>
                 </div>
                 <button type="button"
                         class="pqa-link-button is-disabled"
                         data-pqa-run-verification
                         aria-disabled="true"
                         th:attr="data-pqa-disabled-reason=#{enterprise.pqa.verification.run.needEvidence.detail}">
-                        <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.execute}">12개 프롬프트 품질 지표 검사 실행</span>
+                        <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.execute}">통합 공식검사 실행</span>
                 </button>
             </div>
-            <div class="pqa-verification-progress"
+            <div class="pqa-run-scope-grid" aria-label="공식검사 실행 범위">
+                <article>
+                    <span><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.scope.prompt}">프롬프트 12지표</span></span>
+                    <p th:text="#{enterprise.pqa.verification.run.scope.prompt.detail}">프롬프트, 컨텍스트, 증거 패키지가 LLM 판정 입력으로 충분한지 검사합니다.</p>
+                </article>
+                <article>
+                    <span><i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.scope.llm}">LLM 판정 6지표</span></span>
+                    <p th:text="#{enterprise.pqa.verification.run.scope.llm.detail}">LLM 판정의 액션, 근거, 출력 계약, 안정성, 공격 저항성을 검사합니다.</p>
+                </article>
+            </div>
+                        <div class="pqa-verification-progress"
                  data-pqa-verification-progress
                  role="progressbar"
                  aria-valuemin="0"
@@ -270,22 +400,80 @@
 
         <section class="pqa-panel pqa-official-ledger-panel"
                  data-pqa-official-ledger
-                 th:if="${verificationStage == 'metrics'}">
+                 th:if="${verificationStage == 'prompt-metrics'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.metrics}">12개 프롬프트 품질 지표 상세</span></h2>
+                    <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">프롬프트 12지표</span></h2>
                             <p th:text="#{enterprise.pqa.verification.metrics.description}">지표별 통과, 프롬프트 문제, 사전 입력 문제, 추가 확인을 구분합니다.</p>
                 </div>
             </div>
-            <div class="pqa-official-ledger-runs" data-pqa-official-ledger-runs></div>
+            <div class="pqa-official-ledger-runs" data-pqa-official-ledger-runs data-pqa-official-ledger-runs-family="prompt"></div>
             <div class="pqa-official-run-detail" data-pqa-official-run-detail hidden></div>
         </section>
 
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'summary'}">
+            <div data-pqa-official-ledger-summary></div>
+        </section>
+
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'llm-metrics'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM 판정 6지표</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.llmMetrics.description}">LLM 판정의 액션, 근거, 출력 계약, 안정성, 공격 저항성을 확인합니다.</p>
+                </div>
+            </div>
+            <div class="pqa-official-ledger-runs" data-pqa-official-ledger-runs data-pqa-official-ledger-runs-family="decision"></div>
+            <div class="pqa-official-run-detail" data-pqa-official-run-detail hidden></div>
+        </section>
+
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'failures'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.failures}">실패 원인</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.failures.description}">prompt, context, evidence, model, output contract 기준으로 실패 원인을 구분합니다.</p>
+                </div>
+            </div>
+            <div data-pqa-official-ledger-failures></div>
+            <div data-pqa-official-ledger-remediation></div>
+        </section>
+
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'evidence-package'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-box-archive" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">증거 패키지</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.evidencePackage.description}">봉인 증거, prompt/context hash, provider/model, decision payload, evidenceRefs를 확인합니다.</p>
+                </div>
+            </div>
+            <div data-pqa-official-ledger-summary></div>
+            <div data-pqa-official-ledger-audit></div>
+            <div data-pqa-official-ledger-raw></div>
+        </section>
+
+        <section class="pqa-panel pqa-official-ledger-panel"
+                 data-pqa-official-ledger
+                 th:if="${verificationStage == 'reverify'}">
+            <div class="pqa-panel-head">
+                <div>
+                    <h2><i class="fa-solid fa-rotate" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.reverify}">재검증</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.reverify.description}">프롬프트만, LLM 판정만, 전체 재검증을 분리해 실행합니다.</p>
+                </div>
+            </div>
+            <div data-pqa-official-ledger-reverify></div>
+            <div data-pqa-official-ledger-process></div>
+        </section>
     </section>
 </main>
 
 <div th:replace="~{contexa/fragments/footer :: footer}"></div>
 <script th:src="@{/js/vendor/chart.umd.min.js}"></script>
-<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260601-evidence-role-labels')}"></script>
+<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260705-integrated-official-ui-v1')}"></script>
 </body>
 </html>

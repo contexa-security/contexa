@@ -21,6 +21,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,6 +33,7 @@ public class SecurityDecisionResponse extends AIResponse {
     private String action;
     private String reasoning;
     private String mitre;
+    private List<String> evidenceRefs;
 
     public SecurityResponse toSecurityResponse() {
         return SecurityResponse.builder()
@@ -39,6 +42,7 @@ public class SecurityDecisionResponse extends AIResponse {
                 .action(action)
                 .reasoning(reasoning)
                 .mitre(mitre)
+                .evidenceRefs(evidenceRefs)
                 .build();
     }
 
@@ -52,6 +56,7 @@ public class SecurityDecisionResponse extends AIResponse {
         decisionResponse.setAction(response.getAction());
         decisionResponse.setReasoning(response.getReasoning());
         decisionResponse.setMitre(response.getMitre());
+        decisionResponse.setEvidenceRefs(response.getEvidenceRefs());
         return decisionResponse;
     }
 
@@ -65,6 +70,7 @@ public class SecurityDecisionResponse extends AIResponse {
         decisionResponse.setAction(response.getAction());
         decisionResponse.setReasoning(response.getReasoning());
         decisionResponse.setMitre(response.getMitre());
+        decisionResponse.setEvidenceRefs(response.getEvidenceRefs());
         return decisionResponse;
     }
 }

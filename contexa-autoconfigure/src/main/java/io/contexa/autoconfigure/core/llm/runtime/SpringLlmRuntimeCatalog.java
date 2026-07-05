@@ -25,6 +25,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
@@ -260,7 +261,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         }
         String modelId = normalize(configuredBinding != null ? configuredBinding.getModelId() : null);
         if (modelId == null) {
-            modelId = inferModelId(beanName, beanType, runtimeType);
+            modelId = inferModelId(beanName, beanType, runtimeType, provider);
         }
 
         Set<String> aliases = new LinkedHashSet<>();
@@ -331,8 +332,59 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         return "spring";
     }
 
-    private String inferModelId(String beanName, Class<?> beanType, LlmRuntimeType runtimeType) {
+    private String inferModelId(String beanName, Class<?> beanType, LlmRuntimeType runtimeType, String provider) {
+        String configuredModelId = configuredProviderModelId(provider, runtimeType);
+        if (configuredModelId != null) {
+            return configuredModelId;
+        }
         return beanName;
+    }
+
+    private String configuredProviderModelId(String provider, LlmRuntimeType runtimeType) {
+        if (!StringUtils.hasText(provider) || runtimeType == null) {
+            return null;
+        }
+        Environment environment = applicationContext.getEnvironment();
+        if (environment == null) {
+            return null;
+        }
+
+        String normalizedProvider = provider.trim().toLowerCase(Locale.ROOT);
+        List<String> keys = switch (runtimeType) {
+            case CHAT -> chatModelPropertyKeys(normalizedProvider);
+            case EMBEDDING -> embeddingModelPropertyKeys(normalizedProvider);
+        };
+        for (String key : keys) {
+            String value = normalize(environment.getProperty(key));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private List<String> chatModelPropertyKeys(String provider) {
+        return switch (provider) {
+            case "openai" -> List.of(
+                    "spring.ai.openai.chat.options.model",
+                    "spring.ai.azure.openai.chat.options.deployment-name",
+                    "spring.ai.azure.openai.chat.options.model"
+            );
+            case "anthropic" -> List.of("spring.ai.anthropic.chat.options.model");
+            case "ollama" -> List.of();
+            default -> List.of();
+        };
+    }
+
+    private List<String> embeddingModelPropertyKeys(String provider) {
+        return switch (provider) {
+            case "openai" -> List.of(
+                    "spring.ai.openai.embedding.options.model",
+                    "spring.ai.azure.openai.embedding.options.model"
+            );
+            case "ollama" -> List.of();
+            default -> List.of();
+        };
     }
 
     private void validateUniqueSelectors(List<LlmRuntimeBinding> bindings, String runtimeType) {
