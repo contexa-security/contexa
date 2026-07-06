@@ -110,7 +110,6 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                    user_prompt_hash,
                    raw_system_prompt_hash,
                    raw_user_prompt_hash,
-                   prompt_execution_metadata_json,
                    seal_state,
                    seal_failure_reason,
                    decision_json,
@@ -628,7 +627,6 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         pkg.setUserPromptHash(rs.getString("user_prompt_hash"));
         pkg.setRawSystemPromptHash(rs.getString("raw_system_prompt_hash"));
         pkg.setRawUserPromptHash(rs.getString("raw_user_prompt_hash"));
-        pkg.setPromptExecutionMetadataJson(rs.getString("prompt_execution_metadata_json"));
         pkg.setSealState(rs.getString("seal_state"));
         pkg.setSealFailureReason(rs.getString("seal_failure_reason"));
         pkg.setDecisionJson(rs.getString("decision_json"));
@@ -644,7 +642,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
     private RuntimeEvidencePackageDetail toLightweightEvidenceDetail(SealedEvidencePackage pkg) {
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
         Map<String, Object> authState = parseJson(pkg.getAuthStateJson());
-        Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = Map.of();
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
         Map<String, Object> baselineSnapshot = parseJson(pkg.getBaselineSnapshotJson());
         Map<String, Object> ragResults = parseJson(pkg.getRagResultsJson());

@@ -1241,10 +1241,9 @@ function officialEvidenceRefsFromDecision(decision = {}) {
 function officialEvidencePackageSnapshot(detail = {}) {
     const sealed = detail?.sealedEvidence || {};
     const summary = sealed.summary || {};
-    const promptMetadata = sealed.promptMetadata || {};
     const decision = sealed.decision || {};
-    const promptHash = firstCleanText(summary.promptHash, promptMetadata.promptHash, promptMetadata.userPromptHash, detail?.promptHash);
-    const contextHash = firstCleanText(promptMetadata.contextHash, promptMetadata.contextBindingHash, promptMetadata.canonicalContextHash, detail?.contextHash);
+    const promptHash = firstCleanText(summary.promptHash, detail?.promptHash);
+    const contextHash = firstCleanText(summary.contextHash, detail?.contextHash);
     return {
         sealed: sealed.summary?.sealed ?? summary.sealed ?? detail?.sealed,
         integrityValid: sealed.summary?.integrityValid ?? summary.integrityValid ?? detail?.integrityValid,
@@ -1254,8 +1253,8 @@ function officialEvidencePackageSnapshot(detail = {}) {
         decisionRiskScore: firstCleanText(decision.riskScore, decision.risk_score, decision.risk),
         decisionConfidence: firstCleanText(summary.decisionConfidence, decision.confidence),
         evidenceRefs: officialEvidenceRefsFromDecision(decision),
-        provider: firstCleanText(promptMetadata.provider, promptMetadata.llmProvider, decision.provider),
-        model: firstCleanText(promptMetadata.model, promptMetadata.runtimeModelId, decision.model)
+        provider: firstCleanText(decision.provider),
+        model: firstCleanText(decision.model)
     };
 }
 
@@ -3905,7 +3904,6 @@ function renderPromptSourceBody(target, detail, query) {
         ${promptBlock(t('enterprise.pqa.verification.comparison.raw.user'), rawText(evidence.userPromptText) || rawText(evidence.userPromptPreview), query, 'wide', 'user')}
         ${promptBlock(t('enterprise.pqa.verification.comparison.raw.request'), jsonText(evidence.requestFacts), query, '', 'request')}
         ${promptBlock(t('enterprise.pqa.verification.comparison.raw.auth'), jsonText(evidence.authState), query, '', 'auth')}
-        ${promptBlock(t('enterprise.pqa.verification.comparison.raw.metadata'), jsonText(evidence.promptMetadata), query, '', 'metadata')}
         ${promptBlock(t('enterprise.pqa.verification.comparison.raw.baseline'), evidence.baselineSnapshotCaptured ? jsonText(evidence.baselineSnapshot) : t('enterprise.pqa.verification.comparison.raw.notCaptured'), query, '', 'baseline')}
         ${promptBlock(t('enterprise.pqa.verification.comparison.raw.rag'), evidence.ragResultsCaptured ? jsonText(evidence.ragResults) : t('enterprise.pqa.verification.comparison.raw.notCaptured'), query, '', 'rag')}
         ${promptBlock(t('enterprise.pqa.verification.comparison.raw.decision'), jsonText(evidence.decision), query, '', 'decision')}

@@ -58,7 +58,7 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
         List<String> findings = new ArrayList<>();
         List<String> actions = new ArrayList<>();
         Map<String, Object> requestFacts = parseJson(evidencePackage.getRequestFactsJson());
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = parsePromptExecutionMetadataHeader(evidencePackage.getPromptExecutionMetadataJson());
         String requestPath = requestPath(evidencePackage, requestFacts);
         String resourceId = firstNonBlank(
                 text(requestFacts, "resourceId"),

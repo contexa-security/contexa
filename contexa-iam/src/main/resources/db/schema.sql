@@ -2625,40 +2625,28 @@ ALTER TABLE verification_run_ledger
 ALTER TABLE verification_run_ledger
     ADD COLUMN IF NOT EXISTS event_facts_jsonb JSONB;
 ALTER TABLE verification_run_ledger
-    ADD COLUMN IF NOT EXISTS prompt_facts_jsonb JSONB;
-ALTER TABLE verification_run_ledger
     ADD COLUMN IF NOT EXISTS analysis_facts_jsonb JSONB;
 ALTER TABLE verification_run_ledger
     ADD COLUMN IF NOT EXISTS events_jsonb JSONB;
-ALTER TABLE verification_run_ledger
-    ADD COLUMN IF NOT EXISTS raw_evidence_jsonb JSONB;
 
 UPDATE verification_run_ledger
    SET evidence_references_jsonb = COALESCE(evidence_references_jsonb, contexa_safe_jsonb(evidence_references_json)),
        checks_jsonb = COALESCE(checks_jsonb, contexa_safe_jsonb(checks_json)),
        request_facts_jsonb = COALESCE(request_facts_jsonb, contexa_safe_jsonb(request_facts_json)),
        event_facts_jsonb = COALESCE(event_facts_jsonb, contexa_safe_jsonb(event_facts_json)),
-       prompt_facts_jsonb = COALESCE(prompt_facts_jsonb, contexa_safe_jsonb(prompt_facts_json)),
        analysis_facts_jsonb = COALESCE(analysis_facts_jsonb, contexa_safe_jsonb(analysis_facts_json)),
-       events_jsonb = COALESCE(events_jsonb, contexa_safe_jsonb(events_json)),
-       raw_evidence_jsonb = COALESCE(raw_evidence_jsonb, contexa_safe_jsonb(raw_evidence_json))
+       events_jsonb = COALESCE(events_jsonb, contexa_safe_jsonb(events_json))
  WHERE (evidence_references_jsonb IS NULL AND evidence_references_json IS NOT NULL)
     OR (checks_jsonb IS NULL AND checks_json IS NOT NULL)
     OR (request_facts_jsonb IS NULL AND request_facts_json IS NOT NULL)
     OR (event_facts_jsonb IS NULL AND event_facts_json IS NOT NULL)
-    OR (prompt_facts_jsonb IS NULL AND prompt_facts_json IS NOT NULL)
     OR (analysis_facts_jsonb IS NULL AND analysis_facts_json IS NOT NULL)
-    OR (events_jsonb IS NULL AND events_json IS NOT NULL)
-    OR (raw_evidence_jsonb IS NULL AND raw_evidence_json IS NOT NULL);
+    OR (events_jsonb IS NULL AND events_json IS NOT NULL);
 
 CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_request_facts_jsonb
     ON verification_run_ledger USING GIN (request_facts_jsonb);
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_prompt_facts_jsonb
-    ON verification_run_ledger USING GIN (prompt_facts_jsonb);
 CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_analysis_facts_jsonb
     ON verification_run_ledger USING GIN (analysis_facts_jsonb);
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_raw_evidence_jsonb
-    ON verification_run_ledger USING GIN (raw_evidence_jsonb);
 
 CREATE OR REPLACE FUNCTION contexa_sync_verification_run_ledger_jsonb()
 RETURNS TRIGGER
@@ -2669,10 +2657,8 @@ BEGIN
     NEW.checks_jsonb = contexa_safe_jsonb(NEW.checks_json);
     NEW.request_facts_jsonb = contexa_safe_jsonb(NEW.request_facts_json);
     NEW.event_facts_jsonb = contexa_safe_jsonb(NEW.event_facts_json);
-    NEW.prompt_facts_jsonb = contexa_safe_jsonb(NEW.prompt_facts_json);
     NEW.analysis_facts_jsonb = contexa_safe_jsonb(NEW.analysis_facts_json);
     NEW.events_jsonb = contexa_safe_jsonb(NEW.events_json);
-    NEW.raw_evidence_jsonb = contexa_safe_jsonb(NEW.raw_evidence_json);
     RETURN NEW;
 END;
 $function$;
@@ -2683,33 +2669,6 @@ CREATE TRIGGER trg_a_sync_verification_run_ledger_jsonb
 BEFORE INSERT OR UPDATE ON verification_run_ledger
 FOR EACH ROW
 EXECUTE FUNCTION contexa_sync_verification_run_ledger_jsonb();
-
-ALTER TABLE verification_raw_evidence_artifact_ledger
-    ADD COLUMN IF NOT EXISTS artifact_body_jsonb JSONB;
-
-UPDATE verification_raw_evidence_artifact_ledger
-   SET artifact_body_jsonb = COALESCE(artifact_body_jsonb, contexa_safe_jsonb(artifact_body))
- WHERE artifact_body_jsonb IS NULL AND artifact_body IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_verification_raw_evidence_artifact_jsonb
-    ON verification_raw_evidence_artifact_ledger USING GIN (artifact_body_jsonb);
-
-CREATE OR REPLACE FUNCTION contexa_sync_verification_raw_artifact_jsonb()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $function$
-BEGIN
-    NEW.artifact_body_jsonb = contexa_safe_jsonb(NEW.artifact_body);
-    RETURN NEW;
-END;
-$function$;
-
-DROP TRIGGER IF EXISTS trg_a_sync_verification_raw_artifact_jsonb ON verification_raw_evidence_artifact_ledger;
-
-CREATE TRIGGER trg_a_sync_verification_raw_artifact_jsonb
-BEFORE INSERT OR UPDATE ON verification_raw_evidence_artifact_ledger
-FOR EACH ROW
-EXECUTE FUNCTION contexa_sync_verification_raw_artifact_jsonb();
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_04__official_verification_execution_lock.sql

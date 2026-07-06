@@ -46,6 +46,8 @@ final class UserPromptEvidenceContract {
             "enterprise.pqa.promptEvidence.violation.staticProjectionMismatch";
     private static final String MSG_FIELD_STATE_CONTRACT_MISMATCH =
             "enterprise.pqa.promptEvidence.violation.fieldStateContractMismatch";
+    private static final int FIELD_STATE_LEDGER_MANIFEST_LIMIT = 512;
+    private static final int FIELD_STATE_LEDGER_TEXT_LIMIT = 512;
 
     private static final List<FieldSpec> FIELDS = List.of(
             p0("tenantId", "Tenant ID", List.of("TenantId", "TenantID"),
@@ -352,21 +354,29 @@ final class UserPromptEvidenceContract {
         manifest.put("sourceContextExhaustive", Boolean.TRUE.equals(metadata.get("promptSourceContextExhaustive")));
         manifest.put("sourceContextFailureCount", intValue(metadata.get("promptSourceContextFailureCount"), 0));
         if (ledger instanceof List<?> rows) {
-            List<Map<String, Object>> enrichedLedger = new ArrayList<>();
+            List<Map<String, Object>> manifestLedger = new ArrayList<>();
             int finalPromptFieldCount = 0;
             int appendedFieldCount = 0;
             int appendedBlockingCount = 0;
+            int manifestLedgerOmittedCount = 0;
             for (Object row : rows) {
                 if (!(row instanceof Map<?, ?> fieldState)) {
                     continue;
                 }
                 boolean decisionContractField = isDecisionContractFieldState(fieldState);
                 Map<String, Object> enriched = enrichFieldStateLedgerRow(fieldState, decisionContractField);
-                enrichedLedger.add(enriched);
                 String sourceType = stringValue(fieldState.get("sourceType"));
                 boolean finalPromptField = "FINAL_USER_PROMPT_FIELD".equals(sourceType);
                 if (finalPromptField) {
                     finalPromptFieldCount++;
+                }
+                if (storeManifestFieldStateLedgerRow(enriched, decisionContractField)) {
+                    if (manifestLedger.size() < FIELD_STATE_LEDGER_MANIFEST_LIMIT) {
+                        manifestLedger.add(compactManifestFieldStateLedgerRow(enriched));
+                    }
+                    else {
+                        manifestLedgerOmittedCount++;
+                    }
                 }
                 if (!decisionContractField) {
                     continue;
@@ -389,11 +399,76 @@ final class UserPromptEvidenceContract {
             manifest.put("appendedFieldStateFieldCount", appendedFieldCount);
             manifest.put("appendedFieldStateBlockingCount", appendedBlockingCount);
             manifest.put("fieldStateBlockingCount", appendedBlockingCount);
-            manifest.put("fieldStateLedger", enrichedLedger);
+            manifest.put("fieldStateLedgerStoragePolicy", "OFFICIAL_RELEVANT_COMPACT_ROWS");
+            manifest.put("fieldStateLedgerStoredCount", manifestLedger.size());
+            manifest.put("fieldStateLedgerOmittedCount", manifestLedgerOmittedCount);
+            manifest.put("fieldStateLedger", manifestLedger);
         }
         else {
-            manifest.put("fieldStateLedger", ledger);
+            manifest.put("fieldStateLedgerStoragePolicy", ledger == null ? "ABSENT" : "OMITTED_NON_LIST_VALUE");
+            manifest.put("fieldStateLedgerStoredCount", 0);
+            manifest.put("fieldStateLedgerOmittedCount", ledger == null ? 0 : 1);
+            manifest.put("fieldStateLedger", List.of());
         }
+    }
+
+    private static boolean storeManifestFieldStateLedgerRow(Map<String, Object> enriched, boolean decisionContractField) {
+        return decisionContractField
+                || Boolean.TRUE.equals(enriched.get("officialBlockingCandidate"))
+                || Boolean.TRUE.equals(enriched.get("blockingCandidate"))
+                || hasManifestMetricCodes(enriched.get("metricCodes"));
+    }
+
+    private static boolean hasManifestMetricCodes(Object value) {
+        if (value instanceof Collection<?> collection) {
+            return !collection.isEmpty();
+        }
+        return false;
+    }
+
+    private static Map<String, Object> compactManifestFieldStateLedgerRow(Map<String, Object> source) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        copyManifestFieldStateValue(compact, source, "fieldKey");
+        copyManifestFieldStateValue(compact, source, "sourceType");
+        copyManifestFieldStateValue(compact, source, "sourceClass");
+        copyManifestFieldStateValue(compact, source, "sourceFieldPath");
+        copyManifestFieldStateValue(compact, source, "promptSection");
+        copyManifestFieldStateValue(compact, source, "promptPresenceState");
+        copyManifestFieldStateValue(compact, source, "promptLabel");
+        copyManifestFieldStateValue(compact, source, "valueType");
+        copyManifestFieldStateValue(compact, source, "requiredPolicy");
+        copyManifestFieldStateValue(compact, source, "projectionPolicy");
+        copyManifestFieldStateValue(compact, source, "applicabilityRule");
+        copyManifestFieldStateValue(compact, source, "qualityRelevance");
+        copyManifestFieldStateValue(compact, source, "metricCodes");
+        copyManifestFieldStateValue(compact, source, "metricBindingStatus");
+        copyManifestFieldStateValue(compact, source, "remediationOwner");
+        copyManifestFieldStateValue(compact, source, "producerStatus");
+        copyManifestFieldStateValue(compact, source, "notApplicableRule");
+        copyManifestFieldStateValue(compact, source, "fieldState");
+        copyManifestFieldStateValue(compact, source, "absenceReasonText");
+        copyManifestFieldStateValue(compact, source, "valuePreview");
+        copyManifestFieldStateValue(compact, source, "blockingCandidate");
+        copyManifestFieldStateValue(compact, source, "rawBlockingCandidate");
+        copyManifestFieldStateValue(compact, source, "officialBlockingCandidate");
+        return compact;
+    }
+
+    private static void copyManifestFieldStateValue(
+            Map<String, Object> target,
+            Map<String, Object> source,
+            String key) {
+        if (!source.containsKey(key)) {
+            return;
+        }
+        Object value = source.get(key);
+        if (value instanceof String text && text.length() > FIELD_STATE_LEDGER_TEXT_LIMIT) {
+            target.put(key, text.substring(0, FIELD_STATE_LEDGER_TEXT_LIMIT));
+            target.put(key + "Truncated", true);
+            target.put(key + "OriginalLength", text.length());
+            return;
+        }
+        target.put(key, value);
     }
 
     private static Map<String, Object> fieldStateManifestField(

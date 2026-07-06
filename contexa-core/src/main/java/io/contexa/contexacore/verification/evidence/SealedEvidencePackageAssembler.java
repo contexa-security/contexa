@@ -752,33 +752,113 @@ public class SealedEvidencePackageAssembler {
             return Map.of();
         }
         Map<String, Object> compact = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String key = entry.getKey();
-            if (!hasText(key)) {
-                continue;
-            }
-            Object value = entry.getValue();
-            switch (key) {
-                case "promptSourceContextLedger" -> {
-                    compact.put("promptSourceContextLedgerStoragePolicy", "SUMMARY_ONLY");
-                    compact.put("promptSourceContextLedgerOriginalCount", collectionSize(value));
-                }
-                case "promptFieldStateLedger" -> {
-                    compact.put("promptFieldStateLedgerStoragePolicy", "OFFICIAL_RELEVANT_ROWS_ONLY");
-                    compact.put("promptFieldStateLedgerOriginalCount", collectionSize(value));
-                    compact.put("promptFieldStateLedger", compactFieldStateLedger(value));
-                }
-                case "promptRawUserFieldLedger", "promptFinalUserFieldLedger", "promptUserFieldDiffLedger" -> {
-                    compact.put(key + "StoragePolicy", "COMPACT_ROWS");
-                    compact.put(key + "OriginalCount", collectionSize(value));
-                    compact.put(key, compactLedgerRows(value, false));
-                }
-                default -> compact.put(key, compactMetadataValue(value));
-            }
-        }
+        copyPromptMetadataField(compact, source, "requestId");
+        copyPromptMetadataField(compact, source, "correlationId");
+        copyPromptMetadataField(compact, source, "resourceId");
+        copyPromptMetadataField(compact, source, "protectableResourceId");
+        copyPromptMetadataField(compact, source, "endpointKey");
+        copyPromptMetadataField(compact, source, "actualResourceId");
+        copyPromptMetadataField(compact, source, "promptHash");
+        copyPromptMetadataField(compact, source, "userPromptHash");
+        copyPromptMetadataField(compact, source, "systemPromptHash");
+        copyPromptMetadataField(compact, source, "rawPromptHash");
+        copyPromptMetadataField(compact, source, "rawUserPromptHash");
+        copyPromptMetadataField(compact, source, "rawSystemPromptHash");
+        copyPromptMetadataField(compact, source, "contextHash");
+        copyPromptMetadataField(compact, source, "contextBindingHash");
+        copyPromptMetadataField(compact, source, "canonicalContextHash");
+        copyPromptMetadataField(compact, source, "governanceDescriptor");
+        copyPromptMetadataField(compact, source, "promptVersion");
+        copyPromptMetadataField(compact, source, "promptTemplateVersion");
+        copyPromptMetadataField(compact, source, "promptGovernanceVersion");
+        copyPromptMetadataField(compact, source, "provider");
+        copyPromptMetadataField(compact, source, "llmProvider");
+        copyPromptMetadataField(compact, source, "model");
+        copyPromptMetadataField(compact, source, "runtimeModelId");
+        copyPromptMetadataField(compact, source, "defaultBudgetProfile");
+        copyPromptMetadataField(compact, source, "promptBudgetProfile");
+        copyPromptMetadataField(compact, source, "budgetProfile");
+        copyPromptMetadataField(compact, source, "compressionApplied");
+        copyPromptMetadataField(compact, source, "promptCompressionApplied");
+        copyPromptMetadataField(compact, source, "promptRawTruthParity");
+        copyPromptMetadataField(compact, source, "promptViewTransformationMode");
+        copyPromptMetadataField(compact, source, "transformationMode");
+        copyPromptCompressionLedger(compact, source);
+        copyPromptMetadataField(compact, source, "promptFieldStateCount");
+        copyPromptMetadataField(compact, source, "promptBlockingFieldStateCount");
+        copyPromptMetadataField(compact, source, "promptFieldStateSummary");
+        copyPromptMetadataField(compact, source, "promptSourceContextFieldCount");
+        copyPromptMetadataField(compact, source, "promptSourceContextExhaustive");
+        copyPromptMetadataField(compact, source, "promptSourceContextFailureCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldLineageSummary");
+        copyPromptMetadataField(compact, source, "promptRawUserFieldCount");
+        copyPromptMetadataField(compact, source, "promptFinalUserFieldCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldDiffCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldLossCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldChangedCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldAddedCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldCompactedMarkerCount");
+        copyPromptMetadataField(compact, source, "promptUserFieldTruncatedMarkerCount");
+        recordOmittedMetadataLedger(compact, source, "promptSourceContextLedger", "SUMMARY_ONLY");
+        recordOmittedMetadataLedger(compact, source, "promptFieldStateLedger", "NORMALIZED_LEDGER_OR_MANIFEST_SUMMARY_ONLY");
+        recordOmittedMetadataLedger(compact, source, "promptRawUserFieldLedger", "NORMALIZED_LEDGER_ONLY");
+        recordOmittedMetadataLedger(compact, source, "promptFinalUserFieldLedger", "NORMALIZED_LEDGER_ONLY");
+        recordOmittedMetadataLedger(compact, source, "promptUserFieldDiffLedger", "NORMALIZED_LEDGER_ONLY");
+        compact.put("storagePolicy", "OFFICIAL_VERIFICATION_MINIMAL_METADATA_V1");
         return compact;
     }
 
+    private void copyPromptCompressionLedger(Map<String, Object> target, Map<String, Object> source) {
+        Object value = source.get("promptCompressionLedger");
+        if (!(value instanceof Iterable<?> records)) {
+            return;
+        }
+        List<Object> compact = new ArrayList<>();
+        for (Object record : records) {
+            if (!(record instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            copyCompressionLedgerValue(item, map, "action");
+            copyCompressionLedgerValue(item, map, "scopeKey");
+            copyCompressionLedgerValue(item, map, "reason");
+            if (!item.isEmpty()) {
+                compact.add(item);
+            }
+        }
+        if (!compact.isEmpty()) {
+            target.put("promptCompressionLedger", compact);
+        }
+    }
+
+    private void copyCompressionLedgerValue(Map<String, Object> target, Map<?, ?> source, String key) {
+        Object value = source.get(key);
+        if (value != null) {
+            target.put(key, compactTextValue(value));
+        }
+    }
+
+    private void copyPromptMetadataField(Map<String, Object> target, Map<String, Object> source, String key) {
+        if (!source.containsKey(key)) {
+            return;
+        }
+        Object value = compactMetadataValue(source.get(key));
+        if (value != null) {
+            target.put(key, value);
+        }
+    }
+
+    private void recordOmittedMetadataLedger(
+            Map<String, Object> target,
+            Map<String, Object> source,
+            String key,
+            String storagePolicy) {
+        if (!source.containsKey(key)) {
+            return;
+        }
+        target.put(key + "StoragePolicy", storagePolicy);
+        target.put(key + "OriginalCount", collectionSize(source.get(key)));
+    }
     private List<Object> compactFieldStateLedger(Object value) {
         if (!(value instanceof Iterable<?> rows)) {
             return List.of();

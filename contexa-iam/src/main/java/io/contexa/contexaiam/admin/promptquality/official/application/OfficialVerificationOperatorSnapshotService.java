@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
@@ -71,6 +73,30 @@ public class OfficialVerificationOperatorSnapshotService {
             "REVERIFY_CONDITION");
     private static final String CUSTOMER_PURPOSE_EVIDENCE_SEPARATOR = " || ";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+    private static final Set<String> PROMPT_EXECUTION_METADATA_HEADER_KEYS = Set.of(
+            "requestId",
+            "correlationId",
+            "promptHash",
+            "systemPromptHash",
+            "userPromptHash",
+            "contextHash",
+            "protectableResourceId",
+            "resourceId",
+            "endpointKey",
+            "promptContractVersion",
+            "modelProfile",
+            "promptCompressionApplied",
+            "compressionApplied",
+            "promptSourceContextLedgerStoragePolicy",
+            "promptFieldStateLedgerStoragePolicy",
+            "promptRawUserFieldLedgerStoragePolicy",
+            "promptFinalUserFieldLedgerStoragePolicy",
+            "promptUserFieldDiffLedgerStoragePolicy",
+            "promptSourceContextLedgerOmittedCount",
+            "promptFieldStateLedgerOmittedCount",
+            "promptRawUserFieldLedgerOmittedCount",
+            "promptFinalUserFieldLedgerOmittedCount",
+            "promptUserFieldDiffLedgerOmittedCount");
     private static final Pattern CUSTOMER_EVIDENCE_KEY_VALUE =
             Pattern.compile("([A-Za-z][A-Za-z0-9_.-]{1,80})\\s*=\\s*(.*?)(?=\\s*(?:[,;]\\s*[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=|[;\\r\\n]|$))");
     private static final Pattern CUSTOMER_TECHNICAL_CONTRACT_CODE =
@@ -1298,7 +1324,7 @@ public class OfficialVerificationOperatorSnapshotService {
         boolean blocked = failed > 0 || insufficient > 0 || total <= 0;
         String finalDecision = blocked ? "BLOCKED" : "CERTIFIABLE";
         Map<String, Object> requestFacts = jsonMap(evidencePackage.getRequestFactsJson());
-        Map<String, Object> promptMetadata = jsonMap(evidencePackage.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = parseCompactPromptExecutionMetadata(evidencePackage.getPromptExecutionMetadataJson());
         OfficialContextHashStateResolver.Resolution contextHashResolution =
                 OfficialContextHashStateResolver.resolve(requestFacts, promptMetadata, evidencePackage.getCanonicalContextJson());
         String resolvedContextHash = firstNonBlank(contextHash, contextHashResolution.contextHash());
@@ -5817,7 +5843,7 @@ public class OfficialVerificationOperatorSnapshotService {
         if (!StringUtils.hasText(aggregateRunId) || evidencePackage == null) {
             return;
         }
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = parseCompactPromptExecutionMetadata(evidencePackage.getPromptExecutionMetadataJson());
         Object summary = promptMetadata.get("promptUserFieldLineageSummary");
         Boolean compressionApplied = booleanValue(promptMetadata.get("compressionApplied"));
         Boolean rawTruthParity = effectiveRawTruthParity(evidencePackage, promptMetadata);
@@ -5933,21 +5959,13 @@ public class OfficialVerificationOperatorSnapshotService {
             return false;
         }
     }
-
     private void insertPromptFieldValueLedgers(
             String aggregateRunId,
             String packageId,
             SealedEvidencePackage evidencePackage) {
-        if (!StringUtils.hasText(aggregateRunId) || evidencePackage == null) {
-            return;
-        }
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
-        insertPromptFieldValueLedgerRows(aggregateRunId, packageId, "RAW_USER",
-                promptMetadata.get("promptRawUserFieldLedger"));
-        insertPromptFieldValueLedgerRows(aggregateRunId, packageId, "FINAL_USER",
-                promptMetadata.get("promptFinalUserFieldLedger"));
+        // Full prompt field value ledgers are intentionally not materialized from prompt_execution_metadata_json.
+        // Official inspection uses compact manifest summaries and persisted metric results instead.
     }
-
     private void insertPromptFieldValueLedgerRows(
             String aggregateRunId,
             String packageId,
@@ -6006,26 +6024,13 @@ public class OfficialVerificationOperatorSnapshotService {
                 booleanValue(row.get("blockingCandidate")),
                 nowTimestamp());
     }
-
     private void insertPromptFieldDiffLedgers(
             String aggregateRunId,
             String packageId,
             SealedEvidencePackage evidencePackage) {
-        if (!StringUtils.hasText(aggregateRunId) || evidencePackage == null) {
-            return;
-        }
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
-        Object diffLedger = promptMetadata.get("promptUserFieldDiffLedger");
-        if (!(diffLedger instanceof List<?> rows)) {
-            return;
-        }
-        for (Object row : rows) {
-            if (row instanceof Map<?, ?> map) {
-                insertPromptFieldDiffLedgerRow(aggregateRunId, packageId, map);
-            }
-        }
+        // Full prompt diff ledgers are intentionally not materialized from prompt_execution_metadata_json.
+        // Persisted official metric results remain the source for user-facing failure analysis.
     }
-
     private void insertPromptFieldDiffLedgerRow(
             String aggregateRunId,
             String packageId,
@@ -6071,15 +6076,6 @@ public class OfficialVerificationOperatorSnapshotService {
             for (Object row : rows) {
                 if (row instanceof Map<?, ?> map) {
                     insertPromptFieldStateLedgerRow(aggregateRunId, packageId, map);
-                }
-            }
-        }
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
-        Object diffLedger = promptMetadata.get("promptUserFieldDiffLedger");
-        if (diffLedger instanceof List<?> rows) {
-            for (Object row : rows) {
-                if (row instanceof Map<?, ?> map) {
-                    insertPromptProjectionLedgerRow(aggregateRunId, packageId, map);
                 }
             }
         }
@@ -7522,6 +7518,49 @@ public class OfficialVerificationOperatorSnapshotService {
         }
     }
 
+
+    private Map<String, Object> parseCompactPromptExecutionMetadata(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        try (JsonParser parser = objectMapper.getFactory().createParser(json)) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                return Map.of();
+            }
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                if (parser.currentToken() != JsonToken.FIELD_NAME) {
+                    parser.skipChildren();
+                    continue;
+                }
+                String key = parser.currentName();
+                JsonToken valueToken = parser.nextToken();
+                if (!PROMPT_EXECUTION_METADATA_HEADER_KEYS.contains(key)) {
+                    parser.skipChildren();
+                    continue;
+                }
+                if (valueToken == JsonToken.VALUE_STRING) {
+                    result.put(key, parser.getValueAsString());
+                }
+                else if (valueToken == JsonToken.VALUE_NUMBER_INT || valueToken == JsonToken.VALUE_NUMBER_FLOAT) {
+                    result.put(key, parser.getNumberValue());
+                }
+                else if (valueToken == JsonToken.VALUE_TRUE || valueToken == JsonToken.VALUE_FALSE) {
+                    result.put(key, parser.getBooleanValue());
+                }
+                else if (valueToken == JsonToken.VALUE_NULL) {
+                    result.put(key, null);
+                }
+                else {
+                    parser.skipChildren();
+                }
+            }
+            return result;
+        }
+        catch (Exception ignored) {
+            return Map.of();
+        }
+    }
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value == null ? Map.of() : value);

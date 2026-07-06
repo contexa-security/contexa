@@ -306,7 +306,7 @@ public class DefaultPromptQualityRuntimeVerificationService
         String generatedAt = now();
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
         Map<String, Object> authState = parseJson(pkg.getAuthStateJson());
-        Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = parsePromptExecutionMetadataHeader(pkg.getPromptExecutionMetadataJson());
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
         String requestPath = requestPath(pkg, requestFacts);
         String resourceId = resourceId(pkg, requestFacts, promptMetadata);
@@ -1796,7 +1796,6 @@ public class DefaultPromptQualityRuntimeVerificationService
                         "PROMPT_FIELD_STATE_LEDGER"));
             }
         }
-        addPromptExecutionMetadataProblemComparisons(resultByComparisonKey, pkg);
         return List.copyOf(resultByComparisonKey.values());
     }
 
@@ -1828,134 +1827,6 @@ public class DefaultPromptQualityRuntimeVerificationService
             case "UNKNOWN_WITHOUT_REASON", "CONTRACT_MISMATCH" -> "VALUE_MISMATCH";
             default -> "VALUE_MISMATCH";
         };
-    }
-
-    private void addPromptExecutionMetadataProblemComparisons(
-            Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
-            SealedEvidencePackage pkg) {
-        Map<String, Object> promptMetadata = parseJson(pkg == null ? null : pkg.getPromptExecutionMetadataJson());
-        addPromptFinalUserFieldLedgerComparisons(resultByComparisonKey, promptMetadata.get("promptFinalUserFieldLedger"));
-        addPromptUserFieldDiffLedgerComparisons(resultByComparisonKey, promptMetadata.get("promptUserFieldDiffLedger"));
-    }
-
-    private void addPromptFinalUserFieldLedgerComparisons(
-            Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
-            Object ledger) {
-        if (!(ledger instanceof List<?> rows)) {
-            return;
-        }
-        for (Object row : rows) {
-            if (!(row instanceof Map<?, ?> map)) {
-                continue;
-            }
-            String fieldKey = stringValue(map.get("fieldKey"));
-            if (!StringUtils.hasText(fieldKey)) {
-                continue;
-            }
-            String comparisonState = promptProblemStateFromPromptField(map);
-            if (!StringUtils.hasText(comparisonState)) {
-                continue;
-            }
-            String label = firstNonBlank(stringValue(map.get("label")), fieldKey);
-            String section = firstNonBlank(
-                    stringValue(map.get("sectionTitle")),
-                    stringValue(map.get("sectionKey")),
-                    "userPrompt");
-            putPromptComparison(resultByComparisonKey, new OfficialVerificationPromptComparison(
-                    fieldKey,
-                    fieldLabel(fieldKey, label),
-                    stringValue(map.get("valuePreview")),
-                    stringValue(map.get("valuePreview")),
-                    stringValue(map.get("valuePreview")),
-                    comparisonState,
-                    comparisonStateLabel(comparisonState),
-                    firstNonBlank(stringValue(map.get("absenceReasonText")), comparisonMeaning(comparisonState)),
-                    stringList(map.get("metricCodes")),
-                    List.of(),
-                    List.of(),
-                    List.of(),
-                    List.of(),
-                    section,
-                    "sealedEvidence.promptExecutionMetadata.promptFinalUserFieldLedger",
-                    firstNonBlank(stringValue(map.get("remediationOwner")), "PROMPT_ASSEMBLER"),
-                    "PROMPT_FINAL_USER_FIELD_LEDGER"));
-        }
-    }
-
-    private void addPromptUserFieldDiffLedgerComparisons(
-            Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
-            Object ledger) {
-        if (!(ledger instanceof List<?> rows)) {
-            return;
-        }
-        for (Object row : rows) {
-            if (!(row instanceof Map<?, ?> map)) {
-                continue;
-            }
-            String fieldKey = stringValue(map.get("fieldKey"));
-            if (!StringUtils.hasText(fieldKey)) {
-                continue;
-            }
-            String diffType = firstNonBlank(stringValue(map.get("diffType")), stringValue(map.get("problemType")));
-            boolean blocking = Boolean.TRUE.equals(map.get("blockingCandidate"))
-                    || Boolean.TRUE.equals(map.get("officialBlockingCandidate"))
-                    || "MISSING_IN_FINAL_PROMPT".equalsIgnoreCase(diffType)
-                    || "VALUE_CHANGED".equalsIgnoreCase(diffType);
-            if (!blocking) {
-                continue;
-            }
-            String comparisonState = "MISSING_IN_FINAL_PROMPT".equalsIgnoreCase(diffType)
-                    || "VALUE_CHANGED".equalsIgnoreCase(diffType)
-                    ? "CONTRACT_MISMATCH"
-                    : firstNonBlank(stringValue(map.get("problemType")), "PROMPT_COMPACTED_SIGNAL");
-            String label = firstNonBlank(stringValue(map.get("label")), fieldKey);
-            String section = firstNonBlank(
-                    stringValue(map.get("sectionTitle")),
-                    stringValue(map.get("sectionKey")),
-                    "userPrompt");
-            putPromptComparison(resultByComparisonKey, new OfficialVerificationPromptComparison(
-                    fieldKey,
-                    fieldLabel(fieldKey, label),
-                    firstNonBlank(stringValue(map.get("rawValuePreview")), stringValue(map.get("reason"))),
-                    firstNonBlank(stringValue(map.get("finalValuePreview")), stringValue(map.get("reason"))),
-                    firstNonBlank(stringValue(map.get("rawValuePreview")), stringValue(map.get("finalValuePreview"))),
-                    comparisonState,
-                    comparisonStateLabel(comparisonState),
-                    firstNonBlank(stringValue(map.get("reason")), comparisonMeaning(comparisonState)),
-                    stringList(map.get("metricCodes")),
-                    List.of(),
-                    List.of(),
-                    List.of(),
-                    List.of(),
-                    section,
-                    "sealedEvidence.promptExecutionMetadata.promptUserFieldDiffLedger",
-                    firstNonBlank(stringValue(map.get("remediationOwner")), "PROMPT_ASSEMBLER"),
-                    "PROMPT_USER_FIELD_DIFF_LEDGER"));
-        }
-    }
-
-    private String promptProblemStateFromPromptField(Map<?, ?> row) {
-        String explicitProblemType = firstNonBlank(stringValue(row.get("problemType")), "");
-        if (StringUtils.hasText(explicitProblemType)) {
-            return explicitProblemType.toUpperCase(Locale.ROOT);
-        }
-        String fieldState = stringValue(row.get("fieldState"));
-        String stateProblem = promptProblemStateFromFieldState(row);
-        if (actualPromptProblemState(stateProblem)) {
-            return stateProblem;
-        }
-        String projectionState = stringValue(row.get("projectionState"));
-        if ("MISSING".equalsIgnoreCase(projectionState)
-                || "MISSING_IN_PROMPT".equalsIgnoreCase(projectionState)
-                || "VALUE_MISMATCH".equalsIgnoreCase(projectionState)) {
-            return "CONTRACT_MISMATCH";
-        }
-        if (Boolean.TRUE.equals(row.get("compactedMarker"))
-                || Boolean.TRUE.equals(row.get("truncatedMarker"))
-                || "COMPACTED_WITH_FULL_SOURCE".equalsIgnoreCase(fieldState)) {
-            return "PROMPT_COMPACTED_SIGNAL";
-        }
-        return "";
     }
 
     private String promptProblemStateFromFieldState(Map<?, ?> row) {

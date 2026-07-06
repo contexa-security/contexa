@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.application.support;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
@@ -13,12 +15,37 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
     private static final int PROMPT_PREVIEW_LIMIT = 900;
+    private static final Set<String> PROMPT_EXECUTION_METADATA_HEADER_KEYS = Set.of(
+            "requestId",
+            "correlationId",
+            "promptHash",
+            "systemPromptHash",
+            "userPromptHash",
+            "contextHash",
+            "protectableResourceId",
+            "resourceId",
+            "endpointKey",
+            "promptContractVersion",
+            "modelProfile",
+            "promptCompressionApplied",
+            "compressionApplied",
+            "promptSourceContextLedgerStoragePolicy",
+            "promptFieldStateLedgerStoragePolicy",
+            "promptRawUserFieldLedgerStoragePolicy",
+            "promptFinalUserFieldLedgerStoragePolicy",
+            "promptUserFieldDiffLedgerStoragePolicy",
+            "promptSourceContextLedgerOmittedCount",
+            "promptFieldStateLedgerOmittedCount",
+            "promptRawUserFieldLedgerOmittedCount",
+            "promptFinalUserFieldLedgerOmittedCount",
+            "promptUserFieldDiffLedgerOmittedCount");
 
     protected final ObjectMapper objectMapper;
     protected final PromptQualityMessageResolver messageResolver;
@@ -47,6 +74,49 @@ public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
         }
     }
 
+
+    protected Map<String, Object> parsePromptExecutionMetadataHeader(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        try (JsonParser parser = objectMapper.getFactory().createParser(json)) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                return Map.of();
+            }
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                if (parser.currentToken() != JsonToken.FIELD_NAME) {
+                    parser.skipChildren();
+                    continue;
+                }
+                String key = parser.currentName();
+                JsonToken valueToken = parser.nextToken();
+                if (!PROMPT_EXECUTION_METADATA_HEADER_KEYS.contains(key)) {
+                    parser.skipChildren();
+                    continue;
+                }
+                if (valueToken == JsonToken.VALUE_STRING) {
+                    result.put(key, parser.getValueAsString());
+                }
+                else if (valueToken == JsonToken.VALUE_NUMBER_INT || valueToken == JsonToken.VALUE_NUMBER_FLOAT) {
+                    result.put(key, parser.getNumberValue());
+                }
+                else if (valueToken == JsonToken.VALUE_TRUE || valueToken == JsonToken.VALUE_FALSE) {
+                    result.put(key, parser.getBooleanValue());
+                }
+                else if (valueToken == JsonToken.VALUE_NULL) {
+                    result.put(key, null);
+                }
+                else {
+                    parser.skipChildren();
+                }
+            }
+            return result;
+        }
+        catch (Exception ignored) {
+            return Map.of();
+        }
+    }
     protected Map<String, String> stringMap(Map<String, Object> source) {
         Map<String, String> result = new LinkedHashMap<>();
         if (source == null) {
@@ -408,3 +478,4 @@ public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
         return resolved;
     }
 }
+

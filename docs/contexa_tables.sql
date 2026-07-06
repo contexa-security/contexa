@@ -3552,10 +3552,8 @@ create table public.verification_run_ledger
     checks_jsonb              jsonb,
     request_facts_jsonb       jsonb,
     event_facts_jsonb         jsonb,
-    prompt_facts_jsonb        jsonb,
     analysis_facts_jsonb      jsonb,
-    events_jsonb              jsonb,
-    raw_evidence_jsonb        jsonb
+    events_jsonb              jsonb
 );
 
 alter table public.verification_run_ledger
@@ -3576,14 +3574,10 @@ create index idx_verification_run_ledger_package_metric
 create index idx_verification_run_ledger_request_facts_jsonb
     on public.verification_run_ledger using gin (request_facts_jsonb);
 
-create index idx_verification_run_ledger_prompt_facts_jsonb
-    on public.verification_run_ledger using gin (prompt_facts_jsonb);
 
 create index idx_verification_run_ledger_analysis_facts_jsonb
     on public.verification_run_ledger using gin (analysis_facts_jsonb);
 
-create index idx_verification_run_ledger_raw_evidence_jsonb
-    on public.verification_run_ledger using gin (raw_evidence_jsonb);
 
 create table public.verification_execution_request_ledger
 (
@@ -4322,7 +4316,6 @@ create table public.verification_raw_evidence_artifact_ledger
     artifact_body       text                                not null,
     sha256              varchar(128),
     created_at          timestamp default CURRENT_TIMESTAMP not null,
-    artifact_body_jsonb jsonb,
     constraint uq_verification_raw_evidence_artifact_ledger
         unique (run_id, artifact_type)
 );
@@ -4333,8 +4326,6 @@ alter table public.verification_raw_evidence_artifact_ledger
 create index idx_verification_raw_evidence_artifact_ledger_run
     on public.verification_raw_evidence_artifact_ledger (run_id, artifact_type);
 
-create index idx_verification_raw_evidence_artifact_jsonb
-    on public.verification_raw_evidence_artifact_ledger using gin (artifact_body_jsonb);
 
 create table public.benchmark_public_site_projection
 (

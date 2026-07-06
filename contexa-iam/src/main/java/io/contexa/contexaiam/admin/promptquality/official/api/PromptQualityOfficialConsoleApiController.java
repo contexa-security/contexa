@@ -626,7 +626,6 @@ public class PromptQualityOfficialConsoleApiController {
         evidence.put("ragResults", objectValue(pkg.getRagResultsJson()));
         evidence.put("ragResultsCaptured", StringUtils.hasText(pkg.getRagResultsJson()));
         evidence.put("decision", objectValue(pkg.getDecisionJson()));
-        evidence.put("promptMetadata", objectValue(pkg.getPromptExecutionMetadataJson()));
         evidence.put("promptConsistency", promptConsistency(pkg));
         evidence.put("qualityWarnings", List.of());
         evidence.put("missingKnowledgeSignals", List.of());

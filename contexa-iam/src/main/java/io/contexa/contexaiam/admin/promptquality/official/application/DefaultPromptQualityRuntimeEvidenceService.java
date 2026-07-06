@@ -129,7 +129,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
                         packageId)));
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
         Map<String, Object> authState = parseJson(pkg.getAuthStateJson());
-        Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = Map.of();
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
         Map<String, Object> baselineSnapshot = parseJson(pkg.getBaselineSnapshotJson());
         Map<String, Object> ragResults = parseJson(pkg.getRagResultsJson());
@@ -164,7 +164,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     private boolean matches(SealedEvidencePackage pkg, RuntimeEvidenceSearchCriteria criteria) {
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
-        Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = Map.of();
         String actualPath = requestPath(pkg, requestFacts);
         boolean pathMatched = matchesPath(criteria.resourceUrl(), actualPath);
         return matchesText(criteria.tenantId(), pkg.getTenantId())
@@ -272,7 +272,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg, boolean integrityValid) {
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
-        Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = Map.of();
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
         PromptQualityStateDescriptor state = stateCatalog.runtimeEvidence(
                 pkg.isSealed(),

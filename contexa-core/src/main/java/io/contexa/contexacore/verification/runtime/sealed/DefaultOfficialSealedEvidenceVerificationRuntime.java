@@ -297,13 +297,13 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
         putIfPresent(facts, "promptExecutionMetadataRef", promptRef(evidencePackage, "prompt_execution_metadata_json"));
         putIfPresent(facts, "promptEvidenceManifestRef", promptRef(evidencePackage, "prompt_evidence_manifest_json"));
         putIfPresent(facts, "promptFieldStateLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptFieldStateLedger");
+                promptRef(evidencePackage, "prompt_evidence_manifest_json") + ":fieldStateLedger");
         putIfPresent(facts, "promptSourceContextLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptSourceContextLedger");
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptSourceContextLedgerStoragePolicy");
         putIfPresent(facts, "promptRawUserFieldLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptRawUserFieldLedger");
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptRawUserFieldLedgerStoragePolicy");
         putIfPresent(facts, "promptFinalUserFieldLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptFinalUserFieldLedger");
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptFinalUserFieldLedgerStoragePolicy");
         return facts;
     }
 

@@ -45,7 +45,7 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
             return RuntimeEvidencePromptConsistencyResult.empty();
         }
         Map<String, Object> requestFacts = parseJson(evidencePackage.getRequestFactsJson());
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = parsePromptExecutionMetadataHeader(evidencePackage.getPromptExecutionMetadataJson());
         List<RuntimeEvidenceCheckResult> checks = new ArrayList<>();
         List<String> findings = new ArrayList<>();
         List<String> nextActions = new ArrayList<>();
